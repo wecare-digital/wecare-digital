@@ -1140,22 +1140,18 @@ const Header: React.FC = () => {
           font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
         }
 
-        /* PRODUCTS SCROLL. Only the Products group. The catalogue is meant to reach 100+
-           entries, so its list is capped and scrolls rather than making the whole panel
-           grow past the viewport. With today's ~10 products it never scrolls - max-height
-           is a ceiling, not a fixed height - so nothing changes until the list is long.
-           Desktop shows 7 rows (7 x 46px = 322px) and mobile shows 7 rows
-           (7 x 52px = 364px) before the dedicated Products scroller takes over. */
+        /* PRODUCTS SCROLL. The catalogue is meant to reach 100+ entries, so Products
+           keeps its own capped rail on desktop AND mobile. Desktop shows seven 46px rows;
+           mobile shows seven 52px rows. On mobile the vertical scroll chain stays AUTO so a
+           swipe can continue into the main menu after the Products rail reaches its end. */
         .nav-group-products{min-height:0}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
            label as they pass under it. z-index clears the rows. */
         .nav-group-products .nav-group-label{position:sticky;top:0;z-index:2;background:#fcfdfb}
         .nav-products-scroll{
-          /* 7 rows. The right column gained the With AI group, so Products gets two
-             more visible rows to keep the menu visually balanced while preserving a dedicated
-             product scroller for the long catalogue. Desktop uses 46px rows; the mobile
-             override below uses its 52px touch rows and therefore a 364px ceiling. */
+          /* Seven desktop rows. Mobile overrides only the row-height-derived ceiling
+             (7 x 52px = 364px); the same overflow rail and continuation cue stay active. */
           max-height:322px;
           overflow-y:auto;
           -webkit-overflow-scrolling:touch;
@@ -1291,7 +1287,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:contain}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
@@ -1315,7 +1311,7 @@ const Header: React.FC = () => {
              a navigation destination into two lines. 17px preserves the hierarchy while
              fitting the longest current label. */
           .nav-row-icon,.nav-row-material-symbol,.nav-sub-icon{display:none}
-          .nav-item,.nav-child{font-size:17px;padding-inline:10px}
+          .nav-item,.nav-child{font-size:18px;padding-inline:10px}
         }
 
         @media(prefers-reduced-motion:reduce){

@@ -39,7 +39,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
-import { fetchServicePrices, rupeesFromPaise, type ServicePriceBreakdown } from '../../../lib/servicePricing';
+import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
@@ -97,6 +97,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
     const [ vaultPricePaise, setVaultPricePaise ] = useState<number | null>( null );
     const [ vaultBreakdown, setVaultBreakdown ] = useState<ServicePriceBreakdown | null>( null );
+    const [ vaultTemplates, setVaultTemplates ] = useState<ServicePaymentTemplates | null>( null );
     const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
@@ -131,6 +132,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
             const vault = prices.vault;
             setVaultPricePaise( vault?.available ? vault.paise : null );
             setVaultBreakdown( vault?.available ? vault.breakdown || null : null );
+            setVaultTemplates( vault?.available ? vault.templates || null : null );
             setVaultPriceLoading( false );
         } );
         return () => { cancelled = true; };
@@ -337,10 +339,10 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
 
                 { manageOnly && (
                     <section className="sf-journey" aria-label="Vault customer journey">
-                        <div><span>1</span><strong>Request ready</strong><small>Unlock Vault</small></div>
-                        <div><span>2</span><strong>Review & Pay</strong><small>Exact file · live catalog price</small></div>
-                        <div><span>3</span><strong>Access Vault</strong><small>Paid entitlement</small></div>
-                        <div><span>4</span><strong>Receipt</strong><small>Payment receipt · View order</small></div>
+                        <div><span>1</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
+                        <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join(' → ')}` : 'Shared order-status template' }</small></div>
+                        <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' }</small></div>
+                        <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
                     </section>
                 ) }
 
@@ -666,7 +668,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                             <div>
                                 <p className="sf-review-eyebrow">Customer preview</p>
                                 <h2 id="sf-review-title">Review &amp; Pay</h2>
-                                <p>Exact file · live catalog price</p>
+                                <p>{ vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
                             </div>
                             <button
                                 type="button"

@@ -133,6 +133,6 @@ Use this prompt when changing the receipt:
 4. Confirm the preferred Inter font objects exist; if they do not, verify the packaged fallback still renders.
 5. Compile the payments/shared Python and run the payment-rail verification.
 6. Inspect a local/QA PNG for clipping, transparent outside pixels, lime edge, readable totals, optional-row behavior and long customer/item text.
-7. Push through `.github/workflows/payment-rail-ci.yml`. Production is the `live` alias, not `$LATEST`.
+7. Run the payment-rail verification explicitly and review the deterministic package delta before release. Production is the `live` alias, not `$LATEST`.
 8. Verify the `wecare-commerce`, `wecare-checkout` and `wecare-invoice-engine` live aliases/code hashes.
 9. Generate a new versioned receipt asset for QA rather than destructively replacing an issued customer's historical rendition unless the owner explicitly requests a rerender.

@@ -74,7 +74,7 @@ const fail = ( message ) => { throw new Error( message ); };
           backgroundColor: css.backgroundColor,
         };
       } );
-      const expectedHomeFontSize = viewport.width <= 340 ? '17px' : '19px';
+      const expectedHomeFontSize = viewport.width <= 340 ? '18px' : viewport.width <= 767 ? '20px' : '19px';
       if ( homeStyle.fontSize !== expectedHomeFontSize ) {
         fail( `${viewport.name}: Home row font-size ${homeStyle.fontSize} (expected ${expectedHomeFontSize})` );
       }
@@ -106,6 +106,48 @@ const fail = ( message ) => { throw new Error( message ); };
       const partnerLabels = await partner.locator( '.nav-item' ).allTextContents();
       if ( partnerLabels.join( '|' ) !== 'Partner|Referral|Merchandise|Kiosk' ) {
         fail( `${viewport.name}: Partner order ${partnerLabels.join( ' > ' )}` );
+      }
+
+      // Mobile intentionally keeps the same capped Products rail as desktop: seven
+      // product rows plus the existing continuation button. The important safety contract is
+      // that vertical overscroll remains AUTO, so reaching the end of Products can hand the
+      // gesture back to the main menu instead of trapping Request and later sections below it.
+      if ( viewport.width <= 767 ) {
+        const menuScroll = await menu.evaluate( node => ( {
+          overflowY: getComputedStyle( node ).overflowY,
+          scrollable: node.scrollHeight > node.clientHeight + 1,
+        } ) );
+        if ( !menuScroll.scrollable || ![ 'auto', 'scroll' ].includes( menuScroll.overflowY ) ) {
+          fail( `${viewport.name}: main menu is not scrollable ${JSON.stringify( menuScroll )}` );
+        }
+
+        const productScroll = await page.locator( '.nav-products-scroll' ).evaluate( node => {
+          const css = getComputedStyle( node );
+          return {
+            overflowY: css.overflowY,
+            overscrollBehaviorY: css.overscrollBehaviorY,
+            maxHeight: css.maxHeight,
+            scrollable: node.scrollHeight > node.clientHeight + 1,
+          };
+        } );
+        if ( !productScroll.scrollable || ![ 'auto', 'scroll' ].includes( productScroll.overflowY ) ) {
+          fail( `${viewport.name}: Products is not a mobile scroll rail ${JSON.stringify( productScroll )}` );
+        }
+        if ( productScroll.maxHeight !== '364px' ) {
+          fail( `${viewport.name}: Products rail height ${productScroll.maxHeight} (expected 364px / seven rows)` );
+        }
+        if ( productScroll.overscrollBehaviorY !== 'auto' ) {
+          fail( `${viewport.name}: Products traps vertical scroll chaining ${JSON.stringify( productScroll )}` );
+        }
+
+        const moreProducts = page.getByRole( 'button', { name: 'Scroll to more products' } );
+        const moreProductsCount = await moreProducts.count();
+        if ( moreProductsCount > 0 ) {
+          await moreProducts.waitFor( { state: 'visible' } );
+          if ( await moreProducts.getAttribute( 'aria-hidden' ) !== 'false' ) {
+            fail( `${viewport.name}: Products continuation button is hidden while products remain` );
+          }
+        }
       }
 
       const search = page.getByLabel( 'Search navigation' );

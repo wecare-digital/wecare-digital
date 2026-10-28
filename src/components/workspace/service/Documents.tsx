@@ -24,7 +24,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
-import { fetchServicePrices, rupeesFromPaise, type ServicePriceBreakdown } from '../../../lib/servicePricing';
+import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 import ServiceDataState from '../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
@@ -228,6 +228,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ createFile, setCreateFile ] = useState<File | null>( null );
   const [ dropDocsPricePaise, setDropDocsPricePaise ] = useState<number | null>( null );
   const [ dropDocsBreakdown, setDropDocsBreakdown ] = useState<ServicePriceBreakdown | null>( null );
+  const [ dropDocsTemplates, setDropDocsTemplates ] = useState<ServicePaymentTemplates | null>( null );
   const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
@@ -257,6 +258,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       const dropDocs = prices[ 'drop-docs' ];
       setDropDocsPricePaise( dropDocs?.available ? dropDocs.paise : null );
       setDropDocsBreakdown( dropDocs?.available ? dropDocs.breakdown || null : null );
+      setDropDocsTemplates( dropDocs?.available ? dropDocs.templates || null : null );
     } );
     return () => { cancelled = true; };
   }, [] );
@@ -795,19 +797,19 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <div><strong>{ stats.archived }</strong><span>Archived</span></div>
         </div>
 
-        <section className="dd-journey" aria-label="Vault WhatsApp journey">
+        <section className="dd-journey" aria-label="Drop Docs WhatsApp journey">
           <div className="dd-journey-head">
             <div>
-              <strong>Vault WhatsApp journey</strong>
+              <strong>Drop Docs WhatsApp journey</strong>
               <span>What the customer receives, in order</span>
             </div>
-            <span className="dd-journey-note">Vault offer uses the approved WECARE header; receipt uses the generated payment image.</span>
+            <span className="dd-journey-note">Payment/status/receipt are shared platform defaults; only the paid Drop Docs delivery step is service-specific.</span>
           </div>
           <div className="dd-journey-grid">
-            <div><span>1</span><strong>Vault offer</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
-            <div><span>2</span><strong>Review & Pay</strong><small>wecare_whatapp_native_pay_template</small></div>
-            <div><span>3</span><strong>Access Vault</strong><small>wecare_default_download</small></div>
-            <div><span>4</span><strong>Receipt</strong><small>wecare_default_invoice_image_template</small></div>
+            <div><span>1</span><strong>Review &amp; Pay</strong><small>{ dropDocsTemplates?.nativePay || 'Native payment template' }</small></div>
+            <div><span>2</span><strong>Order status</strong><small>{ dropDocsTemplates ? `${dropDocsTemplates.orderStatus} · ${dropDocsTemplates.orderStatusStates.join(' → ')}` : 'Shared order-status template' }</small></div>
+            <div><span>3</span><strong>Drop Docs Flow</strong><small>{ dropDocsTemplates?.delivery || 'Paid Drop Docs Flow template' }</small></div>
+            <div><span>4</span><strong>Receipt</strong><small>{ dropDocsTemplates?.receipt || 'Shared invoice template' }</small></div>
           </div>
         </section>
 
@@ -815,7 +817,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <div className="dd-review-preview-head">
             <div>
               <strong>Review &amp; Pay preview</strong>
-              <span>Drop Docs · same server pricing as WhatsApp</span>
+              <span>Drop Docs · { dropDocsTemplates?.nativePay || 'native Review & Pay' } · same server pricing as WhatsApp</span>
             </div>
             <img
               src="https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"

@@ -22,6 +22,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Mapping, Optional
 
+from lambda_utils import whatsapp_templates
 from lambda_utils.ecommerce import checkout_pricing, default_coupon, service_requests
 from lambda_utils.ecommerce.money import positive_paise
 
@@ -78,6 +79,28 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
     }
 
 
+def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
+    """The exact shared outbound defaults Workspace should preview.
+
+    Names come from the same registry used by checkout/outbound. Vault and Drop Docs deliberately
+    share PAY, ORDER_STATUS and INVOICE; only the paid delivery step differs.
+    """
+    if kind not in (service_requests.VAULT, service_requests.DROP_DOCS):
+        return None
+    delivery = (
+        whatsapp_templates.DOWNLOAD
+        if kind == service_requests.VAULT
+        else whatsapp_templates.DROP_DOCS_FLOW
+    )
+    return {
+        "nativePay": whatsapp_templates.PAY.name,
+        "orderStatus": whatsapp_templates.ORDER_STATUS.name,
+        "orderStatusStates": ["processing", "completed"],
+        "delivery": delivery.name,
+        "receipt": whatsapp_templates.INVOICE.name,
+    }
+
+
 def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     """Every public service slug's native price. No warm-sandbox cache here: a
     DynamoDB point read per slug is cheap and avoids serving a stale price across a
@@ -91,6 +114,9 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
             breakdown = _collect_breakdown(kind, paise)
             if breakdown is not None:
                 row["breakdown"] = breakdown
+            templates = _payment_templates(kind)
+            if templates is not None:
+                row["templates"] = templates
             prices[slug] = row
         except Exception as error:  # noqa: BLE001 - one slug must not blank the others
             logger.warning(json.dumps({"event": "service_price_unavailable_native",
@@ -99,4 +125,4 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     return {"currency": SERVICE_CURRENCY, "prices": prices}
 
 
-__all__ = ["SERVICE_CURRENCY", "_collect_breakdown", "resolve_all"]
+__all__ = ["SERVICE_CURRENCY", "_collect_breakdown", "_payment_templates", "resolve_all"]

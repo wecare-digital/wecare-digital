@@ -656,10 +656,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'
     || router.pathname === '/get'
-    // The shop cart and the customer OTP sign-in step are the same kind of customer-session surface
-    // as the checkout screens below: public chrome, robots:noindex set per page, and deliberately
-    // OUT of PUBLIC_PAGE_META, the sitemap and the AI manifest. /cart proceeds to checkout.
-    // Customer sign-in itself is served by the backend rewrite at /auth, not by this Next app.
+    // The shop cart and customer OTP sign-in are customer-session surfaces: public chrome,
+    // robots:noindex per page, and deliberately OUT of PUBLIC_PAGE_META, the sitemap and AI manifest.
+    // /auth is a real Next page now. Only its state/step endpoints are rewritten to the auth API,
+    // so it receives the exact same Header/search/cart, PublicShare, Footer and SupportWidget as
+    // every other public route instead of carrying a copied backend shell.
+    || router.pathname === '/auth'
     || router.pathname === '/cart'
     || router.pathname === '/checkout'
     // Checkout status + success are customer-session screens, not marketing pages: they carry the
