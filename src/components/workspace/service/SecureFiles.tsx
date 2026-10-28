@@ -332,7 +332,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                         <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-display">
-                                Vault message name <span className="sf-label-opt">({ '{{1}}' } in wecare_valut_49)</span>
+                                Vault message name <span className="sf-label-opt">({ '{{1}}' } in wecare_vault_request_ready)</span>
                             </label>
                             <input
                                 id="sf-display"
@@ -394,7 +394,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 <span>Send the Vault offer on WhatsApp after upload</span>
                             </label>
                             <p className="sf-hint">
-                                The customer gets a text-first Vault offer with an <strong>Unlock Vault</strong> button.
+                                The customer gets the approved Vault request-ready message with the WECARE image header and an <strong>Unlock Vault</strong> button.
                                 Tapping it opens Review &amp; Pay for this exact file; Access Vault follows once paid.
                             </p>
                         </div>
