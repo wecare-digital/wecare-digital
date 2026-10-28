@@ -1,6 +1,6 @@
-"""WECARE.DIGITAL customer PAYMENT RECEIPT v10.
+"""WECARE.DIGITAL customer PAYMENT RECEIPT v11.
 
-Fresh fixed-coordinate renderer for the owner-approved 1024 x 1536 reference; no legacy visual fallback.
+Owner-reference 1024 x 1536 renderer. The retired punched-circle/scallop layout has no fallback path.
 Presentation only: it renders persisted invoice facts and never recalculates pricing.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ FOREST = (26, 58, 42)
 INK = (17, 23, 29)
 MUTED = (86, 93, 99)
 PAPER = (253, 253, 251)
-PALE = (239, 246, 240)
+PALE = (229, 241, 223)
 LINE = (210, 219, 213)
 PAID_GREEN = (8, 133, 55)
 RED = (255, 0, 64)  # brand dot, #ff0040 as in BrandLockup
@@ -125,25 +125,36 @@ def _center(draw, value, font, y, fill=INK):
 
 
 def _scalloped_frame(canvas, y_bottom):
-    """Draw the approved narrow white receipt with a thin neon-lime scalloped edge."""
-    top = 24
+    """Draw the approved thin neon-lime wavy receipt edge.
+
+    This replaces the retired punched-circle edge. The border is one continuous
+    wavy outline with a narrow lime rim and restrained glow, matching the owner
+    reference without circular holes along the paper edge.
+    """
+    import math
+
     outer = Image.new("L", canvas.size, 0)
     od = ImageDraw.Draw(outer)
 
-    # Base body, then outward scallop lobes on all four sides.
-    od.rectangle((PAPER_X0 + 10, top + 10, PAPER_X1 - 10, y_bottom - 10), fill=255)
-    lobe_r = 11
-    step = 27
-    for x in range(PAPER_X0 + 18, PAPER_X1 - 16, step):
-        od.ellipse((x-lobe_r, top-lobe_r, x+lobe_r, top+lobe_r), fill=255)
-        od.ellipse((x-lobe_r, y_bottom-lobe_r, x+lobe_r, y_bottom+lobe_r), fill=255)
-    for y in range(top + 18, y_bottom - 16, step):
-        od.ellipse((PAPER_X0-lobe_r, y-lobe_r, PAPER_X0+lobe_r, y+lobe_r), fill=255)
-        od.ellipse((PAPER_X1-lobe_r, y-lobe_r, PAPER_X1+lobe_r, y+lobe_r), fill=255)
+    ox0, ox1 = PAPER_X0 + 4, PAPER_X1 - 4
+    oy0, oy1 = 28, y_bottom
+    amp = 7.0
+    period = 28.0
+    points = []
 
-    # Restrained neon halo; the previous renderer blurred too broadly and became a thick block.
-    broad = outer.filter(ImageFilter.GaussianBlur(10)).point(lambda a: int(a * .18))
-    tight = outer.filter(ImageFilter.GaussianBlur(3)).point(lambda a: int(a * .34))
+    for x in range(ox0, ox1 + 1, 2):
+        points.append((x, oy0 + amp * math.sin((x - ox0) * 2 * math.pi / period)))
+    for y in range(oy0, oy1 + 1, 2):
+        points.append((ox1 + amp * math.sin((y - oy0) * 2 * math.pi / period), y))
+    for x in range(ox1, ox0 - 1, -2):
+        points.append((x, oy1 + amp * math.sin((ox1 - x) * 2 * math.pi / period)))
+    for y in range(oy1, oy0 - 1, -2):
+        points.append((ox0 + amp * math.sin((oy1 - y) * 2 * math.pi / period), y))
+
+    od.polygon(points, fill=255)
+
+    broad = outer.filter(ImageFilter.GaussianBlur(10)).point(lambda a: int(a * .08))
+    tight = outer.filter(ImageFilter.GaussianBlur(4)).point(lambda a: int(a * .14))
     glow_alpha = ImageChops.lighter(broad, tight)
     glow = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
     glow.putalpha(glow_alpha)
@@ -153,25 +164,33 @@ def _scalloped_frame(canvas, y_bottom):
     lime.putalpha(outer)
     canvas.alpha_composite(lime)
 
-    # White paper inset with its own scalloped boundary, leaving a thin lime edge.
-    inset = 15
     inner = Image.new("L", canvas.size, 0)
     idraw = ImageDraw.Draw(inner)
-    ix0, ix1 = PAPER_X0 + inset, PAPER_X1 - inset
-    iy0, iy1 = top + inset, y_bottom - inset
-    idraw.rectangle((ix0 + 8, iy0 + 8, ix1 - 8, iy1 - 8), fill=255)
-    inner_r = 10
-    for x in range(ix0 + 17, ix1 - 15, step):
-        idraw.ellipse((x-inner_r, iy0-inner_r, x+inner_r, iy0+inner_r), fill=255)
-        idraw.ellipse((x-inner_r, iy1-inner_r, x+inner_r, iy1+inner_r), fill=255)
-    for y in range(iy0 + 17, iy1 - 15, step):
-        idraw.ellipse((ix0-inner_r, y-inner_r, ix0+inner_r, y+inner_r), fill=255)
-        idraw.ellipse((ix1-inner_r, y-inner_r, ix1+inner_r, y+inner_r), fill=255)
+
+    ix0, ix1 = PAPER_X0 + 22, PAPER_X1 - 22
+    iy0, iy1 = 47, y_bottom - 18
+    inner_amp = 5.5
+    inner_period = 28.0
+    inner_points = []
+
+    for x in range(ix0, ix1 + 1, 2):
+        inner_points.append(
+            (x, iy0 + inner_amp * math.sin((x - ix0) * 2 * math.pi / inner_period)))
+    for y in range(iy0, iy1 + 1, 2):
+        inner_points.append(
+            (ix1 + inner_amp * math.sin((y - iy0) * 2 * math.pi / inner_period), y))
+    for x in range(ix1, ix0 - 1, -2):
+        inner_points.append(
+            (x, iy1 + inner_amp * math.sin((ix1 - x) * 2 * math.pi / inner_period)))
+    for y in range(iy1, iy0 - 1, -2):
+        inner_points.append(
+            (ix0 + inner_amp * math.sin((iy1 - y) * 2 * math.pi / inner_period), y))
+
+    idraw.polygon(inner_points, fill=255)
 
     paper = Image.new("RGBA", canvas.size, PAPER + (0,))
     paper.putalpha(inner)
     canvas.alpha_composite(paper)
-
 
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
            canonical_status, amount_in_words, source_label, customer_id=""):
@@ -189,13 +208,14 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     small = _font(font_paths, "regular", 18)
     small_bold = _font(font_paths, "semibold", 18)
     fact_regular = _font(font_paths, "regular", 18)
-    fact_semibold = _font(font_paths, "semibold", 15)
-    trace_ref_font = _font(font_paths, "semibold", 13)
+    fact_semibold = _font(font_paths, "semibold", 18)
+    trace_ref_font = _font(font_paths, "semibold", 16)
     title = _font(font_paths, "bold", 40)
     brand = _font(font_paths, "bold", 38)
     legal = _font(font_paths, "bold", 27)
     total_font = _font(font_paths, "bold", 42)
     footer_font = _font(font_paths, "bold", 38)
+    hero_label_font = _font(font_paths, "bold", 39)
     symbol = "₹" if _draws(regular, "₹") else "Rs."
 
     raw_status = str(canonical_status(invoice.get("paymentStatus", "pending")) or "pending").upper()
@@ -353,12 +373,12 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     if convenience_net:
         total_row("Convenience Fee", convenience_net)
     if total_gst:
-        total_row("GST", total_gst, strong=True, band=True)
+        total_row(str(company.get("gstin") or "GST"), total_gst)
 
     hero_y = max(1068, totals_y + 1)
     draw.rounded_rectangle((157, hero_y, 867, hero_y + 65), radius=10, fill=LIME_STRONG)
-    draw.text((169, hero_y + 12), "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE",
-              font=bold, fill=(0,0,0))
+    draw.text((169, hero_y + 8), "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE",
+              font=hero_label_font, fill=(0,0,0))
     total_s = _money(total, symbol)
     tb = draw.textbbox((0,0), total_s, font=total_font)
     draw.text((853-(tb[2]-tb[0]), hero_y + 5), total_s, font=total_font, fill=(0,0,0))
@@ -369,15 +389,15 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
 
     trace_y = words_y + 66
     if status == "PAID":
-        stamp = Image.new("RGBA", (330, 126), (0,0,0,0))
+        stamp = Image.new("RGBA", (306, 116), (0,0,0,0))
         sd = ImageDraw.Draw(stamp)
-        sd.rounded_rectangle((4, 4, 324, 120), radius=12, outline=PAID_GREEN, width=8)
-        sd.ellipse((20, 34, 82, 96), fill=PAID_GREEN)
-        sd.line((35, 64, 47, 78, 69, 50), fill=(255,255,255), width=7)
-        stamp_word = _font(font_paths, "bold", 50)
-        sd.text((100, 31), "PAID", font=stamp_word, fill=PAID_GREEN)
+        sd.rounded_rectangle((4, 4, 300, 110), radius=11, outline=PAID_GREEN, width=8)
+        sd.ellipse((19, 31, 76, 88), fill=PAID_GREEN)
+        sd.line((33, 59, 45, 72, 64, 47), fill=(255,255,255), width=7)
+        stamp_word = _font(font_paths, "bold", 46)
+        sd.text((91, 28), "PAID", font=stamp_word, fill=PAID_GREEN)
         stamp = stamp.rotate(7, resample=Image.Resampling.BICUBIC, expand=True)
-        canvas.alpha_composite(stamp, (157, trace_y - 14))
+        canvas.alpha_composite(stamp, (180, trace_y - 28))
 
     tx = 550
     ty = trace_y + 6
