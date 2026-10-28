@@ -506,6 +506,30 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
 
 
 
+class VaultOrderProjectionTests(unittest.TestCase):
+    """Vault orders use the same canonical item/subtotal projection as other checkout orders."""
+
+    def test_native_vault_attempt_records_invoice_lines_for_order_and_workspace(self):
+        checkout = (FUNCTIONS / "ecommerce" / "checkout" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("if snapshot is not None:", checkout)
+        self.assertIn('attempt["invoiceLines"] = invoice_lines', checkout)
+        self.assertIn("serviceKind=str(catalog_session.get('kind') or '')", checkout)
+        self.assertIn("'vaultFileId': str(catalog_session.get('vaultFileId') or '')", checkout)
+
+    def test_finalizer_materializes_shared_workspace_order_fields(self):
+        finalization = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "finalization.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _workspace_order_fields", finalization)
+        self.assertIn("'items': items", finalization)
+        self.assertIn("'itemCount': len(items)", finalization)
+        self.assertIn("'itemsSummary': ', '.join(summaries)[:500]", finalization)
+        self.assertIn("'itemsSubtotalPaise': subtotal", finalization)
+        self.assertIn("'pricingSnapshot': {", finalization)
+        self.assertIn("order.update(_workspace_order_fields(attempt))", finalization)
+        self.assertIn("order['vaultFileId']", finalization)
+
+
 class VaultBackendHardeningTests(unittest.TestCase):
     """Vault intake has one path and downloads never restore the original upload filename."""
 
