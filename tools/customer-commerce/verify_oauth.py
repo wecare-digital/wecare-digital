@@ -94,7 +94,7 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('class="nav-menu"', result['body'])
         self.assertIn('class="home-shell"', result['body'])
         self.assertIn('One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.', result['body'])
-        self.assertIn('Sign in with WhatsApp. Continue anywhere.', result['body'])
+        self.assertIn('Sign in once with WhatsApp.<br>Continue across WECARE.DIGITAL and connected apps.', result['body'])
         self.assertIn('WECARE.DIGITAL, WhatsApp, Android, iOS, ChatGPT, Claude, Gemini', result['body'])
         self.assertNotIn('One&nbsp;account, built&nbsp;for', result['body'])
         self.assertIn('class="home-connect"', result['body'])
@@ -371,7 +371,7 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         with patch.object(self.cognito, 'initiate_auth', side_effect=RuntimeError('provider unavailable')):
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-        self.assertIn('Couldn’t verify. Try again.', result['body'])
+        self.assertNotIn('Couldn’t verify. Try again.', result['body'])
         self.assertNotIn('We could not complete verification. Please try again shortly.', result['body'])
 
     def test_disabled_registration_does_not_claim_account_created(self):
