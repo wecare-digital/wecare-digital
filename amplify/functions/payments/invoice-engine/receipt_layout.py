@@ -1,6 +1,6 @@
-"""WECARE.DIGITAL customer PAYMENT RECEIPT v11.
+"""WECARE.DIGITAL customer PAYMENT RECEIPT v12.
 
-Owner-reference 1024 x 1536 renderer. The retired punched-circle/scallop layout has no fallback path.
+Owner-reference 1024 x 1536 renderer with a sharp receipt-cut zig-zag edge and premium PAID stamp.
 Presentation only: it renders persisted invoice facts and never recalculates pricing.
 """
 from __future__ import annotations
@@ -125,39 +125,21 @@ def _center(draw, value, font, y, fill=INK):
 
 
 def _scalloped_frame(canvas, y_bottom):
-    """Draw the approved thin neon-lime wavy receipt edge.
+    """Draw the canonical sharp receipt-cut edge.
 
-    This replaces the retired punched-circle edge. The border is one continuous
-    wavy outline with a narrow lime rim and restrained glow, matching the owner
-    reference without circular holes along the paper edge.
+    The outer lime body stays softly rounded; the white paper is cut with small,
+    even triangular teeth. This is intentionally deterministic so WhatsApp,
+    customer downloads and any backend preview render the same silhouette.
     """
-    import math
-
     outer = Image.new("L", canvas.size, 0)
     od = ImageDraw.Draw(outer)
+    od.rounded_rectangle(
+        (PAPER_X0 - 8, 15, PAPER_X1 + 8, y_bottom + 14),
+        radius=29, fill=255)
 
-    ox0, ox1 = PAPER_X0 + 4, PAPER_X1 - 4
-    oy0, oy1 = 28, y_bottom
-    amp = 7.0
-    period = 28.0
-    points = []
-
-    for x in range(ox0, ox1 + 1, 2):
-        points.append((x, oy0 + amp * math.sin((x - ox0) * 2 * math.pi / period)))
-    for y in range(oy0, oy1 + 1, 2):
-        points.append((ox1 + amp * math.sin((y - oy0) * 2 * math.pi / period), y))
-    for x in range(ox1, ox0 - 1, -2):
-        points.append((x, oy1 + amp * math.sin((ox1 - x) * 2 * math.pi / period)))
-    for y in range(oy1, oy0 - 1, -2):
-        points.append((ox0 + amp * math.sin((oy1 - y) * 2 * math.pi / period), y))
-
-    od.polygon(points, fill=255)
-
-    broad = outer.filter(ImageFilter.GaussianBlur(10)).point(lambda a: int(a * .08))
-    tight = outer.filter(ImageFilter.GaussianBlur(4)).point(lambda a: int(a * .14))
-    glow_alpha = ImageChops.lighter(broad, tight)
+    broad = outer.filter(ImageFilter.GaussianBlur(11)).point(lambda a: int(a * .16))
     glow = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
-    glow.putalpha(glow_alpha)
+    glow.putalpha(broad)
     canvas.alpha_composite(glow)
 
     lime = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
@@ -167,27 +149,44 @@ def _scalloped_frame(canvas, y_bottom):
     inner = Image.new("L", canvas.size, 0)
     idraw = ImageDraw.Draw(inner)
 
-    ix0, ix1 = PAPER_X0 + 22, PAPER_X1 - 22
-    iy0, iy1 = 47, y_bottom - 18
-    inner_amp = 5.5
-    inner_period = 28.0
-    inner_points = []
+    x0, x1 = PAPER_X0 + 20, PAPER_X1 - 20
+    y0, y1 = 45, y_bottom - 14
+    amp = 7
+    half_step = 14
+    points = [(x0, y0)]
 
-    for x in range(ix0, ix1 + 1, 2):
-        inner_points.append(
-            (x, iy0 + inner_amp * math.sin((x - ix0) * 2 * math.pi / inner_period)))
-    for y in range(iy0, iy1 + 1, 2):
-        inner_points.append(
-            (ix1 + inner_amp * math.sin((y - iy0) * 2 * math.pi / inner_period), y))
-    for x in range(ix1, ix0 - 1, -2):
-        inner_points.append(
-            (x, iy1 + inner_amp * math.sin((ix1 - x) * 2 * math.pi / inner_period)))
-    for y in range(iy1, iy0 - 1, -2):
-        inner_points.append(
-            (ix0 + inner_amp * math.sin((iy1 - y) * 2 * math.pi / inner_period), y))
+    flip = 0
+    x = x0
+    while x + half_step < x1:
+        x += half_step
+        points.append((x, y0 + (-amp if flip % 2 == 0 else amp)))
+        flip += 1
+    points.append((x1, y0))
 
-    idraw.polygon(inner_points, fill=255)
+    flip = 0
+    y = y0
+    while y + half_step < y1:
+        y += half_step
+        points.append((x1 + (amp if flip % 2 == 0 else -amp), y))
+        flip += 1
+    points.append((x1, y1))
 
+    flip = 0
+    x = x1
+    while x - half_step > x0:
+        x -= half_step
+        points.append((x, y1 + (amp if flip % 2 == 0 else -amp)))
+        flip += 1
+    points.append((x0, y1))
+
+    flip = 0
+    y = y1
+    while y - half_step > y0:
+        y -= half_step
+        points.append((x0 + (-amp if flip % 2 == 0 else amp), y))
+        flip += 1
+
+    idraw.polygon(points, fill=255)
     paper = Image.new("RGBA", canvas.size, PAPER + (0,))
     paper.putalpha(inner)
     canvas.alpha_composite(paper)
@@ -389,15 +388,26 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
 
     trace_y = words_y + 66
     if status == "PAID":
-        stamp = Image.new("RGBA", (306, 116), (0,0,0,0))
+        stamp = Image.new("RGBA", (338, 126), (0,0,0,0))
         sd = ImageDraw.Draw(stamp)
-        sd.rounded_rectangle((4, 4, 300, 110), radius=11, outline=PAID_GREEN, width=8)
-        sd.ellipse((19, 31, 76, 88), fill=PAID_GREEN)
-        sd.line((33, 59, 45, 72, 64, 47), fill=(255,255,255), width=7)
-        stamp_word = _font(font_paths, "bold", 46)
-        sd.text((91, 28), "PAID", font=stamp_word, fill=PAID_GREEN)
-        stamp = stamp.rotate(7, resample=Image.Resampling.BICUBIC, expand=True)
-        canvas.alpha_composite(stamp, (180, trace_y - 28))
+        sd.rounded_rectangle((6, 6, 332, 119), radius=13, outline=PAID_GREEN, width=8)
+        sd.rounded_rectangle((17, 17, 321, 108), radius=9,
+                             outline=PAID_GREEN + (190,), width=3)
+        sd.ellipse((27, 30, 89, 92), fill=PAID_GREEN)
+        sd.line((43, 61, 56, 75, 77, 49), fill=(255,255,255), width=8)
+        stamp_word = _font(font_paths, "bold", 52)
+        sd.text((105, 28), "PAID", font=stamp_word, fill=PAID_GREEN)
+
+        # Deterministic light ink wear: visual texture without random output.
+        for i in range(28):
+            px = 12 + (i * 37) % 315
+            py = 12 + (i * 53) % 100
+            radius = 2 if i % 9 == 0 else 1
+            sd.ellipse((px-radius, py-radius, px+radius, py+radius),
+                       fill=(255,255,255,32))
+
+        stamp = stamp.rotate(-6, resample=Image.Resampling.BICUBIC, expand=True)
+        canvas.alpha_composite(stamp, (176, trace_y - 46))
 
     tx = 550
     ty = trace_y + 6
