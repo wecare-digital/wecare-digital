@@ -3,12 +3,12 @@
   "data_api_version": "3.0",
   "routing_model": {
     "SELECT_TARGET": [
+      "NOTE"
+    ],
+    "NOTE": [
       "UPLOAD"
     ],
-    "UPLOAD": [
-      "COMPLETE"
-    ],
-    "COMPLETE": []
+    "UPLOAD": []
   },
   "screens": [
     {
@@ -88,7 +88,7 @@
                   },
                   "next": {
                     "type": "screen",
-                    "name": "UPLOAD"
+                    "name": "NOTE"
                   }
                 }
               }
@@ -98,7 +98,7 @@
       }
     },
     {
-      "id": "UPLOAD",
+      "id": "NOTE",
       "title": "Drop Docs",
       "data": {
         "selected_target": {
@@ -127,15 +127,15 @@
           },
           {
             "type": "TextHeading",
-            "text": "Add documents"
+            "text": "Add a note"
           },
           {
             "type": "TextBody",
-            "text": "Add a note if needed, then choose your files."
+            "text": "Optional. Add anything our team should know about these documents."
           },
           {
             "type": "Form",
-            "name": "upload_form",
+            "name": "note_form",
             "children": [
               {
                 "type": "TextArea",
@@ -146,28 +146,17 @@
                 "helper-text": "Optional"
               },
               {
-                "type": "DocumentPicker",
-                "name": "documents",
-                "label": "Documents",
-                "description": "PDF, JPG or PNG · up to 10 files · 10 MB each",
-                "min-uploaded-documents": 1,
-                "max-uploaded-documents": 10,
-                "max-file-size-kb": 10240,
-                "allowed-mime-types": [
-                  "application/pdf",
-                  "image/jpeg",
-                  "image/png"
-                ]
-              },
-              {
                 "type": "Footer",
-                "label": "Send documents",
+                "label": "Continue",
                 "on-click-action": {
-                  "name": "data_exchange",
+                  "name": "navigate",
                   "payload": {
                     "selected_target": "${data.selected_target}",
-                    "note": "${form.note}",
-                    "documents": "${form.documents}"
+                    "note": "${form.note}"
+                  },
+                  "next": {
+                    "type": "screen",
+                    "name": "UPLOAD"
                   }
                 }
               }
@@ -177,58 +166,16 @@
       }
     },
     {
-      "id": "COMPLETE",
+      "id": "UPLOAD",
       "title": "Drop Docs",
-      "terminal": true,
-      "success": true,
       "data": {
-        "message": {
+        "selected_target": {
           "type": "string",
-          "__example__": "Your documents are stored securely and linked for review."
-        },
-        "document_reference": {
-          "type": "string",
-          "__example__": "WD-DOC-ABC123"
-        },
-        "file_count": {
-          "type": "string",
-          "__example__": "2"
-        },
-        "reference_number": {
-          "type": "string",
-          "__example__": "WD-ORD-K4M7PQR9"
+          "__example__": "order:WD-ORD-K4M7PQR9"
         },
         "note": {
           "type": "string",
-          "__example__": "For my current request"
-        },
-        "submission_id": {
-          "type": "string",
-          "__example__": "WD-DOC-ABC123"
-        },
-        "attachments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "filename": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
-              }
-            }
-          },
-          "__example__": [
-            {
-              "key": "secure/u/dropdocs/flow/wecare-digital-example.pdf",
-              "filename": "wecare-digital-123456.pdf",
-              "type": "application/pdf"
-            }
-          ]
+          "__example__": "Please review this document."
         }
       },
       "layout": {
@@ -252,38 +199,43 @@
           },
           {
             "type": "TextHeading",
-            "text": "Documents received"
+            "text": "Upload documents"
           },
           {
             "type": "TextBody",
-            "text": "${data.message}"
+            "text": "Choose the files to send."
           },
           {
-            "type": "TextCaption",
-            "text": "Document reference"
-          },
-          {
-            "type": "TextSubheading",
-            "text": "${data.document_reference}"
-          },
-          {
-            "type": "TextBody",
-            "text": "Files received: ${data.file_count}"
-          },
-          {
-            "type": "Footer",
-            "label": "Done",
-            "on-click-action": {
-              "name": "complete",
-              "payload": {
-                "flow_key": "wd_f003_drop_docs",
-                "schema_version": "4",
-                "submission_id": "${data.submission_id}",
-                "reference_number": "${data.reference_number}",
-                "note": "${data.note}",
-                "documents": "${data.attachments}"
+            "type": "Form",
+            "name": "upload_form",
+            "children": [
+              {
+                "type": "DocumentPicker",
+                "name": "documents",
+                "label": "Documents",
+                "description": "PDF, JPG or PNG · up to 10 files · 10 MB each",
+                "min-uploaded-documents": 1,
+                "max-uploaded-documents": 10,
+                "max-file-size-kb": 10240,
+                "allowed-mime-types": [
+                  "application/pdf",
+                  "image/jpeg",
+                  "image/png"
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Send documents",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "selected_target": "${data.selected_target}",
+                    "note": "${data.note}",
+                    "documents": "${form.documents}"
+                  }
+                }
               }
-            }
+            ]
           }
         ]
       }
