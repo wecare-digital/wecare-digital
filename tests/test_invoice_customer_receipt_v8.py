@@ -42,12 +42,12 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertEqual(total_gst, 20)
         self.assertEqual(total, 429)
 
-    def test_manual_whatsapp_items_have_no_repeated_thumbnail_and_fee_gst_is_tax(self):
+    def test_manual_whatsapp_items_show_brand_thumbnail_and_fee_gst_is_tax(self):
         source = ENGINE.read_text(encoding="utf-8")
         self.assertIn("conv_net_paise = _paise(invoice.get('convenienceFeeNet'", source)
         self.assertIn("total_gst_paise = supply_gst_paise + conv_gst_paise", source)
-        self.assertIn("'description': COMPANY[\"gstin\"]", source)
-        self.assertNotIn("entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}", source)
+        self.assertIn("'description': 'GST'", source)
+        self.assertIn("entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}", source)
         fee_block = source[source.index("if conv_net_paise > 0:"):source.index("total_gst_paise =", source.index("if conv_net_paise > 0:"))]
         self.assertNotIn("'image'", fee_block)
 
@@ -86,11 +86,24 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Delight", -discount', source)
         self.assertIn('total_row("Express", shipping)', source)
         self.assertIn('total_row("Convenience Fee", convenience_net)', source)
-        self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
+        self.assertIn('total_row("GST", total_gst', source)
         self.assertNotIn('total_row("Taxable Value"', source)
         self.assertNotIn('total_row("Total Tax"', source)
         self.assertNotIn('total_row("Discount"', source)
         self.assertNotIn('total_row("Shipping"', source)
+
+    def test_receipt_matches_narrow_reference_geometry_and_full_reference(self):
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn("width = 800 * scale", source)
+        self.assertIn("margin = 112 * scale", source)
+        self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
+        self.assertNotIn('ref = _strip_ref(invoice.get("referenceId"))', source)
+
+    def test_preview_has_module_base64_and_tiny_delight_stays_visible(self):
+        engine = ENGINE.read_text(encoding="utf-8")
+        coupon = DEFAULT_COUPON.read_text(encoding="utf-8")
+        self.assertIn("\nimport base64\n", engine)
+        self.assertIn("effective = max(1, raw)", coupon)
 
     def test_receipt_png_has_real_transparent_exterior(self):
         spec = importlib.util.spec_from_file_location("receipt_layout_contract", RECEIPT)
