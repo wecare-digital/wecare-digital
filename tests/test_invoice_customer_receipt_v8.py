@@ -154,6 +154,16 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
         self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
 
+    def test_branded_receipt_uses_canonical_customer_display_id_only(self):
+        engine = ENGINE.read_text(encoding="utf-8")
+        receipt = RECEIPT.read_text(encoding="utf-8")
+
+        self.assertIn("customer_id=_customer_id(invoice)", engine)
+        self.assertIn('customer_id=""', receipt)
+        self.assertIn('"Customer ID:"', receipt)
+        self.assertIn("customer_id, font=small_bold", receipt)
+        self.assertNotIn('"customerUuid"', receipt)
+
     def test_preissue_preview_is_server_rendered_before_invoice_numbering(self):
         source = ENGINE.read_text(encoding="utf-8")
         self.assertIn("def preview_invoice(body: Dict, request_id: str) -> Dict:", source)
