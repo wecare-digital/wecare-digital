@@ -2614,18 +2614,24 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
     WhatsApp invoice-copy flow recomputes exactly these base keys (draft or issued stem) to
     bind the `image` row to its order.
 
-    An ISSUED invoice gets a NEW key, so the previous object stays in S3 and the previous
-    `InvoiceAssets` row stays untouched. A re-render after issue happens for honest reasons (a
-    corrected delivery address, a logo fix) and for dishonest ones; either way the rendition the
-    customer was sent must remain retrievable, because it is the document they hold.
+    An ISSUED invoice gets a NEW key containing the payment-reference stem, numeric rendition
+    version and a short random render token. The previous object stays in S3 and the previous
+    `InvoiceAssets` row stays untouched. The unique key also prevents stale image-cache reuse.
     """
     base_key = f'{stem}.{extension}'
     if not _is_issued(invoice):
         return base_key, asset_type
     version = _next_asset_version(invoice_id, asset_type, request_id)
+    # Issued customer receipts are immutable and cache-busting by key. The human-traceable
+    # payment reference remains in `stem`; a short random render token prevents any browser,
+    # intermediary or messaging client from confusing a newly rendered design with an older PNG.
+    render_token = uuid.uuid4().hex[:12]
     if version <= 1:
-        return base_key, asset_type
-    return f'{stem}-v{version}.{extension}', f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}'
+        return f'{stem}-r{render_token}.{extension}', asset_type
+    return (
+        f'{stem}-v{version}-r{render_token}.{extension}',
+        f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}',
+    )
 
 
 # ─── Generate Invoice Image (PNG) ───
@@ -2747,7 +2753,7 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
         Key=s3_key,
         Body=png_bytes,
         ContentType='image/png',
-        CacheControl='max-age=86400',
+        CacheControl='no-store, max-age=0, must-revalidate',
         Metadata=object_metadata,
     )
 
