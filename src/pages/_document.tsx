@@ -80,11 +80,18 @@ const GTM_SRC_BASE = GTM_GATEWAY_PATH
   ? `${GTM_GATEWAY_PATH}?id=`
   : 'https://www.googletagmanager.com/gtm.js?id=';
 
+// DEFERRED UNTIL THE PAGE HAS LOADED (2026-10-27 audit). The container and the tags it pulls in
+// are about 590 KB of third-party script that competed with the LCP on every public page. It now
+// starts after the window `load` event, in idle time (at most 3 s later). Consent Mode still runs
+// first: consentBootstrap stays synchronous, and anything pushed to dataLayer before the container
+// arrives is queued and processed when it does.
 const gtmLoader = `
-(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+(function(w,d){function go(){(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
 var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
 j.async=true;j.src='${GTM_SRC_BASE}'+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${GTM_ID}');
+})(w,d,'script','dataLayer','${GTM_ID}');}
+function idle(){'requestIdleCallback' in w?w.requestIdleCallback(go,{timeout:3000}):setTimeout(go,1);}
+d.readyState==='complete'?idle():w.addEventListener('load',idle,{once:true});})(window,document);
 `.trim();
 
 /**
@@ -103,14 +110,18 @@ j.async=true;j.src='${GTM_SRC_BASE}'+i+dl;f.parentNode.insertBefore(j,f);
  *
  * Set NEXT_PUBLIC_META_PIXEL_ID to '' to disable the Pixel at build time.
  */
+// Deferred like the GTM loader: the fbq stub, init and PageView run now and queue, and only the
+// fbevents.js download waits until after `load`, so no event is lost.
 const pixelBootstrap = `
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
 if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
+n.queue=[];function go(){t=b.createElement(e);t.async=!0;
 t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window,document,'script',
+s.parentNode.insertBefore(t,s)}
+function idle(){'requestIdleCallback' in f?f.requestIdleCallback(go,{timeout:3000}):setTimeout(go,1)}
+b.readyState==='complete'?idle():f.addEventListener('load',idle,{once:!0})}(window,document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '${META.pixelId}');
 fbq('track', 'PageView');
