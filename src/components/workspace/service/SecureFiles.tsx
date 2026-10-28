@@ -69,9 +69,9 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; manageOnly?: boolean; }
 
-export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
+export default function SecureFilesPage ( { signOut, user, embedded, manageOnly = false }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
 
@@ -282,16 +282,26 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         <>
             <div className="sf-wrap">
                 <header className="sf-head">
-                    <p className="sf-eyebrow">Secure sharing</p>
-                    <h1 className="sf-title">Secure files</h1>
+                    <p className="sf-eyebrow">{ manageOnly ? 'Service · Vault' : 'Secure sharing' }</p>
+                    <h1 className="sf-title">{ manageOnly ? 'Vault' : 'Secure files' }</h1>
                     <p className="sf-lead">
-                        Files registered to one customer, who verifies on WhatsApp before
-                        downloading. Stored under an unguessable name and never reachable
-                        from a public link.
+                        { manageOnly
+                            ? 'Manage customer Vault delivery, payment access and the next WhatsApp action. Uploads start in Drop Docs.'
+                            : 'Files registered to one customer, who verifies on WhatsApp before downloading. Stored under an unguessable name and never reachable from a public link.' }
                     </p>
                 </header>
 
+                { manageOnly && (
+                    <section className="sf-journey" aria-label="Vault customer journey">
+                        <div><span>1</span><strong>Request ready</strong><small>Unlock Vault</small></div>
+                        <div><span>2</span><strong>Review & Pay</strong><small>Exact file · live catalog price</small></div>
+                        <div><span>3</span><strong>Access Vault</strong><small>Paid entitlement</small></div>
+                        <div><span>4</span><strong>Receipt</strong><small>Payment receipt · View order</small></div>
+                    </section>
+                ) }
+
                 {/* ── upload + register ─────────────────────────────────────────── */ }
+                { !manageOnly && (
                 <section className="sf-panel" aria-labelledby="sf-add">
                     <h2 className="sf-h2" id="sf-add">Add a file</h2>
                     <p className="sf-note">
@@ -411,12 +421,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </span>
                     </div>
                 </section>
+                ) }
 
                 {/* ── registered files ──────────────────────────────────────────── */ }
                 <section className="sf-panel" aria-labelledby="sf-list">
                     <div className="sf-listhead">
                         <div>
-                            <h2 className="sf-h2" id="sf-list">Registered files</h2>
+                            <h2 className="sf-h2" id="sf-list">{ manageOnly ? 'Vault documents' : 'Registered files' }</h2>
                             <p className="sf-note">
                                 { loading ? 'Loading…' : `${files.length} file${files.length === 1 ? '' : 's'}` }
                             </p>
@@ -571,6 +582,21 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-wrap{padding:24px;max-width:1100px}
 
                 .sf-head{margin:0 0 28px}
+                .sf-journey{
+                  display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+                  gap:8px;margin:0 0 20px;
+                }
+                .sf-journey>div{
+                  display:grid;grid-template-columns:30px 1fr;grid-template-areas:"n t" "n s";
+                  column-gap:9px;align-items:center;padding:12px 14px;
+                  border:1px solid var(--border);border-radius:12px;background:#fff;
+                }
+                .sf-journey span{
+                  grid-area:n;width:28px;height:28px;border-radius:999px;display:grid;place-items:center;
+                  background:var(--accent);color:#fff;font-size:var(--text-xs);font-weight:700;
+                }
+                .sf-journey strong{grid-area:t;font-size:var(--text-sm);color:var(--text)}
+                .sf-journey small{grid-area:s;font-size:var(--text-xs);color:var(--text-muted)}
                 .sf-eyebrow{
                   margin:0 0 14px;font-size:var(--text-xs);font-weight:700;
                   letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
@@ -740,7 +766,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     if ( embedded ) return body;
     return (
         <Layout onSignOut={ signOut } user={ user }>
-            <SEO title="Secure Files" description="Share a file with a verified customer" />
+            <SEO title={ manageOnly ? 'Vault' : 'Secure Files' } description={ manageOnly ? 'Manage Vault delivery and paid access' : 'Share a file with a verified customer' } />
             { body }
         </Layout>
     );

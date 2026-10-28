@@ -2062,8 +2062,9 @@ def run(root: Path) -> int:
     check("SVC", "a lone Vault line goes to business-api catalogService once, asynchronously, never to prepareNativeCart",
           len(svc) == 1 and svc[0]["type"] == "Event" and svc[0]["event"].get("action") == "start"
           and not _checkout_invokes(calls), [(c["function"], c["event"].get("internalAction")) for c in calls])
-    check("SVC", "...a verified customer with no Vault file is told so and nothing is reserved",
-          not _attempts_for(lena["sub"]) and len(replies) == 1 and "No payment has been requested" in replies[0], replies)
+    check("SVC", "...a verified customer with no Vault file gets the single unavailable message and nothing is reserved",
+          not _attempts_for(lena["sub"]) and len(replies) == 1
+          and "This document is not available right now." in replies[0], replies)
 
     mia = shop.customer(13)
     mia_contact = _table("ContactsTable").get_item(Key={"id": mia["contactId"]})["Item"]
