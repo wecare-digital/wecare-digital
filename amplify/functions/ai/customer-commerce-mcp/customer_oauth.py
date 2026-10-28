@@ -798,7 +798,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:16px}.home-connect{width:min(100%,400px)}.country-panel{width:min(260px,calc(100vw - 32px))}.nav-menu{position:fixed;top:96px;'
         'inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{grid-template-columns:1fr}.public-action-tail{padding:0 16px}'
         '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}.wc-langbar{--wc-inset:16px;bottom:calc(20px + env(safe-area-inset-bottom))}.wc-pill{padding:3px;gap:0}.wc-chip{min-width:44px;padding:0 8px}.wc-arw{display:none}.wc-sep{height:22px}}'
-        '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}}'
+        '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:normal;text-wrap:balance}}'
 
         '.wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;'
         'display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:inherit}.wc-pill{position:relative;overflow:hidden;display:inline-flex;align-items:center;'
@@ -834,7 +834,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<div class="home-hero"><h1 class="home-head">'
         '<span class="home-head-line">One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.</span>' +
         hero_pill +
-        '</h1><p class="home-sub">Sign in once with WhatsApp.<br>Continue across WECARE.DIGITAL and connected apps.</p></div>' +
+        '</h1><p class="home-sub">Sign in with WhatsApp. Continue anywhere.</p></div>' +
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
