@@ -1,8 +1,9 @@
 """WECARE.DIGITAL customer payment receipt v8.
 
 Presentation only: renders persisted invoice figures; never prices a payment.
-The visual hierarchy follows the owner-approved 1024px receipt mock while the money rows follow
-the v8 accounting contract (Items Subtotal / Delight / Express / Convenience Fee / seller GSTIN).
+The visual hierarchy follows the owner-approved narrow 1024px receipt specimen: an approximately
+800px white receipt centered on a transparent canvas with the lime scalloped edge. Money rows are
+Items Subtotal / Delight / Express / Convenience Fee / GST.
 Internal statutory invoice numbers, order IDs and raw customer UUIDs stay stored and are omitted
 from this customer-facing WhatsApp receipt. The canonical compact customer display code may be shown.
 """
@@ -176,11 +177,13 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
            canonical_status, amount_in_words, source_label, customer_id=""):
     """Render the approved branded WhatsApp PAYMENT RECEIPT."""
     scale = 2
-    # 956 + 2*34 => 1024 px after the 2x antialiasing downsample. This matches the approved
-    # reference width exactly while still rendering internally at 2x for clean WhatsApp text.
-    width = 956 * scale
-    margin = 34 * scale
-    inner = 58 * scale
+    # The approved customer specimen is deliberately a NARROW receipt on a 1024px transparent
+    # canvas: about 800px of paper with ~112px air on either side. The previous v8 renderer made
+    # the paper 956px wide, which is the exact visual drift the owner reported from a live payment.
+    # Render at 2x and downsample, so (800 + 112*2) == 1024 output pixels.
+    width = 800 * scale
+    margin = 112 * scale
+    inner = 44 * scale
     content_w = width - 2 * inner
     paper_h = (1580 + max(0, len(items) - 2) * 90) * scale
 
@@ -208,7 +211,9 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
              or invoice.get("createdAt") or invoice.get("invoiceDate") or 0)
     date_str = ist_strftime("%d-%m-%Y", epoch) if epoch else ""
     time_str = ist_strftime("%H:%M IST", epoch) if epoch else ""
-    ref = _strip_ref(invoice.get("referenceId"))
+    # Customer/support references are shown in their canonical public spelling. Do not strip
+    # WD-PAY-: the approved specimen prints the complete reference in both locations.
+    ref = str(invoice.get("referenceId") or "").strip()
     txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
     buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
     place = _place(invoice)
@@ -450,7 +455,9 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     if convenience_net:
         total_row("Convenience Fee", convenience_net)
     if total_gst:
-        total_row(str(company.get("gstin") or ""), total_gst, semibold, semibold, band=True)
+        # A GSTIN is an identifier, not a charge label. The seller GSTIN remains in the legal
+        # masthead; the amount breakdown names the charge plainly.
+        total_row("GST", total_gst, semibold, semibold, band=True)
 
     hero_label = "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE"
     hero_h = 62 * scale
