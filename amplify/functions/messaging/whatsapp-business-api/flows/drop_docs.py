@@ -59,14 +59,6 @@ ALLOWED_MIME = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
 }
-DOC_TYPE_LABELS = {
-    "identity": "Identity document",
-    "address": "Address proof",
-    "prescription": "Prescription / medical document",
-    "invoice": "Invoice / receipt",
-    "supporting": "Other supporting document",
-}
-
 _s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 _meta = MetaGraphClient()
 
@@ -167,53 +159,34 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected as exc:
         return {
-            "screen": "SELECT_TARGET",
+            "screen": "UPLOAD",
             "data": {
                 "error": str(exc),
                 "phone_number": "",
-                "customer_id": "",
-                "targets": [{"id": "not_found", "title": REJECTED}],
             },
         }
     except flow_sessions.FlowSessionUnavailable:
         return {
-            "screen": "SELECT_TARGET",
+            "screen": "UPLOAD",
             "data": {
                 "error": "Please try again.",
                 "phone_number": "",
-                "customer_id": "",
-                "targets": [{"id": "not_found", "title": "Please try again"}],
             },
         }
 
     if session.consumed_at:
         return {
-            "screen": "SELECT_TARGET",
+            "screen": "UPLOAD",
             "data": {
                 "error": REJECTED,
                 "phone_number": "",
-                "customer_id": "",
-                "targets": [{"id": "not_found", "title": REJECTED}],
             },
         }
 
-    contact = _contact(session.phone)
-    identity = _customer_identity(contact, session.phone)
-    customer_id = str(
-        contact.get("customerUuid")
-        or contact.get("customerId")
-        or contact.get("id")
-        or ""
-    ).strip()
-    targets = _order_targets(session.phone) + _request_targets(identity)
-    targets.append({"id": "not_found", "title": "I cannot find my order or request"})
-
     return {
-        "screen": "SELECT_TARGET",
+        "screen": "UPLOAD",
         "data": {
             "phone_number": _masked_phone(session.phone),
-            "customer_id": customer_id,
-            "targets": targets,
         },
     }
 
@@ -255,41 +228,48 @@ def _graph_phone(waba: str) -> str:
     return PHONE2_META_ID if str(waba or "") == WABA2_ID else PHONE1_META_ID
 
 
-def _validate_target(
-    target_ref: str,
-    manual_reference: str,
+def _validate_reference(
+    reference_number: str,
     phone: str,
     identity: Optional[customer_auth.CustomerIdentity],
 ) -> Dict[str, str]:
-    """Re-read the selected record before any media byte is persisted."""
-    target_ref = str(target_ref or "").strip()
-    manual_reference = str(manual_reference or "").strip()
+    """Resolve a customer-entered reference only inside the verified customer's own records."""
+    wanted = str(reference_number or "").strip()
+    if not wanted:
+        raise ValueError("Enter your order or request reference.")
+    folded = wanted.upper()
 
-    if target_ref.startswith("order:"):
-        wanted = target_ref.split(":", 1)[1]
-        for order in fetch_orders_for_flow(phone, "")[:50]:
-            if str(order.get("id") or "") == wanted:
-                return {"kind": "order", "id": wanted, "display": wanted}
-        raise ValueError("That order is no longer available for this account.")
+    # Orders: picker choices carry the stored orderId plus the customer-facing short number.
+    # Accept the exact stored id, the short number, or its canonical WD-ORD- form.
+    try:
+        for order in fetch_orders_for_flow(phone, "")[:20]:
+            order_id = str(order.get("id") or "").strip()
+            short = str(order.get("title") or "").split("—", 1)[0].strip()
+            candidates = {order_id.upper(), short.upper()}
+            if short:
+                candidates.add(("WD-ORD-" + short).upper())
+            if folded in candidates:
+                display = wanted if folded.startswith("WD-ORD") else ("WD-ORD-" + short if short else wanted)
+                return {"kind": "order", "id": order_id, "display": display}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Drop Docs order reference lookup failed: %s", type(exc).__name__)
 
-    if target_ref.startswith("request:"):
-        wanted = target_ref.split(":", 1)[1]
-        if identity is None:
-            raise ValueError("That request cannot be verified for this account.")
-        rows, _cursor = service_request_store.list_for_customer(
-            dynamodb.Table(SERVICE_REQUESTS_TABLE), identity, limit=20
-        )
-        if any(str(row.get("requestId") or "") == wanted for row in rows):
-            return {"kind": "request", "id": wanted, "display": wanted}
-        raise ValueError("That request is no longer available for this account.")
+    # Service requests: public request ids are already customer-facing references.
+    if identity is not None:
+        try:
+            rows, _cursor = service_request_store.list_for_customer(
+                dynamodb.Table(SERVICE_REQUESTS_TABLE), identity, limit=20
+            )
+            for row in rows:
+                public_id = str(row.get("requestId") or "").strip()
+                if public_id and folded == public_id.upper():
+                    return {"kind": "request", "id": public_id, "display": public_id}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Drop Docs request reference lookup failed: %s", type(exc).__name__)
 
-    if target_ref == "not_found":
-        if not manual_reference:
-            raise ValueError("Enter the order or request number from your receipt or message.")
-        return {"kind": "manual", "id": "", "display": manual_reference[:120]}
-
-    raise ValueError("Choose an order or request.")
-
+    raise ValueError(
+        "We could not find that reference in this account. Open Your Orders and copy it exactly."
+    )
 
 def _fetch_media(entry: Dict[str, Any], graph_phone: str) -> Tuple[bytes, str, str, str]:
     """Retrieve one picker file from Meta, binding the lookup to the receiving phone."""
@@ -350,7 +330,6 @@ def _store_one(
     session: Any,
     contact: Dict[str, Any],
     target: Dict[str, str],
-    document_type: str,
     note: str,
     request_id: str,
 ) -> Dict[str, Any]:
@@ -381,8 +360,6 @@ def _store_one(
         contact.get("contactBookName") or contact.get("name") or contact.get("profileName") or ""
     ).strip()
     canonical_phone = contact_store.canonical_phone(session.phone)
-    label = DOC_TYPE_LABELS.get(document_type, "Supporting document")
-
     item: Dict[str, Any] = {
         "documentId": doc_id,
         "documentRef": doc_ref,
@@ -392,8 +369,8 @@ def _store_one(
         "customerPhone": canonical_phone,
         "customerName": customer_name,
         "sourceType": "flow",
-        "documentType": document_type or "supporting",
-        "documentTypeLabel": label,
+        "documentType": "other",
+        "documentTypeLabel": "Customer document",
         "originalFileName": original_name,
         "fileName": doc_ref + ext,
         "mimeType": mime,
@@ -456,9 +433,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     # device received the response. Idempotent document ids + completion claim make it safe.
     contact = _contact(session.phone)
     identity = _customer_identity(contact, session.phone)
-    target_ref = str(data.get("target_ref") or "").strip()
-    manual_reference = str(data.get("manual_reference") or "").strip()
-    document_type = str(data.get("document_type") or "supporting").strip()
+    reference_number = str(data.get("reference_number") or "").strip()
     note = str(data.get("note") or "").strip()
     picker = _normalise_picker(data.get("documents"))
 
@@ -466,12 +441,9 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         return {"screen": "UPLOAD", "data": {"error_message": "Choose at least one document."}}
     if len(picker) > MAX_FILES:
         return {"screen": "UPLOAD", "data": {"error_message": "Choose up to 3 documents."}}
-    if document_type not in DOC_TYPE_LABELS:
-        return {"screen": "UPLOAD", "data": {"error_message": "Choose what you are sending."}}
-
     try:
-        target = _validate_target(
-            target_ref, manual_reference, session.phone, identity
+        target = _validate_reference(
+            reference_number, session.phone, identity
         )
     except ValueError as exc:
         return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
@@ -488,7 +460,6 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
                     session=session,
                     contact=contact,
                     target=target,
-                    document_type=document_type,
                     note=note,
                     request_id=request_id,
                 )
@@ -515,9 +486,8 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         contact.get("contactBookName") or contact.get("name") or contact.get("profileName") or ""
     ).strip()
     completion_data = {
-        "target_ref": target_ref,
+        "reference_number": target["display"],
         "target_display": target["display"],
-        "document_type": document_type,
         "note": note,
         "documents": attachments,
     }
@@ -551,8 +521,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
             "message": "Your documents are stored securely and linked for review.",
             "document_reference": reference,
             "file_count": str(len(stored)),
-            "target_ref": target["display"],
-            "document_type": DOC_TYPE_LABELS[document_type],
+            "reference_number": target["display"],
             "note": note or "—",
             "attachments": attachments,
             "submission_id": result.submission_id or reference,
