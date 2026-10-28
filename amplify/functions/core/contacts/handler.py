@@ -2108,10 +2108,12 @@ def _matches(item: Dict[str, Any], query: str) -> bool:
     bsuid = str(item.get('bsuid', '')).lower()
     username = str(item.get('username', '')).lower()
     contact_book_name = str(item.get('contactBookName', '')).lower()
+    customer_display_id = customer_uuid.display_code(item).lower()
     tags = [str(t).lower() for t in (item.get('tags') or [])]
     clean_q = query.lstrip('+')
     clean_p = phone.lstrip('+')
     return (query in name or query in phone or query in email or clean_q in clean_p
+            or query in customer_display_id
             or query in bsuid or query in username or query in contact_book_name
             or any(query in t for t in tags))
 
