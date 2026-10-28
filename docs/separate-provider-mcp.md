@@ -4,8 +4,7 @@ The optional separate endpoints provide independent ChatGPT control-plane entrie
 for Google Cloud, Google Ads, Plivo and Sinch India RCS. Google Cloud and Google Ads
 are served directly by the WECARE administrative MCP implementation. Plivo and
 Sinch are control-plane/status surfaces only: the final provider integrations must
-use provider-native MCP servers. Plivo is based on https://github.com/plivo/mcp and
-Sinch India is based on https://github.com/sinch/sinch-mcp-server. They reuse the
+use provider-native MCP servers. Plivo provider references are: website https://www.plivo.com/, documentation MCP https://plivo.com/docs/mcp, and live-action source https://github.com/plivo/mcp. Sinch provider references are: website https://sinch.com/, Agent Tools https://sinch.com/ai/agent-tools/, documentation MCP https://developers.sinch.com/mcp, and live-action source https://github.com/sinch/sinch-mcp-server. They reuse the
 existing staff Cognito authority and approved runtime credential custody; no
 provider credentials are exposed to ChatGPT.
 
@@ -34,7 +33,10 @@ authentication.
    the original callback and any already configured provider callbacks.
 3. Read `GoogleCloudEndpoint`, `GoogleAdsEndpoint`, `PlivoEndpoint` and
    `SinchIndiaEndpoint` from the stack outputs. Treat the Plivo and Sinch values
-   as WECARE control-plane endpoints only.
+   as WECARE control-plane/runtime endpoints only. Never use those `execute-api`
+   URLs as the provider website/homepage. Display Plivo as https://www.plivo.com/
+   and Sinch as https://sinch.com/. The provider documentation MCP endpoints are
+   https://plivo.com/docs/mcp and https://developers.sinch.com/mcp respectively.
 4. Register Google Cloud and Google Ads directly against their WECARE endpoints.
    For Plivo, deploy a remote HTTP adapter around the official `plivo/mcp` server
    and register that remote MCP URL. For Sinch India, deploy the official

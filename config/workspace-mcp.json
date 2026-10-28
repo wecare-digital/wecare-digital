@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -127,7 +127,10 @@
       "tools": [
         "connection_verify"
       ],
-      "_note": "The existing WECARE provider endpoint is a staff-authenticated control-plane/status endpoint, not the Plivo MCP server. Production provider-native access must use a WECARE-hosted HTTP adapter around the official plivo/mcp server; do not expose PLIVO_AUTH_ID or PLIVO_AUTH_TOKEN to ChatGPT."
+      "_note": "Provider website and documentation MCP are provider-owned references. The WECARE execute-api endpoint is an internal staff-authenticated control-plane/runtime endpoint and must never be presented as the Plivo website. Live account actions remain based on the official plivo/mcp project with credentials kept inside approved runtime custody.",
+      "website": "https://www.plivo.com/",
+      "documentationMcp": "https://plivo.com/docs/mcp",
+      "mcpDocs": "https://www.plivo.com/docs/faq/developer-tools/mcp-server"
     },
     "sinch": {
       "kind": "provider-native-mcp",
@@ -146,7 +149,11 @@
       "tools": [
         "connection_verify"
       ],
-      "_note": "The existing WECARE provider endpoint is a staff-authenticated control-plane/status endpoint, not the native Sinch MCP server. Production provider-native access must use the official Sinch server in a remotely safe authenticated mode; never expose single-tenant unauthenticated /mcp."
+      "_note": "Provider website, Agent Tools page, and documentation MCP are provider-owned references. The WECARE execute-api endpoint is an internal staff-authenticated control-plane/runtime endpoint and must never be presented as the Sinch website. The docs MCP is documentation-only; live API actions require the official sinch-mcp-server or the approved WECARE runtime path.",
+      "website": "https://sinch.com/",
+      "agentToolsWebsite": "https://sinch.com/ai/agent-tools/",
+      "documentationMcp": "https://developers.sinch.com/mcp",
+      "rcsDocs": "https://developers.sinch.com/docs/conversation/channel-support/rcs/ai-support"
     }
   }
 }
