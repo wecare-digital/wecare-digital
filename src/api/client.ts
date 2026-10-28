@@ -6303,22 +6303,20 @@ export async function confirmDocumentReplacement (
 }
 
 
-/** Publish one Drop Docs document to the customer's Vault. `displayName` is the Vault message's
- *  {{1}}; on a document already published it renames that Vault file. Idempotent. */
+/** Publish one Drop Docs document to the customer's Vault. The server owns the
+ *  customer-facing filename; staff cannot rename Vault files. Idempotent. */
 export async function publishDocumentToVault (
   documentId: string,
-  displayName?: string,
 ): Promise<ApiResult<{
   fileId: string;
   status: string;
   deliverable: string;
   created: boolean;
   displayName?: string;
-  renamed?: boolean;
 }>> {
   return apiCallResult( `${API_BASE}/secure-files/publish-document`, {
     method: 'POST',
-    body: JSON.stringify( displayName ? { documentId, displayName } : { documentId } ),
+    body: JSON.stringify( { documentId } ),
   } );
 }
 
@@ -7469,6 +7467,8 @@ export interface SecureFile {
   vaultRequestNumber?: string;
   fileId: string;
   displayName: string;
+  /** Staff-only pointer to the originating Drop Docs record; never an S3 key. */
+  sourceDocumentId?: string;
   originalFilename: string;
   contentType: string;
   sizeBytes: number;
