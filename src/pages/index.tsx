@@ -650,7 +650,7 @@ const HomePage: React.FC = () => {
           min-height:100dvh;
           padding-top:108px;
           box-sizing:border-box;
-          background:var(--public-bg);
+          background:var(--public-brand-lime);
           font-family:var(--font-sans);
           color:var(--public-text);
         }
