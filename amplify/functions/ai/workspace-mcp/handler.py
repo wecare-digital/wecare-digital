@@ -535,20 +535,30 @@ def aws_status():
     return {"account": identity["Account"], "region": REGION, "functions": result}
 
 
-def github_headers():
-    # Runtime resolution only; the field name is deployment configuration, never a value.
-    raw = client("secretsmanager").get_secret_value(SecretId="wecare/github-pat")["SecretString"]
-    parsed = json.loads(raw)
-    credential = parsed.get(os.environ.get("GITHUB_TOKEN_FIELD", "token"))
-    if not credential:
-        raise Refusal("GitHub runtime credential field requires owner verification")
-    return {"Authorization": "Bearer " + credential, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
-
-
 def github_status():
-    data, _ = http("https://api.github.com/repos/wecare-digital/wecare-digital", headers=github_headers())
-    return {"repository": data.get("full_name"), "defaultBranch": data.get("default_branch"),
-        "permissions": data.get("permissions", {})}
+    """Read the public repository status without a long-lived GitHub credential.
+
+    This repository is public and this adapter only reads repository metadata. The old
+    implementation used a near-full-scope classic PAT for a GET that GitHub serves
+    anonymously, leaving a known-exposed credential in the runtime for no functional gain.
+    Keep the adapter deliberately read-only and credential-free.
+    """
+    data, _ = http(
+        "https://api.github.com/repos/wecare-digital/wecare-digital",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "wecare-workspace-mcp",
+        },
+    )
+    if data.get("full_name") != "wecare-digital/wecare-digital" or data.get("private") is True:
+        raise Refusal("GitHub repository status could not be verified")
+    return {
+        "repository": data.get("full_name"),
+        "defaultBranch": data.get("default_branch"),
+        "visibility": data.get("visibility") or "public",
+        "authenticated": False,
+    }
 
 
 def _invoke_internal(function_name: str, payload: dict) -> dict:

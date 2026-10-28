@@ -1,5 +1,12 @@
 # Rotate `wecare/github-pat` — exposed classic PAT
 
+> **2026-10-28 retirement update:** replacement rotation is superseded. Workspace MCP's
+> only GitHub operation is a public repository-metadata GET, so the runtime credential
+> dependency has been removed. After that deployment verifies `github_status`, revoke the
+> exposed classic PAT at GitHub and delete `wecare/github-pat` from Secrets Manager. Do not
+> create a replacement PAT for Workspace MCP. The historical rotation procedure below is
+> retained only as incident context.
+
 Account **775261844268** · region **us-east-1** · prepared 2026-10-16 from live
 read-only metadata. Finding 3c in `docs/execution/deep-audit-20261016.md`.
 

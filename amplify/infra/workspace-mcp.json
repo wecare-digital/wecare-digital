@@ -11,10 +11,6 @@
     "CodeSha256": {
       "Type": "String"
     },
-    "GithubTokenField": {
-      "Type": "String",
-      "Default": "token"
-    },
     "AlarmTopic": {
       "Type": "String"
     },
@@ -227,7 +223,6 @@
                     "secretsmanager:GetSecretValue"
                   ],
                   "Resource": [
-                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/github-pat-y4tXJa",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-XnSVlc",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-vaHEaM",
@@ -326,9 +321,6 @@
                 "TokenKey",
                 "Arn"
               ]
-            },
-            "GITHUB_TOKEN_FIELD": {
-              "Ref": "GithubTokenField"
             },
             "CHAT_API_ID": {
               "Fn::If": [

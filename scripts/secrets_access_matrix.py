@@ -40,7 +40,7 @@ POLICY: dict[str, tuple[str, str, str]] = {
     "wecare/otp/pepper": ("security", "KEEP_ISOLATED", "OTP hashing pepper"),
     "wecare/backup/recovery-passphrase": ("security", "KEEP_ISOLATED", "disaster-recovery passphrase; denied to the shared role since 2026-10-15"),
     "wecare/aws/iam-access-keys": ("security", "RETIRE_SCHEDULED", "tooling secret retired from repo consumers and scheduled for deletion with recovery window; shared-role deny remains until final deletion"),
-    "wecare/github-pat": ("security", "ROTATE", "classic near-full-scope PAT, description says EXPOSED 2026-08-25; replace with a fine-grained token or GitHub App; denied to the shared role since 2026-10-15"),
+    "wecare/github-pat": ("security", "RETIRE_SCHEDULED", "known-exposed classic PAT; Workspace MCP no longer needs GitHub credentials for public repository status, so revoke it at GitHub and delete this secret after the credential-free deployment is verified"),
     "wecare/plivo/api": ("communications", "KEEP_ISOLATED", "voice provider API credentials"),
     "wecare/plivo-answer": ("communications", "NEEDS_OWNER_REVIEW", "same provider as plivo/api; group only if every reader needs both and rotation matches"),
     "wecare/sinch/rcs": ("communications", "KEEP_ISOLATED", "RCS provider credentials"),
