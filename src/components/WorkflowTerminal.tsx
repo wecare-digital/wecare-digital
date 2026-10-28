@@ -1119,7 +1119,7 @@ const WorkflowTerminal: React.FC = () => {
           scrollbar-width:none;
         }
         .wt-request::-webkit-scrollbar{display:none}
-        .wt-caret{display:inline-block;color:#d1f470;margin-right:10px}
+        .wt-caret{display:inline;color:#d1f470;margin-right:10px}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
            cannot be knocked out of alignment by content height.
@@ -1412,7 +1412,11 @@ const WorkflowTerminal: React.FC = () => {
              the title or the 44px control. The title gets one small step down, but machine
              output keeps the same readable sizes because it can swipe horizontally. */
           .wt-bar{padding-left:10px;padding-right:76px}
-          .wt-bar-state{display:none}
+          /* Keep the status box in the flex row for geometric alignment while making it
+             visually absent. display:none collapses its rect to 0, which makes Firefox report
+             the chrome controls on different rows even though the visible title/play control
+             are aligned. Zero width preserves the row without consuming narrow-screen space. */
+          .wt-bar-state{visibility:hidden;flex:0 0 0;width:0;min-width:0;margin-left:0;overflow:hidden}
           .wt-bar-title{font-size:14px}
           .wt-play{width:70px;padding-inline:6px;font-size:13px}
         }
