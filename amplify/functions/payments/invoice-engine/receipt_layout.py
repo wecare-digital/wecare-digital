@@ -3,8 +3,8 @@
 Presentation only: renders persisted invoice figures; never prices a payment.
 The visual hierarchy follows the owner-approved 1024px receipt mock while the money rows follow
 the v8 accounting contract (Items Subtotal / Delight / Express / Convenience Fee / seller GSTIN).
-Internal statutory invoice numbers and order/customer UUIDs stay stored but are intentionally
-omitted from this customer-facing WhatsApp receipt.
+Internal statutory invoice numbers, order IDs and raw customer UUIDs stay stored and are omitted
+from this customer-facing WhatsApp receipt. The canonical compact customer display code may be shown.
 """
 from __future__ import annotations
 
@@ -173,7 +173,7 @@ def _gradient_roundrect(canvas, box, left, right, radius):
 
 
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
-           canonical_status, amount_in_words, source_label):
+           canonical_status, amount_in_words, source_label, customer_id=""):
     """Render the approved branded WhatsApp PAYMENT RECEIPT."""
     scale = 2
     # 956 + 2*34 => 1024 px after the 2x antialiasing downsample. This matches the approved
@@ -213,6 +213,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
     place = _place(invoice)
     address = _address(invoice)
+    customer_id = str(customer_id or "").strip()
 
     subtotal = Decimal(str(invoice.get("subtotal") or 0))
     discount = Decimal(str(invoice.get("discount") or 0))
@@ -318,7 +319,11 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     # separated by a vertical rule. Keep that hierarchy instead of tinting the whole customer card.
     card_top = y
     header_card_h = 38 * scale
-    body_card_h = (92 + (28 if buyer_gstin or place else 0)) * scale
+    body_card_h = (
+        92
+        + (28 if customer_id else 0)
+        + (28 if buyer_gstin or place else 0)
+    ) * scale
     draw.rounded_rectangle((inner, card_top, width - inner, card_top + header_card_h),
                            radius=9 * scale, fill=PALE)
     draw.text((inner + 14 * scale, card_top + 6 * scale), "BILL TO",
@@ -334,7 +339,27 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
             for line in _fit(draw, value, font, int(content_w * .45), 1):
                 draw.text((inner + 16 * scale, ly), line, font=font, fill=INK)
                 ly += 27 * scale
+
     divider_x = width // 2
+    if customer_id:
+        # Customer-visible support label only. The canonical UUID remains internal; the engine
+        # passes customer_uuid.display_code(invoice), which is the established C-XXXXXXXXXXXX
+        # presentation contract and never an authentication or join key.
+        pill_top = ly - 3 * scale
+        pill_bottom = ly + 25 * scale
+        draw.rounded_rectangle(
+            (inner + 10 * scale, pill_top, divider_x - 18 * scale, pill_bottom),
+            radius=8 * scale, fill=PALE,
+        )
+        label = "Customer ID:"
+        draw.text((inner + 16 * scale, ly), label, font=small_bold, fill=FOREST)
+        label_bb = draw.textbbox((0, 0), label, font=small_bold)
+        draw.text(
+            (inner + 24 * scale + (label_bb[2] - label_bb[0]), ly),
+            customer_id, font=small_bold, fill=INK,
+        )
+        ly += 28 * scale
+
     draw.line((divider_x, y - 4 * scale, divider_x,
                card_top + header_card_h + body_card_h - 10 * scale),
               fill=LINE, width=2 * scale)
