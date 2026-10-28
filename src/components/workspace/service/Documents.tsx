@@ -50,6 +50,9 @@ const TYPE_SELECT_OPTIONS: SelectOption[] = [
   ...TYPE_OPTIONS.map( t => ( { value: t, label: t.replace( /_/g, ' ' ) } ) ),
 ];
 
+const DROP_DOCS_MAX_BYTES = 1024 * 1024 * 1024;
+const DROP_DOCS_MAX_LABEL = '1 GB';
+
 /* LAYOUT ONLY - the three filters are flex children, and a native select sized itself to
    its widest option while the trigger shows the selected one. */
 const FILTER_STYLE: React.CSSProperties = { width: 170 };
@@ -179,7 +182,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
-    type: '', typeLabel: '', notes: '',
+    type: '', notes: '',
   } );
 
   const loadData = useCallback( async () => {
@@ -252,7 +255,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const resetCreate = () => {
     setCreateForm( {
       contactId: '', customerName: '', customerPhone: '', orderId: '',
-      type: '', typeLabel: '', notes: '',
+      type: '', notes: '',
     } );
     setContactQuery( '' );
     setContactResults( [] );
@@ -273,9 +276,9 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   };
 
   const createCustomerReady = Boolean( createForm.contactId || createForm.customerPhone.trim() );
-  const createTypeReady = Boolean( createForm.type
-    && ( createForm.type !== 'other' || createForm.typeLabel.trim() ) );
-  const createReady = createCustomerReady && createTypeReady && Boolean( createFile );
+  const createTypeReady = Boolean( createForm.type );
+  const createFileReady = Boolean( createFile && createFile.size <= DROP_DOCS_MAX_BYTES );
+  const createReady = createCustomerReady && createTypeReady && createFileReady;
 
   const closeCreate = () => {
     if ( creating ) return;
@@ -294,14 +297,14 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       toast.error( 'Select a document type' );
       return;
     }
-    if ( createForm.type === 'other' && !createForm.typeLabel.trim() )
-    {
-      toast.error( 'Enter the document type/name' );
-      return;
-    }
     if ( !createFile )
     {
       toast.error( 'Choose a file to upload' );
+      return;
+    }
+    if ( createFile.size > DROP_DOCS_MAX_BYTES )
+    {
+      toast.error( `This file is ${ fmtSize( createFile.size ) }. Drop Docs supports files up to ${ DROP_DOCS_MAX_LABEL }.` );
       return;
     }
 
@@ -315,7 +318,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         customerPhone: createForm.customerPhone || undefined,
         orderId: createForm.orderId || undefined,
         type: createForm.type,
-        typeLabel: createForm.type === 'other' ? createForm.typeLabel.trim() : undefined,
         fileName: createFile.name,
         mimeType,
         fileSize: createFile.size,
@@ -968,19 +970,19 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               disabled={ creating || !createReady }
               onClick={ () => { void handleCreateDocument( true ); } }
             >
-              Upload & send Vault offer
+              Upload & send Unlock Vault
             </Button>
           </>
         }
       >
-        <div style={ { display: 'flex', flexDirection: 'column', gap: 18 } }>
+        <div className="dd-upload-form" style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ uploadIntroStyle }>
-            Add a document to private Drop Docs storage. Choose <strong>Upload only</strong> for intake, or <strong>Upload & send Vault offer</strong> to publish it to Vault and send the customer the Unlock Vault offer immediately.
+            Private Drop Docs upload. The file goes directly to secure storage; Vault delivery is a separate, file-bound step.
           </div>
 
           <section style={ sectionStyle }>
             <div style={ sectionHeadingStyle }>
-              <strong>1. Customer</strong>
+              <strong>Customer</strong>
               <span style={ sectionHintStyle }>Required</span>
             </div>
 
@@ -1015,7 +1017,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                     onChange={ e => setContactQuery( e.target.value ) }
                     placeholder="Name or mobile number"
                     autoComplete="off"
-                    style={ inputStyle }
+                    style={ uploadInputStyle }
                     disabled={ creating }
                   />
                 </label>
@@ -1058,7 +1060,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                           value={ createForm.customerPhone }
                           onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
                           placeholder="+91…"
-                          style={ inputStyle }
+                          style={ uploadInputStyle }
                           disabled={ creating }
                         />
                       </label>
@@ -1069,7 +1071,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                           value={ createForm.customerName }
                           onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
                           placeholder="Customer name"
-                          style={ inputStyle }
+                          style={ uploadInputStyle }
                           disabled={ creating }
                         />
                       </label>
@@ -1082,7 +1084,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
           <section style={ sectionStyle }>
             <div style={ sectionHeadingStyle }>
-              <strong>2. Document</strong>
+              <strong>Document</strong>
               <span style={ sectionHintStyle }>Required</span>
             </div>
 
@@ -1090,8 +1092,9 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <Select
                 label="Document type"
                 value={ createForm.type }
-                onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
+                onChange={ value => setCreateForm( form => ( { ...form, type: value } ) ) }
                 options={ TYPE_SELECT_OPTIONS }
+                style={ uploadSelectStyle }
                 disabled={ creating }
               />
               <Select
@@ -1105,45 +1108,34 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                     label: fmtOrderLabel( order ),
                   } ) ),
                 ] }
+                style={ uploadSelectStyle }
                 disabled={ creating || ordersLoading || !createForm.customerPhone }
               />
             </div>
-
-            { createForm.type === 'other' && (
-              <label style={ fieldLabelStyle }>
-                Document name
-                <input
-                  type="text"
-                  value={ createForm.typeLabel }
-                  onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
-                  placeholder="e.g. Trade licence, PAN card, agreement"
-                  style={ inputStyle }
-                  disabled={ creating }
-                />
-              </label>
-            ) }
 
             <label style={ fieldLabelStyle }>
               File
               <input
                 type="file"
                 onChange={ e => setCreateFile( e.target.files?.[ 0 ] || null ) }
-                style={ inputStyle }
+                className="dd-auth-file"
                 disabled={ creating }
               />
             </label>
             { createFile && (
               <div style={ fileSummaryStyle }>
-                <div style={ { fontWeight: 600, overflowWrap: 'anywhere' } }>{ createFile.name }</div>
-                <div style={ helperStyle }>{ fmtSize( createFile.size ) } · { createFile.type || 'File' }</div>
-                <div style={ helperStyle }>Private upload. A six-digit WECARE reference is generated automatically.</div>
+                <div style={ { fontWeight: 650, overflowWrap: 'anywhere' } }>{ createFile.name }</div>
+                <div style={ { ...helperStyle, color: createFile.size > DROP_DOCS_MAX_BYTES ? '#991b1b' : 'var(--text-muted)' } }>
+                  { fmtSize( createFile.size ) } · { createFile.type || 'File' } · limit { DROP_DOCS_MAX_LABEL }
+                </div>
+                <div style={ helperStyle }>Uploads directly to private storage. A WECARE reference and filename are generated automatically.</div>
               </div>
             ) }
           </section>
 
           <section style={ sectionStyle }>
             <div style={ sectionHeadingStyle }>
-              <strong>3. Note</strong>
+              <strong>Note</strong>
               <span style={ sectionHintStyle }>Optional</span>
             </div>
             <textarea
@@ -1152,13 +1144,28 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               onChange={ e => setCreateForm( form => ( { ...form, notes: e.target.value } ) ) }
               rows={ 2 }
               placeholder="Internal note about this upload"
-              style={ { ...inputStyle, resize: 'vertical', marginTop: 0 } }
+              style={ { ...uploadInputStyle, resize: 'vertical', minHeight: 84, paddingTop: 12, marginTop: 0 } }
               disabled={ creating }
             />
           </section>
 
+          <section className="dd-unlock-template" style={ unlockTemplateStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>Unlock Vault variables</strong>
+              <span style={ sectionHintStyle }>Approved Meta template</span>
+            </div>
+            <div className="dd-variable-grid">
+              <div><span>Body {{1}}</span><strong>Generated WECARE filename</strong></div>
+              <div><span>Price</span><strong>Live Vault product price</strong></div>
+              <div><span>Button</span><strong>Unlock Vault · exact-file token</strong></div>
+            </div>
+            <div style={ helperStyle }>
+              The uploaded customer file stays private and is never attached to WhatsApp. Meta requires the fixed WECARE image header on this approved template.
+            </div>
+          </section>
+
           <div style={ uploadFooterNoteStyle }>
-            <strong>Upload only</strong> keeps this as intake. <strong>Upload & send Vault offer</strong> publishes the same document to Vault and sends the customer the offer; payment happens only after the customer taps Unlock Vault.
+            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Unlock Vault</strong> publishes it and sends only the approved template variables above.
           </div>
         </div>
       </Modal>
@@ -1192,6 +1199,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         .dd-action-primary:hover{filter:brightness(.96);background:var(--accent)}
         .dd-action-muted{color:var(--text-muted)}
         .dd-action-danger{color:#991b1b}
+        .dd-upload-form input:focus,.dd-upload-form textarea:focus{outline:0!important;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34),0 0 0 2px rgba(209,244,112,.22)!important}
+        .dd-auth-file{display:block;width:100%;min-height:54px;margin-top:7px;padding:6px 8px;border:0;border-radius:12px;background:#fff;color:var(--text);font:600 15px/1.3 inherit;box-shadow:inset 0 0 0 1px rgba(26,58,42,.08)}
+        .dd-auth-file::file-selector-button{min-height:40px;margin-right:12px;padding:0 14px;border:0;border-radius:9px;background:var(--lime-tint);color:var(--accent);font:650 15px/1 inherit;cursor:pointer}
+        .dd-auth-file:hover::file-selector-button{background:var(--lime)}
+        .dd-variable-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+        .dd-variable-grid>div{display:grid;gap:4px;padding:10px 12px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px rgba(26,58,42,.07)}
+        .dd-variable-grid span{font-size:var(--text-xs);color:var(--text-muted);font-weight:600}
+        .dd-variable-grid strong{font-size:var(--text-sm);color:var(--accent);overflow-wrap:anywhere}
+        @media(max-width:720px){.dd-variable-grid{grid-template-columns:1fr}}
       `}</style>
     </MaybeLayout>
   );
@@ -1200,17 +1216,20 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
+const uploadInputStyle: React.CSSProperties = { display: 'block', width: '100%', minHeight: 48, padding: '0 12px', borderRadius: 12, border: 0, background: '#fff', boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)', color: 'var(--text)', fontSize: 16, marginTop: 7, outline: 0 };
+const uploadSelectStyle: React.CSSProperties = { width: '100%', minHeight: 48, borderRadius: 12, border: 0, background: '#fff', boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)' };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
 const fieldLabelStyle: React.CSSProperties = { fontSize: 'var(--text-md)', display: 'block' };
-const sectionStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-primary)' };
+const sectionStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 18, border: 0, borderRadius: 14, background: '#fcfdfa', boxShadow: '0 8px 24px rgba(16,32,24,.06)' };
 const sectionHeadingStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 };
 const sectionHintStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 };
-const selectedCustomerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
-const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 12, border: '1px dashed var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' };
-const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
-const uploadIntroStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--text-muted)' };
-const uploadFooterNoteStyle: React.CSSProperties = { padding: 12, borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 'var(--text-sm)', lineHeight: 1.5 };
+const selectedCustomerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', minHeight: 58, borderRadius: 12, background: '#fff', border: 0, boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)' };
+const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 14, border: 0, borderRadius: 12, background: '#fff', boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)' };
+const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 12, background: '#fff', border: 0, boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)' };
+const uploadIntroStyle: React.CSSProperties = { fontSize: 15, lineHeight: 1.5, color: 'var(--text-muted)', padding: '0 2px' };
+const uploadFooterNoteStyle: React.CSSProperties = { padding: '11px 14px', borderRadius: 12, background: 'var(--lime-tint)', color: 'var(--accent)', border: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5 };
+const unlockTemplateStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 18, borderRadius: 14, background: '#fcfdfa', border: 0, boxShadow: '0 8px 24px rgba(16,32,24,.06)' };
 const pageStyle: React.CSSProperties = { padding: '28px 32px', maxWidth: 1480 };
 const pageHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginBottom: 22 };
 const eyebrowStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--text-muted)', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: 6 };
