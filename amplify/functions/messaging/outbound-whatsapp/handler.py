@@ -37,7 +37,7 @@ from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
 from lambda_utils import contact_key, contact_store, identity_claims
 from lambda_utils import template_status
-from lambda_utils.template_media import fixed_image_header, ORDER_CATALOG_HEADER_IMAGE
+from lambda_utils.template_media import fixed_image_header, ORDER_CATALOG_HEADER_IMAGE, DEFAULT_ORDER_ITEM_THUMBNAIL
 from lambda_utils.identity import subscriber_id, consent as consent_evidence  # canonical identity + evidence ledger
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
@@ -2152,6 +2152,9 @@ def _handle_order_details_template_send(
         _sanitized_items = []
         for item in order_obj.get('items', []):
             clean_item = {k: v for k, v in item.items() if k in _ALLOWED_ITEM_KEYS}
+            # Final-boundary guard: every Meta ORDER_DETAILS item gets the one owner-approved
+            # default thumbnail, regardless of what an upstream caller supplied.
+            clean_item['image'] = {'link': DEFAULT_ORDER_ITEM_THUMBNAIL}
             if not clean_item.get('importer_name'):
                 clean_item.update(WECARE_IMPORTER)
             if not clean_item.get('country_of_origin'):

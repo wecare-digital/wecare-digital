@@ -49,7 +49,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("'description': 'GST'", source)
         self.assertIn("entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}", source)
         fee_block = source[source.index("if conv_net_paise > 0:"):source.index("total_gst_paise =", source.index("if conv_net_paise > 0:"))]
-        self.assertNotIn("'image'", fee_block)
+        self.assertIn("template_media.DEFAULT_ORDER_ITEM_THUMBNAIL", fee_block)
 
     def test_internal_invoice_api_retains_tax_facts(self):
         source = ENGINE.read_text(encoding="utf-8")
@@ -252,6 +252,12 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
             "entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}",
             source,
         )
+
+
+    def test_outbound_forces_owner_thumbnail_on_every_item(self):
+        source = OUTBOUND.read_text(encoding="utf-8")
+        self.assertIn("DEFAULT_ORDER_ITEM_THUMBNAIL", source)
+        self.assertIn("clean_item['image'] = {'link': DEFAULT_ORDER_ITEM_THUMBNAIL}", source)
 
 
     def test_media_trace_id_never_collapses_to_wa_idem_prefix(self):
