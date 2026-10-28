@@ -6,7 +6,7 @@ ProductsTable-priced snapshot and pass live payment readiness before sending a p
 from __future__ import annotations
 import re
 from typing import Any
-from lambda_utils import customer_auth, template_status
+from lambda_utils import customer_auth, template_status, template_media
 from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
@@ -139,12 +139,14 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
         'name': label, 'quantity': quantity,
         'amount': {'value': unit_paise, 'offset': 100},
+        'image': {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL},
     }]
     if quote.convenience_fee_paise:
         # Non-catalog line: no synthetic retailer_id.
         items.append({'name': 'Convenience fee', 'quantity': 1,
                       'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100}})
 
+    supply_gst_paise = int(spec.get('supplyGstPaise') or 0)
     discount_paise = int(spec.get('discountPaise') or 0)
     express_paise = int(spec.get('deliveryPaise') or 0)
     order = {
@@ -154,14 +156,21 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         'items': items,
         'subtotal': {'value': unit_paise + int(quote.convenience_fee_paise), 'offset': 100},
         'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
-        'tax': {'value': int(quote.convenience_gst_paise), 'offset': 100,
-                'description': 'GST on Convenience Fee (18%)'},
+        'tax': {'value': supply_gst_paise + int(quote.convenience_gst_paise), 'offset': 100,
+                'description': 'GST'},
         'expiration': {'timestamp': str(now + 900),
                        'description': 'Complete payment within 15 minutes'},
     }
     if discount_paise:
         order['discount'] = {'value': discount_paise, 'offset': 100, 'description': 'Delight'}
         order['couponCode'] = 'DELIGHT'
+
+    reconciled = (
+        unit_paise + supply_gst_paise + express_paise - discount_paise
+        + int(quote.convenience_fee_paise) + int(quote.convenience_gst_paise)
+    )
+    if reconciled != int(quote.total_payable_paise):
+        raise ValueError('catalog service ORDER_DETAILS does not reconcile to payable total')
 
     return {
         'reference_id': reference_id,
