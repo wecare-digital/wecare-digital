@@ -3179,6 +3179,9 @@ def _process_message(
         if _route_vault_offer_tap(message, button_text_lower, contact_id, sender_phone,
                                   aws_phone_number_id, whatsapp_message_id, request_id):
             return
+        if button_text_lower == 'drop docs' and _route_paid_drop_docs(
+                contact_id, sender_phone, aws_phone_number_id, whatsapp_message_id, request_id):
+            return
         # Map common button texts to the site menu.
         # `customerservice` is here because the the legacy customer-service label ice breaker is live on
         # both numbers and can arrive as `button` rather than `text`. The text
@@ -3282,6 +3285,10 @@ def _process_message(
                     logger.warning(json.dumps({'event': 'vault_keyword_list_unavailable',
                                                'errorType': type(error).__name__,
                                                'requestId': request_id}))
+            if (_content_plain == 'drop docs'
+                    and _route_paid_drop_docs(contact_id, sender_phone, aws_phone_number_id,
+                                              whatsapp_message_id, request_id)):
+                return
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
@@ -3773,6 +3780,47 @@ def _process_message(
         # Unmatched messages are stored but no reply is sent.
         # The admin can see all messages in the dashboard inbox and reply manually.
         pass
+
+
+def _route_paid_drop_docs(contact_id: str, sender_phone: str, aws_phone_number_id: str,
+                          source_message_id: Optional[str], request_id: str) -> bool:
+    """Start the one native ₹199 Drop Docs checkout from a signed inbound interaction."""
+    if (not source_message_id or aws_phone_number_id != PHONE_NUMBER_ID_1
+            or os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true'):
+        return False
+    from lambda_utils.ecommerce import service_requests as services
+    variant = services.SERVICE_VARIANT_BY_KIND[services.DROP_DOCS]
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-whatsapp-business-api:live',
+            InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'catalogService',
+                'action': 'start',
+                'lines': [{
+                    'productId': services.SERVICE_PRODUCT_BY_VARIANT[variant],
+                    'variantId': variant,
+                    'quantity': 1,
+                }],
+                'sourceMessageId': source_message_id,
+                'contactId': contact_id,
+                'senderPhone': sender_phone,
+                'phoneNumberId': aws_phone_number_id,
+            }).encode(),
+        )
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({
+            'event': 'drop_docs_payment_unrouted',
+            'errorType': type(error).__name__,
+            'requestId': request_id,
+        }))
+        return False
+    logger.info(json.dumps({
+        'event': 'drop_docs_payment_routed',
+        'contactId': mask_contact_id(contact_id),
+        'requestId': request_id,
+    }))
+    return True
 
 
 def _route_vault_offer_tap(message: Dict, button_text_lower: str, contact_id: str,
@@ -6519,6 +6567,12 @@ def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
                 'senderPhone': sender_phone, 'sourceMessageId': source_message_id,
                 'phoneNumberId': aws_phone_number_id}).encode())
         return 'vault'
+    if list_id == 'wd_drop_docs':
+        if _route_paid_drop_docs(contact_id, sender_phone, aws_phone_number_id,
+                                 source_message_id, request_id):
+            return 'drop_docs'
+        _send_wd_leaf_link(list_id, contact_id, aws_phone_number_id, request_id)
+        return 'leaf'
     if list_id == 'wd_back':
         # Explicit, so WD_LISTS stays one key per list rather than gaining an alias.
         _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
