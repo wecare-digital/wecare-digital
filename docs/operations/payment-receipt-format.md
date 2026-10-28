@@ -1,6 +1,6 @@
 # WECARE.DIGITAL Payment Receipt Format
 
-Current owner-approved customer receipt contract: **v8, 2026-10-27**.
+Current owner-approved customer receipt contract: **v8 fields, 2026-10-27; v11 layout, 2026-10-28**.
 
 This document is the maintenance authority for the PNG sent to customers after payment. Historical invoice-layout notes may describe older appearances; when they conflict with this file, this file wins.
 
@@ -20,15 +20,16 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 ## Approved visual contract
 
 - Document title: **PAYMENT RECEIPT**
-- Paper: off-white `rgb(252,252,250)`
+- Layout reference: the owner-supplied 1024 × 1536 `FINA INV1.png` specimen (two item lines, five totals rows). The v11 renderer's coordinates, colours, type sizes, PAID stamp and footer were measured from it.
+- Paper: off-white `rgb(252,252,251)`
 - Pixels outside the torn paper: transparent, stored as transparent white so a viewer that drops alpha (a JPEG conversion) shows white rather than a black frame
-- Four-sided scalloped/torn edge: WECARE lime `#d1f470`
-- Structural green: `#1a3a2a`
-- Lime is used for the receipt-title bar and Amount Paid bar.
+- Four-sided wavy edge: a continuous 12 px neon-lime band `#c1f90e` with a soft lime halo; no punched circles or scallop lobes
+- Lime `#c3f622` fills the PAYMENT RECEIPT bar, the PAID pill and the Amount Paid bar; pale green `#e1efdb` fills the BILL TO bar, the Customer ID pills and the item header
+- The PAID stamp is a green `#036807` rubber stamp rotated about 10° counter-clockwise; the footer website is green `#087610`
 - The receipt masthead uses the immutable official transparent bag mark plus the canonical stacked `WECARE.` / `DIGITAL` wordmark construction from `src/components/BrandLockup.tsx`; do not substitute the generic opaque square logo or a marketing card.
 - Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
-- Keep the image compact and WhatsApp-readable. Use the approved lime neon edge glow around the scalloped receipt; do not add a conventional black/grey drop shadow.
-- Customer PNG is fixed at **1024 × 1536 px** for the two-line reference specimen. The visible lime receipt edge is approximately `x=120..904`, with transparent/glowing exterior space.
+- Keep the image compact and WhatsApp-readable. Use the approved lime neon edge glow around the wavy receipt edge; do not add a conventional black/grey drop shadow.
+- Customer PNG is **1024 px** wide. The two-line, five-totals-row specimen is exactly **1024 × 1536 px**; the height follows the content (each item line adds 42 px, each totals row 37 px, a second amount-in-words line 25 px). The visible lime receipt edge is approximately `x=120..902`, with transparent/glowing exterior space.
 - Preserve the approved hierarchy: centered brand block, lime PAYMENT RECEIPT bar, split receipt facts, slim pale BILL TO header with two white columns and a vertical divider, pale/green item header, compact totals, lime AMOUNT PAID bar, PAID stamp + trace block, and Thank You / Visit Again footer.
 - The approved mock is a visual/layout reference only. Its old Taxable Value / CGST / SGST / Total Tax rows are retired for the compact customer copy; v8 accounting rows remain authoritative.
 
@@ -62,7 +63,7 @@ Show when present:
 - payment status, with captured payments shown as a lime `PAID` pill
 - Channel
 - provider transaction id as `Txn` / `Txn ID` without naming the gateway
-- customer name, phone, email and address
+- customer name, phone (an Indian mobile is grouped as `+91 XXXXX XXXXX`), email and address; a structured address prints as `<line 1>,` / `<line 2>, <city> – <PIN>, India` and the state appears only as Place of Supply
 - **Customer ID** only as the canonical compact display code from `customer_uuid.display_code()` (`C-` + 12 Base32 characters); never print the raw UUID
 - Buyer GSTIN only when a real buyer GSTIN is stored; never label the seller GSTIN as the buyer's
 - Place of Supply when the stored address supplies a state
@@ -74,7 +75,7 @@ Show when present:
 - one compact seller-GSTIN totals row whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST, matching the owner-approved receipt reference
 - Amount Paid for captured payments; Amount Payable otherwise
 - amount in words
-- PAID stamp and paid timestamp when captured
+- PAID stamp and the `Paid On` timestamp only when captured
 
 ## Fields intentionally hidden from the customer PNG
 
@@ -123,7 +124,7 @@ Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligi
 
 Use this prompt when changing the receipt:
 
-> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, raw customer UUID or provider order id. The only customer identifier allowed on the receipt is the canonical compact `C-XXXXXXXXXXXX` display code. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
+> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, the v11 wavy lime #c1f90e edge and lime/pale-green bars measured from the owner reference, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, raw customer UUID or provider order id. The only customer identifier allowed on the receipt is the canonical compact `C-XXXXXXXXXXXX` display code. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
 
 ## Change procedure
 
