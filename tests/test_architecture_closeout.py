@@ -492,10 +492,12 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
         self.assertIn("sourceDocumentId?: string", client)
         self.assertNotIn("s3Key?: string;", client[client.index("export interface SecureFile"):client.index("export type SecureFileAccessState")])
 
-    def test_customer_deep_link_can_return_to_all_vault_files(self):
+    def test_customer_deep_link_is_single_file_auth_shell_without_collection_controls(self):
         source = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
-        self.assertIn("Back to all Vault files", source)
-        self.assertIn("router.push( '/get/' )", source)
+        self.assertIn("Access Vault", source)
+        self.assertIn("One account. Anywhere you need it.", source)
+        self.assertNotIn("Back to all Vault files", source)
+        self.assertNotIn(">Sign out<", source)
         self.assertIn("This document is not available right now.", source)
 
 
