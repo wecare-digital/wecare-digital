@@ -145,7 +145,7 @@ All Lambda functions use Python 3.12 runtime with prefix `wecare-*`:
 
 ## Admin Scripts
 
-- `scripts/deploy_all_lambdas.py` - Deploy all 60 zip-packaged Lambda functions.
+- `scripts/deploy_all_lambdas.py` - Deploy every zip-packaged Lambda function (73 live on 2026-10-27; `wecare-docs-scraper` is a container image with its own deploy).
   Cross-platform, validates every top-level import against the function's live
   layers, checks the configured handler symbol exists, then publishes a version
   and moves the `live` alias. That last step matters: 53 of 62 functions are
