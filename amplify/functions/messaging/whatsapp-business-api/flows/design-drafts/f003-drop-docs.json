@@ -215,7 +215,6 @@
                 "type": "DocumentPicker",
                 "name": "documents",
                 "label": "Documents",
-                "description": "PDF, JPG or PNG · up to 10 files · 10 MB each",
                 "min-uploaded-documents": 1,
                 "max-uploaded-documents": 10,
                 "max-file-size-kb": 10240,
