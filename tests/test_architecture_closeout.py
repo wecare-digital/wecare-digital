@@ -417,6 +417,36 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         self.assertNotIn("1 GB", docs)
 
 
+class VaultReviewPayPreviewTests(unittest.TestCase):
+    """Workspace Vault exposes a read-only customer payment preview without a second payment path."""
+
+    def test_vault_workspace_preview_shows_canonical_price_rows(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "SecureFiles.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Review &amp; Pay", source)
+        self.assertIn("fetchServicePrices", source)
+        self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
+        self.assertIn("<span>Items + item GST</span>", source)
+        self.assertIn("<span>Delight</span>", source)
+        self.assertIn("<span>Express</span>", source)
+        self.assertIn("<span>Convenience Fee</span>", source)
+        self.assertIn("GST on Convenience Fee (18%)", source)
+        self.assertIn("<span>Amount Payable</span>", source)
+        self.assertIn("vault.breakdown", source)
+        self.assertNotIn("handleRequestPayment( reviewFile", source)
+
+    def test_drop_docs_workspace_preview_uses_same_breakdown_and_thumbnail(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Drop Docs × 1", source)
+        self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
+        self.assertIn("dropDocs.breakdown", source)
+        self.assertIn("GST on Convenience Fee (18%)", source)
+        self.assertIn("Amount Payable", source)
+
+
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):
     """Drop Docs is intake; Vault owns delivery/payment/access and one unavailable copy."""
 
@@ -492,14 +522,78 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
         self.assertIn("sourceDocumentId?: string", client)
         self.assertNotIn("s3Key?: string;", client[client.index("export interface SecureFile"):client.index("export type SecureFileAccessState")])
 
-    def test_customer_deep_link_is_single_file_auth_shell_without_collection_controls(self):
-        source = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
-        self.assertIn("Access Vault", source)
-        self.assertIn("One account. Anywhere you need it.", source)
-        self.assertNotIn("Back to all Vault files", source)
-        self.assertNotIn(">Sign out<", source)
-        self.assertIn("This document is not available right now.", source)
+    def test_customer_deep_link_uses_canonical_auth_and_returns_to_exact_file(self):
+        get_page = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
+        vault_page = (ROOT / "src" / "pages" / "vault.tsx").read_text(encoding="utf-8")
+        self.assertIn("window.location.replace( '/auth' )", get_page)
+        self.assertNotIn("/auth?return=", get_page)
+        self.assertIn("wecare.vault.authReturnFile", get_page)
+        self.assertIn("wecare.vault.authReturnFile", vault_page)
+        self.assertIn("router.replace( { pathname: '/vault/'", vault_page)
+        self.assertIn("Access Vault", get_page)
+        self.assertNotIn("Back to all Vault files", get_page)
+        self.assertNotIn(">Sign out<", get_page)
+        self.assertIn("This document is not available right now.", get_page)
 
+
+
+class VaultDropDocsCollectPricingTests(unittest.TestCase):
+    """Vault/Drop Docs use one server-owned Collect breakdown."""
+
+    def test_server_breakdown_exposes_delight_express_fee_gst_and_total(self):
+        pricing = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_pricing_native.py"
+        ).read_text(encoding="utf-8")
+        checkout = (FUNCTIONS / "ecommerce" / "checkout" / "handler.py").read_text(encoding="utf-8")
+        services = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_requests.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("VAULT_DROP_DOCS_EXPRESS_PAISE = 2_500", services)
+        self.assertIn("checkout_pricing.round_half_up(item_subtotal_paise, 1800)", pricing)
+        self.assertIn("default_coupon.delight_paise(item_subtotal_paise + supply_gst)", pricing)
+        self.assertIn("checkout_pricing.compute_quote(collection", pricing)
+        self.assertIn('"supplyGstBps": 1800', pricing)
+        self.assertIn('"convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS', pricing)
+        self.assertIn("def _vault_dropdocs_quote(", checkout)
+        self.assertIn("supply_gst_paise = checkout_pricing.round_half_up(item_paise, 1800)", checkout)
+        self.assertIn("VAULT_DROP_DOCS_EXPRESS_PAISE", checkout)
+        self.assertNotIn("exact_quote = checkout_pricing.exempt_quote", checkout)
+
+    def test_whatsapp_service_review_pay_itemizes_all_adjustments(self):
+        source = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "catalog_service_checkout.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("'description': 'Express'", source)
+        self.assertIn("'description': 'Delight'", source)
+        self.assertIn("'description': 'GST'", source)
+        self.assertIn("template_media.DEFAULT_ORDER_ITEM_THUMBNAIL", source)
+        self.assertIn("supply_gst_paise + int(quote.convenience_gst_paise)", source)
+        self.assertIn("quote.convenience_fee_paise", source)
+        self.assertIn("quote.total_payable_paise", source)
+
+
+class VaultOrderProjectionTests(unittest.TestCase):
+    """Vault orders use the same canonical item/subtotal projection as other checkout orders."""
+
+    def test_native_vault_attempt_records_invoice_lines_for_order_and_workspace(self):
+        checkout = (FUNCTIONS / "ecommerce" / "checkout" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("if snapshot is not None:", checkout)
+        self.assertIn('attempt["invoiceLines"] = invoice_lines', checkout)
+        self.assertIn("serviceKind=str(catalog_session.get('kind') or '')", checkout)
+        self.assertIn("'vaultFileId': str(catalog_session.get('vaultFileId') or '')", checkout)
+
+    def test_finalizer_materializes_shared_workspace_order_fields(self):
+        finalization = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "finalization.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _workspace_order_fields", finalization)
+        self.assertIn("'items': items", finalization)
+        self.assertIn("'itemCount': len(items)", finalization)
+        self.assertIn("'itemsSummary': ', '.join(summaries)[:500]", finalization)
+        self.assertIn("'itemsSubtotalPaise': subtotal", finalization)
+        self.assertIn("'pricingSnapshot': {", finalization)
+        self.assertIn("order.update(_workspace_order_fields(attempt))", finalization)
+        self.assertIn("order['vaultFileId']", finalization)
 
 
 class VaultBackendHardeningTests(unittest.TestCase):

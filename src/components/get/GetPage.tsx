@@ -112,6 +112,9 @@ const AUTH_WORDS: CycleWord[] = [
     { word: 'Gemini', tint: '#fee2e2', dot: '#dc2626' },
 ];
 
+const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
+const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
+
 type Stage = 'mobile' | 'otp' | 'files';
 
 interface FilesPageProps {
@@ -141,7 +144,21 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     // The live catalog price. Null until ProductsTable can be read through the canonical service
     // pricing endpoint; checkout never starts from a guessed or file-local amount.
     const [ price, setPrice ] = useState<number | null>( null );
+    const [ payablePrice, setPayablePrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
+
+    const redirectExactFileToAuth = useCallback( (): boolean => {
+        if ( !targetFileId || !VAULT_FILE_ID_PATTERN.test( targetFileId ) ) return false;
+        try
+        {
+            window.sessionStorage.setItem( VAULT_AUTH_RETURN_FILE_KEY, targetFileId );
+        } catch
+        {
+            // Same-tab storage is best-effort. Ownership still has to pass on the server.
+        }
+        window.location.replace( '/auth' );
+        return true;
+    }, [ targetFileId ] );
 
     const loadFiles = useCallback( async () => {
         const result = await api.listMySecureFiles();
@@ -161,13 +178,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         } else if ( result.failure.status === 401 )
         {
             clearSession();
+            if ( redirectExactFileToAuth() ) return;
             setStage( 'mobile' );
             setError( 'Your secure access expired. Please verify again.' );
         } else
         {
             setError( result.failure.message || 'Could not load your files' );
         }
-    }, [ targetFileId ] );
+    }, [ targetFileId, redirectExactFileToAuth ] );
 
     // Vault has no file-local or deploy-local price. This is the same ProductsTable-backed
     // endpoint used by service pages; checkout independently re-prices again before a payment
@@ -178,36 +196,57 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             if ( !active ) return;
             const vault = prices.vault;
             setPrice( vault?.available ? vault.paise : null );
+            setPayablePrice(
+                vault?.available && vault.breakdown
+                    ? vault.breakdown.totalPayablePaise
+                    : null
+            );
         } );
         return () => { active = false; };
     }, [] );
 
-    // Resume an existing tab session rather than making the customer re-verify.
+    // Exact-file WhatsApp links use the canonical /auth page. /get/ keeps its collection
+    // verification flow. That means the deep-link can never drift away from the current sign-in UI.
     useEffect( () => {
-        void restoreSession().then( session => session ? api.listMySecureFiles() : null ).then( result => {
-            if ( !result ) return;
-            if ( result.ok )
-            {
-                const ownedFiles = result.data.files || [];
-                const visibleFiles = targetFileId
-                    ? ownedFiles.filter( file => file.fileId === targetFileId )
-                    : ownedFiles;
-                setFiles( visibleFiles );
-                setStage( 'files' );
-                if ( targetFileId && visibleFiles.length === 0 )
+        let active = true;
+        void restoreSession()
+            .then( restored => {
+                if ( !active ) return null;
+                if ( !restored )
                 {
-                    setError( 'This document is not available right now.' );
+                    redirectExactFileToAuth();
+                    return null;
                 }
-            } else if ( result.failure.status === 401 )
-            {
-                clearSession();
-            } else
-            {
-                // A resumed session whose list failed is not "signed out": say so.
-                setError( result.failure.message || 'Could not load your files. Please try again.' );
-            }
-        } ).catch( () => setError( 'Sign-in is temporarily unavailable. Please try again.' ) );
-    }, [ targetFileId ] );
+                return api.listMySecureFiles();
+            } )
+            .then( result => {
+                if ( !active || !result ) return;
+                if ( result.ok )
+                {
+                    const ownedFiles = result.data.files || [];
+                    const visibleFiles = targetFileId
+                        ? ownedFiles.filter( file => file.fileId === targetFileId )
+                        : ownedFiles;
+                    setFiles( visibleFiles );
+                    setStage( 'files' );
+                    if ( targetFileId && visibleFiles.length === 0 )
+                    {
+                        setError( 'This document is not available right now.' );
+                    }
+                } else if ( result.failure.status === 401 )
+                {
+                    clearSession();
+                    redirectExactFileToAuth();
+                } else
+                {
+                    setError( result.failure.message || 'Could not load your files. Please try again.' );
+                }
+            } )
+            .catch( () => {
+                if ( active ) setError( 'Sign-in is temporarily unavailable. Please try again.' );
+            } );
+        return () => { active = false; };
+    }, [ targetFileId, redirectExactFileToAuth ] );
 
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
@@ -228,6 +267,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 {
                     clearSession();
                     setFiles( [] );
+                    if ( redirectExactFileToAuth() ) return;
                     setStage( 'mobile' );
                     setError( 'Your secure access expired. Please verify again.' );
                     return;
@@ -274,6 +314,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         const live = getSession();
         if ( !live ) {
             setFiles( [] );
+            if ( redirectExactFileToAuth() ) return;
             setStage( 'mobile' );
             setError( 'Your secure access expired. Please verify again.' );
             return;
@@ -292,6 +333,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             if ( outcome.kind === 'expired' ) {
                 clearSession();
                 setFiles( [] );
+                if ( redirectExactFileToAuth() ) return;
                 setStage( 'mobile' );
                 setError( 'Your secure access expired. Please verify again.' );
                 return;
@@ -505,7 +547,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         <div className="sf-note sf-note-ok" role="status">{ message }</div>
                     ) }
 
-                    { stage === 'mobile' && (
+                    { stage === 'mobile' && !targetFileId && (
                         <div className="sf-form">
                             {/* THE SAME DIVIDED FIELD AS /account/sign-in, on owner instruction: the
                                 two sign-in surfaces were showing a different phone input and a
@@ -553,7 +595,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         </div>
                     ) }
 
-                    { stage === 'otp' && (
+                    { stage === 'otp' && !targetFileId && (
                         <div className="sf-form">
                             <label className="sf-label" htmlFor="code">
                                 Code sent to { destination || 'your number' }
@@ -679,14 +721,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     label="Vault"
                                                     action={ working === file.fileId
                                                         ? 'Preparing checkout…'
-                                                        : price === null
+                                                        : price === null || payablePrice === null
                                                             ? 'Price unavailable'
                                                             : state === 'EXPIRED'
-                                                                ? `Renew for ₹${ rupeesFromPaise( price ) }`
-                                                                : `Checkout ₹${ rupeesFromPaise( price ) }` }
+                                                                ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
+                                                                : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
-                                                    disabled={ working === file.fileId || price === null }
+                                                    disabled={ working === file.fileId || price === null || payablePrice === null }
                                                     busy={ working === file.fileId }
                                                 />
                                                 <p className="sf-fine">

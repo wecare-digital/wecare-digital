@@ -29,9 +29,10 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
-    VAULT_OFFER    wecare_vault_request_ready                        IMAGE header, body {{1}} (document name),
-                                                          QUICK_REPLY "Unlock Vault" index 0 (added
-                                                          2026-10-26: the ₹49 offer for one file)
+    VAULT_OFFER    wecare_vault_request_ready             IMAGE header, body {{1}} (document name),
+                                                          QUICK_REPLY "Unlock Vault" index 0
+    DROP_DOCS_FLOW drop_docs_flow                         IMAGE header, FLOW button index 0
+                                                          (F003 SELECT_TARGET)
 
 `wecare_whatapp_native_pay_template` is the real approved spelling ("whatapp"); do not "fix" it.
 
@@ -112,9 +113,11 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 #: only by business-api `catalogService.sendOffer`; `wecare_vault_request_ready` is the provider-approved name.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
+DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="MARKETING",
+                          header="image", buttons=("flow",))
 
 ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
-                             LOCATION_PIN, VAULT_OFFER)
+                             LOCATION_PIN, VAULT_OFFER, DROP_DOCS_FLOW)
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
@@ -163,6 +166,21 @@ def vault_offer_document_name(raw: object) -> str:
     return text[:60].rstrip() or "Your document"
 
 
+def drop_docs_flow_send_fields(flow_token: str) -> dict:
+    """Outbound fields for the paid F003 launch template.
+
+    The FLOW button needs the exact server-issued token recorded before the send, and the IMAGE
+    header must be supplied at send time or Meta rejects the message.
+    """
+    token = str(flow_token or "").strip()
+    if not token:
+        raise ValueError("Drop Docs Flow token required")
+    return {"isTemplate": True, "templateName": DROP_DOCS_FLOW.name,
+            "templateParams": [DROP_DOCS_FLOW.language],
+            "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
+            "templateFlowButton": {"index": 0, "flowToken": token}}
+
+
 def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
     """The outbound-whatsapp request fields for one VAULT_OFFER send.
 
@@ -178,6 +196,6 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
 
 
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "VAULT_OFFER", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name",
-           "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
-           "vault_offer_document_name", "vault_offer_send_fields"]
+           "LOCATION_PIN", "VAULT_OFFER", "DROP_DOCS_FLOW", "ALL", "POST_PAYMENT_FORBIDDEN",
+           "by_name", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
+           "drop_docs_flow_send_fields", "vault_offer_document_name", "vault_offer_send_fields"]

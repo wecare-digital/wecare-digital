@@ -39,7 +39,8 @@ _ROW_RETENTION_SECONDS = 7 * 86400
 
 LAUNCH_KEYWORD = 'keyword'
 LAUNCH_STAFF = 'staff_send'
-LAUNCH_CHANNELS = frozenset({LAUNCH_KEYWORD, LAUNCH_STAFF})
+LAUNCH_PAYMENT = 'payment'
+LAUNCH_CHANNELS = frozenset({LAUNCH_KEYWORD, LAUNCH_STAFF, LAUNCH_PAYMENT})
 
 
 class FlowSessionRejected(Exception):
@@ -69,6 +70,7 @@ class FlowSession:
     created_at: int
     expires_at: int
     consumed_at: int
+    service_request_key: str = ""
 
 
 def table_name() -> str:
@@ -122,7 +124,8 @@ def _int(value: Any) -> int:
 
 
 def record_session(table: Any, *, capability: str, token: str, launch_channel: str,
-                   initiated_by: str, now: Optional[int] = None) -> FlowSession:
+                   initiated_by: str, service_request_key: str = "",
+                   now: Optional[int] = None) -> FlowSession:
     """Persist the proof of issue BEFORE the Flow message is sent. Raises on any failure.
 
     The write is conditional, so a token can never be re-issued over an existing row. A uuid4
@@ -136,10 +139,13 @@ def record_session(table: Any, *, capability: str, token: str, launch_channel: s
     if not capability or not phone or waba not in ('1', '2') or not actor:
         raise ValueError('a session needs a capability, a WABA slot, a phone and an initiator')
     issued = int(time.time() if now is None else now)
+    service_key = str(service_request_key or "").strip()[:200]
+    if launch_channel == LAUNCH_PAYMENT and not service_key:
+        raise ValueError('a payment Flow session needs its paid service request')
     session = FlowSession(capability=capability, phone=phone, waba=waba,
                           launch_channel=launch_channel, initiated_by=actor,
                           created_at=issued, expires_at=issued + SESSION_TTL_SECONDS,
-                          consumed_at=0)
+                          consumed_at=0, service_request_key=service_key)
     try:
         table.put_item(Item={
             'draftKey': session_key(phone, token),
@@ -151,6 +157,7 @@ def record_session(table: Any, *, capability: str, token: str, launch_channel: s
             'initiatedBy': actor,
             'createdAt': issued,
             'expiresAt': session.expires_at,
+            **({'serviceRequestKey': service_key} if service_key else {}),
             'ttl': session.expires_at + _ROW_RETENTION_SECONDS,
         }, ConditionExpression='attribute_not_exists(draftKey)')
     except Exception as exc:  # noqa: BLE001 - every failure means "not issued"
@@ -184,7 +191,8 @@ def verify_session(table: Any, *, capability: str, token: str, rejected_message:
                        launch_channel=str(item.get('launchChannel') or ''),
                        initiated_by=str(item.get('initiatedBy') or ''),
                        created_at=_int(item.get('createdAt')), expires_at=expires_at,
-                       consumed_at=_int(item.get('consumedAt')))
+                       consumed_at=_int(item.get('consumedAt')),
+                       service_request_key=str(item.get('serviceRequestKey') or ''))
 
 
 def mark_consumed(table: Any, *, token: str, now: Optional[int] = None) -> bool:

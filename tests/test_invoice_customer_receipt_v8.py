@@ -86,17 +86,18 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Delight", -discount', source)
         self.assertIn('total_row("Express", shipping)', source)
         self.assertIn('total_row("Convenience Fee", convenience_net)', source)
-        self.assertIn('total_row("GST", total_gst', source)
+        self.assertIn('total_row("GST", total_gst, strong=True, band=True)', source)
         self.assertNotIn('total_row("Taxable Value"', source)
         self.assertNotIn('total_row("Total Tax"', source)
         self.assertNotIn('total_row("Discount"', source)
         self.assertNotIn('total_row("Shipping"', source)
 
-    def test_receipt_shows_the_full_payment_reference(self):
-        # v9 geometry is pinned by test_receipt_v9_uses_fixed_reference_canvas.
+    def test_receipt_uses_full_public_reference(self):
         source = RECEIPT.read_text(encoding="utf-8")
         self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
-        self.assertNotIn('ref = _strip_ref(invoice.get("referenceId"))', source)
+        self.assertNotIn('full_ref[:15]', source)
+        self.assertIn('fact_regular = _font(font_paths, "regular", 18)', source)
+        self.assertIn('fact_semibold = _font(font_paths, "semibold", 15)', source)
 
     def test_preview_has_module_base64_and_tiny_delight_stays_visible(self):
         engine = ENGINE.read_text(encoding="utf-8")
@@ -162,7 +163,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         source = RECEIPT.read_text(encoding="utf-8")
         self.assertIn('"BILL TO"', source)
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
-        self.assertIn('total_row("GST", total_gst', source)
+        self.assertIn('total_row("GST", total_gst, strong=True, band=True)', source)
 
     def test_branded_receipt_uses_canonical_customer_display_id_only(self):
         engine = ENGINE.read_text(encoding="utf-8")
@@ -288,13 +289,39 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         stem = source[source.index("def _invoice_asset_stem"):source.index("def _next_asset_version")]
         self.assertNotIn("invoiceNumber", stem)
         self.assertNotIn("__{reference}", stem)
-        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}"', stem)
+        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}-{date_token}-{time_token}"', stem)
 
-    def test_receipt_v9_uses_fixed_reference_canvas(self):
+    def test_receipt_v10_uses_fixed_reference_canvas(self):
         source = RECEIPT.read_text(encoding="utf-8")
         self.assertIn("BASE_W = 1024", source)
         self.assertIn("BASE_H = 1536", source)
+        self.assertIn("PAPER_X0 = 108", source)
+        self.assertIn("PAPER_X1 = 916", source)
+        self.assertIn('draw.rounded_rectangle((157, 352, 867, 410)', source)
+        self.assertIn('footer_line_y = 1323 + extra_rows * 58', source)
+        self.assertIn('total_row("GST", total_gst, strong=True, band=True)', source)
+        self.assertIn("ImageFilter.GaussianBlur(10)", source)
         self.assertIn("Fresh fixed-coordinate renderer", source)
+
+    def test_customer_receipt_key_uses_public_reference_date_time(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        target = source[source.index("def _asset_target"):source.index("# ─── Generate Invoice Image")]
+        self.assertIn("render_token = uuid.uuid4().hex[:12]", target)
+        self.assertNotIn("-v{version}-r", target)
+
+
+    def test_receipt_v10_keeps_full_public_reference_and_plain_gst_label(self):
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
+        self.assertNotIn("full_ref[:15]", source)
+        self.assertIn('total_row("GST", total_gst, strong=True, band=True)', source)
+        self.assertNotIn('total_row(str(company.get("gstin") or "GST")', source)
+
+    def test_receipt_v10_uses_thin_scalloped_reference_frame(self):
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn("PAYMENT RECEIPT v10", source)
+        self.assertIn("thin neon-lime scalloped edge", source)
+        self.assertIn("GaussianBlur(10)", source)
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,17 +6,18 @@ ProductsTable-priced snapshot and pass live payment readiness before sending a p
 from __future__ import annotations
 import re
 from typing import Any
-from lambda_utils import customer_auth, template_status
+from lambda_utils import customer_auth, template_status, template_media
 from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
-# Vault only. Submit Request was sold here too, but every dependency of a paid WhatsApp Submit
+# Vault and Drop Docs use the one native WhatsApp service-payment rail. Submit Request was sold
+# here too, but every dependency of a paid WhatsApp Submit
 # Request is gone: its continuation Flow 1107164111921876 reads DEPRECATED on Meta (2026-10-25),
 # `paid_submit_request.VARIANT_ID` was wiped with the retired catalogue identities (#712), and
 # `service_request_store.request_intent` now requires the original order, which this leg never
 # had. A Submit Request session therefore failed only AFTER its customer lock and intent were
 # written. The customer is now told up front to start it on the website instead.
-ALLOWED = frozenset({'VAULT'})
+ALLOWED = frozenset({'VAULT', 'DROP_DOCS'})
 
 
 def finalization_complete(attempt: dict) -> bool:
@@ -39,7 +40,7 @@ def service_from_lines(lines: list[dict]) -> dict | None:
     item = relevant[0]
     kind = service_requests.SERVICE_KIND_BY_VARIANT.get(item.get('variantId'))
     if kind not in ALLOWED or type(item.get('quantity')) is not int or item['quantity'] != 1:
-        raise ValueError('Choose one Vault item, quantity 1.')
+        raise ValueError('Choose one supported service item, quantity 1.')
     return {'kind': kind, 'variantId': item['variantId'], 'productId': item['productId']}
 
 
@@ -115,45 +116,96 @@ def quick_reply_component(button: dict) -> dict:
             'parameters': [{'type': 'payload', 'payload': payload}]}
 
 
-def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int) -> dict:
+def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int,
+                    *, invoice_lines: dict | None = None) -> dict:
+    """Meta Review & Pay from the same canonical breakdown stored on the attempt."""
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
-    label = 'Submit Request' if row['kind'] == 'SUBMIT_REQUEST' else 'Vault'
-    items = [{'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
-              'name': label, 'quantity': 1,
-              'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
+    labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
+    label = labels.get(row['kind'], 'Service')
+
+    spec = invoice_lines if isinstance(invoice_lines, dict) else {}
+    lines = spec.get('lines') if isinstance(spec.get('lines'), list) else []
+    service_line = lines[0] if len(lines) == 1 and isinstance(lines[0], dict) else {}
+    unit_paise = int(service_line.get('unitPricePaise') or 0)
+    quantity = int(service_line.get('quantity') or 0)
+    if unit_paise <= 0 or quantity != 1:
+        # Backward-compatible fallback for tests/legacy callers; current checkout always passes
+        # invoiceLines. It intentionally cannot invent discount/Express from a quote alone.
+        unit_paise = int(quote.collection_before_convenience_paise)
+        quantity = 1
+
+    items = [{
+        'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
+        'name': label, 'quantity': quantity,
+        'amount': {'value': unit_paise, 'offset': 100},
+        'image': {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL},
+    }]
     if quote.convenience_fee_paise:
-        # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
+        # Non-catalog line: no synthetic retailer_id.
         items.append({'name': 'Convenience fee', 'quantity': 1,
-                      'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
-    return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
-        # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
-        # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
-        # WABA1-only refusal, the raw-link refusals and the VALID_PAYMENT_CONFIGS membership
-        # check did not apply to this leg. Removing it is a correctness fix, not a cleanup.
-        #
-        # The NAME still travels, and it has to. `configuration` was used ONLY by that block, so
-        # dropping the block alone would make this argument dead, the resolver would fall back to
-        # the sender's phone map, and the system could prove one configuration against Meta while
-        # telling Meta to use another — with no refusal anywhere. Mirrors the invoice engine,
-        # where the reserved string and the sent string are the same string by construction.
+                      'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100}})
+
+    supply_gst_paise = int(spec.get('supplyGstPaise') or 0)
+    discount_paise = int(spec.get('discountPaise') or 0)
+    express_paise = int(spec.get('deliveryPaise') or 0)
+    order = {
+        'status': 'pending',
+        # Meta's subtotal includes the catalog items plus non-catalog fee line. Shipping,
+        # discount and fee GST are separate fields and reconcile to total_amount.
+        'items': items,
+        'subtotal': {'value': unit_paise + int(quote.convenience_fee_paise), 'offset': 100},
+        'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        'tax': {'value': supply_gst_paise + int(quote.convenience_gst_paise), 'offset': 100,
+                'description': 'GST'},
+        'expiration': {'timestamp': str(now + 900),
+                       'description': 'Complete payment within 15 minutes'},
+    }
+    if discount_paise:
+        order['discount'] = {'value': discount_paise, 'offset': 100, 'description': 'Delight'}
+        order['couponCode'] = 'DELIGHT'
+
+    reconciled = (
+        unit_paise + supply_gst_paise + express_paise - discount_paise
+        + int(quote.convenience_fee_paise) + int(quote.convenience_gst_paise)
+    )
+    if reconciled != int(quote.total_payable_paise):
+        raise ValueError('catalog service ORDER_DETAILS does not reconcile to payable total')
+
+    return {
+        'reference_id': reference_id,
+        'type': 'digital-goods',
+        'currency': 'INR',
         'payment_configuration': configuration,
-        'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'order': {'status': 'pending', 'items': items,
-                  'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
-                  'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
-                  'expiration': {'timestamp': str(now + 900), 'description': 'Complete payment within 15 minutes'}}}
+        'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
+        'order': order,
+    }
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:
     templates = readiness.get('templates') or {}
-    for name in ('wecare_whatapp_native_pay_template', 'wecare_default_download'):
-        template = templates.get(name) or {}
-        if template.get('name') != name or not template_status.is_sendable(template.get('status')) or template.get('language') != 'en':
-            return False
-    download = templates['wecare_default_download']
-    buttons = [b for c in download.get('components') or [] if c.get('type') == 'BUTTONS'
-               for b in c.get('buttons') or []]
-    if not buttons or buttons[0].get('type') != 'URL' or buttons[0].get('url') != 'https://wecare.digital/vault/?file={{1}}':
+    pay = templates.get('wecare_whatapp_native_pay_template') or {}
+    if (pay.get('name') != 'wecare_whatapp_native_pay_template'
+            or not template_status.is_sendable(pay.get('status')) or pay.get('language') != 'en'):
         return False
-    return kind in ALLOWED
+    if kind == 'VAULT':
+        download = templates.get('wecare_default_download') or {}
+        if (download.get('name') != 'wecare_default_download'
+                or not template_status.is_sendable(download.get('status'))
+                or download.get('language') != 'en'):
+            return False
+        buttons = [b for comp in download.get('components') or [] if comp.get('type') == 'BUTTONS'
+                   for b in comp.get('buttons') or []]
+        return bool(buttons and buttons[0].get('type') == 'URL'
+                    and buttons[0].get('url') == 'https://wecare.digital/vault/?file={{1}}')
+    if kind == 'DROP_DOCS':
+        launch = templates.get('drop_docs_flow') or {}
+        if (launch.get('name') != 'drop_docs_flow'
+                or not template_status.is_sendable(launch.get('status'))
+                or launch.get('language') != 'en'):
+            return False
+        buttons = [b for comp in launch.get('components') or [] if comp.get('type') == 'BUTTONS'
+                   for b in comp.get('buttons') or []]
+        return bool(buttons and buttons[0].get('type') == 'FLOW'
+                    and str(buttons[0].get('flow_id') or '') == '39581903361452878')
+    return False

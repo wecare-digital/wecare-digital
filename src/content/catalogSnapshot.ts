@@ -223,7 +223,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'e1ca7833-5d7d-567b-837c-face04647598', name:'Request · Drop Docs', slug:'drop-docs',
-    formattedPrice:'₹199.00', price:'199.00', currency:'INR',
+    formattedPrice:'₹188.00', price:'188.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/drop-docs/',
     descriptionHtml:'<p>Request · Drop Docs from WECARE.DIGITAL.</p>',
     variants:[{ id:'RDD9P3M7', label:'Standard', inStock:true }],
