@@ -97,7 +97,7 @@ def template(code: str, source_hash: str) -> dict:
         {'Effect': 'Allow', 'Action': ['kms:Encrypt', 'kms:Decrypt'], 'Resource': ref('CustodyKeyArn'),
          'Condition': {'StringEquals': {'kms:EncryptionContext:app': 'wecare-customer-commerce'}}},
         {'Effect': 'Allow', 'Action': ['lambda:InvokeFunction'], 'Resource': [sub('arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:' + name + ':live')
-            for name in ['wecare-commerce', 'wecare-customer-profile', 'wecare-customer-orders']]},
+            for name in ['wecare-commerce', 'wecare-customer-profile', 'wecare-customer-orders', 'wecare-customer-session']]},
         {'Fn::If': ['EnableRegistration', {'Effect': 'Allow', 'Action': ['lambda:InvokeFunction'],
             'Resource': sub('arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-customer-registration:live')}, ref('AWS::NoValue')]},
         {'Effect': 'Allow', 'Action': ['logs:CreateLogStream', 'logs:PutLogEvents'], 'Resource': get('FunctionLogs', 'Arn')},

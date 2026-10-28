@@ -103,14 +103,15 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         with patch.object(self.cognito, 'initiate_auth', wraps=self.cognito.initiate_auth) as call:
             result = self.post(cookie, {'csrf': csrf, 'country': '+91', 'phone': '9876543210'})
-        self.assertIn('WhatsApp verification code', result['body'])
+        self.assertIn('name="code"', result['body'])
         self.assertEqual(call.call_args.kwargs['AuthParameters']['USERNAME'], '+919876543210')
 
     def test_invalid_country_or_national_length_never_sends(self):
         for country, number in [('+999', '9876543210'), ('+91', '12345'), ('+91', '+919876543210')]:
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'country': country, 'phone': number})
-            self.assertIn('Check your country code and WhatsApp number', result['body'])
+            self.assertIn('name="phone"', result['body'])
+            self.assertEqual(result['statusCode'], 200)
         self.assertEqual(self.cognito.sends, 0)
 
     def test_branded_authorization_origin_keeps_resource_binding(self):
@@ -119,7 +120,7 @@ class OAuthContract(unittest.TestCase):
             self.assertEqual(auth.auth_metadata()['issuer'], BASE)
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://wecare.digital')
-            self.assertIn('WhatsApp verification code', result['body'])
+            self.assertIn('name="code"', result['body'])
 
     def test_host_language_hint_does_not_change_authorization(self):
         params = {**self.params, 'ui_locales': 'en-US'}
@@ -146,6 +147,48 @@ class OAuthContract(unittest.TestCase):
         self.params = {'client_id': 'test-client', 'redirect_uri': REDIRECT, 'response_type': 'code',
                        'scope': 'commerce:read commerce:write', 'state': 'synthetic-state-123456789',
                        'resource': BASE + '/mcp', 'code_challenge': CHALLENGE, 'code_challenge_method': 'S256'}
+
+    def pending(self, cookie):
+        key = auth.row_key('auth', cookie)
+        row = self.store.get(key)
+        return auth.uncapsule(row['cipher'], row['client'], key)
+
+    def test_resend_accepts_browser_code_field_but_rejects_unknown_fields(self):
+        for code in ['', '000000']:
+            cookie, csrf = self.begin()
+            page = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            sends = self.cognito.sends
+            page = self.post(cookie, {'csrf': csrf, 'action': 'resend', 'code': code})
+            self.assertEqual(self.cognito.sends, sends + 1)
+            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            self.post(cookie, {'csrf': csrf, 'action': 'resend', 'code': '', 'unknown': 'x'})
+            self.assertEqual(self.cognito.sends, sends + 1)
+
+    def test_edit_phone_clears_old_challenge_without_sending(self):
+        cookie, csrf = self.begin()
+        page = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+        csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+        sends = self.cognito.sends
+        page = self.post(cookie, {'csrf': csrf, 'action': 'edit_phone', 'code': ''})
+        self.assertEqual(self.pending(cookie), {'phase': 'phone'})
+        self.assertEqual(self.cognito.sends, sends)
+        self.assertIn('name="phone"', page['body'])
+
+    def test_form_post_redirects_and_refresh_does_not_resend(self):
+        cookie, csrf = self.begin()
+        event = {'rawPath': '/auth', 'headers': {'origin': BASE, 'content-type': 'application/x-www-form-urlencoded'},
+                 'cookies': [f'{auth.COOKIE}={cookie}'], 'requestContext': {'http': {'method': 'POST'}},
+                 'body': urlencode({'csrf': csrf, 'phone': '+447700900123'})}
+        result = auth.route(event)
+        self.assertEqual(result['statusCode'], 303)
+        self.assertEqual(result['headers']['Location'], BASE + '/auth')
+        for _ in range(4):
+            result = auth.route({'rawPath': '/auth', 'cookies': event['cookies'],
+                                 'requestContext': {'http': {'method': 'GET'}}})
+            self.assertEqual(result['statusCode'], 200)
+            self.assertEqual(self.pending(cookie)['phase'], 'code')
+        self.assertEqual(self.cognito.sends, 1)
 
     def begin(self):
         result = auth.authorize_get(self.params)
@@ -297,11 +340,12 @@ class OAuthContract(unittest.TestCase):
             return True
         with patch.object(auth, 'registration_call', side_effect=registration) as delegate:
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            self.assertIn('create your account', result['body'])
+            self.assertEqual(self.pending(cookie)['phase'], 'registration')
             csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
             result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(result['statusCode'], 200)
-            self.assertIn('new WhatsApp code', result['body'])
+            self.assertEqual(self.pending(cookie)['phase'], 'code')
+            self.assertIn('name="code"', result['body'])
             self.assertEqual(delegate.call_args.args[0], 'verify')
             self.assertEqual(self.cognito.sends, 2)
 
