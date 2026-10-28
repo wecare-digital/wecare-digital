@@ -25,7 +25,7 @@ Four rules it enforces, each load-bearing
    session with `authorize_resource`, so one customer cannot read another's attempt (IDOR).
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
-   `checkout_pricing.compute_quote` adds the convenience fee and its GST for ordinary baskets; Vault access is fee-exempt at this same pricing seam. The browser sends
+   `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs use their owner-approved service sequence at this same pricing seam: 18% supply GST, Delight, Rs25 Express, then the standard convenience fee and fee GST. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
