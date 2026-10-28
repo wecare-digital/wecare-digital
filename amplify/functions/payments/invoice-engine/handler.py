@@ -2871,7 +2871,8 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
             invoice, items, company=COMPANY,
             font_paths=font_paths, logo_bytes=_load_logo_bytes(),
             ist_strftime=_ist_strftime, canonical_status=pay_status.canonical,
-            amount_in_words=_amount_in_words, source_label=_source_label(invoice))
+            amount_in_words=_amount_in_words, source_label=_source_label(invoice),
+            customer_id=_customer_id(invoice))
 
     # ── Font setup (monospace — download DejaVu Sans Mono from S3 on Lambda) ──
     _font_cache = getattr(_generate_receipt_png, '_font_cache', {})
