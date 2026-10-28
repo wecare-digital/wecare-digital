@@ -242,7 +242,34 @@ UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # presigned link this function issues; WhatsApp delivery sends a Vault page link instead.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
-MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(1024 * 1024 * 1024)))
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(100 * 1024 * 1024)))
+
+_META_MEDIA_RULES = {
+    ".aac": ("audio/aac", 16 * 1024 * 1024),
+    ".amr": ("audio/amr", 16 * 1024 * 1024),
+    ".mp3": ("audio/mpeg", 16 * 1024 * 1024),
+    ".m4a": ("audio/mp4", 16 * 1024 * 1024),
+    ".ogg": ("audio/ogg", 16 * 1024 * 1024),
+    ".txt": ("text/plain", 100 * 1024 * 1024),
+    ".xls": ("application/vnd.ms-excel", 100 * 1024 * 1024),
+    ".xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 100 * 1024 * 1024),
+    ".doc": ("application/msword", 100 * 1024 * 1024),
+    ".docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", 100 * 1024 * 1024),
+    ".ppt": ("application/vnd.ms-powerpoint", 100 * 1024 * 1024),
+    ".pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation", 100 * 1024 * 1024),
+    ".pdf": ("application/pdf", 100 * 1024 * 1024),
+    ".jpeg": ("image/jpeg", 5 * 1024 * 1024),
+    ".png": ("image/png", 5 * 1024 * 1024),
+    ".3gp": ("video/3gpp", 16 * 1024 * 1024),
+    ".mp4": ("video/mp4", 16 * 1024 * 1024),
+}
+
+def _meta_media_limit(filename: str, content_type: str) -> int:
+    ext = os.path.splitext(str(filename or "").strip().lower())[1]
+    rule = _META_MEDIA_RULES.get(ext)
+    if not rule or str(content_type or "").strip().lower() != rule[0]:
+        return 0
+    return min(MAX_UPLOAD_BYTES, rule[1])
 
 _s3 = None
 _ddb = None
@@ -770,9 +797,16 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         return cors_response(400, {"error": "Customer name is required"}, origin)
     if not filename:
         return cors_response(400, {"error": "originalFilename is required"}, origin)
-    if size <= 0 or size > MAX_UPLOAD_BYTES:
+    media_limit = _meta_media_limit(filename, content_type)
+    if not media_limit:
         return cors_response(
-            400, {"error": f"sizeBytes must be between 1 and {MAX_UPLOAD_BYTES}"}, origin
+            415, {"error": "UNSUPPORTED_MEDIA_TYPE",
+                  "message": "Use a WhatsApp-supported file type with a matching extension and MIME type."},
+            origin,
+        )
+    if size <= 0 or size > media_limit:
+        return cors_response(
+            413, {"error": "FILE_TOO_LARGE", "limitBytes": media_limit}, origin
         )
 
     try:
@@ -913,25 +947,24 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
         )
 
     size = int(head["ContentLength"])
-    if size <= 0 or size > MAX_UPLOAD_BYTES:
-        # upload-init checked the size the browser declared; a presigned PUT does not bind
-        # Content-Length, so the stored object is measured here. The object stays private under
-        # secure/ (this role cannot delete), and the row can never become active or sellable.
+    # Prefer what S3 recorded over what the browser asserted at upload-init.
+    content_type = head.get("ContentType") or item.get("contentType") or ""
+    media_limit = _meta_media_limit(str(item.get("originalFilename") or ""), str(content_type))
+    if not media_limit or size <= 0 or size > media_limit:
         table.update_item(
             Key={"fileId": file_id},
             UpdateExpression="SET #s = :rejected, sizeBytes = :size, rejectedReason = :why",
             ConditionExpression="#s = :pending",
             ExpressionAttributeNames={"#s": "status"},
             ExpressionAttributeValues={":rejected": "rejected", ":pending": "pending",
-                                       ":size": size, ":why": "SIZE_LIMIT"},
+                                       ":size": size, ":why": "META_MEDIA_LIMIT"},
         )
-        logger.warning(json.dumps({"event": "secure_file_rejected_size", "fileId": file_id,
+        logger.warning(json.dumps({"event": "secure_file_rejected_meta_media", "fileId": file_id,
                                    "sizeBytes": size}))
         return cors_response(
-            413, {"error": "FILE_TOO_LARGE",
-                  "message": f"The uploaded file is larger than {MAX_UPLOAD_BYTES} bytes."}, origin)
-    # Prefer what S3 recorded over what the browser asserted at upload-init.
-    content_type = head.get("ContentType") or item.get("contentType") or ""
+            413 if media_limit else 415,
+            {"error": "FILE_TOO_LARGE" if media_limit else "UNSUPPORTED_MEDIA_TYPE"},
+            origin)
     deliverable = _classify_delivery(content_type, size)
 
     delivery_key = ""
@@ -1130,10 +1163,14 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                                    "message": "The uploaded document is not present in storage."}, origin)
 
     size = int(head.get("ContentLength") or 0)
-    if size <= 0 or size > MAX_UPLOAD_BYTES:
-        return cors_response(413, {"error": "FILE_TOO_LARGE"}, origin)
     content_type = str(head.get("ContentType") or document.get("mimeType")
                        or "application/octet-stream")
+    original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
+    media_limit = _meta_media_limit(original_name, content_type)
+    if not media_limit:
+        return cors_response(415, {"error": "UNSUPPORTED_MEDIA_TYPE"}, origin)
+    if size <= 0 or size > media_limit:
+        return cors_response(413, {"error": "FILE_TOO_LARGE", "limitBytes": media_limit}, origin)
     deliverable = _classify_delivery(content_type, size)
     original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
     delivery_key = ""
