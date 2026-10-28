@@ -92,10 +92,9 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertNotIn('total_row("Discount"', source)
         self.assertNotIn('total_row("Shipping"', source)
 
-    def test_receipt_matches_narrow_reference_geometry_and_full_reference(self):
+    def test_receipt_shows_the_full_payment_reference(self):
+        # v9 geometry is pinned by test_receipt_v9_uses_fixed_reference_canvas.
         source = RECEIPT.read_text(encoding="utf-8")
-        self.assertIn("width = 800 * scale", source)
-        self.assertIn("margin = 112 * scale", source)
         self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
         self.assertNotIn('ref = _strip_ref(invoice.get("referenceId"))', source)
 
@@ -161,9 +160,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertGreater(max(alpha.getdata()), 0)
         self.assertEqual(image.width, 1024)
         source = RECEIPT.read_text(encoding="utf-8")
-        self.assertIn("_gradient_roundrect", source)
         self.assertIn('"BILL TO"', source)
-        self.assertIn("divider_x = width // 2", source)
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
         self.assertIn('total_row("GST", total_gst', source)
 
@@ -230,8 +227,11 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
             "'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png')",
             engine,
         )
-        self.assertIn('wecare_text, digital_text = "WECARE", "DIGITAL"', receipt)
-        self.assertIn('fill=(255, 0, 64)', receipt)
+        self.assertIn('"WECARE", font=brand, fill=INK', receipt)
+        self.assertIn('"DIGITAL", font=brand, fill=INK', receipt)
+        # The dot stays the site's brand red, #ff0040, as in BrandLockup and the v8 receipt.
+        self.assertIn("RED = (255, 0, 64)", receipt)
+        self.assertIn('".", font=brand, fill=RED', receipt)
 
 
     def test_order_details_uses_owner_default_item_thumbnail(self):
@@ -277,6 +277,24 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertNotEqual(trace, "waidem")
         self.assertNotIn("wa-idem-", f"wecare-digital-{trace}.png")
 
+
+    def test_issued_receipt_keys_are_unique_and_no_store(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertIn("render_token = uuid.uuid4().hex[:12]", source)
+        self.assertIn("no-store, max-age=0, must-revalidate", source)
+
+    def test_customer_receipt_key_does_not_expose_internal_invoice_number(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        stem = source[source.index("def _invoice_asset_stem"):source.index("def _next_asset_version")]
+        self.assertNotIn("invoiceNumber", stem)
+        self.assertNotIn("__{reference}", stem)
+        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}"', stem)
+
+    def test_receipt_v9_uses_fixed_reference_canvas(self):
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn("BASE_W = 1024", source)
+        self.assertIn("BASE_H = 1536", source)
+        self.assertIn("Fresh fixed-coordinate renderer", source)
 
 if __name__ == "__main__":
     unittest.main()

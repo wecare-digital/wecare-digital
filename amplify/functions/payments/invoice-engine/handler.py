@@ -2555,18 +2555,14 @@ def _s3_invoice_token(value: Any) -> str:
 
 
 def _invoice_asset_stem(invoice: Dict, invoice_id: str) -> str:
-    """Canonical S3 stem for a rendered invoice.
+    """Canonical customer-facing S3 stem for a rendered receipt.
 
-    Issued invoices are traceable directly from the statutory invoice number AND the payment
-    reference. Drafts retain the legacy reference-only stem so existing draft tooling does not
-    change behaviour before a GST number is issued.
+    Never expose the internal statutory invoice number in the object key. The public/payment
+    reference is the only business identifier carried in the filename; the render token added
+    by _asset_target makes each issued rendition immutable and cache-safe.
     """
     reference = _s3_invoice_token(invoice.get('referenceId') or invoice_id)
-    invoice_number = str(invoice.get('invoiceNumber') or '').strip()
-    if not invoice_number:
-        return f"{INVOICE_PREFIX}wecare-digital-{reference}"
-    number = _s3_invoice_token(invoice_number)
-    return f"{INVOICE_PREFIX}wecare-digital-{number}__{reference}"
+    return f"{INVOICE_PREFIX}wecare-digital-{reference}"
 
 
 def _next_asset_version(invoice_id: str, asset_type: str, request_id: str) -> int:
@@ -2614,18 +2610,24 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
     WhatsApp invoice-copy flow recomputes exactly these base keys (draft or issued stem) to
     bind the `image` row to its order.
 
-    An ISSUED invoice gets a NEW key, so the previous object stays in S3 and the previous
-    `InvoiceAssets` row stays untouched. A re-render after issue happens for honest reasons (a
-    corrected delivery address, a logo fix) and for dishonest ones; either way the rendition the
-    customer was sent must remain retrievable, because it is the document they hold.
+    An ISSUED invoice gets a NEW key containing the payment-reference stem, numeric rendition
+    version and a short random render token. The previous object stays in S3 and the previous
+    `InvoiceAssets` row stays untouched. The unique key also prevents stale image-cache reuse.
     """
     base_key = f'{stem}.{extension}'
     if not _is_issued(invoice):
         return base_key, asset_type
     version = _next_asset_version(invoice_id, asset_type, request_id)
+    # Issued customer receipts are immutable and cache-busting by key. The human-traceable
+    # payment reference remains in `stem`; a short random render token prevents any browser,
+    # intermediary or messaging client from confusing a newly rendered design with an older PNG.
+    render_token = uuid.uuid4().hex[:12]
     if version <= 1:
-        return base_key, asset_type
-    return f'{stem}-v{version}.{extension}', f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}'
+        return f'{stem}-r{render_token}.{extension}', asset_type
+    return (
+        f'{stem}-v{version}-r{render_token}.{extension}',
+        f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}',
+    )
 
 
 # ─── Generate Invoice Image (PNG) ───
@@ -2747,7 +2749,7 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
         Key=s3_key,
         Body=png_bytes,
         ContentType='image/png',
-        CacheControl='max-age=86400',
+        CacheControl='no-store, max-age=0, must-revalidate',
         Metadata=object_metadata,
     )
 
