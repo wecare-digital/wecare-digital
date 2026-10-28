@@ -364,9 +364,9 @@ class PaidVaultAlertTests(unittest.TestCase):
 class OrderDetailsLineTests(unittest.TestCase):
     def test_service_payment_lines_carry_no_synthetic_retailer_id(self):
         from lambda_utils.ecommerce import catalog_service_checkout, meta_catalog_sync
-        quote = SimpleNamespace(collection_before_convenience_paise=9900,
-                                convenience_fee_paise=248, convenience_gst_paise=45,
-                                total_payable_paise=10193)
+        quote = SimpleNamespace(collection_before_convenience_paise=9863,
+                                convenience_fee_paise=247, convenience_gst_paise=44,
+                                total_payable_paise=10154)
         row = {"kind": "VAULT", "productId": "d4cfc6e8-10b3-5c47-94c8-3c69f4c1e1a1",
                "variantId": "RVT6K4Q8"}
         invoice_lines = {
@@ -374,9 +374,9 @@ class OrderDetailsLineTests(unittest.TestCase):
                        "name": "Vault", "quantity": 1, "unitPricePaise": 7400}],
             "deliveryPaise": 2500,
             "discountPaise": 37,
-            "convenienceFeePaise": 248,
-            "convenienceGstPaise": 45,
-            "totalPaise": 10193,
+            "convenienceFeePaise": 247,
+            "convenienceGstPaise": 44,
+            "totalPaise": 10154,
         }
         details = catalog_service_checkout.payment_details(
             row, quote, "WD-PAY-TEST0001", "WECAREDIGITAL", 1_800_000_000,
