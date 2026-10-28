@@ -105,20 +105,8 @@ interface OrderRow {
    * read below already treats anything that is not `'whatsapp'` as the website.
    */
   channel: string;
-  /**
-   * The public customer id — a uuid4 the server mints, re-validated server-side by
-   * `lambda_utils.identity.customer_uuid` before it reaches the wire, so a junk or uuid7 value
-   * arrives as `''` rather than being displayed.
-   *
-   * ALWAYS PRESENT, `''` when the order's customer has none (every contact created before the
-   * attribute existed). Typed `string` and not optional for the same reason `currencyUnexpected`
-   * is always present: a field that appears only when it has a value forces every reader to
-   * handle `undefined` as well as the empty case.
-   *
-   * Shown IN FULL, unlike a phone. It is opaque, carries no timestamp, and is not a credential —
-   * so it is the value a customer can safely read out to support.
-   */
-  customerUuid: string;
+  /** Stable compact customer-facing support label (C-…), derived server-side. */
+  customerDisplayId: string;
 }
 
 interface ProfilePayload {
@@ -1164,8 +1152,8 @@ export default function OrdersPage (): React.ReactElement {
                                          unconditionally so the panel's row count is stable. */ }
                                     <dt>Customer ID</dt>
                                     <dd>
-                                      { order.customerUuid
-                                        ? <span data-wc-no-translate>{ order.customerUuid }</span>
+                                      { order.customerDisplayId
+                                        ? <span data-wc-no-translate>{ order.customerDisplayId }</span>
                                         : 'Not assigned' }
                                     </dd>
                                     <dt>Placed</dt>
