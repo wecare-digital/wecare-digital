@@ -767,8 +767,9 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     quote = snapshot.quote
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
-    supply_gst_paise = int(frozen.get("supplyGstPaise") or 0)
-    explicit_discount = frozen.get("discountPaise")
+    pricing_metadata = frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
     if explicit_discount is not None:
         discount_paise = max(0, int(explicit_discount))
     else:
@@ -880,8 +881,9 @@ def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
     quote = snapshot.quote
-    supply_gst_paise = int(frozen.get("supplyGstPaise") or 0)
-    explicit_discount = frozen.get("discountPaise")
+    pricing_metadata = frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
     if explicit_discount is not None:
         discount_paise = max(0, int(explicit_discount))
     else:
@@ -954,9 +956,11 @@ def _vault_dropdocs_quote(*, identity, ephemeral_cart, reader, service_line, now
     quote = checkout_pricing.compute_quote(collection_paise, currency="INR")
 
     frozen["delivery"] = {"paise": express_paise, "optionId": "express"}
-    frozen["supplyGstPaise"] = supply_gst_paise
-    frozen["discountPaise"] = delight_paise
-    frozen["servicePricingPolicy"] = "vault-dropdocs-2026-10-28"
+    pricing_metadata = {
+        "policy": "vault-dropdocs-2026-10-28",
+        "supplyGstPaise": supply_gst_paise,
+        "discountPaise": delight_paise,
+    }
     return checkout_pricing.build_snapshot(
         customer_id=base.customer_id,
         cart_id=base.cart_id,
@@ -968,6 +972,7 @@ def _vault_dropdocs_quote(*, identity, ephemeral_cart, reader, service_line, now
         items=frozen_items,
         address=frozen.get("address"),
         delivery=frozen.get("delivery"),
+        pricing_metadata=pricing_metadata,
     )
 
 
