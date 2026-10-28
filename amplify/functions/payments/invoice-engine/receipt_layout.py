@@ -1,6 +1,6 @@
-"""WECARE.DIGITAL customer PAYMENT RECEIPT v9.
+"""WECARE.DIGITAL customer PAYMENT RECEIPT v10.
 
-Fresh fixed-coordinate renderer for the owner-approved 1024 x 1536 reference.
+Fresh fixed-coordinate renderer for the owner-approved 1024 x 1536 reference; no legacy visual fallback.
 Presentation only: it renders persisted invoice facts and never recalculates pricing.
 """
 from __future__ import annotations
@@ -24,8 +24,8 @@ RED = (255, 0, 64)  # brand dot, #ff0040 as in BrandLockup
 
 BASE_W = 1024
 BASE_H = 1536
-PAPER_X0 = 120
-PAPER_X1 = 904
+PAPER_X0 = 108
+PAPER_X1 = 916
 INNER_X0 = 158
 INNER_X1 = 866
 
@@ -125,31 +125,52 @@ def _center(draw, value, font, y, fill=INK):
 
 
 def _scalloped_frame(canvas, y_bottom):
-    # Match the approved specimen: a 784px lime receipt body with a soft neon halo.
-    frame = Image.new("RGBA", canvas.size, (255, 255, 255, 0))
-    draw = ImageDraw.Draw(frame)
-    top = 30
-    draw.rounded_rectangle((PAPER_X0, top, PAPER_X1, y_bottom), radius=18, fill=LIME_STRONG)
-    draw.rounded_rectangle((PAPER_X0 + 15, top + 18, PAPER_X1 - 15, y_bottom - 18),
-                           radius=13, fill=PAPER)
+    """Draw the approved narrow white receipt with a thin neon-lime scalloped edge."""
+    top = 24
+    outer = Image.new("L", canvas.size, 0)
+    od = ImageDraw.Draw(outer)
 
-    step = 29
-    r = 10
+    # Base body, then outward scallop lobes on all four sides.
+    od.rectangle((PAPER_X0 + 10, top + 10, PAPER_X1 - 10, y_bottom - 10), fill=255)
+    lobe_r = 11
+    step = 27
     for x in range(PAPER_X0 + 18, PAPER_X1 - 16, step):
-        draw.ellipse((x-r, top-r, x+r, top+r), fill=(255, 255, 255, 0))
-        draw.ellipse((x-r, y_bottom-r, x+r, y_bottom+r), fill=(255, 255, 255, 0))
-    for y in range(top + 20, y_bottom - 20, step):
-        draw.ellipse((PAPER_X0-r, y-r, PAPER_X0+r, y+r), fill=(255, 255, 255, 0))
-        draw.ellipse((PAPER_X1-r, y-r, PAPER_X1+r, y+r), fill=(255, 255, 255, 0))
+        od.ellipse((x-lobe_r, top-lobe_r, x+lobe_r, top+lobe_r), fill=255)
+        od.ellipse((x-lobe_r, y_bottom-lobe_r, x+lobe_r, y_bottom+lobe_r), fill=255)
+    for y in range(top + 18, y_bottom - 16, step):
+        od.ellipse((PAPER_X0-lobe_r, y-lobe_r, PAPER_X0+lobe_r, y+lobe_r), fill=255)
+        od.ellipse((PAPER_X1-lobe_r, y-lobe_r, PAPER_X1+lobe_r, y+lobe_r), fill=255)
 
-    alpha = frame.getchannel("A")
-    broad = alpha.filter(ImageFilter.GaussianBlur(22)).point(lambda a: int(a * .34))
-    tight = alpha.filter(ImageFilter.GaussianBlur(8)).point(lambda a: int(a * .55))
+    # Restrained neon halo; the previous renderer blurred too broadly and became a thick block.
+    broad = outer.filter(ImageFilter.GaussianBlur(10)).point(lambda a: int(a * .18))
+    tight = outer.filter(ImageFilter.GaussianBlur(3)).point(lambda a: int(a * .34))
     glow_alpha = ImageChops.lighter(broad, tight)
     glow = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
     glow.putalpha(glow_alpha)
     canvas.alpha_composite(glow)
-    canvas.alpha_composite(frame)
+
+    lime = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
+    lime.putalpha(outer)
+    canvas.alpha_composite(lime)
+
+    # White paper inset with its own scalloped boundary, leaving a thin lime edge.
+    inset = 15
+    inner = Image.new("L", canvas.size, 0)
+    idraw = ImageDraw.Draw(inner)
+    ix0, ix1 = PAPER_X0 + inset, PAPER_X1 - inset
+    iy0, iy1 = top + inset, y_bottom - inset
+    idraw.rectangle((ix0 + 8, iy0 + 8, ix1 - 8, iy1 - 8), fill=255)
+    inner_r = 10
+    for x in range(ix0 + 17, ix1 - 15, step):
+        idraw.ellipse((x-inner_r, iy0-inner_r, x+inner_r, iy0+inner_r), fill=255)
+        idraw.ellipse((x-inner_r, iy1-inner_r, x+inner_r, iy1+inner_r), fill=255)
+    for y in range(iy0 + 17, iy1 - 15, step):
+        idraw.ellipse((ix0-inner_r, y-inner_r, ix0+inner_r, y+inner_r), fill=255)
+        idraw.ellipse((ix1-inner_r, y-inner_r, ix1+inner_r, y+inner_r), fill=255)
+
+    paper = Image.new("RGBA", canvas.size, PAPER + (0,))
+    paper.putalpha(inner)
+    canvas.alpha_composite(paper)
 
 
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
@@ -168,7 +189,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     small = _font(font_paths, "regular", 18)
     small_bold = _font(font_paths, "semibold", 18)
     fact_regular = _font(font_paths, "regular", 18)
-    fact_semibold = _font(font_paths, "semibold", 18)
+    fact_semibold = _font(font_paths, "semibold", 15)
+    trace_ref_font = _font(font_paths, "semibold", 13)
     title = _font(font_paths, "bold", 40)
     brand = _font(font_paths, "bold", 38)
     legal = _font(font_paths, "bold", 27)
@@ -182,8 +204,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
              or invoice.get("createdAt") or invoice.get("invoiceDate") or 0)
     date_str = ist_strftime("%d-%m-%Y", epoch) if epoch else ""
     time_str = ist_strftime("%H:%M IST", epoch) if epoch else ""
-    full_ref = str(invoice.get("referenceId") or "").strip()
-    ref = full_ref[:15] if full_ref.startswith("WD-PAY-") and len(full_ref) > 15 else full_ref
+    ref = str(invoice.get("referenceId") or "").strip()
     txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
     buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
     address = _address(invoice)
@@ -332,7 +353,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     if convenience_net:
         total_row("Convenience Fee", convenience_net)
     if total_gst:
-        total_row(str(company.get("gstin") or "GST"), total_gst)
+        total_row("GST", total_gst, strong=True, band=True)
 
     hero_y = max(1068, totals_y + 1)
     draw.rounded_rectangle((157, hero_y, 867, hero_y + 65), radius=10, fill=LIME_STRONG)
@@ -367,7 +388,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     ):
         if value:
             draw.text((tx, ty), label, font=small, fill=MUTED)
-            draw.text((684, ty), value, font=small_bold, fill=INK)
+            value_font = trace_ref_font if label == "Receipt Ref:" else small_bold
+            draw.text((684, ty), value, font=value_font, fill=INK)
             ty += 30
 
     footer_line_y = 1323 + extra_rows * 58
