@@ -76,6 +76,14 @@
                 "data-source": "${data.targets}"
               },
               {
+                "type": "TextArea",
+                "name": "note",
+                "label": "Note",
+                "required": false,
+                "max-length": 300,
+                "helper-text": "Optional"
+              },
+              {
                 "type": "DocumentPicker",
                 "name": "documents",
                 "label": "Documents",
@@ -88,14 +96,6 @@
                   "image/jpeg",
                   "image/png"
                 ]
-              },
-              {
-                "type": "TextArea",
-                "name": "note",
-                "label": "Note",
-                "required": false,
-                "max-length": 300,
-                "helper-text": "Optional"
               },
               {
                 "type": "Footer",
