@@ -543,7 +543,6 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         "screen": "CONFIRMATION",
         "data": {
             "message": "Your documents are stored securely and linked for review.",
-            "document_reference": reference,
             "file_count": str(len(stored)),
             "reference_number": target["display"],
             "note": note or "",
