@@ -1,0 +1,38 @@
+name: Auth flow release one-shot
+on:
+  push:
+    branches: ["auth-flow-recovery-typography-20261028-v3"]
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: auth-flow-recovery-typography-20261028-v3
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.116 "moto[dynamodb,cognitoidp]==5.2.4" pillow==13.0.0
+      - name: Verify and regenerate
+        run: |
+          python -m compileall -q amplify/functions/ai/customer-commerce-mcp tools/customer-commerce
+          python tools/customer-commerce/verify.py
+          python tools/customer-commerce/verify_oauth.py
+          rm -rf /tmp/customer-commerce-release
+          python tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
+          python tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/index.py
+          cp /tmp/customer-commerce-release/index.py amplify/functions/ai/customer-commerce-mcp/index.py
+          cp /tmp/customer-commerce-release/customer-commerce-stack.json amplify/functions/ai/customer-commerce-mcp/template.json
+      - name: Commit generated artifacts and remove one-shot workflow
+        run: |
+          rm .github/workflows/auth-flow-release-temp.yml
+          git config user.name "WECARE.DIGITAL"
+          git config user.email "319896805+wecare-digital@users.noreply.github.com"
+          git add amplify/functions/ai/customer-commerce-mcp/index.py amplify/functions/ai/customer-commerce-mcp/template.json .github/workflows/auth-flow-release-temp.yml
+          git commit -m "build(auth): regenerate final recovery release"
+          git push origin HEAD:auth-flow-recovery-typography-20261028-v3
