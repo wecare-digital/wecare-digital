@@ -14,7 +14,7 @@
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
     Section 9d covers the website prepare's own address gate. Section 13 runs one ₹49 Vault
-    purchase the same way: the `wecare_valut_49` offer, the Unlock Vault tap, Review and Pay, the
+    purchase the same way: the `wecare_vault_request_ready` offer, the Unlock Vault tap, Review and Pay, the
     capture, the durable entitlement, the Access Vault link, the customer's Vault list and
     download, replays, a not-yet-linked WhatsApp contact, and a renewal.
 
@@ -2216,8 +2216,8 @@ def run(root: Path) -> int:
     vault_catalogue = {vault_product: {"status": "active",
                                        "variants": [{"sku": vault_variant, "priceMinor": 4900}]}}
     checkout._native_product_reader = lambda: (lambda product_id: vault_catalogue.get(product_id))
-    # Outbound proves a template's live category before it sends (the 2026-10-26 readback).
-    W.templates = saved_templates + [{"name": "wecare_valut_49", "status": "APPROVED",
+    # Outbound proves a template's live category before it sends (the 2026-10-28 readback).
+    W.templates = saved_templates + [{"name": "wecare_vault_request_ready", "status": "APPROVED",
                                       "category": "UTILITY", "sub_category": None, "language": "en"}]
 
     def unlock_tap(customer: Dict[str, str], wamid: str, payload: str) -> Dict[str, Any]:
@@ -2279,9 +2279,9 @@ def run(root: Path) -> int:
     mark = W.mark()
     offered = send_offer(vera, vera_file)
     tokens = offer_tokens(vera_file)
-    offer_sends = sends_of(mark, "wecare_valut_49")
+    offer_sends = sends_of(mark, "wecare_vault_request_ready")
     token = next(iter(tokens), "")
-    check("VLT", "staff Send ₹49 Vault message: ONE wecare_valut_49 naming the file, its Unlock Vault tied to one offer",
+    check("VLT", "staff Send ₹49 Vault message: ONE wecare_vault_request_ready naming the file, its Unlock Vault tied to one offer",
           offered.get("outcome") == "VAULT_OFFER_SENT" and len(offer_sends) == 1 and len(tokens) == 1
           and component_value(offer_sends[0], "body") == "Hermetic report.pdf"
           and component_value(offer_sends[0], "button", "quick_reply") == "vaultoffer:" + token,
