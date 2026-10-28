@@ -134,7 +134,7 @@ SCANNED_SUFFIXES = {
 }
 EXCLUDED_DIRS = {
     ".git", ".venv", "node_modules", ".next", ".scratch", ".pytest_cache",
-    "docs", "seo", ".kiro", "tests", "dist", "build", "coverage",
+    "docs", "seo", ".kiro", "dist", "build", "coverage",
 }
 # This file is the registry, so it necessarily contains every value it forbids -
 # in RETIRED_HOSTS and in the docstring that explains the retirement. Its first
