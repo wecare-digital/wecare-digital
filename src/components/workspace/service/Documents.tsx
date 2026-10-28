@@ -24,6 +24,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
+import { fetchServicePrices, rupeesFromPaise, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 import ServiceDataState from '../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
@@ -225,6 +226,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ customerOrders, setCustomerOrders ] = useState<api.Order[]>( [] );
   const [ ordersLoading, setOrdersLoading ] = useState( false );
   const [ createFile, setCreateFile ] = useState<File | null>( null );
+  const [ dropDocsPricePaise, setDropDocsPricePaise ] = useState<number | null>( null );
+  const [ dropDocsBreakdown, setDropDocsBreakdown ] = useState<ServicePriceBreakdown | null>( null );
   const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
@@ -246,6 +249,17 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   }, [ statusFilter, sourceFilter, typeFilter, toast ] );
 
   useEffect( () => { loadData(); }, [ loadData ] );
+
+  useEffect( () => {
+    let cancelled = false;
+    void fetchServicePrices().then( prices => {
+      if ( cancelled ) return;
+      const dropDocs = prices[ 'drop-docs' ];
+      setDropDocsPricePaise( dropDocs?.available ? dropDocs.paise : null );
+      setDropDocsBreakdown( dropDocs?.available ? dropDocs.breakdown || null : null );
+    } );
+    return () => { cancelled = true; };
+  }, [] );
 
   useEffect( () => {
     if ( !showCreate )
@@ -797,6 +811,31 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           </div>
         </section>
 
+        <section className="dd-review-preview" aria-label="Drop Docs Review and Pay preview">
+          <div className="dd-review-preview-head">
+            <div>
+              <strong>Review &amp; Pay preview</strong>
+              <span>Drop Docs · same server pricing as WhatsApp</span>
+            </div>
+            <img
+              src="https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"
+              alt=""
+            />
+          </div>
+          <div className="dd-review-item">
+            <strong>Drop Docs × 1</strong>
+            <span>{ dropDocsPricePaise === null ? 'Live price unavailable' : `₹${rupeesFromPaise( dropDocsPricePaise )}` }</span>
+          </div>
+          <div className="dd-review-lines">
+            <div><span>Items + item GST</span><strong>{ dropDocsPricePaise === null ? '—' : `₹${rupeesFromPaise( dropDocsPricePaise )}` }</strong></div>
+            <div><span>Delight</span><strong>{ dropDocsBreakdown ? `−₹${rupeesFromPaise( dropDocsBreakdown.delightPaise )}` : '—' }</strong></div>
+            <div><span>Express</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.expressPaise )}` : '—' }</strong></div>
+            <div><span>Convenience Fee</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
+            <div><span>GST on Convenience Fee (18%)</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.convenienceGstPaise )}` : '—' }</strong></div>
+            <div className="dd-review-total"><span>Amount Payable</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.totalPayablePaise )}` : '—' }</strong></div>
+          </div>
+        </section>
+
         <div style={ toolbarStyle }>
           <div style={ segmentedStyle } aria-label="Record visibility">
             { ( [ [ 'active', 'Active' ], [ 'archived', 'Archived' ], [ 'all', 'All' ] ] as const ).map( ( [ value, label ] ) => (
@@ -1247,6 +1286,16 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       </Modal>
       <style jsx global>{`
         .dd-summary > div{background:var(--bg-primary);padding:14px 16px;display:grid;gap:3px}
+        .dd-review-preview{margin:0 0 16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-primary)}
+        .dd-review-preview-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+        .dd-review-preview-head>div{display:grid;gap:3px}
+        .dd-review-preview-head span{font-size:var(--text-xs);color:var(--text-muted)}
+        .dd-review-preview-head img{width:52px;height:52px;object-fit:cover;border-radius:10px;background:#fff}
+        .dd-review-item{display:flex;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;background:var(--lime-tint)}
+        .dd-review-lines{display:grid;margin-top:10px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+        .dd-review-lines>div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:var(--text-sm)}
+        .dd-review-lines>div+div{border-top:1px solid rgba(26,58,42,.07)}
+        .dd-review-total{font-size:var(--text-md)!important;color:var(--accent)}
         .dd-journey{margin:0 0 16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-primary)}
         .dd-journey-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:12px}
         .dd-journey-head>div{display:grid;gap:3px}
