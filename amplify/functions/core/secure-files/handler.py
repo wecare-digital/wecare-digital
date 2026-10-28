@@ -481,7 +481,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
     now = int(time.time()) if now is None else int(now)
     out = {
         "fileId": item.get("fileId"),
-        "displayName": item.get("displayName"),
+        "displayName": _system_name_for_file(item) if item.get("sourceDocumentId") else item.get("displayName"),
         "tag": item.get("tag") or "",
         "originalFilename": item.get("originalFilename"),
         "contentType": item.get("contentType"),
@@ -505,6 +505,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["ownerName"] = item.get("ownerName")
         out["ownerPhoneMasked"] = mask_phone(item.get("ownerPhone", ""))
         out["uploadedBy"] = item.get("uploadedBy")
+        out["sourceDocumentId"] = item.get("sourceDocumentId")
     return _decimal_safe(out)
 
 
@@ -998,30 +999,42 @@ def _vault_file_id_for_document(document_id: str, version: int = 1) -> str:
     return "doc-" + digest
 
 
-def _vault_message_name(raw: Any) -> str:
-    """Staff's text for {{1}} of `wecare_vault_request_ready`, cleaned exactly as the send cleans it, or ''.
+def _vault_system_name(document: Dict[str, Any], file_id: str) -> str:
+    """Return the non-editable customer/staff name for a Vault file.
 
-    "📄 Your requested *{{1}}* is available in your Vault. Amount due for this request: *₹49*." goes out with the stored `displayName`, so storing
-    the cleaned form makes the Workspace preview the message itself. '' means staff gave no
-    usable name (blank, or only emphasis marks) and the caller derives one instead.
+    Manual Drop Docs uploads already carry a public-safe name such as
+    `wecare-digital-123456.pdf`. Preserve it. Older/non-manual records fall back to
+    an opaque Vault id plus a harmless extension. Original filenames remain metadata
+    only and never become the customer-facing Vault identity.
     """
-    if not "".join(ch for ch in str(raw or "") if ch.isprintable() and ch not in "*_~").strip():
-        return ""
-    return whatsapp_templates.vault_offer_document_name(raw)
+    current = os.path.basename(str(document.get("fileName") or "").strip())
+    if current.startswith("wecare-digital-"):
+        return current
+    original = str(document.get("originalFileName") or current or "").strip()
+    return f"wecare-digital-{file_id}{_safe_extension(original)}"
+
+
+def _system_name_for_file(item: Dict[str, Any]) -> str:
+    """Canonical Vault name for an already-published row, including legacy rows."""
+    current = os.path.basename(str(item.get("displayName") or "").strip())
+    if current.startswith("wecare-digital-"):
+        return current
+    file_id = str(item.get("fileId") or "")
+    original = str(item.get("originalFilename") or "").strip()
+    return f"wecare-digital-{file_id}{_safe_extension(original)}"
 
 
 def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Promote one staff Drop Docs record into the customer Vault without re-uploading bytes.
+    """Promote one Drop Docs record into Vault without re-uploading or renaming it.
 
-    Optional ``displayName`` is the Vault message's {{1}}. On a document already published it
-    renames that Vault file instead, so staff can correct the name before sending the message.
+    The Vault/customer filename is system-owned. Staff cannot supply or edit a second
+    display name; the generated Drop Docs reference becomes the Vault filename.
     """
     body = json.loads(event.get("body") or "{}")
     document_id = str(body.get("documentId") or "").strip()
     if not document_id:
         return cors_response(400, {"error": "DOCUMENT_ID_REQUIRED",
                                    "message": "Choose a document to publish."}, origin)
-    requested_name = _vault_message_name(body.get("displayName"))
 
     document = _table(DOCUMENTS_TABLE).get_item(
         Key={"documentId": document_id}, ConsistentRead=True).get("Item") or {}
@@ -1069,16 +1082,13 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
     files = _table(FILES_TABLE)
     linked_id = str(document.get("vaultFileId") or "")
     if linked_id and linked_id != file_id:
-        # `referenceVersion` also moves on a reference revalidation, which changes no bytes. The
-        # Vault row already serving THESE bytes stays the one product, so a rename or a ₹49
-        # request after revalidating can never mint a second, unpaid copy of a file the customer
-        # may already own. A replacement upload changes `storageKey` and requires the old row to
-        # be revoked first, so it still gets a new id.
         linked = files.get_item(Key={"fileId": linked_id}, ConsistentRead=True).get("Item") or {}
         if (linked.get("status") == "active"
                 and str(linked.get("sourceDocumentId") or "") == document_id
                 and str(linked.get("s3Key") or "") == source_key):
             file_id = linked_id
+
+    display_name = _vault_system_name(document, file_id)
     existing = files.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
     if existing:
         if (str(existing.get("sourceDocumentId") or "") != document_id
@@ -1090,41 +1100,27 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                 "error": "VAULT_VERSION_REVOKED",
                 "message": "This document version was revoked. Upload the replacement before publishing again.",
             }, origin)
-        display_name = str(existing.get("displayName") or "")
-        renamed = False
-        if requested_name and requested_name != display_name:
-            # Conditional on the same document and owner the checks above just proved, so a
-            # rename can never land on a file that changed hands in between.
-            try:
-                files.update_item(
-                    Key={"fileId": file_id},
-                    UpdateExpression="SET displayName=:n",
-                    ConditionExpression="sourceDocumentId=:doc AND ownerCustomerId=:owner",
-                    ExpressionAttributeValues={":n": requested_name, ":doc": document_id,
-                                               ":owner": owner_customer_id},
-                )
-            except ClientError as exc:
-                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
-                    raise
-                return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
-            display_name, renamed = requested_name, True
-        try:
-            _table(DOCUMENTS_TABLE).update_item(
-                Key={"documentId": document_id},
-                UpdateExpression=("SET vaultFileId=:f, vaultDisplayName=:n, "
-                                  "vaultPublishedAt=if_not_exists(vaultPublishedAt,:now)"),
-                ExpressionAttributeValues={":f": file_id, ":n": display_name,
-                                           ":now": int(time.time())},
+
+        if str(existing.get("displayName") or "") != display_name:
+            files.update_item(
+                Key={"fileId": file_id},
+                UpdateExpression="SET displayName=:n",
+                ConditionExpression="sourceDocumentId=:doc AND ownerCustomerId=:owner",
+                ExpressionAttributeValues={":n": display_name, ":doc": document_id,
+                                           ":owner": owner_customer_id},
             )
-        except ClientError:
-            pass
-        if renamed:
-            logger.info(json.dumps({"event": "vault_file_renamed", "documentId": document_id,
-                                    "fileId": file_id}))
+
+        _table(DOCUMENTS_TABLE).update_item(
+            Key={"documentId": document_id},
+            UpdateExpression=("SET vaultFileId=:f, vaultDisplayName=:n, "
+                              "vaultPublishedAt=if_not_exists(vaultPublishedAt,:now)"),
+            ExpressionAttributeValues={":f": file_id, ":n": display_name,
+                                       ":now": int(time.time())},
+        )
         return cors_response(200, _decimal_safe({
             "fileId": file_id, "status": existing.get("status"),
             "deliverable": existing.get("deliverable", "unknown"),
-            "displayName": display_name, "renamed": renamed, "created": False,
+            "displayName": display_name, "created": False,
         }), origin)
 
     try:
@@ -1140,12 +1136,6 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                        or "application/octet-stream")
     deliverable = _classify_delivery(content_type, size)
     original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
-    # The Vault message reads "Your *<name>* copy is ready!": the name staff typed, else their
-    # label, then the customer's own file name. `fileName` on a current upload is the generated
-    # reference (wecare-digital-NNNNNN.pdf), which means nothing to the customer, so it is last.
-    display_name = requested_name or str(document.get("documentTypeLabel")
-                                         or document.get("originalFileName")
-                                         or document.get("fileName") or "Document")
     delivery_key = ""
     if deliverable in ("pdf", "image"):
         delivery_key = DELIVER_PREFIX + "vault-" + file_id + _safe_extension(original_name)
@@ -1194,7 +1184,6 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                 or str(item.get("ownerCustomerId") or "") != owner_customer_id):
             return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
 
-    display_name = str(item.get("displayName") or display_name)
     _table(DOCUMENTS_TABLE).update_item(
         Key={"documentId": document_id},
         UpdateExpression="SET vaultFileId=:f, vaultDisplayName=:n, vaultPublishedAt=:now, updatedAt=:now",
@@ -1381,6 +1370,17 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
+    # Legacy published rows may still carry a staff-entered name. Normalize before the
+    # business-api re-reads the row to render {{1}} of the Vault offer.
+    if item.get("sourceDocumentId"):
+        system_name = _system_name_for_file(item)
+        if str(item.get("displayName") or "") != system_name:
+            _table(FILES_TABLE).update_item(
+                Key={"fileId": file_id},
+                UpdateExpression="SET displayName=:n",
+                ExpressionAttributeValues={":n": system_name},
+            )
+            item["displayName"] = system_name
     state = _admin_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
