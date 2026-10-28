@@ -403,16 +403,15 @@ class PaymentOrderLifecycleTests(unittest.TestCase):
         from lambda_utils.ecommerce import wa_order_status
         self.assertFalse(hasattr(wa_order_status, "build_interactive_payload"))
 
-    def test_payment_runbook_keeps_brand_header_and_regular_manual_thumbnail(self):
+    def test_payment_runbook_uses_one_default_item_thumbnail(self):
         from lambda_utils import template_media
         runbook = (ROOT / "docs" / "operations" / "whatsapp-payment-collection-stack.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn(template_media.PAYMENT_TEMPLATE_HEADER, runbook)
-        self.assertIn("Square WECARE payment/catalog icon on regular rows", runbook)
+        self.assertIn(template_media.DEFAULT_ORDER_ITEM_THUMBNAIL, runbook)
+        self.assertIn("one default WECARE thumbnail", runbook)
         self.assertIn("fee rows remain image-free", runbook)
-        self.assertIn("no synthetic retailer ID", runbook)
-        self.assertIn("true catalog checkout", runbook)
+        self.assertIn("no catalog/product-specific image selection", runbook)
 
 
 
