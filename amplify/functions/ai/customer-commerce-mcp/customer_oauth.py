@@ -16,11 +16,12 @@ import os
 import re
 import secrets
 import time
-from urllib.parse import parse_qsl, urlencode, urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse
 from connection_assets import BRAND_LOGO, DIAL_COUNTRIES
 
 PREFIX = 'mcp:commerce:'
 COOKIE = '__Host-wecare-connect'
+SESSION_HINT_COOKIE = 'wc_customer_session_hint'
 CUSTOMER_POOL = 'us-east-1_46ULYuukt'
 CUSTOMER_CLIENT = '4avmt9n4gpmkvkdk88qbtit33o'
 SCOPES = {'commerce:read', 'commerce:write'}
@@ -565,6 +566,16 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         "document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.preventDefault();close(true)}});"
         "})();"
     )
+    submit_script = (
+        "(function(){const form=document.getElementById('auth-form');if(!form)return;let submitted=false;"
+        "form.addEventListener('submit',e=>{if(submitted){e.preventDefault();return}submitted=true;"
+        "form.querySelectorAll('button[type=submit]').forEach(b=>b.setAttribute('aria-disabled','true'))})})();"
+    )
+    flow_fields = (
+        '<input type="hidden" name="_flow" value="website">'
+        '<input type="hidden" name="_return" value="' + html.escape(str(row.get('return') or ''), quote=True) + '">'
+        if website else ''
+    )
 
     sign_in = (
         '<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">' +
@@ -572,9 +583,9 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<span class="connect-eyebrow-icon" aria-hidden="true">login</span>'
         '<span>Sign in</span></div>' +
         connect_note + alert +
-        '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
+        '<form id="auth-form" method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
-        field +
+        flow_fields + field +
         '<div class="auth-actions"><button class="auth-action" type="submit">' + primary_text + '</button>' +
         resend + '</div></form>'
         '</div></section>'
@@ -714,10 +725,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'max-height:min(72vh,680px);overflow:auto;padding:20px;background:#fff;border:1px solid var(--hair);border-radius:18px;'
         'box-shadow:0 18px 46px rgba(26,58,42,.13)}.nav-dropdown[open] .nav-menu{display:block}.nav-cols{display:grid;'
         'grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.nav-col{display:flex;flex-direction:column;min-width:0}'
-        '.nav-group-label{margin:16px 10px 6px;color:var(--muted);font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}'
+        '.nav-group-label{margin:16px 10px 6px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}'
         '.nav-family-label{display:block;padding:9px 10px 4px;color:var(--green);font-size:19px;font-weight:600;line-height:1.25}'
         '.nav-item{display:block;padding:9px 10px;border-radius:10px;color:var(--green);font-size:19px;font-weight:600;line-height:1.25;'
-        'text-decoration:none}.nav-item:hover{background:var(--lime-tint)}.nav-primary{font-weight:700}.nav-child{padding-inline-start:28px;font-size:17px}'
+        'text-decoration:none}.nav-item:hover{background:var(--lime-tint)}.nav-primary{font-weight:700}.nav-child{padding-inline-start:28px;font-size:19px;font-weight:600}'
         '.cart{width:46px;height:46px;border-radius:50%;border:2px solid var(--hair);display:flex;align-items:center;justify-content:center;'
         'text-decoration:none;background:#fff;flex:0 0 auto}.cart:hover{background:var(--lime);border-color:var(--green)}.cart svg{width:22px;'
         'height:22px;fill:none;stroke:var(--green);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}'
@@ -747,17 +758,17 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;letter-spacing:-.05px}.phone-field{display:flex;'
         'width:100%;min-height:48px;border:0;border-radius:12px;background:#f8faf3;position:relative;box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}.country-picker{position:relative;'
         'flex:0 0 82px;display:flex}.country-trigger{width:82px;min-height:48px;border:0;border-radius:12px 0 0 12px;background:var(--lime-tint);'
-        'color:var(--green);font:700 16px/1 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}'
+        'color:var(--green);font:600 16px/1.3 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}'
         '.country-panel{position:absolute;top:56px;inset-inline-start:0;z-index:1200;width:min(260px,calc(100vw - 40px));max-height:300px;'
         'display:flex;flex-direction:column;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid var(--lime);border-radius:14px;'
         'box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}.country-panel[hidden]{display:none}.country-search{display:flex;align-items:center;gap:8px;'
         'padding:10px 12px;border-bottom:1px solid #f1f3ec;background:#fff}.country-search svg{width:17px;height:17px;fill:none;stroke:var(--green);'
         'stroke-width:2.2;stroke-linecap:round;opacity:.45}.country-search input{width:100%;min-width:0;min-height:0;height:auto;border:0;border-radius:0;'
-        'outline:0;box-shadow:none;padding:0;margin:0;background:transparent;font:600 16px/1.3 inherit;color:var(--green)}.country-search input:focus{outline:0;box-shadow:none}'
+        'outline:0;box-shadow:none;padding:0;margin:0;background:transparent;font:400 16px/1.3 inherit;color:var(--green)}.country-search input:focus{outline:0;box-shadow:none}'
         '.country-rows{overflow:auto;min-height:0}.country-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;'
-        'padding:10px 14px;border:0;border-radius:0;background:transparent;color:var(--green);font:600 16px/1.25 inherit;text-align:start;cursor:pointer}'
+        'padding:10px 14px;border:0;border-radius:0;background:transparent;color:var(--green);font:600 16px/1.4 inherit;text-align:start;cursor:pointer}'
         '.country-row:hover,.country-row:focus-visible{background:rgba(209,244,112,.38)}.country-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-        '.country-code{flex:0 0 auto;font-size:13px;font-weight:700;color:rgba(26,58,42,.58)}.phone-field>input{flex:1 1 auto;width:0;min-width:0;border:0;'
+        '.country-code{flex:0 0 auto;font-size:14px;font-weight:600;color:rgba(26,58,42,.58)}.phone-field>input{flex:1 1 auto;width:0;min-width:0;border:0;'
         'border-radius:0 12px 12px 0;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;box-shadow:none}.phone-field:focus-within{'
         'box-shadow:inset 0 0 0 1px rgba(209,244,112,.95),0 0 0 2px rgba(209,244,112,.22)}.phone-field>input:focus-visible{outline:0;'
         'box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}.single-field{width:100%;min-height:48px;border:0;border-radius:12px;background:#fff;color:var(--text);'
@@ -766,7 +777,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'flex-wrap:wrap;margin-top:13px}.auth-action{display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:44px;box-sizing:border-box;'
         'margin:0;padding:6px 9px;border:0;border-radius:8px;background:var(--lime-tint);color:var(--green);font-family:inherit;font-size:17px;font-weight:600;'
         'line-height:1.4;letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;'
-        'text-underline-offset:3px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}'
+        'text-underline-offset:3px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}.auth-action[aria-disabled="true"]{pointer-events:none;opacity:.72}'
         '.auth-action:hover{background:var(--lime);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}'
         '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}.alert{margin:0 0 12px;padding:8px 10px;border:0;background:#fff;border-radius:8px;'
         'color:var(--text);font-size:14px;line-height:1.4}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
@@ -792,12 +803,15 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.ps-chevron{font-size:24px;color:rgba(26,58,42,.55)}.ft-footer{background:#fff;border-top:1px solid #eef0e6;padding:56px 0 40px;'
         'padding-bottom:calc(40px + env(safe-area-inset-bottom))}.ft-in{max-width:var(--content);margin:0 auto;padding:0 24px}.ft-grid{display:flex;align-items:flex-end;'
         'justify-content:flex-start;gap:32px;flex-wrap:wrap}.ft-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0}.ft-home{display:inline-flex;'
-        'align-items:center;min-height:44px;text-decoration:none;border-radius:10px}.compact svg{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px;'
+        'align-items:center;min-height:44px;text-decoration:none;border-radius:10px}.compact svg{width:50px;height:50px}.compact .brand-copy{font-size:20px}.ft-tagline{font-size:16px;'
         'line-height:1.6;color:var(--muted);margin:0;max-width:340px}.ft-dash{display:block;width:56px;height:3px;border-radius:999px;background:var(--lime)}'
         '@media(max-width:767px){.hdr-in{height:96px;padding:18px 16px}.brand svg{width:52px;height:52px}.brand-copy{font-size:20px}.home-shell{padding-top:96px}'
         '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:var(--public-mobile-hero-size);line-height:1.1}.auth-action{font-size:var(--public-mobile-cta-font-size)}.phone-field>input,.single-field,.country-trigger,.country-search input,.country-row{font-size:var(--public-mobile-form-font-size)}.connect-panel{padding:16px}.home-connect{width:min(100%,400px)}.country-panel{width:min(260px,calc(100vw - 32px))}.nav-menu{position:fixed;top:96px;'
         'inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{grid-template-columns:1fr}.public-action-tail{padding:0 16px}'
-        '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}.wc-langbar{--wc-inset:16px;bottom:calc(20px + env(safe-area-inset-bottom))}.wc-pill{padding:3px;gap:0}.wc-chip{min-width:44px;padding:0 8px}.wc-arw{display:none}.wc-sep{height:22px}}'
+        '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:46px;height:46px}.compact .brand-copy{font-size:19px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}.wc-langbar{--wc-inset:16px;bottom:calc(20px + env(safe-area-inset-bottom))}.wc-pill{padding:3px;gap:0}.wc-chip{min-width:44px;padding:0 8px}.wc-arw{display:none}.wc-sep{height:22px}}'
+        '@media(max-width:340px){.brand img{width:54px;height:54px}.brand-copy{font-size:21px}}'
+        '@media(max-width:320px){.nav-item,.nav-child{font-size:17px;padding-inline:10px}}'
+        '@media(max-width:274px){.hdr .brand-copy{display:none}}'
         '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:normal;text-wrap:balance}}'
 
         '.wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;'
@@ -839,7 +853,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
-        footer + support_widget + '<script nonce="' + html.escape(nonce, quote=True) + '">' + rotation_script + country_script + support_script + '</script></body></html>'
+        footer + support_widget + '<script nonce="' + html.escape(nonce, quote=True) + '">' + rotation_script + country_script + submit_script + support_script + '</script></body></html>'
     )
     result = response(200, page, page=True)
     form_sources = "'self'"
@@ -874,8 +888,17 @@ def website_get(params: dict) -> dict:
     return result
 
 
+def website_recovery(return_hint: str = '') -> dict:
+    """Recover stale browser history with a fresh one-use website auth step."""
+    destination = website_return(return_hint)
+    result = response(303, '')
+    result['headers']['Location'] = '/auth' + (('?' + urlencode({'return': destination})) if destination != '/' else '')
+    result['cookies'] = [f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
+    return result
+
+
 def website_finish(row: dict, login: dict, auth: dict, event: dict) -> dict:
-    """Create the established website session, then hydrate the browser without exposing refresh custody."""
+    """Establish the server-owned website session and redirect without an intermediate page."""
     http = (event.get('requestContext') or {}).get('http') or {}
     payload = {'rawPath': '/ecommerce/customer-session', 'httpMethod': 'POST',
                'requestContext': {'http': {'method': 'POST', 'sourceIp': str(http.get('sourceIp') or '')}},
@@ -893,26 +916,28 @@ def website_finish(row: dict, login: dict, auth: dict, event: dict) -> dict:
     csrf, expires_at = body.get('csrfToken'), body.get('expiresAt')
     if not isinstance(csrf, str) or not csrf or not isinstance(expires_at, (int, float)):
         raise AuthError('Website session unavailable')
-    destination = website_return(row.get('return', ''))
-    nonce = secrets.token_urlsafe(24)
-    script = (
-        "const hint={csrfToken:" + json.dumps(csrf) + ",expiresAt:" + str(int(expires_at)) + ",persistent:true};"
-        "localStorage.setItem('wecare.customer.sessionHint',JSON.stringify(hint));"
-        "fetch('/api/ecommerce/customer-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Customer-CSRF':hint.csrfToken},body:JSON.stringify({action:'refresh'})})"
-        ".then(r=>{if(!r.ok)throw new Error('refresh');return r.json()})"
-        ".then(async s=>{sessionStorage.setItem('wecare.customer.accessToken',s.accessToken);sessionStorage.setItem('wecare.customer.expiresAt',String(s.expiresAt));"
-        "try{await fetch('/api/customer/profile',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.accessToken},body:'{}'})}catch(e){}"
-        "location.replace(" + json.dumps(destination) + ")})"
-        ".catch(()=>{document.getElementById('status').textContent='Signed in. Reopen the page to continue.'})"
-    )
-    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-            '<meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Signing in</title></head>'
-            '<body><main id="status" style="max-width:520px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui;color:#1a3a2a">Finishing sign-in…</main>'
-            '<script nonce="' + html.escape(nonce, quote=True) + '">' + script + '</script></body></html>')
-    result = response(200, page, page=True)
-    result['cookies'] = list(reply.get('cookies') or []) + [f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
-    result['headers']['Content-Security-Policy'] = ("default-src 'none'; script-src 'nonce-" + nonce +
-        "'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
+
+    # Preserve the existing best-effort contact/order claim without exposing the access token
+    # to an intermediate browser document.
+    try:
+        profile_payload = {'rawPath': '/customer/profile', 'httpMethod': 'POST',
+                           'requestContext': {'http': {'method': 'POST', 'sourceIp': str(http.get('sourceIp') or '')}},
+                           'headers': {'origin': 'https://wecare.digital', 'content-type': 'application/json',
+                                       'authorization': 'Bearer ' + auth['AccessToken']},
+                           'body': '{}'}
+        aws('lambda').invoke(FunctionName='wecare-customer-profile:live', InvocationType='RequestResponse',
+                             Payload=json.dumps(profile_payload).encode())
+    except Exception:
+        pass
+
+    hint = quote(json.dumps({'csrfToken': csrf, 'expiresAt': int(expires_at), 'persistent': True},
+                            separators=(',', ':')), safe='')
+    result = response(303, '')
+    result['headers']['Location'] = website_return(row.get('return', ''))
+    result['cookies'] = list(reply.get('cookies') or []) + [
+        f'{SESSION_HINT_COOKIE}={hint}; Secure; SameSite=Lax; Path=/; Max-Age=1800',
+        f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+    ]
     return result
 
 
@@ -929,19 +954,31 @@ def authorize_get(params: dict) -> dict:
 
 
 def authorize_post(params: dict, event: dict) -> dict:
+    params = dict(params)
+    flow = params.pop('_flow', None)
+    return_hint = params.pop('_return', '')
+    website_form = flow == 'website'
+    if flow not in {None, 'website'} or (return_hint and not website_form):
+        raise AuthError('Invalid authorization session')
     headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
     if headers.get('origin') not in {origin(), connect_origin()}:
         raise AuthError('Authorization origin required')
     cookies = SimpleCookie()
     cookies.load('; '.join(event.get('cookies') or [headers.get('cookie', '')]))
     if COOKIE not in cookies:
+        if website_form:
+            return website_recovery(return_hint)
         raise AuthError('Authorization session required')
     key = row_key('auth', cookies[COOKIE].value)
     row = STORE.get(key)
     if not row or not hmac.compare_digest(row['csrfHash'], digest(params.get('csrf', ''))):
+        if website_form:
+            return website_recovery(return_hint)
         raise AuthError('Invalid authorization session')
     login = uncapsule(row['cipher'], row['client'], key)
     website = row.get('kind') == 'web-auth'
+    if website != website_form:
+        raise AuthError('Invalid authorization session')
     if STORE.take(key) is None:
         raise AuthError('Authorization step already used')
     # Which step failed, for the failure log line below. A step name and an exception class
