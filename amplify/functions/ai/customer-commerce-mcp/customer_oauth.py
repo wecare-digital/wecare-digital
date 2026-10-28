@@ -1019,7 +1019,7 @@ def authorize_post(params: dict, event: dict) -> dict:
         # line carries the step and a sanitised exception class name only.
         category = re.sub('[^A-Za-z0-9_]', '', type(error).__name__)[:64]
         print(json.dumps({'event': 'customer_authorization_failed', 'stage': stage, 'category': category}))
-        return save_pending(row, login)
+        return save_pending(row, login, 'Couldn’t verify. Try again.')
 
 
 def route(event: dict) -> dict | None:
