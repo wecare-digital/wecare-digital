@@ -3015,18 +3015,19 @@ def _order_charges(spec: Dict[str, Any], items: list,
                    amount: Optional[int]) -> Optional[Dict[str, Any]]:
     """The price breakdown recorded with the lines, or None when it does not reconcile.
 
-    Integer paise only, and EXACT: merchandise + delivery - discount + fee + fee GST must equal
-    the recorded total and the order's own amount. A breakdown that disagrees with what was
+    Integer paise only, and EXACT: merchandise + supply GST + delivery - discount + fee + fee GST
+    must equal the recorded total and the order's own amount. A breakdown that disagrees with what was
     charged by one paise is omitted rather than shown, and the page shows the total alone.
     """
     terms = {key: finalization.integer_paise(spec.get(key)) for key in (
-        "deliveryPaise", "discountPaise", "convenienceFeePaise", "convenienceGstPaise",
-        "totalPaise")}
+        "supplyGstPaise", "deliveryPaise", "discountPaise", "convenienceFeePaise",
+        "convenienceGstPaise", "totalPaise")}
     if any(value is None or value < 0 for value in terms.values()):
         return None
     merchandise = sum(item["totalPaise"] for item in items)
-    total = (merchandise + terms["deliveryPaise"] - terms["discountPaise"]
-             + terms["convenienceFeePaise"] + terms["convenienceGstPaise"])
+    total = (merchandise + terms["supplyGstPaise"] + terms["deliveryPaise"]
+             - terms["discountPaise"] + terms["convenienceFeePaise"]
+             + terms["convenienceGstPaise"])
     if total != terms["totalPaise"] or amount is None or total != amount:
         return None
     charges: Dict[str, Any] = {"merchandisePaise": merchandise, **terms}
