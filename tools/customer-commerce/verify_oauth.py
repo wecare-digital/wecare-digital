@@ -149,6 +149,16 @@ class OAuthContract(unittest.TestCase):
         self.assertEqual(row['kind'], 'web-auth')
         self.assertEqual(row['return'], '/orders/')
 
+    def test_plain_auth_can_recover_hidden_vault_continuation_without_query_string(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            event = {'rawPath': '/auth', 'rawQueryString': '',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            result = auth.route(event)
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn("sessionStorage.getItem('wecare.vault.authReturnFile')", result['body'])
+        self.assertIn("ret.value='/vault/'", result['body'])
+        self.assertNotIn('/auth?return=', result['body'])
+
     def test_website_form_marks_recoverable_history_and_blocks_duplicate_submit(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
