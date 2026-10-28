@@ -74,7 +74,10 @@ const fail = ( message ) => { throw new Error( message ); };
           backgroundColor: css.backgroundColor,
         };
       } );
-      if ( homeStyle.fontSize !== '19px' ) fail( `${viewport.name}: Home row font-size ${homeStyle.fontSize}` );
+      const expectedHomeFontSize = viewport.width <= 340 ? '17px' : '19px';
+      if ( homeStyle.fontSize !== expectedHomeFontSize ) {
+        fail( `${viewport.name}: Home row font-size ${homeStyle.fontSize} (expected ${expectedHomeFontSize})` );
+      }
       if ( Number( homeStyle.fontWeight ) < 700 ) fail( `${viewport.name}: active Home weight ${homeStyle.fontWeight}` );
       if ( homeStyle.backgroundColor !== 'rgb(209, 244, 112)' ) {
         fail( `${viewport.name}: active Home background ${homeStyle.backgroundColor}` );

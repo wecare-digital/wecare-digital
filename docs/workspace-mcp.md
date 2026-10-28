@@ -10,7 +10,7 @@ and cloud provider authorizations are separate.
 Kiro or Codex runs `scripts/workspace_mcp_proxy.py` as its stdio MCP client. The
 bridge uses the existing `wecare-prod` profile to sign requests to the API Gateway
 IAM route. The Lambda calls remote MCP servers only with independently authorized
-credentials. Its fixed SDK adapters read AWS, GitHub and Razorpay; Google
+credentials. Its fixed SDK adapters read AWS, public GitHub repository metadata and Razorpay; Google
 Cloud and Ads use separate cloud OAuth grants. GitHub access is read-only status inspection; there is no workflow-backed code-job path.
 
 The reasoning model stays in the client. There is no new Bedrock/OpenAI model,
@@ -64,7 +64,7 @@ Amplify rewrite rules or provider credentials are modified by this stack.
 | `connection_verify` | Records a successful fixed account read, or separately records documentation MCP discovery |
 | `provider_read` | Allows selected Meta app reads for app 2238810740192680, or WhatsApp business-list only |
 | `aws_status` | Reads account identity and the two MCP live aliases |
-| `github_status` | Checks this repository using `wecare/github-pat`, field `token`, resolved inside Lambda |
+| `github_status` | Reads this public repository's metadata anonymously; no GitHub credential is stored or used |
 
 Meta Social includes app-list, selected app settings and API usage/deprecation reads.
 WhatsApp deliberately stops at business-list: business selection and existing-number

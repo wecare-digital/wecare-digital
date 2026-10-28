@@ -377,28 +377,39 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     login = uncapsule(row['cipher'], row['client'], row['sidHash'])
     phase = login.get('phase', 'phone')
     website = row.get('kind') == 'web-auth'
-    options = ''.join(
-        '<option value="' + html.escape(code, quote=True) + '">' +
-        html.escape(country + ' (' + code + ')') + '</option>'
+    country_rows = ''.join(
+        '<button class="country-row" type="button" role="option" data-country-code="' +
+        html.escape(code, quote=True) + '" data-country-search="' +
+        html.escape((country + ' ' + code).lower(), quote=True) + '">' +
+        '<span class="country-name">' + html.escape(country) + '</span>' +
+        '<span class="country-code">' + html.escape(code) + '</span></button>'
         for code, country, _ in DIAL_COUNTRIES
     )
     if phase == 'phone':
         field = (
             '<label class="field-label" for="phone">WhatsApp number</label>'
             '<div class="phone-field">'
-            '<select id="country" name="country" autocomplete="tel-country-code" aria-label="Country code">' +
-            options +
-            '</select>'
+            '<div class="country-picker" data-wc-no-translate="true">'
+            '<input id="country" name="country" type="hidden" value="+91">'
+            '<button class="country-trigger" id="country-trigger" type="button" aria-haspopup="listbox" '
+            'aria-expanded="false" aria-controls="country-panel" aria-label="Calling code">+91</button>'
+            '<div class="country-panel" id="country-panel" hidden>'
+            '<div class="country-search"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg>'
+            '<input id="country-search" type="search" autocomplete="off" spellcheck="false" '
+            'placeholder="Search country" aria-label="Search country"></div>'
+            '<div class="country-rows" id="country-list" role="listbox" aria-label="Calling codes">' +
+            country_rows + '</div></div></div>'
             '<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" '
             'pattern="[0-9]{5,14}" maxlength="14" required placeholder="WhatsApp number">'
             '</div>'
         )
     else:
         field = (
-            '<label class="field-label" for="code">WhatsApp verification code</label>'
+            '<label class="field-label" for="code">Code</label>'
             '<input class="single-field" id="code" name="code" type="password" inputmode="numeric" '
             'autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required '
-            'placeholder="6-digit code">'
+            'placeholder="6 digits">'
         )
 
     lockup = (
@@ -478,7 +489,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     )
     header = (
         '<header class="hdr"><div class="hdr-in"><div class="logo-nav">'
-        '<a class="brand logo" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' +
+        '<a class="brand logo" data-wc-no-translate="true" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' +
         lockup + '</a>' + menu + '</div>'
         '<a class="cart" href="https://wecare.digital/cart/" aria-label="Open cart">'
         '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
@@ -493,11 +504,12 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '</strong></p>'
     )
     alert = '<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else ''
-    primary_text = 'Get Code' if phase == 'phone' else 'Verify code'
+    primary_text = 'Get Code' if phase == 'phone' else 'Verify'
     resend = (
         '' if phase == 'phone' else
         '<button class="auth-action" type="submit" name="action" value="resend" formnovalidate>Resend code</button>'
     )
+    action_note = '<span class="auth-action-note">Verification code</span>'
     hero_words = [
         ('the website', '#fef3c7', '#f0a818'),
         ('ChatGPT', '#ede9fe', '#9849e8'),
@@ -532,19 +544,39 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         "setInterval(()=>{i=(i+1)%words.length;draw()},2400);"
         "})();"
     )
+    country_script = (
+        "(function(){"
+        "const trigger=document.getElementById('country-trigger'),panel=document.getElementById('country-panel'),"
+        "search=document.getElementById('country-search'),hidden=document.getElementById('country');"
+        "if(!trigger||!panel||!search||!hidden)return;"
+        "const rows=Array.from(panel.querySelectorAll('.country-row'));"
+        "const close=(focus)=>{panel.hidden=true;trigger.setAttribute('aria-expanded','false');search.value='';"
+        "rows.forEach(r=>r.hidden=false);if(focus)trigger.focus()};"
+        "const open=()=>{panel.hidden=false;trigger.setAttribute('aria-expanded','true');search.value='';"
+        "rows.forEach(r=>r.hidden=false);requestAnimationFrame(()=>search.focus())};"
+        "trigger.addEventListener('click',()=>panel.hidden?open():close(true));"
+        "search.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();"
+        "rows.forEach(r=>{r.hidden=!!q&&!r.dataset.countrySearch.includes(q)})});"
+        "rows.forEach(r=>r.addEventListener('click',()=>{const code=r.dataset.countryCode||'+91';hidden.value=code;"
+        "trigger.textContent=code;close(true)}));"
+        "document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&e.target!==trigger)close(false)},true);"
+        "document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.preventDefault();close(true)}});"
+        "})();"
+    )
+
     sign_in = (
         '<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">' +
         '<div class="connect-eyebrow">'
         '<span class="connect-eyebrow-icon" aria-hidden="true">'
         '<svg viewBox="0 0 24 24" focusable="false"><path d="M7 8h10l1 12H6L7 8Zm2.5 0V6.5a2.5 2.5 0 0 1 5 0V8"/>'
         '<path d="M9 13.2c1.1-1.3 2.1-1.3 3 0 1-1.3 2-1.3 3 0 0 2-3 3.8-3 3.8s-3-1.8-3-3.8Z"/></svg>'
-        '</span><span>WECARE Account</span></div>' +
+        '</span><span>Access</span></div>' +
         connect_note + alert +
         '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
         field +
         '<div class="auth-actions"><button class="auth-action" type="submit">' + primary_text + '</button>' +
-        resend + '</div></form>'
+        resend + action_note + '</div></form>'
         '</div></section>'
     )
     stay_connected = (
@@ -583,9 +615,77 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<span class="ps-chevron" aria-hidden="true">›</span></a></div></div></details>'
         '</div></section>'
     )
+    support_widget = (
+        '<div class="wc-langbar" id="wc-auth-widget" data-wc-no-translate="true">'
+        '<div class="wc-pill">'
+        '<a class="wc-wa" href="https://wecare.digital/r/wa" target="_blank" rel="noopener noreferrer" '
+        'aria-label="Chat with us on WhatsApp" title="Chat with us on WhatsApp">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" '
+        'd="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.91-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.03 1.02-1.03 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.28-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.51-5.26C2.16 6.45 6.6 2.01 12.05 2.01c2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 012.89 6.99c0 5.45-4.44 9.89-9.88 9.89M20.46 3.49A11.82 11.82 0 0012.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 005.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.42z"/></svg></a>'
+        '<span class="wc-sep" aria-hidden="true"></span>'
+        '<button class="wc-chip" id="wc-lang-trigger" type="button" aria-expanded="false" aria-haspopup="listbox" '
+        'aria-controls="wc-lang-panel" aria-label="Language: English. Choose another.">EN<span class="wc-arw" aria-hidden="true"></span></button>'
+        '</div>'
+        '<div class="wc-panel" id="wc-lang-panel" hidden>'
+        '<div class="wc-search"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg>'
+        '<input id="wc-lang-search" type="text" role="combobox" aria-expanded="true" aria-controls="wc-lang-list" '
+        'aria-autocomplete="list" aria-label="Search language" placeholder="Search language" autocomplete="off" spellcheck="false"></div>'
+        '<div class="wc-rows" id="wc-lang-list" role="listbox" aria-label="Languages"></div>'
+        '<p class="wc-more" id="wc-more" hidden></p></div>'
+        '<div class="wc-sr" id="wc-status" role="status" aria-live="polite"></div>'
+        '</div>'
+    )
+    support_script = (
+        "(function(){"
+        "const w=document.getElementById('wc-auth-widget'),trigger=document.getElementById('wc-lang-trigger'),"
+        "panel=document.getElementById('wc-lang-panel'),search=document.getElementById('wc-lang-search'),"
+        "list=document.getElementById('wc-lang-list'),more=document.getElementById('wc-more'),status=document.getElementById('wc-status');"
+        "if(!w||!trigger||!panel||!search||!list||!more||!status)return;"
+        "let langs=[],current='en',busy=false,originals=null,attrOriginals=null;"
+        "const rtl=new Set(['ar','fa','he','ur','ps','sd']);"
+        "const skip=new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','SVG','CANVAS','VIDEO','AUDIO','INPUT','TEXTAREA','SELECT','OPTION','CODE','PRE','HEAD','META','LINK']);"
+        "const eligible=el=>{for(let n=el;n&&n!==document.body;n=n.parentElement){if(n.dataset&&n.dataset.wcNoTranslate==='true')return false;if(skip.has(n.tagName))return false}return true};"
+        "const restore=()=>{if(originals)originals.forEach(x=>{if(x.node.parentNode)x.node.nodeValue=x.value});"
+        "if(attrOriginals)attrOriginals.forEach(x=>{if(x.el.isConnected)x.el.setAttribute(x.attr,x.value)})};"
+        "const collect=()=>{const items=[];const root=document.body;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(n){"
+        "const v=(n.nodeValue||'').trim(),p=n.parentElement;if(v.length<2||!/[A-Za-z\\u0900-\\u0DFF\\u0600-\\u06FF]/.test(v)||!p||!eligible(p))return NodeFilter.FILTER_REJECT;"
+        "return NodeFilter.FILTER_ACCEPT}});let n;while((n=walker.nextNode()))items.push({kind:'text',node:n,text:(n.nodeValue||'').trim()});"
+        "['placeholder','aria-label','title'].forEach(a=>document.querySelectorAll('['+a+']').forEach(el=>{const v=(el.getAttribute(a)||'').trim();"
+        "if(v.length>=2&&/[A-Za-z\\u0900-\\u0DFF\\u0600-\\u06FF]/.test(v)&&eligible(el))items.push({kind:'attr',el:el,attr:a,text:v})}));return items};"
+        "const apply=async code=>{if(busy)return;busy=true;trigger.classList.add('is-busy');status.textContent='Translating…';"
+        "try{restore();if(code==='en'){document.documentElement.lang='en';document.documentElement.dir='ltr';current='en';trigger.firstChild.nodeValue='EN';"
+        "trigger.setAttribute('aria-label','Language: English. Choose another.');status.textContent='Showing English.';return}"
+        "const items=collect();if(!originals){originals=items.filter(x=>x.kind==='text').map(x=>({node:x.node,value:x.node.nodeValue||''}));"
+        "attrOriginals=items.filter(x=>x.kind==='attr').map(x=>({el:x.el,attr:x.attr,value:x.el.getAttribute(x.attr)||''}))}"
+        "for(let i=0;i<items.length;i+=30){const batch=items.slice(i,i+30);const r=await fetch('/api/site-language/translate',{method:'POST',headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify({texts:batch.map(x=>x.text),targetLanguage:code,sourceLanguage:'en'})});if(!r.ok)throw new Error('translate');"
+        "const rows=(await r.json()).translations||[];if(rows.length!==batch.length)throw new Error('shape');rows.forEach((row,j)=>{const x=batch[j],v=row.translatedText;if(!v)return;"
+        "if(x.kind==='text'&&x.node.parentNode)x.node.nodeValue=v;else if(x.kind==='attr'&&x.el.isConnected)x.el.setAttribute(x.attr,v)})}"
+        "current=code;document.documentElement.lang=code;document.documentElement.dir=rtl.has(code.split('-')[0])?'rtl':'ltr';"
+        "trigger.firstChild.nodeValue=(code.split('-')[0]||'en').toUpperCase();const label=(langs.find(x=>x.code===code)||{}).name||code;"
+        "trigger.setAttribute('aria-label','Language: '+label+'. Choose another.');status.textContent='Page translated to '+label+'.'}"
+        "catch(e){restore();current='en';document.documentElement.lang='en';document.documentElement.dir='ltr';trigger.firstChild.nodeValue='EN';"
+        "status.textContent='Translation unavailable.'}finally{busy=false;trigger.classList.remove('is-busy')}};"
+        "const matches=q=>{q=q.trim().toLowerCase();let rows=langs;if(q)rows=langs.map(x=>({x:x,rank:x.code.toLowerCase()===q?0:x.name.toLowerCase().startsWith(q)?1:x.code.toLowerCase().startsWith(q)?2:x.name.toLowerCase().includes(q)?3:9}))"
+        ".filter(y=>y.rank<9).sort((a,b)=>a.rank-b.rank||a.x.name.localeCompare(b.x.name)).map(y=>y.x);return rows};"
+        "const render=()=>{const rows=matches(search.value),shown=rows.slice(0,5);list.textContent='';shown.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='wc-row'+(x.code===current?' is-on':'');"
+        "b.setAttribute('role','option');b.setAttribute('aria-selected',String(x.code===current));const n=document.createElement('span');n.className='wc-row-name';n.textContent=x.name;"
+        "const code=document.createElement('span');code.className='wc-row-code';code.textContent=x.code.toUpperCase();b.append(n,code);b.addEventListener('click',()=>{close(false);apply(x.code)});list.appendChild(b)});"
+        "const extra=Math.max(rows.length-5,0);more.hidden=!extra;more.textContent=extra+' more — keep typing'};"
+        "const close=focus=>{panel.hidden=true;trigger.setAttribute('aria-expanded','false');search.value='';if(focus)trigger.focus()};"
+        "const open=()=>{panel.hidden=false;trigger.setAttribute('aria-expanded','true');render();requestAnimationFrame(()=>search.focus())};"
+        "trigger.addEventListener('click',()=>{if(busy)return;panel.hidden?open():close(true)});search.addEventListener('input',render);"
+        "search.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close(true)}else if(e.key==='Enter'){e.preventDefault();const b=list.querySelector('.wc-row');if(b)b.click()}});"
+        "document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!w.contains(e.target))close(false)},true);"
+        "fetch('/api/site-language/languages').then(r=>r.ok?r.json():Promise.reject()).then(p=>{const drop=new Set(['auto','fr-CA','zh-TW','es-MX','pt-PT']);"
+        "langs=(p.languages||[]).filter(x=>!drop.has(x.code)).map(x=>({code:x.code,name:x.code==='ht'?'Creole':x.name})).sort((a,b)=>a.code==='en'?-1:b.code==='en'?1:a.name.localeCompare(b.name));"
+        "if(langs.length<2){trigger.hidden=true;w.querySelector('.wc-sep').hidden=true}}).catch(()=>{trigger.hidden=true;w.querySelector('.wc-sep').hidden=true});"
+        "})();"
+    )
     footer = (
         '<footer class="ft-footer"><div class="ft-in"><div class="ft-grid"><div class="ft-brand">'
-        '<a class="ft-home" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
+        '<a class="ft-home" data-wc-no-translate="true" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
         '<span class="brand compact">' + lockup + '</span></a>'
         '<p class="ft-tagline">Trusted everyday services for Bharat</p>'
         '<span class="ft-dash" aria-hidden="true"></span>'
@@ -635,31 +735,39 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.home-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}.home-sr-only{position:absolute;width:1px;height:1px;'
         'padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.home-sub{font-size:20px;font-weight:400;line-height:1.4;'
         'letter-spacing:-.125px;color:var(--body);margin:24px 0 0;max-width:var(--copy);text-wrap:balance}'
-        '.home-connect{width:min(100%,460px);min-width:0;align-self:flex-start}.connect-panel{width:100%;padding:20px;'
-        'border:1px solid #e8ecdf;border-top:3px solid var(--lime);border-radius:14px;background:#fcfdfa;'
-        'box-shadow:0 14px 40px rgba(16,32,24,.08)}.connect-eyebrow{display:inline-flex;align-items:center;gap:10px;'
-        'width:max-content;max-width:100%;min-height:44px;margin:0 0 20px;padding:0 16px;border-radius:9999px;background:var(--lime);'
+        '.home-connect{width:min(100%,420px);min-width:0;align-self:flex-start}.connect-panel{width:100%;padding:18px;'
+        'border:0;border-radius:14px;background:#fcfdfa;box-shadow:0 8px 24px rgba(16,32,24,.06)}.connect-eyebrow{display:inline-flex;align-items:center;gap:9px;'
+        'width:max-content;max-width:100%;min-height:42px;margin:0 0 18px;padding:0 15px;border-radius:9999px;background:var(--lime);'
         'color:var(--green);font-size:18px;font-weight:700;line-height:1.1;letter-spacing:0;text-transform:none}.connect-eyebrow-icon{'
-        'width:25px;height:25px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.connect-eyebrow-icon svg{'
-        'width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
-        '.destination{margin:0 0 16px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
-        '.field-label{display:block;margin:0 0 8px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
-        'width:100%;min-height:48px;border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fff}.phone-field select,'
-        '.phone-field input{min-width:0;border:0;background:#fff;color:var(--text);font-family:inherit;font-size:16px;line-height:1.2}'
-        '.phone-field select{appearance:auto;-webkit-appearance:menulist;flex:0 0 auto;width:138px;padding:0 8px;border-inline-end:1px solid var(--hair);'
-        'border-radius:0;box-shadow:none;cursor:pointer}.phone-field input{flex:1 1 auto;width:0;padding:0 12px;border-radius:0;box-shadow:none}'
-        '.phone-field:focus-within{border-color:var(--lime)}.phone-field select:focus-visible,.phone-field input:focus-visible{outline:3px solid var(--green);'
-        'outline-offset:-3px}.single-field{width:100%;min-height:48px;border:1px solid var(--hair);border-radius:12px;background:#fff;color:var(--text);'
-        'padding:0 12px;font-family:inherit;font-size:16px;line-height:1.2;box-shadow:none}.single-field:focus-visible{border-color:var(--lime);'
-        'outline:3px solid var(--green);outline-offset:2px}.auth-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}'
-        '.auth-action{display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:44px;box-sizing:border-box;margin:0;padding:6px 9px;'
-        'border:0;border-radius:8px;background:var(--lime-tint);color:var(--green);font-family:inherit;font-size:17px;font-weight:600;line-height:1.4;'
-        'letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;'
+        'width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.connect-eyebrow-icon svg{'
+        'width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
+        '.destination{margin:0 0 14px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
+        '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
+        'width:100%;min-height:48px;border:1px solid #eef0e6;border-radius:12px;background:#fff;position:relative}.country-picker{position:relative;'
+        'flex:0 0 82px;display:flex}.country-trigger{width:82px;min-height:46px;border:0;border-radius:11px 0 0 11px;background:var(--lime-tint);'
+        'color:var(--green);font:700 16px/1 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:3px solid var(--green);outline-offset:-3px}'
+        '.country-panel{position:absolute;top:56px;inset-inline-start:0;z-index:1200;width:min(260px,calc(100vw - 40px));max-height:300px;'
+        'display:flex;flex-direction:column;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid var(--lime);border-radius:14px;'
+        'box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}.country-panel[hidden]{display:none}.country-search{display:flex;align-items:center;gap:8px;'
+        'padding:10px 12px;border-bottom:1px solid #f1f3ec;background:#fff}.country-search svg{width:17px;height:17px;fill:none;stroke:var(--green);'
+        'stroke-width:2.2;stroke-linecap:round;opacity:.45}.country-search input{width:100%;min-width:0;min-height:0;height:auto;border:0;border-radius:0;'
+        'outline:0;box-shadow:none;padding:0;margin:0;background:transparent;font:600 16px/1.3 inherit;color:var(--green)}.country-search input:focus{outline:0;box-shadow:none}'
+        '.country-rows{overflow:auto;min-height:0}.country-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;'
+        'padding:10px 14px;border:0;border-radius:0;background:transparent;color:var(--green);font:600 16px/1.25 inherit;text-align:start;cursor:pointer}'
+        '.country-row:hover,.country-row:focus-visible{background:rgba(209,244,112,.38)}.country-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+        '.country-code{flex:0 0 auto;font-size:13px;font-weight:700;color:rgba(26,58,42,.58)}.phone-field>input{flex:1 1 auto;width:0;min-width:0;border:0;'
+        'border-radius:0 11px 11px 0;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;box-shadow:none}.phone-field:focus-within{'
+        'border-color:var(--lime)}.phone-field>input:focus-visible{outline:3px solid var(--green);outline-offset:-3px}.single-field{width:100%;min-height:48px;'
+        'border:1px solid #eef0e6;border-radius:12px;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;line-height:1.2;box-shadow:none}'
+        '.single-field:focus-visible{border-color:var(--lime);outline:3px solid var(--green);outline-offset:2px}.auth-actions{display:flex;align-items:center;gap:9px;'
+        'flex-wrap:wrap;margin-top:13px}.auth-action{display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:44px;box-sizing:border-box;'
+        'margin:0;padding:6px 9px;border:0;border-radius:8px;background:var(--lime-tint);color:var(--green);font-family:inherit;font-size:17px;font-weight:600;'
+        'line-height:1.4;letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;'
         'text-underline-offset:3px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}'
         '.auth-action:hover{background:var(--lime);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}'
-        '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}'
-        '.alert{margin:0 0 14px;padding:10px 12px;border-inline-start:3px solid var(--lime);background:#fff;border-radius:8px;color:var(--text);'
-        'font-size:14px;line-height:1.4}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
+        '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}.auth-action-note{'
+        'color:var(--muted);font-size:13px;font-weight:500;line-height:1.35}.alert{margin:0 0 12px;padding:8px 10px;border:0;background:#fff;border-radius:8px;'
+        'color:var(--text);font-size:14px;line-height:1.4}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
         'margin-top:32px;padding:12px 0 28px}.ps-kicker{display:flex;width:max-content;max-width:100%;align-items:center;min-height:32px;padding:0 14px;'
         'margin:0 0 18px;border-radius:999px;background:var(--lime);color:var(--green);font-size:17px;font-weight:700;line-height:1}.ps-row{display:flex;'
         'flex-wrap:wrap;align-items:center;gap:12px;width:max-content;max-width:100%}.ps-details{position:relative}.ps-action{position:relative;width:48px;height:48px;'
@@ -685,11 +793,31 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'align-items:center;min-height:44px;text-decoration:none;border-radius:10px}.compact svg{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px;'
         'line-height:1.6;color:var(--muted);margin:0;max-width:340px}.ft-dash{display:block;width:56px;height:3px;border-radius:999px;background:var(--lime)}'
         '@media(max-width:767px){.hdr-in{height:96px;padding:18px 16px}.brand svg{width:52px;height:52px}.brand-copy{font-size:20px}.home-shell{padding-top:96px}'
-        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:18px}.nav-menu{position:fixed;top:96px;'
+        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:16px}.home-connect{width:min(100%,400px)}.country-panel{width:min(260px,calc(100vw - 32px))}.nav-menu{position:fixed;top:96px;'
         'inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{grid-template-columns:1fr}.public-action-tail{padding:0 16px}'
-        '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}}'
+        '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}.wc-langbar{--wc-inset:16px;bottom:calc(20px + env(safe-area-inset-bottom))}.wc-pill{padding:3px;gap:0}.wc-chip{min-width:44px;padding:0 8px}.wc-arw{display:none}.wc-sep{height:22px}}'
         '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}}'
-        '@media(max-width:279px){.home-head-line{white-space:normal}}'
+
+        '.wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;'
+        'display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:inherit}.wc-pill{position:relative;overflow:hidden;display:inline-flex;align-items:center;'
+        'gap:2px;padding:4px;background:#fff;border:1.5px solid var(--lime);border-radius:9999px;box-shadow:0 6px 22px rgba(16,32,24,.14)}.wc-wa{width:44px;'
+        'height:44px;min-width:44px;min-height:44px;border-radius:50%;background:var(--lime);color:var(--green);display:grid;place-items:center;text-decoration:none}'
+        '.wc-wa svg{width:23px;height:23px;display:block}.wc-sep{width:1px;height:24px;background:#eef0e6;flex:0 0 auto}.wc-chip{position:relative;display:inline-flex;'
+        'align-items:center;height:44px;min-width:56px;justify-content:center;padding:0 9px 0 11px;border:0;border-radius:9999px;background:transparent;color:var(--green);'
+        'font-family:inherit;font-size:16px;font-weight:700;letter-spacing:.02em;cursor:pointer}.wc-chip:focus-visible{outline:3px solid var(--green);outline-offset:2px}'
+        '.wc-arw{width:6px;height:6px;box-sizing:border-box;border-right:2px solid var(--green);border-bottom:2px solid var(--green);transform:translateY(-2px) rotate(45deg);'
+        'margin-inline-start:7px;opacity:.7}.wc-chip[aria-expanded="true"] .wc-arw{transform:translateY(1px) rotate(225deg)}.wc-chip.is-busy{background:rgba(209,244,112,.38)}'
+        '.wc-panel{order:-1;display:flex;flex-direction:column;width:232px;max-height:min(360px,calc(100dvh - 150px));background:#fcfdfa;border:1px solid #e8ecdf;'
+        'border-top:3px solid var(--lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}.wc-panel[hidden]{display:none}.wc-search{display:flex;'
+        'align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #f1f3ec;background:#fff}.wc-search svg{width:17px;height:17px;fill:none;stroke:var(--green);'
+        'stroke-width:2.2;stroke-linecap:round;opacity:.45}.wc-search input{width:100%;min-width:0;min-height:0;height:auto;border:0;border-radius:0;outline:0;box-shadow:none;'
+        'padding:0;margin:0;background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:var(--green)}.wc-search input:focus{outline:0;box-shadow:none}.wc-rows{'
+        'overflow:auto;min-height:0}.wc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:10px 14px;border:0;'
+        'border-radius:0;background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:var(--green);text-align:start;cursor:pointer}.wc-row:hover{'
+        'background:rgba(209,244,112,.38)}.wc-row.is-on{background:var(--lime)}.wc-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wc-row-code{'
+        'flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,.34)}.wc-more{margin:0;padding:11px 14px;font-size:14px;font-weight:500;'
+        'color:rgba(0,0,0,.45);background:#fcfdfa;border-top:1px solid #f1f3ec}.wc-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;'
+        'clip:rect(0,0,0,0);white-space:nowrap;border:0}:root[dir="rtl"] .wc-langbar{right:auto;left:max(var(--wc-inset),env(safe-area-inset-left))}'        '@media(max-width:279px){.home-head-line{white-space:normal}}'
     )
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -708,7 +836,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
-        footer + '<script nonce="' + html.escape(nonce, quote=True) + '">' + rotation_script + '</script></body></html>'
+        footer + support_widget + '<script nonce="' + html.escape(nonce, quote=True) + '">' + rotation_script + country_script + support_script + '</script></body></html>'
     )
     result = response(200, page, page=True)
     form_sources = "'self'"
@@ -718,7 +846,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     result['headers']['Content-Security-Policy'] = (
         "default-src 'none'; script-src 'nonce-" + nonce + "'; "
         "style-src 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; img-src 'self'; "
+        "font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self'; "
         "form-action " + form_sources + "; frame-ancestors 'none'; base-uri 'none'"
     )
     return result
@@ -772,11 +900,11 @@ def website_finish(row: dict, login: dict, auth: dict, event: dict) -> dict:
         ".then(async s=>{sessionStorage.setItem('wecare.customer.accessToken',s.accessToken);sessionStorage.setItem('wecare.customer.expiresAt',String(s.expiresAt));"
         "try{await fetch('/api/customer/profile',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.accessToken},body:'{}'})}catch(e){}"
         "location.replace(" + json.dumps(destination) + ")})"
-        ".catch(()=>{document.getElementById('status').textContent='Sign-in completed, but the website session could not be restored. Please try again.'})"
+        ".catch(()=>{document.getElementById('status').textContent='Signed in. Reopen the page to continue.'})"
     )
     page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
             '<meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Signing in</title></head>'
-            '<body><main id="status" style="max-width:520px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui;color:#1a3a2a">Completing your secure sign-in…</main>'
+            '<body><main id="status" style="max-width:520px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui;color:#1a3a2a">Finishing sign-in…</main>'
             '<script nonce="' + html.escape(nonce, quote=True) + '">' + script + '</script></body></html>')
     result = response(200, page, page=True)
     result['cookies'] = list(reply.get('cookies') or []) + [f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
@@ -823,45 +951,46 @@ def authorize_post(params: dict, event: dict) -> dict:
                 raise AuthError('Invalid resend request')
             if login.get('phase') == 'registration':
                 if not registration_call('request', login['phone'], event):
-                    return save_pending(row, login, 'Could not resend the code. Try again shortly.')
-                return save_pending(row, login)
+                    return save_pending(row, login)
+                return save_pending(row, login, 'New code sent.')
             result = aws('cognito-idp').initiate_auth(
                 ClientId=CUSTOMER_CLIENT, AuthFlow='CUSTOM_AUTH',
                 AuthParameters={'USERNAME': login['phone']})
             if (not result.get('Session')
                     or result.get('ChallengeParameters', {}).get('registered') == 'false'):
-                return save_pending(row, {'phase': 'phone'}, 'Verification expired. Get a new code.')
-            return save_pending(row, {'phase': 'code', 'phone': login['phone'], 'session': result['Session']})
+                return save_pending(row, login)
+            return save_pending(row, {'phase': 'code', 'phone': login['phone'], 'session': result['Session']},
+                                'New code sent.')
         if login.get('phase') == 'phone':
             try:
                 params = {'csrf': params['csrf'], 'phone': normalized_phone(params)}
             except (AuthError, KeyError):
-                return save_pending(row, {'phase': 'phone'}, 'Check your country code and WhatsApp number. Enter the number without the country code or a leading zero.')
+                return save_pending(row, {'phase': 'phone'}, 'Check the number and try again.')
             result = aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT, AuthFlow='CUSTOM_AUTH', AuthParameters={'USERNAME': params['phone']})
             challenge = result.get('ChallengeParameters', {})
             if challenge.get('registered') == 'false':
                 if registration_call('request', params['phone'], event):
                     return save_pending(row, {'phase': 'registration', 'phone': params['phone']})
-                return save_pending(row, {'phase': 'phone'}, 'We could not start new-account registration. Existing customers can sign in; please try again shortly.')
+                return save_pending(row, {'phase': 'phone'}, 'Couldn’t start sign-in. Try again.')
             return save_pending(row, {'phase': 'code', 'phone': params['phone'], 'session': result['Session']})
         if set(params) != {'csrf', 'code'} or not re.fullmatch(r'[0-9]{6}', params['code']):
-            return save_pending(row, login, 'Enter the six-digit verification code.')
+            return save_pending(row, login, 'Enter the 6-digit code.')
         if login.get('phase') == 'registration':
             if not registration_call('verify', login['phone'], event, params['code']):
-                return save_pending(row, login, 'We could not verify that code. Check it and try again, or restart sign-in.')
+                return save_pending(row, login, 'Code not verified. Try again.')
             result = aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT, AuthFlow='CUSTOM_AUTH',
                                                     AuthParameters={'USERNAME': login['phone']})
             if not result.get('Session') or result.get('ChallengeParameters', {}).get('registered') == 'false':
-                return save_pending(row, {'phase': 'phone'}, 'Your number was verified. Please restart sign-in.')
+                return save_pending(row, {'phase': 'phone'}, 'Number verified. Get a new code.')
             return save_pending(row, {'phase': 'code', 'phone': login['phone'], 'session': result['Session']},
-                                'Your account is created. Enter the new WhatsApp code to finish connecting.')
+                                'Account ready. Enter the new code.')
         result = aws('cognito-idp').respond_to_auth_challenge(ClientId=CUSTOMER_CLIENT, ChallengeName='CUSTOM_CHALLENGE',
                     Session=login['session'], ChallengeResponses={'USERNAME': login['phone'], 'ANSWER': params['code']})
         if not result.get('AuthenticationResult'):
             if not result.get('Session'):
-                return save_pending(row, {'phase': 'phone'}, 'The verification session expired. Request a new code.')
+                return save_pending(row, {'phase': 'phone'}, 'Code expired. Get a new one.')
             login['session'] = result['Session']
-            return save_pending(row, login, 'Check the code and try again.')
+            return save_pending(row, login, 'Wrong code. Try again.')
         auth = result['AuthenticationResult']
         stage = 'identity_check'
         _, subject = checked_cognito(auth)
@@ -888,7 +1017,7 @@ def authorize_post(params: dict, event: dict) -> dict:
         # line carries the step and a sanitised exception class name only.
         category = re.sub('[^A-Za-z0-9_]', '', type(error).__name__)[:64]
         print(json.dumps({'event': 'customer_authorization_failed', 'stage': stage, 'category': category}))
-        return save_pending(row, {'phase': 'phone'}, 'We could not complete verification. Please try again shortly.')
+        return save_pending(row, login, 'Couldn’t verify. Try again.')
 
 
 def route(event: dict) -> dict | None:

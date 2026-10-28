@@ -242,7 +242,12 @@ def main() -> None:
             added = ['arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/plivo/api-aIEx8b',
                 'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/sinch/rcs-18kRci']
             check(all(item in statement['Resource'] for item in added), 'Exact provider secrets')
+            retired_github = 'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/github-pat-y4tXJa'
+            check(retired_github not in statement['Resource'], 'Exposed GitHub PAT access retired')
             statement['Resource'] = [item for item in statement['Resource'] if item not in added]
+            # Normalize only for comparison with the historical baseline after proving the
+            # credential has actually been removed from the current role.
+            statement['Resource'].insert(0, retired_github)
         if statement.get('Action') == ['kms:Decrypt']:
             contexts = statement['Condition']['StringEquals']['kms:EncryptionContext:SecretARN']
             check(contexts == ['arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY',
@@ -253,6 +258,9 @@ def main() -> None:
         ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
     )]
     check(role == baseline['Resources']['Role'], 'All other role permissions unchanged')
+    check('GithubTokenField' not in template['Parameters'], 'Retired GitHub token parameter absent')
+    function_env = template['Resources']['Function']['Properties']['Environment']['Variables']
+    check('GITHUB_TOKEN_FIELD' not in function_env, 'Retired GitHub token environment absent')
     registry = json.loads(json.dumps(template['Resources']['Registry']))
     check(registry['Properties'].get('DeletionProtectionEnabled') is True,
         'Registry deletion protection enabled')
