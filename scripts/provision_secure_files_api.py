@@ -92,9 +92,7 @@ WEBHOOK_FUNCTION = "wecare-razorpay-webhook"
 ROUTES = [
     # admin surface (authorised inside the handler via require_auth Operator)
     ("GET", "/secure-files"),
-    ("POST", "/secure-files/upload-init"),
     ("POST", "/secure-files/publish-document"),
-    ("POST", "/secure-files/{fileId}/confirm"),
     ("POST", "/secure-files/{fileId}/revoke"),
     # Ask the owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link when their
     # WhatsApp is not linked yet), and resend the Access Vault link for a paid file.
@@ -110,6 +108,14 @@ ROUTES = [
     ("POST", "/secure-files/dropdocs/attach"),
     ("GET", "/secure-files/dropdocs/{requestId}/documents"),
 ]
+
+# Routes retired from the product boundary. The provisioner deletes these explicitly;
+# merely removing them from ROUTES would leave them live in API Gateway forever.
+RETIRED_ROUTES = {
+    "POST /secure-files/upload-init",
+    "POST /secure-files/{fileId}/confirm",
+}
+
 
 # The one Lambda secure-files invokes for WhatsApp delivery.
 WA_SENDER = "wecare-outbound-whatsapp"
@@ -473,6 +479,9 @@ def ensure_routes(dry_run: bool) -> list:
         for method, path in ROUTES:
             key = f"{method} {path}"
             results.append(f"{key}: {'exists' if key in existing_routes else 'would create'}")
+        for key in sorted(RETIRED_ROUTES):
+            if key in existing_routes:
+                results.append(f"{key}: would delete (retired)")
         return results
 
     integration_id = client.create_integration(
@@ -496,8 +505,14 @@ def ensure_routes(dry_run: bool) -> list:
     except lam().exceptions.ResourceConflictException:
         pass
 
+    for key in sorted(RETIRED_ROUTES):
+        route = existing_routes.get(key)
+        if route:
+            client.delete_route(ApiId=API_ID, RouteId=route["RouteId"])
+            results.append(f"{key}: deleted (retired)")
+
     for method, path in ROUTES:
-        key = f"{method} {path}"
+        key = f"{method} {path}
         if key in existing_routes:
             client.update_route(
                 ApiId=API_ID, RouteId=existing_routes[key]["RouteId"], Target=target
