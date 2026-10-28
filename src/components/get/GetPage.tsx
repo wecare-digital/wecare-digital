@@ -156,7 +156,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         {
             // Same-tab storage is best-effort. Ownership still has to pass on the server.
         }
-        window.location.replace( `/auth?return=${ encodeURIComponent( '/vault/' ) }` );
+        window.location.replace( '/auth' );
         return true;
     }, [ targetFileId ] );
 
