@@ -222,7 +222,8 @@
                   "application/pdf",
                   "image/jpeg",
                   "image/png"
-                ]
+                ],
+                "description": "PDF, JPG or PNG"
               },
               {
                 "type": "Footer",
