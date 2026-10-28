@@ -6312,7 +6312,8 @@ export async function publishDocumentToVault (
   status: string;
   deliverable: string;
   created: boolean;
-  displayName?: string;
+  // Always returned: the generated name the server assigned.
+  displayName: string;
 }>> {
   return apiCallResult( `${API_BASE}/secure-files/publish-document`, {
     method: 'POST',

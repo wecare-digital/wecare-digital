@@ -76,6 +76,54 @@ function fmtOrderLabel ( order: api.Order ): string {
   return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
 }
 
+/* The published Vault file's own record, read from Secure files when a published document opens.
+   `unknown` covers "not read yet" and "no mobile to read it by". */
+type VaultFileView =
+  | { status: 'unknown' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; file: api.SecureFile | null };
+
+/* Same fallback as Secure files for a list served by an older backend. */
+function vaultAccessState ( file: api.SecureFile ): api.SecureFileAccessState {
+  if ( file.accessState ) return file.accessState;
+  return file.vaultPaymentStatus === 'PAID' ? 'READY' : 'UNPAID';
+}
+
+const VAULT_ACCESS_LABELS: Record<api.SecureFileAccessState, string> = {
+  UNPAID: 'Not paid yet',
+  OPEN: 'Paid · access window open',
+  READY: 'Paid · window opens on first download',
+  EXPIRED: 'Paid · window used · renewal needed',
+  PAID_UNVERIFIED: 'Paid · needs reconciling, do not charge again',
+};
+
+function vaultStateText ( view: VaultFileView ): string {
+  if ( view.status === 'loading' ) return 'Checking payment…';
+  if ( view.status === 'error' ) return view.message;
+  if ( view.status !== 'ready' ) return '';
+  if ( !view.file ) return 'Not found in this customer’s Vault';
+  if ( view.file.status !== 'active' ) return `Vault file ${ view.file.status }`;
+  const state = vaultAccessState( view.file );
+  return state === 'OPEN' && view.file.accessWindowStatus
+    ? `Paid · ${ view.file.accessWindowStatus }`
+    : VAULT_ACCESS_LABELS[ state ];
+}
+
+/* Which WhatsApp action fits the Vault file now: the Vault offer while unpaid or used up, the
+   Access Vault link while paid, neither while a payment needs reconciling or the file is gone.
+   An unread state offers both; the server refuses the one that does not fit. */
+function vaultActionsFor ( view: VaultFileView ): { ask: boolean; resend: boolean; renewal: boolean } {
+  if ( view.status !== 'ready' ) return { ask: true, resend: true, renewal: false };
+  if ( !view.file || view.file.status !== 'active' ) return { ask: false, resend: false, renewal: false };
+  const state = vaultAccessState( view.file );
+  return {
+    ask: state === 'UNPAID' || state === 'EXPIRED',
+    resend: state === 'OPEN' || state === 'READY',
+    renewal: state === 'EXPIRED',
+  };
+}
+
 function referenceAgeSeconds ( doc: api.Document ): number {
   const base = doc.referenceIssuedAt || doc.createdAt || 0;
   if ( !base ) return Number.POSITIVE_INFINITY;
@@ -920,14 +968,14 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               disabled={ creating || !createReady }
               onClick={ () => { void handleCreateDocument( true ); } }
             >
-              Upload & send WhatsApp
+              Upload & send Vault offer
             </Button>
           </>
         }
       >
         <div style={ { display: 'flex', flexDirection: 'column', gap: 18 } }>
           <div style={ uploadIntroStyle }>
-            Add a document to private Drop Docs storage. Choose <strong>Upload only</strong> for intake, or <strong>Upload & send WhatsApp</strong> to publish it to Vault and send the customer the Unlock Vault offer immediately.
+            Add a document to private Drop Docs storage. Choose <strong>Upload only</strong> for intake, or <strong>Upload & send Vault offer</strong> to publish it to Vault and send the customer the Unlock Vault offer immediately.
           </div>
 
           <section style={ sectionStyle }>
@@ -1110,7 +1158,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           </section>
 
           <div style={ uploadFooterNoteStyle }>
-            <strong>Upload only</strong> keeps this as intake. <strong>Upload & send WhatsApp</strong> publishes the same document to Vault and sends the customer the offer; payment happens only after the customer taps Unlock Vault.
+            <strong>Upload only</strong> keeps this as intake. <strong>Upload & send Vault offer</strong> publishes the same document to Vault and sends the customer the offer; payment happens only after the customer taps Unlock Vault.
           </div>
         </div>
       </Modal>

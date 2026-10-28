@@ -293,7 +293,11 @@ class VaultRepublishTests(unittest.TestCase):
         self.assertEqual(status, 200, body)
         self.assertEqual(body["fileId"], self.v1)
         self.assertFalse(body["created"])
-        self.assertTrue(body["renamed"])
+        # Filenames are system-owned: the staff-typed name is ignored, nothing reports a rename,
+        # and the reused row now carries the generated Drop Docs name.
+        self.assertNotIn("renamed", body)
+        self.assertEqual(body["displayName"], "wecare-digital-000001.pdf")
+        self.assertEqual(self.files.rows[self.v1]["displayName"], "wecare-digital-000001.pdf")
         self.assertEqual(list(self.files.rows), [self.v1])
         self.assertEqual(self.docs.rows[self.DOC]["vaultFileId"], self.v1)
         self.assertEqual(self.files.rows[self.v1]["vaultPaymentStatus"], "PAID")
