@@ -5,6 +5,7 @@
 - `--verify` fails if either retired route is still present in API Gateway.
 - Paid download `Content-Disposition` uses the system-owned `wecare-digital-...` filename, never the original customer/staff upload filename.
 - `wecare-secure-files` is provisioned with Active X-Ray tracing under its dedicated role; the role receives only the X-Ray write/sampling actions required for tracing.
+- Exhausted asynchronous paid-delivery invocations are sent to `wecare-lambda-async-dlq` after the normal two retries / six-hour event age; the existing DLQ-depth alarm makes the failure durable and visible.
 - Existing payment/ownership controls remain unchanged: customer-pool issuer pin, exact owner subject + phone checks, durable exact-file entitlement, conditional access-window writes, short-lived download URLs, and idempotent paid delivery.
 
 ## Vault filenames and links
