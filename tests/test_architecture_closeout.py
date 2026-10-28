@@ -498,6 +498,11 @@ class VaultBackendHardeningTests(unittest.TestCase):
         self.assertIn("FAIL retired route still live", provision)
         self.assertIn("PASS retired route absent", provision)
         self.assertIn("PASS X-Ray tracing Active", provision)
+        self.assertIn("wecare-lambda-async-dlq", provision)
+        self.assertIn("put_function_event_invoke_config", provision)
+        self.assertIn("MaximumRetryAttempts=2", provision)
+        self.assertIn("MaximumEventAgeInSeconds=21600", provision)
+        self.assertIn("PASS async failures persist to standard DLQ", provision)
 
     def test_paid_download_uses_system_owned_vault_filename(self):
         handler = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
