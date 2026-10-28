@@ -650,16 +650,15 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                         { isPaid ? (
                                             <>
                                                 <div className={ targetFileId ? 'sf-file-action' : undefined }>
-                                                    <PillButton
-                                                        as="button"
+                                                    <button
                                                         type="button"
-                                                        label="Vault"
-                                                        action={ working === file.fileId ? 'Preparing…' : 'Download file' }
-                                                        block
+                                                        className="sf-download-action"
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
-                                                        busy={ working === file.fileId }
-                                                    />
+                                                        aria-busy={ working === file.fileId }
+                                                    >
+                                                        { working === file.fileId ? 'Preparing…' : 'Download file' }
+                                                    </button>
                                                 </div>
                                                 <p className={ targetFileId ? 'sf-paid-note' : 'sf-fine' }>
                                                     { state === 'OPEN'
@@ -872,6 +871,27 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   color:var(--public-brand-green);font-size:11px;font-weight:700;
                 }
                 .sf-file-action{margin-top:13px}
+                .sf-download-action{
+                  display:inline-flex;align-items:center;width:max-content;max-width:100%;
+                  min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;padding:6px 9px;
+                  border:0;border-radius:8px;background:var(--public-lime-tint);
+                  color:var(--public-brand-green);font-family:inherit;
+                  font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
+                  line-height:1.4;letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;
+                  text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;
+                  text-underline-offset:3px;cursor:pointer;touch-action:manipulation;
+                  -webkit-tap-highlight-color:transparent;
+                  transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
+                }
+                .sf-download-action:hover:not(:disabled){
+                  background:var(--public-brand-lime);text-decoration-color:transparent;
+                  transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+                }
+                .sf-download-action:focus-visible{
+                  background:var(--public-brand-lime);text-decoration-color:transparent;
+                  outline:3px solid var(--public-brand-green);outline-offset:3px;
+                }
+                .sf-download-action:disabled{opacity:.55;cursor:progress}
                 .sf-paid-note{
                   margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#fff;
                   box-shadow:inset 4px 0 0 var(--public-brand-lime);
@@ -909,7 +929,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 }
 
                 @media(prefers-reduced-motion:reduce){
-                  .sf-input{transition:none}
+                  .sf-input,.sf-download-action{transition:none}
+                  .sf-download-action:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
         </>
