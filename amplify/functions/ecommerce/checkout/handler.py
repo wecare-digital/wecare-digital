@@ -2613,7 +2613,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # order record and stages ORDER_FINALIZED.
         attempt.update(nativeCatalogService=True, channel=order_channel.CHANNEL_WHATSAPP,
             customerPhone=_profile_phone(identity), catalogServiceSession=catalog_session['orderId'],
-            snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data))
+            snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data),
+            serviceKind=str(catalog_session.get('kind') or ''),
+            **({'vaultFileId': str(catalog_session.get('vaultFileId') or '')}
+               if catalog_session.get('vaultFileId') else {}))
         # The session was opened for, and ownership-checked against, one ContactsTable row; the
         # order inherits it so the WhatsApp purchase sits on the same contact as everything else.
         if catalog_session.get('contactId'):
@@ -2623,9 +2626,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
-    if catalog_session is None and cart_profile is not None and snapshot is not None:
-        # What the paid GST invoice itemises after capture (razorpay-webhook relays it to
-        # `/invoices/from-payment`). Without it that invoice falls back to one "Payment" line.
+    if snapshot is not None:
+        # One canonical item/charge projection for every native checkout, including Vault.
+        # It drives the paid invoice, customer order detail and Workspace order record from
+        # exactly the same frozen quote Meta showed in ORDER_DETAILS.
         try:
             invoice_lines = _native_invoice_lines(snapshot)
         except Exception as error:  # noqa: BLE001 - display data must never refuse a checkout
