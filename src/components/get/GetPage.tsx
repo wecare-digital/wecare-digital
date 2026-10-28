@@ -144,6 +144,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     // The live catalog price. Null until ProductsTable can be read through the canonical service
     // pricing endpoint; checkout never starts from a guessed or file-local amount.
     const [ price, setPrice ] = useState<number | null>( null );
+    const [ payablePrice, setPayablePrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
 
     const redirectExactFileToAuth = useCallback( (): boolean => {
@@ -195,6 +196,11 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             if ( !active ) return;
             const vault = prices.vault;
             setPrice( vault?.available ? vault.paise : null );
+            setPayablePrice(
+                vault?.available && vault.breakdown
+                    ? vault.breakdown.totalPayablePaise
+                    : null
+            );
         } );
         return () => { active = false; };
     }, [] );
@@ -715,14 +721,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     label="Vault"
                                                     action={ working === file.fileId
                                                         ? 'Preparing checkout…'
-                                                        : price === null
+                                                        : price === null || payablePrice === null
                                                             ? 'Price unavailable'
                                                             : state === 'EXPIRED'
-                                                                ? `Renew for ₹${ rupeesFromPaise( price ) }`
-                                                                : `Checkout ₹${ rupeesFromPaise( price ) }` }
+                                                                ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
+                                                                : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
-                                                    disabled={ working === file.fileId || price === null }
+                                                    disabled={ working === file.fileId || price === null || payablePrice === null }
                                                     busy={ working === file.fileId }
                                                 />
                                                 <p className="sf-fine">
