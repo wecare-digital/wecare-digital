@@ -4,7 +4,7 @@ import PageMeta from '../PageMeta';
 import Breadcrumbs from '../Breadcrumbs';
 import RotatingHero from '../RotatingHero';
 import PillButton from '../PillButton';
-import CheckoutIdentityCard from '../CheckoutIdentityCard';
+import { maskPhone } from '../CheckoutIdentityCard';
 import RequestsPanel from './RequestsPanel';
 import CheckoutProfile, {
   type CheckoutProfileMode,
@@ -674,12 +674,19 @@ export default function OrdersPage (): React.ReactElement {
       { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
            canonical, title and description stay the history's. Only the visible band changes. */ }
       <RotatingHero
-        frame="Your"
-        words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        frame={ focusOrder ? 'Your' : 'Everything about your' }
+        words={ focusOrder
+          ? [ { word: 'order', tint: '#e0f7c8', dot: '#3da35a' } ]
+          : [
+              { word: 'orders', tint: '#fef3c7', dot: '#f0a818' },
+              { word: 'payments', tint: '#ede9fe', dot: '#9849e8' },
+              { word: 'requests', tint: '#e0f7c8', dot: '#3da35a' },
+              { word: 'invoices', tint: '#fee2e2', dot: '#dc2626' },
+            ] }
         sub={ focusOrder
           ? 'What you bought, where it ships, and where it is now.'
-          : 'What you have bought from us, and what each payment is doing.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
+          : 'Your purchases, payments, requests and receipts — in one quiet place.' }
+        ariaLabel={ focusOrder ? 'Your order' : 'Everything about your orders, payments, requests and invoices' }
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -780,33 +787,54 @@ export default function OrdersPage (): React.ReactElement {
               <aside className="ord-panel" aria-label="Your details">
                 { profile
                   ? (
-                    <CheckoutIdentityCard
-                      identity={ {
-                        name: profile.name,
-                        email: profile.email,
-                        phone: profile.phone,
-                        // An incomplete address is not an address on file, so the row says so
-                        // rather than showing a partial line as if it were the delivery address.
-                        address: profile.addressComplete ? profile.address : null,
-                        emailVerified: profile.emailVerified,
-                      } }
-                      eyebrow="Your details"
-                      title="What we have on file"
-                      emptyAddressLabel="No address on file"
-                      editorOpen={ showProfile }
-                      onEditName={ () => openEditor( 'name' ) }
-                      onChangeEmail={ () => openEditor( 'email' ) }
-                      onEditAddress={ () => openEditor( 'address' ) }
-                    />
+                    <section className="ord-summary" aria-labelledby="ord-summary-title">
+                      <div className="ord-summary-head">
+                        <div>
+                          <p className="ord-eyebrow">Your details</p>
+                          <h2 className="ord-h2" id="ord-summary-title">What we use for your orders</h2>
+                        </div>
+                        <button type="button" className="ord-text-action" onClick={ () => openEditor( 'name' ) }>
+                          Edit profile
+                        </button>
+                      </div>
+                      <dl className="ord-summary-rows">
+                        <div>
+                          <dt>Name</dt>
+                          <dd>{ profile.name || 'Not provided' }</dd>
+                        </div>
+                        <div>
+                          <dt>WhatsApp</dt>
+                          <dd>
+                            <span data-wc-no-translate>{ maskPhone( profile.phone ) }</span>
+                            <span className="ord-verified">verified</span>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Deliver to</dt>
+                          <dd>
+                            <span>{ profile.addressComplete && profile.address
+                              ? profile.address.fullAddress
+                              : 'No address on file' }</span>
+                            <button type="button" className="ord-inline-edit" onClick={ () => openEditor( 'address' ) }>
+                              Edit address
+                            </button>
+                          </dd>
+                        </div>
+                      </dl>
+                      { orders[ 0 ]?.customerDisplayId && (
+                        <details className="ord-support">
+                          <summary>Support details</summary>
+                          <p>
+                            Customer ID{ ' ' }
+                            <strong data-wc-no-translate>{ orders[ 0 ].customerDisplayId }</strong>
+                          </p>
+                        </details>
+                      ) }
+                    </section>
                   )
                   : (
-                    // Four empty rows would assert we know nothing while looking like we know
-                    // something. One line and a route to where the create-mode form lives.
                     <p className="ord-p ord-nodetails">
                       We do not have your details yet. You can add them in your{ ' ' }
-                      { /* A plain anchor, not next/link, for the reason Footer.tsx documents:
-                           styled-jsx does not scope composite components, so a Link carrying
-                           ord-link would arrive with no styling at all. */ }
                       { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
                       <a className="ord-link" href="/cart/">cart</a>.
                     </p>
@@ -829,15 +857,17 @@ export default function OrdersPage (): React.ReactElement {
                     } }
                   />
                 ) }
-                { /* Phase O-1: the customer's service requests. Paid orders' references are
-                     passed so the server can create a request whose webhook hint was missed. */ }
-                <RequestsPanel
-                  accessToken={ token }
-                  paidReferenceIds={ orders
-                    .filter( order => INVOICE_ELIGIBLE.has( order.status ) && order.referenceId )
-                    .map( order => order.referenceId ) }
-                  onExpired={ expire }
-                />
+                { /* Requests stay available, but secondary to the purchase history. */ }
+                <details className="ord-requests">
+                  <summary>Requests</summary>
+                  <RequestsPanel
+                    accessToken={ token }
+                    paidReferenceIds={ orders
+                      .filter( order => INVOICE_ELIGIBLE.has( order.status ) && order.referenceId )
+                      .map( order => order.referenceId ) }
+                    onExpired={ expire }
+                  />
+                </details>
               </aside>
 
               { /* RIGHT: the order history. The list and the empty state are alternatives and
@@ -1241,14 +1271,21 @@ export default function OrdersPage (): React.ReactElement {
               ) }
 
               { !!cursor && (
-                <button
-                  type="button"
-                  className="ord-quiet"
-                  onClick={ loadMore }
-                  disabled={ loadingMore }
-                >
-                  { loadingMore ? 'Loading…' : 'Show more orders' }
-                </button>
+                <div className="ord-pager" aria-label="Order history position">
+                  <div className="ord-pager-copy">
+                    <strong>Recent orders</strong>
+                    <span>Older orders available</span>
+                  </div>
+                  <div className="ord-pager-rail" aria-hidden="true"><span /></div>
+                  <button
+                    type="button"
+                    className="ord-quiet"
+                    onClick={ loadMore }
+                    disabled={ loadingMore }
+                  >
+                    { loadingMore ? 'Loading…' : 'Older orders' }
+                  </button>
+                </div>
               ) }
             </section>
           ) }
@@ -1308,22 +1345,40 @@ export default function OrdersPage (): React.ReactElement {
           /* 1100px, not the 700px a single column of prose wanted: a five-column table inside
              700px is a permanent horizontal scroll. 1100 sits INSIDE PageTopBand's 1300px
              measure, so the band's gutters still apply and nothing re-declares them. */
-          .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:32px;max-width:1100px}
+          .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:var(--public-section-gap);max-width:1100px}
 
           /* Mobile-first: one column, panel above orders, which is both the DOM order and the
              layout this page already had. The 1024px override lives with every other media
              query at the foot of this stylesheet, after the defaults it overrides. */
-          .ord-shell{display:grid;grid-template-columns:1fr;gap:28px}
+          .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:56px}
           /* min-inline-size:0 for the same reason as minmax(0,...): a flex/grid item defaults to
              min-content and refuses to shrink. No position:sticky - the panel is short, and
              sticky interacts badly with overflow ancestors. */
-          .ord-panel,.ord-main{display:flex;flex-direction:column;gap:18px;min-inline-size:0}
+          .ord-panel,.ord-main{display:flex;flex-direction:column;gap:24px;min-inline-size:0}
           /* Customer/account context is a single contained surface, matching the cart review
              card rather than floating controls beside the history table. */
-          .ord-panel{
-            align-self:start;padding:20px;border:1px solid var(--public-hairline);
-            border-radius:16px;background:#fff;
-          }
+          .ord-panel{align-self:stretch;padding:0;border:0;background:transparent}
+          .ord-summary{max-width:960px}
+          .ord-summary-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px}
+          .ord-eyebrow{margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green)}
+          .ord-summary-rows{margin:0;border-top:1px solid var(--public-hairline)}
+          .ord-summary-rows>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;padding:16px 0;border-bottom:1px solid var(--public-hairline)}
+          .ord-summary-rows dt{font-size:13px;font-weight:700;color:var(--public-brand-green)}
+          .ord-summary-rows dd{margin:0;font-size:17px;line-height:1.45;color:#1a1a1a}
+          .ord-verified{display:inline-flex;margin-inline-start:8px;padding:3px 8px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:12px;font-weight:700}
+          .ord-text-action,.ord-inline-edit{min-height:44px;padding:0;border:0;background:none;color:var(--public-brand-green);font:inherit;font-size:15px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+          .ord-inline-edit{min-height:0;margin-inline-start:12px;font-size:14px}
+          .ord-support{margin-top:12px}
+          .ord-support summary,.ord-requests>summary{display:inline-flex;align-items:center;min-height:44px;padding:0;color:var(--public-brand-green);font-size:16px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+          .ord-support p{margin:4px 0 0;padding:10px 0 10px 12px;border-inline-start:3px solid var(--public-brand-lime);font-size:15px;color:var(--public-muted)}
+          .ord-requests{max-width:960px;border-top:1px solid var(--public-hairline);padding-top:4px}
+          .ord-requests[open]>summary{margin-bottom:8px}
+          .ord-pager{width:100%;margin-top:4px}
+          .ord-pager-copy{display:flex;justify-content:space-between;gap:16px;margin-bottom:8px;font-size:14px;color:var(--public-muted)}
+          .ord-pager-copy strong{color:var(--public-brand-green)}
+          .ord-pager-rail{height:3px;background:#edf0e8;border-radius:999px;overflow:hidden}
+          .ord-pager-rail span{display:block;width:38%;height:100%;background:var(--public-brand-lime)}
+          .ord-pager .ord-quiet{margin-top:12px}
 
           /* The section rung: 700 against the band's 600 h1. That inversion is the site's and is
              deliberate - PageTopBand says not to "correct" it. Font stack DECLARED, not
@@ -1517,33 +1572,25 @@ export default function OrdersPage (): React.ReactElement {
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
           @media(min-width:1024px){
-            /* minmax(0,1fr) IS NOT OPTIONAL and is the single most important line here. A
-               bare 1fr is minmax(auto,1fr), so the column refuses to shrink below its content's
-               intrinsic width, a wide table blows the grid out, and the overflow lands on the
-               DOCUMENT - which is what tools/browser/devicecheck.js measures
-               (document.documentElement.scrollWidth - vw) and fails on at 280px. With
-               minmax(0,...) the column shrinks and the table's own scroll container takes it.
-
-               1024px rather than the site's 767px body rung: a 340px panel beside a table needs
-               about 1024px before the table has usable room. */
-            .ord-shell{grid-template-columns:340px minmax(0,1fr);gap:32px;align-items:start}
-            /* Collapsed while the editor is open. CheckoutProfile's own grid is 1fr 1fr 1.5fr
-               and AddressFields' is 1fr 1fr, and both collapse only at a max-width:767px
-               VIEWPORT query - not a container query - so inside a 340px panel on a 1280px
-               desktop they would stay three- and two-up and render crushed inputs. Fixing that
-               properly means container queries on two shared components another phase owns. */
-            .ord-shell-editing{grid-template-columns:1fr}
+            .ord-shell,.ord-shell-editing{grid-template-columns:minmax(0,1fr);gap:56px}
           }
 
           @media(max-width:767px){
-            .ord-panel{padding:16px;border-radius:14px}
+            .ord-page{gap:var(--public-mobile-section-gap)}
+            .ord-shell,.ord-shell-editing{gap:40px}
             .ord-p,.ord-aside{font-size:18px}
+            .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
+            .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
+            .ord-inline-edit{display:block;margin:5px 0 0}
+            .ord-verified{margin-inline-start:6px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
-            /* BOTH HALVES OF THE FOLD, IN ONE QUERY. The fold hides a COLUMN, so the class sits
-               on the <th> and the <td> together - a class on only the header leaves the data
-               visible under a vanished header and the column indices stop agreeing. */
             .ord-col-date{display:none}
             .ord-subdate{display:block}
+            .ord-table th:nth-child(5),.ord-table td:nth-child(5){display:none}
+            .ord-th,.ord-td{padding:12px 8px}
+            .ord-th:first-child,.ord-td:first-child{padding-inline-start:10px}
+            .ord-tablewrap{overflow-x:hidden;border-inline:0;border-radius:0}
+            .ord-pager-copy{font-size:13px}
           }
 
           /* NO ENTRANCE ANIMATION OF ITS OWN, and the absence is the point: opacity:0 does not
