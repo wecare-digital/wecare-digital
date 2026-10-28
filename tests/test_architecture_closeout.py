@@ -806,6 +806,25 @@ class NewestInvoiceRenditionTests(unittest.TestCase):
         self.assertEqual(self.flow_invoice.newest_invoice_image(
             AssetTable(rows), "inv-1", PAID_INVOICE, "WD-PAY-CLOSEOUT1"), STEM + ".png")
 
+    def copy_with_v3(self, s3_key):
+        """What the invoice-copy Flow serves once `image#v3` stores `s3_key`."""
+        rows = self.ROWS + [{"invoiceId": "inv-1", "assetType": "image#v3", "s3Key": s3_key}]
+        return self.flow_invoice.newest_invoice_image(
+            AssetTable(rows), "inv-1", PAID_INVOICE, "WD-PAY-CLOSEOUT1")
+
+    def test_whatsapp_invoice_copy_serves_a_dated_rerender(self):
+        # The engine's public-filename key: reference, IST date and time, render token.
+        dated = PREFIX + "wecare-digital-WD-PAY-CLOSEOUT1-28-10-2026-12-22-IST-r90cfc032edaf.png"
+        self.assertEqual(self.copy_with_v3(dated), dated)
+
+    def test_whatsapp_invoice_copy_refuses_a_dated_key_for_another_order(self):
+        for foreign in ("wecare-digital-WD-PAY-OTHER-28-10-2026-12-22-IST-r90cfc032edaf.png",
+                        "wecare-digital-WD-PAY-CLOSEOUT1X-28-10-2026-12-22-IST-r90cfc032edaf.png",
+                        "wecare-digital-WD-PAY-CLOSEOUT1-28-10-2026-12-22-IST-r90cfc032edaf.png.png",
+                        "wecare-digital-WD-PAY-CLOSEOUT1-28-10-2026-12-22-IST-rNOTHEX.png"):
+            with self.subTest(key=foreign):
+                self.assertEqual(self.copy_with_v3(PREFIX + foreign), STEM + "-v2.png")
+
 
 class AmbiguousInvoiceDedupTests(unittest.TestCase):
     @classmethod
