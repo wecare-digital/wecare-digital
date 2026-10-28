@@ -992,12 +992,12 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         coupon_definition=coupon_definition,
     )
 
-    # Vault is sold as an exact-price access window: the catalogue amount is the total the
-    # customer pays. This exception lives here, at the ONE pricing seam shared by website and
-    # WhatsApp service checkout, rather than in either presentation layer. Other services keep
-    # the ordinary convenience-fee policy.
+    # Vault and Drop Docs are sold at their exact catalogue prices: the catalogue amount is the
+    # total the customer pays. Keep this at the ONE pricing seam shared by website and WhatsApp
+    # checkout so the order subtotal, payment request, invoice and Workspace order all agree.
     service_line = service_requests.service_line(line_items)
-    if service_line is not None and service_line.kind == service_requests.VAULT:
+    if service_line is not None and service_line.kind in (
+            service_requests.VAULT, service_requests.DROP_DOCS):
         exact_quote = checkout_pricing.exempt_quote(
             snapshot.quote.collection_before_convenience_paise,
             currency=snapshot.quote.currency,
