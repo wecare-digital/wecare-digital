@@ -405,12 +405,12 @@ def authorize_post(params:dict,event:dict)->dict:
     raise AuthError('Invalid resend request')
    if login.get('phase')=='registration':
     if not registration_call('request',login['phone'],event):
-     return save_pending(row,login,'Couldn’t resend. Try again.')
-    return save_pending(row,login)
+     return save_pending(row,login)
+    return save_pending(row,login,'New code sent.')
    result=aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT,AuthFlow='CUSTOM_AUTH',AuthParameters={'USERNAME':login['phone']})
    if not result.get('Session')or result.get('ChallengeParameters',{}).get('registered')=='false':
-    return save_pending(row,{'phase':'phone'},'Code expired. Get a new one.')
-   return save_pending(row,{'phase':'code','phone':login['phone'],'session':result['Session']})
+    return save_pending(row,login)
+   return save_pending(row,{'phase':'code','phone':login['phone'],'session':result['Session']},'New code sent.')
   if login.get('phase')=='phone':
    try:
     params={'csrf':params['csrf'],'phone':normalized_phone(params)}
@@ -459,7 +459,7 @@ def authorize_post(params:dict,event:dict)->dict:
  except Exception as error:
   category=re.sub('[^A-Za-z0-9_]','',type(error).__name__)[:64]
   print(json.dumps({'event':'customer_authorization_failed','stage':stage,'category':category}))
-  return save_pending(row,{'phase':'phone'},'Couldn’t verify. Try again.')
+  return save_pending(row,login,'Couldn’t verify. Try again.')
 
 def route(event:dict)->dict|None:
  path=str(event.get('rawPath')or'')
