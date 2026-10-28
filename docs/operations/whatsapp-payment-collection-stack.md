@@ -182,17 +182,17 @@ and retried; it is not silently changed into a different message type.
 | Surface | Asset |
 | --- | --- |
 | Payment-request header / order thumbnail | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png` |
-| Manual/service order-item thumbnails | **None** |
+| Manual/service order-item thumbnails | Square WECARE payment/catalog icon on regular rows; fee rows stay image-free |
 | True catalog product image | Catalog-managed product image/identity |
 | Paid invoice template header | Generated invoice PNG under `secure/d/public/Invoice/customer_invoice/` |
 
 Meta's item `image` is optional. The payment rail therefore uses this simpler rule:
 
-- **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs and **no repeated WECARE thumbnail** on service/fee rows.
+- **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs. Regular service/goods rows use the same square WECARE payment/catalog icon as the template header so Meta does not fall back to its generic cart glyph.
 - **Convenience Fee:** non-catalog net-fee line with no thumbnail; GST on the fee is included in the native tax row.
 - **true catalog checkout:** preserve the real catalog identity and catalog-managed product image.
 
-The payment-template header is the square WECARE bag image. Meta uses the message header as the order-details thumbnail, so it is the single brand visual for manual/service payment requests while the item rows remain image-free.
+The payment-template header and ordinary manual item rows use the approved square WECARE bag asset. This is presentation only; it does not invent a catalog retailer ID for a manually entered service.
 
 ## 5. Canonical runtimes
 
@@ -522,7 +522,7 @@ Before production promotion, prove:
 
 - [ ] payment request is `wecare_whatapp_native_pay_template`
 - [ ] payment-request header / order thumbnail is the square `wecare-catalog-icon.png`
-- [ ] manual/non-catalog service and fee rows carry **no synthetic item thumbnail** and no synthetic retailer ID
+- [ ] manual/non-catalog regular rows show the approved WECARE thumbnail, fee rows remain image-free, and no synthetic retailer ID is created
 - [ ] true catalog items retain catalog identity/image
 - [ ] capture sends status template `processing` then `completed`
 - [ ] zero interactive order-status messages are used
