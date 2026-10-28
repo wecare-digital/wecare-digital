@@ -119,6 +119,8 @@ interface OrderRow {
    * so it is the value a customer can safely read out to support.
    */
   customerUuid: string;
+  /** Compact customer-facing support label derived server-side from customerUuid. */
+  customerDisplayId: string;
 }
 
 interface ProfilePayload {
@@ -1164,8 +1166,8 @@ export default function OrdersPage (): React.ReactElement {
                                          unconditionally so the panel's row count is stable. */ }
                                     <dt>Customer ID</dt>
                                     <dd>
-                                      { order.customerUuid
-                                        ? <span data-wc-no-translate>{ order.customerUuid }</span>
+                                      { order.customerDisplayId
+                                        ? <span data-wc-no-translate>{ order.customerDisplayId }</span>
                                         : 'Not assigned' }
                                     </dd>
                                     <dt>Placed</dt>
