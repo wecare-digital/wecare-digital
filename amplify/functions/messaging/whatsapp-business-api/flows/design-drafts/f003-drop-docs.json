@@ -134,7 +134,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Optional. Add anything our team should know about these documents."
+            "text": "Tell our team what these documents are for."
           },
           {
             "type": "Form",
@@ -144,9 +144,8 @@
                 "type": "TextArea",
                 "name": "note",
                 "label": "Note",
-                "required": false,
-                "max-length": 300,
-                "helper-text": "Optional"
+                "required": true,
+                "max-length": 300
               },
               {
                 "type": "Footer",
@@ -253,10 +252,6 @@
           "type": "string",
           "__example__": "Your documents are stored securely and linked for review."
         },
-        "document_reference": {
-          "type": "string",
-          "__example__": "WD-DOC-ABC123"
-        },
         "file_count": {
           "type": "string",
           "__example__": "3"
@@ -334,14 +329,6 @@
             "text": "${data.reference_number}"
           },
           {
-            "type": "TextCaption",
-            "text": "Document reference"
-          },
-          {
-            "type": "TextSubheading",
-            "text": "${data.document_reference}"
-          },
-          {
             "type": "TextBody",
             "text": "Files received: ${data.file_count}"
           },
@@ -352,13 +339,12 @@
               "name": "complete",
               "payload": {
                 "flow_key": "wd_f003_drop_docs",
-                "schema_version": "6",
+                "schema_version": "7",
                 "submission_id": "${data.submission_id}",
                 "reference_number": "${data.reference_number}",
                 "note": "${data.note}",
                 "documents": "${data.attachments}",
-                "file_count": "${data.file_count}",
-                "document_reference": "${data.document_reference}"
+                "file_count": "${data.file_count}"
               }
             }
           }
