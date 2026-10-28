@@ -63,6 +63,7 @@ Show when present:
 - Channel
 - provider transaction id as `Txn` / `Txn ID` without naming the gateway
 - customer name, phone, email and address
+- **Customer ID** only as the canonical compact display code from `customer_uuid.display_code()` (`C-` + 12 Base32 characters); never print the raw UUID
 - Buyer GSTIN only when a real buyer GSTIN is stored; never label the seller GSTIN as the buyer's
 - Place of Supply when the stored address supplies a state
 - line description, quantity, rate and amount
@@ -82,7 +83,7 @@ Do not show:
 - statutory sequential `invoiceNumber`
 - internal `invoiceId`
 - internal `orderId`
-- internal customer UUID / Customer ID
+- raw internal customer UUID (the compact `C-XXXXXXXXXXXX` display code is allowed)
 - provider order id
 - HSN/SAC (stored internally when explicitly supplied by staff/catalogue; never guessed and not printed on the compact customer receipt)
 - Taxable Value
@@ -122,7 +123,7 @@ Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligi
 
 Use this prompt when changing the receipt:
 
-> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, customer UUID or provider order id. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
+> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, raw customer UUID or provider order id. The only customer identifier allowed on the receipt is the canonical compact `C-XXXXXXXXXXXX` display code. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
 
 ## Change procedure
 
