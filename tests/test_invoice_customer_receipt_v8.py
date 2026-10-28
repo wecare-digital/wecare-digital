@@ -97,8 +97,10 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         source = RECEIPT.read_text(encoding="utf-8")
         self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
         self.assertNotIn('ref = _strip_ref(invoice.get("referenceId"))', source)
-        self.assertIn("value_font = small_bold if strong else small", source)
-        self.assertNotIn("font=semibold if strong else small", source)
+        self.assertIn("fact_regular = _font(font_paths, \"regular\", 14)", source)
+        self.assertIn("fact_semibold = _font(font_paths, \"semibold\", 14)", source)
+        self.assertIn("value_font = fact_semibold if strong else fact_regular", source)
+        self.assertNotIn("font=semibold if strong else regular", source)
 
     def test_preview_has_module_base64_and_tiny_delight_stays_visible(self):
         engine = ENGINE.read_text(encoding="utf-8")
