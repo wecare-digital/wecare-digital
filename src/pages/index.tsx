@@ -848,10 +848,14 @@ const HomePage: React.FC = () => {
           .home-head{font-size:clamp(27px,9.4vw,32px)}
           .home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}
           .home-flow-title{font-size:28px;max-width:min(288px,100%);text-wrap:balance}
+          /* The closing section title shares the flow title's size here. Pinning only the flow
+             title left / with two section-h2 sizes (28px and 30.23px at 390px). */
+          :global(.cb.home-close .home-close-title){font-size:28px}
         }
         @media(max-width:279px){
           .home-head-line{white-space:normal}
           .home-flow-title{font-size:26px}
+          :global(.cb.home-close .home-close-title){font-size:26px}
         }
       `}</style>
     </>

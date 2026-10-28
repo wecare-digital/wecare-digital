@@ -4257,7 +4257,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           <div className="vl-live-tools-layout">
             <div className="vl-live-tools-left">
               <div className="vl-live-tools-head">
-                <h2 id="vl-live-tools-title">Local time &amp; currency</h2>
+                <h2 id="vl-live-tools-title" className="vl-live-card-title">Local time &amp; currency</h2>
                 <p>Compare time zones and reference exchange rates.</p>
               </div>
 
@@ -4507,7 +4507,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             </div>
             <div className="vl-live-tools-right">
               <div className="vl-live-tools-head">
-                <h2>Route</h2>
+                <h2 className="vl-live-card-title">Route</h2>
                 <p>Time and distance, at a glance.</p>
               </div>
 

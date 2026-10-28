@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
 const GLOBE_ASSET_VERSION = '20261024-design-v7';
@@ -22,7 +22,11 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
   onSelectLocation,
 } ) => {
   const frameRef = useRef<HTMLIFrameElement | null>( null );
-  const inboundModeRef = useRef<'air' | 'weather' | null>( null );
+  // The mode the frame is showing, as far as this page knows: the last one it reported or the
+  // last one posted to it. Only a difference is posted, so the frame's own report is never
+  // echoed back. Clearing the marker after one skip (the previous approach) left the frame on
+  // the stale mode when a second tap was reported before React ran the first commit's effect.
+  const frameModeRef = useRef<'air' | 'weather' | null>( null );
   // The standalone globe reads the browser-restricted Maps key from location.hash.
   // Supplying it here restores live Air/Weather data inside the iframe without putting
   // the key in page copy; browser keys are public-by-design and restricted by referrer.
@@ -35,7 +39,7 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
     const onMessage = ( event: MessageEvent ) => {
       if ( event.origin !== window.location.origin || event.data?.source !== 'vayulok-globe' ) return;
       if ( event.data?.type === 'mode' && ( event.data.mode === 'air' || event.data.mode === 'weather' ) ) {
-        inboundModeRef.current = event.data.mode;
+        frameModeRef.current = event.data.mode;
         onModeChange?.( event.data.mode );
         return;
       }
@@ -54,14 +58,11 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
     return () => window.removeEventListener( 'message', onMessage );
   }, [ onModeChange, onSelectLocation ] );
 
-  useEffect( () => {
-    // An iframe click already updated the iframe before notifying the parent. Avoid
-    // echoing that same inbound value back after React commits it: a delayed echo can
-    // otherwise overwrite a newer click on the opposite mode.
-    if ( inboundModeRef.current === mode ) {
-      inboundModeRef.current = null;
-      return;
-    }
+  // A layout effect runs in the same task as the commit. A passive effect can run after a newer
+  // frame report has been handled, and would then post the older mode.
+  useLayoutEffect( () => {
+    if ( frameModeRef.current === mode ) return;
+    frameModeRef.current = mode;
     frameRef.current?.contentWindow?.postMessage(
       { source: 'vayulok-page', type: 'mode', mode },
       window.location.origin,
@@ -94,6 +95,8 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
         loading="eager"
         allow="fullscreen"
         onLoad={ () => {
+          // A message posted before load arrives before the frame's listener exists, so always resend.
+          frameModeRef.current = mode;
           frameRef.current?.contentWindow?.postMessage(
             { source: 'vayulok-page', type: 'mode', mode },
             window.location.origin,

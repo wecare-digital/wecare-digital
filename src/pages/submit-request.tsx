@@ -29,6 +29,7 @@ const SubmitRequestPage: React.FC = () => {
   const product = customerserviceBySlug( 'submit-request' );
   return (
     <ProductPage
+      mobileFoundation
       product={ product }
       // The visible trail _app.tsx's BreadcrumbList already describes: Home -> the page name.
       // PageShell renders it and emits the SAME @id/trail under key="public-breadcrumbs", so
