@@ -86,6 +86,7 @@ META_WABA_ID = "2094615664435155"
 # and never the pair - reading the pair from it is the bug that returned 501 on
 # every customer-service top-up. See amplify/functions/core/secure-files/razorpay_orders.py
 RAZORPAY_SECRET_NAME = "wecare/razorpay/api"
+ASYNC_DLQ_ARN = f"arn:aws:sqs:{REGION}:{ACCOUNT}:wecare-lambda-async-dlq"
 
 WEBHOOK_FUNCTION = "wecare-razorpay-webhook"
 
@@ -268,6 +269,12 @@ def policy_document() -> dict:
                     "xray:GetSamplingStatisticSummaries",
                 ],
                 "Resource": "*",
+            },
+            {
+                "Sid": "AsyncFailureDestination",
+                "Effect": "Allow",
+                "Action": ["sqs:SendMessage"],
+                "Resource": ASYNC_DLQ_ARN,
             },
         ],
     }
@@ -465,6 +472,33 @@ def ensure_alias(dry_run: bool) -> str:
             FunctionName=FUNCTION_NAME, Name=LIVE_ALIAS, FunctionVersion=version
         )
         return f"alias created -> v{version}"
+
+
+def ensure_async_failure_destination(dry_run: bool) -> str:
+    """Persist exhausted async paid-delivery events to the standard Lambda DLQ.
+
+    Razorpay invokes this function with InvocationType=Event for historical secure-file
+    settlement. Keep Lambda's normal retry/age semantics (2 retries, 6 hours), but never
+    discard the final event after retries are exhausted.
+    """
+    if dry_run:
+        try:
+            current = lam().get_function_event_invoke_config(
+                FunctionName=FUNCTION_NAME, Qualifier=LIVE_ALIAS)
+            dest = ((current.get("DestinationConfig") or {}).get("OnFailure") or {}).get(
+                "Destination")
+            return "configured" if dest == ASYNC_DLQ_ARN else "would configure async DLQ"
+        except lam().exceptions.ResourceNotFoundException:
+            return "would configure async DLQ"
+
+    lam().put_function_event_invoke_config(
+        FunctionName=FUNCTION_NAME,
+        Qualifier=LIVE_ALIAS,
+        MaximumRetryAttempts=2,
+        MaximumEventAgeInSeconds=21600,
+        DestinationConfig={"OnFailure": {"Destination": ASYNC_DLQ_ARN}},
+    )
+    return "async failures -> wecare-lambda-async-dlq"
 
 
 # ── API Gateway ───────────────────────────────────────────────────────────────
@@ -682,6 +716,24 @@ def verify() -> int:
         else:
             print(f"PASS retired route absent: {key}")
 
+    try:
+        async_cfg = client.get_function_event_invoke_config(
+            FunctionName=FUNCTION_NAME, Qualifier=LIVE_ALIAS)
+        destination = (
+            ((async_cfg.get("DestinationConfig") or {}).get("OnFailure") or {})
+            .get("Destination")
+        )
+        if (destination == ASYNC_DLQ_ARN
+                and async_cfg.get("MaximumRetryAttempts") == 2
+                and async_cfg.get("MaximumEventAgeInSeconds") == 21600):
+            print("PASS async failures persist to standard DLQ")
+        else:
+            print("FAIL async failure destination/retry contract differs")
+            failures += 1
+    except client.exceptions.ResourceNotFoundException:
+        print("FAIL async failure destination missing")
+        failures += 1
+
     # The webhook must NOT be able to write a grant. This assertion is inverted from what
     # it used to be, on purpose: a valid signature is no longer proof of payment, so the
     # ability to mark a grant paid is precisely what a forged callback would need.
@@ -763,6 +815,7 @@ def main(argv=None) -> int:
     print(f"package: {len(zip_bytes)} bytes")
     print(f"function: {ensure_function(zip_bytes, dry_run)}")
     print(f"alias: {ensure_alias(dry_run)}")
+    print(f"async failure destination: {ensure_async_failure_destination(dry_run)}")
     for line in ensure_routes(dry_run):
         print(f"route {line}")
     print(f"webhook: {ensure_webhook_access(dry_run)}")
