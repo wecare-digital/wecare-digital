@@ -878,12 +878,28 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     )
     return result
 
+def auth_state(row: dict, csrf: str, message: str = '') -> dict:
+    login = uncapsule(row['cipher'], row['client'], row['sidHash'])
+    website = row.get('kind') == 'web-auth'
+    return response(200, {
+        'phase': login.get('phase', 'phone'),
+        'csrf': csrf,
+        'message': message,
+        'website': website,
+        'returnPath': str(row.get('return') or '/'),
+        'clientName': '' if website else client(row['client'])['name'],
+        'destination': website_return(row.get('return', '')) if website else str(row.get('redirect') or ''),
+    })
+
+
 def save_pending(row: dict, login: dict, message: str = '') -> dict:
     csrf = secrets.token_urlsafe(32)
     row['csrfHash'] = digest(csrf)
     row['notice'] = message
     row['cipher'] = capsule(login, row['client'], row['sidHash'])
     STORE.put(row)
+    if row.get('transport') == 'json':
+        return auth_state(row, csrf, message)
     return form(row, csrf, message)
 
 
@@ -908,13 +924,15 @@ def resume_authorization(event: dict) -> dict | None:
     return save_pending(row, login, row.get('notice', ''))
 
 
-def website_get(params: dict) -> dict:
+def website_get(params: dict, *, json_transport: bool = False) -> dict:
     if set(params) - {'return'}:
         raise AuthError('Invalid website sign-in request')
     cookie = secrets.token_urlsafe(32)
     key = row_key('auth', cookie)
     row = {'sidHash': key, 'kind': 'web-auth', 'client': WEBSITE_CLIENT,
            'return': website_return(params.get('return', '')), 'absoluteExpiresAt': int(time.time()) + 600}
+    if json_transport:
+        row['transport'] = 'json'
     result = save_pending(row, {'phase': 'phone'})
     result['cookies'] = [f'{COOKIE}={cookie}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600']
     return result
@@ -973,13 +991,15 @@ def website_finish(row: dict, login: dict, auth: dict, event: dict) -> dict:
     return result
 
 
-def authorize_get(params: dict) -> dict:
+def authorize_get(params: dict, *, json_transport: bool = False) -> dict:
     params = validate_authorize(params)
     cookie = secrets.token_urlsafe(32)
     key = row_key('auth', cookie)
     row = {'sidHash': key, 'kind': 'oauth-auth', 'client': params['client_id'], 'resource': resource(),
            'redirect': params['redirect_uri'], 'state': params['state'], 'scope': params['scope'],
            'challenge': params['code_challenge'], 'absoluteExpiresAt': int(time.time()) + 600}
+    if json_transport:
+        row['transport'] = 'json'
     result = save_pending(row, {'phase': 'phone'})
     result['cookies'] = [f'{COOKIE}={cookie}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600']
     return result
@@ -1101,20 +1121,22 @@ def route(event: dict) -> dict | None:
     path = str(event.get('rawPath') or '')
     # `/auth` is the main-site sign-in path (wecare.digital/auth, through the Amplify Hosting
     # rewrite); `/oauth/authorize` stays for hosts that cached the earlier discovery document.
-    if path not in {'/.well-known/oauth-authorization-server', '/auth', '/oauth/authorize', '/oauth/token', '/oauth/revoke'}:
+    if path not in {'/.well-known/oauth-authorization-server', '/auth', '/auth/state', '/auth/step',
+                    '/oauth/authorize', '/oauth/token', '/oauth/revoke'}:
         return None
     method = str(((event.get('requestContext') or {}).get('http') or {}).get('method') or '').upper()
     try:
         if path == '/.well-known/oauth-authorization-server' and method == 'GET':
             return response(200, auth_metadata())
-        if path in {'/auth', '/oauth/authorize'} and method == 'GET':
+        if path in {'/auth', '/auth/state', '/oauth/authorize'} and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
-            if path == '/auth' and not {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}.intersection(params):
+            json_transport = path == '/auth/state'
+            if path in {'/auth', '/auth/state'} and not {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}.intersection(params):
                 if not params:
                     pending = resume_authorization(event)
                     if pending is not None:
                         return pending
-                return website_get(params)
+                return website_get(params, json_transport=json_transport)
             target = connect_origin()
             # Hosts cache discovery. Redirect an initial GET on the legacy path before creating
             # a session, so cookies and the subsequent POST stay on the main-site `/auth` page.
@@ -1123,7 +1145,7 @@ def route(event: dict) -> dict | None:
                 result = response(302, '')
                 result['headers']['Location'] = target + '/auth?' + urlencode(params)
                 return result
-            return authorize_get(params)
+            return authorize_get(params, json_transport=json_transport)
         if method != 'POST':
             return response(405, {'error': 'invalid_request'})
         headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
@@ -1133,8 +1155,15 @@ def route(event: dict) -> dict | None:
         if event.get('isBase64Encoded'):
             raw = base64.b64decode(raw, validate=True).decode()
         params = parse(raw)
-        if path in {'/auth', '/oauth/authorize'}:
+        if path in {'/auth', '/auth/step', '/oauth/authorize'}:
             page = authorize_post(params, event)
+            if path == '/auth/step':
+                if page.get('statusCode') in {302, 303}:
+                    result = response(200, {'redirect': (page.get('headers') or {}).get('Location', '/')})
+                    if page.get('cookies'):
+                        result['cookies'] = list(page['cookies'])
+                    return result
+                return page
             if page['statusCode'] == 200:
                 result = response(303, '')
                 result['headers']['Location'] = connect_origin() + '/auth'
