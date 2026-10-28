@@ -165,7 +165,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('"BILL TO"', source)
         self.assertIn("divider_x = width // 2", source)
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
-        self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
+        self.assertIn('total_row("GST", total_gst', source)
 
     def test_branded_receipt_uses_canonical_customer_display_id_only(self):
         engine = ENGINE.read_text(encoding="utf-8")
