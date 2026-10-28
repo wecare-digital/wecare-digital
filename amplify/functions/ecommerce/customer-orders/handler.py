@@ -396,6 +396,7 @@ def _project(row: Dict[str, Any]) -> Dict[str, Any]:
         #
         # Safe on the wire and safe in a log, unlike the phone beside it: it is ours, opaque,
         # carries no timestamp, and is not a credential. Same standing as `referenceId`.
+        "customerDisplayId": customer_uuid.display_code(row),
         customer_uuid.ATTRIBUTE: customer_uuid.from_contact(row),
     }
 
