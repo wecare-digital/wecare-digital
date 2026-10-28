@@ -128,6 +128,25 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
         items.append({'name': 'Convenience fee', 'quantity': 1,
                       'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
+
+    subtotal_paise = quote.collection_before_convenience_paise + quote.convenience_fee_paise
+    order = {'status': 'pending', 'items': items,
+             'subtotal': {'value': subtotal_paise, 'offset': 100},
+             'tax': {'value': quote.convenience_gst_paise, 'offset': 100,
+                     'description': 'GST on convenience fee'},
+             'expiration': {'timestamp': str(now + 900),
+                            'description': 'Complete payment within 15 minutes'}}
+
+    if row['kind'] == 'DROP_DOCS':
+        # Owner-visible F003 pricing contract: one exact-price ₹199 service line. Keep these
+        # zero adjustments explicit in Meta's Review & Pay sheet so the customer sees the same
+        # breakdown Workspace/invoice records carry: subtotal + Express - Discount = total.
+        if (quote.convenience_fee_paise != 0 or quote.convenience_gst_paise != 0
+                or quote.total_payable_paise != subtotal_paise):
+            raise ValueError('Drop Docs quote must be exact-price with zero adjustments')
+        order['shipping'] = {'value': 0, 'offset': 100, 'description': 'Express'}
+        order['discount'] = {'value': 0, 'offset': 100, 'description': 'Discount'}
+
     return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
         # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
         # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
@@ -141,10 +160,7 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         # where the reserved string and the sent string are the same string by construction.
         'payment_configuration': configuration,
         'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'order': {'status': 'pending', 'items': items,
-                  'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
-                  'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
-                  'expiration': {'timestamp': str(now + 900), 'description': 'Complete payment within 15 minutes'}}}
+        'order': order}
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:
