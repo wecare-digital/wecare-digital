@@ -145,7 +145,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             setStage( 'files' );
             setError(
                 targetFileId && visibleFiles.length === 0
-                    ? 'This Vault file is not available to this verified account.'
+                    ? 'This document is not available right now.'
                     : ''
             );
         } else if ( result.failure.status === 401 )
@@ -186,7 +186,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 setStage( 'files' );
                 if ( targetFileId && visibleFiles.length === 0 )
                 {
-                    setError( 'This Vault file is not available to this verified account.' );
+                    setError( 'This document is not available right now.' );
                 }
             } else if ( result.failure.status === 401 )
             {
@@ -289,7 +289,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             if ( outcome.kind !== 'ok' ) {
                 if ( outcome.kind === 'refused' ) setError( outcome.message );
                 else if ( outcome.kind === 'rate' ) setError( 'Please try again in a moment. Nothing has been charged.' );
-                else if ( outcome.kind === 'notFound' ) setError( 'This Vault file is not available to this verified account.' );
+                else if ( outcome.kind === 'notFound' ) setError( 'This document is not available right now.' );
                 else setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
                 return;
             }
@@ -679,6 +679,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                             <p className="sf-fine">
                                 Purchases and renewals use the shared checkout; your downloads stay here.
                             </p>
+                            { targetFileId && (
+                                <button
+                                    className="sf-quiet"
+                                    onClick={ () => { void router.push( '/get/' ); } }
+                                >
+                                    Back to all Vault files
+                                </button>
+                            ) }
                             <button
                                 className="sf-quiet"
                                 onClick={ () => { clearSession(); setStage( 'mobile' ); setFiles( [] ); setError( '' ); setMessage( '' ); } }
