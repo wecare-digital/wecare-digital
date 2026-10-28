@@ -53,17 +53,21 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
 def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str, int]]:
     """Collect-style server breakdown for Vault/Drop Docs only.
 
-    Delight is based on the GST-inclusive item subtotal only. Express is added afterwards.
-    The shared checkout calculator then adds the 2.5% Convenience Fee and 18% GST on that fee.
+    ProductsTable carries the pre-GST service item price for these two services. Add 18% supply
+    GST first, calculate Delight on item + supply GST, then add Express. The shared checkout
+    calculator adds the 2.5% Convenience Fee and 18% GST on that fee.
     """
     if kind not in (service_requests.VAULT, service_requests.DROP_DOCS):
         return None
-    delight = default_coupon.delight_paise(item_subtotal_paise)
+    supply_gst = checkout_pricing.round_half_up(item_subtotal_paise, 1800)
+    delight = default_coupon.delight_paise(item_subtotal_paise + supply_gst)
     express = service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
-    collection = item_subtotal_paise - delight + express
+    collection = item_subtotal_paise + supply_gst - delight + express
     quote = checkout_pricing.compute_quote(collection, currency=SERVICE_CURRENCY)
     return {
         "itemSubtotalPaise": item_subtotal_paise,
+        "supplyGstPaise": supply_gst,
+        "supplyGstBps": 1800,
         "delightPaise": delight,
         "expressPaise": express,
         "collectionBeforeConveniencePaise": quote.collection_before_convenience_paise,
