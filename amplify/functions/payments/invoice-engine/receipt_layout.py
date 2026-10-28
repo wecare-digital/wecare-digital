@@ -9,7 +9,7 @@ import io
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 
 LIME = (209, 244, 112)
 LIME_STRONG = (190, 247, 25)
@@ -24,8 +24,8 @@ RED = (255, 0, 64)  # brand dot, #ff0040 as in BrandLockup
 
 BASE_W = 1024
 BASE_H = 1536
-PAPER_X0 = 104
-PAPER_X1 = 920
+PAPER_X0 = 120
+PAPER_X1 = 904
 INNER_X0 = 158
 INNER_X1 = 866
 
@@ -125,26 +125,38 @@ def _center(draw, value, font, y, fill=INK):
 
 
 def _scalloped_frame(canvas, y_bottom):
-    draw = ImageDraw.Draw(canvas)
-    draw.rounded_rectangle((PAPER_X0, 10, PAPER_X1, y_bottom), radius=18, fill=LIME)
-    draw.rounded_rectangle((PAPER_X0 + 15, 24, PAPER_X1 - 15, y_bottom - 14), radius=13, fill=PAPER)
+    # Match the approved specimen: a 784px lime receipt body with a soft neon halo.
+    frame = Image.new("RGBA", canvas.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(frame)
+    top = 30
+    draw.rounded_rectangle((PAPER_X0, top, PAPER_X1, y_bottom), radius=18, fill=LIME_STRONG)
+    draw.rounded_rectangle((PAPER_X0 + 15, top + 18, PAPER_X1 - 15, y_bottom - 18),
+                           radius=13, fill=PAPER)
 
-    # Cut repeated white bites through the lime to produce the approved torn/scalloped edge.
     step = 29
     r = 10
     for x in range(PAPER_X0 + 18, PAPER_X1 - 16, step):
-        draw.ellipse((x-r, 14-r, x+r, 14+r), fill=(255, 255, 255, 0))
+        draw.ellipse((x-r, top-r, x+r, top+r), fill=(255, 255, 255, 0))
         draw.ellipse((x-r, y_bottom-r, x+r, y_bottom+r), fill=(255, 255, 255, 0))
-    for y in range(35, y_bottom - 20, step):
+    for y in range(top + 20, y_bottom - 20, step):
         draw.ellipse((PAPER_X0-r, y-r, PAPER_X0+r, y+r), fill=(255, 255, 255, 0))
         draw.ellipse((PAPER_X1-r, y-r, PAPER_X1+r, y+r), fill=(255, 255, 255, 0))
+
+    alpha = frame.getchannel("A")
+    broad = alpha.filter(ImageFilter.GaussianBlur(22)).point(lambda a: int(a * .34))
+    tight = alpha.filter(ImageFilter.GaussianBlur(8)).point(lambda a: int(a * .55))
+    glow_alpha = ImageChops.lighter(broad, tight)
+    glow = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
+    glow.putalpha(glow_alpha)
+    canvas.alpha_composite(glow)
+    canvas.alpha_composite(frame)
 
 
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
            canonical_status, amount_in_words, source_label, customer_id=""):
     extra_rows = max(0, len(items) - 2)
     height = BASE_H + extra_rows * 58
-    paper_bottom = height - 20
+    paper_bottom = height - 60
 
     canvas = Image.new("RGBA", (BASE_W, height), (255, 255, 255, 0))
     _scalloped_frame(canvas, paper_bottom)
