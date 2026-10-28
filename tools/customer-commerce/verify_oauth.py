@@ -253,6 +253,63 @@ class OAuthContract(unittest.TestCase):
             self.assertIn('name="code"', resumed['body'])
             self.assertEqual(self.cognito.sends, sends)
 
+    def test_shared_auth_state_and_step_json_contract(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            started = auth.route({
+                'rawPath': '/auth/state',
+                'rawQueryString': 'return=%2Forders%2F',
+                'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}},
+            })
+            self.assertEqual(started['statusCode'], 200)
+            step = json.loads(started['body'])
+            self.assertEqual(step['phase'], 'phone')
+            self.assertTrue(step['website'])
+            self.assertEqual(step['returnPath'], '/orders/')
+            cookie = SimpleCookie(); cookie.load(started['cookies'][0])
+            cookies = [f'{auth.COOKIE}={cookie[auth.COOKIE].value}']
+
+            def post(values):
+                return auth.route({
+                    'rawPath': '/auth/step',
+                    'headers': {'origin': 'https://wecare.digital',
+                                'content-type': 'application/x-www-form-urlencoded'},
+                    'cookies': cookies,
+                    'requestContext': {'http': {'method': 'POST'}},
+                    'body': urlencode({'csrf': step['csrf'], '_flow': 'website',
+                                       '_return': '/orders/', **values}),
+                })
+
+            code_page = post({'country': '+44', 'phone': '7700900123'})
+            self.assertEqual(code_page['statusCode'], 200)
+            step = json.loads(code_page['body'])
+            self.assertEqual(step['phase'], 'code')
+            self.assertEqual(self.cognito.sends, 1)
+
+            resumed = auth.route({
+                'rawPath': '/auth/state',
+                'rawQueryString': '',
+                'cookies': cookies,
+                'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}},
+            })
+            self.assertEqual(resumed['statusCode'], 200)
+            step = json.loads(resumed['body'])
+            self.assertEqual(step['phase'], 'code')
+            self.assertEqual(self.cognito.sends, 1)
+
+            resent = post({'action': 'resend', 'code': ''})
+            self.assertEqual(resent['statusCode'], 200)
+            step = json.loads(resent['body'])
+            self.assertEqual(step['phase'], 'code')
+            self.assertEqual(step['message'], 'New code sent.')
+            self.assertEqual(self.cognito.sends, 2)
+
+            sends = self.cognito.sends
+            edited = post({'action': 'edit_phone', 'code': ''})
+            self.assertEqual(edited['statusCode'], 200)
+            step = json.loads(edited['body'])
+            self.assertEqual(step['phase'], 'phone')
+            self.assertEqual(self.cognito.sends, sends)
+
     def test_plain_auth_rejects_unknown_parameters_and_external_returns(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             bad = {'rawPath': '/auth', 'rawQueryString': 'unexpected=1',
