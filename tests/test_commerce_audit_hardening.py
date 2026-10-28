@@ -364,16 +364,30 @@ class PaidVaultAlertTests(unittest.TestCase):
 class OrderDetailsLineTests(unittest.TestCase):
     def test_service_payment_lines_carry_no_synthetic_retailer_id(self):
         from lambda_utils.ecommerce import catalog_service_checkout, meta_catalog_sync
-        quote = SimpleNamespace(collection_before_convenience_paise=9900,
-                                convenience_fee_paise=248, convenience_gst_paise=45,
-                                total_payable_paise=10193)
+        quote = SimpleNamespace(collection_before_convenience_paise=8254,
+                                convenience_fee_paise=206, convenience_gst_paise=37,
+                                total_payable_paise=8497)
+        snapshot = SimpleNamespace(
+            quote=quote,
+            frozen_data={
+                "items": [{"unitPricePaise": 4900, "quantity": 1}],
+                "delivery": {"paise": 2500, "optionId": "express"},
+                "pricingMetadata": {"supplyGstPaise": 882, "discountPaise": 28},
+            },
+        )
         row = {"kind": "VAULT", "productId": "d4cfc6e8-10b3-5c47-94c8-3c69f4c1e1a1",
                "variantId": "RVT6K4Q8"}
-        details = catalog_service_checkout.payment_details(row, quote, "WD-PAY-TEST0001",
+        details = catalog_service_checkout.payment_details(row, snapshot, "WD-PAY-TEST0001",
                                                            "WECAREDIGITAL", 1_800_000_000)
         lines = details["order"]["items"]
         self.assertEqual(lines[0]["retailer_id"],
                          meta_catalog_sync.retailer_id(row["productId"], row["variantId"]))
+        self.assertTrue(lines[0]["image"]["link"].endswith(
+            "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"))
+        self.assertEqual(details["order"]["shipping"]["value"], 2500)
+        self.assertEqual(details["order"]["tax"]["value"], 919)
+        self.assertEqual(details["order"]["discount"]["value"], 28)
+        self.assertEqual(details["total_amount"]["value"], 8497)
         self.assertEqual(lines[1]["name"], "Convenience fee")
         self.assertNotIn("retailer_id", lines[1])
 
