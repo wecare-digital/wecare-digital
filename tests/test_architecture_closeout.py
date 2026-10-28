@@ -427,11 +427,24 @@ class VaultReviewPayPreviewTests(unittest.TestCase):
         self.assertIn("Review &amp; Pay", source)
         self.assertIn("fetchServicePrices", source)
         self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
-        self.assertIn("<span>Item subtotal</span>", source)
-        self.assertIn("<span>Discount</span><strong>₹0</strong>", source)
-        self.assertIn("<span>Express</span><strong>₹0</strong>", source)
-        self.assertIn("Preview only. Vault is exact-price", source)
+        self.assertIn("<span>Items + item GST</span>", source)
+        self.assertIn("<span>Delight</span>", source)
+        self.assertIn("<span>Express</span>", source)
+        self.assertIn("<span>Convenience Fee</span>", source)
+        self.assertIn("GST on Convenience Fee (18%)", source)
+        self.assertIn("<span>Amount Payable</span>", source)
+        self.assertIn("vault.breakdown", source)
         self.assertNotIn("handleRequestPayment( reviewFile", source)
+
+    def test_drop_docs_workspace_preview_uses_same_breakdown_and_thumbnail(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Drop Docs × 1", source)
+        self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
+        self.assertIn("dropDocs.breakdown", source)
+        self.assertIn("GST on Convenience Fee (18%)", source)
+        self.assertIn("Amount Payable", source)
 
 
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):
@@ -521,6 +534,36 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
         self.assertNotIn(">Sign out<", get_page)
         self.assertIn("This document is not available right now.", get_page)
 
+
+
+class VaultDropDocsCollectPricingTests(unittest.TestCase):
+    """Vault/Drop Docs use one server-owned Collect breakdown."""
+
+    def test_server_breakdown_exposes_delight_express_fee_gst_and_total(self):
+        pricing = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_pricing_native.py"
+        ).read_text(encoding="utf-8")
+        checkout = (FUNCTIONS / "ecommerce" / "checkout" / "handler.py").read_text(encoding="utf-8")
+        services = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_requests.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("VAULT_DROP_DOCS_EXPRESS_PAISE = 2_500", services)
+        self.assertIn("default_coupon.delight_paise(item_subtotal_paise)", pricing)
+        self.assertIn("checkout_pricing.compute_quote(collection", pricing)
+        self.assertIn('"convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS', pricing)
+        self.assertIn("default_coupon.delight_definition()", checkout)
+        self.assertIn("flat_rate_paise=service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE", checkout)
+        self.assertNotIn("exact_quote = checkout_pricing.exempt_quote", checkout)
+
+    def test_whatsapp_service_review_pay_itemizes_all_adjustments(self):
+        source = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "catalog_service_checkout.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("'description': 'Express'", source)
+        self.assertIn("'description': 'Delight'", source)
+        self.assertIn("'description': 'GST on Convenience Fee (18%)'", source)
+        self.assertIn("quote.convenience_fee_paise", source)
+        self.assertIn("quote.total_payable_paise", source)
 
 
 class VaultOrderProjectionTests(unittest.TestCase):
