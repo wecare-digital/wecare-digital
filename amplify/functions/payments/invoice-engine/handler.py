@@ -753,10 +753,13 @@ def _inclusive_itemization(spec: Any, expected_total_paise: int,
             return None
         discount_paise = int(spec.get('discountPaise') or 0)
         delivery_paise = int(spec.get('deliveryPaise') or 0)
+        supply_gst_paise = int(spec.get('supplyGstPaise') or 0)
         fee_paise = int(spec.get('convenienceFeePaise') or 0)
         fee_gst_paise = int(spec.get('convenienceGstPaise') or 0)
-        if delivery_paise != 0 or min(discount_paise, fee_paise, fee_gst_paise) < 0:
+        if min(discount_paise, delivery_paise, supply_gst_paise,
+               fee_paise, fee_gst_paise) < 0:
             return None
+        explicit_supply_gst = supply_gst_paise > 0
         items = []
         gross_paise = 0
         taxable_paise = 0
@@ -767,7 +770,10 @@ def _inclusive_itemization(spec: Any, expected_total_paise: int,
             unit_paise = int(line.get('unitPricePaise'))
             if not 1 <= quantity <= 100000 or unit_paise <= 0:
                 return None
-            unit_taxable_paise, _ = _back_calculate_inclusive(unit_paise, gst_rate)
+            if explicit_supply_gst:
+                unit_taxable_paise = unit_paise
+            else:
+                unit_taxable_paise, _ = _back_calculate_inclusive(unit_paise, gst_rate)
             gross_paise += unit_paise * quantity
             taxable_paise += unit_taxable_paise * quantity
             items.append({
@@ -777,19 +783,35 @@ def _inclusive_itemization(spec: Any, expected_total_paise: int,
                 'gstRate': gst_rate,
                 'productId': str(line.get('productId') or ''),
             })
-        collection_paise = gross_paise - discount_paise
-        if collection_paise <= 0 or collection_paise + fee_paise + fee_gst_paise != expected_total_paise:
-            return None
-        discount_taxable_paise = (_back_calculate_inclusive(discount_paise, gst_rate)[0]
-                                  if discount_paise else 0)
-        net_taxable_paise = taxable_paise - discount_taxable_paise
-        tax_paise = collection_paise - net_taxable_paise
-        if net_taxable_paise <= 0 or tax_paise < 0:
-            return None
+
+        if explicit_supply_gst:
+            collection_paise = gross_paise + supply_gst_paise - discount_paise + delivery_paise
+            if (collection_paise <= 0
+                    or collection_paise + fee_paise + fee_gst_paise != expected_total_paise):
+                return None
+            tax_paise = supply_gst_paise
+            discount_taxable_paise = discount_paise
+        else:
+            # Legacy/native catalogue path: prices are GST-inclusive and delivery was historically
+            # zero. Preserve that contract exactly.
+            if delivery_paise != 0:
+                return None
+            collection_paise = gross_paise - discount_paise
+            if (collection_paise <= 0
+                    or collection_paise + fee_paise + fee_gst_paise != expected_total_paise):
+                return None
+            discount_taxable_paise = (_back_calculate_inclusive(discount_paise, gst_rate)[0]
+                                      if discount_paise else 0)
+            net_taxable_paise = taxable_paise - discount_taxable_paise
+            tax_paise = collection_paise - net_taxable_paise
+            if net_taxable_paise <= 0 or tax_paise < 0:
+                return None
+
         return {
             'items': items,
             'subtotal': _paise_to_rupees(taxable_paise),
             'discount': _paise_to_rupees(discount_taxable_paise),
+            'shipping': _paise_to_rupees(delivery_paise),
             'tax': _paise_to_rupees(tax_paise),
             'convenienceFee': _paise_to_rupees(fee_paise + fee_gst_paise),
             'convenienceFeeNet': _paise_to_rupees(fee_paise),
@@ -1345,6 +1367,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             subtotal = itemized['subtotal']
             discount = itemized['discount']
             tax = itemized['tax']
+            shipping = itemized.get('shipping', Decimal('0'))
             inclusive_convenience_fee = itemized['convenienceFee']
             inclusive_convenience_fee_net = itemized['convenienceFeeNet']
             inclusive_convenience_fee_gst = itemized['convenienceFeeGst']
