@@ -15,7 +15,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; manageOnly?: boolean; }
 
 function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
   return dynamic( loader, { ssr: false } );
