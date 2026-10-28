@@ -537,21 +537,15 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     flow_sessions.mark_consumed(_session_table(), token=flow_token)
     reference = result.reference or stored[0]["documentRef"]
     return {
-        "screen": "SUCCESS",
+        "screen": "CONFIRMATION",
         "data": {
-            "extension_message_response": {
-                "params": {
-                    "flow_token": flow_token,
-                    "flow_key": "wd_f003_drop_docs",
-                    "schema_version": "5",
-                    "submission_id": result.submission_id or reference,
-                    "reference_number": target["display"],
-                    "note": note or "",
-                    "documents": attachments,
-                    "file_count": str(len(stored)),
-                    "document_reference": reference,
-                }
-            }
+            "message": "Your documents are stored securely and linked for review.",
+            "document_reference": reference,
+            "file_count": str(len(stored)),
+            "reference_number": target["display"],
+            "note": note or "",
+            "submission_id": result.submission_id or reference,
+            "attachments": attachments,
         },
     }
 
