@@ -279,15 +279,15 @@ async function launchEngine( engine = 'chromium', opts = {} ) {
   const pw = require( 'playwright-core' );
   if ( engine === 'firefox' && process.platform === 'darwin' ) {
     const executablePath = macFirefoxExecutable();
-    if ( executablePath ) return pw.firefox.launch( { executablePath, ...opts } );
+    if ( executablePath ) return withMediaCache( await pw.firefox.launch( { executablePath, ...opts } ) );
   }
-  return pw[ engine ].launch( opts );
+  return withMediaCache( await pw[ engine ].launch( opts ) );
 }
 
 /** Launch a headless Chromium. Callers own closing it. */
 async function launch( opts = {} ) {
   const { chromium } = require( 'playwright-core' );
-  return chromium.launch( {
+  return withMediaCache( await chromium.launch( {
     executablePath: resolveChrome(),
     // BOTH FLAGS ARE LINUX CONTAINER WORKAROUNDS, so they are scoped to Linux rather
     // than passed everywhere. --no-sandbox: the sandbox container runs as root, where
@@ -299,7 +299,7 @@ async function launch( opts = {} ) {
     // flag whose justification does not hold should not be sent.
     args: process.platform === 'linux' ? [ '--no-sandbox', '--disable-dev-shm-usage' ] : [],
     ...opts,
-  } );
+  } ) );
 }
 
 /**
@@ -339,5 +339,87 @@ async function gotoStable( page, url, opts = {} ) {
   await page.waitForTimeout( opts.settle === undefined ? 250 : opts.settle );
   return res;
 }
+
+/**
+ * PRODUCTION MEDIA, SERVED FROM A LOCAL CACHE (2026-10-27 audit).
+ *
+ * The static export references shop images and logos by absolute production URL, so every page
+ * the harness opened downloaded them from wecare.digital again. On the Public UI compliance
+ * workflow's first day that was about 0.26 GB of Amplify transfer per run, mostly 2.4 MB catalog
+ * PNGs re-fetched for each route and posture. Browsers from launch() and launchEngine() now answer
+ * those URLs from a disk cache keyed by URL, so each image crosses the network once per cache
+ * lifetime. The bytes are the same, so the layout under test is unchanged. A failed fetch falls
+ * through to the network. HARNESS_MEDIA_CACHE sets the directory (CI keeps one per day), and
+ * HARNESS_LIVE_MEDIA=1 turns the cache off.
+ */
+const MEDIA_URL = /^https:\/\/wecare\.digital\/(api\/catalog-media\/|get\/)/;
+const MEDIA_HEADERS = [ 'content-type', 'cache-control', 'etag', 'last-modified', 'access-control-allow-origin' ];
+const mediaStats = { cached: 0, fetched: 0 };
+const mediaRouted = new WeakSet();
+
+function mediaCacheDir() {
+  const mpath = require( 'path' );
+  return mpath.resolve( process.env.HARNESS_MEDIA_CACHE || mpath.join( require( 'os' ).tmpdir(), 'wecare-harness-media' ) );
+}
+
+async function serveMedia( route ) {
+  const mfs = require( 'fs' ), mpath = require( 'path' );
+  const request = route.request();
+  if ( request.method() !== 'GET' ) return route.fallback();
+  const key = require( 'crypto' ).createHash( 'sha256' ).update( request.url() ).digest( 'hex' );
+  const bodyFile = mpath.join( mediaCacheDir(), key ), metaFile = `${ bodyFile }.json`;
+  try {
+    const { headers } = JSON.parse( mfs.readFileSync( metaFile, 'utf8' ) );
+    const body = mfs.readFileSync( bodyFile );
+    mediaStats.cached++;
+    return route.fulfill( { status: 200, headers, body } );
+  } catch { /* not cached yet */ }
+  let response;
+  try { response = await route.fetch(); } catch { return route.fallback(); }
+  const body = await response.body();
+  if ( response.status() === 200 ) {
+    try {
+      const all = response.headers(), headers = {};
+      for ( const h of MEDIA_HEADERS ) if ( all[ h ] ) headers[ h ] = all[ h ];
+      mfs.mkdirSync( mpath.dirname( bodyFile ), { recursive: true } );
+      mfs.writeFileSync( `${ bodyFile }.tmp`, body );
+      mfs.renameSync( `${ bodyFile }.tmp`, bodyFile );
+      mfs.writeFileSync( `${ metaFile }.tmp`, JSON.stringify( { url: request.url(), headers } ) );
+      mfs.renameSync( `${ metaFile }.tmp`, metaFile );
+    } catch { /* the cache is best effort */ }
+  }
+  mediaStats.fetched++;
+  return route.fulfill( { response, body } );
+}
+
+async function routeMedia( context ) {
+  if ( mediaRouted.has( context ) ) return;
+  mediaRouted.add( context );
+  await context.route( MEDIA_URL, serveMedia );
+}
+
+function withMediaCache( browser ) {
+  if ( process.env.HARNESS_LIVE_MEDIA === '1' || browser.__wecareMediaCache ) return browser;
+  browser.__wecareMediaCache = true;
+  const newContext = browser.newContext.bind( browser );
+  browser.newContext = async ( ...args ) => {
+    const context = await newContext( ...args );
+    await routeMedia( context );
+    return context;
+  };
+  const newPage = browser.newPage.bind( browser );
+  browser.newPage = async ( ...args ) => {
+    const page = await newPage( ...args );
+    await routeMedia( page.context() );
+    return page;
+  };
+  return browser;
+}
+
+process.on( 'exit', () => {
+  if ( mediaStats.cached || mediaStats.fetched ) {
+    console.log( `production media: ${ mediaStats.cached } served from cache, ${ mediaStats.fetched } fetched (${ mediaCacheDir() })` );
+  }
+} );
 
 module.exports = { resolveChrome, launch, launchEngine, gotoStable };
