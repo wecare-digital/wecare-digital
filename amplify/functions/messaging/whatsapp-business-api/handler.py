@@ -402,7 +402,7 @@ def _get_business_profile(phone_id: str) -> Dict:
     return _resp(200, {'profile': profile})
 
 def _update_business_profile(phone_id: str, body: Dict) -> Dict:
-    allowed = ['about', 'address', 'description', 'email', 'websites', 'vertical', 'profile_picture_url']
+    allowed = ['about', 'address', 'description', 'email', 'websites', 'vertical', 'profile_picture_handle']
     payload = {k: v for k, v in body.items() if k in allowed and v is not None and v != ''}
     if not payload:
         return _resp(400, {'error': 'No valid fields to update'})
