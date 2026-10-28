@@ -298,7 +298,16 @@ def call_tool(name: str, args: dict, event: dict) -> dict:
                             'paymentOptions': payment_options, 'customerMessage': message},
                            message + ' The items total is an estimate; the final amount is confirmed in the payment request.')
     if name == 'get_my_account':
-        return customer_call('wecare-commerce:live', {'action': 'profile'}, event, '/ecommerce/prepare-checkout')
+        # Checkout readiness can withhold an existing address when unrelated profile
+        # fields are incomplete. Read the same owned profile as order history instead.
+        result = customer_call('wecare-customer-orders:live', {'limit': 1}, event, '/ecommerce/my-orders')
+        if result['isError']:
+            return result
+        profile = result['structuredContent'].get('profile')
+        if not isinstance(profile, dict) or not profile:
+            return tool_result({'status': 'PROFILE_UNAVAILABLE'},
+                               'WECARE could not retrieve your saved profile. This does not mean your details are missing. Please try again.', error=True)
+        return tool_result({'status': 'PROFILE_AVAILABLE', 'profile': profile})
     if name == 'update_my_account':
         return customer_call('wecare-customer-profile:live', args, event, '/customer/profile')
     if name == 'list_my_orders':

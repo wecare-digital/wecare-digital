@@ -95,13 +95,31 @@ class ConversationContract(unittest.TestCase):
             delegate.assert_not_called()
 
     def test_account_uses_fixed_handler_and_original_token(self):
-        with patch.object(app, 'delegate', return_value=app.reply(200, {'status': 'PROFILE_REQUIRED'})) as delegate:
+        profile = {'name': 'Saved customer', 'firstName': '', 'email': '',
+                   'addressComplete': True, 'address': {'city': 'Test city'}}
+        with patch.object(app, 'delegate', return_value=app.reply(200, {'orders': [{'id': 'synthetic'}], 'profile': profile})) as delegate:
             result = call('get_my_account', token='Bearer test')
             self.assertFalse(result['isError'])
+            self.assertEqual(result['structuredContent'], {'status': 'PROFILE_AVAILABLE', 'profile': profile})
+            self.assertNotIn('orders', result['structuredContent'])
             function, body, original, path = delegate.call_args.args
-            self.assertEqual(function, 'wecare-commerce:live')
-            self.assertEqual(body, {'action': 'profile'})
+            self.assertEqual(function, 'wecare-customer-orders:live')
+            self.assertEqual(body, {'limit': 1})
+            self.assertEqual(path, '/ecommerce/my-orders')
             self.assertEqual(original['headers']['authorization'], 'Bearer test')
+
+    def test_unavailable_profile_does_not_claim_saved_details_are_missing(self):
+        with patch.object(app, 'delegate', return_value=app.reply(200, {'orders': [], 'profile': None})):
+            result = call('get_my_account', token='Bearer test')
+            self.assertTrue(result['isError'])
+            self.assertEqual(result['structuredContent']['status'], 'PROFILE_UNAVAILABLE')
+            self.assertNotIn('PROFILE_REQUIRED', str(result))
+
+    def test_account_profile_read_preserves_auth_failure(self):
+        with patch.object(app, 'delegate', return_value=app.reply(401, {'error': 'unauthorized'})):
+            result = call('get_my_account', token='Bearer test')
+            self.assertTrue(result['isError'])
+            self.assertEqual(result['structuredContent']['status'], 'SIGN_IN_REQUIRED')
 
     def test_browser_cannot_choose_identity(self):
         with patch.object(app, 'delegate') as delegate:
