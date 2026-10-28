@@ -25,7 +25,9 @@ Four rules it enforces, each load-bearing
    session with `authorize_resource`, so one customer cannot read another's attempt (IDOR).
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
-   `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs use the same Collect-style breakdown, including Delight and Express, at this same pricing seam. The browser sends
+   `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs
+   use the owner-approved sequence at this seam: item price, 18% supply GST, Delight, Rs25
+   Express, then convenience fee and 18% GST on that fee. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
@@ -917,7 +919,7 @@ def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
     ProductsTable line price -> 18% supply GST -> Delight -> Rs25 Express ->
     canonical 2.5% Convenience Fee -> 18% GST on that fee -> Amount Payable.
     """
-    from lambda_utils.ecommerce import default_coupon
+    from lambda_utils.ecommerce import default_coupon, service_requests
 
     # Read/freeze the authoritative ProductsTable line once; no adjustment is trusted from client.
     base = native_checkout.quote_native_cart(
