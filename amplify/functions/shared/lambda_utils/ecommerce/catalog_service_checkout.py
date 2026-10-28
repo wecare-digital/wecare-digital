@@ -116,35 +116,61 @@ def quick_reply_component(button: dict) -> dict:
             'parameters': [{'type': 'payload', 'payload': payload}]}
 
 
-def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int) -> dict:
+def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int,
+                    *, invoice_lines: dict | None = None) -> dict:
+    """Meta Review & Pay from the same canonical breakdown stored on the attempt."""
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
     labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
     label = labels.get(row['kind'], 'Service')
-    items = [{'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
-              'name': label, 'quantity': 1,
-              'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
+
+    spec = invoice_lines if isinstance(invoice_lines, dict) else {}
+    lines = spec.get('lines') if isinstance(spec.get('lines'), list) else []
+    service_line = lines[0] if len(lines) == 1 and isinstance(lines[0], dict) else {}
+    unit_paise = int(service_line.get('unitPricePaise') or 0)
+    quantity = int(service_line.get('quantity') or 0)
+    if unit_paise <= 0 or quantity != 1:
+        # Backward-compatible fallback for tests/legacy callers; current checkout always passes
+        # invoiceLines. It intentionally cannot invent discount/Express from a quote alone.
+        unit_paise = int(quote.collection_before_convenience_paise)
+        quantity = 1
+
+    items = [{
+        'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
+        'name': label, 'quantity': quantity,
+        'amount': {'value': unit_paise, 'offset': 100},
+    }]
     if quote.convenience_fee_paise:
-        # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
+        # Non-catalog line: no synthetic retailer_id.
         items.append({'name': 'Convenience fee', 'quantity': 1,
-                      'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
-    return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
-        # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
-        # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
-        # WABA1-only refusal, the raw-link refusals and the VALID_PAYMENT_CONFIGS membership
-        # check did not apply to this leg. Removing it is a correctness fix, not a cleanup.
-        #
-        # The NAME still travels, and it has to. `configuration` was used ONLY by that block, so
-        # dropping the block alone would make this argument dead, the resolver would fall back to
-        # the sender's phone map, and the system could prove one configuration against Meta while
-        # telling Meta to use another — with no refusal anywhere. Mirrors the invoice engine,
-        # where the reserved string and the sent string are the same string by construction.
+                      'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100}})
+
+    discount_paise = int(spec.get('discountPaise') or 0)
+    express_paise = int(spec.get('deliveryPaise') or 0)
+    order = {
+        'status': 'pending',
+        # Meta's subtotal includes the catalog items plus non-catalog fee line. Shipping,
+        # discount and fee GST are separate fields and reconcile to total_amount.
+        'items': items,
+        'subtotal': {'value': unit_paise + int(quote.convenience_fee_paise), 'offset': 100},
+        'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        'tax': {'value': int(quote.convenience_gst_paise), 'offset': 100,
+                'description': 'GST on Convenience Fee (18%)'},
+        'expiration': {'timestamp': str(now + 900),
+                       'description': 'Complete payment within 15 minutes'},
+    }
+    if discount_paise:
+        order['discount'] = {'value': discount_paise, 'offset': 100, 'description': 'Delight'}
+        order['couponCode'] = 'DELIGHT'
+
+    return {
+        'reference_id': reference_id,
+        'type': 'digital-goods',
+        'currency': 'INR',
         'payment_configuration': configuration,
-        'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'order': {'status': 'pending', 'items': items,
-                  'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
-                  'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
-                  'expiration': {'timestamp': str(now + 900), 'description': 'Complete payment within 15 minutes'}}}
+        'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
+        'order': order,
+    }
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:
