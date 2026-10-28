@@ -154,11 +154,13 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     if flow_key in ('drop_docs',) or flow_key.startswith('drop'):
         if action == 'INIT':
             return drop_docs.handle_init(data, flow_token, request_id)
+        if screen == 'UPLOAD' and action == 'data_exchange':
+            return drop_docs.handle_upload(data, flow_token, request_id)
         if screen == 'DOC_FORM':
             return drop_docs.handle_doc_form(data, flow_token, request_id)
         if screen == 'REVIEW':
             return drop_docs.handle_review(data, flow_token, request_id)
-        if screen in ('CONFIRM', 'SUCCESS'):
+        if screen in ('COMPLETE', 'CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
     # ── ENTERPRISE ASSIST FLOW ──
