@@ -458,6 +458,9 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     note = str(data.get("note") or "").strip()
     picker = _normalise_picker(data.get("documents"))
 
+    if not note:
+        return {"screen": "UPLOAD", "data": {"error_message": "Add a note before sending documents."}}
+
     if not picker:
         return {"screen": "UPLOAD", "data": {"error_message": "Choose at least one document."}}
     if len(picker) > MAX_FILES:
@@ -540,7 +543,6 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         "screen": "CONFIRMATION",
         "data": {
             "message": "Your documents are stored securely and linked for review.",
-            "document_reference": reference,
             "file_count": str(len(stored)),
             "reference_number": target["display"],
             "note": note or "",
