@@ -29,8 +29,8 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
-    VAULT_OFFER    wecare_vault_request_ready             IMAGE header, body {{1}} (document name),
-                                                          QUICK_REPLY "Unlock Vault" index 0
+    VAULT_OFFER    wecare_vault_request_ready             LEGACY compatibility only for already-sent
+                                                          QUICK_REPLY "Unlock Vault" messages
     DROP_DOCS_FLOW drop_docs_flow                         IMAGE header, FLOW button index 0
                                                           (F003 SELECT_TARGET)
 
@@ -107,10 +107,10 @@ DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTI
                     header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
                         header="location", automated=False)
-#: The ₹49 Vault offer for one document that is unpaid or whose paid windows are used up. IMAGE
-#: header, the document name as body {{1}}, and QUICK_REPLY button 0 "Unlock Vault" whose
-#: send-time payload names the offer, so a tap opens Review and Pay for exactly that file. Sent
-#: only by business-api `catalogService.sendOffer`; `wecare_vault_request_ready` is the provider-approved name.
+#: Legacy compatibility for Vault offers that were sent before direct native Review & Pay became
+#: the default staff rail. Existing QUICK_REPLY "Unlock Vault" taps still resolve their bound file,
+#: but new staff sends go straight to PAY and do not emit this template. Keep the registry entry
+#: while old WhatsApp messages may still be tapped.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
 DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="MARKETING",
