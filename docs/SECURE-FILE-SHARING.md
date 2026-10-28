@@ -1,3 +1,12 @@
+## Backend hardening
+
+- **One intake path:** direct Vault upload/confirm is retired. Drop Docs is the only intake store; Vault rows are created by explicit Publish to Vault.
+- `POST /secure-files/upload-init` and `POST /secure-files/{fileId}/confirm` return `410 VAULT_DIRECT_UPLOAD_RETIRED` during rollout and are explicitly deleted by `scripts/provision_secure_files_api.py --apply`.
+- `--verify` fails if either retired route is still present in API Gateway.
+- Paid download `Content-Disposition` uses the system-owned `wecare-digital-...` filename, never the original customer/staff upload filename.
+- `wecare-secure-files` is provisioned with Active X-Ray tracing under its dedicated role; the role receives only the X-Ray write/sampling actions required for tracing.
+- Existing payment/ownership controls remain unchanged: customer-pool issuer pin, exact owner subject + phone checks, durable exact-file entitlement, conditional access-window writes, short-lived download URLs, and idempotent paid delivery.
+
 ## Vault filenames and links
 
 - Vault customer filenames are system-owned. Staff do not type or rename them.
