@@ -22,6 +22,7 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
   onSelectLocation,
 } ) => {
   const frameRef = useRef<HTMLIFrameElement | null>( null );
+  const inboundModeRef = useRef<'air' | 'weather' | null>( null );
   // The standalone globe reads the browser-restricted Maps key from location.hash.
   // Supplying it here restores live Air/Weather data inside the iframe without putting
   // the key in page copy; browser keys are public-by-design and restricted by referrer.
@@ -34,6 +35,7 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
     const onMessage = ( event: MessageEvent ) => {
       if ( event.origin !== window.location.origin || event.data?.source !== 'vayulok-globe' ) return;
       if ( event.data?.type === 'mode' && ( event.data.mode === 'air' || event.data.mode === 'weather' ) ) {
+        inboundModeRef.current = event.data.mode;
         onModeChange?.( event.data.mode );
         return;
       }
@@ -53,6 +55,13 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
   }, [ onModeChange, onSelectLocation ] );
 
   useEffect( () => {
+    // An iframe click already updated the iframe before notifying the parent. Avoid
+    // echoing that same inbound value back after React commits it: a delayed echo can
+    // otherwise overwrite a newer click on the opposite mode.
+    if ( inboundModeRef.current === mode ) {
+      inboundModeRef.current = null;
+      return;
+    }
     frameRef.current?.contentWindow?.postMessage(
       { source: 'vayulok-page', type: 'mode', mode },
       window.location.origin,
