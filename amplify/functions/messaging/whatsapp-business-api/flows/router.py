@@ -160,7 +160,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
             return drop_docs.handle_doc_form(data, flow_token, request_id)
         if screen == 'REVIEW':
             return drop_docs.handle_review(data, flow_token, request_id)
-        if screen in ('COMPLETE', 'CONFIRM', 'SUCCESS'):
+        if screen in ('COMPLETE', 'CONFIRM', 'CONFIRMATION', 'SUCCESS'):
             return _terminal_response(flow_token)
 
     # ── ENTERPRISE ASSIST FLOW ──
