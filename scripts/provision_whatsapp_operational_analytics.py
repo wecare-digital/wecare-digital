@@ -10,7 +10,7 @@ Safe default is dry-run. --apply creates/updates only:
 - two exporter failure alarms;
 - hourly EventBridge trigger when the exporter Lambda already exists.
 
-Lambda code is owned by .github/workflows/whatsapp-analytics-ci.yml.
+Lambda code is released through the repository's explicit operational deployment path; GitHub Actions are retired.
 """
 from __future__ import annotations
 

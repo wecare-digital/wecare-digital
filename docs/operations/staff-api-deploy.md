@@ -1,9 +1,9 @@
 # Staff API deploy path (template management and AI/settings config)
 
-`wecare-whatsapp-template-management` and `wecare-ai-config-management` now have a complete
-CI deploy path. `.github/workflows/staff-api-ci.yml` tests and packages both functions on every
-relevant change, and production pushes deploy the exact tested packages through the scoped GitHub
-OIDC role `wecare-staff-api-deploy-oidc`.
+GitHub Actions CI is retired for this repository. `wecare-whatsapp-template-management` and
+`wecare-ai-config-management` are validated explicitly before release and deployed through the
+repository's controlled Lambda deployment tooling. The scoped OIDC role below is retained as
+historical deployment infrastructure; no workflow is required by the repository.
 
 ## 1. Scoped OIDC deploy role
 
@@ -52,15 +52,16 @@ subject, and can release only the two staff API Lambda functions listed above.
 
 ## 2. Deploy behavior
 
-A push to `wecare.digital` on the workflow's watched paths runs test → package → deploy.
-Pull requests run test and package only. No repository secret or long-lived AWS key is required.
+There is no GitHub Actions deployment trigger. Validate the changed handlers, run
+`python scripts/deploy_all_lambdas.py --dry-run wecare-whatsapp-template-management wecare-ai-config-management`,
+review the package/config delta, then use the documented production-release mode. Verify the
+published versions and `live` aliases after deployment. Do not introduce a repository secret or
+long-lived AWS key to replace the retired workflow.
 
 ## 3. Verify
 
-- The deploy job log prints `<fn> live -> v<N> <sha>` for both functions.
 - `aws lambda get-function-configuration --function-name <fn> --qualifier live --query CodeSha256`
   equals `aws_code_sha256` in the run's `manifest.json` artifact.
 - Probe the Viewer floor without a token: `PUT https://wecare.digital/api/ai/config` must return
-  401. Role checks (Operator for settings writes, Admin for template writes) are covered by
-  `tests/test_staff_api_authorization.py`. The staff pool has one user, an Admin, so no current
-  workflow loses access.
+  401. Exercise the role checks directly: settings writes require Operator and template writes
+  require Admin. The staff pool has one user, an Admin, so the current administrative path retains access.
