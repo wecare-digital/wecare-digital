@@ -50,7 +50,7 @@ def order_page(table, owner, page_number):
 def reply(table, contact, identity, selection):
     kind, page = selection
     if kind == 'customer_id':
-        identifier = customer_uuid.from_contact(contact)
+        identifier = customer_uuid.display_code(contact)
         return ('Your Customer ID: ' + identifier + '\n\n' + ORDERS_URL
                 if identifier else 'Your Customer ID is not available yet. Please open your account so we can help complete your profile.\n' + SIGN_IN_URL)
     if page > MAX_ORDER_PAGE:
