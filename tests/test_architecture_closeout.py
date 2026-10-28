@@ -548,11 +548,14 @@ class VaultDropDocsCollectPricingTests(unittest.TestCase):
             FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_requests.py"
         ).read_text(encoding="utf-8")
         self.assertIn("VAULT_DROP_DOCS_EXPRESS_PAISE = 2_500", services)
-        self.assertIn("default_coupon.delight_paise(item_subtotal_paise)", pricing)
+        self.assertIn("checkout_pricing.round_half_up(item_subtotal_paise, 1800)", pricing)
+        self.assertIn("default_coupon.delight_paise(item_subtotal_paise + supply_gst)", pricing)
         self.assertIn("checkout_pricing.compute_quote(collection", pricing)
+        self.assertIn('"supplyGstBps": 1800', pricing)
         self.assertIn('"convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS', pricing)
-        self.assertIn("default_coupon.delight_definition()", checkout)
-        self.assertIn("flat_rate_paise=service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE", checkout)
+        self.assertIn("def _vault_dropdocs_quote(", checkout)
+        self.assertIn("supply_gst_paise = checkout_pricing.round_half_up(item_paise, 1800)", checkout)
+        self.assertIn("VAULT_DROP_DOCS_EXPRESS_PAISE", checkout)
         self.assertNotIn("exact_quote = checkout_pricing.exempt_quote", checkout)
 
     def test_whatsapp_service_review_pay_itemizes_all_adjustments(self):
@@ -561,7 +564,9 @@ class VaultDropDocsCollectPricingTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("'description': 'Express'", source)
         self.assertIn("'description': 'Delight'", source)
-        self.assertIn("'description': 'GST on Convenience Fee (18%)'", source)
+        self.assertIn("'description': 'GST'", source)
+        self.assertIn("template_media.DEFAULT_ORDER_ITEM_THUMBNAIL", source)
+        self.assertIn("supply_gst_paise + int(quote.convenience_gst_paise)", source)
         self.assertIn("quote.convenience_fee_paise", source)
         self.assertIn("quote.total_payable_paise", source)
 
