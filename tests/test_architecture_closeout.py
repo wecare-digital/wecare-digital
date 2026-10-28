@@ -351,10 +351,13 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         modal = source[start:end]
         self.assertNotIn("WhatsApp Vault title", modal)
         self.assertNotIn("wecare_vault_request_ready", modal)
-        self.assertIn("Upload & send Vault offer", modal)
+        self.assertIn("Upload & send Unlock Vault", modal)
         self.assertIn("Order (optional)", modal)
         self.assertIn("Document type", modal)
         self.assertIn("File", modal)
+        self.assertNotIn(">Document name<", modal)
+        self.assertIn("Unlock Vault variables", modal)
+        self.assertIn("uploaded customer file stays private", modal)
 
         client = (ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
         start = client.index("/** Start a staff manual Drop Docs upload.")
@@ -377,7 +380,7 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Upload & send Vault offer", source)
+        self.assertIn("Upload & send Unlock Vault", source)
         self.assertIn("Publish & send", source)
         self.assertIn("recordFilter", source)
         self.assertIn("Archived", source)
@@ -395,6 +398,13 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         self.assertNotIn("delete_item", archive_block)
         self.assertNotIn("verificationStatus=:archived", archive_block)
 
+
+
+    def test_drop_docs_and_vault_share_one_gigabyte_direct_upload_limit(self):
+        service = (FUNCTIONS / "core" / "service-api" / "handler.py").read_text(encoding="utf-8")
+        secure = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("str(1024 * 1024 * 1024)", service)
+        self.assertIn("str(1024 * 1024 * 1024)", secure)
 
 
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):
