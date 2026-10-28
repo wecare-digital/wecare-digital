@@ -257,6 +257,18 @@ def policy_document() -> dict:
                 "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
                 "Resource": f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{FUNCTION_NAME}:*",
             },
+            {
+                "Sid": "XRayWrite",
+                "Effect": "Allow",
+                "Action": [
+                    "xray:PutTraceSegments",
+                    "xray:PutTelemetryRecords",
+                    "xray:GetSamplingRules",
+                    "xray:GetSamplingTargets",
+                    "xray:GetSamplingStatisticSummaries",
+                ],
+                "Resource": "*",
+            },
         ],
     }
 
@@ -410,6 +422,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
             Runtime="python3.12",
             Timeout=30,
             MemorySize=512,
+            TracingConfig={"Mode": "Active"},
             Environment={"Variables": environment()},
         )
         client.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
@@ -424,6 +437,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
         Timeout=30,
         MemorySize=512,
         Architectures=["x86_64"],
+        TracingConfig={"Mode": "Active"},
         Environment={"Variables": environment()},
         Description="Secure file sharing for wecare.digital/get/secure",
     )
@@ -617,6 +631,11 @@ def verify() -> int:
             FunctionName=f"{FUNCTION_NAME}:{LIVE_ALIAS}"
         )
         print(f"PASS {FUNCTION_NAME}:{LIVE_ALIAS} {config['Runtime']} {config['State']}")
+        if (config.get("TracingConfig") or {}).get("Mode") == "Active":
+            print("PASS X-Ray tracing Active")
+        else:
+            print("FAIL X-Ray tracing is not Active")
+            failures += 1
         variables = (config.get("Environment") or {}).get("Variables") or {}
 
         for key in ("SECURE_FILES_BUCKET", "SECURE_FILES_TABLE", "DOWNLOAD_GRANTS_TABLE",
@@ -655,6 +674,13 @@ def verify() -> int:
         else:
             print(f"FAIL route {key} missing")
             failures += 1
+
+    for key in sorted(RETIRED_ROUTES):
+        if key in routes:
+            print(f"FAIL retired route still live: {key}")
+            failures += 1
+        else:
+            print(f"PASS retired route absent: {key}")
 
     # The webhook must NOT be able to write a grant. This assertion is inverted from what
     # it used to be, on purpose: a valid signature is no longer proof of payment, so the
