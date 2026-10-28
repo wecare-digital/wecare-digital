@@ -3,7 +3,8 @@
 One place to tell which audit/inventory/consolidation docs are **current**, which
 are **superseded** (and by what), and which are **point-in-time evidence** (dated,
 kept as a record, not maintained). Built 2026-10-16 as part of the deep audit
-(`docs/execution/deep-audit-20261016.md` §7).
+(`docs/execution/deep-audit-20261016.md` §7) and refreshed on 2026-10-28 after
+the platform-wide 360° review.
 
 Rule of thumb: **do not delete point-in-time evidence** — a dated audit is a
 record of what was true then, and the project's own guidance is that an honest
@@ -14,7 +15,8 @@ record of what was true then, and the project's own guidance is that an honest
 
 | Doc | Scope |
 | --- | --- |
-| `docs/execution/deep-audit-20261016.md` | Latest full repo+AWS read-only audit; supersedes the ad-hoc cost/consolidation snapshots below for *current state*. |
+| `docs/audits/platform-360-audit-20261028.md` | Current platform-wide view across customer UX, frontend, auth, APIs, Lambdas, DynamoDB, payments, communications, release operations, security, observability and repository weight. Includes the conservative cleanup/integration plan. |
+| `docs/execution/deep-audit-20261016.md` | Detailed repo+AWS read-only audit and evidence base. Use the 360° audit above for the current executive view; keep this for deeper historical detail. |
 | `.kiro/specs/aws-native-consolidation/{requirements,design,tasks}.md` | System of record for the three consolidation workstreams. |
 | `docs/migrations/aws-native-consolidation-plan.md` | Tool-neutral plan with approval commands + rollback (kept in sync with tasks.md). |
 | `docs/migrations/aws-cost-optimization.md` | Cost levers; backed by `scripts/aws_cost_model.py`. |
@@ -52,6 +54,19 @@ a later reader can see what was true then. Leave them.
 `docs/execution/data-store-inventory.md`,
 `docs/research/whatsapp-platform-coverage-audit.md`. These were all touched
 2026-10-15 and remain in use; not superseded.
+
+## Canonical visual fixtures
+
+Keep only visual fixtures with a current design role or an active verifier.
+The current VayuLok pair is:
+
+- `docs/mocks/vayulok-live-mock.html`
+- `docs/mocks/vayulok-final-v3.html`
+- verified by `tools/browser/vayuloksubcheck.js`
+
+Earlier one-off VayuLok/globe alternatives were removed in the 2026-10-28
+lightweight cleanup after confirming they were non-production and had no active
+runtime or verification owner.
 
 ## Dead-code sweep note (scripts/)
 
