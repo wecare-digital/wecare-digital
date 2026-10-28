@@ -539,13 +539,10 @@ def run(root: Path) -> int:
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
 
-    check("HDR", "payment request uses the approved square order thumbnail while generic templates keep wide art",
-          template_media.PAYMENT_TEMPLATE_HEADER.endswith(
-              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png")
-          and template_media.SHARED_TEMPLATE_HEADER.endswith(
-              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"),
-          {"paymentHeader": template_media.PAYMENT_TEMPLATE_HEADER,
-           "sharedHeader": template_media.SHARED_TEMPLATE_HEADER})
+    check("THUMB", "ORDER_DETAILS uses the owner default 2048 square item thumbnail",
+          template_media.DEFAULT_ORDER_ITEM_THUMBNAIL.endswith(
+              "secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"),
+          {"itemThumbnail": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL})
 
     # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
     # handler + its packaged invoice engine). Production callers address them by name: inbound's
@@ -791,7 +788,7 @@ def run(root: Path) -> int:
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
         check("HDR", "fixed square payment order thumbnail", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"), header["parameters"][0]["image"])
+            "secure/d/public/whatsapp/wa-tpl/img/wecare-catalog-icon.png"), header["parameters"][0]["image"])
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",

@@ -3295,7 +3295,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 # The owner wants the payment-order thumbnail visible on ordinary staff/service
                 # collections too. Use the same immutable square WECARE catalog icon as the
                 # approved template header; fee/charge rows stay image-free.
-                entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}
+                entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}
             if item.get('name', '').strip().lower() in CHARGE_ITEM_NAMES:
                 charge_items.append(entry)
             else:

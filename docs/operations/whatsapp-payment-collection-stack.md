@@ -181,18 +181,18 @@ and retried; it is not silently changed into a different message type.
 
 | Surface | Asset |
 | --- | --- |
-| Payment-request header / order thumbnail | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png` |
-| Manual/service order-item thumbnails | Square WECARE payment/catalog icon on regular rows; fee rows stay image-free |
-| True catalog product image | Catalog-managed product image/identity |
+| Default ORDER_DETAILS item thumbnail | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png` |
+| Normal item rows | One default WECARE thumbnail on every normal item row |
+| Fee / shipping / GST / Delight rows | No item thumbnail |
 | Paid invoice template header | Generated invoice PNG under `secure/d/public/Invoice/customer_invoice/` |
 
 Meta's item `image` is optional. The payment rail therefore uses this simpler rule:
 
-- **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs. Regular service/goods rows use the same square WECARE payment/catalog icon as the template header so Meta does not fall back to its generic cart glyph.
-- **Convenience Fee:** non-catalog net-fee line with no thumbnail; GST on the fee is included in the native tax row.
-- **true catalog checkout:** preserve the real catalog identity and catalog-managed product image.
+- **normal order item:** use one default WECARE thumbnail through `order.items[].image.link`.
+- **Convenience Fee / shipping / GST / Delight:** remain image-free.
+- **no catalog/product-specific image selection:** this payment-order presentation path does not choose a product image by catalog identity.
 
-The payment-template header and ordinary manual item rows use the approved square WECARE bag asset. This is presentation only; it does not invent a catalog retailer ID for a manually entered service.
+The thumbnail is presentation only and does not invent or require a catalog retailer ID.
 
 ## 5. Canonical runtimes
 
@@ -521,9 +521,9 @@ canonical runtime target, reviewers should require this checklist before merge.
 Before production promotion, prove:
 
 - [ ] payment request is `wecare_whatapp_native_pay_template`
-- [ ] payment-request header / order thumbnail is the square `wecare-catalog-icon.png`
-- [ ] manual/non-catalog regular rows show the approved WECARE thumbnail, fee rows remain image-free, and no synthetic retailer ID is created
-- [ ] true catalog items retain catalog identity/image
+- [ ] every normal ORDER_DETAILS item row uses `WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png`
+- [ ] Convenience Fee / shipping / GST / Delight rows remain image-free
+- [ ] no catalog/product-specific image selection is used for this payment-order thumbnail contract
 - [ ] capture sends status template `processing` then `completed`
 - [ ] zero interactive order-status messages are used
 - [ ] `completed` is never attempted before `processing` acceptance/already-current
