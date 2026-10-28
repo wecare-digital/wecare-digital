@@ -569,10 +569,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     sign_in = (
         '<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">' +
         '<div class="connect-eyebrow">'
-        '<span class="connect-eyebrow-icon" aria-hidden="true">'
-        '<svg viewBox="0 0 24 24" focusable="false"><path d="M7 8h10l1 12H6L7 8Zm2.5 0V6.5a2.5 2.5 0 0 1 5 0V8"/>'
-        '<path d="M9 13.2c1.1-1.3 2.1-1.3 3 0 1-1.3 2-1.3 3 0 0 2-3 3.8-3 3.8s-3-1.8-3-3.8Z"/></svg>'
-        '</span><span>Access</span></div>' +
+        '<span class="connect-eyebrow-icon" aria-hidden="true">login</span>'
+        '<span>Sign in</span></div>' +
         connect_note + alert +
         '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
@@ -741,8 +739,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'border:0;border-radius:14px;background:#fcfdfa;box-shadow:0 8px 24px rgba(16,32,24,.06)}.connect-eyebrow{display:inline-flex;align-items:center;gap:9px;'
         'width:max-content;max-width:100%;min-height:42px;margin:0 0 18px;padding:0 15px;border-radius:9999px;background:var(--lime);'
         'color:var(--green);font-size:18px;font-weight:700;line-height:1.1;letter-spacing:0;text-transform:none}.connect-eyebrow-icon{'
-        'width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.connect-eyebrow-icon svg{'
-        'width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
+        'width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;'
+        "font-family:'Material Symbols Rounded';font-style:normal;font-size:23px;font-weight:500;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;"
+        "font-feature-settings:'liga';-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;"
+        "font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}"
         '.destination{margin:0 0 14px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
         '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
         'width:100%;min-height:48px;border:0;border-radius:12px;background:#f8faf3;position:relative;box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}.country-picker{position:relative;'
@@ -828,13 +828,14 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+        '<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&icon_names=login&display=block" rel="stylesheet">'
         '<title>WECARE.DIGITAL · Sign in</title><style>' + styles + '</style></head><body>' +
         header +
         '<main class="home-shell"><div class="home-layout">'
         '<div class="home-hero"><h1 class="home-head">'
         '<span class="home-head-line">One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.</span>' +
         hero_pill +
-        '</h1><p class="home-sub">Sign in with WhatsApp. Continue anywhere.</p></div>' +
+        '</h1><p class="home-sub">Sign in securely. Pick up where you left off.</p></div>' +
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
