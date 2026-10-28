@@ -182,6 +182,57 @@ def cart_id(attempt, snapshot):
     return str(cart.get('id') or '') if isinstance(cart, dict) else ''
 
 
+def _workspace_order_fields(attempt):
+    """Shared item/subtotal fields for the normal OrdersTable row.
+
+    Source is attempt.invoiceLines only: it is server-derived from the same frozen quote used by
+    Meta and the invoice. Never reconstruct money from browser text or from a mutable catalogue.
+    """
+    spec = attempt.get('invoiceLines')
+    if not isinstance(spec, dict):
+        return {}
+    lines = spec.get('lines')
+    if not isinstance(lines, list) or not lines:
+        return {}
+    items = []
+    subtotal = 0
+    summaries = []
+    for line in lines:
+        if not isinstance(line, dict):
+            return {}
+        name = ' '.join(str(line.get('name') or '').split())[:120]
+        product_id = str(line.get('productId') or '').strip()
+        variant_id = str(line.get('variantId') or '').strip()
+        quantity = integer_paise(line.get('quantity'))
+        unit = integer_paise(line.get('unitPricePaise'))
+        if not name or quantity is None or quantity <= 0 or unit is None or unit < 0:
+            return {}
+        subtotal += unit * quantity
+        item = {'name': name, 'quantity': quantity,
+                'price': Decimal(unit) / Decimal(100)}
+        if product_id:
+            item['productId'] = product_id
+        if variant_id:
+            item['sku'] = variant_id
+        items.append(item)
+        summaries.append(f"{name} × {quantity}")
+    recorded_total = integer_paise(spec.get('totalPaise'))
+    if recorded_total is None or recorded_total < 0:
+        return {}
+    return {'items': items, 'itemCount': len(items),
+            'itemsSummary': ', '.join(summaries)[:500],
+            'itemsSubtotalPaise': subtotal,
+            'subtotalPaise': subtotal,
+            'pricingSnapshot': {
+                'itemsSubtotalPaise': subtotal,
+                'deliveryPaise': integer_paise(spec.get('deliveryPaise')) or 0,
+                'discountPaise': integer_paise(spec.get('discountPaise')) or 0,
+                'convenienceFeePaise': integer_paise(spec.get('convenienceFeePaise')) or 0,
+                'convenienceGstPaise': integer_paise(spec.get('convenienceGstPaise')) or 0,
+                'totalPaise': recorded_total,
+            }}
+
+
 def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_paise):
     """Create the complete internal order and resume only documented writes.
 
@@ -259,6 +310,11 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     # standing as `contactId`: attribution, conditional (a service or contribution attempt carries
     # none and writes a byte-identical row) and outside the conflict comparison below.
     order.update(order_delivery.order_fields(attempt))
+    order.update(_workspace_order_fields(attempt))
+    if attempt.get('serviceKind'):
+        order['serviceKind'] = str(attempt['serviceKind'])
+    if attempt.get('vaultFileId'):
+        order['vaultFileId'] = str(attempt['vaultFileId'])
     # The short order number, so the `shortId` GSI finds website and WhatsApp orders alike
     # (staff orders always carried it; these did not).
     short = order_record.short_id(outcome['orderNumber'])
