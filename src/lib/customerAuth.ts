@@ -42,6 +42,7 @@ const EXPIRY_KEY = 'wecare.customer.expiresAt';
 const SESSION_ENDPOINT = '/api/ecommerce/customer-session';
 const PROFILE_ENDPOINT = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/customer/profile`;
 const SESSION_HINT_KEY = 'wecare.customer.sessionHint';
+const SESSION_HINT_COOKIE = 'wc_customer_session_hint';
 interface SessionHint { csrfToken: string; expiresAt: number; persistent: boolean; }
 let refreshInFlight: Promise<CustomerSession | null> | null = null;
 
@@ -56,10 +57,23 @@ if ( typeof window !== 'undefined' ) window.addEventListener( 'storage', event =
 function sessionHint (): SessionHint | null {
   if ( typeof window === 'undefined' ) return null;
   try {
-    const hint = JSON.parse( window.localStorage.getItem( SESSION_HINT_KEY ) || 'null' ) as SessionHint | null;
+    let hint = JSON.parse( window.localStorage.getItem( SESSION_HINT_KEY ) || 'null' ) as SessionHint | null;
+    if ( !hint?.csrfToken ) {
+      const raw = document.cookie.split( '; ' ).find( row => row.startsWith( `${ SESSION_HINT_COOKIE }=` ) )?.slice( SESSION_HINT_COOKIE.length + 1 );
+      if ( raw ) {
+        hint = JSON.parse( decodeURIComponent( raw ) ) as SessionHint;
+        if ( hint?.csrfToken && hint.expiresAt > Date.now() ) {
+          window.localStorage.setItem( SESSION_HINT_KEY, JSON.stringify( hint ) );
+        }
+        document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+      }
+    }
     if ( !hint?.csrfToken || hint.expiresAt <= Date.now() ) return null;
     return hint;
-  } catch { return null; }
+  } catch {
+    document.cookie = `${ SESSION_HINT_COOKIE }=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+    return null;
+  }
 }
 
 /** Restore the server-owned session. A transient failure keeps the hint for a later retry. */
