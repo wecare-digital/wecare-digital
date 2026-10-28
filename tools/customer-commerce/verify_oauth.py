@@ -158,6 +158,7 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('name="_flow" value="website"', result['body'])
         self.assertIn('name="_return" value="/orders/"', result['body'])
         self.assertIn('let submitted=false', result['body'])
+        self.assertIn("nav.type==='back_forward'", result['body'])
 
     def test_stale_website_post_redirects_to_fresh_auth(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
