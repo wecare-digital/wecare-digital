@@ -366,8 +366,9 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
     ``CustomerNotAuthorized`` (a target that is missing, not the caller's, or not a Submit
     Request -- one identical refusal), or ``ServiceIdentityUnavailable``.
 
-    Every kind in ``TARGET_REQUIRED_KINDS`` -- amendment, Drop Docs and Vault -- takes a target
-    through the SAME branch, so none of them can acquire a different ownership rule by accident.
+    Every kind in ``TARGET_REQUIRED_KINDS`` takes a target through the SAME ownership branch.
+    Drop Docs may omit its target for the paid WhatsApp F003 journey; when a website checkout
+    supplies one, it is resolved through that exact same ownership check.
 
     Vault is sold per FILE, so a Vault intent without ``vault_file`` is refused
     (``VAULT_FILE_REQUIRED``): `vault_access.grant_access` could never unlock what it paid for. A
@@ -419,6 +420,14 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
                   'vaultOwnerPhone': str(vault_file.get('ownerPhone') or '')}
     elif kind == VAULT:
         raise ServiceRejected(VAULT_FILE_REQUIRED)
+    elif kind == DROP_DOCS:
+        # WhatsApp F003 selects the owned order/request after payment. Website checkout may
+        # still supply an existing request here, so preserve that path and the same ownership
+        # rule rather than forcing both channels into one UI sequence.
+        if target_public_id:
+            target = resolve_public(table, identity, target_public_id)
+            if str(target.get("kind") or "") != SUBMIT_REQUEST:
+                raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
     elif kind in TARGET_REQUIRED_KINDS:
         if not target_public_id:
             raise ServiceRejected("SERVICE_TARGET_REQUIRED")
@@ -675,7 +684,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
             request["parentOrderId"] = str(intent.get("parentOrderId") or "")
             request["parentOrderNumber"] = str(intent.get("parentOrderNumber") or "")
             request["parentOrderReferenceId"] = str(intent.get("parentOrderReferenceId") or "")
-        if kind in TARGET_REQUIRED_KINDS:
+        if kind in TARGET_REQUIRED_KINDS or (kind == DROP_DOCS and target_internal.startswith(REQUEST_PREFIX)):
             request["targetRequestId"] = target_internal
             request["targetPublicRequestId"] = str(intent.get("targetPublicRequestId") or "")
         if file_bound_vault:

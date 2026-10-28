@@ -137,6 +137,9 @@ def prepare_and_send(event, lambda_client, get_flow):
     if candidate.get('kind') == 'VAULT':
         from .paid_vault import prepare_and_send as vault_send
         return vault_send(event, lambda_client)
+    if candidate.get('kind') == service_requests.DROP_DOCS:
+        from .paid_drop_docs import prepare_and_send as drop_docs_send
+        return drop_docs_send(event, lambda_client)
     if candidate.get('kind') != 'SUBMIT_REQUEST':
         return {'outcome': 'NOT_SUBMIT_REQUEST'}
 

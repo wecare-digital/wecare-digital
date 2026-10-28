@@ -1998,8 +1998,8 @@ def run(root: Path) -> int:
                           FakeContext("wecare-razorpay-webhook"))
     check("AUTH", "a capture with an invalid signature is refused 401", bad.get("statusCode") == 401)
 
-    # ── 12. the catalog-service leg (Vault), with its rollout flag on for this section only ───────
-    print("\n== 12. catalog-service leg: Vault only, every refusal answered, lock expires with its session")
+    # ── 12. the catalog-service leg (Vault + Drop Docs), rollout flag on for this section ────────
+    print("\n== 12. catalog-service leg: Vault + paid Drop Docs, one native payment rail")
     from lambda_utils.ecommerce import catalog_service_checkout as catalog_svc, service_requests
     catalog_services = _load("h_catalog_services", functions / "messaging" / "whatsapp-business-api"
                              / "flows" / "catalog_services.py")
@@ -2038,8 +2038,6 @@ def run(root: Path) -> int:
              "ordered on its own"),
             ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)], "ordered on its own"),
             ("Submit Request (not sold on WhatsApp)", [service_line(service_requests.SUBMIT_REQUEST)],
-             "cannot be bought from the WhatsApp catalog"),
-            ("Drop Docs (not sold on WhatsApp)", [service_line(service_requests.DROP_DOCS)],
              "cannot be bought from the WhatsApp catalog")):
         mark = W.mark()
         deliver(order_event(build, lena["digits"], f"wamid.HERMETIC.LENA.{len(label)}.{expected[:6]}", lines_in))
@@ -2090,16 +2088,23 @@ def run(root: Path) -> int:
     # an ordinary service at the same catalogue amount still receives the standard fee policy.
     original_reader = checkout._native_product_reader
     try:
+        drop_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.DROP_DOCS]
+        drop_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[drop_variant]
         submit_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.SUBMIT_REQUEST]
         submit_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[submit_variant]
         products = {
             vault_product: {"status": "active", "variants": [{"sku": vault_variant, "priceMinor": 4900}]},
+            drop_product: {"status": "active", "variants": [{"sku": drop_variant, "priceMinor": 19900}]},
             submit_product: {"status": "active", "variants": [{"sku": submit_variant, "priceMinor": 4900}]},
         }
         checkout._native_product_reader = lambda: (lambda product_id: products.get(product_id))
         identity = type("CheckoutIdentity", (), {"customer_id": nora["sub"]})()
         vault_quote = checkout._native_quote(identity, [{
             "catalogReference": {"catalogItemId": vault_product, "options": {"variantId": vault_variant}},
+            "quantity": 1,
+        }], int(time.time())).quote
+        drop_quote = checkout._native_quote(identity, [{
+            "catalogReference": {"catalogItemId": drop_product, "options": {"variantId": drop_variant}},
             "quantity": 1,
         }], int(time.time())).quote
         ordinary_quote = checkout._native_quote(identity, [{
@@ -2111,7 +2116,12 @@ def run(root: Path) -> int:
               and vault_quote.convenience_fee_paise == 0
               and vault_quote.convenience_gst_paise == 0,
               vault_quote.components())
-        check("SVC", "the Vault exception does not remove the standard fee from other services",
+        check("SVC", "Drop Docs catalogue price is the exact payable: 19900 paise",
+              drop_quote.total_payable_paise == 19900
+              and drop_quote.convenience_fee_paise == 0
+              and drop_quote.convenience_gst_paise == 0,
+              drop_quote.components())
+        check("SVC", "the exact-price exceptions do not remove the standard fee from other services",
               ordinary_quote.total_payable_paise > 4900
               and ordinary_quote.convenience_fee_paise > 0,
               ordinary_quote.components())
