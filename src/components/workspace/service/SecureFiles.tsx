@@ -692,7 +692,8 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                         </div>
 
                         <div className="sf-review-breakdown">
-                            <div><span>Items + item GST</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                            <div><span>Items</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                            <div><span>GST (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.supplyGstPaise )}` : '—' }</strong></div>
                             <div><span>Delight</span><strong>{ vaultBreakdown ? `−₹${rupeesFromPaise( vaultBreakdown.delightPaise )}` : '—' }</strong></div>
                             <div><span>Express</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.expressPaise )}` : '—' }</strong></div>
                             <div><span>Convenience Fee</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
