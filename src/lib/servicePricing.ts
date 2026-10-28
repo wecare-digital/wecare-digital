@@ -36,6 +36,8 @@ export const SERVICES_PRICE_CURRENCY = 'INR' as const;
 
 export type ServicePriceBreakdown = {
   readonly itemSubtotalPaise: number;
+  readonly supplyGstPaise: number;
+  readonly supplyGstBps: number;
   readonly delightPaise: number;
   readonly expressPaise: number;
   readonly collectionBeforeConveniencePaise: number;
@@ -100,6 +102,7 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   const row = raw as Record<string, unknown>;
   const moneyKeys = [
     'itemSubtotalPaise',
+    'supplyGstPaise',
     'delightPaise',
     'expressPaise',
     'collectionBeforeConveniencePaise',
@@ -111,9 +114,12 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   {
     if ( !usableNonNegativePaise( row[ key ] ) ) return undefined;
   }
-  if ( typeof row.convenienceGstBps !== 'number'
-      || !Number.isSafeInteger( row.convenienceGstBps )
-      || row.convenienceGstBps < 0 ) return undefined;
+  for ( const key of [ 'supplyGstBps', 'convenienceGstBps' ] as const )
+  {
+    if ( typeof row[ key ] !== 'number'
+        || !Number.isSafeInteger( row[ key ] )
+        || row[ key ] < 0 ) return undefined;
+  }
   return row as ServicePriceBreakdown;
 }
 

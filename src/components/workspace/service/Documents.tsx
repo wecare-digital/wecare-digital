@@ -827,7 +827,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             <span>{ dropDocsPricePaise === null ? 'Live price unavailable' : `₹${rupeesFromPaise( dropDocsPricePaise )}` }</span>
           </div>
           <div className="dd-review-lines">
-            <div><span>Items + item GST</span><strong>{ dropDocsPricePaise === null ? '—' : `₹${rupeesFromPaise( dropDocsPricePaise )}` }</strong></div>
+            <div><span>Items</span><strong>{ dropDocsPricePaise === null ? '—' : `₹${rupeesFromPaise( dropDocsPricePaise )}` }</strong></div>
+            <div><span>GST (18%)</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.supplyGstPaise )}` : '—' }</strong></div>
             <div><span>Delight</span><strong>{ dropDocsBreakdown ? `−₹${rupeesFromPaise( dropDocsBreakdown.delightPaise )}` : '—' }</strong></div>
             <div><span>Express</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.expressPaise )}` : '—' }</strong></div>
             <div><span>Convenience Fee</span><strong>{ dropDocsBreakdown ? `₹${rupeesFromPaise( dropDocsBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
