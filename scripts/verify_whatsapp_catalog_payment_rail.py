@@ -2305,9 +2305,9 @@ def run(root: Path) -> int:
     attempts = _attempts_for(vera["sub"])
     intents = [r for r in _scan("ServiceRequestsTable")
                if str(r.get("requestId", "")).startswith("INTENT#") and r.get("vaultFileId") == vera_file]
-    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for 4900 paise",
+    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for the quoted payable",
           len(intents) == 1 and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(attempts) == 1
-          and int(attempts[0].get("amountPaise") or 0) == 4900,
+          and int(attempts[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
           {"intents": len(intents), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
     mark = W.mark()
     deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
@@ -2384,9 +2384,9 @@ def run(root: Path) -> int:
         mark = W.mark()
         deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP2", "vaultoffer:" + next(iter(new_tokens), "")))
         renewals = [a for a in _attempts_for(vera["sub"]) if a["paymentAttemptId"] != purchase["paymentAttemptId"]]
-        check("VLT", "the renewal tap sends ONE more Review and Pay for 4900 paise",
+        check("VLT", "the renewal tap sends ONE more Review and Pay for the quoted payable",
               len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(renewals) == 1
-              and int(renewals[0].get("amountPaise") or 0) == 4900,
+              and int(renewals[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
               [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals])
         if renewals:
             mark = W.mark()
