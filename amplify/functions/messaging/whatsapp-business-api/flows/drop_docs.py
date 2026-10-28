@@ -154,42 +154,51 @@ def _request_targets(identity: Optional[customer_auth.CustomerIdentity]) -> List
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """INIT -> SELECT_TARGET using server-derived identity only."""
+    """INIT -> SELECT_TARGET with verified-customer orders/requests only."""
     try:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected as exc:
         return {
-            "screen": "UPLOAD",
+            "screen": "SELECT_TARGET",
             "data": {
                 "error": str(exc),
                 "phone_number": "",
+                "targets": [{"id": "unavailable", "title": REJECTED}],
             },
         }
     except flow_sessions.FlowSessionUnavailable:
         return {
-            "screen": "UPLOAD",
+            "screen": "SELECT_TARGET",
             "data": {
                 "error": "Please try again.",
                 "phone_number": "",
+                "targets": [{"id": "unavailable", "title": "Please try again"}],
             },
         }
 
     if session.consumed_at:
         return {
-            "screen": "UPLOAD",
+            "screen": "SELECT_TARGET",
             "data": {
                 "error": REJECTED,
                 "phone_number": "",
+                "targets": [{"id": "unavailable", "title": REJECTED}],
             },
         }
 
+    contact = _contact(session.phone)
+    identity = _customer_identity(contact, session.phone)
+    targets = _order_targets(session.phone) + _request_targets(identity)
+    if not targets:
+        targets = [{"id": "unavailable", "title": "No matching orders or requests found"}]
+
     return {
-        "screen": "UPLOAD",
+        "screen": "SELECT_TARGET",
         "data": {
             "phone_number": _masked_phone(session.phone),
+            "targets": targets,
         },
     }
-
 
 def _normalise_picker(value: Any) -> List[Dict[str, Any]]:
     """Accept Meta's picker string or an already-decoded list without trusting its metadata."""
@@ -229,47 +238,69 @@ def _graph_phone(waba: str) -> str:
 
 
 def _validate_reference(
+    selected_target: str,
     reference_number: str,
     phone: str,
     identity: Optional[customer_auth.CustomerIdentity],
 ) -> Dict[str, str]:
-    """Resolve a customer-entered reference only inside the verified customer's own records."""
+    """Verify the typed reference belongs to the verified customer and matches the dropdown."""
+    selected = str(selected_target or "").strip()
     wanted = str(reference_number or "").strip()
+    if not selected or selected == "unavailable":
+        raise ValueError("Select the order or request these documents belong to.")
     if not wanted:
-        raise ValueError("Enter your order or request reference.")
+        raise ValueError("Enter the exact reference for the selected order or request.")
     folded = wanted.upper()
 
-    # Orders: picker choices carry the stored orderId plus the customer-facing short number.
-    # Accept the exact stored id, the short number, or its canonical WD-ORD- form.
-    try:
-        for order in fetch_orders_for_flow(phone, "")[:20]:
-            order_id = str(order.get("id") or "").strip()
-            short = str(order.get("title") or "").split("—", 1)[0].strip()
-            candidates = {order_id.upper(), short.upper()}
-            if short:
-                candidates.add(("WD-ORD-" + short).upper())
-            if folded in candidates:
-                display = wanted if folded.startswith("WD-ORD") else ("WD-ORD-" + short if short else wanted)
+    if selected.startswith("order:"):
+        selected_id = selected.split(":", 1)[1]
+        try:
+            for order in fetch_orders_for_flow(phone, "")[:20]:
+                order_id = str(order.get("id") or "").strip()
+                if order_id != selected_id:
+                    continue
+                short = str(order.get("title") or "").split("—", 1)[0].strip()
+                candidates = {order_id.upper(), short.upper()}
+                if short:
+                    candidates.add(("WD-ORD-" + short).upper())
+                if folded not in candidates:
+                    raise ValueError(
+                        "The reference does not match the selected order. Copy the exact order reference from Your Orders."
+                    )
+                display = wanted if folded.startswith("WD-ORD") else (
+                    "WD-ORD-" + short if short else wanted
+                )
                 return {"kind": "order", "id": order_id, "display": display}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Drop Docs order reference lookup failed: %s", type(exc).__name__)
+        except ValueError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Drop Docs selected order lookup failed: %s", type(exc).__name__)
+        raise ValueError("The selected order is no longer available for this account.")
 
-    # Service requests: public request ids are already customer-facing references.
-    if identity is not None:
+    if selected.startswith("request:"):
+        selected_id = selected.split(":", 1)[1]
+        if identity is None:
+            raise ValueError("The selected request cannot be verified for this account.")
         try:
             rows, _cursor = service_request_store.list_for_customer(
                 dynamodb.Table(SERVICE_REQUESTS_TABLE), identity, limit=20
             )
             for row in rows:
                 public_id = str(row.get("requestId") or "").strip()
-                if public_id and folded == public_id.upper():
-                    return {"kind": "request", "id": public_id, "display": public_id}
+                if public_id != selected_id:
+                    continue
+                if folded != public_id.upper():
+                    raise ValueError(
+                        "The reference does not match the selected request. Copy the exact request reference."
+                    )
+                return {"kind": "request", "id": public_id, "display": public_id}
+        except ValueError:
+            raise
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Drop Docs request reference lookup failed: %s", type(exc).__name__)
+            logger.warning("Drop Docs selected request lookup failed: %s", type(exc).__name__)
+        raise ValueError("The selected request is no longer available for this account.")
 
-    raise ValueError(
-        "We could not find that reference in this account. Open Your Orders and copy it exactly."
-    )
+    raise ValueError("Select a valid order or request.")
 
 def _fetch_media(entry: Dict[str, Any], graph_phone: str) -> Tuple[bytes, str, str, str]:
     """Retrieve one picker file from Meta, binding the lookup to the receiving phone."""
@@ -433,6 +464,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     # device received the response. Idempotent document ids + completion claim make it safe.
     contact = _contact(session.phone)
     identity = _customer_identity(contact, session.phone)
+    selected_target = str(data.get("selected_target") or "").strip()
     reference_number = str(data.get("reference_number") or "").strip()
     note = str(data.get("note") or "").strip()
     picker = _normalise_picker(data.get("documents"))
@@ -443,7 +475,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         return {"screen": "UPLOAD", "data": {"error_message": "Choose up to 3 documents."}}
     try:
         target = _validate_reference(
-            reference_number, session.phone, identity
+            selected_target, reference_number, session.phone, identity
         )
     except ValueError as exc:
         return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
@@ -486,6 +518,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         contact.get("contactBookName") or contact.get("name") or contact.get("profileName") or ""
     ).strip()
     completion_data = {
+        "selected_target": selected_target,
         "reference_number": target["display"],
         "target_display": target["display"],
         "note": note,
