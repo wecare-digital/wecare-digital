@@ -278,5 +278,16 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertNotIn("wa-idem-", f"wecare-digital-{trace}.png")
 
 
+    def test_issued_receipt_keys_are_unique_and_no_store(self):
+        source = HANDLER.read_text(encoding="utf-8")
+        self.assertIn("render_token = uuid.uuid4().hex[:12]", source)
+        self.assertIn("no-store, max-age=0, must-revalidate", source)
+
+    def test_receipt_v9_uses_fixed_reference_canvas(self):
+        source = RECEIPT_LAYOUT.read_text(encoding="utf-8")
+        self.assertIn("BASE_W = 1024", source)
+        self.assertIn("BASE_H = 1536", source)
+        self.assertIn("Fresh fixed-coordinate renderer", source)
+
 if __name__ == "__main__":
     unittest.main()
