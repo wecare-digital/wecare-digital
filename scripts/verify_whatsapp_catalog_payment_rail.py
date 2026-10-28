@@ -539,13 +539,10 @@ def run(root: Path) -> int:
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
 
-    check("HDR", "payment request uses the approved square order thumbnail while generic templates keep wide art",
-          template_media.PAYMENT_TEMPLATE_HEADER.endswith(
-              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png")
-          and template_media.SHARED_TEMPLATE_HEADER.endswith(
-              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"),
-          {"paymentHeader": template_media.PAYMENT_TEMPLATE_HEADER,
-           "sharedHeader": template_media.SHARED_TEMPLATE_HEADER})
+    check("THUMB", "ORDER_DETAILS uses the owner default 2048 square item thumbnail",
+          template_media.DEFAULT_ORDER_ITEM_THUMBNAIL.endswith(
+              "secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"),
+          {"itemThumbnail": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL})
 
     # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
     # handler + its packaged invoice engine). Production callers address them by name: inbound's
