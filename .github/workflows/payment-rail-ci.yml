@@ -163,8 +163,9 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_dropdocs_reupload_regression.py'
 
   workspace-typecheck:
-    needs: payment-rail-changes
-    if: needs.payment-rail-changes.outputs.payment == 'true'
+    # Runs on EVERY pull request, unlike the rest of the rail. It is the only required check that
+    # type-checks the frontend, and Amplify's build stops on a type error, so a PR that skipped it
+    # could merge a type error and block every later deploy (fresh audit, 2026-10-28).
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -371,4 +372,3 @@ jobs:
           role-session-name: whatsapp-smoke-${{ github.run_id }}
       - name: Verify live WhatsApp backend
         run: python scripts/smoke_whatsapp_backend_live.py
-
