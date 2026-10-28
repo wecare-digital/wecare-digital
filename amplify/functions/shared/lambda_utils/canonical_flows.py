@@ -24,11 +24,10 @@ CANONICAL_FLOWS = {
     # offers it. The id stays as the identity of past paid submissions; paid requests start on
     # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).
     'submit_request': ('1107164111921876', 'DEPRECATED', 'WD_Submit_Request_Paid_v1'),
-    # Both former DRAFT ids (3678132465672138, 1211063631104445) no longer exist on Meta (Graph
-    # error 100/33, 2026-10-25), so neither capability has a Flow; their keyword doors answer
-    # with the website link, as before.
+    # The former amendment drafts no longer exist on Meta; amendment remains website-only.
     'amend_request':  (None, 'NONE', None),
-    'drop_docs':      (None, 'NONE', None),
+    # F003 Drop Docs replacement, published on Meta 2026-10-28.
+    'drop_docs':      ('39581903361452878', 'PUBLISHED', 'WD-F003-DROP-DOCS'),
     'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
     'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
@@ -127,6 +126,23 @@ CANONICAL_CONTRACTS = {
         'defaultKeywords': ('subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe'),
         # FlowSubmission flowCode used by F001 rows written before the canonical code.
         'legacyFlowCodes': ('WD_SUBSCRIBE',),
+    },
+    'drop_docs': {
+        'flowNumber': 'F003',
+        'flowCode': 'WD_F003_DROP_DOCS',
+        'label': 'Drop Docs',
+        'flowType': 'drop_docs',
+        'entryMode': 'keyword_interactive',
+        'entryTemplateName': '',
+        'requiresPayment': False,
+        'submissionPrefix': 'WD-DOC',
+        'wabaId': '2094615664435155',
+        'tokenPrefix': 'drop_docs',
+        'defaultKeywords': (
+            'drop docs', 'upload documents', 'upload docs',
+            'send documents', 'send docs', 'documents',
+        ),
+        'legacyFlowCodes': (),
     },
     'leave_review': {
         'flowNumber': 'F002',
