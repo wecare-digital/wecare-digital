@@ -64,10 +64,9 @@ def delight_paise(collection_paise: int) -> int:
         0.5% of the collection  ==  collection_paise * 50 // 10000
 
     then clamped by the ₹50 cap AND by the collection itself (a discount can never exceed what is
-    being bought, so it can never make a total negative). Integer floor division matches how the
-    retired `coupon_store` priced a PERCENT_OFF coupon, so the figure is identical to the one the
-    old path produced for the same rate -- only the cap changed (₹100 -> ₹50) and the dependency
-    on the coupon store is gone.
+    being bought, so it can never make a total negative). Positive eligible collections have a
+    one-paise display floor: without it the integer-paise representation turns a real sub-paise
+    goodwill reduction into zero and silently removes Delight from tiny QA/orders.
     """
     collection = int(collection_paise)
     if collection <= 0:
