@@ -34,9 +34,25 @@ export const SERVICE_PRICES_URL = `${ API_BASE }/ecommerce/service-prices`;
 /** The only currency a service is sold in. Compared explicitly, never inferred from an amount. */
 export const SERVICES_PRICE_CURRENCY = 'INR' as const;
 
+export type ServicePriceBreakdown = {
+  readonly itemSubtotalPaise: number;
+  readonly delightPaise: number;
+  readonly expressPaise: number;
+  readonly collectionBeforeConveniencePaise: number;
+  readonly convenienceFeePaise: number;
+  readonly convenienceGstPaise: number;
+  readonly convenienceGstBps: number;
+  readonly totalPayablePaise: number;
+};
+
 /** One service's live price, or an honest "no price". An unavailable price carries no number. */
 export type ServicePrice =
-  | { readonly available: true; readonly paise: number; readonly rupees: string }
+  | {
+      readonly available: true;
+      readonly paise: number;
+      readonly rupees: string;
+      readonly breakdown?: ServicePriceBreakdown;
+    }
   | { readonly available: false };
 
 const UNAVAILABLE: ServicePrice = { available: false };
@@ -75,12 +91,44 @@ function usablePaise ( value: unknown ): value is number {
   return typeof value === 'number' && Number.isSafeInteger( value ) && value > 0;
 }
 
+function usableNonNegativePaise ( value: unknown ): value is number {
+  return typeof value === 'number' && Number.isSafeInteger( value ) && value >= 0;
+}
+
+function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
+  if ( !raw || typeof raw !== 'object' ) return undefined;
+  const row = raw as Record<string, unknown>;
+  const moneyKeys = [
+    'itemSubtotalPaise',
+    'delightPaise',
+    'expressPaise',
+    'collectionBeforeConveniencePaise',
+    'convenienceFeePaise',
+    'convenienceGstPaise',
+    'totalPayablePaise',
+  ] as const;
+  for ( const key of moneyKeys )
+  {
+    if ( !usableNonNegativePaise( row[ key ] ) ) return undefined;
+  }
+  if ( typeof row.convenienceGstBps !== 'number'
+      || !Number.isSafeInteger( row.convenienceGstBps )
+      || row.convenienceGstBps < 0 ) return undefined;
+  return row as ServicePriceBreakdown;
+}
+
 function readPrice ( raw: unknown ): ServicePrice {
   if ( !raw || typeof raw !== 'object' ) return UNAVAILABLE;
-  const row = raw as { available?: unknown; paise?: unknown };
+  const row = raw as { available?: unknown; paise?: unknown; breakdown?: unknown };
   if ( row.available !== true ) return UNAVAILABLE;
   if ( !usablePaise( row.paise ) ) return UNAVAILABLE;
-  return { available: true, paise: row.paise, rupees: rupeesFromPaise( row.paise ) };
+  const breakdown = readBreakdown( row.breakdown );
+  return {
+    available: true,
+    paise: row.paise,
+    rupees: rupeesFromPaise( row.paise ),
+    ...( breakdown ? { breakdown } : {} ),
+  };
 }
 
 /**

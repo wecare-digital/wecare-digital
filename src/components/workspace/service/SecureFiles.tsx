@@ -39,7 +39,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
-import { fetchServicePrices, rupeesFromPaise } from '../../../lib/servicePricing';
+import { fetchServicePrices, rupeesFromPaise, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
@@ -96,6 +96,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     const [ acting, setActing ] = useState( '' );
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
     const [ vaultPricePaise, setVaultPricePaise ] = useState<number | null>( null );
+    const [ vaultBreakdown, setVaultBreakdown ] = useState<ServicePriceBreakdown | null>( null );
     const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
@@ -129,6 +130,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
             if ( cancelled ) return;
             const vault = prices.vault;
             setVaultPricePaise( vault?.available ? vault.paise : null );
+            setVaultBreakdown( vault?.available ? vault.breakdown || null : null );
             setVaultPriceLoading( false );
         } );
         return () => { cancelled = true; };
@@ -690,10 +692,12 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                         </div>
 
                         <div className="sf-review-breakdown">
-                            <div><span>Item subtotal</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
-                            <div><span>Discount</span><strong>₹0</strong></div>
-                            <div><span>Express</span><strong>₹0</strong></div>
-                            <div className="sf-review-total"><span>Total</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                            <div><span>Items + item GST</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                            <div><span>Delight</span><strong>{ vaultBreakdown ? `−₹${rupeesFromPaise( vaultBreakdown.delightPaise )}` : '—' }</strong></div>
+                            <div><span>Express</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.expressPaise )}` : '—' }</strong></div>
+                            <div><span>Convenience Fee</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
+                            <div><span>GST on Convenience Fee (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceGstPaise )}` : '—' }</strong></div>
+                            <div className="sf-review-total"><span>Amount Payable</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.totalPayablePaise )}` : '—' }</strong></div>
                         </div>
 
                         <div className="sf-review-meta">
@@ -708,7 +712,9 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                 ? 'Reading the live Vault price from ProductsTable…'
                                 : vaultPricePaise === null
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
-                                    : 'Preview only. Vault is exact-price: discount and Express are zero, so subtotal equals total. Sending or charging happens only from the normal Vault action.' }
+                                    : vaultBreakdown === null
+                                        ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
+                                        : 'Preview only. Values come from the same server pricing policy used by WhatsApp Review & Pay: Delight is automatic, Express is ₹25, Convenience Fee is 2.5%, and GST is 18% of the Convenience Fee. Sending or charging happens only from the normal Vault action.' }
                         </p>
                     </aside>
                 </div>

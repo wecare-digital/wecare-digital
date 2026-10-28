@@ -25,7 +25,7 @@ Four rules it enforces, each load-bearing
    session with `authorize_resource`, so one customer cannot read another's attempt (IDOR).
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
-   `checkout_pricing.compute_quote` adds the convenience fee and its GST for ordinary baskets; Vault access is fee-exempt at this same pricing seam. The browser sends
+   `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs use the same Collect-style breakdown, including Delight and Express, at this same pricing seam. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
@@ -968,53 +968,43 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
-    # The always-on "Delight" goodwill discount (0.5% up to ₹50), auto-applied SERVER-SIDE on
-    # every PRODUCT order so the customer cannot clear it from the browser. Priced by the one
-    # standalone computation (`default_coupon.delight_paise` via `catalog_pricing.coupon_discount_paise`),
-    # clamped at the subtotal and capped at ₹50. There is no coupon system and no gift-card system
-    # any more: the figure is pure arithmetic, no table read and no coupon engine.
-    #
-    # SUPPRESSED for a basket that contains a SERVICE line (Submit Request / Vault / Drop Docs /
-    # Amendment / Pickup): a service is priced "to the paise" against its exact catalogue price, a
-    # contract pinned by `test_service_lines_dropdocs_vault` and the `serviceLine` PAYREF# row, so
-    # a percentage discount would move the frozen per-line price and trip `ServicePriceChanged`.
+    # Delight is always server-owned. Product baskets receive it as before. Vault and Drop Docs
+    # now deliberately use the same Collect presentation: item subtotal -> Delight -> Express.
+    # Other service kinds retain their existing policy and do not opt into Delight here.
     from lambda_utils.ecommerce import default_coupon, service_requests
-    coupon_definition = (None if service_requests.has_service_line(line_items)
-                         else default_coupon.delight_definition())
+    service_line = service_requests.service_line(line_items)
+    collect_breakdown = (
+        service_line is not None
+        and service_line.kind in (service_requests.VAULT, service_requests.DROP_DOCS)
+    )
+    coupon_definition = (
+        default_coupon.delight_definition()
+        if not service_requests.has_service_line(line_items) or collect_breakdown
+        else None
+    )
+    shipping_policy = (
+        native_shipping.ShippingPolicy(
+            flat_rate_paise=service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE,
+            # The catastrophe rail caps the service line below this threshold, so these two
+            # services always resolve the fixed Express row rather than the free option.
+            free_above_paise=service_requests.SERVICE_LINE_MAX_PAISE + 1,
+        )
+        if collect_breakdown else native_shipping.ShippingPolicy()
+    )
     snapshot = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
         customer_id=identity.customer_id,
         created_at=now,
         ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
-        shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
+        shipping_policy=shipping_policy,
         gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
         coupon_definition=coupon_definition,
     )
 
-    # Vault and Drop Docs are sold at their exact catalogue prices: the catalogue amount is the
-    # total the customer pays. Keep this at the ONE pricing seam shared by website and WhatsApp
-    # checkout so the order subtotal, payment request, invoice and Workspace order all agree.
-    service_line = service_requests.service_line(line_items)
-    if service_line is not None and service_line.kind in (
-            service_requests.VAULT, service_requests.DROP_DOCS):
-        exact_quote = checkout_pricing.exempt_quote(
-            snapshot.quote.collection_before_convenience_paise,
-            currency=snapshot.quote.currency,
-        )
-        frozen = snapshot.frozen_data
-        return checkout_pricing.build_snapshot(
-            customer_id=snapshot.customer_id,
-            cart_id=snapshot.cart_id,
-            cart_revision=snapshot.cart_revision,
-            quote=exact_quote,
-            created_at=snapshot.created_at,
-            ttl_seconds=snapshot.expires_at - snapshot.created_at,
-            site=frozen.get("site"),
-            items=frozen.get("items"),
-            address=frozen.get("address"),
-            delivery=frozen.get("delivery"),
-        )
+    # For Vault/Drop Docs the native quote is already the complete Collect-style amount:
+    # GST-inclusive item subtotal -> Delight -> Express -> Convenience Fee -> 18% GST on that fee.
+    # Do NOT rebuild it with exempt_quote; doing so would erase the fee/GST the customer reviewed.
     return snapshot
 
 
@@ -2686,8 +2676,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details
         contact_id = catalog_session['contactId']
-        details = payment_details(catalog_session, snapshot.quote, reference_id,
-                                  EXPECTED_CONFIGURATION_NAME, int(time.time()))
+        details = payment_details(
+            catalog_session, snapshot.quote, reference_id,
+            EXPECTED_CONFIGURATION_NAME, int(time.time()),
+            invoice_lines=attempt.get("invoiceLines"),
+        )
     else:
         contact_id = contact_key.resolve(cart_profile or {})
         details = _cart_order_details(

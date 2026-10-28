@@ -2083,9 +2083,8 @@ def run(root: Path) -> int:
     vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
     vault_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]
 
-    # Vault is the exact-price exception at the single shared checkout seam. Pin the customer-
-    # visible contract here: a 4900-paise catalogue line must remain a 4900-paise payable, while
-    # an ordinary service at the same catalogue amount still receives the standard fee policy.
+    # Vault and Drop Docs use the Collect-style payment breakdown at the single shared checkout
+    # seam: catalog item -> Delight -> Express Rs.25 -> Convenience Fee -> 18% GST on that fee.
     original_reader = checkout._native_product_reader
     try:
         drop_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.DROP_DOCS]
@@ -2111,17 +2110,23 @@ def run(root: Path) -> int:
             "catalogReference": {"catalogItemId": submit_product, "options": {"variantId": submit_variant}},
             "quantity": 1,
         }], int(time.time())).quote
-        check("SVC", "Vault catalogue price is the exact payable: 4900 paise, zero fee and zero fee GST",
-              vault_quote.total_payable_paise == 4900
-              and vault_quote.convenience_fee_paise == 0
-              and vault_quote.convenience_gst_paise == 0,
+        vault_delight = default_coupon.delight_paise(4900)
+        vault_collection = 4900 - vault_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
+        vault_expected = checkout_pricing.compute_quote(vault_collection, currency="INR")
+        drop_delight = default_coupon.delight_paise(19900)
+        drop_collection = 19900 - drop_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
+        drop_expected = checkout_pricing.compute_quote(drop_collection, currency="INR")
+        check("SVC", "Vault: item + GST -> Delight -> Express Rs.25 -> fee -> 18% fee GST -> payable",
+              vault_quote.components() == vault_expected.components()
+              and vault_quote.convenience_fee_paise > 0
+              and vault_quote.convenience_gst_paise > 0,
               vault_quote.components())
-        check("SVC", "Drop Docs catalogue price is the exact payable: 19900 paise",
-              drop_quote.total_payable_paise == 19900
-              and drop_quote.convenience_fee_paise == 0
-              and drop_quote.convenience_gst_paise == 0,
+        check("SVC", "Drop Docs uses the same Collect-style breakdown",
+              drop_quote.components() == drop_expected.components()
+              and drop_quote.convenience_fee_paise > 0
+              and drop_quote.convenience_gst_paise > 0,
               drop_quote.components())
-        check("SVC", "the exact-price exceptions do not remove the standard fee from other services",
+        check("SVC", "ordinary services keep their existing standard fee policy",
               ordinary_quote.total_payable_paise > 4900
               and ordinary_quote.convenience_fee_paise > 0,
               ordinary_quote.components())
@@ -2198,13 +2203,13 @@ def run(root: Path) -> int:
           and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
     W.handlers["wecare-commerce"] = checkout.handler
 
-    # ── 13. one ₹49 Vault purchase end to end ────────────────────────────────────────────────────
+    # ── 13. one Vault purchase end to end ────────────────────────────────────────────────────────
     # Section 12 proves the leg up to Review and Pay; nothing else here paid for, granted or
     # delivered a Vault file. This drives the whole purchase through the production handlers:
     # business-api (offer, tap, paid delivery), commerce (Review and Pay, finalization), the
     # Razorpay webhook, service-requests (activation), secure-files (window, the customer's Vault
     # list, the download) and outbound, with the real service-request store on moto.
-    print("\n== 13. Vault ₹49 end to end: offer -> Unlock Vault -> pay -> entitlement -> Access Vault"
+    print("\n== 13. Vault end to end: offer -> Unlock Vault -> pay -> entitlement -> Access Vault"
           " -> download -> renewal")
     sys.path.insert(0, str(functions / "messaging" / "whatsapp-business-api"))
     sys.path.insert(0, str(functions / "core" / "secure-files"))
@@ -2300,9 +2305,9 @@ def run(root: Path) -> int:
     attempts = _attempts_for(vera["sub"])
     intents = [r for r in _scan("ServiceRequestsTable")
                if str(r.get("requestId", "")).startswith("INTENT#") and r.get("vaultFileId") == vera_file]
-    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for 4900 paise",
+    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for the quoted payable",
           len(intents) == 1 and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(attempts) == 1
-          and int(attempts[0].get("amountPaise") or 0) == 4900,
+          and int(attempts[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
           {"intents": len(intents), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
     mark = W.mark()
     deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
@@ -2379,9 +2384,9 @@ def run(root: Path) -> int:
         mark = W.mark()
         deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP2", "vaultoffer:" + next(iter(new_tokens), "")))
         renewals = [a for a in _attempts_for(vera["sub"]) if a["paymentAttemptId"] != purchase["paymentAttemptId"]]
-        check("VLT", "the renewal tap sends ONE more Review and Pay for 4900 paise",
+        check("VLT", "the renewal tap sends ONE more Review and Pay for the quoted payable",
               len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(renewals) == 1
-              and int(renewals[0].get("amountPaise") or 0) == 4900,
+              and int(renewals[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
               [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals])
         if renewals:
             mark = W.mark()
