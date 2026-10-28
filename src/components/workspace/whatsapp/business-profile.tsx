@@ -18,7 +18,7 @@ const PHONES = [
   { id: WHATSAPP_PHONES.secondary.id, metaId: '1055232054343117', display: WHATSAPP_PHONES.secondary.display, name: WHATSAPP_PHONES.secondary.name },
 ];
 
-const VERTICALS = [ 'UNDEFINED', 'OTHER', 'AUTO', 'BEAUTY', 'APPAREL', 'EDU', 'ENTERTAIN', 'EVENT_PLAN', 'FINANCE', 'GROCERY', 'GOVT', 'HOTEL', 'HEALTH', 'NONPROFIT', 'PROF_SERVICES', 'RETAIL', 'TRAVEL', 'RESTAURANT', 'NOT_A_BIZ' ];
+const VERTICALS = [ 'ALCOHOL', 'APPAREL', 'AUTO', 'BEAUTY', 'EDU', 'ENTERTAIN', 'EVENT_PLAN', 'FINANCE', 'GOVT', 'GROCERY', 'HEALTH', 'HOTEL', 'NONPROFIT', 'ONLINE_GAMBLING', 'OTC_DRUGS', 'OTHER', 'PHYSICAL_GAMBLING', 'PROF_SERVICES', 'RESTAURANT', 'RETAIL', 'TRAVEL' ];
 
 /** The leading '' row is the placeholder ROW, selectable exactly as the old `<option value="">` was. */
 const VERTICAL_OPTIONS: SelectOption[] = [
@@ -139,7 +139,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
               </div>
             ) }
 
-            {/* Profile Picture */ }
+            {/* Profile picture URL is read-only here. Meta profile updates require a profile_picture_handle from the Resumable Upload API. */ }
             { profile?.profile_picture_url && (
               <div style={ { marginBottom: 16 } }>
                 <img src={ profile.profile_picture_url } alt="Profile" style={ { width: 80, height: 80, borderRadius: '50%', objectFit: 'cover' } } />
