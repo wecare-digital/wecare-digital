@@ -1,4 +1,4 @@
-"""Vault purchase over WhatsApp: document list, ₹49 payment request, paid-file refresh.
+"""Paid WhatsApp services: Vault document access and F003 Drop Docs checkout.
 
 Internal invocation only; rollout defaults off (WHATSAPP_CATALOG_SERVICES_ENABLED).
 
@@ -90,7 +90,8 @@ def readiness(graph):
     """Live Meta readback of the two templates a Vault purchase needs. Reads only."""
     templates = {}
     for name, ident in {'wecare_whatapp_native_pay_template': '2714938845570815',
-                        'wecare_default_download': '1410998911012572'}.items():
+                        'wecare_default_download': '1410998911012572',
+                        'drop_docs_flow': '1681315560321380'}.items():
         info = graph(ident, params={'fields': 'id,name,status,language,components'})
         templates[name] = {k: info.get(k) for k in ('id', 'name', 'status', 'language', 'components', 'error')}
     return {'templates': templates}
@@ -280,6 +281,9 @@ def handle(event, client):
                'contactId': contact['id'], 'phone': identity.phone, 'customerId': identity.customer_id,
                'phoneNumberId': event['phoneNumberId'], 'sourceMessageId': event['sourceMessageId'],
                'createdAt': now, 'expiresAt': now + 3600, 'status': 'SELECTING'}
+        if choice['kind'] == service_requests.DROP_DOCS:
+            keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+            return _prepare_drop_docs_payment(client, db, keys, row, identity, notify=True)
         files = db.Table(vault.FILES_TABLE)
         projected = files.query(IndexName='owner-created-index',
             KeyConditionExpression='ownerPhone=:p', ExpressionAttributeValues={':p': identity.phone.lstrip('+')},
@@ -503,6 +507,70 @@ def _send_offer(event, client, db, keys, contacts, now):
         except Exception:  # noqa: BLE001 - a newer offer owns the guard now
             pass
     return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED', 'detail': detail}
+
+
+def _prepare_drop_docs_payment(client, db, keys, row, identity, *, notify):
+    """Create one target-free paid Drop Docs intent, then send the native Review and Pay.
+
+    The target is deliberately chosen later inside F003 and re-verified there. The standard
+    checkout rail still owns pricing, payment attempt, order, invoice and Workspace visibility.
+    """
+    now = int(time.time())
+    try:
+        keys.update_item(Key={'orderId': 'NATIVESERVICEACTIVE#' + identity.customer_id},
+            UpdateExpression='SET #s=:active, sessionKey=:session, activeUntil=:until',
+            ConditionExpression=('attribute_not_exists(orderId) OR #s=:closed '
+                                 'OR attribute_not_exists(activeUntil) OR activeUntil < :now'),
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':active': 'ACTIVE', ':closed': 'CLOSED',
+                                       ':session': row['orderId'],
+                                       ':until': int(row.get('expiresAt') or now + 3600),
+                                       ':now': now})
+    except Exception as error:
+        if _conditional_failed(error):
+            if notify:
+                _send(client, row, content='You already have a service payment in progress. Please complete that payment before starting another purchase.')
+            return {'outcome': 'NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS'}
+        raise
+    try:
+        keys.update_item(Key={'orderId': row['orderId']},
+            UpdateExpression='SET #s=:preparing',
+            ConditionExpression='#s=:selecting AND customerId=:owner',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':preparing': 'PREPARING_PAYMENT',
+                                       ':selecting': 'SELECTING',
+                                       ':owner': identity.customer_id})
+    except Exception as error:
+        if _conditional_failed(error):
+            return {'outcome': 'CATALOG_SERVICE_ALREADY_PREPARING'}
+        raise
+    try:
+        intent = store.request_intent(
+            db.Table(REQUESTS_TABLE), identity, service_requests.DROP_DOCS)
+        keys.update_item(Key={'orderId': row['orderId']},
+                         UpdateExpression='SET serviceIntentId=:intent',
+                         ExpressionAttributeValues={':intent': intent['intentId']})
+    except (service_requests.ServiceRejected, customer_auth.CustomerNotAuthorized,
+            store.ServiceIdentityUnavailable) as refused:
+        _close(keys, row, identity.customer_id)
+        if notify:
+            _send(client, row, content='We could not start Drop Docs payment. Please try again.')
+        return {'outcome': 'DROP_DOCS_PAYMENT_NOT_PREPARED',
+                'reason': getattr(refused, 'code', '') or type(refused).__name__}
+    try:
+        result = _invoke(client, 'wecare-commerce:live', {
+            'internalAction': 'prepareNativeCatalogService', 'catalogToken': row['token']})
+    except Exception:
+        result = {'outcome': 'PAYMENT_REQUEST_UNCONFIRMED'}
+    keys.update_item(Key={'orderId': row['orderId']},
+                     UpdateExpression='SET paymentResult=:result',
+                     ExpressionAttributeValues={':result': result})
+    outcome = _payment_outcome(result)
+    if outcome in _NOT_SENT:
+        _close(keys, row, identity.customer_id)
+        if notify:
+            _send(client, row, content='Drop Docs payment is unavailable right now. Please try again later.')
+    return {'outcome': outcome, 'kind': service_requests.DROP_DOCS}
 
 
 def _prepare_payment(client, db, keys, row, identity, state, *, notify):
