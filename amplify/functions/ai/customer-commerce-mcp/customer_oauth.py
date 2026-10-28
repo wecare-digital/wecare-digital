@@ -512,7 +512,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     hero_words = [
         ('WECARE.DIGITAL', '#fef3c7', '#f0a818'),
         ('WhatsApp', '#dcfce7', '#22c55e'),
-        ('Google Play', '#e0f2fe', '#0284c7'),
+        ('Android', '#e0f2fe', '#0284c7'),
         ('iOS', '#f3f4f6', '#6b7280'),
         ('ChatGPT', '#ede9fe', '#9849e8'),
         ('Claude', '#e0f7c8', '#3da35a'),
