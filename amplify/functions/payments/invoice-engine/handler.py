@@ -24,6 +24,7 @@ Prefix: secure/d/public/Invoice/customer_invoice/  (GATED - moved off the public
 import os
 import sys
 import json
+import base64
 import uuid
 import time
 import logging
@@ -3289,6 +3290,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'amount': {'value': amt_paise, 'offset': 100},
                 'quantity': qty,
             }
+            if item.get('name', '').strip().lower() not in CHARGE_ITEM_NAMES:
+                # Meta renders a generic cart glyph when an ORDER_DETAILS line has no image.
+                # The owner wants the payment-order thumbnail visible on ordinary staff/service
+                # collections too. Use the same immutable square WECARE catalog icon as the
+                # approved template header; fee/charge rows stay image-free.
+                entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}
             if item.get('name', '').strip().lower() in CHARGE_ITEM_NAMES:
                 charge_items.append(entry)
             else:
@@ -3298,10 +3305,9 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         order_items = []
         subtotal_paise = 0
         for entry in merged_items:
-            # Manual/service lines intentionally carry no thumbnail. Repeating the same corporate
-            # icon made unrelated services and fees look like one product and WhatsApp resampled
-            # it poorly. True catalog items use the catalog checkout path and retain their real
-            # product identity/image there.
+            # Regular lines carry the approved square WECARE payment/catalog thumbnail. Charges
+            # (including Convenience Fee) remain text-only; true catalog checkout continues to
+            # carry its own retailer identity and product image.
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3604,7 +3610,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                                          if invoice.get('couponCode') == default_coupon.DELIGHT_CODE
                                          else 'Discount')},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
-            'tax': {'value': total_gst_paise, 'offset': 100, 'description': COMPANY["gstin"]},
+            'tax': {'value': total_gst_paise, 'offset': 100, 'description': 'GST'},
         },
     }
 
@@ -3625,8 +3631,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateName': WA_PAY_TEMPLATE,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
-            # Fixed wide brand header on every payment. Manual/service rows intentionally carry
-            # no repeated thumbnail; catalog checkout keeps real catalog product imagery.
+            # Fixed square WECARE payment/catalog image on the template header; regular
+            # non-charge order rows use the same approved thumbnail instead of Meta's cart glyph.
             'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
             'idempotencyKey': f'payment-request:{reference_id}',
         })
