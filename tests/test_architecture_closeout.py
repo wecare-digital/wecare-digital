@@ -398,32 +398,46 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
 
 
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):
-    """Workspace surfaces describe the real Vault template journey and never invent a price."""
+    """Drop Docs is intake; Vault owns delivery/payment/access and one unavailable copy."""
 
-    def test_documents_page_shows_the_vault_message_journey(self):
-        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+    def test_vault_is_a_first_class_service_mode_and_secure_files_is_only_an_alias(self):
+        page = (ROOT / "src" / "pages" / "workspace" / "service" / "index.tsx").read_text(
             encoding="utf-8"
         )
-        for name in (
-            "wecare_vault_request_ready",
-            "wecare_whatapp_native_pay_template",
-            "wecare_default_download",
-            "wecare_default_invoice_image_template",
-        ):
-            self.assertIn(name, source)
-        self.assertIn("Vault WhatsApp journey", source)
-        self.assertIn("Vault offer uses the approved WECARE header; receipt uses the generated payment image.", source)
-        self.assertNotIn("Send ₹49 Vault message", source)
-        self.assertNotIn("Send ₹49 renewal message", source)
+        nav = (ROOT / "src" / "config" / "navigation.ts").read_text(encoding="utf-8")
+        self.assertIn("'documents', 'vault'", page)
+        self.assertIn("<SecureFiles signOut={ signOut } user={ user } embedded manageOnly />", page)
+        self.assertIn("'/workspace/service?view=vault', label: 'Vault'", nav)
+        self.assertIn("'/workspace/service?view=documents', label: 'Drop Docs'", nav)
+        self.assertNotIn("label: 'Secure Files'", nav)
 
-    def test_secure_files_ui_has_no_hard_coded_vault_price(self):
+    def test_vault_page_shows_only_delivery_journey_when_manage_only(self):
         source = (ROOT / "src" / "components" / "workspace" / "service" / "SecureFiles.tsx").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Send the Vault offer on WhatsApp after upload", source)
-        self.assertIn("Price comes from the live catalog.", source)
+        self.assertIn("manageOnly ? 'Vault' : 'Secure files'", source)
+        self.assertIn("Uploads start in Drop Docs.", source)
+        self.assertIn("Vault customer journey", source)
+        self.assertIn("Request ready", source)
+        self.assertIn("Review & Pay", source)
+        self.assertIn("Access Vault", source)
+        self.assertIn("Receipt", source)
+        self.assertIn("{ !manageOnly && (", source)
         self.assertNotIn("rupees( 4900 )", source)
         self.assertNotIn("₹49", source)
+
+    def test_customer_document_fallback_is_one_short_message(self):
+        source = (
+            FUNCTIONS / "messaging" / "whatsapp-business-api" / "flows" / "catalog_services.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("DOCUMENT_UNAVAILABLE = 'This document is not available right now.'", source)
+        self.assertNotIn("No Vault documents are currently available", source)
+        self.assertNotIn("This document list has expired", source)
+        self.assertNotIn("This document cannot be paid for right now", source)
+        self.assertNotIn("This document is no longer available", source)
+        unlock = source[source.index("if action == 'unlock':"):source.index("if action == 'start':")]
+        self.assertIn("_send(client, sender, content=DOCUMENT_UNAVAILABLE)", unlock)
+        self.assertNotIn("action = 'start'", unlock)
 
 
 
