@@ -283,6 +283,13 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("render_token = uuid.uuid4().hex[:12]", source)
         self.assertIn("no-store, max-age=0, must-revalidate", source)
 
+    def test_customer_receipt_key_does_not_expose_internal_invoice_number(self):
+        source = HANDLER.read_text(encoding="utf-8")
+        stem = source[source.index("def _invoice_asset_stem"):source.index("def _next_asset_version")]
+        self.assertNotIn("invoiceNumber", stem)
+        self.assertNotIn("__{reference}", stem)
+        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}"', stem)
+
     def test_receipt_v9_uses_fixed_reference_canvas(self):
         source = RECEIPT_LAYOUT.read_text(encoding="utf-8")
         self.assertIn("BASE_W = 1024", source)
