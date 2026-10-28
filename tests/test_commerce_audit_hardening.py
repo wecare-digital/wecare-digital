@@ -410,7 +410,7 @@ class PaymentOrderLifecycleTests(unittest.TestCase):
         )
         self.assertIn(template_media.DEFAULT_ORDER_ITEM_THUMBNAIL, runbook)
         self.assertIn("one default WECARE thumbnail", runbook)
-        self.assertIn("fee rows remain image-free", runbook)
+        self.assertIn("Convenience Fee / shipping / GST / Delight rows remain image-free", runbook)
         self.assertIn("no catalog/product-specific image selection", runbook)
 
 
