@@ -509,9 +509,11 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '' if phase == 'phone' else
         '<button class="auth-action" type="submit" name="action" value="resend" formnovalidate>Resend code</button>'
     )
-    action_note = '<span class="auth-action-note">Verification code</span>'
     hero_words = [
-        ('the website', '#fef3c7', '#f0a818'),
+        ('WECARE.DIGITAL', '#fef3c7', '#f0a818'),
+        ('WhatsApp', '#dcfce7', '#22c55e'),
+        ('Android', '#e0f2fe', '#0284c7'),
+        ('iOS', '#f3f4f6', '#6b7280'),
         ('ChatGPT', '#ede9fe', '#9849e8'),
         ('Claude', '#e0f7c8', '#3da35a'),
         ('Gemini', '#fee2e2', '#dc2626'),
@@ -576,7 +578,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
         field +
         '<div class="auth-actions"><button class="auth-action" type="submit">' + primary_text + '</button>' +
-        resend + action_note + '</div></form>'
+        resend + '</div></form>'
         '</div></section>'
     )
     stay_connected = (
@@ -743,9 +745,9 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
         '.destination{margin:0 0 14px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
         '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
-        'width:100%;min-height:48px;border:1px solid #eef0e6;border-radius:12px;background:#fff;position:relative}.country-picker{position:relative;'
-        'flex:0 0 82px;display:flex}.country-trigger{width:82px;min-height:46px;border:0;border-radius:11px 0 0 11px;background:var(--lime-tint);'
-        'color:var(--green);font:700 16px/1 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:3px solid var(--green);outline-offset:-3px}'
+        'width:100%;min-height:48px;border:0;border-radius:12px;background:#f8faf3;position:relative;box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}.country-picker{position:relative;'
+        'flex:0 0 82px;display:flex}.country-trigger{width:82px;min-height:48px;border:0;border-radius:12px 0 0 12px;background:var(--lime-tint);'
+        'color:var(--green);font:700 16px/1 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}'
         '.country-panel{position:absolute;top:56px;inset-inline-start:0;z-index:1200;width:min(260px,calc(100vw - 40px));max-height:300px;'
         'display:flex;flex-direction:column;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid var(--lime);border-radius:14px;'
         'box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}.country-panel[hidden]{display:none}.country-search{display:flex;align-items:center;gap:8px;'
@@ -756,17 +758,17 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'padding:10px 14px;border:0;border-radius:0;background:transparent;color:var(--green);font:600 16px/1.25 inherit;text-align:start;cursor:pointer}'
         '.country-row:hover,.country-row:focus-visible{background:rgba(209,244,112,.38)}.country-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
         '.country-code{flex:0 0 auto;font-size:13px;font-weight:700;color:rgba(26,58,42,.58)}.phone-field>input{flex:1 1 auto;width:0;min-width:0;border:0;'
-        'border-radius:0 11px 11px 0;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;box-shadow:none}.phone-field:focus-within{'
-        'border-color:var(--lime)}.phone-field>input:focus-visible{outline:3px solid var(--green);outline-offset:-3px}.single-field{width:100%;min-height:48px;'
-        'border:1px solid #eef0e6;border-radius:12px;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;line-height:1.2;box-shadow:none}'
-        '.single-field:focus-visible{border-color:var(--lime);outline:3px solid var(--green);outline-offset:2px}.auth-actions{display:flex;align-items:center;gap:9px;'
+        'border-radius:0 12px 12px 0;background:#fff;color:var(--text);padding:0 12px;font-family:inherit;font-size:16px;box-shadow:none}.phone-field:focus-within{'
+        'box-shadow:inset 0 0 0 1px rgba(209,244,112,.95),0 0 0 2px rgba(209,244,112,.22)}.phone-field>input:focus-visible{outline:0;'
+        'box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}.single-field{width:100%;min-height:48px;border:0;border-radius:12px;background:#fff;color:var(--text);'
+        'padding:0 12px;font-family:inherit;font-size:16px;line-height:1.2;box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}'
+        '.single-field:focus-visible{outline:0;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34),0 0 0 2px rgba(209,244,112,.22)}.auth-actions{display:flex;align-items:center;gap:9px;'
         'flex-wrap:wrap;margin-top:13px}.auth-action{display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:44px;box-sizing:border-box;'
         'margin:0;padding:6px 9px;border:0;border-radius:8px;background:var(--lime-tint);color:var(--green);font-family:inherit;font-size:17px;font-weight:600;'
         'line-height:1.4;letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;'
         'text-underline-offset:3px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}'
         '.auth-action:hover{background:var(--lime);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}'
-        '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}.auth-action-note{'
-        'color:var(--muted);font-size:13px;font-weight:500;line-height:1.35}.alert{margin:0 0 12px;padding:8px 10px;border:0;background:#fff;border-radius:8px;'
+        '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}.alert{margin:0 0 12px;padding:8px 10px;border:0;background:#fff;border-radius:8px;'
         'color:var(--text);font-size:14px;line-height:1.4}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
         'margin-top:32px;padding:12px 0 28px}.ps-kicker{display:flex;width:max-content;max-width:100%;align-items:center;min-height:32px;padding:0 14px;'
         'margin:0 0 18px;border-radius:999px;background:var(--lime);color:var(--green);font-size:17px;font-weight:700;line-height:1}.ps-row{display:flex;'
@@ -830,9 +832,9 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         header +
         '<main class="home-shell"><div class="home-layout">'
         '<div class="home-hero"><h1 class="home-head">'
-        '<span class="home-head-line">One&nbsp;account, built&nbsp;for</span>' +
+        '<span class="home-head-line">One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.</span>' +
         hero_pill +
-        '</h1><p class="home-sub">Sign in with WhatsApp and continue securely wherever you started.</p></div>' +
+        '</h1><p class="home-sub">Sign in with WhatsApp. Continue anywhere.</p></div>' +
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
@@ -1017,7 +1019,7 @@ def authorize_post(params: dict, event: dict) -> dict:
         # line carries the step and a sanitised exception class name only.
         category = re.sub('[^A-Za-z0-9_]', '', type(error).__name__)[:64]
         print(json.dumps({'event': 'customer_authorization_failed', 'stage': stage, 'category': category}))
-        return save_pending(row, login, 'Couldn’t verify. Try again.')
+        return save_pending(row, login)
 
 
 def route(event: dict) -> dict | None:
