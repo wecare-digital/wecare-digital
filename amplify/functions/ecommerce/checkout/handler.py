@@ -25,7 +25,7 @@ Four rules it enforces, each load-bearing
    session with `authorize_resource`, so one customer cannot read another's attempt (IDOR).
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
-   `checkout_pricing.compute_quote` adds the convenience fee and its GST for ordinary baskets; Vault access is fee-exempt at this same pricing seam. The browser sends
+   `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs use their owner-approved service sequence at this same pricing seam: 18% supply GST, Delight, Rs25 Express, then the standard convenience fee and fee GST. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
@@ -767,10 +767,16 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     quote = snapshot.quote
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
-    # Native catalog prices are GST-inclusive today. The only adjustment between merchandise +
-    # delivery and collection is the always-on Delight discount.
-    discount_paise = max(
-        0, merchandise_paise + delivery_paise - int(quote.collection_before_convenience_paise))
+    pricing_metadata = frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
+    if explicit_discount is not None:
+        discount_paise = max(0, int(explicit_discount))
+    else:
+        # Ordinary native catalog prices are GST-inclusive today. For those carts, the only
+        # adjustment between merchandise + delivery and collection is Delight.
+        discount_paise = max(
+            0, merchandise_paise + delivery_paise - int(quote.collection_before_convenience_paise))
 
     subtotal_paise = merchandise_paise
     if quote.convenience_fee_paise:
@@ -789,9 +795,9 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
         "subtotal": {"value": subtotal_paise, "offset": 100},
         "shipping": {"value": delivery_paise, "offset": 100},
         "tax": {
-            "value": int(quote.convenience_gst_paise),
+            "value": supply_gst_paise + int(quote.convenience_gst_paise),
             "offset": 100,
-            "description": "GST on convenience fee",
+            "description": "GST",
         },
         "expiration": {
             "timestamp": str(now + 900),
@@ -875,15 +881,20 @@ def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
     quote = snapshot.quote
-    # Same derivation `_cart_order_details` sends Meta: the only adjustment between merchandise +
-    # delivery and the collection is the always-on Delight discount.
-    discount_paise = merchandise_paise + delivery_paise - int(
-        quote.collection_before_convenience_paise)
-    if discount_paise < 0:
-        return None
+    pricing_metadata = frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
+    if explicit_discount is not None:
+        discount_paise = max(0, int(explicit_discount))
+    else:
+        discount_paise = merchandise_paise + delivery_paise - int(
+            quote.collection_before_convenience_paise)
+        if discount_paise < 0:
+            return None
     spec: Dict[str, Any] = {
         "lines": lines,
         "deliveryPaise": delivery_paise,
+        "supplyGstPaise": supply_gst_paise,
         "discountPaise": discount_paise,
         "convenienceFeePaise": int(quote.convenience_fee_paise),
         "convenienceGstPaise": int(quote.convenience_gst_paise),
@@ -902,6 +913,68 @@ class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
     currently exposes a single free option, so nothing raises this today; it is retained as the
     seam for a future shipping policy with real, selectable methods.
     """
+
+
+def _vault_dropdocs_quote(*, identity, ephemeral_cart, reader, service_line, now: int):
+    """Price Vault/Drop Docs using the owner-approved collection sequence.
+
+    Sequence in integer paise:
+      catalogue item -> 18% supply GST -> Delight -> Express Rs25 ->
+      2.5% convenience fee -> 18% GST on convenience fee -> total payable.
+
+    The catalogue line price remains authoritative. The supply GST and delivery are frozen
+    explicitly so ORDER_DETAILS, the payment attempt, invoice and receipt all show the same facts.
+    """
+    from lambda_utils.ecommerce import default_coupon, catalog_pricing
+
+    # First freeze the authoritative ProductsTable item identity/price. Delivery/GST/discount are
+    # deliberately zero here; this snapshot is only the item-price source for the custom sequence.
+    base = native_checkout.quote_native_cart(
+        ephemeral_cart,
+        product_reader=reader,
+        customer_id=identity.customer_id,
+        created_at=now,
+        ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
+        shipping_policy=native_shipping.ShippingPolicy(),
+        gst_bps=0,
+        coupon_definition=None,
+    )
+    frozen = dict(base.frozen_data)
+    frozen_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    merchandise_paise = sum(
+        int(item.get("unitPricePaise") or 0) * int(item.get("quantity") or 0)
+        for item in frozen_items if isinstance(item, dict)
+    )
+    if merchandise_paise <= 0:
+        raise ValueError("Vault/Drop Docs quote has no positive catalogue amount")
+
+    supply_gst_paise = checkout_pricing.round_half_up(merchandise_paise, 1800)
+    gst_inclusive_paise = merchandise_paise + supply_gst_paise
+    delight_paise = default_coupon.delight_paise(gst_inclusive_paise)
+    express_paise = 2500
+    collection_paise = gst_inclusive_paise - delight_paise + express_paise
+    quote = checkout_pricing.compute_quote(collection_paise, currency="INR")
+
+    frozen["delivery"] = {"paise": express_paise, "optionId": "express"}
+    pricing_metadata = {
+        "policy": "vault-dropdocs-2026-10-28",
+        "supplyGstPaise": supply_gst_paise,
+        "discountPaise": delight_paise,
+    }
+    return checkout_pricing.build_snapshot(
+        customer_id=base.customer_id,
+        cart_id=base.cart_id,
+        cart_revision=base.cart_revision,
+        quote=quote,
+        created_at=base.created_at,
+        ttl_seconds=base.expires_at - base.created_at,
+        site=frozen.get("site"),
+        items=frozen_items,
+        address=frozen.get("address"),
+        delivery=frozen.get("delivery"),
+        pricing_metadata=pricing_metadata,
+    )
+
 
 
 def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
@@ -968,54 +1041,31 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
-    # The always-on "Delight" goodwill discount (0.5% up to ₹50), auto-applied SERVER-SIDE on
-    # every PRODUCT order so the customer cannot clear it from the browser. Priced by the one
-    # standalone computation (`default_coupon.delight_paise` via `catalog_pricing.coupon_discount_paise`),
-    # clamped at the subtotal and capped at ₹50. There is no coupon system and no gift-card system
-    # any more: the figure is pure arithmetic, no table read and no coupon engine.
-    #
-    # SUPPRESSED for a basket that contains a SERVICE line (Submit Request / Vault / Drop Docs /
-    # Amendment / Pickup): a service is priced "to the paise" against its exact catalogue price, a
-    # contract pinned by `test_service_lines_dropdocs_vault` and the `serviceLine` PAYREF# row, so
-    # a percentage discount would move the frozen per-line price and trip `ServicePriceChanged`.
     from lambda_utils.ecommerce import default_coupon, service_requests
-    coupon_definition = (None if service_requests.has_service_line(line_items)
+    service_line = service_requests.service_line(line_items)
+    if service_line is not None and service_line.kind in (
+            service_requests.VAULT, service_requests.DROP_DOCS):
+        return _vault_dropdocs_quote(
+            identity=identity,
+            ephemeral_cart=ephemeral_cart,
+            reader=reader,
+            service_line=service_line,
+            now=now,
+        )
+
+    # All non-Vault/Drop-Docs behavior remains unchanged.
+    coupon_definition = (None if service_line is not None
                          else default_coupon.delight_definition())
-    snapshot = native_checkout.quote_native_cart(
+    return native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
         customer_id=identity.customer_id,
         created_at=now,
         ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
-        shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
-        gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
+        shipping_policy=native_shipping.ShippingPolicy(),
+        gst_bps=0,
         coupon_definition=coupon_definition,
     )
-
-    # Vault and Drop Docs are sold at their exact catalogue prices: the catalogue amount is the
-    # total the customer pays. Keep this at the ONE pricing seam shared by website and WhatsApp
-    # checkout so the order subtotal, payment request, invoice and Workspace order all agree.
-    service_line = service_requests.service_line(line_items)
-    if service_line is not None and service_line.kind in (
-            service_requests.VAULT, service_requests.DROP_DOCS):
-        exact_quote = checkout_pricing.exempt_quote(
-            snapshot.quote.collection_before_convenience_paise,
-            currency=snapshot.quote.currency,
-        )
-        frozen = snapshot.frozen_data
-        return checkout_pricing.build_snapshot(
-            customer_id=snapshot.customer_id,
-            cart_id=snapshot.cart_id,
-            cart_revision=snapshot.cart_revision,
-            quote=exact_quote,
-            created_at=snapshot.created_at,
-            ttl_seconds=snapshot.expires_at - snapshot.created_at,
-            site=frozen.get("site"),
-            items=frozen.get("items"),
-            address=frozen.get("address"),
-            delivery=frozen.get("delivery"),
-        )
-    return snapshot
 
 
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
@@ -2686,7 +2736,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details
         contact_id = catalog_session['contactId']
-        details = payment_details(catalog_session, snapshot.quote, reference_id,
+        details = payment_details(catalog_session, snapshot, reference_id,
                                   EXPECTED_CONFIGURATION_NAME, int(time.time()))
     else:
         contact_id = contact_key.resolve(cart_profile or {})
@@ -2965,8 +3015,8 @@ def _order_charges(spec: Dict[str, Any], items: list,
                    amount: Optional[int]) -> Optional[Dict[str, Any]]:
     """The price breakdown recorded with the lines, or None when it does not reconcile.
 
-    Integer paise only, and EXACT: merchandise + delivery - discount + fee + fee GST must equal
-    the recorded total and the order's own amount. A breakdown that disagrees with what was
+    Integer paise only, and EXACT: merchandise + supply GST + delivery - discount + fee + fee GST
+    must equal the recorded total and the order's own amount. A breakdown that disagrees with what was
     charged by one paise is omitted rather than shown, and the page shows the total alone.
     """
     terms = {key: finalization.integer_paise(spec.get(key)) for key in (
@@ -2974,9 +3024,16 @@ def _order_charges(spec: Dict[str, Any], items: list,
         "totalPaise")}
     if any(value is None or value < 0 for value in terms.values()):
         return None
+    supply_gst = finalization.integer_paise(spec.get("supplyGstPaise"))
+    if supply_gst is None:
+        supply_gst = 0  # historical native-cart attempts predate this explicit field
+    if supply_gst < 0:
+        return None
+    terms["supplyGstPaise"] = supply_gst
     merchandise = sum(item["totalPaise"] for item in items)
-    total = (merchandise + terms["deliveryPaise"] - terms["discountPaise"]
-             + terms["convenienceFeePaise"] + terms["convenienceGstPaise"])
+    total = (merchandise + supply_gst + terms["deliveryPaise"]
+             - terms["discountPaise"] + terms["convenienceFeePaise"]
+             + terms["convenienceGstPaise"])
     if total != terms["totalPaise"] or amount is None or total != amount:
         return None
     charges: Dict[str, Any] = {"merchandisePaise": merchandise, **terms}
