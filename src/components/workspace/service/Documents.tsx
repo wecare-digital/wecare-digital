@@ -76,7 +76,7 @@ function fmtOrderLabel ( order: api.Order ): string {
   return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
 }
 
-/* {{1}} of the Vault offer (wecare_valut_49), cleaned the way the server cleans it: one
+/* {{1}} of the Vault offer (wecare_vault_request_ready), cleaned the way the server cleans it: one
    line, at most 60 characters, no * _ ~ marks (the body wraps {{1}} in *bold*). So the preview
    below is the text the customer receives. */
 function vaultMessageName ( raw?: string ): string {
@@ -768,10 +768,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <strong>Vault WhatsApp journey</strong>
               <span>What the customer receives, in order</span>
             </div>
-            <span className="dd-journey-note">Receipt image is the only intentional image message.</span>
+            <span className="dd-journey-note">Vault offer uses the approved WECARE header; receipt uses the generated payment image.</span>
           </div>
           <div className="dd-journey-grid">
-            <div><span>1</span><strong>Vault offer</strong><small>wecare_valut_49 · Unlock Vault</small></div>
+            <div><span>1</span><strong>Vault offer</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
             <div><span>2</span><strong>Review & Pay</strong><small>wecare_whatapp_native_pay_template</small></div>
             <div><span>3</span><strong>Access Vault</strong><small>wecare_default_download</small></div>
             <div><span>4</span><strong>Receipt</strong><small>wecare_default_invoice_image_template</small></div>
@@ -870,7 +870,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             { ( selected.vaultFileId || ( selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) ) ) && (
               <div style={ vaultBoxStyle }>
                 <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
-                  Vault message name <span style={ { fontWeight: 400, color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_valut_49)</span>
+                  Vault message name <span style={ { fontWeight: 400, color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_vault_request_ready)</span>
                   <input
                     type="text"
                     value={ vaultName }
@@ -882,8 +882,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   />
                 </label>
                 <div style={ helperStyle }>
-                  Offer preview: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> is ready in Vault.
-                  Tap below to unlock secure access.” with an <strong>Unlock Vault</strong> button.
+                  Request-ready preview: “📄 Your requested <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> is available in your Vault.
+                  Amount due for this request: <strong>₹49</strong>.” with an <strong>Unlock Vault</strong> button.
                 </div>
               </div>
             ) }
