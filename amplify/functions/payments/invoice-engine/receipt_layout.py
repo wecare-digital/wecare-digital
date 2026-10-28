@@ -20,7 +20,7 @@ PAPER = (253, 253, 251)
 PALE = (239, 246, 240)
 LINE = (210, 219, 213)
 PAID_GREEN = (8, 133, 55)
-RED = (240, 24, 53)
+RED = (255, 0, 64)  # brand dot, #ff0040 as in BrandLockup
 
 BASE_W = 1024
 BASE_H = 1536
