@@ -242,7 +242,7 @@ UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # presigned link this function issues; WhatsApp delivery sends a Vault page link instead.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
-MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(1024 * 1024 * 1024)))
 
 _s3 = None
 _ddb = None
