@@ -79,9 +79,9 @@
                 "type": "DocumentPicker",
                 "name": "documents",
                 "label": "Documents",
-                "description": "PDF, JPG or PNG · up to 3 files · 10 MB each",
+                "description": "PDF, JPG or PNG · up to 10 files · 10 MB each",
                 "min-uploaded-documents": 1,
-                "max-uploaded-documents": 3,
+                "max-uploaded-documents": 10,
                 "max-file-size-kb": 10240,
                 "allowed-mime-types": [
                   "application/pdf",
@@ -210,7 +210,18 @@
           },
           {
             "type": "Footer",
-            "label": "Done"
+            "label": "Done",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_key": "wd_f003_drop_docs",
+                "schema_version": "4",
+                "submission_id": "${data.submission_id}",
+                "reference_number": "${data.reference_number}",
+                "note": "${data.note}",
+                "documents": "${data.attachments}"
+              }
+            }
           }
         ]
       }
