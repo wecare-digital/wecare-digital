@@ -6,7 +6,7 @@ ProductsTable-priced snapshot and pass live payment readiness before sending a p
 from __future__ import annotations
 import re
 from typing import Any
-from lambda_utils import customer_auth, template_status
+from lambda_utils import customer_auth, template_status, template_media
 from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
@@ -116,51 +116,88 @@ def quick_reply_component(button: dict) -> dict:
             'parameters': [{'type': 'payload', 'payload': payload}]}
 
 
-def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int) -> dict:
+def payment_details(row: dict, snapshot: Any, reference_id: str,
+                    configuration: str, now: int) -> dict:
+    """Build Vault/Drop Docs ORDER_DETAILS from the frozen checkout snapshot.
+
+    Item price, supply GST, Delight, Express and checkout fees are server-owned facts frozen
+    by checkout. The service item explicitly carries the owner-approved 2048 WECARE thumbnail;
+    outbound-whatsapp enforces the same image again at the final send boundary.
+    """
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
-    labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
+    quote = snapshot.quote
+    frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+    frozen_items = frozen.get('items') if isinstance(frozen.get('items'), list) else []
+    if len(frozen_items) != 1 or not isinstance(frozen_items[0], dict):
+        raise ValueError('catalog service quote must contain one frozen item')
+    line = frozen_items[0]
+    item_paise = int(line.get('unitPricePaise') or 0) * int(line.get('quantity') or 0)
+    if item_paise <= 0:
+        raise ValueError('catalog service item price unavailable')
+
+    pricing = frozen.get('pricingMetadata') if isinstance(frozen.get('pricingMetadata'), dict) else {}
+    supply_gst_paise = int(pricing.get('supplyGstPaise') or 0)
+    discount_paise = int(pricing.get('discountPaise') or 0)
+    delivery = frozen.get('delivery') if isinstance(frozen.get('delivery'), dict) else {}
+    express_paise = int(delivery.get('paise') or 0)
+
+    labels = {'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
     label = labels.get(row['kind'], 'Service')
-    items = [{'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
-              'name': label, 'quantity': 1,
-              'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
+    items = [{
+        'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
+        'name': label,
+        'quantity': 1,
+        'amount': {'value': item_paise, 'offset': 100},
+        'image': {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL},
+    }]
     if quote.convenience_fee_paise:
-        # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
-        items.append({'name': 'Convenience fee', 'quantity': 1,
-                      'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
+        items.append({
+            'name': 'Convenience fee',
+            'quantity': 1,
+            'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100},
+        })
 
-    subtotal_paise = quote.collection_before_convenience_paise + quote.convenience_fee_paise
-    order = {'status': 'pending', 'items': items,
-             'subtotal': {'value': subtotal_paise, 'offset': 100},
-             'tax': {'value': quote.convenience_gst_paise, 'offset': 100,
-                     'description': 'GST on convenience fee'},
-             'expiration': {'timestamp': str(now + 900),
-                            'description': 'Complete payment within 15 minutes'}}
+    subtotal_paise = item_paise + int(quote.convenience_fee_paise)
+    order = {
+        'status': 'pending',
+        'items': items,
+        'subtotal': {'value': subtotal_paise, 'offset': 100},
+        'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        'tax': {
+            'value': supply_gst_paise + int(quote.convenience_gst_paise),
+            'offset': 100,
+            'description': 'GST',
+        },
+        'expiration': {
+            'timestamp': str(now + 900),
+            'description': 'Complete payment within 15 minutes',
+        },
+    }
+    if discount_paise:
+        order['discount'] = {
+            'value': discount_paise,
+            'offset': 100,
+            'description': 'Delight',
+        }
+        order['couponCode'] = 'DELIGHT'
 
-    if row['kind'] == 'DROP_DOCS':
-        # Owner-visible F003 pricing contract: one exact-price ₹199 service line. Keep these
-        # zero adjustments explicit in Meta's Review & Pay sheet so the customer sees the same
-        # breakdown Workspace/invoice records carry: subtotal + Express - Discount = total.
-        if (quote.convenience_fee_paise != 0 or quote.convenience_gst_paise != 0
-                or quote.total_payable_paise != subtotal_paise):
-            raise ValueError('Drop Docs quote must be exact-price with zero adjustments')
-        order['shipping'] = {'value': 0, 'offset': 100, 'description': 'Express'}
-        order['discount'] = {'value': 0, 'offset': 100, 'description': 'Discount'}
+    reconciled = (
+        subtotal_paise + express_paise
+        + supply_gst_paise + int(quote.convenience_gst_paise)
+        - discount_paise
+    )
+    if reconciled != int(quote.total_payable_paise):
+        raise ValueError('catalog service ORDER_DETAILS does not reconcile to payable total')
 
-    return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
-        # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
-        # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
-        # WABA1-only refusal, the raw-link refusals and the VALID_PAYMENT_CONFIGS membership
-        # check did not apply to this leg. Removing it is a correctness fix, not a cleanup.
-        #
-        # The NAME still travels, and it has to. `configuration` was used ONLY by that block, so
-        # dropping the block alone would make this argument dead, the resolver would fall back to
-        # the sender's phone map, and the system could prove one configuration against Meta while
-        # telling Meta to use another — with no refusal anywhere. Mirrors the invoice engine,
-        # where the reserved string and the sent string are the same string by construction.
+    return {
+        'reference_id': reference_id,
+        'type': 'digital-goods',
+        'currency': 'INR',
         'payment_configuration': configuration,
-        'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'order': order}
+        'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
+        'order': order,
+    }
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:
