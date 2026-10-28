@@ -1155,7 +1155,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <span style={ sectionHintStyle }>Approved Meta template</span>
             </div>
             <div className="dd-variable-grid">
-              <div><span>Body {{1}}</span><strong>Generated WECARE filename</strong></div>
+              <div><span>{ 'Body {{1}}' }</span><strong>Generated WECARE filename</strong></div>
               <div><span>Price</span><strong>Live Vault product price</strong></div>
               <div><span>Button</span><strong>Unlock Vault · exact-file token</strong></div>
             </div>
