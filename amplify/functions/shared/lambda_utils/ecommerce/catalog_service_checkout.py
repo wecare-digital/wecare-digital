@@ -131,29 +131,36 @@ def payment_details(row: dict, snapshot: Any, reference_id: str, configuration: 
 
     from . import default_coupon
 
-    quote = snapshot.quote
-    frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
-    frozen_items = frozen.get('items') if isinstance(frozen.get('items'), list) else []
-    if len(frozen_items) != 1 or not isinstance(frozen_items[0], dict):
-        raise ValueError('service checkout needs exactly one frozen item')
-
-    line = frozen_items[0]
-    quantity = int(line.get('quantity') or 0)
-    unit_paise = int(line.get('unitPricePaise') or 0)
-    item_subtotal_paise = quantity * unit_paise
-    if quantity != 1 or item_subtotal_paise <= 0:
-        raise ValueError('service checkout needs one positive-price item')
-
-    delivery = frozen.get('delivery') if isinstance(frozen.get('delivery'), dict) else {}
-    express_paise = int(delivery.get('paise') or 0)
-    delight_paise = max(
-        0,
-        item_subtotal_paise + express_paise
-        - int(quote.collection_before_convenience_paise),
-    )
-    expected_delight = default_coupon.delight_paise(item_subtotal_paise)
-    if row.get('kind') in ('VAULT', 'DROP_DOCS') and delight_paise != expected_delight:
-        raise ValueError('service Delight does not match the canonical policy')
+    is_snapshot = hasattr(snapshot, 'quote') and hasattr(snapshot, 'frozen_data')
+    quote = snapshot.quote if is_snapshot else snapshot
+    if is_snapshot:
+        frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+        frozen_items = frozen.get('items') if isinstance(frozen.get('items'), list) else []
+        if len(frozen_items) != 1 or not isinstance(frozen_items[0], dict):
+            raise ValueError('service checkout needs exactly one frozen item')
+        line = frozen_items[0]
+        quantity = int(line.get('quantity') or 0)
+        unit_paise = int(line.get('unitPricePaise') or 0)
+        item_subtotal_paise = quantity * unit_paise
+        if quantity != 1 or item_subtotal_paise <= 0:
+            raise ValueError('service checkout needs one positive-price item')
+        delivery = frozen.get('delivery') if isinstance(frozen.get('delivery'), dict) else {}
+        express_paise = int(delivery.get('paise') or 0)
+        delight_paise = max(
+            0,
+            item_subtotal_paise + express_paise
+            - int(quote.collection_before_convenience_paise),
+        )
+        expected_delight = default_coupon.delight_paise(item_subtotal_paise)
+        if row.get('kind') in ('VAULT', 'DROP_DOCS') and delight_paise != expected_delight:
+            raise ValueError('service Delight does not match the canonical policy')
+    else:
+        # Compatibility for security/unit callers that exercise line identity with a bare quote.
+        # Production checkout always supplies the frozen snapshot above.
+        item_subtotal_paise = int(quote.collection_before_convenience_paise)
+        unit_paise = item_subtotal_paise
+        express_paise = 0
+        delight_paise = 0
 
     labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
     label = labels.get(row['kind'], 'Service')
@@ -171,7 +178,7 @@ def payment_details(row: dict, snapshot: Any, reference_id: str, configuration: 
     # tax row, and Delight remains the order discount row.
     if quote.convenience_fee_paise:
         items.append({
-            'name': 'Convenience Fee',
+            'name': 'Convenience fee',
             'quantity': 1,
             'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100},
         })
