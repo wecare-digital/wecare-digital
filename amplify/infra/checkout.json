@@ -287,6 +287,9 @@
                     },
                     {
                       "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/d/public/Invoice/fonts/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png"
                     }
                   ]
                 },
