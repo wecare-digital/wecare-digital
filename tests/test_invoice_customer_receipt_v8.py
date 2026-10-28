@@ -47,7 +47,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("conv_net_paise = _paise(invoice.get('convenienceFeeNet'", source)
         self.assertIn("total_gst_paise = supply_gst_paise + conv_gst_paise", source)
         self.assertIn("'description': 'GST'", source)
-        self.assertIn("entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}", source)
+        self.assertIn("entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}", source)
         fee_block = source[source.index("if conv_net_paise > 0:"):source.index("total_gst_paise =", source.index("if conv_net_paise > 0:"))]
         self.assertNotIn("'image'", fee_block)
 
@@ -234,17 +234,24 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('fill=(255, 0, 64)', receipt)
 
 
-    def test_payment_template_header_uses_single_square_thumbnail(self):
+    def test_order_details_uses_owner_default_item_thumbnail(self):
         media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text(
             encoding="utf-8"
         )
+        self.assertIn("DEFAULT_ORDER_ITEM_THUMBNAIL", media)
         self.assertIn(
-            '"https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"',
+            "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png",
             media,
         )
-        self.assertIn('"wecare_whatapp_native_pay_template": PAYMENT_TEMPLATE_HEADER', media)
         source = ENGINE.read_text(encoding="utf-8")
-        self.assertNotIn("entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}", source)
+        self.assertIn(
+            "entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}",
+            source,
+        )
+        self.assertNotIn(
+            "entry['image'] = {'link': template_media.PAYMENT_TEMPLATE_HEADER}",
+            source,
+        )
 
 
     def test_media_trace_id_never_collapses_to_wa_idem_prefix(self):
