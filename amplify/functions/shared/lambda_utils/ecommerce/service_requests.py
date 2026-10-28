@@ -61,12 +61,12 @@ charges come from one source and cannot drift.
 VAULT AND DROP DOCS USE THE COLLECT BREAKDOWN
 ---------------------------------------------
 The native quote always prices the service line from ProductsTable. Vault and Drop Docs use the
-same customer-visible breakdown vocabulary as Collect: item subtotal, automatic Delight, Express,
-then amount payable. Delight remains the ONE server-owned default calculation (0.5% of the eligible
-GST-inclusive item subtotal, capped at Rs.50); Express is the fixed Rs.25 service-delivery charge
-declared below. These two services still use `checkout_pricing.exempt_quote` after the supply
-summary so no convenience fee or GST-on-fee is added. Website, WhatsApp Review & Pay, Workspace
-orders and invoices therefore read one frozen quote and reconcile exactly.
+same customer-visible breakdown vocabulary as Collect: GST-inclusive item subtotal, automatic
+Delight, Express, Convenience Fee, GST on the Convenience Fee, then Amount Payable. Delight remains
+the ONE server-owned default calculation (0.5% of the eligible GST-inclusive item subtotal, capped
+at Rs.50); Express is the fixed Rs.25 service-delivery charge declared below. The standard checkout
+calculator then applies the 2.5% Convenience Fee and 18% GST on that fee. Website, WhatsApp Review
+& Pay, Workspace orders and invoices therefore read one frozen quote and reconcile exactly.
 
 Integer paise throughout. No float pricing is introduced here.
 """
