@@ -212,3 +212,5 @@ public/vendor/amplify-ui.css
 !.kiro/steering/*.md
 .env.omni
 .omni/collector.json
+.github/
+.kiro/
