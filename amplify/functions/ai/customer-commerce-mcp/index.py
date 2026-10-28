@@ -313,6 +313,7 @@ def form(row:dict,csrf:str,message:str='')->dict:
  alert='<p class="alert" role="alert">'+html.escape(message)+'</p>'if message else''
  primary_text='Get Code'if phase=='phone'else'Verify'
  resend=''if phase=='phone'else'<button class="auth-action" type="submit" name="action" value="resend" formnovalidate>Resend code</button>'
+ edit_phone=''if phase=='phone'else'<button class="auth-action" type="submit" name="action" value="edit_phone" formnovalidate>Edit phone number</button>'
  hero_words=[('WECARE.DIGITAL','#fef3c7','#f0a818'),('WhatsApp','#dcfce7','#22c55e'),('Android','#e0f2fe','#0284c7'),('iOS','#f3f4f6','#6b7280'),('ChatGPT','#ede9fe','#9849e8'),('Claude','#e0f7c8','#3da35a'),('Gemini','#fee2e2','#dc2626')]
  hero_nodes=''.join(('<span class="home-cyc-word'+(' on'if i==0 else'')+'" data-wc-translate="true" aria-hidden="true">'+html.escape(word)+'</span>'for i,(word,_,_)in enumerate(hero_words)))
  hero_pill='<span class="home-pill" id="auth-rotating-pill" style="background:'+hero_words[0][1]+'"><i class="home-pill-dot" aria-hidden="true" style="background:'+hero_words[0][2]+'"></i><span class="home-cycle"><span class="home-sr-only">'+html.escape(', '.join((word for word,_,_ in hero_words)))+'</span>'+hero_nodes+'</span></span>'
@@ -321,7 +322,7 @@ def form(row:dict,csrf:str,message:str='')->dict:
  country_script="(function(){const trigger=document.getElementById('country-trigger'),panel=document.getElementById('country-panel'),search=document.getElementById('country-search'),hidden=document.getElementById('country');if(!trigger||!panel||!search||!hidden)return;const rows=Array.from(panel.querySelectorAll('.country-row'));const close=(focus)=>{panel.hidden=true;trigger.setAttribute('aria-expanded','false');search.value='';rows.forEach(r=>r.hidden=false);if(focus)trigger.focus()};const open=()=>{panel.hidden=false;trigger.setAttribute('aria-expanded','true');search.value='';rows.forEach(r=>r.hidden=false);requestAnimationFrame(()=>search.focus())};trigger.addEventListener('click',()=>panel.hidden?open():close(true));search.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();rows.forEach(r=>{r.hidden=!!q&&!r.dataset.countrySearch.includes(q)})});rows.forEach(r=>r.addEventListener('click',()=>{const code=r.dataset.countryCode||'+91';hidden.value=code;trigger.textContent=code;close(true)}));document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&e.target!==trigger)close(false)},true);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.preventDefault();close(true)}});})();"
  submit_script="(function(){const form=document.getElementById('auth-form');if(!form)return;let submitted=false;const ret=form.querySelector('input[name=_return]');if(ret&&(!ret.value||ret.value==='/')){try{const f=sessionStorage.getItem('wecare.vault.authReturnFile')||'';if(/^[A-Za-z0-9_-]{1,120}$/.test(f))ret.value='/vault/'}catch(_){}}const fresh=()=>{const flow=form.querySelector('input[name=_flow]');if(!flow)return;location.replace('/auth')};addEventListener('pageshow',e=>{const nav=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(e.persisted||(nav&&nav.type==='back_forward'))fresh()});form.addEventListener('submit',e=>{if(submitted){e.preventDefault();return}submitted=true;form.querySelectorAll('button[type=submit]').forEach(b=>b.setAttribute('aria-disabled','true'))})})();"
  flow_fields='<input type="hidden" name="_flow" value="website"><input type="hidden" name="_return" value="'+html.escape(str(row.get('return')or''),quote=True)+'">'if website else''
- sign_in='<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">'+'<div class="connect-eyebrow"><span class="connect-eyebrow-icon" aria-hidden="true">login</span><span>Sign in</span></div>'+connect_note+alert+'<form id="auth-form" method="post" action="'+('/auth'if connect_origin()!=origin()else'/oauth/authorize')+'"><input type="hidden" name="csrf" value="'+html.escape(csrf,quote=True)+'">'+flow_fields+field+'<div class="auth-actions"><button class="auth-action" type="submit">'+primary_text+'</button>'+resend+'</div></form></div></section>'
+ sign_in='<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">'+'<div class="connect-eyebrow"><span class="connect-eyebrow-icon" aria-hidden="true">login</span><span>Sign in</span></div>'+connect_note+alert+'<form id="auth-form" method="post" action="'+('/auth'if connect_origin()!=origin()else'/oauth/authorize')+'"><input type="hidden" name="csrf" value="'+html.escape(csrf,quote=True)+'">'+flow_fields+field+'<div class="auth-actions"><button class="auth-action" type="submit">'+primary_text+'</button>'+resend+edit_phone+'</div></form></div></section>'
  stay_connected='<section class="public-share has-contribute" aria-label="Contribute, subscribe and share"><span class="ps-kicker">Stay connected</span><div class="ps-row"><details class="ps-details ps-contribute-details"><summary class="ps-action ps-contribute" aria-label="Contribute ₹250"><span class="ps-symbol" aria-hidden="true">₹</span><span class="ps-tip">Contribute</span></summary><div class="ps-menu ps-contribute-menu"><div class="ps-menu-head"><div class="ps-menu-title">Contribute ₹250</div><p class="ps-menu-sub">Review it in your cart, then choose how to pay.</p></div><div class="ps-menu-list"><a class="ps-menu-item" href="https://wecare.digital/cart/"><span class="ps-menu-icon" aria-hidden="true">₹</span><span class="ps-menu-copy"><span class="ps-menu-name">Checkout</span><span class="ps-menu-note">Review contribution in cart</span></span><span class="ps-chevron" aria-hidden="true">›</span></a></div></div></details><a class="ps-action ps-subscribe" href="https://wa.me/message/WUDPTMYSO6XII1" target="_blank" rel="noopener noreferrer" aria-label="Subscribe on WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21a2.5 2.5 0 0 0 2.4-2H9.6A2.5 2.5 0 0 0 12 21Zm6-5H6l1.5-2V9a4.5 4.5 0 0 1 9 0v5Z"/></svg><span class="ps-tip">Subscribe</span></a><details class="ps-details ps-share-details"><summary class="ps-action ps-share-trigger" aria-label="Share this page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="m8 11 8-4M8 13l8 4"/></svg><span class="ps-tip">Share</span></summary><div class="ps-menu ps-share-menu"><div class="ps-menu-head"><div class="ps-menu-title">Share</div><p class="ps-menu-sub">Send this page.</p></div><div class="ps-menu-list"><a class="ps-menu-item" href="https://wa.me/?text=Sign%20in%20to%20WECARE.DIGITAL%20https%3A%2F%2Fwecare.digital%2Fauth" target="_blank" rel="noopener noreferrer" aria-label="Share this page on WhatsApp"><span class="ps-menu-icon" aria-hidden="true">↗</span><span class="ps-menu-copy"><span class="ps-menu-name">WhatsApp</span><span class="ps-menu-note">Share on WhatsApp</span></span><span class="ps-chevron" aria-hidden="true">›</span></a></div></div></details></div></section>'
  support_widget='<div class="wc-langbar" id="wc-auth-widget" data-wc-no-translate="true"><div class="wc-pill"><a class="wc-wa" href="https://wecare.digital/r/wa" target="_blank" rel="noopener noreferrer" aria-label="Chat with us on WhatsApp" title="Chat with us on WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.91-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.03 1.02-1.03 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.28-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.51-5.26C2.16 6.45 6.6 2.01 12.05 2.01c2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 012.89 6.99c0 5.45-4.44 9.89-9.88 9.89M20.46 3.49A11.82 11.82 0 0012.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 005.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.42z"/></svg></a><span class="wc-sep" aria-hidden="true"></span><button class="wc-chip" id="wc-lang-trigger" type="button" aria-expanded="false" aria-haspopup="listbox" aria-controls="wc-lang-panel" aria-label="Language: English. Choose another.">EN<span class="wc-arw" aria-hidden="true"></span></button></div><div class="wc-panel" id="wc-lang-panel" hidden><div class="wc-search"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg><input id="wc-lang-search" type="text" role="combobox" aria-expanded="true" aria-controls="wc-lang-list" aria-autocomplete="list" aria-label="Search language" placeholder="Search language" autocomplete="off" spellcheck="false"></div><div class="wc-rows" id="wc-lang-list" role="listbox" aria-label="Languages"></div><p class="wc-more" id="wc-more" hidden></p></div><div class="wc-sr" id="wc-status" role="status" aria-live="polite"></div></div>'
  support_script="(function(){const w=document.getElementById('wc-auth-widget'),trigger=document.getElementById('wc-lang-trigger'),panel=document.getElementById('wc-lang-panel'),search=document.getElementById('wc-lang-search'),list=document.getElementById('wc-lang-list'),more=document.getElementById('wc-more'),status=document.getElementById('wc-status');if(!w||!trigger||!panel||!search||!list||!more||!status)return;let langs=[],current='en',busy=false,originals=null,attrOriginals=null;const rtl=new Set(['ar','fa','he','ur','ps','sd']);const skip=new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','SVG','CANVAS','VIDEO','AUDIO','INPUT','TEXTAREA','SELECT','OPTION','CODE','PRE','HEAD','META','LINK']);const eligible=el=>{for(let n=el;n&&n!==document.body;n=n.parentElement){if(n.dataset&&n.dataset.wcNoTranslate==='true')return false;if(skip.has(n.tagName))return false}return true};const restore=()=>{if(originals)originals.forEach(x=>{if(x.node.parentNode)x.node.nodeValue=x.value});if(attrOriginals)attrOriginals.forEach(x=>{if(x.el.isConnected)x.el.setAttribute(x.attr,x.value)})};const collect=()=>{const items=[];const root=document.body;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(n){const v=(n.nodeValue||'').trim(),p=n.parentElement;if(v.length<2||!/[A-Za-z\\u0900-\\u0DFF\\u0600-\\u06FF]/.test(v)||!p||!eligible(p))return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});let n;while((n=walker.nextNode()))items.push({kind:'text',node:n,text:(n.nodeValue||'').trim()});['placeholder','aria-label','title'].forEach(a=>document.querySelectorAll('['+a+']').forEach(el=>{const v=(el.getAttribute(a)||'').trim();if(v.length>=2&&/[A-Za-z\\u0900-\\u0DFF\\u0600-\\u06FF]/.test(v)&&eligible(el))items.push({kind:'attr',el:el,attr:a,text:v})}));return items};const apply=async code=>{if(busy)return;busy=true;trigger.classList.add('is-busy');status.textContent='Translating…';try{restore();if(code==='en'){document.documentElement.lang='en';document.documentElement.dir='ltr';current='en';trigger.firstChild.nodeValue='EN';trigger.setAttribute('aria-label','Language: English. Choose another.');status.textContent='Showing English.';return}const items=collect();if(!originals){originals=items.filter(x=>x.kind==='text').map(x=>({node:x.node,value:x.node.nodeValue||''}));attrOriginals=items.filter(x=>x.kind==='attr').map(x=>({el:x.el,attr:x.attr,value:x.el.getAttribute(x.attr)||''}))}for(let i=0;i<items.length;i+=30){const batch=items.slice(i,i+30);const r=await fetch('/api/site-language/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texts:batch.map(x=>x.text),targetLanguage:code,sourceLanguage:'en'})});if(!r.ok)throw new Error('translate');const rows=(await r.json()).translations||[];if(rows.length!==batch.length)throw new Error('shape');rows.forEach((row,j)=>{const x=batch[j],v=row.translatedText;if(!v)return;if(x.kind==='text'&&x.node.parentNode)x.node.nodeValue=v;else if(x.kind==='attr'&&x.el.isConnected)x.el.setAttribute(x.attr,v)})}current=code;document.documentElement.lang=code;document.documentElement.dir=rtl.has(code.split('-')[0])?'rtl':'ltr';trigger.firstChild.nodeValue=(code.split('-')[0]||'en').toUpperCase();const label=(langs.find(x=>x.code===code)||{}).name||code;trigger.setAttribute('aria-label','Language: '+label+'. Choose another.');status.textContent='Page translated to '+label+'.'}catch(e){restore();current='en';document.documentElement.lang='en';document.documentElement.dir='ltr';trigger.firstChild.nodeValue='EN';status.textContent='Translation unavailable.'}finally{busy=false;trigger.classList.remove('is-busy')}};const matches=q=>{q=q.trim().toLowerCase();let rows=langs;if(q)rows=langs.map(x=>({x:x,rank:x.code.toLowerCase()===q?0:x.name.toLowerCase().startsWith(q)?1:x.code.toLowerCase().startsWith(q)?2:x.name.toLowerCase().includes(q)?3:9})).filter(y=>y.rank<9).sort((a,b)=>a.rank-b.rank||a.x.name.localeCompare(b.x.name)).map(y=>y.x);return rows};const render=()=>{const rows=matches(search.value),shown=rows.slice(0,5);list.textContent='';shown.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='wc-row'+(x.code===current?' is-on':'');b.setAttribute('role','option');b.setAttribute('aria-selected',String(x.code===current));const n=document.createElement('span');n.className='wc-row-name';n.textContent=x.name;const code=document.createElement('span');code.className='wc-row-code';code.textContent=x.code.toUpperCase();b.append(n,code);b.addEventListener('click',()=>{close(false);apply(x.code)});list.appendChild(b)});const extra=Math.max(rows.length-5,0);more.hidden=!extra;more.textContent=extra+' more — keep typing'};const close=focus=>{panel.hidden=true;trigger.setAttribute('aria-expanded','false');search.value='';if(focus)trigger.focus()};const open=()=>{panel.hidden=false;trigger.setAttribute('aria-expanded','true');render();requestAnimationFrame(()=>search.focus())};trigger.addEventListener('click',()=>{if(busy)return;panel.hidden?open():close(true)});search.addEventListener('input',render);search.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close(true)}else if(e.key==='Enter'){e.preventDefault();const b=list.querySelector('.wc-row');if(b)b.click()}});document.addEventListener('pointerdown',e=>{if(!panel.hidden&&!w.contains(e.target))close(false)},true);fetch('/api/site-language/languages').then(r=>r.ok?r.json():Promise.reject()).then(p=>{const drop=new Set(['auto','fr-CA','zh-TW','es-MX','pt-PT']);langs=(p.languages||[]).filter(x=>!drop.has(x.code)).map(x=>({code:x.code,name:x.code==='ht'?'Creole':x.name})).sort((a,b)=>a.code==='en'?-1:b.code==='en'?1:a.name.localeCompare(b.name));if(langs.length<2){trigger.hidden=true;w.querySelector('.wc-sep').hidden=true}}).catch(()=>{trigger.hidden=true;w.querySelector('.wc-sep').hidden=true});})();"
@@ -336,19 +337,48 @@ def form(row:dict,csrf:str,message:str='')->dict:
  result['headers']['Content-Security-Policy']="default-src 'none'; script-src 'nonce-"+nonce+"'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self'; form-action "+form_sources+"; frame-ancestors 'none'; base-uri 'none'"
  return result
 
+def auth_state(row:dict,csrf:str,message:str='')->dict:
+ login=uncapsule(row['cipher'],row['client'],row['sidHash'])
+ website=row.get('kind')=='web-auth'
+ return response(200,{'phase':login.get('phase','phone'),'csrf':csrf,'message':message,'website':website,'returnPath':str(row.get('return')or'/'),'clientName':''if website else client(row['client'])['name'],'destination':website_return(row.get('return',''))if website else str(row.get('redirect')or'')})
+
 def save_pending(row:dict,login:dict,message:str='')->dict:
  csrf=secrets.token_urlsafe(32)
  row['csrfHash']=digest(csrf)
+ row['notice']=message
  row['cipher']=capsule(login,row['client'],row['sidHash'])
  STORE.put(row)
+ if row.get('transport')=='json':
+  return auth_state(row,csrf,message)
  return form(row,csrf,message)
 
-def website_get(params:dict)->dict:
+def resume_authorization(event:dict)->dict|None:
+ headers={str(k).lower():str(v)for k,v in(event.get('headers')or{}).items()}
+ cookies=SimpleCookie()
+ cookies.load('; '.join(event.get('cookies')or[headers.get('cookie','')]))
+ if COOKIE not in cookies:
+  return None
+ key=row_key('auth',cookies[COOKIE].value)
+ row=STORE.get(key)
+ if not row or row.get('kind')not in{'web-auth','oauth-auth'}:
+  return None
+ if row.get('kind')=='oauth-auth':
+  client(row['client'])
+  if row.get('resource')!=resource():
+   raise AuthError('Invalid authorization resource')
+ login=uncapsule(row['cipher'],row['client'],key)
+ if STORE.take(key)is None:
+  return website_recovery()
+ return save_pending(row,login,row.get('notice',''))
+
+def website_get(params:dict,*,json_transport:bool=False)->dict:
  if set(params)-{'return'}:
   raise AuthError('Invalid website sign-in request')
  cookie=secrets.token_urlsafe(32)
  key=row_key('auth',cookie)
  row={'sidHash':key,'kind':'web-auth','client':WEBSITE_CLIENT,'return':website_return(params.get('return','')),'absoluteExpiresAt':int(time.time())+600}
+ if json_transport:
+  row['transport']='json'
  result=save_pending(row,{'phase':'phone'})
  result['cookies']=[f'{COOKIE}={cookie}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600']
  return result
@@ -384,11 +414,13 @@ def website_finish(row:dict,login:dict,auth:dict,event:dict)->dict:
  result['cookies']=list(reply.get('cookies')or[])+[f'{SESSION_HINT_COOKIE}={hint}; Secure; SameSite=Lax; Path=/; Max-Age=1800',f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
  return result
 
-def authorize_get(params:dict)->dict:
+def authorize_get(params:dict,*,json_transport:bool=False)->dict:
  params=validate_authorize(params)
  cookie=secrets.token_urlsafe(32)
  key=row_key('auth',cookie)
  row={'sidHash':key,'kind':'oauth-auth','client':params['client_id'],'resource':resource(),'redirect':params['redirect_uri'],'state':params['state'],'scope':params['scope'],'challenge':params['code_challenge'],'absoluteExpiresAt':int(time.time())+600}
+ if json_transport:
+  row['transport']='json'
  result=save_pending(row,{'phase':'phone'})
  result['cookies']=[f'{COOKIE}={cookie}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600']
  return result
@@ -424,7 +456,13 @@ def authorize_post(params:dict,event:dict)->dict:
  stage='phone'if login.get('phase')=='phone'else'challenge'
  try:
   if params.get('action'):
-   if params.get('action')!='resend'or set(params)!={'csrf','action'}or login.get('phase')not in{'code','registration'}:
+   action=params.get('action')
+   allowed_action_fields={'csrf','action','code'}
+   if set(params)-allowed_action_fields or login.get('phase')not in{'code','registration'}:
+    raise AuthError('Invalid authorization action')
+   if action=='edit_phone':
+    return save_pending(row,{'phase':'phone'})
+   if action!='resend':
     raise AuthError('Invalid resend request')
    if login.get('phase')=='registration':
     if not registration_call('request',login['phone'],event):
@@ -486,23 +524,28 @@ def authorize_post(params:dict,event:dict)->dict:
 
 def route(event:dict)->dict|None:
  path=str(event.get('rawPath')or'')
- if path not in{'/.well-known/oauth-authorization-server','/auth','/oauth/authorize','/oauth/token','/oauth/revoke'}:
+ if path not in{'/.well-known/oauth-authorization-server','/auth','/auth/state','/auth/step','/oauth/authorize','/oauth/token','/oauth/revoke'}:
   return None
  method=str(((event.get('requestContext')or{}).get('http')or{}).get('method')or'').upper()
  try:
   if path=='/.well-known/oauth-authorization-server'and method=='GET':
    return response(200,auth_metadata())
-  if path in{'/auth','/oauth/authorize'}and method=='GET':
+  if path in{'/auth','/auth/state','/oauth/authorize'}and method=='GET':
    params=parse(event.get('rawQueryString',''))
-   if path=='/auth'and(not{'client_id','redirect_uri','response_type','scope','state','resource','code_challenge','code_challenge_method'}.intersection(params)):
-    return website_get(params)
+   json_transport=path=='/auth/state'
+   if path in{'/auth','/auth/state'}and(not{'client_id','redirect_uri','response_type','scope','state','resource','code_challenge','code_challenge_method'}.intersection(params)):
+    if not params:
+     pending=resume_authorization(event)
+     if pending is not None:
+      return pending
+    return website_get(params,json_transport=json_transport)
    target=connect_origin()
    if target!=origin()and path=='/oauth/authorize':
     validate_authorize(params)
     result=response(302,'')
     result['headers']['Location']=target+'/auth?'+urlencode(params)
     return result
-   return authorize_get(params)
+   return authorize_get(params,json_transport=json_transport)
   if method!='POST':
    return response(405,{'error':'invalid_request'})
   headers={str(k).lower():str(v)for k,v in(event.get('headers')or{}).items()}
@@ -512,8 +555,20 @@ def route(event:dict)->dict|None:
   if event.get('isBase64Encoded'):
    raw=base64.b64decode(raw,validate=True).decode()
   params=parse(raw)
-  if path in{'/auth','/oauth/authorize'}:
-   return authorize_post(params,event)
+  if path in{'/auth','/auth/step','/oauth/authorize'}:
+   page=authorize_post(params,event)
+   if path=='/auth/step':
+    if page.get('statusCode')in{302,303}:
+     result=response(200,{'redirect':(page.get('headers')or{}).get('Location','/')})
+     if page.get('cookies'):
+      result['cookies']=list(page['cookies'])
+     return result
+    return page
+   if page['statusCode']==200:
+    result=response(303,'')
+    result['headers']['Location']=connect_origin()+'/auth'
+    return result
+   return page
   if path=='/oauth/token':
    return response(200,token_exchange(params))
   if path=='/oauth/revoke':
