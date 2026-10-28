@@ -2212,10 +2212,10 @@ def run(root: Path) -> int:
     # ── 13. one Vault purchase end to end ────────────────────────────────────────────────────────
     # Section 12 proves the leg up to Review and Pay; nothing else here paid for, granted or
     # delivered a Vault file. This drives the whole purchase through the production handlers:
-    # business-api (offer, tap, paid delivery), commerce (Review and Pay, finalization), the
-    # Razorpay webhook, service-requests (activation), secure-files (window, the customer's Vault
-    # list, the download) and outbound, with the real service-request store on moto.
-    print("\n== 13. Vault end to end: offer -> Unlock Vault -> pay -> entitlement -> Access Vault"
+    # business-api (staff-direct Review and Pay, paid delivery), commerce (pricing/finalization),
+    # the Razorpay webhook, service-requests (activation), secure-files (window, the customer's
+    # Vault list, the download) and outbound, with the real service-request store on moto.
+    print("\n== 13. Vault end to end: staff Review and Pay -> pay -> entitlement -> Access Vault"
           " -> download -> renewal")
     sys.path.insert(0, str(functions / "messaging" / "whatsapp-business-api"))
     sys.path.insert(0, str(functions / "core" / "secure-files"))
@@ -2297,29 +2297,24 @@ def run(root: Path) -> int:
 
     mark = W.mark()
     offered = send_offer(vera, vera_file)
-    tokens = offer_tokens(vera_file)
-    offer_sends = sends_of(mark, "wecare_vault_request_ready")
-    token = next(iter(tokens), "")
-    check("VLT", "staff Send ₹49 Vault message: ONE wecare_vault_request_ready naming the file, its Unlock Vault tied to one offer",
-          offered.get("outcome") == "VAULT_OFFER_SENT" and len(offer_sends) == 1 and len(tokens) == 1
-          and component_value(offer_sends[0], "body") == "Hermetic report.pdf"
-          and component_value(offer_sends[0], "button", "quick_reply") == "vaultoffer:" + token,
-          {"outcome": offered, "sends": len(offer_sends), "offers": len(tokens)})
-
-    mark = W.mark()
-    deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
     attempts = _attempts_for(vera["sub"])
     intents = [r for r in _scan("ServiceRequestsTable")
                if str(r.get("requestId", "")).startswith("INTENT#") and r.get("vaultFileId") == vera_file]
-    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for the quoted payable",
-          len(intents) == 1 and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(attempts) == 1
+    offer_sends = sends_of(mark, "wecare_vault_request_ready")
+    tokens = offer_tokens(vera_file)
+    check("VLT", "staff Vault payment goes straight to ONE Review and Pay with no offer template/token",
+          offered.get("outcome") == "PAYMENT_REQUEST_SENT" and len(sends_of(mark, PAY_TEMPLATE)) == 1
+          and not offer_sends and not tokens and len(intents) == 1 and len(attempts) == 1
           and int(attempts[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
-          {"intents": len(intents), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
+          {"outcome": offered, "intents": len(intents), "offer_sends": len(offer_sends),
+           "offers": len(tokens), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
+
     mark = W.mark()
-    deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
-    check("VLT", "a replayed tap reserves and sends nothing new",
-          not sends_of(mark, PAY_TEMPLATE) and len(_attempts_for(vera["sub"])) == 1,
-          len(_attempts_for(vera["sub"])))
+    repeated = send_offer(vera, vera_file)
+    check("VLT", "a second staff send while payment is active sends no duplicate Review and Pay",
+          repeated.get("outcome") == "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS"
+          and not sends_of(mark, PAY_TEMPLATE) and len(_attempts_for(vera["sub"])) == 1,
+          {"outcome": repeated, "attempts": len(_attempts_for(vera["sub"]))})
 
     if attempts:
         purchase = attempts[0]
@@ -2379,21 +2374,17 @@ def run(root: Path) -> int:
         listed = json.loads(vault_files._customer_list(vera_vault, "https://wecare.digital")["body"])
         expired_state = next((f.get("accessState") for f in listed.get("files") or []
                               if f.get("fileId") == vera_file), None)
-        # The per-file guard refuses a second offer within 60 s, and this run is faster than that.
-        _table("CommerceKeys").delete_item(Key={"orderId": "VAULTOFFERFILE#" + vera_file})
-        renewal_offer = send_offer(vera, vera_file)
-        new_tokens = offer_tokens(vera_file) - tokens
-        check("VLT", "once the window closes the file reads EXPIRED and staff send a renewal offer",
-              expired_state == "EXPIRED" and renewal_offer.get("outcome") == "VAULT_OFFER_SENT"
-              and renewal_offer.get("renewal") is True and len(new_tokens) == 1,
-              {"state": expired_state, "offer": renewal_offer})
         mark = W.mark()
-        deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP2", "vaultoffer:" + next(iter(new_tokens), "")))
+        renewal_offer = send_offer(vera, vera_file)
         renewals = [a for a in _attempts_for(vera["sub"]) if a["paymentAttemptId"] != purchase["paymentAttemptId"]]
-        check("VLT", "the renewal tap sends ONE more Review and Pay for the quoted payable",
-              len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(renewals) == 1
-              and int(renewals[0].get("amountPaise") or 0) == vault_expected.total_payable_paise,
-              [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals])
+        check("VLT", "once the window closes staff send ONE renewal Review and Pay directly",
+              expired_state == "EXPIRED" and renewal_offer.get("outcome") == "PAYMENT_REQUEST_SENT"
+              and renewal_offer.get("renewal") is True and len(sends_of(mark, PAY_TEMPLATE)) == 1
+              and len(renewals) == 1
+              and int(renewals[0].get("amountPaise") or 0) == vault_expected.total_payable_paise
+              and not sends_of(mark, "wecare_vault_request_ready"),
+              {"state": expired_state, "offer": renewal_offer,
+               "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals]})
         if renewals:
             mark = W.mark()
             pay(renewals[0], "pay_HERMETIC_VAULT2", vera["phone"])
@@ -2408,20 +2399,19 @@ def run(root: Path) -> int:
                   {"entitlement": {k: renewed.get(k) for k in ("paidWindowCount", "accessWindowCount")},
                    "access_sends": len(sends_of(mark, "wecare_default_download")), "download": again["statusCode"]})
 
-    # A Vault customer whose WhatsApp contact was never linked to their account, the usual state for
-    # a file registered under Secure files: the tap is itself the signed message the identity bridge
-    # links them from, so Review and Pay needs no website sign-in first.
+    # A direct staff send has no signed inbound message, so it may reuse only an already-linked
+    # WhatsApp identity. An unlinked contact must fail closed without minting payment state.
     wren = shop.customer(71, email=False, address=False, legacy_shipping=False)
     _table("ContactsTable").update_item(Key={"id": wren["contactId"]}, UpdateExpression="REMOVE checkoutCustomerId")
     wren_file = "file-hermetic-vault-unlinked"
     register_vault_file(wren, wren_file, "Unlinked report.pdf")
-    send_offer(wren, wren_file)
     mark = W.mark()
-    deliver(unlock_tap(wren, "wamid.HERMETIC.VAULT.UNLINKED", "vaultoffer:" + next(iter(offer_tokens(wren_file)), "")))
+    unlinked = send_offer(wren, wren_file)
     linked = (_table("ContactsTable").get_item(Key={"id": wren["contactId"]}).get("Item") or {}).get("checkoutCustomerId")
-    check("VLT", "an unlinked WhatsApp contact is linked by the tap itself and gets ONE Review and Pay",
-          linked == wren["sub"] and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(_attempts_for(wren["sub"])) == 1,
-          {"linked": linked == wren["sub"], "pays": len(sends_of(mark, PAY_TEMPLATE)),
+    check("VLT", "an unlinked WhatsApp contact is refused before Review and Pay",
+          unlinked.get("outcome") == "WHATSAPP_IDENTITY_REQUIRED" and not linked
+          and not sends_of(mark, PAY_TEMPLATE) and not _attempts_for(wren["sub"]),
+          {"outcome": unlinked, "linked": bool(linked), "pays": len(sends_of(mark, PAY_TEMPLATE)),
            "attempts": len(_attempts_for(wren["sub"]))})
 
     checkout._native_product_reader = saved_reader

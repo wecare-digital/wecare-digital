@@ -10,14 +10,12 @@ Entry points
 * ``select`` - the customer's pick from that list. A paid file with access left gets the Access
   Vault link again at no charge; an unpaid file, or a paid one whose every window has been used,
   gets ONE priced Review and Pay.
-* ``sendOffer`` - secure-files, when staff press "Send ₹49 Vault message" for one file. Sends the
-  approved offer `wecare_vault_request_ready` ("📄 Your requested <document> is available in your Vault. Amount due for this request: ₹49.") whose "Unlock
-  Vault" quick reply carries an opaque offer token. It charges nothing and needs no linked
-  contact: the customer is proven from the tap.
-* ``unlock`` - the inbound worker, for a tap on "Unlock Vault". The tap is a signed inbound
-  message, so commerce's bridge proves the customer from it exactly as for a cart. The offer's
-  file gets ONE Review and Pay (or the Access Vault link if already paid). An unknown, expired or
-  someone else's offer falls back to ``start``: the customer's own document list.
+* ``sendPayment`` - secure-files, when staff ask for payment on one Vault file. It creates a
+  one-file native service session and sends the existing WhatsApp Review and Pay ORDER_DETAILS
+  message directly. No separate Vault offer template is created or sent.
+* ``unlock`` - legacy compatibility for already-sent "Unlock Vault" offer buttons. Old taps
+  still resolve their bound file and continue to the same native Review and Pay rail; new staff
+  sends do not mint new offer tokens.
 
 It never prices, reserves or sends a payment itself: it hands ONE session to `wecare-commerce`
 `prepareNativeCatalogService`. See `catalog_service_checkout.ALLOWED` for why only Vault is sold
@@ -184,8 +182,10 @@ def handle(event, client):
     now = int(time.time())
     action = event.get('action', 'start')
 
-    if action == 'sendOffer':
-        return _send_offer(event, client, db, keys, contacts, now)
+    if action in ('sendPayment', 'sendOffer'):
+        # sendOffer remains a rolling-deploy alias only. Both names now go straight to the
+        # native Review & Pay rail; no new Vault offer template/token is emitted.
+        return _send_native_payment(event, client, db, keys, contacts, now)
     # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
     # customer action without its contact used to reach `get_item` with an empty key and crash.
     if action not in ('start', 'select', 'unlock'):
@@ -439,74 +439,93 @@ def _offer_send_outcome(response):
     return 'VAULT_OFFER_UNCONFIRMED', 'HTTP %d' % code
 
 
-def _send_offer(event, client, db, keys, contacts, now):
-    """Staff asked for ₹49 for one file: send the Vault offer (wecare_vault_request_ready). Never charges.
+def _send_native_payment(event, client, db, keys, contacts, now):
+    """Staff -> native Review & Pay for exactly one Vault file.
 
-    The offer names the document and carries an opaque token in its "Unlock Vault" quick reply.
-    The tap, a signed inbound message, is what proves the customer and opens Review and Pay
-    (`unlock`), so no linked contact is needed here. Answers an outcome and never messages the
-    customer a refusal.
+    The file row is already server-bound to one permanent customer at publish time. For a direct
+    staff send we additionally require one unambiguous ContactsTable row whose existing WhatsApp
+    checkout identity resolves to that same customer. That lets commerce reuse its normal native
+    identity gate with no invented inbound message and no separate offer template.
     """
     file_id = str(event.get('fileId') or '')
     owner = str(event.get('ownerCustomerId') or '')
     owner_phone = ''.join(c for c in str(event.get('ownerPhone') or '') if c in '0123456789')
     if not _FILE_ID.fullmatch(file_id) or not customer_auth.is_cognito_subject(owner) or not owner_phone:
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
-    file = db.Table(vault.FILES_TABLE).get_item(Key={'fileId': file_id}, ConsistentRead=True).get('Item') or {}
+
+    file = db.Table(vault.FILES_TABLE).get_item(
+        Key={'fileId': file_id}, ConsistentRead=True).get('Item') or {}
     if (file.get('status') != 'active' or file.get('ownerCustomerId') != owner
             or file.get('ownerPhone') != owner_phone):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
+
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
     if state not in ('UNPAID', 'EXPIRED'):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
+
     phone = '+' + owner_phone
     try:
         contact = contact_store.find_by_phone(contacts, phone)
     except contact_store.IdentityConflict:
-        # The tap would fail closed on the same ambiguity, so the offer would be a dead end.
         return {'outcome': 'CONTACT_AMBIGUOUS'}
-    try:
-        keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
-                         UpdateExpression='SET lastOfferAt=:now',
-                         ConditionExpression='attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent',
-                         ExpressionAttributeValues={':now': now,
-                                                    ':recent': now - OFFER_RESEND_GUARD_SECONDS})
-    except Exception as error:
-        if _conditional_failed(error):
-            return {'outcome': 'VAULT_OFFER_RECENT'}
-        raise
-    from lambda_utils.ecommerce import wa_payment_request
-    token = secrets.token_urlsafe(24)
     contact_id = contact_key.resolve(contact) if contact else ''
-    offer = {'orderId': OFFER_PREFIX + token, 'kind': 'VAULT_OFFER', 'fileId': file_id,
-             'ownerCustomerId': owner, 'phone': phone, 'contactId': contact_id,
-             'createdAt': now, 'expiresAt': now + OFFER_TTL_SECONDS, 'fileState': state,
-             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64]}
-    keys.put_item(Item=offer, ConditionExpression='attribute_not_exists(orderId)')
-    # No contact id is fine: outbound resolves or creates the contact from the number.
-    recipient = {'contactId': contact_id, 'phone': phone,
-                 'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1}
+    if not contact_id:
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
+    from lambda_utils.ecommerce import wa_payment_request
     try:
-        response = _send(client, recipient, **whatsapp_templates.vault_offer_send_fields(
-            file.get('displayName') or file.get('originalFilename'), token))
-    except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
-        response = None
-    outcome, detail = _offer_send_outcome(response)
-    keys.update_item(Key={'orderId': offer['orderId']}, UpdateExpression='SET #s=:s, sendDetail=:d',
-                     ExpressionAttributeNames={'#s': 'status'},
-                     ExpressionAttributeValues={':s': outcome, ':d': detail})
-    if outcome == 'VAULT_OFFER_NOT_SENT':
-        # Nothing reached the customer, so staff may try again straight away.
-        try:
-            keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
-                             UpdateExpression='REMOVE lastOfferAt',
-                             ConditionExpression='lastOfferAt = :now',
-                             ExpressionAttributeValues={':now': now})
-        except Exception:  # noqa: BLE001 - a newer offer owns the guard now
-            pass
-    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED', 'detail': detail}
+        identity_result = _invoke(client, 'wecare-commerce:live', {
+            'internalAction': 'ensureNativeWhatsAppIdentity',
+            'contactId': contact_id,
+            'senderPhone': phone,
+            'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1,
+            # Empty deliberately: direct staff sends may reuse an ALREADY-LINKED owner only.
+            # customer-registration refuses creation/linking without signed inbound evidence.
+            'sourceMessageId': '',
+        })
+    except Exception:
+        identity_result = {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
+    if (identity_result.get('outcome') != 'WHATSAPP_IDENTITY_READY'
+            or str(identity_result.get('customerId') or '') != owner):
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
+    identity = customer_auth.CustomerIdentity(
+        customer_id=owner, subject=owner,
+        phone=str(identity_result.get('phone') or phone), phone_verified=True)
+
+    variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+    token = secrets.token_urlsafe(24)
+    row = {
+        'orderId': catalog.SESSION_PREFIX + token,
+        'token': token,
+        'kind': service_requests.VAULT,
+        'variantId': variant,
+        'productId': service_requests.SERVICE_PRODUCT_BY_VARIANT[variant],
+        'contactId': contact_id,
+        'phone': identity.phone,
+        'customerId': owner,
+        'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1,
+        'sourceMessageId': '',
+        'createdAt': now,
+        'expiresAt': now + 3600,
+        'status': 'SELECTING',
+        'fileChoices': [file_id],
+        'fileChoiceStates': [state],
+        'vaultFileId': file_id,
+        'origin': 'STAFF_VAULT',
+        'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
+    }
+    try:
+        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+    except Exception:
+        return {'outcome': 'VAULT_PAYMENT_NOT_PREPARED'}
+
+    # The standard service checkout owns pricing, the payment attempt, ORDER_DETAILS, capture,
+    # order/invoice projection and paid Vault entitlement. No separate template is sent here.
+    return _prepare_payment(client, db, keys, row, identity, state, notify=False)
 
 
 def _prepare_drop_docs_payment(client, db, keys, row, identity, *, notify):
