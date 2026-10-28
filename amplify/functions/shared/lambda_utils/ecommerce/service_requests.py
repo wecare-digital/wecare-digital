@@ -58,12 +58,13 @@ quote carrying an integer unit price inside the rail.
 (`GET /ecommerce/service-prices`), so the price a page promises and the price the checkout
 charges come from one source and cannot drift.
 
-PRICING IS ORDINARY ORDER PRICING, EXCEPT VAULT AND DROP DOCS
---------------------------------------------------------------
-The native quote always prices the service line from ProductsTable. Ordinary services then use
-the standard checkout convenience-fee policy. Vault and Drop Docs are exact-price services: the
-catalogue amount is the total the customer pays, so the shared checkout seam rebuilds those quotes
-with `checkout_pricing.exempt_quote`. This keeps website, WhatsApp payment, Workspace orders and
+PRICING IS ORDINARY ORDER PRICING
+--------------------------------
+The native quote always prices the service line from ProductsTable. Vault and Drop Docs now use
+the same customer checkout adjustments as Collect/product checkout: automatic Delight, the
+server-resolved delivery/Express amount, and the canonical convenience fee + GST-on-fee. The
+catalogue service line itself remains the exact authoritative product/variant price, so website,
+WhatsApp payment, Workspace orders and
 invoices aligned without moving price authority out of ProductsTable or creating a second rail.
 
 Integer paise throughout. No float, no division, no rounding happens in this module.
