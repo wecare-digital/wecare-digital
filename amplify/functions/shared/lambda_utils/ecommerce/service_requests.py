@@ -58,15 +58,17 @@ quote carrying an integer unit price inside the rail.
 (`GET /ecommerce/service-prices`), so the price a page promises and the price the checkout
 charges come from one source and cannot drift.
 
-PRICING IS ORDINARY ORDER PRICING, EXCEPT VAULT AND DROP DOCS
---------------------------------------------------------------
-The native quote always prices the service line from ProductsTable. Ordinary services then use
-the standard checkout convenience-fee policy. Vault and Drop Docs are exact-price services: the
-catalogue amount is the total the customer pays, so the shared checkout seam rebuilds those quotes
-with `checkout_pricing.exempt_quote`. This keeps website, WhatsApp payment, Workspace orders and
-invoices aligned without moving price authority out of ProductsTable or creating a second rail.
+VAULT AND DROP DOCS USE THE COLLECT BREAKDOWN
+---------------------------------------------
+The native quote always prices the service line from ProductsTable. Vault and Drop Docs use the
+same customer-visible breakdown vocabulary as Collect: GST-inclusive item subtotal, automatic
+Delight, Express, Convenience Fee, GST on the Convenience Fee, then Amount Payable. Delight remains
+the ONE server-owned default calculation (0.5% of the eligible GST-inclusive item subtotal, capped
+at Rs.50); Express is the fixed Rs.25 service-delivery charge declared below. The standard checkout
+calculator then applies the 2.5% Convenience Fee and 18% GST on that fee. Website, WhatsApp Review
+& Pay, Workspace orders and invoices therefore read one frozen quote and reconcile exactly.
 
-Integer paise throughout. No float, no division, no rounding happens in this module.
+Integer paise throughout. No float pricing is introduced here.
 """
 
 from __future__ import annotations
@@ -153,6 +155,11 @@ SERVICE_PURCHASES_ENABLED = True
 #: refused with ``SERVICE_PRICE_CHANGED`` until this figure is raised, and that requires a deploy.
 SERVICE_LINE_MIN_PAISE = 1
 SERVICE_LINE_MAX_PAISE = 5_000_000
+
+#: Customer-facing "Express" row for Vault and Drop Docs. This is a service delivery/handling
+#: charge, not physical courier postage, and is included in the frozen supply quote before payment.
+#: Rs.25 = 2,500 paise. It does NOT increase Delight's basis.
+VAULT_DROP_DOCS_EXPRESS_PAISE = 2_500
 
 #: The five PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
 #: public price endpoint (`service_pricing_native.resolve_all`) and mirrored in
@@ -491,7 +498,7 @@ __all__ = [
     "DROP_DOCS", "INTENT_ID_RE", "NOT_OFFERED_KINDS", "NOT_OFFERED_VARIANT_IDS",
     "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "REQUEST_PICKUP", "SERVICE_CURRENCY",
     "SERVICE_KIND_BY_SLUG", "SERVICE_KIND_BY_VARIANT",
-    "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE",
+    "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE", "VAULT_DROP_DOCS_EXPRESS_PAISE",
     "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_SLUG_BY_KIND", "SERVICE_VARIANT_BY_KIND",
     "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "VAULT_ACCESS_ACTIVE",
     "VAULT_FILE_REQUIRED", "ServiceLine",
