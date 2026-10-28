@@ -79,7 +79,6 @@ interface OrderView {
   charges: OrderCharges | null;
   delivery: { recipient: string; address: DeliveryAddress } | null;
   invoiceNumber: string;
-  customerUuid: string;
   customerDisplayId: string;
 }
 
