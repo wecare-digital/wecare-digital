@@ -296,5 +296,12 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("BASE_H = 1536", source)
         self.assertIn("Fresh fixed-coordinate renderer", source)
 
+    def test_customer_receipt_key_uses_public_reference_date_time(self):
+        source = HANDLER.read_text(encoding="utf-8")
+        target = source[source.index("def _asset_target"):source.index("# ─── Generate Invoice Image")]
+        self.assertIn("render_token = uuid.uuid4().hex[:12]", target)
+        self.assertNotIn("-v{version}-r", target)
+
+
 if __name__ == "__main__":
     unittest.main()
