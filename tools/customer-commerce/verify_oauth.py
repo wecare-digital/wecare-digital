@@ -112,6 +112,13 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('class="country-trigger"', result['body'])
         self.assertIn('>+91</button>', result['body'])
         self.assertIn('class="country-panel"', result['body'])
+        self.assertIn('font:600 16px/1.3 inherit', result['body'])
+        self.assertIn('font:400 16px/1.3 inherit', result['body'])
+        self.assertIn('font:600 16px/1.4 inherit', result['body'])
+        self.assertIn('.country-code{flex:0 0 auto;font-size:14px;font-weight:600', result['body'])
+        self.assertIn('.nav-group-label{margin:16px 10px 6px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.06em', result['body'])
+        self.assertIn('.compact img{width:50px;height:50px}.compact .brand-copy{font-size:20px}', result['body'])
+        self.assertIn('.ps-chevron{font-size:20px', result['body'])
         self.assertNotIn('<select id="country"', result['body'])
         self.assertIn('>Get Code</button>', result['body'])
         # The "Verification code" note beside Get Code is gone; the button stands on its own.
@@ -141,6 +148,40 @@ class OAuthContract(unittest.TestCase):
         row = self.store.get(auth.row_key('auth', cookie[auth.COOKIE].value))
         self.assertEqual(row['kind'], 'web-auth')
         self.assertEqual(row['return'], '/orders/')
+
+    def test_website_form_marks_recoverable_history_and_blocks_duplicate_submit(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            result = auth.route(event)
+        self.assertIn('id="auth-form"', result['body'])
+        self.assertIn('name="_flow" value="website"', result['body'])
+        self.assertIn('name="_return" value="/orders/"', result['body'])
+        self.assertIn('let submitted=false', result['body'])
+
+    def test_stale_website_post_redirects_to_fresh_auth(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            page = auth.route(event)
+            cookie = SimpleCookie(); cookie.load(page['cookies'][0])
+            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            fields = {'csrf': csrf, '_flow': 'website', '_return': '/orders/', 'country': '+91', 'phone': '9876543210'}
+            context = {'headers': {'origin': 'https://wecare.digital'},
+                       'cookies': [f'{auth.COOKIE}={cookie[auth.COOKIE].value}'],
+                       'requestContext': {'http': {'sourceIp': '127.0.0.1'}}}
+            first = auth.authorize_post(fields, context)
+            self.assertEqual(first['statusCode'], 200)
+            stale = auth.authorize_post(fields, context)
+        self.assertEqual(stale['statusCode'], 303)
+        self.assertEqual(stale['headers']['Location'], '/auth?return=%2Forders%2F')
+
+    def test_oauth_stale_post_still_fails_closed(self):
+        cookie, csrf = self.begin()
+        fields = {'csrf': csrf, 'phone': '+447700900123'}
+        self.post(cookie, fields)
+        with self.assertRaises(auth.AuthError):
+            self.post(cookie, fields)
 
     def test_code_phase_renders_and_accepts_resend_action(self):
         cookie, csrf = self.begin()
