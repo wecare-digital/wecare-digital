@@ -2557,12 +2557,18 @@ def _s3_invoice_token(value: Any) -> str:
 def _invoice_asset_stem(invoice: Dict, invoice_id: str) -> str:
     """Canonical customer-facing S3 stem for a rendered receipt.
 
-    Never expose the internal statutory invoice number in the object key. The public/payment
-    reference is the only business identifier carried in the filename; the render token added
-    by _asset_target makes each issued rendition immutable and cache-safe.
+    Public filename contract:
+      wecare-digital-{reference}-{DD-MM-YYYY}-{HH-MM-IST}
+
+    Never expose the internal statutory invoice number in the object key. The timestamp comes
+    from paidAt for a paid receipt, otherwise createdAt/invoiceDate.
     """
     reference = _s3_invoice_token(invoice.get('referenceId') or invoice_id)
-    return f"{INVOICE_PREFIX}wecare-digital-{reference}"
+    epoch = (invoice.get('paidAt') or invoice.get('createdAt') or invoice.get('invoiceDate')
+             or int(time.time()))
+    date_token = _ist_strftime('%d-%m-%Y', epoch)
+    time_token = _ist_strftime('%H-%M-IST', epoch)
+    return f"{INVOICE_PREFIX}wecare-digital-{reference}-{date_token}-{time_token}"
 
 
 def _next_asset_version(invoice_id: str, asset_type: str, request_id: str) -> int:
@@ -2618,14 +2624,14 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
     if not _is_issued(invoice):
         return base_key, asset_type
     version = _next_asset_version(invoice_id, asset_type, request_id)
-    # Issued customer receipts are immutable and cache-busting by key. The human-traceable
-    # payment reference remains in `stem`; a short random render token prevents any browser,
-    # intermediary or messaging client from confusing a newly rendered design with an older PNG.
+    # Issued customer receipts are immutable and cache-busting by key. Keep the customer-facing
+    # filename simple: public reference + invoice date/time + unique render token. Rendition
+    # version remains internal in InvoiceAssets.assetType rather than being exposed in the key.
     render_token = uuid.uuid4().hex[:12]
     if version <= 1:
         return f'{stem}-r{render_token}.{extension}', asset_type
     return (
-        f'{stem}-v{version}-r{render_token}.{extension}',
+        f'{stem}-r{render_token}.{extension}',
         f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}',
     )
 
