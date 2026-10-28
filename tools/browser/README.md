@@ -537,13 +537,12 @@ Lighthouse is in this directory's `package.json`, not the app's, for the same re
 browser is resolved through `lib/browser.js` rather than downloaded.
 
 
-## CI enforcement
+## Validation after GitHub Actions retirement
 
-`.github/workflows/public-ui-compliance.yml` is the enforcement layer for these harnesses.
+The browser harnesses are no longer enforced by GitHub Actions. Run them explicitly against the
+build under review. For public-UI-wide changes, run the full Chromium/device, typography, SEO,
+section, menu and cross-browser contracts documented here.
 
-- Pull requests and pushes that touch the public UI run the complete Chromium public-device matrix, typography, SEO, section structure and menu contracts.
-- Firefox and WebKit run the Home regression contract and cross-browser menu contract on every relevant change.
-- A scheduled/workflow-dispatch job runs the expanded-copy phone stress matrix to catch long localisation/copy pressure without making normal wording changes brittle.
-- The device matrix includes foldables, portrait/landscape, common Android/iPhone widths, tablets, desktops, touch-capable contexts and short phone viewports that model browser-chrome/keyboard pressure.
-- Home has explicit regression assertions for the one-line hero frame, one-row Platform Runtime chrome, single-line Runtime request/code rows, Runtime-before-copy order and mobile section/benefit spacing.
-- Button-like links/CTAs in main content are included in the 44px interaction-target audit; ordinary inline prose links are intentionally excluded.
+Do not recreate a workflow to satisfy historical references. The production Amplify build and
+explicit browser-harness results are the release evidence.
+
