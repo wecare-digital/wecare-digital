@@ -417,6 +417,23 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         self.assertNotIn("1 GB", docs)
 
 
+class VaultReviewPayPreviewTests(unittest.TestCase):
+    """Workspace Vault exposes a read-only customer payment preview without a second payment path."""
+
+    def test_vault_workspace_preview_shows_canonical_price_rows(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "SecureFiles.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Review &amp; Pay", source)
+        self.assertIn("fetchServicePrices", source)
+        self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
+        self.assertIn("<span>Item subtotal</span>", source)
+        self.assertIn("<span>Discount</span><strong>₹0</strong>", source)
+        self.assertIn("<span>Express</span><strong>₹0</strong>", source)
+        self.assertIn("Preview only. Vault is exact-price", source)
+        self.assertNotIn("handleRequestPayment( reviewFile", source)
+
+
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):
     """Drop Docs is intake; Vault owns delivery/payment/access and one unavailable copy."""
 
