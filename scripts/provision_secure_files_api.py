@@ -512,7 +512,7 @@ def ensure_routes(dry_run: bool) -> list:
             results.append(f"{key}: deleted (retired)")
 
     for method, path in ROUTES:
-        key = f"{method} {path}
+        key = f"{method} {path}"
         if key in existing_routes:
             client.update_route(
                 ApiId=API_ID, RouteId=existing_routes[key]["RouteId"], Target=target
