@@ -346,16 +346,17 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     words = amount_in_words(total)
     draw.text((166, words_y), words, font=regular, fill=INK)
 
-    trace_y = words_y + 74
+    trace_y = words_y + 66
     if status == "PAID":
-        stamp = Image.new("RGBA", (300, 120), (0,0,0,0))
+        stamp = Image.new("RGBA", (330, 126), (0,0,0,0))
         sd = ImageDraw.Draw(stamp)
-        sd.rounded_rectangle((4, 4, 294, 114), radius=12, outline=PAID_GREEN, width=7)
-        sd.ellipse((20, 34, 76, 90), fill=PAID_GREEN)
-        sd.line((34, 62, 44, 73, 63, 48), fill=(255,255,255), width=6)
-        sd.text((96, 32), "PAID", font=total_font, fill=PAID_GREEN)
+        sd.rounded_rectangle((4, 4, 324, 120), radius=12, outline=PAID_GREEN, width=8)
+        sd.ellipse((20, 34, 82, 96), fill=PAID_GREEN)
+        sd.line((35, 64, 47, 78, 69, 50), fill=(255,255,255), width=7)
+        stamp_word = _font(font_paths, "bold", 50)
+        sd.text((100, 31), "PAID", font=stamp_word, fill=PAID_GREEN)
         stamp = stamp.rotate(7, resample=Image.Resampling.BICUBIC, expand=True)
-        canvas.alpha_composite(stamp, (168, trace_y - 8))
+        canvas.alpha_composite(stamp, (157, trace_y - 14))
 
     tx = 550
     ty = trace_y + 6
@@ -369,12 +370,21 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
             draw.text((684, ty), value, font=small_bold, fill=INK)
             ty += 30
 
-    footer_line_y = min(paper_bottom - 170, trace_y + 130)
-    draw.line((158, footer_line_y, 866, footer_line_y), fill=LIME_STRONG, width=4)
-    _center(draw, "Thank You!", footer_font, footer_line_y + 23, (0,0,0))
-    _center(draw, "V I S I T  A G A I N", small_bold, footer_line_y + 58, (0,0,0))
+    footer_line_y = 1323 + extra_rows * 58
+    draw.line((158, footer_line_y, 866, footer_line_y), fill=LIME_STRONG, width=5)
+    ray_y = footer_line_y + 72
+    for dx in (-145, 145):
+        sign = -1 if dx < 0 else 1
+        draw.line((BASE_W//2 + dx, ray_y, BASE_W//2 + dx + sign*18, ray_y-9),
+                  fill=LIME_STRONG, width=4)
+        draw.line((BASE_W//2 + dx + sign*3, ray_y+12,
+                   BASE_W//2 + dx + sign*23, ray_y+12), fill=LIME_STRONG, width=4)
+        draw.line((BASE_W//2 + dx + sign*2, ray_y+25,
+                   BASE_W//2 + dx + sign*17, ray_y+34), fill=LIME_STRONG, width=4)
+    _center(draw, "Thank You!", footer_font, footer_line_y + 22, (0,0,0))
+    _center(draw, "V I S I T   A G A I N", small_bold, footer_line_y + 61, (0,0,0))
     _center(draw, company.get("website", "https://wecare.digital"), semibold,
-            footer_line_y + 91, PAID_GREEN)
+            footer_line_y + 94, PAID_GREEN)
 
     out = io.BytesIO()
     canvas.save(out, format="PNG", optimize=True)
