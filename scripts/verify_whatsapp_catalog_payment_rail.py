@@ -2111,20 +2111,48 @@ def run(root: Path) -> int:
             "catalogReference": {"catalogItemId": submit_product, "options": {"variantId": submit_variant}},
             "quantity": 1,
         }], int(time.time())).quote
-        check("SVC", "Vault catalogue price is the exact payable: 4900 paise, zero fee and zero fee GST",
-              vault_quote.total_payable_paise == 4900
-              and vault_quote.convenience_fee_paise == 0
-              and vault_quote.convenience_gst_paise == 0,
+        vault_delight = default_coupon.delight_paise(4900)
+        drop_delight = default_coupon.delight_paise(19900)
+        check("SVC", "Vault uses Collect pricing: Delight then 2.5% fee + 18% GST on fee",
+              vault_quote.collection_before_convenience_paise == 4900 - vault_delight
+              and vault_quote.convenience_fee_paise > 0
+              and vault_quote.convenience_gst_paise > 0
+              and vault_quote.total_payable_paise
+                  == vault_quote.collection_before_convenience_paise
+                     + vault_quote.convenience_fee_paise
+                     + vault_quote.convenience_gst_paise,
               vault_quote.components())
-        check("SVC", "Drop Docs catalogue price is the exact payable: 19900 paise",
-              drop_quote.total_payable_paise == 19900
-              and drop_quote.convenience_fee_paise == 0
-              and drop_quote.convenience_gst_paise == 0,
+        check("SVC", "Drop Docs uses Collect pricing from the 19900-paise item",
+              drop_quote.collection_before_convenience_paise == 19900 - drop_delight
+              and drop_quote.convenience_fee_paise > 0
+              and drop_quote.convenience_gst_paise > 0
+              and drop_quote.total_payable_paise
+                  == drop_quote.collection_before_convenience_paise
+                     + drop_quote.convenience_fee_paise
+                     + drop_quote.convenience_gst_paise,
               drop_quote.components())
-        check("SVC", "the exact-price exceptions do not remove the standard fee from other services",
+        check("SVC", "ordinary services keep the standard fee policy too",
               ordinary_quote.total_payable_paise > 4900
               and ordinary_quote.convenience_fee_paise > 0,
               ordinary_quote.components())
+        drop_snapshot = checkout._native_quote(identity, [{
+            "catalogReference": {"catalogItemId": drop_product, "options": {"variantId": drop_variant}},
+            "quantity": 1,
+        }], int(time.time()))
+        drop_row = {"kind": service_requests.DROP_DOCS, "productId": drop_product, "variantId": drop_variant}
+        details = catalog_svc.payment_details(drop_row, drop_snapshot, "DROPTEST1", CONFIG_NAME, int(time.time()))
+        order = details["order"]
+        check("SVC", "Drop Docs Review & Pay shows thumbnail, Delight, Express, fee GST and exact total",
+              order["items"][0]["name"] == "Drop Docs"
+              and order["items"][0]["image"]["link"].endswith("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png")
+              and order["shipping"]["value"] == 0
+              and order["shipping"]["description"] == "Express"
+              and order["discount"]["value"] == drop_delight
+              and order["discount"]["description"] == "Delight"
+              and order["tax"]["value"] == drop_quote.convenience_gst_paise
+              and order["tax"]["description"] == "GST on Convenience Fee"
+              and details["total_amount"]["value"] == drop_quote.total_payable_paise,
+              details)
     finally:
         checkout._native_product_reader = original_reader
 
