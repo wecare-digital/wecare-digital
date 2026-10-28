@@ -1,39 +1,95 @@
-"""F003 Drop Docs Flow data endpoint.
+"""F003 Drop Docs Flow endpoint.
 
-The current Flow uploads files with Meta's native DocumentPicker. This module owns
-trusted INIT data only: verified customer identity and customer-owned target choices.
-Final file ingestion happens from the WhatsApp Flow completion webhook.
+Security boundary:
+- identity comes only from a server-issued, expiring Flow session;
+- target choices are re-read from stores owned by that identity;
+- DocumentPicker media is re-read from Meta with the receiving phone id bound;
+- bytes are written only under secure/u/dropdocs/;
+- staff-facing metadata is written to DocumentTable;
+- the Flow completion record is claimed idempotently before the session is consumed.
 
-Legacy DOC_FORM/REVIEW handlers remain read-only compatibility for old unpublished
-previews. They must not create placeholder document rows or ask for a second upload.
+The older DOC_FORM/REVIEW handlers remain read-only compatibility for unpublished previews.
 """
+from __future__ import annotations
+
+import hashlib
+import json
 import logging
-from typing import Dict
+import os
+import time
+import uuid
+from decimal import Decimal
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+import boto3
 
 from flows.orders import fetch_orders_for_flow
 from flows.common import dynamodb
-from lambda_utils import contact_store, flow_sessions, shared_tables
+from lambda_utils import (
+    contact_store,
+    customer_auth,
+    flow_completion,
+    flow_sessions,
+    media_paths,
+    shared_tables,
+)
+from lambda_utils.ecommerce import service_request_store
+from lambda_utils.meta_client import MetaGraphClient
 
 logger = logging.getLogger(__name__)
 
 CAPABILITY = "drop_docs"
+FLOW_CODE = "WD_F003_DROP_DOCS"
+FLOW_TYPE = "drop_docs"
 REJECTED = "This document form session is no longer valid. Open Drop Docs again."
+
+DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "stack-wecare-digital-DocumentTable")
+SERVICE_REQUESTS_TABLE = os.environ.get(
+    "SERVICE_REQUESTS_TABLE", "stack-wecare-digital-ServiceRequestsTable"
+)
+MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "wecare-digital-get")
+WABA2_ID = os.environ.get("WABA2_ID", "2513394156072604")
+PHONE1_META_ID = os.environ.get("PHONE1_META_ID", "1016149501586345")
+PHONE2_META_ID = os.environ.get("PHONE2_META_ID", "1055232054343117")
+
+MAX_FILES = 3
+MAX_FILE_BYTES = 10 * 1024 * 1024
+ALLOWED_MIME = {
+    "application/pdf": ".pdf",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+}
+DOC_TYPE_LABELS = {
+    "identity": "Identity document",
+    "address": "Address proof",
+    "prescription": "Prescription / medical document",
+    "invoice": "Invoice / receipt",
+    "supporting": "Other supporting document",
+}
+
+_s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+_meta = MetaGraphClient()
+
+
+def _session_table():
+    return dynamodb.Table(shared_tables.flow_drafts_table_name())
 
 
 def _verify(flow_token: str):
     return flow_sessions.verify_session(
-        dynamodb.Table(shared_tables.flow_drafts_table_name()),
+        _session_table(),
         capability=CAPABILITY,
         token=flow_token,
         rejected_message=REJECTED,
     )
 
 
-def _contact(phone: str) -> Dict:
+def _contact(phone: str) -> Dict[str, Any]:
     try:
         return contact_store.lookup(
-            dynamodb.Table(shared_tables.contacts_table_name()), phone) or {}
-    except Exception as exc:  # noqa: BLE001 - INIT fails closed to identity-free choices
+            dynamodb.Table(shared_tables.contacts_table_name()), phone
+        ) or {}
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Drop Docs contact lookup failed: %s", type(exc).__name__)
         return {}
 
@@ -42,12 +98,30 @@ def _masked_phone(phone: str) -> str:
     digits = contact_store.digits(phone)
     if not digits:
         return ""
-    return "+" + digits[:2] + " " + ("•" * max(0, len(digits) - 6)) + digits[-4:]
+    keep_prefix = min(2, len(digits))
+    hidden = max(0, len(digits) - keep_prefix - 4)
+    return "+" + digits[:keep_prefix] + " " + ("•" * hidden) + digits[-4:]
 
 
-def _order_targets(phone: str) -> list:
-    """Return only orders resolved through the existing customer-order lookup."""
-    targets = []
+def _customer_identity(contact: Dict[str, Any], phone: str) -> Optional[customer_auth.CustomerIdentity]:
+    """Return the pre-existing verified commerce identity, never mint one here."""
+    owner = str(contact.get("checkoutCustomerId") or "").strip()
+    if not customer_auth.is_cognito_subject(owner):
+        return None
+    canonical = contact_store.canonical_phone(phone)
+    if not canonical:
+        return None
+    return customer_auth.CustomerIdentity(
+        customer_id=owner,
+        subject=owner,
+        phone=canonical,
+        phone_verified=True,
+    )
+
+
+def _order_targets(phone: str) -> List[Dict[str, str]]:
+    """Only orders returned by the existing customer-order lookup."""
+    targets: List[Dict[str, str]] = []
     try:
         for order in fetch_orders_for_flow(phone, "")[:20]:
             order_id = str(order.get("id") or "").strip()
@@ -62,12 +136,33 @@ def _order_targets(phone: str) -> list:
     return targets
 
 
-def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """INIT -> SELECT_TARGET.
+def _request_targets(identity: Optional[customer_auth.CustomerIdentity]) -> List[Dict[str, str]]:
+    """Only requests from the proven customer's customerId GSI partition."""
+    if identity is None:
+        return []
+    try:
+        rows, _cursor = service_request_store.list_for_customer(
+            dynamodb.Table(SERVICE_REQUESTS_TABLE), identity, limit=20
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Drop Docs request lookup failed: %s", type(exc).__name__)
+        return []
 
-    The Flow never supplies the trusted phone/customer identity. The server-issued
-    Flow session does, and the order lookup is then scoped to that phone.
-    """
+    out: List[Dict[str, str]] = []
+    for row in rows:
+        public_id = str(row.get("requestId") or "").strip()
+        if not public_id:
+            continue
+        kind = str(row.get("kind") or "request").replace("_", " ").title()
+        out.append({
+            "id": "request:" + public_id,
+            "title": (f"Request · {public_id} · {kind}")[:72],
+        })
+    return out
+
+
+def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
+    """INIT -> SELECT_TARGET using server-derived identity only."""
     try:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected as exc:
@@ -103,17 +198,15 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
         }
 
     contact = _contact(session.phone)
+    identity = _customer_identity(contact, session.phone)
     customer_id = str(
         contact.get("customerUuid")
         or contact.get("customerId")
         or contact.get("id")
         or ""
     ).strip()
-    targets = _order_targets(session.phone)
-    targets.append({
-        "id": "not_found",
-        "title": "I cannot find my order or request",
-    })
+    targets = _order_targets(session.phone) + _request_targets(identity)
+    targets.append({"id": "not_found", "title": "I cannot find my order or request"})
 
     return {
         "screen": "SELECT_TARGET",
@@ -121,6 +214,348 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
             "phone_number": _masked_phone(session.phone),
             "customer_id": customer_id,
             "targets": targets,
+        },
+    }
+
+
+def _normalise_picker(value: Any) -> List[Dict[str, Any]]:
+    """Accept Meta's picker string or an already-decoded list without trusting its metadata."""
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    if isinstance(value, dict):
+        value = value.get("documents") or value.get("files") or [value]
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value[:MAX_FILES] if isinstance(entry, dict)]
+
+
+def _media_id(entry: Dict[str, Any]) -> str:
+    for key in ("media_id", "mediaId", "id"):
+        value = str(entry.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _original_name(entry: Dict[str, Any], fallback_ext: str) -> str:
+    for key in ("file_name", "filename", "name"):
+        value = os.path.basename(str(entry.get(key) or "").strip())
+        if value:
+            return value[:180]
+    return "document" + fallback_ext
+
+
+def _graph_phone(waba: str) -> str:
+    return PHONE2_META_ID if str(waba or "") == WABA2_ID else PHONE1_META_ID
+
+
+def _validate_target(
+    target_ref: str,
+    manual_reference: str,
+    phone: str,
+    identity: Optional[customer_auth.CustomerIdentity],
+) -> Dict[str, str]:
+    """Re-read the selected record before any media byte is persisted."""
+    target_ref = str(target_ref or "").strip()
+    manual_reference = str(manual_reference or "").strip()
+
+    if target_ref.startswith("order:"):
+        wanted = target_ref.split(":", 1)[1]
+        for order in fetch_orders_for_flow(phone, "")[:50]:
+            if str(order.get("id") or "") == wanted:
+                return {"kind": "order", "id": wanted, "display": wanted}
+        raise ValueError("That order is no longer available for this account.")
+
+    if target_ref.startswith("request:"):
+        wanted = target_ref.split(":", 1)[1]
+        if identity is None:
+            raise ValueError("That request cannot be verified for this account.")
+        rows, _cursor = service_request_store.list_for_customer(
+            dynamodb.Table(SERVICE_REQUESTS_TABLE), identity, limit=20
+        )
+        if any(str(row.get("requestId") or "") == wanted for row in rows):
+            return {"kind": "request", "id": wanted, "display": wanted}
+        raise ValueError("That request is no longer available for this account.")
+
+    if target_ref == "not_found":
+        if not manual_reference:
+            raise ValueError("Enter the order or request number from your receipt or message.")
+        return {"kind": "manual", "id": "", "display": manual_reference[:120]}
+
+    raise ValueError("Choose an order or request.")
+
+
+def _fetch_media(entry: Dict[str, Any], graph_phone: str) -> Tuple[bytes, str, str, str]:
+    """Retrieve one picker file from Meta, binding the lookup to the receiving phone."""
+    media_id = _media_id(entry)
+    if not media_id:
+        raise ValueError("A selected document could not be read.")
+
+    meta = _meta.get(
+        media_id,
+        params={"phone_number_id": graph_phone},
+        phone_id=graph_phone,
+    )
+    if _meta.is_error(meta):
+        raise RuntimeError("A selected document could not be retrieved.")
+
+    mime = str(meta.get("mime_type") or entry.get("mime_type") or "").lower().strip()
+    if mime not in ALLOWED_MIME:
+        raise ValueError("Only PDF, JPG and PNG documents are accepted.")
+
+    try:
+        declared_size = int(meta.get("file_size") or entry.get("file_size") or 0)
+    except (TypeError, ValueError):
+        declared_size = 0
+    if declared_size > MAX_FILE_BYTES:
+        raise ValueError("Each document must be 10 MB or smaller.")
+
+    url = str(meta.get("url") or "").strip()
+    if not url.startswith("https://"):
+        raise RuntimeError("A selected document could not be retrieved.")
+    blob = _meta.download_file(url, phone_id=graph_phone)
+    if not blob:
+        raise RuntimeError("A selected document was empty.")
+    if len(blob) > MAX_FILE_BYTES:
+        raise ValueError("Each document must be 10 MB or smaller.")
+
+    digest = hashlib.sha256(blob).hexdigest()
+    provider_hash = str(meta.get("sha256") or "").strip().lower()
+    if provider_hash and len(provider_hash) == 64 and provider_hash != digest:
+        raise RuntimeError("A selected document failed its integrity check.")
+
+    ext = ALLOWED_MIME[mime]
+    name = _original_name(entry, ext)
+    return blob, mime, digest, name
+
+
+def _document_ids(flow_token: str, media_id: str, digest: str) -> Tuple[str, str]:
+    seed = hashlib.sha256(
+        (str(flow_token) + "|" + str(media_id) + "|" + digest).encode("utf-8")
+    ).hexdigest()
+    doc_id = "WD-DOC-" + seed[:20].upper()
+    ref_num = int(seed[20:32], 16) % 1000000
+    return doc_id, "wecare-digital-" + f"{ref_num:06d}"
+
+
+def _store_one(
+    *,
+    entry: Dict[str, Any],
+    session: Any,
+    contact: Dict[str, Any],
+    target: Dict[str, str],
+    document_type: str,
+    note: str,
+    request_id: str,
+) -> Dict[str, Any]:
+    graph_phone = _graph_phone(session.waba)
+    blob, mime, digest, original_name = _fetch_media(entry, graph_phone)
+    media_id = _media_id(entry)
+    ext = ALLOWED_MIME[mime]
+    key = media_paths.DROP_DOCS_UPLOAD_PREFIX + "flow/wecare-digital-" + digest + ext
+
+    # Direct private write: no public/incoming intermediate key is created.
+    _s3.put_object(
+        Bucket=MEDIA_BUCKET,
+        Key=key,
+        Body=blob,
+        ContentType=mime,
+        Metadata={"sha256": digest, "source": "whatsapp-flow"},
+    )
+    head = _s3.head_object(Bucket=MEDIA_BUCKET, Key=key)
+    if int(head.get("ContentLength") or 0) != len(blob):
+        raise RuntimeError("The document could not be confirmed in private storage.")
+
+    doc_id, doc_ref = _document_ids("", media_id, digest)
+    # Include the verified Flow session only in the DynamoDB idempotency key, never S3 paths.
+    doc_id, doc_ref = _document_ids(session.created_at, media_id, digest)
+    now = int(time.time())
+    contact_id = str(contact.get("id") or contact.get("contactId") or "").strip()
+    customer_name = str(
+        contact.get("contactBookName") or contact.get("name") or contact.get("profileName") or ""
+    ).strip()
+    canonical_phone = contact_store.canonical_phone(session.phone)
+    label = DOC_TYPE_LABELS.get(document_type, "Supporting document")
+
+    item: Dict[str, Any] = {
+        "documentId": doc_id,
+        "documentRef": doc_ref,
+        "referenceIssuedAt": Decimal(str(now)),
+        "referenceVersion": 1,
+        "contactId": contact_id,
+        "customerPhone": canonical_phone,
+        "customerName": customer_name,
+        "sourceType": "flow",
+        "documentType": document_type or "supporting",
+        "documentTypeLabel": label,
+        "originalFileName": original_name,
+        "fileName": doc_ref + ext,
+        "mimeType": mime,
+        "fileSize": len(blob),
+        "storageKey": key,
+        "s3Bucket": MEDIA_BUCKET,
+        "verificationStatus": "uploaded",
+        "remarks": note[:1000],
+        "sha256": digest,
+        "sourceMediaId": media_id,
+        "targetKind": target["kind"],
+        "targetReference": target["display"],
+        "createdAt": Decimal(str(now)),
+        "updatedAt": Decimal(str(now)),
+        "uploadedAt": Decimal(str(now)),
+    }
+    if target["kind"] == "order":
+        item["orderId"] = target["id"]
+    elif target["kind"] == "request":
+        item["serviceRequestId"] = target["id"]
+    elif target["kind"] == "manual":
+        item["manualReference"] = target["display"]
+
+    table = dynamodb.Table(DOCUMENTS_TABLE)
+    try:
+        table.put_item(
+            Item={k: v for k, v in item.items() if v not in ("", None)},
+            ConditionExpression="attribute_not_exists(documentId)",
+        )
+    except Exception as exc:  # noqa: BLE001
+        code = str(getattr(exc, "response", {}).get("Error", {}).get("Code") or "")
+        if code != "ConditionalCheckFailedException":
+            raise
+        existing = table.get_item(
+            Key={"documentId": doc_id}, ConsistentRead=True
+        ).get("Item") or {}
+        if str(existing.get("sha256") or "") != digest:
+            raise RuntimeError("Document idempotency collision.")
+        item = existing
+
+    return {
+        "documentId": str(item.get("documentId") or doc_id),
+        "documentRef": str(item.get("documentRef") or doc_ref),
+        "key": str(item.get("storageKey") or key),
+        "filename": str(item.get("fileName") or doc_ref + ext),
+        "type": str(item.get("mimeType") or mime),
+    }
+
+
+def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
+    """UPLOAD data_exchange -> COMPLETE only after every selected file is private and indexed."""
+    try:
+        session = _verify(flow_token)
+    except flow_sessions.FlowSessionRejected:
+        return {"screen": "UPLOAD", "data": {"error_message": REJECTED}}
+    except flow_sessions.FlowSessionUnavailable:
+        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
+
+    # A retry of the exact data_exchange may occur after the endpoint answered but before the
+    # device received the response. Idempotent document ids + completion claim make it safe.
+    contact = _contact(session.phone)
+    identity = _customer_identity(contact, session.phone)
+    target_ref = str(data.get("target_ref") or "").strip()
+    manual_reference = str(data.get("manual_reference") or "").strip()
+    document_type = str(data.get("document_type") or "supporting").strip()
+    note = str(data.get("note") or "").strip()
+    picker = _normalise_picker(data.get("documents"))
+
+    if not picker:
+        return {"screen": "UPLOAD", "data": {"error_message": "Choose at least one document."}}
+    if len(picker) > MAX_FILES:
+        return {"screen": "UPLOAD", "data": {"error_message": "Choose up to 3 documents."}}
+    if document_type not in DOC_TYPE_LABELS:
+        return {"screen": "UPLOAD", "data": {"error_message": "Choose what you are sending."}}
+
+    try:
+        target = _validate_target(
+            target_ref, manual_reference, session.phone, identity
+        )
+    except ValueError as exc:
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Drop Docs target validation failed: %s", type(exc).__name__)
+        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
+
+    stored: List[Dict[str, Any]] = []
+    try:
+        for entry in picker:
+            stored.append(
+                _store_one(
+                    entry=entry,
+                    session=session,
+                    contact=contact,
+                    target=target,
+                    document_type=document_type,
+                    note=note,
+                    request_id=request_id,
+                )
+            )
+    except ValueError as exc:
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({
+            "event": "f003_drop_docs_store_failed",
+            "errorType": type(exc).__name__,
+            "requestId": request_id,
+        }))
+        return {
+            "screen": "UPLOAD",
+            "data": {"error_message": "We could not store that document securely. Please try again."},
+        }
+
+    attachments = [
+        {"key": x["key"], "filename": x["filename"], "type": x["type"]}
+        for x in stored
+    ]
+    contact_id = str(contact.get("id") or contact.get("contactId") or "").strip()
+    sender_name = str(
+        contact.get("contactBookName") or contact.get("name") or contact.get("profileName") or ""
+    ).strip()
+    completion_data = {
+        "target_ref": target_ref,
+        "target_display": target["display"],
+        "document_type": document_type,
+        "note": note,
+        "documents": attachments,
+    }
+    result = flow_completion.claim_completion(
+        flow_token=flow_token,
+        screen="UPLOAD",
+        flow_code=FLOW_CODE,
+        flow_type=FLOW_TYPE,
+        phone=session.phone,
+        contact_id=contact_id,
+        sender_name=sender_name,
+        form_data=completion_data,
+        reference_prefix="WD-DOC",
+        status="submitted",
+        extra={"documentIds": [x["documentId"] for x in stored]},
+        ttl_seconds=0,
+        request_id=request_id,
+        channel="whatsapp",
+    )
+    if result.status == "error":
+        return {
+            "screen": "UPLOAD",
+            "data": {"error_message": "Your files are safe, but we could not finish the record. Please try again."},
+        }
+
+    flow_sessions.mark_consumed(_session_table(), token=flow_token)
+    reference = result.reference or stored[0]["documentRef"]
+    return {
+        "screen": "COMPLETE",
+        "data": {
+            "message": "Your documents are stored securely and linked for review.",
+            "document_reference": reference,
+            "file_count": str(len(stored)),
+            "target_ref": target["display"],
+            "document_type": DOC_TYPE_LABELS[document_type],
+            "note": note or "—",
+            "attachments": attachments,
+            "submission_id": result.submission_id or reference,
         },
     }
 
