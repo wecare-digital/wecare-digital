@@ -110,6 +110,21 @@ def _customer_identity(contact: Dict[str, Any], phone: str) -> Optional[customer
         phone_verified=True,
     )
 
+def _paid_request(session: Any, identity: Optional[customer_auth.CustomerIdentity]) -> Dict[str, Any]:
+    """The one paid DROP_DOCS request bound to this server-issued payment Flow session."""
+    if (session.launch_channel != flow_sessions.LAUNCH_PAYMENT
+            or not session.service_request_key or identity is None):
+        raise ValueError("Open Drop Docs from your paid request.")
+    row = dynamodb.Table(SERVICE_REQUESTS_TABLE).get_item(
+        Key={"requestId": session.service_request_key}, ConsistentRead=True
+    ).get("Item") or {}
+    if (row.get("kind") != service_request_store.DROP_DOCS
+            or str(row.get("customerId") or "") != identity.customer_id
+            or not row.get("orderId") or not row.get("paymentAttemptId")):
+        raise ValueError("This Drop Docs payment is not available.")
+    return row
+
+
 
 def _order_targets(phone: str) -> List[Dict[str, str]]:
     """Customer-owned orders labelled by reference, date/time, and customer-safe purpose."""
@@ -196,6 +211,26 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
 
     contact = _contact(session.phone)
     identity = _customer_identity(contact, session.phone)
+    try:
+        paid_request = _paid_request(session, identity)
+    except ValueError as exc:
+        return {
+            "screen": "SELECT_TARGET",
+            "data": {
+                "error": str(exc),
+                "phone_number": "",
+                "targets": [{"id": "unavailable", "title": str(exc)[:72]}],
+            },
+        }
+    if paid_request.get("dropDocsCompletedAt"):
+        return {
+            "screen": "SELECT_TARGET",
+            "data": {
+                "error": "This paid Drop Docs request has already been used.",
+                "phone_number": "",
+                "targets": [{"id": "unavailable", "title": "Drop Docs already completed"}],
+            },
+        }
     targets = _order_targets(session.phone) + _request_targets(identity)
     if not targets:
         targets = [{"id": "unavailable", "title": "No matching orders or requests found"}]
@@ -353,6 +388,7 @@ def _store_one(
     target: Dict[str, str],
     note: str,
     request_id: str,
+    paid_request: Dict[str, Any],
 ) -> Dict[str, Any]:
     graph_phone = _graph_phone(session.waba)
     blob, mime, digest, original_name = _fetch_media(entry, graph_phone)
@@ -402,6 +438,9 @@ def _store_one(
         "remarks": note[:1000],
         "sha256": digest,
         "sourceMediaId": media_id,
+        "dropDocsRequestId": str(paid_request.get("publicRequestId") or ""),
+        "dropDocsOrderId": str(paid_request.get("orderId") or ""),
+        "dropDocsPaymentAttemptId": str(paid_request.get("paymentAttemptId") or ""),
         "targetKind": target["kind"],
         "targetReference": target["display"],
         "createdAt": Decimal(str(now)),
@@ -454,6 +493,12 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     # device received the response. Idempotent document ids + completion claim make it safe.
     contact = _contact(session.phone)
     identity = _customer_identity(contact, session.phone)
+    try:
+        paid_request = _paid_request(session, identity)
+    except ValueError as exc:
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+    if paid_request.get("dropDocsCompletedAt"):
+        return {"screen": "UPLOAD", "data": {"error_message": "This paid Drop Docs request has already been used."}}
     selected_target = str(data.get("selected_target") or "").strip()
     note = str(data.get("note") or "").strip()
     picker = _normalise_picker(data.get("documents"))
@@ -486,6 +531,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
                     target=target,
                     note=note,
                     request_id=request_id,
+                    paid_request=paid_request,
                 )
             )
     except ValueError as exc:
@@ -514,6 +560,8 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         "target_display": target["display"],
         "note": note,
         "documents": attachments,
+        "paid_request": str(paid_request.get("publicRequestId") or ""),
+        "paid_order": str(paid_request.get("orderNumber") or paid_request.get("orderId") or ""),
     }
     result = flow_completion.claim_completion(
         flow_token=flow_token,
@@ -536,6 +584,53 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
             "screen": "UPLOAD",
             "data": {"error_message": "Your files are safe, but we could not finish the record. Please try again."},
         }
+
+    submission_id = result.submission_id or result.reference or stored[0]["documentRef"]
+    now = int(time.time())
+    update_names = {"#status": "dropDocsStatus"}
+    update_values = {
+        ":completed": "COMPLETED",
+        ":now": now,
+        ":submission": submission_id,
+        ":target_kind": target["kind"],
+        ":target_id": target["id"],
+        ":target_display": target["display"],
+        ":note": note,
+        ":document_ids": [x["documentId"] for x in stored],
+    }
+    try:
+        dynamodb.Table(SERVICE_REQUESTS_TABLE).update_item(
+            Key={"requestId": session.service_request_key},
+            UpdateExpression=(
+                "SET #status=:completed, dropDocsCompletedAt=:now, flowSubmissionId=:submission, "
+                "dropDocsTargetKind=:target_kind, dropDocsTargetId=:target_id, "
+                "dropDocsTargetDisplay=:target_display, dropDocsNote=:note, "
+                "dropDocsDocumentIds=:document_ids, updatedAt=:now"
+            ),
+            ConditionExpression=(
+                "kind=:kind AND customerId=:owner AND attribute_not_exists(dropDocsCompletedAt)"
+            ),
+            ExpressionAttributeNames=update_names,
+            ExpressionAttributeValues={
+                **update_values,
+                ":kind": service_request_store.DROP_DOCS,
+                ":owner": identity.customer_id,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        current = dynamodb.Table(SERVICE_REQUESTS_TABLE).get_item(
+            Key={"requestId": session.service_request_key}, ConsistentRead=True
+        ).get("Item") or {}
+        if str(current.get("flowSubmissionId") or "") != submission_id:
+            logger.error(json.dumps({
+                "event": "f003_paid_request_bind_failed",
+                "errorType": type(exc).__name__,
+                "requestId": request_id,
+            }))
+            return {
+                "screen": "UPLOAD",
+                "data": {"error_message": "Your files are safe, but we could not finish the paid request. Please contact support."},
+            }
 
     flow_sessions.mark_consumed(_session_table(), token=flow_token)
     reference = result.reference or stored[0]["documentRef"]
