@@ -489,12 +489,10 @@ these pages personally and rejected several agent drafts on substance:
 
 ## Verification gate
 
-The repository no longer uses GitHub Actions CI. Use the production Amplify build plus explicit operational validation; no deleted workflow should be recreated to satisfy this historical note.
-the app or ran its tests** — the ten other workflows cover CodeQL, route auth, provider
-policy, UI labels, plivo and the deploys, none of which would notice a repo that does
-not build. A pull request could go green while broken, and it only stayed honest because
-a human ran the commands below by hand. If a check is ever needed that CI does not have,
-assume it is not there rather than assuming it is.
+The repository no longer uses GitHub Actions CI and the root Python `tests/` suite is retired.
+Use the production Amplify build plus explicit operational validation. Do not recreate deleted
+workflows or root tests merely to satisfy historical notes; run the active build, typecheck,
+browser harnesses and domain verification scripts appropriate to the change.
 
 Measured on this branch, based on `stack` at `80a877f9`, Node 24.19.0. The harness reads
 `out/`, so **`npm run build` has to come first** or it measures the previous build:
