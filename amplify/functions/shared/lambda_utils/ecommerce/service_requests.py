@@ -29,12 +29,12 @@ for the NEXT variant somebody adds to the catalogue: naming it here refuses it b
 letting it through as an ordinary product line, which would charge for a service nothing can
 deliver.
 
-Four of the five REQUIRE a target Submit Request (``TARGET_REQUIRED_KINDS``): an amendment amends
-one, Drop Docs sends documents for "a request already under way", Vault asks for "a copy of a
-document held against one of your requests", and Request Pickup collects documents for one. A
-target-free Drop Docs would let a customer pay Rs.350 to attach documents to nothing, and a
-target-free pickup would send a courier to collect paperwork for no request. The target is
-resolved and owned-checked in ``service_request_store`` BEFORE money moves.
+Three services require a target Submit Request before payment (``TARGET_REQUIRED_KINDS``):
+Request Amendment, Vault and Request Pickup. Drop Docs is intentionally different: F003 is a
+paid upload entitlement, and the customer chooses an owned order/request inside the Flow after
+payment. The Flow endpoint re-verifies ownership and binds that target when the paid upload
+completes, so one paid order authorizes one completed Drop Docs submission without asking the
+customer to select the target twice.
 
 PRODUCTSTABLE IS THE PRICE AUTHORITY
 ------------------------------------
@@ -58,13 +58,13 @@ quote carrying an integer unit price inside the rail.
 (`GET /ecommerce/service-prices`), so the price a page promises and the price the checkout
 charges come from one source and cannot drift.
 
-PRICING IS ORDINARY ORDER PRICING, EXCEPT VAULT
-------------------------------------------------
+PRICING IS ORDINARY ORDER PRICING, EXCEPT VAULT AND DROP DOCS
+--------------------------------------------------------------
 The native quote always prices the service line from ProductsTable. Ordinary services then use
-the standard checkout convenience-fee policy. Vault is the one exact-price exception: its
-catalogue amount is the total price of one access window, so the shared checkout seam rebuilds
-that quote with `checkout_pricing.exempt_quote`. This keeps website and WhatsApp payment aligned
-without moving price authority out of ProductsTable or creating a second payment rail.
+the standard checkout convenience-fee policy. Vault and Drop Docs are exact-price services: the
+catalogue amount is the total the customer pays, so the shared checkout seam rebuilds those quotes
+with `checkout_pricing.exempt_quote`. This keeps website, WhatsApp payment, Workspace orders and
+invoices aligned without moving price authority out of ProductsTable or creating a second rail.
 
 Integer paise throughout. No float, no division, no rounding happens in this module.
 """
@@ -170,7 +170,7 @@ SERVICE_KIND_BY_SLUG: Mapping[str, str] = MappingProxyType({
 #: frozenset rather than a ``kind ==`` comparison per service, so adding another target-taking
 #: service cannot reach only some of the places that have to agree.
 TARGET_REQUIRED_KINDS: FrozenSet[str] = frozenset({
-    REQUEST_AMENDMENT, DROP_DOCS, VAULT, REQUEST_PICKUP})
+    REQUEST_AMENDMENT, VAULT, REQUEST_PICKUP})
 
 #: Variants of the same product that are deliberately NOT offered. EMPTY: all five are offered.
 #: Kept, with its refusal code and its branch in ``service_line``, as the guard for the next
