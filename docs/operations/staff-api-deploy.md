@@ -63,6 +63,5 @@ long-lived AWS key to replace the retired workflow.
 - `aws lambda get-function-configuration --function-name <fn> --qualifier live --query CodeSha256`
   equals `aws_code_sha256` in the run's `manifest.json` artifact.
 - Probe the Viewer floor without a token: `PUT https://wecare.digital/api/ai/config` must return
-  401. Role checks (Operator for settings writes, Admin for template writes) are covered by
-  `tests/test_staff_api_authorization.py`. The staff pool has one user, an Admin, so no current
-  workflow loses access.
+  401. Exercise the role checks directly: settings writes require Operator and template writes
+  require Admin. The staff pool has one user, an Admin, so the current administrative path retains access.
