@@ -523,7 +523,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         form_data=completion_data,
         reference_prefix="WD-DOC",
         status="submitted",
-        extra={"documentIds": [x["documentId"] for x in stored]},
+        extra={"documentIds": [x["documentId"] for x in stored], "attachments": attachments},
         ttl_seconds=0,
         request_id=request_id,
         channel="whatsapp",
