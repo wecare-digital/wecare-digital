@@ -76,7 +76,7 @@ INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-comm
 # and never contacts S3, so this endpoint kept returning 200 with a URL that only broke
 # when the browser followed it.
 DOCS_S3_BUCKET = os.environ.get('DOCS_S3_BUCKET', media_paths.BUCKET)
-DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', str(200 * 1024 * 1024)))
+DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', str(1024 * 1024 * 1024)))
 DOCUMENT_UPLOAD_URL_TTL = int(os.environ.get('DOCUMENT_UPLOAD_URL_TTL_SECONDS', '900'))
 
 origin = '*'
