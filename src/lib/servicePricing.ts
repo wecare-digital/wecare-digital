@@ -34,6 +34,14 @@ export const SERVICE_PRICES_URL = `${ API_BASE }/ecommerce/service-prices`;
 /** The only currency a service is sold in. Compared explicitly, never inferred from an amount. */
 export const SERVICES_PRICE_CURRENCY = 'INR' as const;
 
+export type ServicePaymentTemplates = {
+  readonly nativePay: string;
+  readonly orderStatus: string;
+  readonly orderStatusStates: readonly string[];
+  readonly delivery: string;
+  readonly receipt: string;
+};
+
 export type ServicePriceBreakdown = {
   readonly itemSubtotalPaise: number;
   readonly supplyGstPaise: number;
@@ -54,6 +62,7 @@ export type ServicePrice =
       readonly paise: number;
       readonly rupees: string;
       readonly breakdown?: ServicePriceBreakdown;
+      readonly templates?: ServicePaymentTemplates;
     }
   | { readonly available: false };
 
@@ -123,17 +132,37 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   return row as ServicePriceBreakdown;
 }
 
+function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
+  if ( !raw || typeof raw !== 'object' ) return undefined;
+  const row = raw as Record<string, unknown>;
+  if ( typeof row.nativePay !== 'string' || !row.nativePay
+      || typeof row.orderStatus !== 'string' || !row.orderStatus
+      || !Array.isArray( row.orderStatusStates )
+      || !row.orderStatusStates.every( x => typeof x === 'string' && x.length > 0 )
+      || typeof row.delivery !== 'string' || !row.delivery
+      || typeof row.receipt !== 'string' || !row.receipt ) return undefined;
+  return {
+    nativePay: row.nativePay,
+    orderStatus: row.orderStatus,
+    orderStatusStates: row.orderStatusStates as string[],
+    delivery: row.delivery,
+    receipt: row.receipt,
+  };
+}
+
 function readPrice ( raw: unknown ): ServicePrice {
   if ( !raw || typeof raw !== 'object' ) return UNAVAILABLE;
-  const row = raw as { available?: unknown; paise?: unknown; breakdown?: unknown };
+  const row = raw as { available?: unknown; paise?: unknown; breakdown?: unknown; templates?: unknown };
   if ( row.available !== true ) return UNAVAILABLE;
   if ( !usablePaise( row.paise ) ) return UNAVAILABLE;
   const breakdown = readBreakdown( row.breakdown );
+  const templates = readTemplates( row.templates );
   return {
     available: true,
     paise: row.paise,
     rupees: rupeesFromPaise( row.paise ),
     ...( breakdown ? { breakdown } : {} ),
+    ...( templates ? { templates } : {} ),
   };
 }
 

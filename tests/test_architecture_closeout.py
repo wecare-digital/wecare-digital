@@ -436,6 +436,11 @@ class VaultReviewPayPreviewTests(unittest.TestCase):
         self.assertIn("GST on Convenience Fee (18%)", source)
         self.assertIn("<span>Amount Payable</span>", source)
         self.assertIn("vault.breakdown", source)
+        self.assertIn("vault.templates", source)
+        self.assertIn("vaultTemplates?.nativePay", source)
+        self.assertIn("vaultTemplates.orderStatusStates.join(' → ')", source)
+        self.assertIn("vaultTemplates?.delivery", source)
+        self.assertIn("vaultTemplates?.receipt", source)
         self.assertNotIn("handleRequestPayment( reviewFile", source)
 
     def test_drop_docs_workspace_preview_uses_same_breakdown_and_thumbnail(self):
@@ -445,6 +450,12 @@ class VaultReviewPayPreviewTests(unittest.TestCase):
         self.assertIn("Drop Docs × 1", source)
         self.assertIn("WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png", source)
         self.assertIn("dropDocs.breakdown", source)
+        self.assertIn("dropDocs.templates", source)
+        self.assertIn("dropDocsTemplates?.nativePay", source)
+        self.assertIn("dropDocsTemplates.orderStatusStates.join(' → ')", source)
+        self.assertIn("dropDocsTemplates?.delivery", source)
+        self.assertIn("dropDocsTemplates?.receipt", source)
+        self.assertNotIn("wecare_vault_request_ready · Unlock Vault", source)
         self.assertIn("<span>GST (18%)</span>", source)
         self.assertIn("dropDocsBreakdown.supplyGstPaise", source)
         self.assertIn("GST on Convenience Fee (18%)", source)
@@ -472,10 +483,13 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
         self.assertIn("manageOnly ? 'Vault' : 'Secure files'", source)
         self.assertIn("uploads start in Drop Docs.", source)
         self.assertIn("Vault customer journey", source)
-        self.assertIn("Request ready", source)
-        self.assertIn("Review & Pay", source)
+        self.assertNotIn("<strong>Request ready</strong>", source)
+        self.assertIn("Review &amp; Pay", source)
+        self.assertIn("Order status", source)
         self.assertIn("Access Vault", source)
         self.assertIn("Receipt", source)
+        self.assertIn("vaultTemplates?.nativePay", source)
+        self.assertIn("vaultTemplates.orderStatusStates.join(' → ')", source)
         self.assertIn("{ !manageOnly && (", source)
         self.assertNotIn("rupees( 4900 )", source)
         self.assertNotIn("₹49", source)
@@ -574,6 +588,28 @@ class VaultDropDocsCollectPricingTests(unittest.TestCase):
         self.assertIn("supply_gst_paise + int(quote.convenience_gst_paise)", source)
         self.assertIn("quote.convenience_fee_paise", source)
         self.assertIn("quote.total_payable_paise", source)
+
+
+class ServicePaymentDefaultContractTests(unittest.TestCase):
+    """Vault and Drop Docs share the platform payment/status/receipt defaults."""
+
+    def test_service_pricing_exposes_registry_owned_whatsapp_defaults(self):
+        source = (
+            FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "service_pricing_native.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("whatsapp_templates.PAY.name", source)
+        self.assertIn("whatsapp_templates.ORDER_STATUS.name", source)
+        self.assertIn('["processing", "completed"]', source)
+        self.assertIn("whatsapp_templates.INVOICE.name", source)
+        self.assertIn("whatsapp_templates.DOWNLOAD", source)
+        self.assertIn("whatsapp_templates.DROP_DOCS_FLOW", source)
+
+    def test_vault_offer_registry_is_legacy_only(self):
+        source = (
+            FUNCTIONS / "shared" / "lambda_utils" / "whatsapp_templates.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Legacy compatibility for Vault offers", source)
+        self.assertIn("new staff sends go straight to PAY", source)
 
 
 class VaultOrderProjectionTests(unittest.TestCase):
