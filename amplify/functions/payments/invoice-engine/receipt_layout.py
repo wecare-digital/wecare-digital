@@ -298,8 +298,12 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     fact_line = 31 * scale
     def fact(x, yy, label, value, strong=False):
         draw.text((x, yy), label, font=small_bold, fill=MUTED)
+        # The canonical WD-PAY reference is longer than the abbreviated specimen value.
+        # Keep the full reference, but use the 14px semibold fact font so it stays inside
+        # the left facts column instead of colliding with the Status label.
+        value_font = small_bold if strong else small
         draw.text((x + 132 * scale, yy), str(value or ""),
-                  font=semibold if strong else small, fill=INK)
+                  font=value_font, fill=INK)
     facts_y = y
     fact(left_x, facts_y, "Receipt Ref:", ref, True)
     fact(left_x, facts_y + fact_line, "Date:", date_str)
