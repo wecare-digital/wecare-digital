@@ -51,7 +51,7 @@ const TYPE_SELECT_OPTIONS: SelectOption[] = [
 ];
 
 const DROP_DOCS_META_ACCEPT = [
-  '.jpg', '.jpeg', '.png',
+  '.jpeg', '.png',
   '.mp4', '.3gp',
   '.aac', '.amr', '.mp3', '.m4a', '.ogg',
   '.pdf', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
@@ -64,25 +64,30 @@ function dropDocsMetaLimit ( file: Pick<File, 'type' | 'name'> ): MetaFileRule {
   const name = ( file.name || '' ).toLowerCase();
   const ext = name.includes( '.' ) ? name.slice( name.lastIndexOf( '.' ) ) : '';
 
-  if ( mime === 'image/jpeg' || mime === 'image/png' || [ '.jpg', '.jpeg', '.png' ].includes( ext ) )
+  if ( ( mime === 'image/jpeg' && ext === '.jpeg' ) || ( mime === 'image/png' && ext === '.png' ) )
     return { supported: true, bytes: 5 * 1024 * 1024, label: '5 MB', kind: 'Image' };
 
-  if ( mime === 'video/mp4' || mime === 'video/3gpp' || [ '.mp4', '.3gp' ].includes( ext ) )
+  if ( ( mime === 'video/mp4' && ext === '.mp4' ) || ( mime === 'video/3gpp' && ext === '.3gp' ) )
     return { supported: true, bytes: 16 * 1024 * 1024, label: '16 MB', kind: 'Video' };
 
-  if ( [ 'audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg' ].includes( mime )
-    || [ '.aac', '.amr', '.mp3', '.m4a', '.ogg' ].includes( ext ) )
+  const audioPairs: Record<string, string> = {
+    '.aac': 'audio/aac', '.amr': 'audio/amr', '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4', '.ogg': 'audio/ogg',
+  };
+  if ( audioPairs[ ext ] === mime )
     return { supported: true, bytes: 16 * 1024 * 1024, label: '16 MB', kind: 'Audio' };
 
-  if ( [
-    'application/pdf', 'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ].includes( mime ) || [ '.pdf', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx' ].includes( ext ) )
+  const documentPairs: Record<string, string> = {
+    '.txt': 'text/plain',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.pdf': 'application/pdf',
+  };
+  if ( documentPairs[ ext ] === mime )
     return { supported: true, bytes: 100 * 1024 * 1024, label: '100 MB', kind: 'Document' };
 
   return {
@@ -90,7 +95,7 @@ function dropDocsMetaLimit ( file: Pick<File, 'type' | 'name'> ): MetaFileRule {
     bytes: 0,
     label: '',
     kind: 'File',
-    reason: 'WhatsApp supports JPG/PNG images, MP4/3GP video, AAC/AMR/MP3/M4A/OGG audio, and PDF/TXT/Word/Excel/PowerPoint documents here.',
+    reason: 'WhatsApp supports JPEG/PNG images, MP4/3GP video, AAC/AMR/MP3/M4A/OGG audio, and PDF/TXT/Word/Excel/PowerPoint documents here. File extension and MIME type must match.',
   };
 }
 
