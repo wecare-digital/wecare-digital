@@ -418,48 +418,20 @@ Both stream mappings and both schedules must target aliases. Never target unqual
 
 ## 11. Release gates
 
-The default branch carries `.github/workflows/payment-rail-ci.yml`.
+GitHub Actions CI is retired. Payment-rail releases use explicit validation and controlled
+deployment instead of repository workflows.
 
-### CI and production deployment
-
-For payment-rail pull requests, the workflow must pass:
+Before release, all of these must pass on the exact tree being deployed:
 
 1. Python compile checks for payment/messaging/shared modules.
-2. The hermetic WhatsApp payment-rail simulation.
+2. `python scripts/verify_whatsapp_catalog_payment_rail.py`.
 3. Workspace TypeScript typecheck.
-4. Deterministic Lambda package creation through the repository's own
+4. Deterministic Lambda package creation through
    `scripts/deploy_all_lambdas.py::build_zip()`.
 
-On a push to `wecare.digital` that touches the payment rail, the same workflow reruns all checks,
-packages the tested tree, then deploys those exact packages to the nine payment-related Lambda
-`live` aliases. Deployment uses short-lived GitHub OIDC credentials only; there are no static AWS
-keys in GitHub.
-
-AWS trust:
-
-- OIDC provider: `arn:aws:iam::775261844268:oidc-provider/token.actions.githubusercontent.com`
-- deployment role: `arn:aws:iam::775261844268:role/wecare-payment-deploy-oidc`
-- trusted subject:
-  `repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/wecare.digital`
-- audience: `sts.amazonaws.com`
-
-The deployment role is deliberately limited to Lambda read/code/version/alias operations on:
-
-- `wecare-commerce`
-- `wecare-checkout`
-- `wecare-invoice-engine`
-- `wecare-razorpay-webhook`
-- `wecare-outbound-whatsapp`
-- `wecare-whatsapp-business-api`
-- `wecare-service-api`
-- `wecare-ai-generate-response`
-- `wecare-secure-files` (released last; it stays the separate secure-file entitlement rail of
-  section 5)
-
-The deploy job verifies each artifact's AWS `CodeSha256`, publishes an immutable version, moves
-`live`, and reads the alias hash back. A hash mismatch fails the release. Rollback-compatible
-`wecare-checkout` and `wecare-invoice-engine` stay package-compatible even though new callers use
-`wecare-commerce:live`.
+After validation, deploy only through the repository's documented Lambda release tooling. Publish
+immutable versions, move the `live` aliases deliberately, then read back every alias/code hash.
+Do not deploy unqualified `$LATEST`.
 
 A payment release is not ready unless all are true:
 
@@ -467,11 +439,8 @@ A payment release is not ready unless all are true:
 - order-status template is APPROVED, UTILITY, ORDER_STATUS, English
 - invoice template is APPROVED, UTILITY, English
 - WABA payment configuration is active and matches expected Razorpay provider MID
-- packaged Lambda hashes match the release manifest
-- production aliases are active
-- smoke-test bypass flags are off
-
-The release audit must fail closed if any of these cannot be proven.
+- packaged Lambda hashes match the reviewed release artifacts
+- production aliases resolve to those hashes
 
 ## 12. Files that must move together
 
