@@ -15,7 +15,7 @@ template each business step uses and what components that step must supply. Send
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
 The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback, plus
-`wecare_valut_49` read back APPROVED on 2026-10-26; all eight `en`).
+`wecare_vault_request_ready` read back APPROVED on 2026-10-28; all eight `en`).
 `scripts/check_whatsapp_template_payloads_live.py` builds each send with
 the production code and checks it against these live definitions:
 
@@ -29,7 +29,7 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
-    VAULT_OFFER    wecare_valut_49                        IMAGE header, body {{1}} (document name),
+    VAULT_OFFER    wecare_vault_request_ready                        IMAGE header, body {{1}} (document name),
                                                           QUICK_REPLY "Unlock Vault" index 0 (added
                                                           2026-10-26: the ₹49 offer for one file)
 
@@ -109,8 +109,8 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 #: The ₹49 Vault offer for one document that is unpaid or whose paid windows are used up. IMAGE
 #: header, the document name as body {{1}}, and QUICK_REPLY button 0 "Unlock Vault" whose
 #: send-time payload names the offer, so a tap opens Review and Pay for exactly that file. Sent
-#: only by business-api `catalogService.sendOffer`; "valut" is the approved spelling.
-VAULT_OFFER = Template(name="wecare_valut_49", language="en", category="UTILITY",
+#: only by business-api `catalogService.sendOffer`; `wecare_vault_request_ready` is the provider-approved name.
+VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
 
 ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
