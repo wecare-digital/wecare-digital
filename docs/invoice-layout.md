@@ -215,65 +215,13 @@ Delivery constraints that apply to the WhatsApp version:
   public URL is created.
 - No live send is enabled by this document. QA sends go only to the owner-nominated QA recipient.
 
-### 4.1 The approved transparent background - `RECEIPT_TRANSPARENT_BG`, default ON
+### 4.1 Canonical receipt renderer — legacy appearance switch retired
 
-The owner reviewed the receipt in a chat, objected to the grey, and approved a specimen rendered
-as torn paper on a **transparent** background. It is promoted to a stable public asset:
-
-| | |
-|---|---|
-| URL | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/invoice-receipt.png` |
-| S3 | `s3://wecare-digital-get/secure/d/public/whatsapp/wa-tpl/img/invoice-receipt.png` |
-| Verified | 2026-10-08: HTTP 200, `image/png`, 510158 bytes, `ssl_verify_result=0` |
-| Measured | corner alpha **0**; paper **RGBA (252, 252, 250, 255)** |
-
-**The specimen is a reference, not a payload.** It was rendered from hardcoded fixture data - a
-fixture customer name, phone and order number under the heading `TAX INVOICE` - so attaching the
-file to the send path would deliver one stranger's fixture invoice to every paying customer. What
-the owner approved is the *appearance*, so the renderer produces it and the specimen's two
-measured numbers above are the acceptance criteria. They are asserted in
-`tests/test_receipt_transparent_background.py`, which is the only reader of the URL.
-
-The flag:
-
-| | |
-|---|---|
-| Name | `RECEIPT_TRANSPARENT_BG` |
-| Function | the invoice engine, wherever it runs (`wecare-commerce`, `wecare-checkout`, `wecare-invoice-engine`) |
-| Default | **ON** since the 2026-10-08 owner approval; `false` restores the grey |
-| Read | at call time in `_generate_receipt_png`, never at module scope |
-
-With it on, `_generate_receipt_png` returns **RGBA**: the paper is `(252, 252, 250)`, and the
-alpha channel is an irregular torn edge (seeded, so one invoice re-renders identically). With it
-off the existing grey-zigzag code runs unchanged. `generate_invoice_pdf` composites the PNG onto
-white via `_flatten_onto_white` rather than calling `convert('RGB')`, because `convert` discards
-alpha and keeps the RGB underneath it - which for a transparent pixel is **black**, i.e. it would
-have given the PDF a black border.
-
-Two deliberate fidelity gaps against the specimen, neither worth its cost yet:
-
-- **Typography.** The specimen uses DotGothic16 at 3x supersample over 46 columns. That font is
-  not in S3, so matching it means uploading a font and re-tuning the layout. The flag covers
-  background and edge, not type.
-- **Drop shadow.** The specimen composites a 35%-alpha blurred shadow. Omitted: against a chat
-  background it reads as a grey halo, which is the thing being removed.
-
-**Unresolved, and the reason the flag is off.** WhatsApp re-encodes image messages, and the
-reports are consistent that a PNG sent as an *image* is converted to JPEG, which flattens alpha -
-plausibly to black, which would be worse than the grey. That cannot be settled from this
-repository; it needs one real send. So before flipping the flag, send one receipt to the
-owner-nominated QA recipient and look at it on a handset. If the alpha does not survive, the fix
-is **not** this flag - it is `mediaType: 'document'` in `send_invoice_whatsapp`, which Meta does
-not re-encode and `outbound-whatsapp` already supports.
-
-To make it live: set the flag on `wecare-invoice-engine`, then publish a version and move the
-`live` alias (`python scripts/snapstart_publish.py wecare-invoice-engine`) - `$LATEST` does not
-serve production - then re-export the env record with `python scripts/env_manifest.py --export`.
-
-The fixed payment-template header `wecarepay-header.png` is a **separate** artifact and is not
-touched by any of this. Meta refetches an approved template's header from its URL at send time
-and an approved body cannot be edited in place, so that URL stays exactly as it is.
-
+As of **2026-10-28**, `RECEIPT_TRANSPARENT_BG` is retired and no longer controls rendering.
+There is one customer PNG renderer: `payments/invoice-engine/receipt_layout.py`. The old
+monospace/grey/torn-paper fallback code was removed so no environment value can restore an older
+invoice appearance. Historical issued assets remain preserved and versioned; rerendering an issued
+invoice creates `image#vN` rather than overwriting the original document of record.
 
 ## 2026-10-08 current owner approval and release decision
 
@@ -283,10 +231,7 @@ The single wecare-invoice-engine renderer now uses the packaged DotGothic16 font
 monochrome torn-paper layout, transparent PNG, and PDF composited onto white.
 Invoice number and source remain printed; customer identifiers are validated and
 never minted by rendering. All figures come from the stored invoice, not the sample.
-RECEIPT_TRANSPARENT_BG defaults to true; an explicit false is an appearance rollback.
-The owner clarified that invoices must always be sent as PNG images on WhatsApp.
-Delivery selects the private PNG asset generated by this single engine for both
-approved and legacy appearances. PDF remains available as a download only. The
+Invoices are always sent as PNG images on WhatsApp. Delivery selects the private PNG asset generated by the single canonical branded renderer. PDF remains available as a download only. The
 fixed payment-template header is unchanged.
 Native invoice collection remains single-tender: a verified gift-card balance is
 not a debit. Split-tender native sends refuse before reserving or sending until an
