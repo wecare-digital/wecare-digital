@@ -245,20 +245,15 @@ def _graph_phone(waba: str) -> str:
     return PHONE2_META_ID if str(waba or "") == WABA2_ID else PHONE1_META_ID
 
 
-def _validate_reference(
+def _validate_target(
     selected_target: str,
-    reference_number: str,
     phone: str,
     identity: Optional[customer_auth.CustomerIdentity],
 ) -> Dict[str, str]:
-    """Verify the typed reference belongs to the verified customer and matches the dropdown."""
+    """Verify the selected target belongs to the verified customer."""
     selected = str(selected_target or "").strip()
-    wanted = str(reference_number or "").strip()
     if not selected or selected == "unavailable":
-        raise ValueError("Select the order or request these documents belong to.")
-    if not wanted:
-        raise ValueError("Enter the exact reference for the selected order or request.")
-    folded = wanted.upper()
+        raise ValueError("Choose an order or request.")
 
     if selected.startswith("order:"):
         selected_id = selected.split(":", 1)[1]
@@ -268,16 +263,7 @@ def _validate_reference(
                 if order_id != selected_id:
                     continue
                 short = str(order.get("title") or "").split("—", 1)[0].strip()
-                candidates = {order_id.upper(), short.upper()}
-                if short:
-                    candidates.add(("WD-ORD-" + short).upper())
-                if folded not in candidates:
-                    raise ValueError(
-                        "The reference does not match the selected order. Copy the exact order reference from Your Orders."
-                    )
-                display = wanted if folded.startswith("WD-ORD") else (
-                    "WD-ORD-" + short if short else wanted
-                )
+                display = "WD-ORD-" + short if short else order_id
                 return {"kind": "order", "id": order_id, "display": display}
         except ValueError:
             raise
@@ -297,10 +283,6 @@ def _validate_reference(
                 public_id = str(row.get("requestId") or "").strip()
                 if public_id != selected_id:
                     continue
-                if folded != public_id.upper():
-                    raise ValueError(
-                        "The reference does not match the selected request. Copy the exact request reference."
-                    )
                 return {"kind": "request", "id": public_id, "display": public_id}
         except ValueError:
             raise
@@ -464,32 +446,31 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     try:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected:
-        return {"screen": "UPLOAD", "data": {"error_message": REJECTED}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": REJECTED}}
     except flow_sessions.FlowSessionUnavailable:
-        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": "Please try again."}}
 
     # A retry of the exact data_exchange may occur after the endpoint answered but before the
     # device received the response. Idempotent document ids + completion claim make it safe.
     contact = _contact(session.phone)
     identity = _customer_identity(contact, session.phone)
     selected_target = str(data.get("selected_target") or "").strip()
-    reference_number = str(data.get("reference_number") or "").strip()
     note = str(data.get("note") or "").strip()
     picker = _normalise_picker(data.get("documents"))
 
     if not picker:
-        return {"screen": "UPLOAD", "data": {"error_message": "Choose at least one document."}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose at least one document."}}
     if len(picker) > MAX_FILES:
-        return {"screen": "UPLOAD", "data": {"error_message": "Choose up to 3 documents."}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose up to 3 documents."}}
     try:
-        target = _validate_reference(
-            selected_target, reference_number, session.phone, identity
+        target = _validate_target(
+            selected_target, session.phone, identity
         )
     except ValueError as exc:
-        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": str(exc)[:200]}}
     except Exception as exc:  # noqa: BLE001
         logger.warning("Drop Docs target validation failed: %s", type(exc).__name__)
-        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": "Please try again."}}
 
     stored: List[Dict[str, Any]] = []
     try:
@@ -505,7 +486,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
                 )
             )
     except ValueError as exc:
-        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": str(exc)[:200]}}
     except Exception as exc:  # noqa: BLE001
         logger.error(json.dumps({
             "event": "f003_drop_docs_store_failed",
@@ -513,7 +494,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
             "requestId": request_id,
         }))
         return {
-            "screen": "UPLOAD",
+            "screen": "SELECT_TARGET",
             "data": {"error_message": "We could not store that document securely. Please try again."},
         }
 
@@ -527,14 +508,13 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     ).strip()
     completion_data = {
         "selected_target": selected_target,
-        "reference_number": target["display"],
         "target_display": target["display"],
         "note": note,
         "documents": attachments,
     }
     result = flow_completion.claim_completion(
         flow_token=flow_token,
-        screen="UPLOAD",
+        screen="SELECT_TARGET",
         flow_code=FLOW_CODE,
         flow_type=FLOW_TYPE,
         phone=session.phone,
@@ -550,7 +530,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     )
     if result.status == "error":
         return {
-            "screen": "UPLOAD",
+            "screen": "SELECT_TARGET",
             "data": {"error_message": "Your files are safe, but we could not finish the record. Please try again."},
         }
 
@@ -562,7 +542,6 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
             "message": "Your documents are stored securely and linked for review.",
             "document_reference": reference,
             "file_count": str(len(stored)),
-            "reference_number": target["display"],
             "note": note or "—",
             "attachments": attachments,
             "submission_id": result.submission_id or reference,
