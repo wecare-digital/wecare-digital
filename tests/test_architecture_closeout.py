@@ -525,7 +525,8 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
     def test_customer_deep_link_uses_canonical_auth_and_returns_to_exact_file(self):
         get_page = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
         vault_page = (ROOT / "src" / "pages" / "vault.tsx").read_text(encoding="utf-8")
-        self.assertIn("/auth?return=", get_page)
+        self.assertIn("window.location.replace( '/auth' )", get_page)
+        self.assertNotIn("/auth?return=", get_page)
         self.assertIn("wecare.vault.authReturnFile", get_page)
         self.assertIn("wecare.vault.authReturnFile", vault_page)
         self.assertIn("router.replace( { pathname: '/vault/'", vault_page)
