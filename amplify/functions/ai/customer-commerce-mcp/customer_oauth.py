@@ -510,6 +510,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '' if phase == 'phone' else
         '<button class="auth-action" type="submit" name="action" value="resend" formnovalidate>Resend code</button>'
     )
+    edit_phone = (
+        '' if phase == 'phone' else
+        '<button class="auth-action" type="submit" name="action" value="edit_phone" formnovalidate>Edit phone number</button>'
+    )
     hero_words = [
         ('WECARE.DIGITAL', '#fef3c7', '#f0a818'),
         ('WhatsApp', '#dcfce7', '#22c55e'),
@@ -593,7 +597,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
         flow_fields + field +
         '<div class="auth-actions"><button class="auth-action" type="submit">' + primary_text + '</button>' +
-        resend + '</div></form>'
+        resend + edit_phone + '</div></form>'
         '</div></section>'
     )
     stay_connected = (
@@ -877,9 +881,31 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
 def save_pending(row: dict, login: dict, message: str = '') -> dict:
     csrf = secrets.token_urlsafe(32)
     row['csrfHash'] = digest(csrf)
+    row['notice'] = message
     row['cipher'] = capsule(login, row['client'], row['sidHash'])
     STORE.put(row)
     return form(row, csrf, message)
+
+
+def resume_authorization(event: dict) -> dict | None:
+    """Resume a one-use auth step after a safe GET refresh without sending another code."""
+    headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
+    cookies = SimpleCookie()
+    cookies.load('; '.join(event.get('cookies') or [headers.get('cookie', '')]))
+    if COOKIE not in cookies:
+        return None
+    key = row_key('auth', cookies[COOKIE].value)
+    row = STORE.get(key)
+    if not row or row.get('kind') not in {'web-auth', 'oauth-auth'}:
+        return None
+    if row.get('kind') == 'oauth-auth':
+        client(row['client'])
+        if row.get('resource') != resource():
+            raise AuthError('Invalid authorization resource')
+    login = uncapsule(row['cipher'], row['client'], key)
+    if STORE.take(key) is None:
+        return website_recovery()
+    return save_pending(row, login, row.get('notice', ''))
 
 
 def website_get(params: dict) -> dict:
@@ -992,8 +1018,13 @@ def authorize_post(params: dict, event: dict) -> dict:
     stage = 'phone' if login.get('phase') == 'phone' else 'challenge'
     try:
         if params.get('action'):
-            if (params.get('action') != 'resend' or set(params) != {'csrf', 'action'}
-                    or login.get('phase') not in {'code', 'registration'}):
+            action = params.get('action')
+            allowed_action_fields = {'csrf', 'action', 'code'}
+            if set(params) - allowed_action_fields or login.get('phase') not in {'code', 'registration'}:
+                raise AuthError('Invalid authorization action')
+            if action == 'edit_phone':
+                return save_pending(row, {'phase': 'phone'})
+            if action != 'resend':
                 raise AuthError('Invalid resend request')
             if login.get('phase') == 'registration':
                 if not registration_call('request', login['phone'], event):
@@ -1079,6 +1110,10 @@ def route(event: dict) -> dict | None:
         if path in {'/auth', '/oauth/authorize'} and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
             if path == '/auth' and not {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}.intersection(params):
+                if not params:
+                    pending = resume_authorization(event)
+                    if pending is not None:
+                        return pending
                 return website_get(params)
             target = connect_origin()
             # Hosts cache discovery. Redirect an initial GET on the legacy path before creating
@@ -1099,7 +1134,12 @@ def route(event: dict) -> dict | None:
             raw = base64.b64decode(raw, validate=True).decode()
         params = parse(raw)
         if path in {'/auth', '/oauth/authorize'}:
-            return authorize_post(params, event)
+            page = authorize_post(params, event)
+            if page['statusCode'] == 200:
+                result = response(303, '')
+                result['headers']['Location'] = connect_origin() + '/auth'
+                return result
+            return page
         if path == '/oauth/token':
             return response(200, token_exchange(params))
         if path == '/oauth/revoke':
