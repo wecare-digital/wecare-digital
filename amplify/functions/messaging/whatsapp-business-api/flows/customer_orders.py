@@ -128,7 +128,7 @@ def _context(token):
 
 def profile(contact, identity):
     address = contact_address.from_contact(contact)
-    return {'customer_id': customer_uuid.from_contact(contact) or 'Not available yet',
+    return {'customer_id': customer_uuid.display_code(contact) or 'Not available yet',
             'name': str(contact.get('name') or '').strip() or 'Not provided',
             'phone': identity.phone, 'email': str(contact.get('email') or 'Not provided'),
             'email_state': 'Verified' if contact.get('emailVerifiedAt') else 'Verification needed',
