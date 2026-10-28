@@ -11,7 +11,7 @@ Entry points
   Vault link again at no charge; an unpaid file, or a paid one whose every window has been used,
   gets ONE priced Review and Pay.
 * ``sendOffer`` - secure-files, when staff press "Send ₹49 Vault message" for one file. Sends the
-  approved offer `wecare_valut_49` ("Your <document> copy is ready! Pay ₹49…") whose "Unlock
+  approved offer `wecare_vault_request_ready` ("📄 Your requested <document> is available in your Vault. Amount due for this request: ₹49.") whose "Unlock
   Vault" quick reply carries an opaque offer token. It charges nothing and needs no linked
   contact: the customer is proven from the tap.
 * ``unlock`` - the inbound worker, for a tap on "Unlock Vault". The tap is a signed inbound
@@ -438,7 +438,7 @@ def _offer_send_outcome(response):
 
 
 def _send_offer(event, client, db, keys, contacts, now):
-    """Staff asked for ₹49 for one file: send the Vault offer (wecare_valut_49). Never charges.
+    """Staff asked for ₹49 for one file: send the Vault offer (wecare_vault_request_ready). Never charges.
 
     The offer names the document and carries an opaque token in its "Unlock Vault" quick reply.
     The tap, a signed inbound message, is what proves the customer and opens Review and Pay

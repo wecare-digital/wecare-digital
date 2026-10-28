@@ -109,7 +109,7 @@ const TEMPLATE_OPERATION_PATHS: Record<string, string> = {
   wecare_default_download: 'Inbox · Send template · Vault file ID',
   wecare_location_share_pin: 'Inbox · Send template · Location',
   wecare_otp: 'Customer verification · Automatic',
-  wecare_valut_49: 'Service · Documents · Secure files · Send ₹49 Vault message',
+  wecare_vault_request_ready: 'Service · Documents · Secure files · Send Vault request-ready message',
 };
 
 const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {

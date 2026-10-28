@@ -350,7 +350,7 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         end = source.index("</Modal>", start)
         modal = source[start:end]
         self.assertNotIn("WhatsApp Vault title", modal)
-        self.assertNotIn("wecare_valut_49", modal)
+        self.assertNotIn("wecare_vault_request_ready", modal)
         self.assertIn("Upload & send WhatsApp", modal)
         self.assertIn("Order (optional)", modal)
         self.assertIn("Document type", modal)
@@ -405,14 +405,14 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
             encoding="utf-8"
         )
         for name in (
-            "wecare_valut_49",
+            "wecare_vault_request_ready",
             "wecare_whatapp_native_pay_template",
             "wecare_default_download",
             "wecare_default_invoice_image_template",
         ):
             self.assertIn(name, source)
         self.assertIn("Vault WhatsApp journey", source)
-        self.assertIn("Receipt image is the only intentional image message.", source)
+        self.assertIn("Vault offer uses the approved WECARE header; receipt uses the generated payment image.", source)
         self.assertNotIn("Send ₹49 Vault message", source)
         self.assertNotIn("Send ₹49 renewal message", source)
 

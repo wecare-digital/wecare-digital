@@ -999,9 +999,9 @@ def _vault_file_id_for_document(document_id: str, version: int = 1) -> str:
 
 
 def _vault_message_name(raw: Any) -> str:
-    """Staff's text for {{1}} of `wecare_valut_49`, cleaned exactly as the send cleans it, or ''.
+    """Staff's text for {{1}} of `wecare_vault_request_ready`, cleaned exactly as the send cleans it, or ''.
 
-    "Your *{{1}}* copy is ready! Pay *₹49*…" goes out with the stored `displayName`, so storing
+    "📄 Your requested *{{1}}* is available in your Vault. Amount due for this request: *₹49*." goes out with the stored `displayName`, so storing
     the cleaned form makes the Workspace preview the message itself. '' means staff gave no
     usable name (blank, or only emphasis marks) and the caller derives one instead.
     """
@@ -1370,7 +1370,7 @@ def _admin_access_state(item: Dict[str, Any], now: int) -> str:
 
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Send the file's owner the ₹49 Vault message on WhatsApp (template wecare_valut_49).
+    """Send the file's owner the ₹49 Vault message on WhatsApp (template wecare_vault_request_ready).
 
     business-api `catalogService.sendOffer` sends "Your <document> copy is ready! Pay ₹49…" with
     an "Unlock Vault" button tied to THIS file. Nothing is charged here. The customer's tap opens
