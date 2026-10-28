@@ -2094,7 +2094,7 @@ def run(root: Path) -> int:
         submit_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[submit_variant]
         products = {
             vault_product: {"status": "active", "variants": [{"sku": vault_variant, "priceMinor": 4900}]},
-            drop_product: {"status": "active", "variants": [{"sku": drop_variant, "priceMinor": 19900}]},
+            drop_product: {"status": "active", "variants": [{"sku": drop_variant, "priceMinor": 18800}]},
             submit_product: {"status": "active", "variants": [{"sku": submit_variant, "priceMinor": 4900}]},
         }
         checkout._native_product_reader = lambda: (lambda product_id: products.get(product_id))
@@ -2111,17 +2111,19 @@ def run(root: Path) -> int:
             "catalogReference": {"catalogItemId": submit_product, "options": {"variantId": submit_variant}},
             "quantity": 1,
         }], int(time.time())).quote
-        check("SVC", "Vault catalogue price is the exact payable: 4900 paise, zero fee and zero fee GST",
-              vault_quote.total_payable_paise == 4900
-              and vault_quote.convenience_fee_paise == 0
-              and vault_quote.convenience_gst_paise == 0,
+        check("SVC", "Vault Rs49 uses 18% GST, Delight, Rs25 Express and the standard fee policy",
+              vault_quote.collection_before_convenience_paise == 8254
+              and vault_quote.convenience_fee_paise == 206
+              and vault_quote.convenience_gst_paise == 37
+              and vault_quote.total_payable_paise == 8497,
               vault_quote.components())
-        check("SVC", "Drop Docs catalogue price is the exact payable: 19900 paise",
-              drop_quote.total_payable_paise == 19900
-              and drop_quote.convenience_fee_paise == 0
-              and drop_quote.convenience_gst_paise == 0,
+        check("SVC", "Drop Docs Rs188 uses 18% GST, Delight, Rs25 Express and the standard fee policy",
+              drop_quote.collection_before_convenience_paise == 24574
+              and drop_quote.convenience_fee_paise == 614
+              and drop_quote.convenience_gst_paise == 111
+              and drop_quote.total_payable_paise == 25299,
               drop_quote.components())
-        check("SVC", "the exact-price exceptions do not remove the standard fee from other services",
+        check("SVC", "other service pricing behavior remains fee-bearing and unchanged",
               ordinary_quote.total_payable_paise > 4900
               and ordinary_quote.convenience_fee_paise > 0,
               ordinary_quote.components())
@@ -2300,9 +2302,9 @@ def run(root: Path) -> int:
     attempts = _attempts_for(vera["sub"])
     intents = [r for r in _scan("ServiceRequestsTable")
                if str(r.get("requestId", "")).startswith("INTENT#") and r.get("vaultFileId") == vera_file]
-    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for 4900 paise",
+    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for 8497 paise",
           len(intents) == 1 and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(attempts) == 1
-          and int(attempts[0].get("amountPaise") or 0) == 4900,
+          and int(attempts[0].get("amountPaise") or 0) == 8497,
           {"intents": len(intents), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
     mark = W.mark()
     deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
@@ -2379,9 +2381,9 @@ def run(root: Path) -> int:
         mark = W.mark()
         deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP2", "vaultoffer:" + next(iter(new_tokens), "")))
         renewals = [a for a in _attempts_for(vera["sub"]) if a["paymentAttemptId"] != purchase["paymentAttemptId"]]
-        check("VLT", "the renewal tap sends ONE more Review and Pay for 4900 paise",
+        check("VLT", "the renewal tap sends ONE more Review and Pay for 8497 paise",
               len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(renewals) == 1
-              and int(renewals[0].get("amountPaise") or 0) == 4900,
+              and int(renewals[0].get("amountPaise") or 0) == 8497,
               [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals])
         if renewals:
             mark = W.mark()
