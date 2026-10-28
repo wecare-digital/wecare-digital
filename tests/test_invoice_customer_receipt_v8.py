@@ -164,6 +164,18 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("customer_id, font=small_bold", receipt)
         self.assertNotIn('"customerUuid"', receipt)
 
+    def test_legacy_receipt_renderer_and_appearance_switch_are_removed(self):
+        engine = ENGINE.read_text(encoding="utf-8")
+        self.assertNotIn("RECEIPT_TRANSPARENT_BG", engine)
+        self.assertNotIn("_transparent_receipt_enabled", engine)
+        self.assertNotIn("DejaVuSansMono", engine)
+        self.assertNotIn("grey-backdrop", engine)
+        start = engine.index("def _generate_receipt_png(")
+        end = engine.index("\ndef _amount_in_words(", start)
+        renderer = engine[start:end]
+        self.assertIn("return receipt_layout.render(", renderer)
+        self.assertNotIn("if transparent", renderer)
+
     def test_preissue_preview_is_server_rendered_before_invoice_numbering(self):
         source = ENGINE.read_text(encoding="utf-8")
         self.assertIn("def preview_invoice(body: Dict, request_id: str) -> Dict:", source)
