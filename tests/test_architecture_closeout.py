@@ -494,6 +494,10 @@ class VaultBackendHardeningTests(unittest.TestCase):
         self.assertNotIn('/secure-files/upload-init', routes)
         self.assertNotIn('/secure-files/{fileId}/confirm', routes)
         self.assertIn("client.delete_route", provision)
+        self.assertIn('TracingConfig={"Mode": "Active"}', provision)
+        self.assertIn("FAIL retired route still live", provision)
+        self.assertIn("PASS retired route absent", provision)
+        self.assertIn("PASS X-Ray tracing Active", provision)
 
     def test_paid_download_uses_system_owned_vault_filename(self):
         handler = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
