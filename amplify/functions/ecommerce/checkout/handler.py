@@ -1002,26 +1002,9 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         coupon_definition=coupon_definition,
     )
 
-    # Vault and Drop Docs keep zero convenience fee/GST-on-fee, but their supply collection now
-    # includes the canonical Delight reduction and fixed Express charge frozen above.
-    if collect_breakdown:
-        exact_quote = checkout_pricing.exempt_quote(
-            snapshot.quote.collection_before_convenience_paise,
-            currency=snapshot.quote.currency,
-        )
-        frozen = snapshot.frozen_data
-        return checkout_pricing.build_snapshot(
-            customer_id=snapshot.customer_id,
-            cart_id=snapshot.cart_id,
-            cart_revision=snapshot.cart_revision,
-            quote=exact_quote,
-            created_at=snapshot.created_at,
-            ttl_seconds=snapshot.expires_at - snapshot.created_at,
-            site=frozen.get("site"),
-            items=frozen.get("items"),
-            address=frozen.get("address"),
-            delivery=frozen.get("delivery"),
-        )
+    # For Vault/Drop Docs the native quote is already the complete Collect-style amount:
+    # GST-inclusive item subtotal -> Delight -> Express -> Convenience Fee -> 18% GST on that fee.
+    # Do NOT rebuild it with exempt_quote; doing so would erase the fee/GST the customer reviewed.
     return snapshot
 
 
