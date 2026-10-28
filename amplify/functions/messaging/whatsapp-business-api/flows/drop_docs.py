@@ -52,7 +52,7 @@ WABA2_ID = os.environ.get("WABA2_ID", "2513394156072604")
 PHONE1_META_ID = os.environ.get("PHONE1_META_ID", "1016149501586345")
 PHONE2_META_ID = os.environ.get("PHONE2_META_ID", "1055232054343117")
 
-MAX_FILES = 3
+MAX_FILES = 10
 MAX_FILE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {
     "application/pdf": ".pdf",
@@ -222,7 +222,7 @@ def _normalise_picker(value: Any) -> List[Dict[str, Any]]:
         value = value.get("documents") or value.get("files") or [value]
     if not isinstance(value, list):
         return []
-    return [entry for entry in value[:MAX_FILES] if isinstance(entry, dict)]
+    return [entry for entry in value if isinstance(entry, dict)]
 
 
 def _media_id(entry: Dict[str, Any]) -> str:
@@ -442,7 +442,7 @@ def _store_one(
 
 
 def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """UPLOAD data_exchange -> COMPLETE only after every selected file is private and indexed."""
+    """SELECT_TARGET data_exchange -> COMPLETE after every selected file is private and indexed."""
     try:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected:
@@ -461,7 +461,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     if not picker:
         return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose at least one document."}}
     if len(picker) > MAX_FILES:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose up to 3 documents."}}
+        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose up to 10 documents."}}
     try:
         target = _validate_target(
             selected_target, session.phone, identity
