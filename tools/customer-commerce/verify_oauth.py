@@ -90,17 +90,22 @@ class OAuthContract(unittest.TestCase):
                      'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
             result = auth.route(event)
         self.assertEqual(result['statusCode'], 200)
-        self.assertIn('Sign in to WECARE.DIGITAL.', result['body'])
         self.assertIn('class="hdr"', result['body'])
         self.assertIn('class="nav-menu"', result['body'])
         self.assertIn('class="home-shell"', result['body'])
         self.assertIn('One&nbsp;account, built&nbsp;for', result['body'])
         self.assertIn('the website, ChatGPT, Claude, Gemini', result['body'])
-        self.assertIn('Sign in with WhatsApp and continue securely wherever you started.', result['body'])
         self.assertIn('class="home-connect"', result['body'])
         self.assertIn('class="connect-panel"', result['body'])
-        self.assertIn('class="connect-eyebrow">WECARE account</p>', result['body'])
-        self.assertIn('class="connect-rule"', result['body'])
+        self.assertIn('class="connect-eyebrow"', result['body'])
+        self.assertIn('>WECARE Account</span>', result['body'])
+        self.assertIn('appearance:auto', result['body'])
+        self.assertIn('>Get Code</button>', result['body'])
+        self.assertNotIn('Sign in to WECARE.DIGITAL.', result['body'])
+        self.assertNotIn('Use your WhatsApp number to continue with your WECARE account.', result['body'])
+        self.assertNotIn('Enter your number without the country code or a leading zero.', result['body'])
+        self.assertNotIn('Sign in to your WECARE account. Verification messages arrive on WhatsApp.', result['body'])
+        self.assertNotIn('class="connect-rule"', result['body'])
         self.assertNotIn('class="sign-card"', result['body'])
         self.assertIn('class="public-share has-contribute"', result['body'])
         self.assertIn('Contribute ₹250', result['body'])
@@ -117,6 +122,18 @@ class OAuthContract(unittest.TestCase):
         row = self.store.get(auth.row_key('auth', cookie[auth.COOKIE].value))
         self.assertEqual(row['kind'], 'web-auth')
         self.assertEqual(row['return'], '/orders/')
+
+    def test_code_phase_renders_and_accepts_resend_action(self):
+        cookie, csrf = self.begin()
+        first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+        self.assertEqual(first['statusCode'], 200)
+        self.assertIn('>Resend code</button>', first['body'])
+        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        second = self.post(cookie, {'csrf': csrf, 'action': 'resend'})
+        self.assertEqual(second['statusCode'], 200)
+        self.assertIn('>Resend code</button>', second['body'])
+        self.assertIn('class="single-field"', second['body'])
+        self.assertEqual(self.cognito.sends, 2)
 
     def test_plain_auth_rejects_unknown_parameters_and_external_returns(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
@@ -329,7 +346,9 @@ class OAuthContract(unittest.TestCase):
             return True
         with patch.object(auth, 'registration_call', side_effect=registration) as delegate:
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            self.assertIn('create your account', result['body'])
+            self.assertIn('>Verify code</button>', result['body'])
+            self.assertIn('>Resend code</button>', result['body'])
+            self.assertNotIn('create your account', result['body'])
             csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
             result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(result['statusCode'], 200)

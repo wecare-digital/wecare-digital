@@ -149,8 +149,8 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
          footer opts into 48px/19px below, still clearly subordinate to the public header. */
       .brand-lockup.compact img{height:44px;border-radius:10px}
       .brand-lockup.compact .brand-copy>span{font-size:18px;letter-spacing:-.4px}
-      .brand-lockup.public-footer.compact img{height:48px}
-      .brand-lockup.public-footer.compact .brand-copy>span{font-size:19px}
+      .brand-lockup.public-footer.compact img{height:50px}
+      .brand-lockup.public-footer.compact .brand-copy>span{font-size:20px}
 
       @media(max-width:767px){
         .brand-lockup{gap:8px}
@@ -161,8 +161,8 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
         /* Public common-shell scale on normal smartphones. */
         .brand-lockup.public-header img{height:58px}
         .brand-lockup.public-header .brand-copy>span{font-size:22px}
-        .brand-lockup.public-footer.compact img{height:44px}
-        .brand-lockup.public-footer.compact .brand-copy>span{font-size:18px}
+        .brand-lockup.public-footer.compact img{height:46px}
+        .brand-lockup.public-footer.compact .brand-copy>span{font-size:19px}
       }
       /* NARROW PHONE / FOLDED DEVICE FALLBACK. Keep the measured pre-increase header scale so
          280-340px devices retain room for the menu trigger and 44px shopping-bag control. The

@@ -34,6 +34,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # tools/browser/lib/browser.js answers production image URLs from this directory, so each image
+  # is downloaded from wecare.digital once a day instead of on every page load (2026-10-27 audit).
+  HARNESS_MEDIA_CACHE: .cache/harness-media
 jobs:
   chromium-public-contract:
     runs-on: ubuntu-latest
@@ -45,6 +49,13 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - id: media-day
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the harness's production media cache (one per day)
+        uses: actions/cache@v4
+        with:
+          path: .cache/harness-media
+          key: harness-media-${{ steps.media-day.outputs.day }}
 
       - name: Pin repository npm version
         run: |
@@ -89,6 +100,13 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - id: media-day
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the harness's production media cache (one per day)
+        uses: actions/cache@v4
+        with:
+          path: .cache/harness-media
+          key: harness-media-${{ steps.media-day.outputs.day }}
 
       - name: Pin repository npm version
         run: |
@@ -129,6 +147,13 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+      - id: media-day
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the harness's production media cache (one per day)
+        uses: actions/cache@v4
+        with:
+          path: .cache/harness-media
+          key: harness-media-${{ steps.media-day.outputs.day }}
 
       - name: Pin repository npm version
         run: |
