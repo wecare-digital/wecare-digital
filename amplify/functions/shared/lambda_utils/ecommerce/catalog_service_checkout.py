@@ -116,35 +116,102 @@ def quick_reply_component(button: dict) -> dict:
             'parameters': [{'type': 'payload', 'payload': payload}]}
 
 
-def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int) -> dict:
+def payment_details(row: dict, snapshot: Any, reference_id: str, configuration: str, now: int) -> dict:
+    """Build Vault/Drop Docs ORDER_DETAILS from the one frozen checkout snapshot.
+
+    Customer-visible arithmetic follows the same server-owned Collect policy:
+    GST-inclusive item value - Delight + Express/allowed charges + Convenience Fee
+    + 18% GST on the Convenience Fee = Amount Payable.
+
+    The item carries an image; outbound-whatsapp replaces it at the final Meta boundary with the
+    one approved WECARE order-item thumbnail, so no caller can inject a different payment image.
+    """
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
+
+    from . import default_coupon
+
+    quote = snapshot.quote
+    frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+    frozen_items = frozen.get('items') if isinstance(frozen.get('items'), list) else []
+    if len(frozen_items) != 1 or not isinstance(frozen_items[0], dict):
+        raise ValueError('service checkout needs exactly one frozen item')
+
+    line = frozen_items[0]
+    quantity = int(line.get('quantity') or 0)
+    unit_paise = int(line.get('unitPricePaise') or 0)
+    item_subtotal_paise = quantity * unit_paise
+    if quantity != 1 or item_subtotal_paise <= 0:
+        raise ValueError('service checkout needs one positive-price item')
+
+    delivery = frozen.get('delivery') if isinstance(frozen.get('delivery'), dict) else {}
+    express_paise = int(delivery.get('paise') or 0)
+    delight_paise = max(
+        0,
+        item_subtotal_paise + express_paise
+        - int(quote.collection_before_convenience_paise),
+    )
+    expected_delight = default_coupon.delight_paise(item_subtotal_paise)
+    if row.get('kind') in ('VAULT', 'DROP_DOCS') and delight_paise != expected_delight:
+        raise ValueError('service Delight does not match the canonical policy')
+
     labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
     label = labels.get(row['kind'], 'Service')
-    items = [{'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
-              'name': label, 'quantity': 1,
-              'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
+    items = [{
+        'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
+        'name': label,
+        'quantity': 1,
+        'amount': {'value': unit_paise, 'offset': 100},
+        # Placeholder only. The outbound payment boundary pins the approved thumbnail.
+        'image': {'link': 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png'},
+    }]
+
+    # Meta has no dedicated convenience-fee field. Represent the fee as a second non-catalog
+    # order item so it stays visibly separate from the service line. Its GST remains the order
+    # tax row, and Delight remains the order discount row.
     if quote.convenience_fee_paise:
-        # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
-        items.append({'name': 'Convenience fee', 'quantity': 1,
-                      'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
-    return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
-        # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
-        # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
-        # WABA1-only refusal, the raw-link refusals and the VALID_PAYMENT_CONFIGS membership
-        # check did not apply to this leg. Removing it is a correctness fix, not a cleanup.
-        #
-        # The NAME still travels, and it has to. `configuration` was used ONLY by that block, so
-        # dropping the block alone would make this argument dead, the resolver would fall back to
-        # the sender's phone map, and the system could prove one configuration against Meta while
-        # telling Meta to use another — with no refusal anywhere. Mirrors the invoice engine,
-        # where the reserved string and the sent string are the same string by construction.
+        items.append({
+            'name': 'Convenience Fee',
+            'quantity': 1,
+            'amount': {'value': int(quote.convenience_fee_paise), 'offset': 100},
+        })
+
+    meta_subtotal = item_subtotal_paise + int(quote.convenience_fee_paise)
+    order = {
+        'status': 'pending',
+        'items': items,
+        'subtotal': {'value': meta_subtotal, 'offset': 100},
+        'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        'tax': {
+            'value': int(quote.convenience_gst_paise),
+            'offset': 100,
+            'description': 'GST on Convenience Fee',
+        },
+        'discount': {
+            'value': delight_paise,
+            'offset': 100,
+            'description': default_coupon.DISPLAY_LABEL,
+        },
+        'expiration': {
+            'timestamp': str(now + 900),
+            'description': 'Complete payment within 15 minutes',
+        },
+    }
+
+    computed_total = (
+        meta_subtotal + express_paise + int(quote.convenience_gst_paise) - delight_paise
+    )
+    if computed_total != int(quote.total_payable_paise):
+        raise ValueError('payment breakdown does not equal frozen payable total')
+
+    return {
+        'reference_id': reference_id,
+        'type': 'digital-goods',
+        'currency': 'INR',
         'payment_configuration': configuration,
-        'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'order': {'status': 'pending', 'items': items,
-                  'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
-                  'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
-                  'expiration': {'timestamp': str(now + 900), 'description': 'Complete payment within 15 minutes'}}}
+        'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
+        'order': order,
+    }
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:
