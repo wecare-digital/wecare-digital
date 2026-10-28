@@ -288,7 +288,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         stem = source[source.index("def _invoice_asset_stem"):source.index("def _next_asset_version")]
         self.assertNotIn("invoiceNumber", stem)
         self.assertNotIn("__{reference}", stem)
-        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}"', stem)
+        self.assertIn('return f"{INVOICE_PREFIX}wecare-digital-{reference}-{date_token}-{time_token}"', stem)
 
     def test_receipt_v9_uses_fixed_reference_canvas(self):
         source = RECEIPT.read_text(encoding="utf-8")
@@ -297,7 +297,7 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("Fresh fixed-coordinate renderer", source)
 
     def test_customer_receipt_key_uses_public_reference_date_time(self):
-        source = HANDLER.read_text(encoding="utf-8")
+        source = ENGINE.read_text(encoding="utf-8")
         target = source[source.index("def _asset_target"):source.index("# ─── Generate Invoice Image")]
         self.assertIn("render_token = uuid.uuid4().hex[:12]", target)
         self.assertNotIn("-v{version}-r", target)
