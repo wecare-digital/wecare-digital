@@ -40,6 +40,10 @@ from lambda_utils import short_link_lifecycle as lifecycle
 
 SHORT_LINKS_TABLE = os.environ.get("SHORT_LINKS_TABLE", "stack-wecare-digital-ShortLinksTable")
 LINK_CLICKS_TABLE = os.environ.get("LINK_CLICKS_TABLE", "stack-wecare-digital-LinkClicksTable")
+# Click rows hold the visitor's IP and user agent, so they expire (DynamoDB TTL on `expiresAt`).
+# 365 days keeps a year of link analytics. scripts/provision_link_clicks_ttl.py turns the TTL on
+# and backfills rows written before this change.
+LINK_CLICK_RETENTION_SECONDS = int(os.environ.get("LINK_CLICK_RETENTION_DAYS", "365")) * 86400
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 # The base that short links are published under: the apex path `wecare.digital/r`,
@@ -626,6 +630,7 @@ def redirect(code, event):
                 "platform": platform,
                 "userAgent": user_agent[:500],
                 "sourceIp": source_ip,
+                "expiresAt": int(time.time()) + LINK_CLICK_RETENTION_SECONDS,
             }
         )
         links_table.update_item(
