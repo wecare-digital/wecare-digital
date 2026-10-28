@@ -2898,7 +2898,9 @@ def _order_view(order: Dict[str, Any], attempt: Dict[str, Any]) -> Dict[str, Any
         "charges": charges,
         "delivery": order_delivery.from_order(order),
         "invoiceNumber": str(order.get("invoiceNumber") or ""),
-        customer_uuid.ATTRIBUTE: customer_uuid.from_contact(order),
+        # The compact support label is the only customer id exposed on this customer API.
+        # The canonical UUID remains stored on the order for internal joins/correlation.
+        "customerDisplayId": customer_uuid.display_code(order),
     }
 
 
