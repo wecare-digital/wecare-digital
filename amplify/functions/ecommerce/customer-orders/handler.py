@@ -396,7 +396,9 @@ def _project(row: Dict[str, Any]) -> Dict[str, Any]:
         #
         # Safe on the wire and safe in a log, unlike the phone beside it: it is ours, opaque,
         # carries no timestamp, and is not a credential. Same standing as `referenceId`.
-        customer_uuid.ATTRIBUTE: customer_uuid.from_contact(row),
+        # Customer-facing support label only. The canonical UUID stays on the stored
+        # order row for joins/correlation and is deliberately not returned by this public API.
+        "customerDisplayId": customer_uuid.display_code(row),
     }
 
 

@@ -79,7 +79,7 @@ interface OrderView {
   charges: OrderCharges | null;
   delivery: { recipient: string; address: DeliveryAddress } | null;
   invoiceNumber: string;
-  customerUuid: string;
+  customerDisplayId: string;
 }
 
 type Load =
@@ -366,10 +366,10 @@ export default function OrderDetail (
                       <dd><span data-wc-no-translate>{ order.invoiceNumber }</span></dd>
                     </>
                   ) }
-                  { order.customerUuid && (
+                  { order.customerDisplayId && (
                     <>
                       <dt>Customer ID</dt>
-                      <dd><span data-wc-no-translate>{ order.customerUuid }</span></dd>
+                      <dd><span data-wc-no-translate>{ order.customerDisplayId }</span></dd>
                     </>
                   ) }
                 </dl>
