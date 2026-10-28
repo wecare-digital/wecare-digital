@@ -3020,12 +3020,18 @@ def _order_charges(spec: Dict[str, Any], items: list,
     charged by one paise is omitted rather than shown, and the page shows the total alone.
     """
     terms = {key: finalization.integer_paise(spec.get(key)) for key in (
-        "supplyGstPaise", "deliveryPaise", "discountPaise", "convenienceFeePaise",
-        "convenienceGstPaise", "totalPaise")}
+        "deliveryPaise", "discountPaise", "convenienceFeePaise", "convenienceGstPaise",
+        "totalPaise")}
     if any(value is None or value < 0 for value in terms.values()):
         return None
+    supply_gst = finalization.integer_paise(spec.get("supplyGstPaise"))
+    if supply_gst is None:
+        supply_gst = 0  # historical native-cart attempts predate this explicit field
+    if supply_gst < 0:
+        return None
+    terms["supplyGstPaise"] = supply_gst
     merchandise = sum(item["totalPaise"] for item in items)
-    total = (merchandise + terms["supplyGstPaise"] + terms["deliveryPaise"]
+    total = (merchandise + supply_gst + terms["deliveryPaise"]
              - terms["discountPaise"] + terms["convenienceFeePaise"]
              + terms["convenienceGstPaise"])
     if total != terms["totalPaise"] or amount is None or total != amount:
