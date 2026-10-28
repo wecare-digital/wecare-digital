@@ -160,7 +160,7 @@ const AuthPage: React.FC = () => {
 
             { step?.phase === 'phone' && (
               <>
-                <label className="auth-label" htmlFor="auth-phone">WhatsApp number</label>
+                <label className="auth-field-label" htmlFor="auth-phone">WhatsApp</label>
                 <div className="phone-control">
                   <div className="country-picker" ref={ countryRef }>
                     <button
@@ -278,6 +278,7 @@ const AuthPage: React.FC = () => {
         .auth-eyebrow-icon{width:36px;height:36px;border-radius:8px;display:block;object-fit:contain;flex:0 0 auto}
         .auth-context,.auth-status{margin:0 0 20px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.45}
         .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
+        .auth-field-label{display:block;margin:0 0 10px;color:var(--public-muted);font-size:var(--public-supporting-size);font-weight:600;line-height:1.35;letter-spacing:.01em}
         .phone-control{position:relative;display:flex;width:100%;min-height:64px;border:1px solid rgba(26,58,42,.16);border-radius:18px;background:#fff;box-shadow:none;transition:box-shadow .18s,border-color .18s}
         .phone-control:focus-within{border-color:rgba(26,58,42,.28);box-shadow:0 0 0 2px rgba(209,244,112,.32)}
         .country-picker{position:relative;display:flex;flex:0 0 auto}
@@ -288,9 +289,9 @@ const AuthPage: React.FC = () => {
         .code-control{border:1.5px solid var(--public-brand-lime);border-radius:18px;box-shadow:0 2px 0 rgba(26,58,42,.18)}
         .code-control:focus{border-color:var(--public-brand-green);box-shadow:0 0 0 3px rgba(209,244,112,.4),0 2px 0 rgba(26,58,42,.18)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;width:min(340px,calc(100vw - 48px));max-height:360px;overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15)}
-        .country-search{display:block;padding:12px;border-bottom:1px solid var(--public-hairline)}
-        .country-search input{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--public-hairline);border-radius:10px;font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
-        .country-search input:focus{border-color:var(--public-brand-green);box-shadow:0 0 0 3px rgba(209,244,112,.35)}
+        .country-search{display:block;padding:0 14px;border-bottom:0}
+        .country-search input{width:100%;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
+        .country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .country-list{max-height:286px;overflow:auto}
         .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);cursor:pointer}
         .country-row:hover,.country-row[aria-selected='true']{background:var(--public-lime-tint)}
@@ -306,6 +307,7 @@ const AuthPage: React.FC = () => {
           .auth-card{width:100%;padding:28px 20px 30px;border-radius:20px}
           .auth-eyebrow{min-height:48px;margin-bottom:28px;padding-inline:18px;font-size:var(--public-mobile-card-size)}
           .auth-label{font-size:var(--public-mobile-card-size)}
+          .auth-field-label{font-size:var(--public-mobile-supporting-size)}
           .phone-control,.code-control{min-height:58px;border-radius:16px}
           .country-trigger{min-width:104px;min-height:56px;padding-inline:14px;border-radius:15px 0 0 15px;font-size:var(--public-mobile-form-font-size)}
           .phone-control>input,.code-control{min-height:56px;padding-inline:16px;font-size:var(--public-mobile-form-font-size)}
