@@ -52,16 +52,15 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'submit_request', label: 'Submit Request',
     flowId: '1107164111921876', status: 'DEPRECATED', metaName: 'WD_Submit_Request_Paid_v1',
   },
-  // The former drafts 03.WD_Amend_Request and WD_Drop_Documents no longer exist on Meta
-  // (Graph error 100/33, 2026-10-25), so neither capability has a Flow; both keyword doors
-  // answer with their website link.
+  // The former amendment drafts no longer exist on Meta; amendment remains website-only.
   amend_request: {
     capability: 'amend_request', label: 'Request Amendment',
     flowId: null, status: 'NONE', metaName: null,
   },
+  // F003 Drop Docs replacement, published on Meta 2026-10-28.
   drop_docs: {
     capability: 'drop_docs', label: 'Drop Docs',
-    flowId: null, status: 'NONE', metaName: null,
+    flowId: '39581903361452878', status: 'PUBLISHED', metaName: 'WD-F003-DROP-DOCS',
   },
   shipments: {
     capability: 'shipments', label: 'Shipments',
@@ -150,6 +149,20 @@ export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
     tokenPrefix: 'subscribe',
     defaultKeywords: [ 'subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe' ],
     legacyFlowCodes: [ 'WD_SUBSCRIBE' ],
+  },
+  drop_docs: {
+    flowNumber: 'F003',
+    flowCode: 'WD_F003_DROP_DOCS',
+    label: 'Drop Docs',
+    flowType: 'drop_docs',
+    entryMode: 'keyword_interactive',
+    entryTemplateName: '',
+    requiresPayment: false,
+    submissionPrefix: 'WD-DOC',
+    wabaId: '2094615664435155',
+    tokenPrefix: 'drop_docs',
+    defaultKeywords: [ 'drop docs', 'upload documents', 'upload docs', 'send documents', 'send docs', 'documents' ],
+    legacyFlowCodes: [],
   },
   leave_review: {
     flowNumber: 'F002',
