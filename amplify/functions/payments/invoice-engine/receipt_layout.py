@@ -223,8 +223,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     _center(draw, "PAYMENT RECEIPT", title, 359, (0, 0, 0))
 
     # Receipt facts.
-    fy = 414
-    lx, lv = 164, 308
+    fy = 430
+    lx, lv = 164, 309
     rx, rv = 558, 682
     for label, value, yy, strong in (
         ("Receipt Ref:", ref, fy, True),
@@ -235,7 +235,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         value_font = fact_semibold if strong else fact_regular
         draw.text((lv, yy), value, font=value_font, fill=INK)
 
-    draw.line((531, 409, 531, 500), fill=MUTED, width=2)
+    draw.line((531, 429, 531, 510), fill=MUTED, width=2)
     draw.text((rx, fy), "Status:", font=regular, fill=INK)
     draw.rounded_rectangle((681, fy - 4, 778, fy + 27), radius=10,
                            fill=LIME_STRONG if status == "PAID" else PALE)
@@ -247,9 +247,9 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     draw.text((rv, fy + 64), txn, font=regular, fill=INK)
 
     # Bill-to section.
-    bill_y = 512
+    bill_y = 527
     draw.rounded_rectangle((157, bill_y, 867, bill_y + 36), radius=8, fill=PALE)
-    draw.text((168, bill_y + 6), "BILL TO", font=semibold, fill=INK)
+    draw.text((168, bill_y + 5), "BILL TO", font=bold, fill=INK)
 
     body_y = bill_y + 49
     draw.line((531, body_y - 3, 531, body_y + 126), fill=MUTED, width=2)
@@ -281,7 +281,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         draw.text((855-(bb[2]-bb[0]), bill_y + 130), ptxt, font=small_bold, fill=INK)
 
     # Item table.
-    table_y = 704
+    table_y = 738
     draw.rounded_rectangle((157, table_y, 867, table_y + 40), radius=8, fill=PALE)
     draw.text((173, table_y + 8), "#", font=small_bold, fill=INK)
     draw.text((238, table_y + 8), "DESCRIPTION", font=small_bold, fill=INK)
@@ -305,10 +305,10 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         ab = draw.textbbox((0,0), amount_s, font=regular)
         draw.text((710-(rb[2]-rb[0]), row_y), rate, font=regular, fill=INK)
         draw.text((854-(ab[2]-ab[0]), row_y), amount_s, font=regular, fill=INK)
-        row_y += 47
+        row_y += 42
         draw.line((168, row_y-8, 856, row_y-8), fill=LINE, width=1)
 
-    totals_y = max(845, row_y + 2)
+    totals_y = max(882, row_y + 2)
     val_x = 856
 
     def total_row(label, value, *, strong=False, band=False, green=False):
@@ -324,7 +324,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
 
     total_row("Items Subtotal", subtotal)
     if discount:
-        total_row("Delight", -discount, green=True)
+        total_row("Delight", -discount)
     if shipping:
         total_row("Express", shipping)
     if handling:
@@ -332,10 +332,10 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     if convenience_net:
         total_row("Convenience Fee", convenience_net)
     if total_gst:
-        total_row("GST", total_gst, strong=True, band=True)
+        total_row(str(company.get("gstin") or "GST"), total_gst)
 
-    hero_y = totals_y + 1
-    draw.rounded_rectangle((157, hero_y, 867, hero_y + 64), radius=10, fill=LIME_STRONG)
+    hero_y = max(1068, totals_y + 1)
+    draw.rounded_rectangle((157, hero_y, 867, hero_y + 65), radius=10, fill=LIME_STRONG)
     draw.text((169, hero_y + 12), "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE",
               font=bold, fill=(0,0,0))
     total_s = _money(total, symbol)
