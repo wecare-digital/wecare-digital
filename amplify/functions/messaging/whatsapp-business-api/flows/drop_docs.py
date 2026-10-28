@@ -23,7 +23,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import boto3
 
-from flows.orders import fetch_orders_for_flow
+from flows.orders import fetch_orders_for_flow, get_order
 from flows.common import dynamodb
 from lambda_utils import (
     contact_store,
@@ -112,17 +112,25 @@ def _customer_identity(contact: Dict[str, Any], phone: str) -> Optional[customer
 
 
 def _order_targets(phone: str) -> List[Dict[str, str]]:
-    """Only orders returned by the existing customer-order lookup."""
+    """Customer-owned orders labelled by reference, date/time, and customer-safe purpose."""
     targets: List[Dict[str, str]] = []
     try:
         for order in fetch_orders_for_flow(phone, "")[:20]:
             order_id = str(order.get("id") or "").strip()
             title = str(order.get("title") or order_id).strip()
-            if order_id:
-                targets.append({
-                    "id": "order:" + order_id,
-                    "title": ("Order · " + title)[:72],
-                })
+            if not order_id:
+                continue
+            detail = get_order(order_id) or {}
+            purpose = str(detail.get("itemsSummary") or "").strip()
+            if purpose:
+                purpose = purpose[:28]
+                label = f"Order · {title} · {purpose}"
+            else:
+                label = f"Order · {title}"
+            targets.append({
+                "id": "order:" + order_id,
+                "title": label[:72],
+            })
     except Exception as exc:  # noqa: BLE001
         logger.warning("Drop Docs order lookup failed: %s", type(exc).__name__)
     return targets
