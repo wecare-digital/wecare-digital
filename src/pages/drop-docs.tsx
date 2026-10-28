@@ -27,6 +27,7 @@ const DropDocsPage: React.FC = () => {
   const product = customerserviceBySlug( 'drop-docs' );
   return (
     <ProductPage
+      mobileFoundation
       product={ product }
       crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }

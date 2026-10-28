@@ -80,6 +80,7 @@ const VaultPage: React.FC = () => {
   const product = customerserviceBySlug( 'vault' );
   return (
     <ProductPage
+      mobileFoundation
       product={ product }
       crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ <VaultActions /> }
