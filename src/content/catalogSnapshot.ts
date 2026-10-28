@@ -216,14 +216,14 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'7133c98d-de8d-5e56-94ff-8d9fea7aa331', name:'Request · Amendment', slug:'request-amendment',
-    formattedPrice:'₹199.00', price:'199.00', currency:'INR',
+    formattedPrice:'₹188.00', price:'188.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/request-amendment/',
     descriptionHtml:'<p>Request · Amendment from WECARE.DIGITAL.</p>',
     variants:[{ id:'RAM5Q8K4', label:'Standard', inStock:true }],
   },
   {
     id:'e1ca7833-5d7d-567b-837c-face04647598', name:'Request · Drop Docs', slug:'drop-docs',
-    formattedPrice:'₹199.00', price:'199.00', currency:'INR',
+    formattedPrice:'₹188.00', price:'188.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/drop-docs/',
     descriptionHtml:'<p>Request · Drop Docs from WECARE.DIGITAL.</p>',
     variants:[{ id:'RDD9P3M7', label:'Standard', inStock:true }],
