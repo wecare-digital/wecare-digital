@@ -162,18 +162,18 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     _scalloped_frame(canvas, paper_bottom)
     draw = ImageDraw.Draw(canvas)
 
-    regular = _font(font_paths, "regular", 18)
-    semibold = _font(font_paths, "semibold", 18)
-    bold = _font(font_paths, "bold", 23)
-    small = _font(font_paths, "regular", 16)
-    small_bold = _font(font_paths, "semibold", 16)
-    fact_regular = _font(font_paths, "regular", 14)
-    fact_semibold = _font(font_paths, "semibold", 14)
-    title = _font(font_paths, "bold", 38)
-    brand = _font(font_paths, "bold", 31)
-    legal = _font(font_paths, "bold", 26)
-    total_font = _font(font_paths, "bold", 40)
-    footer_font = _font(font_paths, "bold", 31)
+    regular = _font(font_paths, "regular", 20)
+    semibold = _font(font_paths, "semibold", 20)
+    bold = _font(font_paths, "bold", 24)
+    small = _font(font_paths, "regular", 18)
+    small_bold = _font(font_paths, "semibold", 18)
+    fact_regular = _font(font_paths, "regular", 18)
+    fact_semibold = _font(font_paths, "semibold", 18)
+    title = _font(font_paths, "bold", 40)
+    brand = _font(font_paths, "bold", 38)
+    legal = _font(font_paths, "bold", 27)
+    total_font = _font(font_paths, "bold", 42)
+    footer_font = _font(font_paths, "bold", 38)
     symbol = "₹" if _draws(regular, "₹") else "Rs."
 
     raw_status = str(canonical_status(invoice.get("paymentStatus", "pending")) or "pending").upper()
@@ -182,7 +182,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
              or invoice.get("createdAt") or invoice.get("invoiceDate") or 0)
     date_str = ist_strftime("%d-%m-%Y", epoch) if epoch else ""
     time_str = ist_strftime("%H:%M IST", epoch) if epoch else ""
-    ref = str(invoice.get("referenceId") or "").strip()
+    full_ref = str(invoice.get("referenceId") or "").strip()
+    ref = full_ref[:15] if full_ref.startswith("WD-PAY-") and len(full_ref) > 15 else full_ref
     txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
     buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
     address = _address(invoice)
@@ -202,24 +203,24 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     total = Decimal(str(invoice.get("total") or 0))
 
     # Brand lockup.
-    _logo(canvas, logo_bytes, (345, 44, 435, 136))
-    draw.text((465, 63), "WECARE", font=brand, fill=INK)
+    _logo(canvas, logo_bytes, (355, 65, 465, 166))
+    draw.text((472, 76), "WECARE", font=brand, fill=INK)
     wbb = draw.textbbox((0, 0), "WECARE", font=brand)
-    draw.text((465 + wbb[2] - wbb[0], 63), ".", font=brand, fill=RED)
-    draw.text((465, 99), "DIGITAL", font=brand, fill=INK)
+    draw.text((472 + wbb[2] - wbb[0], 76), ".", font=brand, fill=RED)
+    draw.text((472, 116), "DIGITAL", font=brand, fill=INK)
 
-    _center(draw, company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, 150, INK)
-    _center(draw, "W E C A R E . D I G I T A L", small_bold, 182, INK)
-    draw.line((250, 211, 776, 211), fill=LIME_STRONG, width=5)
+    _center(draw, company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, 178, INK)
+    _center(draw, "W  E  C  A  R  E  .  D  I  G  I  T  A  L", small_bold, 207, INK)
+    draw.line((248, 230, 777, 230), fill=LIME_STRONG, width=5)
 
-    _center(draw, f"GSTIN: {company.get('gstin','')}   |   PAN: {company.get('pan','')}", small, 226)
-    _center(draw, "The W.B.S.I.D.C. Building, Unit No. 1/20", small, 251)
-    _center(draw, "81/2/7 Phears Lane, Kolkata, West Bengal - 700012, India", small, 275)
+    _center(draw, f"GSTIN: {company.get('gstin','')}   |   PAN: {company.get('pan','')}", small, 248)
+    _center(draw, "The W.B.S.I.D.C. Building, Unit No. 1/20", small, 274)
+    _center(draw, "81/2/7 Phears Lane, Kolkata, West Bengal - 700012, India", small, 299)
     _center(draw, f"{company.get('email','')}  •  {company.get('phone','')}  •  {company.get('website','')}",
-            small, 299)
+            small, 324)
 
-    draw.rounded_rectangle((157, 332, 867, 392), radius=12, fill=LIME_STRONG)
-    _center(draw, "PAYMENT RECEIPT", title, 340, (0, 0, 0))
+    draw.rounded_rectangle((157, 352, 867, 410), radius=12, fill=LIME_STRONG)
+    _center(draw, "PAYMENT RECEIPT", title, 359, (0, 0, 0))
 
     # Receipt facts.
     fy = 414
