@@ -155,6 +155,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     bold = _font(font_paths, "bold", 23)
     small = _font(font_paths, "regular", 16)
     small_bold = _font(font_paths, "semibold", 16)
+    fact_regular = _font(font_paths, "regular", 14)
+    fact_semibold = _font(font_paths, "semibold", 14)
     title = _font(font_paths, "bold", 38)
     brand = _font(font_paths, "bold", 31)
     legal = _font(font_paths, "bold", 26)
@@ -217,7 +219,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         ("Time:", time_str, fy + 64, False),
     ):
         draw.text((lx, yy), label, font=regular, fill=INK)
-        draw.text((lv, yy), value, font=semibold if strong else regular, fill=INK)
+        value_font = fact_semibold if strong else fact_regular
+        draw.text((lv, yy), value, font=value_font, fill=INK)
 
     draw.line((531, 409, 531, 500), fill=MUTED, width=2)
     draw.text((rx, fy), "Status:", font=regular, fill=INK)
