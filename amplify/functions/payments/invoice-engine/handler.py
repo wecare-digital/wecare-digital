@@ -3290,12 +3290,9 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'amount': {'value': amt_paise, 'offset': 100},
                 'quantity': qty,
             }
-            if item.get('name', '').strip().lower() not in CHARGE_ITEM_NAMES:
-                # Meta renders a generic cart glyph when an ORDER_DETAILS line has no image.
-                # The owner wants the payment-order thumbnail visible on ordinary staff/service
-                # collections too. Use the same immutable square WECARE catalog icon as the
-                # approved template header; fee/charge rows stay image-free.
-                entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}
+            # Every ORDER_DETAILS item row uses one owner-approved default thumbnail.
+            # This is presentation-only and deliberately ignores catalog/product-specific artwork.
+            entry['image'] = {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL}
             if item.get('name', '').strip().lower() in CHARGE_ITEM_NAMES:
                 charge_items.append(entry)
             else:
@@ -3305,9 +3302,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         order_items = []
         subtotal_paise = 0
         for entry in merged_items:
-            # Regular lines carry the approved square WECARE payment/catalog thumbnail. Charges
-            # (including Convenience Fee) remain text-only; true catalog checkout continues to
-            # carry its own retailer identity and product image.
+            # Every item row carries the owner-approved default WECARE thumbnail.
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3328,6 +3323,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'name': 'Convenience Fee',
                 'amount': {'value': conv_net_paise, 'offset': 100},
                 'quantity': 1,
+                'image': {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL},
             })
             subtotal_paise += conv_net_paise
         total_gst_paise = supply_gst_paise + conv_gst_paise
