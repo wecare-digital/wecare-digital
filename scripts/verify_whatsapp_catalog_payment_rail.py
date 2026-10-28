@@ -2083,8 +2083,8 @@ def run(root: Path) -> int:
     vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
     vault_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]
 
-    # Vault and Drop Docs use the Collect-style payment breakdown at the single shared checkout
-    # seam: catalog item -> Delight -> Express Rs.25 -> Convenience Fee -> 18% GST on that fee.
+    # Vault and Drop Docs use the owner-approved payment breakdown at the shared checkout seam:
+    # catalog item -> 18% supply GST -> Delight -> Express Rs.25 -> fee -> 18% fee GST.
     original_reader = checkout._native_product_reader
     try:
         drop_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.DROP_DOCS]
@@ -2093,7 +2093,7 @@ def run(root: Path) -> int:
         submit_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[submit_variant]
         products = {
             vault_product: {"status": "active", "variants": [{"sku": vault_variant, "priceMinor": 4900}]},
-            drop_product: {"status": "active", "variants": [{"sku": drop_variant, "priceMinor": 19900}]},
+            drop_product: {"status": "active", "variants": [{"sku": drop_variant, "priceMinor": 18800}]},
             submit_product: {"status": "active", "variants": [{"sku": submit_variant, "priceMinor": 4900}]},
         }
         checkout._native_product_reader = lambda: (lambda product_id: products.get(product_id))
@@ -2110,21 +2110,27 @@ def run(root: Path) -> int:
             "catalogReference": {"catalogItemId": submit_product, "options": {"variantId": submit_variant}},
             "quantity": 1,
         }], int(time.time())).quote
-        vault_delight = default_coupon.delight_paise(4900)
-        vault_collection = 4900 - vault_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
+        vault_gst = checkout_pricing.round_half_up(4900, 1800)
+        vault_delight = default_coupon.delight_paise(4900 + vault_gst)
+        vault_collection = 4900 + vault_gst - vault_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
         vault_expected = checkout_pricing.compute_quote(vault_collection, currency="INR")
-        drop_delight = default_coupon.delight_paise(19900)
-        drop_collection = 19900 - drop_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
+        drop_gst = checkout_pricing.round_half_up(18800, 1800)
+        drop_delight = default_coupon.delight_paise(18800 + drop_gst)
+        drop_collection = 18800 + drop_gst - drop_delight + service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
         drop_expected = checkout_pricing.compute_quote(drop_collection, currency="INR")
         check("SVC", "Vault: item + GST -> Delight -> Express Rs.25 -> fee -> 18% fee GST -> payable",
               vault_quote.components() == vault_expected.components()
-              and vault_quote.convenience_fee_paise > 0
-              and vault_quote.convenience_gst_paise > 0,
+              and vault_quote.collection_before_convenience_paise == 8254
+              and vault_quote.convenience_fee_paise == 206
+              and vault_quote.convenience_gst_paise == 37
+              and vault_quote.total_payable_paise == 8497,
               vault_quote.components())
-        check("SVC", "Drop Docs uses the same Collect-style breakdown",
+        check("SVC", "Drop Docs Rs188 uses the same explicit-GST breakdown",
               drop_quote.components() == drop_expected.components()
-              and drop_quote.convenience_fee_paise > 0
-              and drop_quote.convenience_gst_paise > 0,
+              and drop_quote.collection_before_convenience_paise == 24574
+              and drop_quote.convenience_fee_paise == 614
+              and drop_quote.convenience_gst_paise == 111
+              and drop_quote.total_payable_paise == 25299,
               drop_quote.components())
         check("SVC", "ordinary services keep their existing standard fee policy",
               ordinary_quote.total_payable_paise > 4900
