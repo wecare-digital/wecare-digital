@@ -155,15 +155,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Choose the files you want to share with WECARE.DIGITAL. We will store them privately and link them to the selected record."
-          },
-          {
-            "type": "TextCaption",
-            "text": "Selected record"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.target_ref}"
+            "text": "Choose the files you want to share with WECARE.DIGITAL. We will store them privately and link them to the record you selected."
           },
           {
             "type": "Form",
@@ -172,7 +164,7 @@
               {
                 "type": "Dropdown",
                 "name": "document_type",
-                "label": "What are you sending?",
+                "label": "Document type",
                 "required": true,
                 "data-source": [
                   {
@@ -200,14 +192,14 @@
               {
                 "type": "TextInput",
                 "name": "manual_reference",
-                "label": "Reference number (if not listed)",
+                "label": "Reference number",
                 "required": false,
-                "helper-text": "Only use this if you could not find your order or request."
+                "helper-text": "Use this only if your order or request was not listed."
               },
               {
                 "type": "TextArea",
                 "name": "note",
-                "label": "Anything we should know?",
+                "label": "Note for our team",
                 "required": false,
                 "max-length": 300,
                 "helper-text": "Optional note for our team."
