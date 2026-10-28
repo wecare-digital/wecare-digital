@@ -2555,18 +2555,14 @@ def _s3_invoice_token(value: Any) -> str:
 
 
 def _invoice_asset_stem(invoice: Dict, invoice_id: str) -> str:
-    """Canonical S3 stem for a rendered invoice.
+    """Canonical customer-facing S3 stem for a rendered receipt.
 
-    Issued invoices are traceable directly from the statutory invoice number AND the payment
-    reference. Drafts retain the legacy reference-only stem so existing draft tooling does not
-    change behaviour before a GST number is issued.
+    Never expose the internal statutory invoice number in the object key. The public/payment
+    reference is the only business identifier carried in the filename; the render token added
+    by _asset_target makes each issued rendition immutable and cache-safe.
     """
     reference = _s3_invoice_token(invoice.get('referenceId') or invoice_id)
-    invoice_number = str(invoice.get('invoiceNumber') or '').strip()
-    if not invoice_number:
-        return f"{INVOICE_PREFIX}wecare-digital-{reference}"
-    number = _s3_invoice_token(invoice_number)
-    return f"{INVOICE_PREFIX}wecare-digital-{number}__{reference}"
+    return f"{INVOICE_PREFIX}wecare-digital-{reference}"
 
 
 def _next_asset_version(invoice_id: str, asset_type: str, request_id: str) -> int:
