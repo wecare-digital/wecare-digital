@@ -52,7 +52,7 @@ def build(dependencies, output, chat_redirect_uri=None, chat_discovery=False,
         "s3Bucket": "cdk-hnb659fds-assets-775261844268-us-east-1", "s3Key": key,
         "template": str(ROOT / "amplify/infra/workspace-mcp.json"), "dependencies": installed,
         "parameters": {"CodeBucket": "cdk-hnb659fds-assets-775261844268-us-east-1", "CodeKey": key,
-            "CodeSha256": base64.b64encode(digest).decode(), "GithubTokenField": "token",
+            "CodeSha256": base64.b64encode(digest).decode(),
             "AlarmTopic": "arn:aws:sns:us-east-1:775261844268:wecare-alarm-notifications"}}
     if chat_redirect_uri is not None:
         manifest["parameters"]["ChatRedirectUri"] = chat_redirect_uri
