@@ -442,13 +442,13 @@ def _store_one(
 
 
 def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """SELECT_TARGET data_exchange -> COMPLETE after every selected file is private and indexed."""
+    """UPLOAD data_exchange -> terminal SUCCESS after every selected file is private and indexed."""
     try:
         session = _verify(flow_token)
     except flow_sessions.FlowSessionRejected:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": REJECTED}}
+        return {"screen": "UPLOAD", "data": {"error_message": REJECTED}}
     except flow_sessions.FlowSessionUnavailable:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": "Please try again."}}
+        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
 
     # A retry of the exact data_exchange may occur after the endpoint answered but before the
     # device received the response. Idempotent document ids + completion claim make it safe.
@@ -459,18 +459,18 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     picker = _normalise_picker(data.get("documents"))
 
     if not picker:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose at least one document."}}
+        return {"screen": "UPLOAD", "data": {"error_message": "Choose at least one document."}}
     if len(picker) > MAX_FILES:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": "Choose up to 10 documents."}}
+        return {"screen": "UPLOAD", "data": {"error_message": "Choose up to 10 documents."}}
     try:
         target = _validate_target(
             selected_target, session.phone, identity
         )
     except ValueError as exc:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": str(exc)[:200]}}
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
     except Exception as exc:  # noqa: BLE001
         logger.warning("Drop Docs target validation failed: %s", type(exc).__name__)
-        return {"screen": "SELECT_TARGET", "data": {"error_message": "Please try again."}}
+        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
 
     stored: List[Dict[str, Any]] = []
     try:
@@ -486,7 +486,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
                 )
             )
     except ValueError as exc:
-        return {"screen": "SELECT_TARGET", "data": {"error_message": str(exc)[:200]}}
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
     except Exception as exc:  # noqa: BLE001
         logger.error(json.dumps({
             "event": "f003_drop_docs_store_failed",
@@ -494,7 +494,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
             "requestId": request_id,
         }))
         return {
-            "screen": "SELECT_TARGET",
+            "screen": "UPLOAD",
             "data": {"error_message": "We could not store that document securely. Please try again."},
         }
 
@@ -514,7 +514,7 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     }
     result = flow_completion.claim_completion(
         flow_token=flow_token,
-        screen="SELECT_TARGET",
+        screen="UPLOAD",
         flow_code=FLOW_CODE,
         flow_type=FLOW_TYPE,
         phone=session.phone,
@@ -530,21 +530,28 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
     )
     if result.status == "error":
         return {
-            "screen": "SELECT_TARGET",
+            "screen": "UPLOAD",
             "data": {"error_message": "Your files are safe, but we could not finish the record. Please try again."},
         }
 
     flow_sessions.mark_consumed(_session_table(), token=flow_token)
     reference = result.reference or stored[0]["documentRef"]
     return {
-        "screen": "COMPLETE",
+        "screen": "SUCCESS",
         "data": {
-            "message": "Your documents are stored securely and linked for review.",
-            "document_reference": reference,
-            "file_count": str(len(stored)),
-            "note": note or "—",
-            "attachments": attachments,
-            "submission_id": result.submission_id or reference,
+            "extension_message_response": {
+                "params": {
+                    "flow_token": flow_token,
+                    "flow_key": "wd_f003_drop_docs",
+                    "schema_version": "5",
+                    "submission_id": result.submission_id or reference,
+                    "reference_number": target["display"],
+                    "note": note or "",
+                    "documents": attachments,
+                    "file_count": str(len(stored)),
+                    "document_reference": reference,
+                }
+            }
         },
     }
 
