@@ -55,7 +55,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Assume the frontend-release role
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -74,10 +74,21 @@ jobs:
             echo "Amplify auto-build is still on, so Amplify builds this push itself. Nothing to start."
             exit 0
           fi
+          args=(--app-id "$APP_ID" --branch-name "$BRANCH" --job-type RELEASE --query 'jobSummary.[jobId,status]' --output text)
           if [ "$EVENT" = "schedule" ]; then
-            aws amplify start-job --app-id "$APP_ID" --branch-name "$BRANCH" --job-type RELEASE \
-              --job-reason "scheduled content rebuild" --query 'jobSummary.[jobId,status]' --output text
+            args+=(--job-reason "scheduled content rebuild")
           else
-            aws amplify start-job --app-id "$APP_ID" --branch-name "$BRANCH" --job-type RELEASE \
-              --commit-id "$SHA" --job-reason "$EVENT ${SHA:0:9}" --query 'jobSummary.[jobId,status]' --output text
+            args+=(--commit-id "$SHA" --job-reason "$EVENT ${SHA:0:9}")
           fi
+          # Amplify refuses a new job while the branch already has one queued (LimitExceededException).
+          # Wait and retry rather than fail: a refused push would otherwise not build until the next
+          # frontend push or the 6-hourly run (run 40618788503, 2026-10-28).
+          for attempt in $(seq 1 12); do
+            if out="$(aws amplify start-job "${args[@]}" 2>&1)"; then echo "$out"; exit 0; fi
+            case "$out" in
+              *LimitExceededException*) echo "Branch busy (attempt $attempt of 12); retrying in 60 s"; sleep 60 ;;
+              *) echo "$out" >&2; exit 1 ;;
+            esac
+          done
+          echo "Amplify still refused a new job after 12 minutes" >&2
+          exit 1

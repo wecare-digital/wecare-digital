@@ -277,7 +277,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         /* Legal sections use the same public hierarchy as the rest of the site: section H2,
            then card/subsection H3. Density is handled by the reading measure and spacing, not
            by inventing a second type ladder for these two routes. */
-        .lgd-h2{margin:0 0 12px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
+        /* A word longer than the column breaks instead of pushing the page sideways at 280px. */
+        .lgd-h2{margin:0 0 12px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading);overflow-wrap:anywhere}
         .lgd-h3{margin:0 0 10px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
         /* The clause number sits in the left margin on a wide screen so headings align
            on their text rather than stepping right as numbers get wider. */

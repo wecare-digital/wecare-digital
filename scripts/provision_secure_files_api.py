@@ -86,15 +86,14 @@ META_WABA_ID = "2094615664435155"
 # and never the pair - reading the pair from it is the bug that returned 501 on
 # every customer-service top-up. See amplify/functions/core/secure-files/razorpay_orders.py
 RAZORPAY_SECRET_NAME = "wecare/razorpay/api"
+ASYNC_DLQ_ARN = f"arn:aws:sqs:{REGION}:{ACCOUNT}:wecare-lambda-async-dlq"
 
 WEBHOOK_FUNCTION = "wecare-razorpay-webhook"
 
 ROUTES = [
     # admin surface (authorised inside the handler via require_auth Operator)
     ("GET", "/secure-files"),
-    ("POST", "/secure-files/upload-init"),
     ("POST", "/secure-files/publish-document"),
-    ("POST", "/secure-files/{fileId}/confirm"),
     ("POST", "/secure-files/{fileId}/revoke"),
     # Ask the owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link when their
     # WhatsApp is not linked yet), and resend the Access Vault link for a paid file.
@@ -110,6 +109,14 @@ ROUTES = [
     ("POST", "/secure-files/dropdocs/attach"),
     ("GET", "/secure-files/dropdocs/{requestId}/documents"),
 ]
+
+# Routes retired from the product boundary. The provisioner deletes these explicitly;
+# merely removing them from ROUTES would leave them live in API Gateway forever.
+RETIRED_ROUTES = {
+    "POST /secure-files/upload-init",
+    "POST /secure-files/{fileId}/confirm",
+}
+
 
 # The one Lambda secure-files invokes for WhatsApp delivery.
 WA_SENDER = "wecare-outbound-whatsapp"
@@ -250,6 +257,24 @@ def policy_document() -> dict:
                 "Effect": "Allow",
                 "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
                 "Resource": f"arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{FUNCTION_NAME}:*",
+            },
+            {
+                "Sid": "XRayWrite",
+                "Effect": "Allow",
+                "Action": [
+                    "xray:PutTraceSegments",
+                    "xray:PutTelemetryRecords",
+                    "xray:GetSamplingRules",
+                    "xray:GetSamplingTargets",
+                    "xray:GetSamplingStatisticSummaries",
+                ],
+                "Resource": "*",
+            },
+            {
+                "Sid": "AsyncFailureDestination",
+                "Effect": "Allow",
+                "Action": ["sqs:SendMessage"],
+                "Resource": ASYNC_DLQ_ARN,
             },
         ],
     }
@@ -404,6 +429,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
             Runtime="python3.12",
             Timeout=30,
             MemorySize=512,
+            TracingConfig={"Mode": "Active"},
             Environment={"Variables": environment()},
         )
         client.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
@@ -418,6 +444,7 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
         Timeout=30,
         MemorySize=512,
         Architectures=["x86_64"],
+        TracingConfig={"Mode": "Active"},
         Environment={"Variables": environment()},
         Description="Secure file sharing for wecare.digital/get/secure",
     )
@@ -447,6 +474,33 @@ def ensure_alias(dry_run: bool) -> str:
         return f"alias created -> v{version}"
 
 
+def ensure_async_failure_destination(dry_run: bool) -> str:
+    """Persist exhausted async paid-delivery events to the standard Lambda DLQ.
+
+    Razorpay invokes this function with InvocationType=Event for historical secure-file
+    settlement. Keep Lambda's normal retry/age semantics (2 retries, 6 hours), but never
+    discard the final event after retries are exhausted.
+    """
+    if dry_run:
+        try:
+            current = lam().get_function_event_invoke_config(
+                FunctionName=FUNCTION_NAME, Qualifier=LIVE_ALIAS)
+            dest = ((current.get("DestinationConfig") or {}).get("OnFailure") or {}).get(
+                "Destination")
+            return "configured" if dest == ASYNC_DLQ_ARN else "would configure async DLQ"
+        except lam().exceptions.ResourceNotFoundException:
+            return "would configure async DLQ"
+
+    lam().put_function_event_invoke_config(
+        FunctionName=FUNCTION_NAME,
+        Qualifier=LIVE_ALIAS,
+        MaximumRetryAttempts=2,
+        MaximumEventAgeInSeconds=21600,
+        DestinationConfig={"OnFailure": {"Destination": ASYNC_DLQ_ARN}},
+    )
+    return "async failures -> wecare-lambda-async-dlq"
+
+
 # ── API Gateway ───────────────────────────────────────────────────────────────
 
 def ensure_routes(dry_run: bool) -> list:
@@ -473,6 +527,9 @@ def ensure_routes(dry_run: bool) -> list:
         for method, path in ROUTES:
             key = f"{method} {path}"
             results.append(f"{key}: {'exists' if key in existing_routes else 'would create'}")
+        for key in sorted(RETIRED_ROUTES):
+            if key in existing_routes:
+                results.append(f"{key}: would delete (retired)")
         return results
 
     integration_id = client.create_integration(
@@ -495,6 +552,12 @@ def ensure_routes(dry_run: bool) -> list:
         )
     except lam().exceptions.ResourceConflictException:
         pass
+
+    for key in sorted(RETIRED_ROUTES):
+        route = existing_routes.get(key)
+        if route:
+            client.delete_route(ApiId=API_ID, RouteId=route["RouteId"])
+            results.append(f"{key}: deleted (retired)")
 
     for method, path in ROUTES:
         key = f"{method} {path}"
@@ -602,6 +665,11 @@ def verify() -> int:
             FunctionName=f"{FUNCTION_NAME}:{LIVE_ALIAS}"
         )
         print(f"PASS {FUNCTION_NAME}:{LIVE_ALIAS} {config['Runtime']} {config['State']}")
+        if (config.get("TracingConfig") or {}).get("Mode") == "Active":
+            print("PASS X-Ray tracing Active")
+        else:
+            print("FAIL X-Ray tracing is not Active")
+            failures += 1
         variables = (config.get("Environment") or {}).get("Variables") or {}
 
         for key in ("SECURE_FILES_BUCKET", "SECURE_FILES_TABLE", "DOWNLOAD_GRANTS_TABLE",
@@ -640,6 +708,31 @@ def verify() -> int:
         else:
             print(f"FAIL route {key} missing")
             failures += 1
+
+    for key in sorted(RETIRED_ROUTES):
+        if key in routes:
+            print(f"FAIL retired route still live: {key}")
+            failures += 1
+        else:
+            print(f"PASS retired route absent: {key}")
+
+    try:
+        async_cfg = client.get_function_event_invoke_config(
+            FunctionName=FUNCTION_NAME, Qualifier=LIVE_ALIAS)
+        destination = (
+            ((async_cfg.get("DestinationConfig") or {}).get("OnFailure") or {})
+            .get("Destination")
+        )
+        if (destination == ASYNC_DLQ_ARN
+                and async_cfg.get("MaximumRetryAttempts") == 2
+                and async_cfg.get("MaximumEventAgeInSeconds") == 21600):
+            print("PASS async failures persist to standard DLQ")
+        else:
+            print("FAIL async failure destination/retry contract differs")
+            failures += 1
+    except client.exceptions.ResourceNotFoundException:
+        print("FAIL async failure destination missing")
+        failures += 1
 
     # The webhook must NOT be able to write a grant. This assertion is inverted from what
     # it used to be, on purpose: a valid signature is no longer proof of payment, so the
@@ -722,6 +815,7 @@ def main(argv=None) -> int:
     print(f"package: {len(zip_bytes)} bytes")
     print(f"function: {ensure_function(zip_bytes, dry_run)}")
     print(f"alias: {ensure_alias(dry_run)}")
+    print(f"async failure destination: {ensure_async_failure_destination(dry_run)}")
     for line in ensure_routes(dry_run):
         print(f"route {line}")
     print(f"webhook: {ensure_webhook_access(dry_run)}")

@@ -173,7 +173,18 @@ export async function listPublicBlogPosts (): Promise<PublicBlogPost[]> {
 /** Statuses worth another attempt. 404 is handled separately; 4xx otherwise is fatal. */
 const RETRYABLE_STATUS = new Set( [ 408, 425, 429, 500, 502, 503, 504 ] );
 const MAX_ATTEMPTS = 6;
+/**
+ * A 429 GETS A LONGER BUDGET THAN A FAULT. It is the prod stage's default throttle (100 rps,
+ * 200 burst; the blog routes have no override), which drains as soon as the burst passes.
+ * Public UI compliance builds the site twice per run, in parallel, often while Amplify builds
+ * the same commit, and run 40620178043 failed when one post stayed throttled for all six
+ * attempts (about 12 s). Eight attempts with the delay capped at 15 s wait about 40 s before
+ * giving up. A 5xx or network error keeps the six-attempt schedule, so an outage still fails
+ * the build at the same speed.
+ */
+const MAX_THROTTLED_ATTEMPTS = 8;
 const BASE_BACKOFF_MS = 400;
+const MAX_BACKOFF_MS = 15000;
 
 /**
  * In-flight request ceiling PER BUILD PROCESS.
@@ -210,7 +221,7 @@ type Attempt =
   | { kind: 'ok'; body: any }
   /** A real 404. The post does not exist. */
   | { kind: 'absent' }
-  | { kind: 'retry'; reason: string }
+  | { kind: 'retry'; reason: string; throttled: boolean }
   | { kind: 'fatal'; reason: string };
 
 async function attemptJson ( url: string ): Promise<Attempt> {
@@ -222,13 +233,13 @@ async function attemptJson ( url: string ): Promise<Attempt> {
     if ( response.ok ) return { kind: 'ok', body: await response.json() };
     if ( RETRYABLE_STATUS.has( response.status ) )
     {
-      return { kind: 'retry', reason: `HTTP ${ response.status }` };
+      return { kind: 'retry', reason: `HTTP ${ response.status }`, throttled: response.status === 429 };
     }
     return { kind: 'fatal', reason: `HTTP ${ response.status }` };
   } catch ( error: any )
   {
     // A network error, a DNS failure or an aborted socket. All transient in shape.
-    return { kind: 'retry', reason: error?.name || 'network error' };
+    return { kind: 'retry', reason: error?.name || 'network error', throttled: false };
   } finally
   {
     release();
@@ -240,8 +251,7 @@ async function attemptJson ( url: string ): Promise<Attempt> {
  * Returns `null` only for a genuine 404.
  */
 async function fetchJsonOrThrow ( url: string, label: string ): Promise<any | null> {
-  let reason = 'unknown';
-  for ( let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1 )
+  for ( let attempt = 1; ; attempt += 1 )
   {
     const result = await attemptJson( url );
     if ( result.kind === 'ok' ) return result.body;
@@ -250,21 +260,20 @@ async function fetchJsonOrThrow ( url: string, label: string ): Promise<any | nu
     {
       throw new Error( `${ label }: ${ result.reason } (not retryable)` );
     }
-    reason = result.reason;
-    if ( attempt < MAX_ATTEMPTS )
+    if ( attempt >= ( result.throttled ? MAX_THROTTLED_ATTEMPTS : MAX_ATTEMPTS ) )
     {
-      // Jittered exponential backoff. The jitter matters with nine workers backing off
-      // together: without it they retry in lockstep and reproduce the burst that caused
-      // the throttling.
-      const delay = BASE_BACKOFF_MS * 2 ** ( attempt - 1 );
-      await sleep( delay + Math.floor( Math.random() * BASE_BACKOFF_MS ) );
+      throw new Error(
+        `${ label }: gave up after ${ attempt } attempts (last: ${ result.reason }). `
+        + 'Failing the build on purpose - continuing would emit an index that links pages '
+        + 'which were never generated.'
+      );
     }
+    // Jittered exponential backoff. The jitter matters with nine workers backing off
+    // together: without it they retry in lockstep and reproduce the burst that caused
+    // the throttling.
+    const delay = Math.min( BASE_BACKOFF_MS * 2 ** ( attempt - 1 ), MAX_BACKOFF_MS );
+    await sleep( delay + Math.floor( Math.random() * BASE_BACKOFF_MS ) );
   }
-  throw new Error(
-    `${ label }: gave up after ${ MAX_ATTEMPTS } attempts (last: ${ reason }). `
-    + 'Failing the build on purpose - continuing would emit an index that links pages '
-    + 'which were never generated.'
-  );
 }
 
 /**

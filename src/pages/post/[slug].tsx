@@ -537,7 +537,8 @@ export default function BlogPostPage ( {
         /* .post-title carries the article title's old h1 treatment unchanged - it is an <h2> now
            (RotatingHero's pill is the page's one h1), but the visible size/weight is identical so
            the article still opens on its title at full weight. */
-        .post-title{font-size:var(--public-hero-size);line-height:var(--public-hero-leading);letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0 0 20px;font-weight:var(--public-hero-weight);text-wrap:balance;max-width:20ch}
+        /* A word longer than the column breaks instead of pushing the page sideways at 280px. */
+        .post-title{font-size:var(--public-hero-size);line-height:var(--public-hero-leading);letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0 0 20px;font-weight:var(--public-hero-weight);text-wrap:balance;max-width:20ch;overflow-wrap:anywhere}
         /* AUTHOR ONLY NOW, so the row is no longer a row. The flex, the gap and the wrap all
            existed to lay out two children - the author and the date - and with the date gone
            they described a layout that cannot happen.
