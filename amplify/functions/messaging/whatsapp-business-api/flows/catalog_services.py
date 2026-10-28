@@ -60,8 +60,7 @@ OFFER_FILE_PREFIX = 'VAULTOFFERFILE#'
 #: the same Review and Pay.
 OFFER_TTL_SECONDS = 7 * 24 * 3600
 OFFER_RESEND_GUARD_SECONDS = 60
-OFFER_FILE_GONE = ('This document is no longer available. Nothing has been charged. '
-                   'Send "Vault" to see your documents.')
+DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
 
 
 def _invoke(client, function, payload):
@@ -101,8 +100,7 @@ IDENTITY_NOT_READY = (
     'We could not verify this WhatsApp checkout safely. Nothing has been charged. '
     'Please send the catalog item again or contact support.'
 )
-NOT_REQUESTED = ('This document cannot be paid for right now. No payment has been requested. '
-                 'Please try again later.')
+NOT_REQUESTED = DOCUMENT_UNAVAILABLE
 
 
 def _entitlement(db, file, customer_id):
@@ -261,9 +259,8 @@ def handle(event, client):
         offer = _live_offer(keys, event.get('offerToken'), identity, now)
         if offer:
             return _unlock(event, client, db, keys, contact, identity, offer, now)
-        # An unknown, expired or someone else's offer: this customer's own document list, exactly
-        # as the "Vault" keyword gives. Nothing is charged either way.
-        action = 'start'
+        _send(client, sender, content=DOCUMENT_UNAVAILABLE)
+        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
 
     if action == 'start':
         choice = catalog.service_from_lines(event.get('lines') or [])
@@ -302,7 +299,7 @@ def handle(event, client):
         if not choices:
             row['status'] = 'AWAITING_FILE'
             keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-            _send(client, row, content='No Vault documents are currently available for this verified account. No payment has been requested.')
+            _send(client, row, content=DOCUMENT_UNAVAILABLE)
             return {'outcome': 'VAULT_FILE_NOT_READY'}
         # At most ten choices per native list. Paid rows remain visible as refresh actions and
         # used-up rows as renewals.
@@ -325,16 +322,17 @@ def handle(event, client):
         row = catalog.selected_session(keys, event.get('token', ''), contact['id'], identity.phone, now)
     except customer_auth.CustomerNotAuthorized:
         # A tap on a list whose session expired (one hour) or belongs to someone else.
-        _send(client, {**sender, 'phone': identity.phone},
-              content='This document list has expired. Nothing has been charged. Please send the Vault item from the catalog again.')
+        _send(client, {**sender, 'phone': identity.phone}, content=DOCUMENT_UNAVAILABLE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     index = event.get('fileIndex')
     if (row.get('customerId') != identity.customer_id or row['kind'] != 'VAULT' or row.get('status') != 'SELECTING' or type(index) is not int
             or not 0 <= index < len(row.get('fileChoices') or [])):
+        _send(client, row, content=DOCUMENT_UNAVAILABLE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     try:
         file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, row['fileChoices'][index])
     except customer_auth.CustomerNotAuthorized:
+        _send(client, row, content=DOCUMENT_UNAVAILABLE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     # Decided now, not from the list: a window may have closed (or been paid) since it was sent.
     state = _file_state(db, file, identity.customer_id, now)
@@ -399,7 +397,7 @@ def _unlock(event, client, db, keys, contact, identity, offer, now):
         # Revoked or reassigned since the offer went out.
         row['status'] = 'FILE_UNAVAILABLE'
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        _send(client, row, content=OFFER_FILE_GONE)
+        _send(client, row, content=DOCUMENT_UNAVAILABLE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     # Decided now, not when the offer was sent: it may have been paid (or a window may have
     # closed) in between.
