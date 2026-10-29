@@ -1,206 +1,175 @@
-"""Build deterministic runtime/source artifacts and a validated deployment template.
+"""Build deterministic customer-commerce runtime and CloudFormation artifacts.
 
-This command performs no AWS request, upload, deployment, provider send or publication.
-It reuses existing data/custody resources and prepares an isolated customer API boundary.
+No AWS request or deployment is performed. The runtime zip contains the exact
+reviewed source modules, making repository-to-Lambda drift file-comparable.
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import base64
 import hashlib
 import json
-import io
 from pathlib import Path
-import tokenize
-import zipfile
+import re
 import runpy
+import zipfile
+
+from customer_commerce_template import (
+    EXPECTED_ACCOUNT,
+    EXPECTED_REGION,
+    ROUTES,
+    RUNTIME_BUCKET,
+    build_template,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'amplify/functions/ai/customer-commerce-mcp'
+RUNTIME_FILES = (
+    'index.py',
+    'handler.py',
+    'customer_oauth.py',
+    'customer_oauth_config.py',
+    'customer_oauth_store.py',
+    'customer_oauth_web.py',
+    'customer_oauth_authorize.py',
+    'connection_assets.py',
+)
 
 
-class RemoveDocstrings(ast.NodeTransformer):
-    def remove(self, node):
-        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
-            node.body.pop(0)
-        return self.generic_visit(node)
-    visit_Module = remove
-    visit_FunctionDef = remove
-    visit_AsyncFunctionDef = remove
-    visit_ClassDef = remove
-
-
-def runtime_source() -> str:
-    oauth = ast.parse((SOURCE / 'customer_oauth.py').read_text())
-    assets = runpy.run_path(str(SOURCE / 'connection_assets.py'))
-    oauth.body = [node for node in oauth.body if not (isinstance(node, ast.ImportFrom) and node.module == 'connection_assets')]
-    oauth.body.extend(ast.parse('BRAND_LOGO = ' + repr(assets['BRAND_LOGO']) + '\nDIAL_COUNTRIES = ' + repr(assets['DIAL_COUNTRIES'])).body)
-    main = ast.parse((SOURCE / 'handler.py').read_text())
-    definitions = lambda tree: {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
-    if definitions(oauth) & definitions(main):
-        raise ValueError('Source modules contain colliding top-level definitions')
-    main.body = [node for node in main.body if not (isinstance(node, ast.ImportFrom) and node.module == '__future__')
-                 and not (isinstance(node, ast.Import) and any(a.name == 'customer_oauth' for a in node.names))]
-    namespace = ast.parse('import types\ncustomer_oauth = types.SimpleNamespace(route=route, AuthError=AuthError, customer_event=customer_event, SCOPES=SCOPES)')
-    merged = ast.Module(body=oauth.body + namespace.body + main.body, type_ignores=[])
-    merged = RemoveDocstrings().visit(merged)
-    ast.fix_missing_locations(merged)
-    readable = ast.unparse(merged) + '\n'
-    # Inline CloudFormation has a 51,200-byte template limit. Compact whitespace only;
-    # an exact AST comparison prevents any semantic change in the packaged runtime.
-    parts, level, line_start, previous = [], 0, True, ''
-    for token in tokenize.generate_tokens(io.StringIO(readable).readline):
-        if token.type == tokenize.INDENT:
-            level += 1
-        elif token.type == tokenize.DEDENT:
-            level -= 1
-        elif token.type in {tokenize.NEWLINE, tokenize.NL}:
-            parts.append('\n'); line_start = True; previous = ''
-        elif token.type not in {tokenize.ENDMARKER, tokenize.COMMENT}:
-            text = token.string
-            if line_start:
-                parts.append(' ' * level); line_start = False
-            elif previous and (previous[-1].isalnum() or previous[-1] == '_') and (text[0].isalnum() or text[0] == '_'):
-                parts.append(' ')
-            parts.append(text); previous = text
-    code = ''.join(parts)
-    if ast.dump(ast.parse(code), include_attributes=False) != ast.dump(ast.parse(readable), include_attributes=False):
-        raise ValueError('Packaged source differs from reviewed Python AST')
-    compile(code, 'index.py', 'exec')
-    return code
-
-
-def context(why: str, must: list[str]) -> dict:
-    return {'com.aws.cloudformation.Context': {'why': why, 'must': must}}
-
-
-def ref(name: str) -> dict: return {'Ref': name}
-def sub(value: str) -> dict: return {'Fn::Sub': value}
-def get(resource: str, attribute: str) -> dict: return {'Fn::GetAtt': [resource, attribute]}
-
-
-def template(code: str, source_hash: str) -> dict:
-    resources = {}
-    resources['Api'] = {'Type': 'AWS::ApiGatewayV2::Api',
-        'Metadata': context('Isolated customer boundary.', ['Keep staff API unchanged; no arbitrary proxy.']),
-        'Properties': {'Name': ref('AWS::StackName'), 'ProtocolType': 'HTTP'}}
-    for name, suffix in [('FunctionLogs', 'lambda'), ('ApiLogs', 'api')]:
-        resources[name] = {'Type': 'AWS::Logs::LogGroup', 'DeletionPolicy': 'Retain', 'UpdateReplacePolicy': 'Retain',
-            'Metadata': context('Retained operational evidence.', ['Never log credentials, bodies or PII.']),
-            'Properties': {'LogGroupName': sub('/wecare/customer-commerce/${AWS::StackName}/' + suffix), 'RetentionInDays': 14}}
-    policy = [
-        {'Effect': 'Allow', 'Action': ['dynamodb:GetItem'], 'Resource': sub('arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProductsTable}')},
-        {'Effect': 'Allow', 'Action': ['dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:DeleteItem'],
-         'Resource': sub('arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SessionsTable}'),
-         'Condition': {'ForAllValues:StringLike': {'dynamodb:LeadingKeys': ['mcp:commerce:*']}}},
-        {'Effect': 'Allow', 'Action': ['kms:Encrypt', 'kms:Decrypt'], 'Resource': ref('CustodyKeyArn'),
-         'Condition': {'StringEquals': {'kms:EncryptionContext:app': 'wecare-customer-commerce'}}},
-        {'Effect': 'Allow', 'Action': ['lambda:InvokeFunction'], 'Resource': [sub('arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:' + name + ':live')
-            for name in ['wecare-commerce', 'wecare-customer-profile', 'wecare-customer-orders', 'wecare-customer-session']]},
-        {'Fn::If': ['EnableRegistration', {'Effect': 'Allow', 'Action': ['lambda:InvokeFunction'],
-            'Resource': sub('arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-customer-registration:live')}, ref('AWS::NoValue')]},
-        {'Effect': 'Allow', 'Action': ['logs:CreateLogStream', 'logs:PutLogEvents'], 'Resource': get('FunctionLogs', 'Arn')},
+def canonical_dial_codes() -> list[tuple[str, str, list[int]]]:
+    text = (ROOT / 'src/lib/dialCodes.ts').read_text()
+    return [
+        (code, country, [int(number) for number in re.findall(r'\d+', lengths)])
+        for code, country, lengths in re.findall(
+            r"\{ code: '([^']+)', country: '([^']+)', nationalDigits: \[([^\]]*)\] \}",
+            text,
+        )
     ]
-    resources['Role'] = {'Type': 'AWS::IAM::Role',
-        'Metadata': context('Delegate customer operations to existing handlers.',
-                            ['No staff, secrets, scans or direct commerce writes.', 'Restrict session prefix and KMS context.']),
-        'Properties': {'AssumeRolePolicyDocument': {'Version': '2012-10-17', 'Statement': [
-            {'Effect': 'Allow', 'Principal': {'Service': 'lambda.amazonaws.com'}, 'Action': 'sts:AssumeRole'}]},
-            'Policies': [{'PolicyName': 'CustomerCommerce', 'PolicyDocument': {'Version': '2012-10-17', 'Statement': policy}}]}}
-    resources['Function'] = {'Type': 'AWS::Lambda::Function', 'DependsOn': 'FunctionLogs',
-        'Metadata': context('Chat tools and secure sign-in only.',
-                            ['Reuse customer identity, data, custody and sender.', 'Default deny products and sends.']),
-        'Properties': {'FunctionName': ref('AWS::StackName'), 'Runtime': 'python3.12', 'Handler': 'index.handler',
-            'Role': get('Role', 'Arn'), 'Timeout': 30, 'MemorySize': 256, 'ReservedConcurrentExecutions': 5,
-            'LoggingConfig': {'LogGroup': ref('FunctionLogs')}, 'Code': {'ZipFile': code},
-            'Environment': {'Variables': {'CUSTOMER_COMMERCE_ORIGIN': get('Api', 'ApiEndpoint'),
-                'CUSTOMER_AUTH_ORIGIN': ref('AuthOrigin'),
-                'CUSTOMER_OAUTH_CLIENTS': ref('CustomerClients'), 'PRODUCTS_TABLE': ref('ProductsTable'),
-                'CUSTOMER_SESSIONS_TABLE': ref('SessionsTable'), 'CUSTOMER_SESSION_KMS_KEY_ID': ref('CustodyKeyArn'),
-                'CHATGPT_APPROVED_PRODUCT_IDS': ref('ApprovedProductIds'),
-                'WHATSAPP_PAYMENT_REQUESTS_ENABLED': ref('WhatsAppPaymentsEnabled'),
-                'CUSTOMER_REGISTRATION_ENABLED': ref('RegistrationEnabled'), 'SOURCE_SHA256': source_hash,
-                'DEPLOYMENT_REVISION': ref('DeploymentRevision')}}}}
-    resources['Version'] = {'Type': 'AWS::Lambda::Version',
-        'Metadata': context('Immutable deployment snapshot.', ['Promote reviewed source hash.']),
-        'Properties': {'FunctionName': ref('Function'), 'Description': {'Fn::Join': ['/', [source_hash, ref('DeploymentRevision')]]}}}
-    resources['Live'] = {'Type': 'AWS::Lambda::Alias',
-        'Metadata': context('Published-version routing.', ['Never invoke $LATEST.']),
-        'Properties': {'FunctionName': ref('Function'), 'FunctionVersion': get('Version', 'Version'), 'Name': 'live'}}
-    resources['Integration'] = {'Type': 'AWS::ApiGatewayV2::Integration',
-        'Metadata': context('Customer alias only.', ['Preserve source IP; no caller routing.']),
-        'Properties': {'ApiId': ref('Api'), 'IntegrationType': 'AWS_PROXY', 'IntegrationUri': ref('Live'), 'PayloadFormatVersion': '2.0', 'TimeoutInMillis': 30000}}
-    routes = ['POST /mcp', 'GET /.well-known/oauth-protected-resource', 'GET /.well-known/oauth-authorization-server',
-              # Legacy authorize GET is redirect-only; the website owns all sign-in presentation.
-              'GET /oauth/authorize', 'POST /oauth/token', 'POST /oauth/revoke',
-              # Main-site /auth uses these two JSON protocol endpoints through Amplify rewrites.
-              'GET /auth/state', 'POST /auth/step']
-    for number, route in enumerate(routes):
-        resources[f'Route{number}'] = {'Type': 'AWS::ApiGatewayV2::Route',
-            'Metadata': context('Explicit protocol endpoint.', ['No wildcard proxy or storefront.']),
-            'Properties': {'ApiId': ref('Api'), 'RouteKey': route, 'AuthorizationType': 'NONE', 'Target': {'Fn::Join': ['/', ['integrations', ref('Integration')]]}}}
-    resources['Stage'] = {'Type': 'AWS::ApiGatewayV2::Stage',
-        'Metadata': context('Throttled API and status audit.', ['No queries, bodies or credentials in logs.']),
-        'Properties': {'ApiId': ref('Api'), 'StageName': '$default', 'AutoDeploy': True,
-            'DefaultRouteSettings': {'ThrottlingBurstLimit': 10, 'ThrottlingRateLimit': 5},
-            'AccessLogSettings': {'DestinationArn': get('ApiLogs', 'Arn'),
-                'Format': '{"requestId":"$context.requestId","route":"$context.routeKey","status":"$context.status"}'}}}
-    # No sign-in subdomain since v12: the connect.wecare.digital domain, API mapping and Route 53
-    # alias were removed. Customers sign in on wecare.digital/auth through the Amplify rewrite.
-    resources['InvokePermission'] = {'Type': 'AWS::Lambda::Permission',
-        'Metadata': context('API-only invocation.', ['Bind exact account and API.']),
-        'Properties': {'Action': 'lambda:InvokeFunction', 'FunctionName': ref('Live'), 'Principal': 'apigateway.amazonaws.com',
-                       'SourceAccount': ref('AWS::AccountId'), 'SourceArn': sub('arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*')}}
-    return {'AWSTemplateFormatVersion': '2010-09-09',
-        'Description': 'WECARE customer commerce MCP. Existing identity, commerce and encrypted custody; no storefront.',
-        'Metadata': {'AWSToolsMetrics': {'AWSAgentToolkit': 'aws-cloudformation@3'},
-                     **context('Customer API reuses existing identity, data and custody.',
-                               ['Verify 775261844268/us-east-1 before deploy.', 'No sends until approval and activation.'])},
-        'Parameters': {
-            'DeploymentRevision': {'Type': 'String', 'Default': source_hash[:16], 'AllowedPattern': '[A-Za-z0-9-]{12,64}',
-                                   'Description': 'Change for every reviewed code or configuration update to publish a new live version.'},
-            'ProductsTable': {'Type': 'String', 'Default': 'stack-wecare-digital-ProductsTable', 'AllowedPattern': '[A-Za-z0-9_.-]+'},
-            'SessionsTable': {'Type': 'String', 'Default': 'stack-wecare-digital-CustomerSessionsTable', 'AllowedPattern': '[A-Za-z0-9_.-]+'},
-            'CustodyKeyArn': {'Type': 'String', 'Default': 'arn:aws:kms:us-east-1:775261844268:key/b749509f-f93f-4451-9015-60ec29c4b9c1', 'AllowedPattern': 'arn:aws:kms:us-east-1:775261844268:key/[a-f0-9-]+'},
-            'CustomerClients': {'Type': 'String', 'Default': '[]', 'MaxLength': 12000, 'Description': 'Exact reviewed public OAuth client IDs, display names and HTTPS redirect URIs. Never secrets.'},
-            'ApprovedProductIds': {'Type': 'String', 'Default': '[]', 'MaxLength': 8000, 'Description': 'Only platform-approved saleable product IDs; empty publishes no products.'},
-            'WhatsAppPaymentsEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true']},
-            'RegistrationEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true'], 'Description': 'Enable only after restoring/verifying the established customer-registration service.'},
-            'AuthOrigin': {'Type': 'String', 'Default': '', 'AllowedValues': ['', 'https://wecare.digital'], 'Description': 'Main-site auth path through existing Amplify proxy; no subdomain.'},
-        }, 'Conditions': {'EnableRegistration': {'Fn::Equals': [ref('RegistrationEnabled'), 'true']}},
-        'Resources': resources, 'Outputs': {
-            'McpUrl': {'Value': {'Fn::Join': ['', [get('Api', 'ApiEndpoint'), '/mcp']]}},
-            'AuthorizationServer': {'Value': get('Api', 'ApiEndpoint')},
-            'FunctionArn': {'Value': get('Function', 'Arn')}, 'LiveVersion': {'Value': get('Version', 'Version')},
-        }}
+
+
+def assigned_literal(path: Path, name: str):
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            return ast.literal_eval(node.value)
+    raise ValueError(f'{name} not found in {path}')
+
+
+def canonical_return_paths() -> list[str]:
+    frontend_text = (ROOT / 'src/lib/safeReturnPath.ts').read_text()
+    block = re.search(
+        r'ALLOWED_CUSTOMER_RETURN_PATHS\s*=\s*\[(.*?)\]\s*as const',
+        frontend_text,
+        re.S,
+    )
+    if not block:
+        raise ValueError('Frontend customer return-path allowlist unavailable')
+    frontend = set(re.findall(r"'(/[^']*)'", block.group(1)))
+    backend = set(assigned_literal(SOURCE / 'customer_oauth_config.py', 'WEBSITE_RETURNS'))
+    if frontend != backend:
+        raise ValueError(
+            'Frontend/backend customer return paths differ: '
+            f'frontend_only={sorted(frontend - backend)} '
+            f'backend_only={sorted(backend - frontend)}'
+        )
+
+    services_text = (ROOT / 'src/config/services.ts').read_text()
+    service_paths = set(re.findall(r"\bpath\s*:\s*'([^']+)'", services_text))
+    if not service_paths or not service_paths <= frontend:
+        raise ValueError(
+            'Service return paths missing from auth allowlist: '
+            f'{sorted(service_paths - frontend)}'
+        )
+    required = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/get/'}
+    if not required <= frontend:
+        raise ValueError(
+            f'Required customer return paths missing: {sorted(required - frontend)}'
+        )
+    return sorted(frontend)
+
+
+def validated_sources() -> tuple[dict[str, bytes], list[str]]:
+    assets = runpy.run_path(str(SOURCE / 'connection_assets.py'))
+    expected = canonical_dial_codes()
+    actual = assets.get('DIAL_COUNTRIES')
+    if not expected or expected != actual:
+        raise ValueError('connection_assets.py differs from src/lib/dialCodes.ts')
+    return_paths = canonical_return_paths()
+
+    files: dict[str, bytes] = {}
+    for name in RUNTIME_FILES:
+        path = SOURCE / name
+        data = path.read_bytes()
+        compile(data, str(path), 'exec')
+        files[name] = data
+    combined = b'\n'.join(files[name] for name in RUNTIME_FILES)
+    if b'def form(' in combined or b'BRAND_LOGO' in combined:
+        raise ValueError('Backend presentation leaked into runtime source')
+    return files, return_paths
+
+
+def write_zip(path: Path, files: dict[str, bytes]) -> bytes:
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name in RUNTIME_FILES:
+            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, files[name])
+    return path.read_bytes()
+
+
+def build(output: Path) -> dict:
+    output.mkdir(parents=True, exist_ok=True)
+    files, return_paths = validated_sources()
+    zip_bytes = write_zip(output / 'customer-commerce-runtime.zip', files)
+    runtime_hash = hashlib.sha256(zip_bytes).hexdigest()
+    source_hash = hashlib.sha256(
+        b''.join(name.encode() + b'\0' + files[name] for name in RUNTIME_FILES)
+    ).hexdigest()
+    runtime_key = f'customer-commerce/{source_hash}/runtime.zip'
+    template = build_template(source_hash, runtime_key)
+    template_text = json.dumps(template, separators=(',', ':'))
+    if len(template_text.encode()) > 51200:
+        raise ValueError('Modular template unexpectedly exceeds direct CloudFormation limit')
+    (output / 'customer-commerce-stack.json').write_text(template_text + '\n')
+
+    manifest = {
+        'sourceSha256': source_hash,
+        'runtimeZipSha256': runtime_hash,
+        'runtimeBytes': len(zip_bytes),
+        'templateBytes': len(template_text.encode()),
+        'templateRequiresS3': False,
+        'runtimeBucket': RUNTIME_BUCKET,
+        'runtimeKey': runtime_key,
+        'expectedAccount': EXPECTED_ACCOUNT,
+        'expectedRegion': EXPECTED_REGION,
+        'providerWrites': False,
+        'deploymentExecuted': False,
+        'publicSubmissionReady': False,
+        'routes': list(ROUTES.values()),
+        'runtimeFiles': list(RUNTIME_FILES),
+        'websiteReturns': return_paths,
+        'presentationOwner': 'src/pages/auth.tsx',
+        'backendRendersHtml': False,
+        'countries': [],
+        'countriesMeaning': (
+            'All offered countries; fulfillment remains validated separately.'
+        ),
+    }
+    (output / 'release-manifest.json').write_text(
+        json.dumps(manifest, indent=2) + '\n'
+    )
+    return manifest
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
-    code = runtime_source()
-    digest = hashlib.sha256(code.encode()).hexdigest()
-    compiled = template(code, digest)
-    serialized = json.dumps(compiled, separators=(',', ':'))
-    if len(serialized.encode()) > 1000000:
-        raise ValueError('Template exceeds AWS S3 template limit')
-    (args.output / 'customer-commerce-stack.json').write_text(serialized + '\n')
-    (args.output / 'index.py').write_text(code)
-    with zipfile.ZipFile(args.output / 'customer-commerce-runtime.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-        info = zipfile.ZipInfo('index.py', date_time=(2020, 1, 1, 0, 0, 0))
-        info.compress_type = zipfile.ZIP_DEFLATED
-        info.external_attr = 0o644 << 16
-        archive.writestr(info, code)
-    manifest = {'sourceSha256': digest, 'runtimeBytes': len(code.encode()), 'templateBytes': len(serialized.encode()),
-                'templateRequiresS3': len(serialized.encode()) > 51200,
-                'expectedAccount': '775261844268', 'expectedRegion': 'us-east-1', 'providerWrites': False,
-                'deploymentExecuted': False, 'publicSubmissionReady': False,
-                'countries': [], 'countriesMeaning': 'All available countries, per owner; fulfillment still validated separately.'}
-    (args.output / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-    print(json.dumps(manifest))
+    print(json.dumps(build(args.output)))
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()

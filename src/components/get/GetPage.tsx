@@ -404,7 +404,10 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         </div>
                     ) }
 
-                    {/* Authentication is owned by /auth. Errors here are file-access or checkout errors only. */}
+                    {/* id is load-bearing: PhoneField and PillButton above point their
+                        aria-describedby at it, so a screen-reader user who tabs back to the field
+                        to correct it is told which control is at fault. The error is rendered here,
+                        above the form, rather than beside the field it concerns. */}
                     { error && (
                         <div className="sf-note sf-note-bad" id="sf-error" role="alert">{ error }</div>
                     ) }
@@ -589,7 +592,73 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
 
                 .sf-form{display:block}
 
+                /* Matched to .si-label on /account/sign-in: 14px/700. Was weight 600 here, which
+                   is a rung this site does not use for a field label. */
+                .sf-label{
+                  display:block;margin:0 0 8px;font-size:14px;font-weight:700;
+                  letter-spacing:-.1px;color:var(--public-brand-green);
+                }
+                /* Matched to .si-hint on /account/sign-in, so the one line of guidance under the
+                   number field reads the same on both sign-in surfaces. */
+                .sf-hint{
+                  margin:0 0 20px;font-size:16px;line-height:1.55;color:var(--public-muted);
+                }
+                /* THE CODE FIELD NOW DRESSES LIKE .si-input, byte for byte: 52px (matching the
+                   pill below it, so the field and the button it feeds are the same height), 1px
+                   #e5e7eb static hairline, 10px radius, 17px type.
+                   IT WAS 2px rgba(26,58,42,.18) ON A 12px RADIUS AT 16px - a border, radius and
+                   size this site uses nowhere else, which is a large part of why the owner saw the
+                   two sign-in surfaces as different. The WhatsApp number beside it is PhoneField,
+                   which owns its own outline, radius and height and already matches these numbers;
+                   the two controls are styled in two places on purpose.
+                   17px also clears the 16px floor below which iOS Safari zooms the viewport on
+                   focus, which on a one-field form looks like the page jumping. */
+                .sf-input{
+                  width:100%;box-sizing:border-box;min-height:52px;padding:0 16px;
+                  margin:0 0 20px;font-family:inherit;font-size:17px;color:#1a1a1a;
+                  background:#fff;border:1px solid var(--public-hairline);border-radius:999px;
+                  transition:border-color .2s;
+                }
+                .sf-input:focus{outline:none;border-color:var(--public-brand-green)}
+                .sf-input:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;box-shadow:0 0 0 3px rgba(209,244,112,.28)}
+                .sf-input:disabled{opacity:.6}
+                /* NO .sf-input-code RULE ANY MORE. The code field had bespoke 22px/600/centred
+                   type tracked out at .34em, which made the second stage look like a different
+                   control from the first - half of exactly what the owner reported. The reference
+                   surface settles it: /account/sign-in's code field is a plain .si-input, so plain
+                   is both the consistent answer AND the site-matching one. The onChange digit-strip
+                   and slice(0,6) stay - that is input hygiene, not styling. */
 
+
+                /* NO .sf-cta RULE ANY MORE. The primary action on both stages is PillButton - the
+                   home-page two-segment pill, and the same control /account/sign-in and /cart/
+                   render - so the component owns the shape, colours, focus ring and reduced-motion
+                   handling. Two things died with this rule and both were defects:
+                     1. border:2px solid #d1f470 - a LIME border on the .22-alpha lime panel, which
+                        cannot clear WCAG 1.4.11's 3:1 for a non-text control boundary. Every other
+                        own-surface CTA on the site borders #1a3a2a for exactly this reason (see
+                        .ship-close-cta), and PillButton does too.
+                     2. the single lime surface itself, which the owner replaced with the dark-green
+                        + mint pill on the login CTA. This page kept the old treatment and was the
+                        last surface still showing it. */
+
+                /* The resend stacks under the verify button rather than sitting beside it: at
+                   280px two 52px pills cannot share a row without wrapping mid-label, and a
+                   wrapped button row reads as a layout fault. Stacked is the same at every
+                   width, and it matches /account/sign-in/. */
+                .sf-resend{margin-top:12px}
+                /* min-height:44px, NOT padding alone. padding:10px on a 15px line measured 38px
+                   tall in the built export - under the 44px floor this site holds everything
+                   else to, and only passing on mobile because tokens.css forces 44px on every
+                   button below 768px. A tap target should not depend on a breakpoint. */
+                .sf-quiet{
+                  display:flex;align-items:center;justify-content:center;
+                  width:100%;min-height:44px;margin-top:12px;padding:10px;
+                  border:0;background:transparent;color:rgba(26,58,42,.72);
+                  font-family:inherit;font-size:15px;cursor:pointer;
+                }
+                .sf-quiet:hover{color:var(--public-brand-green);text-decoration:underline}
+                .sf-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
                 /* White card on the tinted panel, so each file reads as its own object. */
                 .sf-file{

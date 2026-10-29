@@ -1,17 +1,63 @@
-"""Load canonical public brand assets for local verification and release embedding.
+"""Server-side phone validation data shared with the website dial-code list."""
 
-The release builder embeds these values so Lambda needs no filesystem or website request.
-"""
-from pathlib import Path
-import re
-
-ROOT = Path(__file__).resolve().parents[4]
-BRAND_LOGO = (ROOT / 'tools/customer-commerce/assets/logo.svg').read_text().strip()
 DIAL_COUNTRIES = [
-    (code, country, [int(n) for n in re.findall(r'\d+', lengths)])
-    for code, country, lengths in re.findall(
-        r"\{ code: '([^']+)', country: '([^']+)', nationalDigits: \[([^\]]*)\] \}",
-        (ROOT / 'src/lib/dialCodes.ts').read_text())
+    ('+91', 'India', [10]),
+    ('+971', 'United Arab Emirates', [8, 9]),
+    ('+966', 'Saudi Arabia', [9]),
+    ('+974', 'Qatar', [8]),
+    ('+965', 'Kuwait', [8]),
+    ('+968', 'Oman', [8]),
+    ('+973', 'Bahrain', [8]),
+    ('+1', 'United States / Canada', [10]),
+    ('+44', 'United Kingdom', [9, 10]),
+    ('+61', 'Australia', [9]),
+    ('+64', 'New Zealand', [8, 9]),
+    ('+353', 'Ireland', [9]),
+    ('+880', 'Bangladesh', [10]),
+    ('+94', 'Sri Lanka', [9]),
+    ('+977', 'Nepal', [10]),
+    ('+960', 'Maldives', [7]),
+    ('+975', 'Bhutan', [8]),
+    ('+65', 'Singapore', [8]),
+    ('+60', 'Malaysia', [9, 10]),
+    ('+62', 'Indonesia', [9, 10, 11]),
+    ('+63', 'Philippines', [10]),
+    ('+66', 'Thailand', [9]),
+    ('+84', 'Vietnam', [9]),
+    ('+81', 'Japan', [10]),
+    ('+82', 'South Korea', [9, 10]),
+    ('+852', 'Hong Kong', [8]),
+    ('+49', 'Germany', [10, 11]),
+    ('+33', 'France', [9]),
+    ('+34', 'Spain', [9]),
+    ('+39', 'Italy', [9, 10]),
+    ('+31', 'Netherlands', [9]),
+    ('+41', 'Switzerland', [9]),
+    ('+46', 'Sweden', [7, 8, 9]),
+    ('+47', 'Norway', [8]),
+    ('+45', 'Denmark', [8]),
+    ('+351', 'Portugal', [9]),
+    ('+48', 'Poland', [9]),
+    ('+30', 'Greece', [10]),
+    ('+90', 'Türkiye', [10]),
+    ('+27', 'South Africa', [9]),
+    ('+234', 'Nigeria', [10]),
+    ('+254', 'Kenya', [9]),
+    ('+255', 'Tanzania', [9]),
+    ('+256', 'Uganda', [9]),
+    ('+233', 'Ghana', [9]),
+    ('+20', 'Egypt', [10]),
+    ('+212', 'Morocco', [9]),
+    ('+230', 'Mauritius', [7, 8]),
+    ('+55', 'Brazil', [10, 11]),
+    ('+52', 'Mexico', [10]),
+    ('+54', 'Argentina', [10]),
+    ('+56', 'Chile', [9]),
+    ('+57', 'Colombia', [10]),
+    ('+51', 'Peru', [9]),
+    ('+972', 'Israel', [9]),
+    ('+7', 'Russia / Kazakhstan', [10]),
+    ('+380', 'Ukraine', [9]),
+    ('+998', 'Uzbekistan', [9]),
+    ('+679', 'Fiji', [7]),
 ]
-if not DIAL_COUNTRIES or DIAL_COUNTRIES[0][0] != '+91':
-    raise ValueError('Canonical dial-code list unavailable')
