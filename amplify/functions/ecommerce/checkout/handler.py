@@ -769,12 +769,34 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     quote = snapshot.quote
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
-    # Native catalog prices are GST-inclusive today. The only adjustment between merchandise +
-    # delivery and collection is the always-on Delight discount.
-    discount_paise = max(
-        0, merchandise_paise + delivery_paise - int(quote.collection_before_convenience_paise))
+    pricing_metadata = (
+        frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    )
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
 
-    subtotal_paise = merchandise_paise
+    # Vault / Drop Docs have an explicit supply-GST step before Delight. Meta ORDER_DETAILS has
+    # one tax field, which is already used for GST on the convenience fee. To keep the payment
+    # sheet arithmetically honest, fold the supply GST into the one service item's displayed
+    # amount and label that item as GST-inclusive. Delight remains Meta's separate discount row,
+    # Express remains shipping, and GST on the convenience fee remains tax.
+    if supply_gst_paise:
+        if len(items) != 1:
+            raise ValueError("explicit supply GST requires exactly one service item")
+        items[0]["amount"]["value"] += supply_gst_paise
+        items[0]["name"] = (items[0]["name"] + " (incl. GST 18%)")[:60]
+
+    display_merchandise_paise = merchandise_paise + supply_gst_paise
+    if explicit_discount is not None:
+        discount_paise = max(0, int(explicit_discount))
+    else:
+        # Ordinary native carts already carry GST-inclusive catalogue prices. For those carts the
+        # only adjustment between merchandise + delivery and collection is Delight.
+        discount_paise = max(
+            0, display_merchandise_paise + delivery_paise
+            - int(quote.collection_before_convenience_paise))
+
+    subtotal_paise = display_merchandise_paise
     if quote.convenience_fee_paise:
         # A non-catalog line: no retailer_id. `retailer_id` names a catalog content id, and this
         # fee is not in any catalog, so a made-up one would be a synthetic catalog identity.
