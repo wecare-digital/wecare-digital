@@ -1819,8 +1819,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
         reference_id=reference_id,
     )
 
-    # One-payment -> one-service-Flow, and only AFTER the statutory invoice message is confirmed.
-    # Ordinary orders no-op in the receiver because their PAYREF# has no serviceLine.
+    # One payment -> one service fulfillment, and only AFTER the statutory invoice message is
+    # confirmed. Flow-backed services launch their canonical Flow; Vault is fulfilled by its
+    # secure-file entitlement path and never launches a Flow. Ordinary orders no-op because
+    # their PAYREF# has no serviceLine.
     if invoice_delivered and reference_id:
         _dispatch_post_invoice_service_flow(
             reference_id=reference_id,
@@ -2904,7 +2906,7 @@ def _post_payment_handler(payment_id: str, contact: str,
 
 def _dispatch_post_invoice_service_flow(*, reference_id: str, payment_attempt_id: str,
                                         order_id: str, request_id: str) -> None:
-    """Hint the service Flow launcher only after invoice delivery is confirmed. Never raises."""
+    """Hint the service fulfillment router only after invoice delivery is confirmed. Never raises."""
     if not reference_id or not payment_attempt_id or not order_id:
         return
     try:
