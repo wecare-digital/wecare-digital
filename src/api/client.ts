@@ -4989,10 +4989,9 @@ export interface CreateInvoiceEngineRequest {
   /** ISO country code for the delivery address; the engine stores it and defaults to IN. */
   countryCode?: string;
   /*
-   * There is NO coupon field and NO gift-card field on this request. The only discount an invoice
-   * carries is the server's always-on Delight policy (0.5% up to ₹50), applied by the invoice
-   * engine itself — a browser cannot send a discount code, and `discount` above exists only for
-   * legacy/webhook callers, not for a staff-entered manual adjustment.
+   * Coupon and gift-card codes remain retired. `discount` is an optional staff-entered amount
+   * on the Admin-authenticated invoice route. The invoice engine validates it, combines it with
+   * automatic Delight, and remains the only pricing authority.
    */
 }
 
