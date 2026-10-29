@@ -4,7 +4,12 @@ import json
 import logging
 import boto3
 from lambda_utils.ecommerce import paid_submit_request as paid
-from lambda_utils.ecommerce import service_request_store as store, order_keys
+from lambda_utils.ecommerce import (
+    service_request_store as store,
+    service_requests,
+    request_service_contracts,
+    order_keys,
+)
 from lambda_utils import flow_completion, shared_tables
 
 logger = logging.getLogger(__name__)
@@ -100,6 +105,38 @@ def prepare_and_send(event, lambda_client, get_flow):
     """
     requests, keys, _ = tables()
     payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
+    line = payref.get('serviceLine') if isinstance(payref.get('serviceLine'), dict) else {}
+
+    # New single-order service purchases are already financially finalized onto the selected
+    # existing order. They MUST NOT enter store.activate(), because that legacy path creates a
+    # ServiceRequestsTable row and mints WD-REQ-*.
+    if line.get('singleOrder') is True:
+        claim = order_keys.resolve_order_for_payment(
+            keys, str(event.get('paymentAttemptId') or '')) or {}
+        selected_order_id = str(line.get('selectedOrderId') or '')
+        selected_order_number = str(line.get('selectedOrderNumber') or '')
+        if (not selected_order_id
+                or str(claim.get('orderIdRef') or '') != selected_order_id
+                or selected_order_id != str(event.get('orderId') or '')
+                or str(claim.get('orderNumber') or '') != selected_order_number):
+            return {'outcome': 'ORDER_MISMATCH'}
+
+        contract = request_service_contracts.request_service_contract(line.get('serviceCode'))
+        if (contract is None
+                or contract.sku != str(line.get('sku') or '')
+                or contract.flow_capability != str(line.get('flowCapability') or '')):
+            return {'outcome': 'SERVICE_CONTRACT_MISMATCH'}
+
+        # The owner is completing the new Meta Flows separately. Final wiring is intentionally
+        # fail-closed: no old quick-reply template, no guessed Flow id and no generic fallback is
+        # sent. Once the canonical Flow is published this seam becomes the one-flow launcher.
+        return {
+            'outcome': 'SERVICE_FLOW_PENDING_WIRING',
+            'serviceCode': contract.service_code,
+            'flowCapability': contract.flow_capability,
+            'orderNumber': selected_order_number,
+        }
+
     if payref.get('nativeCatalogService'):
         result = lambda_client.invoke(
             FunctionName='wecare-commerce:live',

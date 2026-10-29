@@ -1,5 +1,6 @@
 from pathlib import Path
 import importlib.util
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,8 +9,9 @@ MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/request_service
 
 def _load():
     spec = importlib.util.spec_from_file_location("request_service_contracts", MODULE)
-    module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -58,3 +60,87 @@ def test_payment_binding_contains_no_public_request_id():
     assert binding["serviceCode"] == "VAULT"
     assert "requestId" not in binding
     assert all("WD-REQ-" not in str(value) for value in binding.values())
+
+
+
+def test_checkout_public_boundary_is_ids_only_and_server_verifies_order():
+    source = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text()
+    start = source.index("def _request_service_start")
+    end = source.index("\ndef _create(", start)
+    block = source[start:end]
+    assert '"serviceCode"' in block
+    assert '"selectedOrderNumber"' in block
+    assert "ORDER_NUMBER_PREFIX + selected_order_number" in block
+    assert "customerId" in block
+    assert "payment_status.CAPTURED" in block
+    assert "verified_service_context=verified_context" in block
+    assert 'body.get("price")' not in block
+    assert 'body.get("amount")' not in block
+    assert 'body.get("customerId")' not in block
+    assert 'body.get("orderId")' not in block
+    assert "WD-REQ-" not in block
+
+
+def test_single_order_capture_reuses_number_instead_of_reserving_another():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/order_creation.py").read_text()
+    start = source.index('if attempt.get("singleOrderService") is True:')
+    end = source.index("# ── ordinary purchase", start)
+    block = source[start:end]
+    assert "selectedOrderId" in block
+    assert "selectedOrderNumber" in block
+    assert "claim_order_for_payment" in block
+    assert "record_order_number_on_claim" in block
+    assert "reserve_public_order_number" not in block
+    assert "new_order_id" not in block
+
+
+def test_single_order_finalization_appends_activity_without_putting_new_order():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/finalization.py").read_text()
+    start = source.index("def _accept_paid_single_order_service")
+    end = source.index("\ndef accept_paid", start)
+    block = source[start:end]
+    assert "serviceActivities" in block
+    assert "serviceActivityPaymentIds" in block
+    assert "orders.update_item" in block
+    assert "orders.put_item" not in block
+    assert "ORDER_FINALIZED" in block
+
+
+def test_legacy_request_activator_cannot_mint_request_for_single_order_payment():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/service_request_store.py").read_text()
+    marker = 'if line.get("singleOrder") is True:'
+    assert marker in source
+    block = source[source.index(marker):source.index(marker) + 500]
+    assert "NOT_A_SERVICE_ORDER" in block
+
+
+def test_customer_flow_hint_occurs_after_confirmed_invoice_not_during_activation_hint():
+    dispatch = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/service_request_dispatch.py").read_text()
+    assert "preparePaidSubmitRequest" not in dispatch
+
+    webhook = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
+    call = webhook.index("invoice_delivered = _post_payment_handler")
+    guard = webhook.index("if invoice_delivered and reference_id:", call)
+    send = webhook.index("_dispatch_post_invoice_service_flow(", guard)
+    assert call < guard < send
+
+
+def test_browser_skips_legacy_intent_and_cart_for_request_services():
+    source = (ROOT / "src/components/ServiceBuyBox.tsx").read_text()
+    assert "fetchCustomerOrders" in source
+    assert "startRequestService" in source
+    assert "postRequestIntent" not in source
+    assert "setServiceLine" not in source
+    assert "CHECKOUT_PATH" not in source
+    assert "Payment request sent to your registered WhatsApp number." in source
+
+
+
+def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
+    source = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
+    native = source.index("# Product/cart native checkout carries the frozen cart snapshot")
+    block = source[native:native + 7000]
+    assert "outcome.verified_captured_paise > 0 and outcome.provider_payment_id" in block
+    assert "outcome.outcome == order_creation.ORDER_CREATED" not in block.split(
+        "elif attempt.get('finalizationStage')", 1
+    )[0]

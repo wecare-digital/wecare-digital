@@ -7,9 +7,9 @@ replayed hint produces at most a no-op. Dispatch runs for EVERY order the webhoo
 receiver answers ``NOT_A_SERVICE_ORDER`` for the ordinary ones, which keeps the webhook free of
 any service knowledge.
 
-Fire-and-forget (`InvocationType="Event"`) and NEVER raises: a dispatch failure must not fail the
-webhook (a non-2xx makes Razorpay retry the whole event), and it is recoverable two ways -- the
-/orders page's self-heal and ``scripts/reconcile_service_requests.py``.
+Fire-and-forget (`InvocationType="Event"`) and NEVER raises. This helper activates only the
+legacy ServiceRequestsTable lifecycle. It deliberately does NOT launch a customer Flow: the
+Razorpay webhook launches the post-payment service Flow only after status + invoice delivery.
 
 The shared Lambda role already holds ``lambda:InvokeFunction`` on ``function:wecare-*``, so this
 needs no IAM change on the webhook.
@@ -50,13 +50,3 @@ def dispatch_activation(lambda_client: Any, *, reference_id: str, payment_attemp
         logger.warning(json.dumps({"event": "service_request_activation_dispatch_failed",
                                    "error": type(error).__name__, "referenceId": reference_id,
                                    "requestId": request_id}))
-    try:
-        lambda_client.invoke(
-            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
-            Payload=json.dumps({'internalAction': 'preparePaidSubmitRequest',
-                                'referenceId': str(reference_id or ''),
-                                'paymentAttemptId': str(payment_attempt_id or ''),
-                                'orderId': str(order_id or '')}).encode('utf-8'))
-    except Exception as error:
-        logger.warning(json.dumps({'event': 'paid_request_flow_dispatch_failed',
-                                   'error': type(error).__name__, 'requestId': request_id}))

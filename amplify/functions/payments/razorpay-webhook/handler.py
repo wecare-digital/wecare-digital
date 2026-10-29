@@ -854,9 +854,11 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             if not attempt:
                 raise RuntimeError('native cart payment attempt missing')
             evidence = None
-            if (outcome.outcome == order_creation.ORDER_CREATED
-                    and outcome.verified_captured_paise > 0
-                    and outcome.provider_payment_id):
+            if (outcome.verified_captured_paise > 0 and outcome.provider_payment_id):
+                # Fresh provider evidence is authoritative regardless of whether reconciliation
+                # allocated a new order identity. Single-order service payments intentionally
+                # return ORDER_ALREADY_EXISTS because they bind to the selected existing order,
+                # but this is still their FIRST verified capture and must reach accept_paid.
                 evidence = (outcome.provider_payment_id, outcome.verified_captured_paise)
             elif attempt.get('finalizationStage') != 'ORDER_FINALIZED':
                 stored_id = str(attempt.get('verifiedProviderPaymentId') or '')
@@ -1808,12 +1810,24 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     #   3. the paid invoice template, once - the statutory receipt with the Leave Review button.
     # Staff changes never send a WhatsApp order_status; physical/service fulfilment is internal.
     checkout_mode = str((outcome or {}).get('checkoutMode') or '')
-    _post_payment_handler(payment_id, contact, email, description, notes, request_id,
-                          channel=str((outcome or {}).get('channel') or ''),
-                          customer_uuid=str((outcome or {}).get('customerUuid') or ''),
-                          checkout_mode=checkout_mode,
-                          originating_phone_id=originating_phone_id,
-                          reference_id=reference_id)
+    invoice_delivered = _post_payment_handler(
+        payment_id, contact, email, description, notes, request_id,
+        channel=str((outcome or {}).get('channel') or ''),
+        customer_uuid=str((outcome or {}).get('customerUuid') or ''),
+        checkout_mode=checkout_mode,
+        originating_phone_id=originating_phone_id,
+        reference_id=reference_id,
+    )
+
+    # One-payment -> one-service-Flow, and only AFTER the statutory invoice message is confirmed.
+    # Ordinary orders no-op in the receiver because their PAYREF# has no serviceLine.
+    if invoice_delivered and reference_id:
+        _dispatch_post_invoice_service_flow(
+            reference_id=reference_id,
+            payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
+            order_id=str((outcome or {}).get('orderId') or order_id or ''),
+            request_id=request_id,
+        )
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
@@ -2680,7 +2694,7 @@ def _post_payment_handler(payment_id: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
                           *, channel: str = '', customer_uuid: str = '',
                           checkout_mode: str = '', originating_phone_id: str = '',
-                          reference_id: str = '') -> None:
+                          reference_id: str = '') -> bool:
     """
     After payment captured (Razorpay webhook path):
     This is the authoritative invoice path for a verified capture. (It was once described as a
@@ -2885,6 +2899,38 @@ def _post_payment_handler(payment_id: str, contact: str,
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
                             'invoiceId': invoice_id, 'invoiceDelivered': delivered,
                             'path': 'webhook_backup', 'requestId': request_id}))
+    return bool(delivered)
+
+
+def _dispatch_post_invoice_service_flow(*, reference_id: str, payment_attempt_id: str,
+                                        order_id: str, request_id: str) -> None:
+    """Hint the service Flow launcher only after invoice delivery is confirmed. Never raises."""
+    if not reference_id or not payment_attempt_id or not order_id:
+        return
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-whatsapp-business-api:live',
+            InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'preparePaidSubmitRequest',
+                'referenceId': reference_id,
+                'paymentAttemptId': payment_attempt_id,
+                'orderId': order_id,
+            }).encode('utf-8'),
+        )
+        logger.info(json.dumps({
+            'event': 'post_invoice_service_flow_dispatched',
+            'referenceId': reference_id,
+            'orderId': order_id,
+            'requestId': request_id,
+        }))
+    except Exception as error:  # noqa: BLE001 - payment/invoice are already complete
+        logger.warning(json.dumps({
+            'event': 'post_invoice_service_flow_dispatch_failed',
+            'referenceId': reference_id,
+            'error': type(error).__name__,
+            'requestId': request_id,
+        }))
 
 
 def _ensure_invoice_asset(invoice_id: str, request_id: str) -> None:
