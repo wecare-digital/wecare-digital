@@ -11,6 +11,7 @@ from lambda_utils.ecommerce import (
     order_keys,
 )
 from lambda_utils import flow_completion, shared_tables
+from .service_flow_launcher import launch_single_order_service
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,11 @@ def send_review(event, lambda_client):
 
 
 def prepare_and_send(event, lambda_client, get_flow):
-    """Activate the paid service without sending any post-payment interactive Flow.
+    """Activate the paid service and launch its one post-invoice service Flow.
 
-    The invoice template is the only post-payment customer message. Service details remain
-    available through the normal Submit Request Flow entry points; payment finalization does not
-    push a second Flow invitation.
+    New single-order services do not create a second WD-REQ record. After the payment and invoice
+    have been finalized, this function validates the existing-order binding and hands the
+    customer-facing launch to the shared idempotent service Flow launcher.
     """
     requests, keys, _ = tables()
     payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
@@ -137,15 +138,14 @@ def prepare_and_send(event, lambda_client, get_flow):
                 'orderNumber': selected_order_number,
             }
 
-        # The owner is completing the new Meta Flows separately. Final wiring is intentionally
-        # fail-closed: no old quick-reply template, no guessed Flow id and no generic fallback is
-        # sent. Once the canonical Flow is published this seam becomes the one-flow launcher.
-        return {
-            'outcome': 'SERVICE_FLOW_PENDING_WIRING',
-            'serviceCode': contract.service_code,
-            'flowCapability': contract.flow_capability,
-            'orderNumber': selected_order_number,
-        }
+        return launch_single_order_service(
+            event=event,
+            service_code=contract.service_code,
+            capability=contract.flow_capability,
+            order_id=selected_order_id,
+            order_number=selected_order_number,
+            lambda_client=lambda_client,
+        )
 
     if payref.get('nativeCatalogService'):
         result = lambda_client.invoke(
