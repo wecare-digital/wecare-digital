@@ -54,6 +54,14 @@ frontend:
         - npm ci --cache .npm --prefer-offline --no-audit --no-fund
         # DEPLOY GATE. Type-check the production source before building.
         - npx tsc --noEmit
+        # The customer-commerce auth boundary is deployed separately, but its source lives in
+        # this repository. Keep its JSON-only OAuth/OTP contracts and exact packaged runtime in
+        # the same release gate so a frontend merge cannot silently leave an undeployable backend.
+        - python3 tools/customer-commerce/verify.py
+        - python3 tools/customer-commerce/verify_oauth.py
+        - rm -rf /tmp/customer-commerce-release
+        - python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
+        - python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/customer-commerce-runtime.zip
     build:
       commands:
         # Browser Maps credential is build-scoped only. Do not persist a Maps public-key alias

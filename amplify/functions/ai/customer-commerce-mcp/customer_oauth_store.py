@@ -9,6 +9,7 @@ import re
 import secrets
 import time
 from customer_oauth_config import *
+from customer_oauth_config import _CLIENTS
 
 def aws(service: str):
     if service not in _CLIENTS:
