@@ -1,4 +1,4 @@
-"""Focused regression checks that website and host OAuth cookies never cross flows."""
+"""Focused regression checks for the shared website/host authentication boundary."""
 from __future__ import annotations
 
 from http.cookies import SimpleCookie
@@ -62,6 +62,17 @@ class AuthFlowIsolation(unittest.TestCase):
         self.assertIsNotNone(
             self.contract.store.get(auth.row_key('auth', oauth_cookie))
         )
+
+    def test_get_collection_returns_to_get_after_sign_in(self) -> None:
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': urlencode({'return': '/get/'}),
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        state = json.loads(result['body'])
+        self.assertTrue(state['website'])
+        self.assertEqual(state['returnPath'], '/get/')
+        self.assertEqual(state['destination'], '/get/')
 
 
 if __name__ == '__main__':
