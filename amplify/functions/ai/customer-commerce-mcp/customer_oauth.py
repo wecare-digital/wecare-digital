@@ -1136,7 +1136,13 @@ def route(event: dict) -> dict | None:
             # There is one customer sign-in page: the main-site /auth route. Direct API-host
             # visits to /auth and cached /oauth/authorize links are protocol entry points only;
             # redirect them before creating any auth state so no second HTML login surface exists.
-            if target != origin() and path in {'/auth', '/oauth/authorize'}:
+            request_host = str((event.get('requestContext') or {}).get('domainName') or '')
+            canonical_host = urlparse(target).netloc
+            redirect_to_main = (
+                path == '/oauth/authorize'
+                or (path == '/auth' and request_host != canonical_host)
+            )
+            if target != origin() and redirect_to_main:
                 if path == '/oauth/authorize' or {
                     'client_id', 'redirect_uri', 'response_type', 'scope', 'state',
                     'resource', 'code_challenge', 'code_challenge_method',
