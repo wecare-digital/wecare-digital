@@ -7732,6 +7732,30 @@ async function customerApiCall<T> ( url: string, options?: RequestInit ): Promis
   }
 }
 
+export interface CustomerVaultPaymentRequest {
+  outcome: string;
+  fileId: string;
+  message: string;
+  renewal: boolean;
+  accessState: SecureFileAccessState;
+}
+
+/**
+ * Ask the backend to send native WhatsApp Review and Pay for this exact owned Vault file.
+ *
+ * The browser supplies only the file id in the path. The customer-pool token proves the caller;
+ * secure-files re-reads owner + entitlement state, and the existing native payment rail owns
+ * ProductsTable pricing, GST/fees and the Meta ORDER_DETAILS message. No cart is seeded here.
+ */
+export async function requestMySecureFilePayment (
+  fileId: string,
+): Promise<ApiResult<CustomerVaultPaymentRequest>> {
+  return customerApiCall(
+    `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/request-payment`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
 /** The signed-in customer's own files. Requires a customer-pool token. */
 export async function listMySecureFiles (): Promise<ApiResult<{
   files: SecureFile[]; count: number;
