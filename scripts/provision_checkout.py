@@ -107,6 +107,9 @@ ROUTE_KEYS = (
     # Authenticated single-order request-service handoff. The body carries only serviceCode and
     # selectedOrderNumber; handler-side customer_auth proves the owner before payment.
     "POST /ecommerce/request-service-start",
+    # Free authenticated Track launcher. This route creates no PaymentAttempt and accepts no
+    # order/price input; it only hands the proven customer to the published F006 WhatsApp Flow.
+    "POST /ecommerce/track-flow-start",
     # The ONE anonymous arm: the four public service pages read their live price from it
     # before a visitor has signed in. GET only, no input of any kind, and allow-listed by name in
     # `scripts/audit_route_auth.py` with its justification. `handler.handler` routes it ahead of
