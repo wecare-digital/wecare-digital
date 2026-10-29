@@ -400,8 +400,9 @@ def _single_order_context(context: Any, line: Optional[ServiceLine] = None) -> O
     selected_order_number = str(context.get("selectedOrderNumber") or "").strip().upper()
     sku = canonical_variant_id(context.get("sku"))
     flow_capability = str(context.get("flowCapability") or "").strip()
+    fulfillment_kind = str(context.get("fulfillmentKind") or "").strip()
     if (not service_code or not selected_order_id or not selected_order_number
-            or not sku or not flow_capability):
+            or not sku or not flow_capability or fulfillment_kind != "flow"):
         return None
     if SERVICE_KIND_BY_VARIANT.get(sku) != service_code:
         return None
@@ -413,6 +414,7 @@ def _single_order_context(context: Any, line: Optional[ServiceLine] = None) -> O
         "selectedOrderNumber": selected_order_number,
         "sku": sku,
         "flowCapability": flow_capability,
+        "fulfillmentKind": fulfillment_kind,
     }
 
 
