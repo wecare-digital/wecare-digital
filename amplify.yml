@@ -52,17 +52,15 @@ frontend:
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
         - npm ci --cache .npm --prefer-offline --no-audit --no-fund
-        # DEPLOY GATE. Type-check the production source before building.
-        - npx tsc --noEmit
+        # DEPLOY GATE. Store private diagnostics before failing so release blockers are inspectable
+        # without relying on Amplify's service-owned log bucket.
+        - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://cdk-hnb659fds-assets-775261844268-us-east-1/customer-commerce/validation/${AWS_BRANCH:-unknown}"
+        - npx tsc --noEmit > /tmp/customer-commerce-tsc.log 2>&1 || { aws s3 cp /tmp/customer-commerce-tsc.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/tsc-failure.log" --only-show-errors || true; cat /tmp/customer-commerce-tsc.log; exit 1; }
         # The customer-commerce auth boundary is deployed separately, but its source lives in
         # this repository. Keep its JSON-only OAuth/OTP contracts and exact packaged runtime in
         # the same release gate so a frontend merge cannot silently leave an undeployable backend.
-        - python3 tools/customer-commerce/verify.py
-        - python3 tools/customer-commerce/verify_oauth.py
-        - python3 tools/customer-commerce/verify_auth_isolation.py
-        - rm -rf /tmp/customer-commerce-release
-        - python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
-        - python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/customer-commerce-runtime.zip
+        - python3 tools/customer-commerce/validate_pipeline.py --output /tmp/customer-commerce-release --report /tmp/customer-commerce-validation.json || { aws s3 cp /tmp/customer-commerce-validation.json "$CUSTOMER_COMMERCE_DIAGNOSTICS/backend-failure.json" --only-show-errors || true; cat /tmp/customer-commerce-validation.json; exit 1; }
+        - aws s3 cp /tmp/customer-commerce-validation.json "$CUSTOMER_COMMERCE_DIAGNOSTICS/backend-success.json" --only-show-errors
         # Stage only the verified, content-addressed backend artifacts. This does not update the
         # CloudFormation stack or move the live alias; deployment remains a separate reviewed step.
         - export CUSTOMER_COMMERCE_SOURCE_SHA="$(python3 -c "import json; print(json.load(open('/tmp/customer-commerce-release/release-manifest.json'))['sourceSha256'])")"; test -n "$CUSTOMER_COMMERCE_SOURCE_SHA"; export CUSTOMER_COMMERCE_RELEASE_PREFIX="s3://cdk-hnb659fds-assets-775261844268-us-east-1/customer-commerce/$CUSTOMER_COMMERCE_SOURCE_SHA"; aws s3 cp /tmp/customer-commerce-release/customer-commerce-runtime.zip "$CUSTOMER_COMMERCE_RELEASE_PREFIX/runtime.zip" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/customer-commerce-stack.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/stack.json" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/release-manifest.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/release-manifest.json" --only-show-errors
