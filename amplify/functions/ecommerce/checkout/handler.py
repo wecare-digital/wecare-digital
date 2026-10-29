@@ -2729,6 +2729,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         attempt.update(
             singleOrderService=True,
             serviceCode=single["serviceCode"],
+            serviceSku=single["sku"],
             selectedOrderId=single["selectedOrderId"],
             selectedOrderNumber=single["selectedOrderNumber"],
             serviceKind=single["serviceCode"],
