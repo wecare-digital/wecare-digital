@@ -3795,3 +3795,215 @@ html {
 .pf-preset-table td:first-child strong,
 .pf-preset-table td:first-child small { display: block; }
 .pf-preset-table td:first-child small { margin-top: 2px; color: #8a9490; font-size: 10px; }
+
+
+/* ==========================================================================
+   PAYMENTS — AUTH/HOME TWO-COLUMN COMPOSER
+   ========================================================================== */
+.pf-auth-surface { max-width: 1380px; }
+.pf-auth-surface .pf-customer-context {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.pf-auth-surface .pf-customer-context .info-banner,
+.pf-auth-surface .pf-customer-address {
+  margin: 0 !important;
+  max-width: none !important;
+  padding: 14px 16px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: #f8faf3 !important;
+  box-shadow: none !important;
+  color: var(--pf-auth-green) !important;
+  font-size: 13px !important;
+}
+.pf-auth-surface .pf-customer-address-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pf-auth-surface .pf-create-layout {
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, .92fr);
+  gap: 24px;
+  align-items: start;
+}
+.pf-auth-surface .pf-auth-card-block {
+  min-width: 0;
+  border: 1px solid var(--pf-auth-hair);
+  border-top: 4px solid var(--pf-auth-lime);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(26,58,42,.08);
+}
+.pf-auth-surface .pf-composer-main {
+  padding: clamp(24px, 2.4vw, 34px);
+}
+.pf-auth-surface .pf-live-preview {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: clamp(24px, 2.2vw, 32px);
+}
+.pf-auth-surface .pf-composer-heading { margin-bottom: 22px; }
+.pf-auth-surface .pf-composer-heading h3 {
+  margin-top: 2px;
+  margin-bottom: 6px;
+  font-size: clamp(30px, 3vw, 44px) !important;
+  font-weight: 700;
+  letter-spacing: -.045em;
+}
+.pf-auth-surface .pf-composer-heading p,
+.pf-auth-surface .pf-composer-card-head p,
+.pf-auth-surface .pf-live-preview-note {
+  color: rgba(26,58,42,.68);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.pf-auth-surface .pf-composer-card {
+  margin: 0;
+  padding: 22px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pf-auth-surface .pf-composer-card + .pf-composer-card {
+  border-top: 1px solid var(--pf-auth-hair);
+}
+.pf-auth-surface .pf-composer-card-head { margin-bottom: 16px; }
+.pf-auth-surface .pf-composer-card-head h4,
+.pf-auth-surface .pf-live-preview-head h4 {
+  color: var(--pf-auth-green);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.pf-auth-surface .pf-item-card {
+  padding: 18px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.pf-auth-surface .pf-item-card + .pf-item-card {
+  border-top: 1px solid var(--pf-auth-hair);
+}
+.pf-auth-surface .form-group label {
+  margin-bottom: 7px;
+  color: var(--pf-auth-green);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+.pf-auth-surface input:not([type="checkbox"]):not([type="radio"]),
+.pf-auth-surface textarea,
+.pf-auth-surface select,
+.pf-auth-surface .search-input {
+  min-height: 54px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--pf-auth-hair);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #1a1a1a;
+  font-size: 16px;
+}
+.pf-auth-surface textarea { min-height: 96px; padding-top: 12px; }
+.pf-auth-surface input:focus,
+.pf-auth-surface textarea:focus,
+.pf-auth-surface select:focus,
+.pf-auth-surface .search-input:focus {
+  outline: 0;
+  border-bottom-color: var(--pf-auth-green);
+  box-shadow: 0 1px 0 0 var(--pf-auth-lime);
+}
+.pf-auth-surface .pf-item-fields { gap: 16px; }
+.pf-auth-surface .pf-preset-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.pf-auth-surface .pf-preset-table { min-width: 760px; }
+.pf-auth-surface .pf-preset-table th,
+.pf-auth-surface .pf-preset-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--pf-auth-hair);
+}
+.pf-auth-surface .pf-preset-table th {
+  background: transparent;
+  color: rgba(26,58,42,.62);
+}
+.pf-auth-surface .pf-auto-discount-card { background: transparent; }
+.pf-auth-surface .pf-auto-discount-value {
+  min-height: 54px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--pf-auth-hair);
+  border-radius: 0;
+  background: transparent;
+}
+.pf-auth-surface .pf-authority-badge {
+  min-height: 30px;
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pf-auth-lime);
+  color: var(--pf-auth-green);
+}
+.pf-auth-surface .pf-preview-image-shell {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: #f7f8f4;
+  overflow: hidden;
+}
+.pf-auth-surface .pf-preview-image-shell img { max-height: none; }
+.pf-auth-surface .pf-preview-totals {
+  margin-top: 18px;
+  border-top-color: var(--pf-auth-hair);
+}
+.pf-auth-surface .pf-preview-totals > div {
+  padding: 10px 2px;
+  border-bottom-color: var(--pf-auth-hair);
+  font-size: 13px;
+}
+.pf-auth-surface .pf-preview-totals .pf-preview-total {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+.pf-auth-surface .pf-composer-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--pf-auth-hair);
+}
+@media (max-width: 1120px) {
+  .pf-auth-surface .pf-create-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, .78fr);
+  }
+}
+@media (max-width: 920px) {
+  .pf-auth-surface .pf-create-layout { grid-template-columns: 1fr; }
+  .pf-auth-surface .pf-live-preview { position: static; max-height: none; }
+}
+@media (max-width: 640px) {
+  .pf-auth-surface .pf-auth-card-block { border-radius: 20px; }
+  .pf-auth-surface .pf-composer-main,
+  .pf-auth-surface .pf-live-preview { padding: 20px; }
+  .pf-auth-surface .pf-customer-address-warning {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.contacts-auth-surface .contacts-provenance-note {
+  flex: 1 1 280px;
+  min-width: 220px;
+  color: rgba(26,58,42,.66);
+  font-size: 12px;
+  line-height: 1.45;
+}
