@@ -152,9 +152,9 @@ def route(event: dict) -> dict | None:
         if method != 'POST':
             return response(405, {'error': 'invalid_request'})
         params = _form_params(event)
-        if path in {'/auth/step', '/oauth/authorize'}:
+        if path == '/auth/step':
             result = authorize_post(params, event)
-            if path == '/auth/step' and result.get('statusCode') in {302, 303}:
+            if result.get('statusCode') in {302, 303}:
                 json_result = response(200, {'redirect': (result.get('headers') or {}).get('Location', '/')})
                 if result.get('cookies'):
                     json_result['cookies'] = list(result['cookies'])
