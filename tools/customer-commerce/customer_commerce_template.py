@@ -3,7 +3,7 @@ from __future__ import annotations
 
 EXPECTED_ACCOUNT = '775261844268'
 EXPECTED_REGION = 'us-east-1'
-RUNTIME_BUCKET = 'prod-04-2014-tasks'
+RUNTIME_BUCKET = 'cdk-hnb659fds-assets-775261844268-us-east-1'
 
 ROUTES = {
     0: 'POST /mcp',
