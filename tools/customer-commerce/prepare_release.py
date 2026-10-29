@@ -132,9 +132,10 @@ def template(code: str, source_hash: str) -> dict:
         'Metadata': context('Customer alias only.', ['Preserve source IP; no caller routing.']),
         'Properties': {'ApiId': ref('Api'), 'IntegrationType': 'AWS_PROXY', 'IntegrationUri': ref('Live'), 'PayloadFormatVersion': '2.0', 'TimeoutInMillis': 30000}}
     routes = ['POST /mcp', 'GET /.well-known/oauth-protected-resource', 'GET /.well-known/oauth-authorization-server',
-              'GET /oauth/authorize', 'POST /oauth/authorize', 'POST /oauth/token', 'POST /oauth/revoke',
-              # Main-site sign-in. The page itself is a shared Next route; state/step are API rewrites.
-              'GET /auth', 'POST /auth', 'GET /auth/state', 'POST /auth/step']
+              # Legacy authorize GET is redirect-only; the website owns all sign-in presentation.
+              'GET /oauth/authorize', 'POST /oauth/token', 'POST /oauth/revoke',
+              # Main-site /auth uses these two JSON protocol endpoints through Amplify rewrites.
+              'GET /auth/state', 'POST /auth/step']
     for number, route in enumerate(routes):
         resources[f'Route{number}'] = {'Type': 'AWS::ApiGatewayV2::Route',
             'Metadata': context('Explicit protocol endpoint.', ['No wildcard proxy or storefront.']),

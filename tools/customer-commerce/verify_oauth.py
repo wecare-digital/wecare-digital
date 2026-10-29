@@ -79,104 +79,37 @@ class OAuthContract(unittest.TestCase):
             self.assertEqual(result['headers']['Location'], 'https://wecare.digital/auth?' + urlencode(self.params))
             self.assertEqual(self.store.rows, {})
             event['rawPath'] = '/auth'
-            self.assertEqual(auth.route(event)['statusCode'], 200)
+            self.assertIsNone(auth.route(event))
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://connect.wecare.digital'}):
             with self.assertRaises(auth.AuthError):
                 auth.connect_origin()
 
-    def test_plain_auth_is_the_canonical_website_sign_in(self):
+    def test_backend_does_not_own_customer_auth_page(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
                      'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
-            result = auth.route(event)
-        self.assertEqual(result['statusCode'], 200)
-        self.assertIn('class="hdr"', result['body'])
-        self.assertIn('class="nav-menu"', result['body'])
-        self.assertIn('class="home-shell"', result['body'])
-        self.assertIn('One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.', result['body'])
-        self.assertIn('Sign in securely. Pick up where you left off.', result['body'])
-        self.assertIn('WECARE.DIGITAL, WhatsApp, Android, iOS, ChatGPT, Claude, Gemini', result['body'])
-        self.assertNotIn('One&nbsp;account, built&nbsp;for', result['body'])
-        self.assertIn('class="home-connect"', result['body'])
-        self.assertIn('class="connect-panel"', result['body'])
-        self.assertIn('class="connect-eyebrow"', result['body'])
-        self.assertIn('>login</span><span>Sign in</span>', result['body'])
-        self.assertIn('Material+Symbols+Rounded', result['body'])
-        self.assertIn('icon_names=login', result['body'])
-        self.assertNotIn('>Access</span>', result['body'])
-        self.assertNotIn('M7 8h10l1 12H6L7 8', result['body'])
-        self.assertIn("--font-sans:'Inter',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont", result['body'])
-        self.assertIn('font-size:14px;font-weight:600;line-height:1;letter-spacing:-.125px', result['body'])
-        self.assertIn('font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;letter-spacing:-.05px', result['body'])
-        self.assertIn('.auth-action{font-size:var(--public-mobile-cta-font-size)}', result['body'])
-        self.assertIn('class="country-trigger"', result['body'])
-        self.assertIn('>+91</button>', result['body'])
-        self.assertIn('class="country-panel"', result['body'])
-        self.assertIn('font:600 16px/1.3 inherit', result['body'])
-        self.assertIn('font:400 16px/1.3 inherit', result['body'])
-        self.assertIn('font:600 16px/1.4 inherit', result['body'])
-        self.assertIn('.country-code{flex:0 0 auto;font-size:14px;font-weight:600', result['body'])
-        self.assertIn('.nav-group-label{margin:16px 10px 6px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.06em', result['body'])
-        self.assertIn('.compact img{width:50px;height:50px}.compact .brand-copy{font-size:20px}', result['body'])
-        self.assertIn('.ps-chevron{font-size:20px', result['body'])
-        self.assertNotIn('<select id="country"', result['body'])
-        self.assertIn('>Get Code</button>', result['body'])
-        # The "Verification code" note beside Get Code is gone; the button stands on its own.
-        self.assertNotIn('class="auth-action-note"', result['body'])
-        self.assertIn('id="wc-auth-widget"', result['body'])
-        self.assertIn('id="wc-lang-panel"', result['body'])
-        self.assertIn("connect-src 'self'", result['headers']['Content-Security-Policy'])
-        self.assertIn('width:min(100%,420px)', result['body'])
-        self.assertNotIn('Sign in to WECARE.DIGITAL.', result['body'])
-        self.assertNotIn('Use your WhatsApp number to continue with your WECARE account.', result['body'])
-        self.assertNotIn('Enter your number without the country code or a leading zero.', result['body'])
-        self.assertNotIn('Sign in to your WECARE account. Verification messages arrive on WhatsApp.', result['body'])
-        self.assertNotIn('class="connect-rule"', result['body'])
-        self.assertNotIn('class="sign-card"', result['body'])
-        self.assertIn('class="public-share has-contribute"', result['body'])
-        self.assertIn('Contribute ₹250', result['body'])
-        self.assertIn('Subscribe on WhatsApp', result['body'])
-        self.assertIn('Share this page', result['body'])
-        self.assertIn('class="ft-footer"', result['body'])
-        self.assertIn('>Extras</span>', result['body'])
-        self.assertIn('>With AI</span>', result['body'])
-        self.assertNotIn('Visit our website', result['body'])
-        self.assertNotIn('class="auth-hero"', result['body'])
-        self.assertNotIn('class="site-footer"', result['body'])
-        self.assertNotIn('Connecting to <strong>', result['body'])
-        cookie = SimpleCookie(); cookie.load(result['cookies'][0])
-        row = self.store.get(auth.row_key('auth', cookie[auth.COOKIE].value))
-        self.assertEqual(row['kind'], 'web-auth')
-        self.assertEqual(row['return'], '/orders/')
+            self.assertIsNone(auth.route(event))
+            post = {**event, 'requestContext': {'http': {'method': 'POST'}}}
+            self.assertIsNone(auth.route(post))
 
-    def test_plain_auth_can_recover_hidden_vault_continuation_without_query_string(self):
+    def test_auth_state_is_the_website_protocol_entry(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
-            event = {'rawPath': '/auth', 'rawQueryString': '',
-                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
-            result = auth.route(event)
+            result = auth.route({'rawPath': '/auth/state', 'rawQueryString': 'return=%2Forders%2F',
+                                 'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}})
         self.assertEqual(result['statusCode'], 200)
-        self.assertIn("sessionStorage.getItem('wecare.vault.authReturnFile')", result['body'])
-        self.assertIn("ret.value='/vault/'", result['body'])
-        self.assertNotIn('/auth?return=', result['body'])
-
-    def test_website_form_marks_recoverable_history_and_blocks_duplicate_submit(self):
-        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
-            event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
-                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
-            result = auth.route(event)
-        self.assertIn('id="auth-form"', result['body'])
-        self.assertIn('name="_flow" value="website"', result['body'])
-        self.assertIn('name="_return" value="/orders/"', result['body'])
-        self.assertIn('let submitted=false', result['body'])
-        self.assertIn("nav.type==='back_forward'", result['body'])
+        step = json.loads(result['body'])
+        self.assertEqual(step['phase'], 'phone')
+        self.assertTrue(step['website'])
+        self.assertEqual(step['returnPath'], '/orders/')
+        self.assertNotIn('<form', result['body'])
 
     def test_stale_website_post_redirects_to_fresh_auth(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
-            event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
+            event = {'rawPath': '/auth/state', 'rawQueryString': 'return=%2Forders%2F',
                      'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
             page = auth.route(event)
             cookie = SimpleCookie(); cookie.load(page['cookies'][0])
-            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            csrf = json.loads(page['body'])['csrf']
             fields = {'csrf': csrf, '_flow': 'website', '_return': '/orders/', 'country': '+91', 'phone': '9876543210'}
             context = {'headers': {'origin': 'https://wecare.digital'},
                        'cookies': [f'{auth.COOKIE}={cookie[auth.COOKIE].value}'],
@@ -198,59 +131,61 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
         self.assertEqual(first['statusCode'], 200)
-        self.assertIn('>Resend code</button>', first['body'])
-        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        self.assertEqual(json.loads(first['body'])['phase'], 'code')
+        csrf = json.loads(first['body'])['csrf']
         second = self.post(cookie, {'csrf': csrf, 'action': 'resend'})
         self.assertEqual(second['statusCode'], 200)
-        self.assertIn('>Resend code</button>', second['body'])
-        self.assertIn('class="single-field"', second['body'])
+        self.assertEqual(json.loads(second['body'])['phase'], 'code')
+        self.assertEqual(json.loads(second['body'])['phase'], 'code')
         self.assertEqual(self.cognito.sends, 2)
 
     def test_resend_accepts_browser_code_field_and_stays_on_code_step(self):
         cookie, csrf = self.begin()
         first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        csrf = json.loads(first['body'])['csrf']
         second = self.post(cookie, {'csrf': csrf, 'action': 'resend', 'code': ''})
         self.assertEqual(second['statusCode'], 200)
-        self.assertIn('name="code"', second['body'])
-        self.assertIn('New code sent.', second['body'])
+        self.assertEqual(json.loads(second['body'])['phase'], 'code')
+        self.assertEqual(json.loads(second['body'])['message'], 'New code sent.')
         self.assertEqual(self.cognito.sends, 2)
 
     def test_edit_phone_returns_to_phone_step_without_sending(self):
         cookie, csrf = self.begin()
         first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        csrf = json.loads(first['body'])['csrf']
         sends = self.cognito.sends
         edited = self.post(cookie, {'csrf': csrf, 'action': 'edit_phone', 'code': ''})
         self.assertEqual(edited['statusCode'], 200)
-        self.assertIn('name="phone"', edited['body'])
-        self.assertNotIn('name="code"', edited['body'])
+        self.assertEqual(json.loads(edited['body'])['phase'], 'phone')
+        self.assertNotEqual(json.loads(edited['body'])['phase'], 'code')
         self.assertEqual(self.cognito.sends, sends)
 
-    def test_plain_auth_refresh_resumes_code_step_without_resending(self):
+    def test_auth_state_refresh_resumes_code_step_without_resending(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
-            event = {'rawPath': '/auth', 'rawQueryString': '',
-                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
-            page = auth.route(event)
+            page = auth.route({'rawPath': '/auth/state', 'rawQueryString': '',
+                               'requestContext': {'domainName': 'wecare.digital',
+                                                  'http': {'method': 'GET'}}})
             cookie = SimpleCookie(); cookie.load(page['cookies'][0])
-            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
-            post = {'rawPath': '/auth',
-                    'headers': {'origin': 'https://wecare.digital',
-                                'content-type': 'application/x-www-form-urlencoded'},
-                    'cookies': [f'{auth.COOKIE}={cookie[auth.COOKIE].value}'],
-                    'requestContext': {'http': {'method': 'POST'}},
-                    'body': urlencode({'csrf': csrf, '_flow': 'website', '_return': '/',
-                                       'country': '+44', 'phone': '7700900123'})}
-            result = auth.route(post)
-            self.assertEqual(result['statusCode'], 303)
-            self.assertEqual(result['headers']['Location'], 'https://wecare.digital/auth')
+            cookies = [f'{auth.COOKIE}={cookie[auth.COOKIE].value}']
+            step = json.loads(page['body'])
+            result = auth.route({
+                'rawPath': '/auth/step',
+                'headers': {'origin': 'https://wecare.digital',
+                            'content-type': 'application/x-www-form-urlencoded'},
+                'cookies': cookies,
+                'requestContext': {'http': {'method': 'POST'}},
+                'body': urlencode({'csrf': step['csrf'], '_flow': 'website', '_return': '/',
+                                   'country': '+44', 'phone': '7700900123'}),
+            })
+            self.assertEqual(result['statusCode'], 200)
+            self.assertEqual(json.loads(result['body'])['phase'], 'code')
             sends = self.cognito.sends
-            resumed = auth.route({'rawPath': '/auth', 'rawQueryString': '',
-                                  'cookies': post['cookies'],
+            resumed = auth.route({'rawPath': '/auth/state', 'rawQueryString': '',
+                                  'cookies': cookies,
                                   'requestContext': {'domainName': 'wecare.digital',
                                                      'http': {'method': 'GET'}}})
             self.assertEqual(resumed['statusCode'], 200)
-            self.assertIn('name="code"', resumed['body'])
+            self.assertEqual(json.loads(resumed['body'])['phase'], 'code')
             self.assertEqual(self.cognito.sends, sends)
 
     def test_shared_auth_state_and_step_json_contract(self):
@@ -326,14 +261,14 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         with patch.object(self.cognito, 'initiate_auth', wraps=self.cognito.initiate_auth) as call:
             result = self.post(cookie, {'csrf': csrf, 'country': '+91', 'phone': '9876543210'})
-        self.assertIn('for="code">Code</label>', result['body'])
+        self.assertEqual(json.loads(result['body'])['phase'], 'code')
         self.assertEqual(call.call_args.kwargs['AuthParameters']['USERNAME'], '+919876543210')
 
     def test_invalid_country_or_national_length_never_sends(self):
         for country, number in [('+999', '9876543210'), ('+91', '12345'), ('+91', '+919876543210')]:
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'country': country, 'phone': number})
-            self.assertIn('Check the number and try again.', result['body'])
+            self.assertIn('Check the number and try again.', json.loads(result['body'])['message'])
         self.assertEqual(self.cognito.sends, 0)
 
     def test_branded_authorization_origin_keeps_resource_binding(self):
@@ -342,7 +277,7 @@ class OAuthContract(unittest.TestCase):
             self.assertEqual(auth.auth_metadata()['issuer'], BASE)
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://wecare.digital')
-            self.assertIn('for="code">Code</label>', result['body'])
+            self.assertEqual(json.loads(result['body'])['phase'], 'code')
         # Without a main-site origin the API host keeps its own authorization endpoint.
         self.assertEqual(auth.auth_metadata()['authorization_endpoint'], BASE + '/oauth/authorize')
 
@@ -372,10 +307,10 @@ class OAuthContract(unittest.TestCase):
                        'resource': BASE + '/mcp', 'code_challenge': CHALLENGE, 'code_challenge_method': 'S256'}
 
     def begin(self):
-        result = auth.authorize_get(self.params)
+        result = auth.authorize_get(self.params, json_transport=True)
         cookie = SimpleCookie(); cookie.load(result['cookies'][0])
         cookie_value = cookie[auth.COOKIE].value
-        csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
+        csrf = json.loads(result['body'])['csrf']
         return cookie_value, csrf
 
     def post(self, cookie, fields, origin=BASE):
@@ -385,7 +320,7 @@ class OAuthContract(unittest.TestCase):
     def connect(self):
         cookie, csrf = self.begin()
         result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-        csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
+        csrf = json.loads(result['body'])['csrf']
         result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
         self.assertEqual(result['statusCode'], 302)
         parsed = parse_qs(urlparse(result['headers']['Location']).query)
@@ -413,11 +348,11 @@ class OAuthContract(unittest.TestCase):
     def test_duplicate_parameters_refused(self):
         with self.assertRaises(auth.AuthError): auth.parse('client_id=a&client_id=b')
 
-    def test_connection_form_allows_only_its_registered_callback_origin(self):
-        page = auth.authorize_get(self.params)
-        policy = page['headers']['Content-Security-Policy']
-        self.assertIn("form-action 'self' https://client.example;", policy)
-        self.assertNotIn('*', policy)
+    def test_authorization_state_is_json_not_html(self):
+        result = auth.authorize_get(self.params, json_transport=True)
+        self.assertEqual(result['headers']['Content-Type'], 'application/json')
+        self.assertEqual(json.loads(result['body'])['phase'], 'phone')
+        self.assertNotIn('<form', result['body'])
 
     def test_csrf_required_before_any_message(self):
         cookie, _ = self.begin()
@@ -433,7 +368,7 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
         self.assertNotIn('+447700900123', result['body'])
-        csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
+        csrf = json.loads(result['body'])['csrf']
         result = self.post(cookie, {'csrf': csrf, 'code': '000000'})
         self.assertNotIn('000000', result['body'])
         self.assertNotIn('rotated-synthetic-challenge', result['body'])
@@ -441,7 +376,7 @@ class OAuthContract(unittest.TestCase):
     def test_wrong_code_preserves_rotated_session_privately(self):
         cookie, csrf = self.begin()
         result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-        csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
+        csrf = json.loads(result['body'])['csrf']
         self.post(cookie, {'csrf': csrf, 'code': '000000'})
         row = self.store.get(auth.row_key('auth', cookie))
         self.assertEqual(json.loads(row['cipher'])['session'], 'rotated-synthetic-challenge')
@@ -479,7 +414,7 @@ class OAuthContract(unittest.TestCase):
             self.cognito.access = value
             cookie, csrf = self.begin()
             page = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            csrf = json.loads(page['body'])['csrf']
             page = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(page['statusCode'], 200)
             self.assertNotIn('Location', page['headers'])
@@ -521,13 +456,13 @@ class OAuthContract(unittest.TestCase):
             return True
         with patch.object(auth, 'registration_call', side_effect=registration) as delegate:
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            self.assertIn('>Verify</button>', result['body'])
-            self.assertIn('>Resend code</button>', result['body'])
-            self.assertNotIn('create your account', result['body'])
-            csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
+            self.assertEqual(json.loads(result['body'])['phase'], 'code')
+            self.assertEqual(json.loads(result['body'])['phase'], 'code')
+            self.assertNotIn('create your account', json.loads(result['body'])['message'])
+            csrf = json.loads(result['body'])['csrf']
             result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(result['statusCode'], 200)
-            self.assertIn('Account ready. Enter the new code.', result['body'])
+            self.assertIn('Account ready. Enter the new code.', json.loads(result['body'])['message'])
             self.assertEqual(delegate.call_args.args[0], 'verify')
             self.assertEqual(self.cognito.sends, 2)
 
