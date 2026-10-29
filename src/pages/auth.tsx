@@ -36,11 +36,11 @@ const AuthPage: React.FC = () => {
   const countryRef = useRef<HTMLDivElement | null>( null );
 
   useEffect( () => {
-    const onPointer = ( event: MouseEvent ) => {
+    const onPointer = ( event: PointerEvent ) => {
       if ( countryRef.current && !countryRef.current.contains( event.target as Node ) ) setCountryOpen( false );
     };
-    document.addEventListener( 'mousedown', onPointer );
-    return () => document.removeEventListener( 'mousedown', onPointer );
+    document.addEventListener( 'pointerdown', onPointer );
+    return () => document.removeEventListener( 'pointerdown', onPointer );
   }, [] );
 
   useEffect( () => {
@@ -163,7 +163,12 @@ const AuthPage: React.FC = () => {
                       type="button"
                       aria-haspopup="listbox"
                       aria-expanded={ countryOpen }
+                      aria-controls="auth-country-list"
+                      aria-label={ `Calling code ${ dialCode }. Choose country.` }
                       onClick={ () => setCountryOpen( open => !open ) }
+                      onKeyDown={ event => {
+                        if ( event.key === 'Escape' ) setCountryOpen( false );
+                      } }
                       disabled={ busy }
                     >
                       <span>{ dialCode }</span><span aria-hidden="true">⌄</span>
@@ -177,10 +182,24 @@ const AuthPage: React.FC = () => {
                             type="search"
                             value={ countryQuery }
                             placeholder="Search country"
+                            autoComplete="off"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={ false }
+                            enterKeyHint="search"
                             onChange={ event => setCountryQuery( event.target.value ) }
+                            onKeyDown={ event => {
+                              if ( event.key === 'Escape' ) {
+                                setCountryOpen( false );
+                                setCountryQuery( '' );
+                              }
+                            } }
                           />
                         </label>
-                        <div className="country-list" role="listbox" aria-label="Country code">
+                        <div id="auth-country-list" className="country-list" role="listbox" aria-label="Country code">
+                          { countries.length === 0 && (
+                            <p className="country-empty" role="status">No countries found.</p>
+                          ) }
                           { countries.map( item => (
                             <button
                               key={ item.code }
@@ -207,6 +226,11 @@ const AuthPage: React.FC = () => {
                     type="tel"
                     inputMode="numeric"
                     autoComplete="tel-national"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={ false }
+                    enterKeyHint="next"
+                    maxLength={ 18 }
                     placeholder="WhatsApp number"
                     value={ phone }
                     onChange={ event => {
@@ -230,6 +254,7 @@ const AuthPage: React.FC = () => {
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
+                  enterKeyHint="done"
                   placeholder="6-digit code"
                   maxLength={ 6 }
                   value={ code }
@@ -268,46 +293,72 @@ const AuthPage: React.FC = () => {
       </RotatingHero>
 
       <style jsx>{`
-        .auth-card{width:min(100%,560px);padding:36px 40px 40px;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);color:var(--public-text);font-family:var(--font-sans)}
+        .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
         .auth-eyebrow{display:flex;align-items:center;justify-content:center;width:52px;height:52px;margin:0 0 34px;border-radius:50%;background:var(--public-brand-lime)}
         .auth-eyebrow-icon{width:34px;height:34px;border-radius:50%;display:block;object-fit:contain}
         .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         /* Exact public-menu search treatment: no box, no side border, no fill; one bottom hairline. */
-        .phone-control{position:relative;display:flex;width:100%;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
+        .phone-control{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
         .phone-control:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
-        .country-picker{position:relative;display:flex;flex:0 0 auto}
-        .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:0;display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);cursor:pointer}
+        .country-picker{position:relative;display:flex;flex:0 0 auto;min-width:0}
+        .country-trigger{min-width:92px;min-height:54px;padding:0 12px 0 2px;border:0;border-radius:0;display:flex;align-items:center;justify-content:flex-start;gap:8px;background:transparent;color:var(--public-brand-green);font:600 var(--public-body-size)/1 var(--font-sans);white-space:nowrap;touch-action:manipulation;cursor:pointer}
         .country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 var(--public-brand-lime);z-index:2}
-        .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);box-shadow:none;outline:0}
+        .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);text-overflow:ellipsis;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
         .phone-control>input::placeholder,.code-control::placeholder{color:rgba(0,0,0,.42)}
         .code-control{border:1.5px solid var(--public-brand-lime);border-radius:18px;box-shadow:0 2px 0 rgba(26,58,42,.18)}
         .code-control:focus{border-color:var(--public-brand-green);box-shadow:0 0 0 3px rgba(209,244,112,.4),0 2px 0 rgba(26,58,42,.18)}
-        .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;width:min(340px,calc(100vw - 48px));max-height:360px;overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15)}
+        .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
         .country-search{display:block;padding:0 14px;border-bottom:0}
         .country-search input{width:100%;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
         .country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
-        .country-list{max-height:286px;overflow:auto}
-        .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);cursor:pointer}
+        .country-list{min-height:0;max-height:336px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
+        .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}
+        .country-row>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .country-row>span:last-child{flex:0 0 auto}
+        .country-empty{margin:0;padding:18px 14px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4}
         .country-row:hover,.country-row[aria-selected='true']{background:var(--public-lime-tint)}
         .auth-error{margin:14px 0 0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);font-size:var(--public-supporting-size);font-weight:600;line-height:1.4}
         .auth-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
-        .auth-action{min-height:48px;padding:8px 14px;border:0;border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}
+        .auth-action{min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;touch-action:manipulation;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}
         .auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
         .auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
         .auth-primary{font-weight:700}
         .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+        @media(max-width:1024px){
+          .auth-card{width:min(100%,540px)}
+        }
         @media(max-width:767px){
-          .auth-card{width:100%;padding:28px 20px 30px;border-radius:20px}
+          .auth-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
           .auth-eyebrow{width:48px;height:48px;margin-bottom:28px}
           .auth-eyebrow-icon{width:31px;height:31px}
           .auth-label{font-size:var(--public-mobile-card-size)}
-          .phone-control{min-height:54px;border-radius:0}
-          .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;border-radius:0;font-size:var(--public-mobile-form-font-size)}
-          .phone-control>input{min-height:52px;padding:0 2px 0 12px;border-radius:0;font-size:var(--public-mobile-form-font-size)}
-          .code-control{min-height:56px;padding-inline:16px;border-radius:16px;font-size:var(--public-mobile-form-font-size)}
-          .auth-action{font-size:var(--public-mobile-cta-font-size);min-height:46px}
-          .country-panel{width:min(320px,calc(100vw - 32px))}
+          .phone-control{min-height:54px}
+          .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;font-size:16px}
+          .phone-control>input{min-height:52px;padding:0 2px 0 12px;font-size:16px}
+          .code-control{min-height:56px;padding-inline:16px;border-radius:16px;font-size:16px}
+          .auth-action{font-size:var(--public-mobile-cta-font-size);min-height:48px}
+          .country-panel{position:fixed;top:auto;inset-inline:16px;bottom:max(16px,env(safe-area-inset-bottom));width:auto;max-width:none;max-height:min(62dvh,460px);border-radius:18px}
+          .country-search{padding-inline:16px}
+          .country-search input{min-height:52px;font-size:16px}
+          .country-list{max-height:none;flex:1 1 auto}
+          .country-row{min-height:52px;padding:11px 16px;font-size:16px}
+        }
+        @media(max-width:480px){
+          .auth-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+          .auth-primary{grid-column:1/-1}
+          .auth-action{width:100%}
+        }
+        @media(max-width:359px){
+          .auth-card{padding-inline:16px}
+          .country-trigger{min-width:74px;padding-inline-end:8px;gap:6px}
+          .phone-control>input{padding-inline-start:10px}
+          .country-panel{inset-inline:10px;bottom:max(10px,env(safe-area-inset-bottom))}
+        }
+        @media(max-height:600px) and (min-width:768px){
+          .auth-card{padding-top:28px;padding-bottom:30px}
+          .auth-eyebrow{margin-bottom:24px}
+          .country-panel{max-height:min(340px,58dvh)}
         }
       `}</style>
     </>
