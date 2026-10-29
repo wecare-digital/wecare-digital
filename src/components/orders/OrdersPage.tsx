@@ -1382,7 +1382,7 @@ export default function OrdersPage (): React.ReactElement {
              188px of sideways page scroll with every panel closed, 309px with one open. Capped,
              the wrapper is never wider than its column, and at desktop widths, where the table
              fits, nothing changes. */
-          .ord-tablewrap{overflow-x:auto;max-inline-size:100%;border:1px solid var(--public-hairline);border-radius:16px;background:#fff}
+          .ord-tablewrap{overflow-x:auto;max-inline-size:100%;border:0;border-block-start:1px solid var(--public-hairline);border-radius:0;background:transparent}
           .ord-tablewrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* 1px and static: these borders never change. The row's hover is a background tint
@@ -1390,7 +1390,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-th{
             text-align:start;padding:14px 16px;border-block-end:1px solid var(--public-hairline);
             font-size:12px;font-weight:700;letter-spacing:0;color:var(--public-brand-green);white-space:nowrap;
-            background:#f7fbf4;
+            background:transparent;
           }
           .ord-th-num{text-align:end}
           .ord-tr{border-block-start:1px solid var(--public-hairline)}
@@ -1521,7 +1521,13 @@ export default function OrdersPage (): React.ReactElement {
           /* An anchor in the button's clothes: no underline, and it may wrap at 200% text size. */
           .ord-view{font-size:15px;padding:0 16px;text-decoration:none;text-align:center}
 
-          .ord-list,.ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
+          .ord-list{
+            width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:18px;
+            padding:clamp(24px,3.2vw,32px);border:1px solid var(--public-hairline);
+            border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);
+            box-shadow:0 14px 38px rgba(26,58,42,.08);
+          }
+          .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
@@ -1533,6 +1539,7 @@ export default function OrdersPage (): React.ReactElement {
             .ord-page{gap:var(--public-mobile-section-gap)}
             .ord-shell,.ord-shell-editing{gap:40px}
             .ord-p,.ord-aside{font-size:18px}
+            .ord-list{padding:24px 20px;border-radius:20px}
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
             .ord-inline-edit{display:block;margin:5px 0 0}
