@@ -533,6 +533,21 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
     except contact_store.IdentityConflict:
         logger.warning(json.dumps({"event": "whatsapp_identity_contact_conflict"}))
         return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+
+    # A freshly authenticated website customer may have had its deterministic ContactsTable row
+    # created milliseconds ago by customer-profile. The phone GSI is eventually consistent, so
+    # that row can be authoritative on the base table before find_by_phone can see it. Accept a
+    # strongly consistent exact-id fallback only when the row is live and its canonical phone
+    # exactly matches the sender. This widens no trust boundary: contact_id is already required,
+    # and the existing-owner branch below still proves the Cognito subject + verified phone.
+    if not canonical:
+        direct = _contacts_table().get_item(
+            Key={"id": contact_id}, ConsistentRead=True).get("Item") or {}
+        if (contact_store.is_live(direct)
+                and contact_key.resolve(direct) == contact_id
+                and contact_store.canonical_phone(direct.get("phone")) == phone):
+            canonical = direct
+
     if not canonical or contact_key.resolve(canonical) != contact_id:
         return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
     contact = canonical
