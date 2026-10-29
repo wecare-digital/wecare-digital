@@ -1095,41 +1095,41 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         </header>
 
         {/* Toolbar */}
-        <div className="contacts-auth-toolbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div className="contacts-auth-toolbar">
           {/* Contact count badge */}
-          <span style={{ background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, fontSize: 'var(--text-sm)', padding: '4px 12px', borderRadius: 13 }}>
+          <span className="contacts-count-pill">
             {filteredSorted.length} contact{filteredSorted.length !== 1 ? 's' : ''}
           </span>
 
           {/* Search */}
-          <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 320 }}>
+          <div className="contacts-search-wrap">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
               <path stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/>
             </svg>
-            <input ref={searchInputRef} aria-label="Search customers" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search customers..." style={{ width: '100%', padding: '8px 12px 8px 34px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', background: '#fff' }} onFocus={focusStyle} onBlur={blurStyle} />
+            <input ref={searchInputRef} aria-label="Search customers" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search customers..." className="contacts-search-input" onFocus={focusStyle} onBlur={blurStyle} />
           </div>
 
           {/* Action buttons */}
-          <button onClick={() => { resetForm(); setShowModal(true); }} title="Add customer (N)" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, cursor: 'pointer' }}>
+          <button onClick={() => { resetForm(); setShowModal(true); }} title="Add customer (N)" aria-label="Add customer" className="contacts-primary-action">
             <AddUserIcon />
+            <span>Add customer</span>
           </button>
-          <button onClick={() => setShowImport(!showImport)} title="Import customers" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', color: '#374151', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
+          <button onClick={() => setShowImport(!showImport)} title="Import customers" aria-label="Import customers" className="contacts-icon-action">
             <UploadIcon />
           </button>
-          <button onClick={handleExport} title="Export all contacts" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', color: '#374151', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
+          <button onClick={handleExport} title="Export all contacts" aria-label="Export all contacts" className="contacts-icon-action">
             <ExportIcon />
           </button>
-          <button onClick={() => loadContacts()} title="Refresh" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
+          <button onClick={() => loadContacts()} title="Refresh" aria-label="Refresh customers" className="contacts-icon-action">
             <RefreshIcon />
           </button>
-          <button type="button" onClick={() => setShowManageData(true)} title="Review customer data quality"
-            style={{ minHeight: 40, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 650 }}>
+          <button type="button" onClick={() => setShowManageData(true)} title="Review customer data quality" className="contacts-secondary-action">
             Manage data
           </button>
 
           {/* Column visibility */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowColMenu(!showColMenu)} title="Toggle columns" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
+            <button onClick={() => setShowColMenu(!showColMenu)} title="Toggle columns" aria-label="Toggle columns" className="contacts-icon-action">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0H5a2 2 0 0 1-2-2v-4m6 6h10a2 2 0 0 0 2-2v-4M3 9h18M3 15h18"/></svg>
             </button>
             {showColMenu && (
@@ -1509,15 +1509,15 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
+          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
-            <div style={{ padding: '16px 24px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={handleCreate} disabled={saving} style={{ padding: '8px 20px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Create'}</button>
+            <div className="contacts-modal-actions">
+              <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
+              <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
             </div>
           </div>
         </div>
@@ -1526,15 +1526,15 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
-          <div className="customer-modal-panel" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
+          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
-            <div style={{ padding: '16px 24px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={handleUpdate} disabled={saving} style={{ padding: '8px 20px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Update'}</button>
+            <div className="contacts-modal-actions">
+              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
+              <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>
             </div>
           </div>
         </div>
