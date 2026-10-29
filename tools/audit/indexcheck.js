@@ -64,10 +64,8 @@ const ALLOWED_NOINDEX = {
     + 'page. Indexing it would put a redirect in the index; Google reports those as "Page '
     + 'with redirect". It exists only because deleting it restores Next\'s built-in 404, '
     + 'which ships zero links.',
-  '/get/': 'the customer file-collection gate. A visitor verifies their own phone number over '
-    + 'WhatsApp against the customer pool before anything renders, so there is no content to '
-    + 'index - only an authentication step. Indexing it would put a login gate in search '
-    + 'results. Public so it needs no staff sign-in; not marketing, so no sitemap entry.',
+  '/get/': 'a redirect-only legacy signpost to /vault/. It is not a customer file surface and '
+    + 'must stay out of search so /vault/ remains the only public Vault destination.',
   // Static customer-session screens stay out of PUBLIC_PAGE_META, the sitemap and the AI manifest.
   // Customer sign-in is not static anymore: /auth is the backend-routed, noindex canonical entry.
   '/cart/': 'one visitor\'s cart - session state, empty for anyone arriving from search.',

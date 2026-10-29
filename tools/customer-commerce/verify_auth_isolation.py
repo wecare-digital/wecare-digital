@@ -63,7 +63,7 @@ class AuthFlowIsolation(unittest.TestCase):
             self.contract.store.get(auth.row_key('auth', oauth_cookie))
         )
 
-    def test_get_collection_returns_to_get_after_sign_in(self) -> None:
+    def test_legacy_get_return_canonicalizes_to_vault(self) -> None:
         result = auth.route({
             'rawPath': '/auth/state',
             'rawQueryString': urlencode({'return': '/get/'}),
@@ -71,8 +71,8 @@ class AuthFlowIsolation(unittest.TestCase):
         })
         state = json.loads(result['body'])
         self.assertTrue(state['website'])
-        self.assertEqual(state['returnPath'], '/get/')
-        self.assertEqual(state['destination'], '/get/')
+        self.assertEqual(state['returnPath'], '/vault/')
+        self.assertEqual(state['destination'], '/vault/')
 
 
 if __name__ == '__main__':

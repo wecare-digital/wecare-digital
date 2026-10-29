@@ -16,10 +16,10 @@
 - Workspace Vault exposes a staff-authenticated **Download** action through the source Drop Docs document and a **Customer Vault link** at `/vault/?file=<fileId>`; S3 keys never reach the browser.
 - A customer arriving through a one-file Vault link stays on the exact-file Vault surface; the download page does not expose **Back to all Vault files** or **Sign out** controls.
 
-# Secure file sharing — wecare.digital/get
+# Secure file sharing — media namespace and Vault delivery
 
-Two tiers on one bucket. The open one is a plain CDN path; the gated one requires a
-verified customer and a durable paid entitlement.
+Public media is served under `/get/<key>`. Customer file access is exposed only through
+`/vault/?file=<fileId>`, after verified identity and a durable paid entitlement.
 
 Status verified live 2026-09-25. Re-derive rather than trusting these numbers —
 `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) requires rediscovery per phase.
@@ -29,7 +29,7 @@ Status verified live 2026-09-25. Re-derive rather than trusting these numbers �
 | Tier | Prefix | Gate | URL |
 |---|---|---|---|
 | Open | `o/` | none | `wecare.digital/get/o/<file>` |
-| Gated | `secure/` | WhatsApp OTP, then ₹49 per 24-hour access window | `wecare.digital/files/` |
+| Gated | `secure/` | verified customer + paid access window | `wecare.digital/vault/?file=<fileId>` |
 
 A link that matches nothing, and anything under `secure/`, redirects to the apex.
 
@@ -53,12 +53,12 @@ issued after ownership and payment are both checked.
 ## Request path
 
     wecare.digital  (Amplify Hosting app d22dm4b0jn71jw)
-      customRules, evaluated IN ORDER — /get/<*> must stay ABOVE the SPA catch-all
-        /get            301 -> /
-        /get/           301 -> /
-        /get/<*>        200 rewrite -> d1kf2rchz7yras.cloudfront.net
-        /files/         the app (must be in the _app.tsx public allowlist)
-        /<*>            404-200 -> /index.html   <- catch-all, always last
+      customer route
+        /vault/?file=<fileId>  exact-file Vault UI (the only customer download surface)
+        /get/                  legacy static signpost -> /vault/
+      media namespace — /get/<*> must stay ABOVE the SPA catch-all
+        /get/<*>               200 rewrite -> d1kf2rchz7yras.cloudfront.net
+        /<*>                   404-200 -> /index.html   <- catch-all, always last
 
     CloudFront E2GP22R4BIFGQ3
       no alternate domain name, so no Route 53 record and no ACM certificate
@@ -94,7 +94,7 @@ through unless the function replaces it.
 
 The payment-initiation routes `/whatsapp-pay` and `/order` were removed on 2026-10-22
 (bf90ff69a). Secure-file purchases go through the commerce checkout's PaymentAttempt from either
-the authenticated website Vault collection or WhatsApp catalog-service selection; this function
+the exact-file website Vault route or WhatsApp service selection; this function
 settles historical grants (`confirmAndDeliver`), keeps the durable entitlement and delivers.
 
 ### When WhatsApp delivery fails
@@ -221,7 +221,7 @@ delivery only; it has no price environment variable or fallback amount. There ar
 | Staff | Secure files → **Send Vault request-ready message** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.sendOffer` sends template `wecare_vault_request_ready`: "📄 Your requested *{document}* is available in your Vault. Amount due for this request: *₹49*." with an **Unlock Vault** quick reply carrying an opaque offer token (`VAULTOFFER#<token>` in CommerceKeys, 7 days) |
 | Customer | Taps **Unlock Vault** | inbound routes the tap to `catalogService.unlock`; the tap is the identity evidence, and the offer's file gets one Review and Pay (or Access Vault if already paid). An unknown, expired, revoked, reassigned or otherwise unusable offer stops with the single customer message "This document is not available right now." |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
-| Customer | `/vault/?file=` or `/get/` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
+| Customer | `/vault/?file=<fileId>` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
 
 The offer charges nothing and needs no linked WhatsApp contact beforehand: commerce's identity
 bridge proves the customer from the tap, a signed inbound message, as it does for a cart. The

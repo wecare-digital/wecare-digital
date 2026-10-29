@@ -10,10 +10,10 @@
  *
  * Route ownership
  * ---------------
- * /get/ is the general collection page. /vault/?file=<id> reuses this component for the
- * approved WhatsApp download deep-link, scoped to one file. Amplify's /get/<*> rewrite still
- * sends nested /get/ file requests to CloudFront, so this remains a page component rather than
- * a nested /get/ route.
+ * /vault/?file=<id> is the one customer download route. This component is mounted only by that
+ * exact-file Vault surface and always scopes the authenticated view to the named file.
+ * /get/ is not a second file-collection page; the /get/<*> namespace remains reserved for
+ * media delivery through CloudFront.
  *
  * It also has to be in the public allowlist in `_app.tsx`. Without that entry it
  * renders the staff Authenticator at HTTP 200 - which is how it shipped the first
@@ -92,23 +92,17 @@ const GET_WORDS: CycleWord[] = [
     { word: 'papers', tint: '#fef3c7', dot: '#f0a818' },
 ];
 
-const AUTH_WORDS: CycleWord[] = [
-    { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
-    { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
-];
-
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 
 type Stage = 'loading' | 'files';
 
 interface FilesPageProps {
-    /** Optional WhatsApp Vault deep-link target. Ownership is still proven server-side. */
-    targetFileId?: string;
+    /** Canonical Vault deep-link target. Ownership is still proven server-side. */
+    targetFileId: string;
 }
 
-export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
+export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const router = useRouter();
     const [ stage, setStage ] = useState<Stage>( 'loading' );
     const [ error, setError ] = useState( '' );
@@ -131,8 +125,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 // Same-tab storage is best-effort. Ownership still has to pass on the server.
             }
         }
-        const returnPath = targetFileId ? '/vault/' : '/get/';
-        window.location.replace( `/auth?return=${ encodeURIComponent( returnPath ) }` );
+        window.location.replace( `/auth?return=${ encodeURIComponent( '/vault/' ) }` );
     }, [ targetFileId ] );
 
     const loadFiles = useCallback( async () => {
@@ -179,9 +172,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         return () => { active = false; };
     }, [] );
 
-    // /auth is the only customer sign-in surface. Both /get/ and exact-file /vault/ links
-    // restore a server-owned customer session here; when none exists, this page redirects to
-    // /auth with a return path instead of rendering another phone/OTP form.
+    // /auth is the only customer sign-in surface. Exact-file /vault/?file= links restore a
+    // server-owned customer session here; when none exists, the file id is kept in same-tab
+    // storage and /auth returns to /vault/, which restores the exact file query.
     useEffect( () => {
         let active = true;
         void restoreSession()
@@ -373,45 +366,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
                 the same reason. */}
             <RotatingHero
-                frame={ targetFileId ? 'One account.' : 'Collect your' }
-                words={ targetFileId ? AUTH_WORDS : GET_WORDS }
-                sub={ targetFileId
-                    ? 'Sign in securely. Pick up where you left off.'
-                    : 'Your shared files are right here.' }
-                ariaLabel={ targetFileId ? 'WECARE.DIGITAL Vault' : 'Collect your files' }
+                frame="Collect your"
+                words={ GET_WORDS }
+                sub="Your shared files are right here."
+                ariaLabel="Collect your files"
                 mobileFoundation
             >
-                <div className={ targetFileId ? 'sf-card sf-card-auth' : 'sf-card' }>
-                    {/* THE HEADING AND LEAD RENDER ON THE 'files' STAGE ONLY, and that is a fold
-                        fix as much as a copy fix.
-
-                        On the two sign-in stages they were SAYING THE HERO'S WORDS BACK. The hero's
-                        h1 already reads "Collect your files" and its sub already explains the
-                        WhatsApp verification, so an h2 reading "Collect your files" directly
-                        beneath it, followed by a lead repeating the same sentence, stated the page
-                        twice - the same duplication the owner reported in the menu ("Extra" under a
-                        heading also reading "Extra").
-                        Measured cost of the repetition: the h2 (40px at 1366px on the
-                        clamp(28px,3.2vw,40px) rung, +16px margin) plus the lead (20px x 1.4,
-                        +28px margin) pushed the submit control ~115px down the page, and
-                        tools/browser/foldprobe.js measured the pill bottom at 845px against a
-                        728px limit at 1366x768 - below the fold on a page whose only job is the
-                        form. /account/sign-in carries no h2 either.
-                        On the 'files' stage it stays: there the hero still says "Collect your",
-                        the list below genuinely needs a heading, and there is no submit control
-                        racing the fold. */}
-                    { stage === 'files' && targetFileId && files.length > 0 && (
-                        <div className="sf-access-eyebrow">
-                            <span className="sf-access-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" focusable="false">
-                                    <path d="M7 3h7l4 4v14H7z"/>
-                                    <path d="M14 3v5h5M10 13h5M10 17h5"/>
-                                </svg>
-                            </span>
-                            <span>Access Vault</span>
-                        </div>
-                    ) }
-
+                <div className="sf-card">
                     {/* Keep the page-level error above the file list so assistive technology
                         announces failures before the customer reaches the affected action. */}
                     { error && (
@@ -431,7 +392,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                 const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
 
                                 return (
-                                    <div key={ file.fileId } className={ targetFileId ? 'sf-file sf-file-deep' : 'sf-file' }>
+                                    <div key={ file.fileId } className="sf-file">
                                         <div className="sf-file-head">
                                             <div className="sf-file-copy">
                                                 <div className="sf-file-name">{ file.displayName }</div>
@@ -443,7 +404,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
-                                        { !targetFileId && <div className="sf-file-divider" aria-hidden="true" /> }
+                                        <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (
                                             <>
@@ -517,50 +478,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                    wraps every public route in <Header/> + page + <Footer/>, so claiming the whole
                    viewport pushed the shared footer a full screen down. */
 
-                /* A PLAIN CARD, matching .si-card on /account/sign-in exactly:
-                   width:100%;max-width:460px;margin:0. Nothing else.
-
-                   THE TINTED PANEL IS GONE, and dropping it is two fixes at once.
-                   It was .home-close-panel's treatment - 2px lime border, 14px radius, the lime
-                   tint at .22 alpha - which is the CLOSING-BAND treatment. At the top of a page,
-                   directly under the hero, it competed with the hero for the eye, and
-                   /account/sign-in (the other half of this same journey) has no panel at all.
-
-                   It was also paying for the fold. THE FOLD HERE IS MEASURED, NOT ASSUMED: before
-                   the hero, this page's submit control sat at 540px bottom at 1366x768, because
-                   the old .sf-shell paid only calc(108px + 48px) of header clearance. RotatingHero
-                   replaces that with .rh-shell{padding-top:108px} plus
-                   .rh-layout{padding:80px 24px 96px;gap:96px} and a headline that is ALWAYS two
-                   lines (frame block + pill block). Nesting the old tinted panel inside that put
-                   the submit roughly 299px lower - below a 768px fold, on a page whose entire job
-                   is the form. Removing the panel's clamp(28px,4vw,56px) of padding recovers ~56px
-                   of that, and the other mitigations are: no badgeLabel, a one-line sub, and the
-                   form as the hero's FIRST child. All four are applied.
-
-                   THE PAGE CANNOT FIX THIS BY RESTYLING THE HERO. styled-jsx scopes only the
-                   lowercase tags in the file it compiles and RotatingHero is self-styling, so
-                   .rh-layout's 96px gap and .rh-shell's padding are unreachable from here. Every
-                   mitigation has to live in the hero's children. Do not try. */
+                /* The exact Vault file uses the same 560px public copy measure as the approved
+                   customer file mock; no second auth-style wrapper is introduced here. */
                 .sf-card{width:100%;max-width:560px;margin:0}
-                .sf-card-auth{
-                  width:min(100%,560px);max-width:560px;padding:36px 40px 40px;
-                  border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
-                  border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
-                  color:var(--public-text);font-family:var(--font-sans);
-                }
-                .sf-access-eyebrow{
-                  display:inline-flex;align-items:center;gap:12px;min-height:52px;margin:0 0 34px;
-                  padding:0 22px;border-radius:999px;background:var(--public-brand-lime);
-                  color:var(--public-brand-green);font-size:var(--public-card-size);
-                  font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
-                  letter-spacing:var(--public-card-tracking);
-                }
-                .sf-access-icon{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center}
-                .sf-access-icon svg{
-                  width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;
-                  stroke-linecap:round;stroke-linejoin:round;
-                }
-
                 /* The site's section-heading rung, identical to .home-close-title. Now on an <h2>
                    rather than an <h1> (the hero owns the page's one h1); the rule is unchanged
                    because it styles by CLASS, not by tag, so the rung is pixel-identical. */
@@ -638,12 +558,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
                   border-radius:20px;box-shadow:0 10px 30px rgba(26,58,42,.07);
                 }
-                .sf-file-deep{
-                  padding:13px;border:0;box-shadow:inset 0 0 0 1px rgba(26,58,42,.07);
-                }
-                .sf-card-auth .sf-file-deep{
-                  margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;
-                }
                 .sf-file-head{display:flex;gap:11px;align-items:flex-start}
                 .sf-file-icon{
                   width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
@@ -659,15 +573,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   margin:8px 0 0;font-size:var(--public-supporting-size);line-height:1.4;color:var(--public-muted);
                 }
                 .sf-file-divider{height:1px;background:#eef0e6;margin:24px 0}
-                .sf-file-deep .sf-file-name{font-size:15px;color:var(--public-brand-green)}
-                .sf-file-deep .sf-file-meta{margin:3px 0 0;font-size:13px}
-                .sf-card-auth .sf-file-name{
-                  color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);
-                  line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
-                }
-                .sf-card-auth .sf-file-meta{
-                  margin:8px 0 0;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4;
-                }
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
                 .sf-file-action-button{
@@ -727,13 +632,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 }
 
                 @media(max-width:767px){
-                  .sf-card-auth{width:100%;padding:28px 20px 30px;border-radius:20px}
-                  .sf-access-eyebrow{
-                    min-height:48px;margin-bottom:28px;padding-inline:18px;
-                    font-size:var(--public-mobile-card-size);
-                  }
                   .sf-file{padding:26px 20px 28px;border-radius:20px}
-                  .sf-file-name,.sf-card-auth .sf-file-name{font-size:var(--public-mobile-card-size)}
+                  .sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note{
                     font-size:var(--public-mobile-supporting-size);
                   }

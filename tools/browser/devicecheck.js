@@ -53,7 +53,7 @@ const launchEngine = async () => ( ENGINE === 'chromium' ? launch() : launchName
 // ship without ever entering the device matrix. Keep only the non-catalogue public/transactional
 // surfaces explicit here, plus one deliberately long blog post and one concrete Shop detail page.
 const EXTRA_DEVICE_ROUTES = [
-  '/404/', '/get/', '/shop/kiosk/',
+  '/404/', '/shop/kiosk/',
   '/cart/', '/checkout/status/', '/checkout/success/',
   '/post/a-bad-event-and-a-catastrophic-forecast-are-not-the-same/',
 ];

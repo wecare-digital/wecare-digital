@@ -27,7 +27,6 @@ WEBSITE_RETURNS = {
     '/submit-request/',
     '/request-amendment/',
     '/drop-docs/',
-    '/get/',
     '/vault/',
     '/request-pickup/',
 }
@@ -98,6 +97,10 @@ def normalized_phone(params: dict) -> str:
 def website_return(value: str) -> str:
     if not value:
         return '/'
+    # /get was the old customer file entry. Keep old auth URLs working, but collapse them to
+    # the canonical Vault destination so there is only one customer download route.
+    if value in {'/get', '/get/'}:
+        return '/vault/'
     normalized = value if value.endswith('/') else value + '/'
     if (
         normalized not in WEBSITE_RETURNS

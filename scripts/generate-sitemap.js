@@ -77,9 +77,9 @@ const PUBLIC_EXACT = new Set( [
   '/request-pickup',
   '/shipments/track',
   '/submit-request',
-  // Vault is the return leg of Drop Docs: one page sends paperwork in, this one asks for a
-  // copy back. It is NOT /get/, which stays out of the sitemap because it needs a verified
-  // link to mean anything - this page is the linkable front door that points at it.
+  // Vault is the return leg of Drop Docs: /vault/ is the public service page and
+  // /vault/?file=<fileId> is the one exact-file customer download surface. /get/ is only a
+  // legacy redirect signpost; /get/<*> remains the media namespace.
   '/vault',
   // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
   // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
