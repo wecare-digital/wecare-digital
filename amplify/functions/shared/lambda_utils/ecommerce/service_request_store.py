@@ -591,6 +591,11 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
         line = (payref or {}).get("serviceLine")
         if not isinstance(line, dict):
             return ActivationOutcome(NOT_A_SERVICE_ORDER)
+        # New single-order add-ons never create a ServiceRequestsTable request and never mint a
+        # WD-REQ public id. Their verified payment is appended to the selected existing order by
+        # finalization.accept_paid, and the separate post-payment dispatcher launches one Flow.
+        if line.get("singleOrder") is True:
+            return ActivationOutcome(NOT_A_SERVICE_ORDER)
         owner = str(payref.get("customerId") or "")
         if caller_customer_id is not None and (not owner or owner != caller_customer_id):
             return ActivationOutcome(NOT_A_SERVICE_ORDER)
