@@ -248,8 +248,10 @@ def _accept_paid_single_order_service(*, attempts, orders, attempt,
     service_code = str(attempt.get("serviceCode") or "")
     service_sku = str(attempt.get("serviceSku") or "")
     flow_capability = str(attempt.get("flowCapability") or "")
+    fulfillment_kind = str(attempt.get("fulfillmentKind") or "")
     if not (selected_order_id and selected_order_number and customer_id and attempt_id
-            and service_code and service_sku and flow_capability):
+            and service_code and service_sku and flow_capability
+            and fulfillment_kind == "flow"):
         _stage(attempts, attempt_id, 'NEEDS_RECONCILIATION',
                finalizationReason='SINGLE_ORDER_SERVICE_CONTEXT_MISSING')
         return False
@@ -278,7 +280,8 @@ def _accept_paid_single_order_service(*, attempts, orders, attempt,
         'amountPaise': attempt.get('amountPaise'),
         'currency': attempt.get('currency'),
         'flowCapability': flow_capability,
-        'flowStatus': 'PENDING',
+        'fulfillmentKind': fulfillment_kind,
+        'fulfillmentStatus': 'PENDING',
         'paidAt': now,
     }
     try:
