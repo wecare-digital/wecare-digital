@@ -879,7 +879,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
             <div className="pf-tab-body">
               <div className="pf-toolbar">
                 <input className="search-input" placeholder="Search customers\u2026" value={ custSearch } onChange={ e => setCustSearch( e.target.value ) } />
-                <Button variant="primary" size="sm" onClick={ () => { setEditCust( {} as Contact ); setCustForm( EMPTY_FORM ); } }>+ New Customer</Button>
                 <Button variant="secondary" size="sm" icon="refresh" loading={ custLoading } onClick={ loadCustomers }>Refresh</Button>
               </div>
               <div className="stats-grid" style={ { marginBottom: 16 } }>
@@ -985,29 +984,33 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         </div>
                       </div>
                     ) ) }
-                    { filteredCust.length === 0 && <div className="pf-empty">No customers. Create one in the Customers tab.</div> }
+                    { filteredCust.length === 0 && <div className="pf-empty">No verified customers are available yet.</div> }
                   </div>
                 </div>
               ) : (
-                <div className="pf-create-layout">
-                  <div className="pf-composer-main">
-                  <div className="info-banner" style={ { marginBottom: 16 } }>
+                <>
+                  <div className="pf-customer-context">
+                  <div className="info-banner">
                     <div style={ { flex: 1 } }><strong>{ selCustomer.name }</strong> { '\u2014' } { selCustomer.phone } { selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</div>
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
                   </div>
                   {/* Address display */ }
                   { hasPayableDeliveryAddress( selCustomer ) ? (
-                    <div className="inner-card" style={ { marginBottom: 16, maxWidth: 600, padding: '10px 14px', fontSize: 'var(--text-xs)', color: '#555', background: '#f8faf9', border: '1px solid #e0e8e3', borderRadius: 8 } }>
+                    <div className="inner-card pf-customer-address">
                       <div><strong>Delivery Address:</strong> { formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
                     </div>
                   ) : (
-                    <div className="info-banner" style={ { marginBottom: 16 } }>
+                    <div className="info-banner pf-customer-address-warning">
                       This contact only has a legacy/free-text address. Add address line 1, city, state and postal code before creating a physical-goods payment.
                       <div style={ { marginTop: 8 } }>
                         <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer ) }>Edit delivery address</Button>
                       </div>
                     </div>
                   ) }
+                  </div>
+
+                  <div className="pf-create-layout">
+                    <section className="pf-composer-main pf-auth-card-block">
                   <div className="pf-composer-heading">
                     <div>
                       <div className="pf-composer-kicker">Step 2</div>
@@ -1164,13 +1167,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
                     <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
                   </div>
-                  </div>
+                    </section>
 
-                  <aside className="pf-live-preview" aria-live="polite">
+                  <aside className="pf-live-preview pf-auth-card-block" aria-live="polite">
                     <div className="pf-live-preview-head">
                       <div>
                         <div className="pf-composer-kicker">Live preview</div>
-                        <h4>Customer receipt</h4>
+                        <h4>Invoice preview</h4>
                       </div>
                       <span className="pf-authority-badge">Server authoritative</span>
                     </div>
@@ -1203,6 +1206,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     ) }
                   </aside>
                 </div>
+                </>
               ) }
             </div>
           ) }
