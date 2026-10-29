@@ -68,9 +68,9 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
         <div>
           <div className="default-items-kicker">Server-priced presets</div>
           <h2>Default invoice items</h2>
-          <p>Vault, Drop Docs and request services use live ProductsTable pricing. Use a row to open Collect with that service already loaded.</p>
+          <p>Vault, Drop Docs and request services use live server pricing. Use a row to open Collect with that service already loaded.</p>
         </div>
-        <span>{ loading ? 'Loading live prices' : 'Live catalog' }</span>
+        <span>{ loading ? 'Loading live prices' : 'Live pricing' }</span>
       </div>
       <div className="default-items-table-wrap">
         <table className="default-items-table">
@@ -169,7 +169,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
           </>
         ) }
       </PageShell>
-      <style jsx>{`
+      <style jsx global>{`
         .default-items{min-width:0;padding:18px 0 8px}
         .default-items-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:22px;padding:24px 26px;border-radius:22px;background:#fff;box-shadow:0 14px 38px rgba(26,58,42,.07)}
         .default-items-head:before{content:"";position:absolute}
