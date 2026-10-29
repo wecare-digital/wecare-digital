@@ -797,7 +797,8 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
     # Fix #4: Server-side duplicate detection
     dup = _check_duplicate(phone, email)
     if dup:
-        return cors_response(409, {'error': dup}, origin)
+        return cors_response(
+            409, _duplicate_conflict_payload(phone, email, dup), origin)
 
     contact_id = str(uuid.uuid4())
     now = int(time.time())
@@ -896,7 +897,12 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
             dynamodb.Table(identity_claims.TABLE_NAME),
             contact_id=contact_id, phone=phone or '', email=email or '', now=now)
     except identity_claims.IdentityClaimConflict:
-        return cors_response(409, {'error': 'A contact with this phone or email already exists'}, origin)
+        return cors_response(
+            409,
+            _duplicate_conflict_payload(
+                phone, email, 'A contact with this phone or email already exists'),
+            origin,
+        )
     table.put_item(Item=_to_dynamo(contact), ConditionExpression='attribute_not_exists(id)')
 
     # AFTER the row exists, and never before it: the login is an attachment to a contact that is
@@ -1205,7 +1211,12 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
     if check_phone or check_email:
         dup = _check_duplicate(check_phone, check_email, exclude_id=contact_id)
         if dup:
-            return cors_response(409, {'error': dup}, origin)
+            return cors_response(
+                409,
+                _duplicate_conflict_payload(
+                    check_phone, check_email, dup, exclude_id=contact_id),
+                origin,
+            )
         identity_before = dynamodb.Table(CONTACTS_TABLE).get_item(
             Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
         if not identity_before:
@@ -1218,7 +1229,16 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
                 email=updates.get('email', identity_before.get('email', '')),
                 now=int(time.time()))
         except identity_claims.IdentityClaimConflict:
-            return cors_response(409, {'error': 'A contact with this phone or email already exists'}, origin)
+            return cors_response(
+                409,
+                _duplicate_conflict_payload(
+                    updates.get('phone', identity_before.get('phone', '')),
+                    updates.get('email', identity_before.get('email', '')),
+                    'A contact with this phone or email already exists',
+                    exclude_id=contact_id,
+                ),
+                origin,
+            )
 
     # Primary-phone protection. A provider-VERIFIED phone is the routing identity and must not be
     # silently overwritten by a lower-trust manual/import edit. Read the current row ONLY when the
@@ -2009,6 +2029,128 @@ def _validate_phone(phone: str) -> bool:
 def _validate_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
+
+
+def _duplicate_owner_row(
+    phone: Optional[str],
+    email: Optional[str],
+    exclude_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Resolve the canonical row that currently owns a conflicting strong identity.
+
+    Normal Customers list/search deliberately hides archived rows, while archived rows keep their
+    phone/email ownership. A create conflict therefore cannot be resolved reliably by asking the
+    normal search endpoint to rediscover the row. Prefer the strongly-consistent identity-claims
+    registry, then fall back to the Contacts GSIs/scan for older rows whose claims are still being
+    reconciled. This helper is used only on a 409 path, never on the hot list/search path.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+
+    def usable(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not row or row.get('deletedAt') is not None:
+            return None
+        merge_state = str(row.get('mergeState') or '').strip().lower()
+        if merge_state == MERGE_COMPLETE:
+            target_id = str(row.get('mergedIntoContactId') or '').strip()
+            if not target_id or target_id == exclude_id:
+                return None
+            row = table.get_item(
+                Key=contact_key.key(target_id), ConsistentRead=True).get('Item') or {}
+            if (
+                not row
+                or row.get('deletedAt') is not None
+                or str(row.get('mergeState') or '').strip().lower() == MERGE_COMPLETE
+            ):
+                return None
+        row_id = contact_key.resolve(row)
+        if exclude_id and row_id == exclude_id:
+            return None
+        return row
+
+    claims_table = dynamodb.Table(identity_claims.TABLE_NAME)
+    for kind, value in (('PHONE', phone), ('EMAIL', email)):
+        if not value:
+            continue
+        try:
+            owner_id = identity_claims.owner(claims_table, kind, value)
+            if owner_id and owner_id != exclude_id:
+                row = usable(table.get_item(
+                    Key=contact_key.key(owner_id), ConsistentRead=True).get('Item') or {})
+                if row:
+                    return row
+        except Exception as exc:  # a rare 409 path may still use the legacy indexes below
+            logger.warning(json.dumps({
+                'event': 'contact_duplicate_owner_claim_lookup_failed',
+                'identityType': kind,
+                'error': type(exc).__name__,
+            }))
+
+    for index_name, field_name, value in (
+        ('phone-index', 'phone', phone),
+        ('email-index', 'email', email.lower() if email else None),
+    ):
+        if not value:
+            continue
+        try:
+            response = table.query(
+                IndexName=index_name,
+                KeyConditionExpression=f'{field_name} = :value',
+                ExpressionAttributeValues={':value': value},
+                Limit=5,
+            )
+        except Exception:
+            continue
+        for item in response.get('Items', []):
+            row = usable(item)
+            if row:
+                return row
+
+    # Last-resort compatibility path for a legacy table/index mismatch. This is intentionally
+    # bounded to the conflict path and preserves the same identity filter as duplicate detection.
+    scan_kwargs: Dict[str, Any] = {'FilterExpression': _identity_contact_filter()}
+    while True:
+        response = table.scan(**scan_kwargs)
+        for item in response.get('Items', []):
+            row = usable(item)
+            if not row:
+                continue
+            if phone and row.get('phone') == phone:
+                return row
+            if email and str(row.get('email') or '').strip().lower() == email.strip().lower():
+                return row
+        if 'LastEvaluatedKey' not in response:
+            break
+        scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+    return None
+
+
+def _duplicate_conflict_payload(
+    phone: Optional[str],
+    email: Optional[str],
+    error: str,
+    exclude_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Return a PII-safe duplicate refusal that still lets authenticated staff resolve the row."""
+    payload: Dict[str, Any] = {
+        'error': error,
+        'errorCode': 'CONTACT_ALREADY_EXISTS',
+    }
+    try:
+        existing = _duplicate_owner_row(phone, email, exclude_id=exclude_id)
+    except Exception as exc:
+        logger.warning(json.dumps({
+            'event': 'contact_duplicate_owner_resolution_failed',
+            'error': type(exc).__name__,
+        }))
+        existing = None
+    if existing:
+        existing_id = contact_key.resolve(existing)
+        if existing_id:
+            payload['existingContactId'] = existing_id
+            payload['existingArchived'] = (
+                existing.get(ARCHIVED_AT_ATTRIBUTE) is not None
+            )
+    return payload
 
 
 def _check_duplicate(phone: Optional[str], email: Optional[str], exclude_id: Optional[str] = None) -> Optional[str]:

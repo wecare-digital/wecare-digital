@@ -63,6 +63,8 @@ export interface ApiFailure {
   message: string;
   /** The server's own refusal code (e.g. `ACCESS_WINDOW_CLOSED`), verbatim, when it sent one. */
   code?: string;
+  /** Structured, safe refusal metadata returned by authenticated APIs (for example an existing contact id). */
+  details?: Record<string, unknown>;
   url: string;
   /** True when trying the same call again could plausibly succeed. */
   retryable: boolean;
@@ -85,11 +87,20 @@ export function getLastApiFailure (): ApiFailure | null {
   return lastApiFailure;
 }
 
-function recordFailure ( kind: ApiFailureKind, status: number | null, message: string, url: string ): ApiFailure {
+function recordFailure (
+  kind: ApiFailureKind,
+  status: number | null,
+  message: string,
+  url: string,
+  code?: string,
+  details?: Record<string, unknown>,
+): ApiFailure {
   const failure: ApiFailure = {
     kind,
     status,
     message,
+    ...( code ? { code } : {} ),
+    ...( details ? { details } : {} ),
     url,
     retryable: RETRYABLE_KINDS.has( kind ),
     at: Date.now(),
@@ -220,6 +231,20 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       return { ok: true, data: await response.json() as T };
     }
 
+    // Parse a structured refusal once. Callers that need to recover from an expected 4xx
+    // (for example, resolving the canonical customer behind a duplicate 409) must not have to
+    // scrape a human-readable message. The body remains authenticated API data and is never
+    // written to logs here.
+    let errorBody: Record<string, unknown> | null = null;
+    try
+    {
+      const parsed = await response.clone().json();
+      if ( parsed && typeof parsed === 'object' && !Array.isArray( parsed ) )
+      {
+        errorBody = parsed as Record<string, unknown>;
+      }
+    } catch { /* non-JSON refusal; status text remains the fallback */ }
+
     // Handle specific HTTP errors
     let kind: ApiFailureKind = 'http';
     let message: string;
@@ -278,19 +303,33 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       message = 'Rate limited - too many requests';
     } else
     {
-      // Try to extract error message from response body
-      try
-      {
-        const errBody = await response.json();
-        const msg = errBody?.error?.message || errBody?.error || errBody?.message;
-        message = msg ? `HTTP ${response.status}: ${msg}` : `HTTP ${response.status}: ${response.statusText}`;
-      } catch
-      {
-        message = `HTTP ${response.status}: ${response.statusText}`;
-      }
+      // Prefer the server's safe refusal text, while preserving the structured body below.
+      const nestedError = errorBody?.error;
+      const nestedMessage = (
+        nestedError && typeof nestedError === 'object' && !Array.isArray( nestedError )
+          ? ( nestedError as Record<string, unknown> ).message
+          : undefined
+      );
+      const msg = (
+        typeof nestedMessage === 'string' ? nestedMessage
+          : typeof nestedError === 'string' ? nestedError
+            : typeof errorBody?.message === 'string' ? errorBody.message
+              : ''
+      );
+      message = msg
+        ? `HTTP ${response.status}: ${msg}`
+        : `HTTP ${response.status}: ${response.statusText}`;
     }
 
-    const failure = recordFailure( kind, response.status, message, url );
+    const refusalCode = errorBody?.errorCode ?? errorBody?.code;
+    const failure = recordFailure(
+      kind,
+      response.status,
+      message,
+      url,
+      typeof refusalCode === 'string' ? refusalCode : undefined,
+      errorBody || undefined,
+    );
     console.error( `API error: ${failure.message}`, url );
     return { ok: false, failure };
   } catch ( e: any )
