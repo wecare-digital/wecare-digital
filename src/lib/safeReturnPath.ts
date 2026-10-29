@@ -14,7 +14,6 @@ export const ALLOWED_CUSTOMER_RETURN_PATHS = [
   '/submit-request/',
   '/request-amendment/',
   '/drop-docs/',
-  '/get/',
   '/vault/',
   '/request-pickup/',
 ] as const;
@@ -50,6 +49,10 @@ const BLOCKED_FIRST_SEGMENTS = new Set( [
  */
 export function safeLocalReturnPath ( raw: string | null | undefined ): string {
   if ( typeof raw !== 'string' || raw.length === 0 ) return DEFAULT_RETURN;
+
+  // /get was the old customer file entry. Preserve old auth links, but canonicalize them to
+  // Vault so it can never become a second download destination again.
+  if ( raw === '/get' || raw === '/get/' ) return '/vault/';
   if ( raw[ 0 ] !== '/' || raw.startsWith( '//' ) || raw.startsWith( '/\\' ) ) {
     return DEFAULT_RETURN;
   }
