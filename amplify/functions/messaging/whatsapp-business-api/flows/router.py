@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Callable
 
-from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, order_notes, generic
+from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, order_notes, shipments, generic
 from flows.common import get_phone_from_token, log_flow_event
 from flows.orders import fetch_orders_for_flow as _orders_fetch
 
@@ -133,6 +133,13 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen == 'ORDER_SELECT':
             return track_request.handle_order_select(data, flow_token, request_id)
         if screen in ('STATUS', 'THANK_YOU', 'SUCCESS'):
+            return _terminal_response(flow_token)
+
+    # ── F006 TRACK SHIPPING FLOW ──
+    if flow_key == 'shipments' or flow_key.startswith('shipments'):
+        if action == 'INIT':
+            return shipments.handle_init(data, flow_token, request_id)
+        if screen in ('CONFIRMATION', 'SUCCESS'):
             return _terminal_response(flow_token)
 
     # ── APPOINTMENT FLOW ──
