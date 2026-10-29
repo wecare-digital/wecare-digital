@@ -931,16 +931,16 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
   // Inline styles for form (bypasses Next.js style jsx scoping)
   const S: Record<string, React.CSSProperties> = {
-    label: { display: 'block', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', marginBottom: 5 },
-    input: { width: '100%', padding: '10px 14px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff' },
-    row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
-    hint: { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 3 },
+    label: { display: 'block', fontSize: 12, lineHeight: 1.3, fontWeight: 700, color: '#44504a', marginBottom: 6 },
+    input: { width: '100%', minHeight: 46, padding: '8px 0', border: 0, borderBottom: '1px solid #dfe4df', borderRadius: 0, fontSize: 15, lineHeight: 1.35, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: 'transparent', color: '#111' },
+    row: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 18 },
+    hint: { fontSize: 11, lineHeight: 1.4, color: '#8a918d', marginTop: 4 },
   };
-  const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(26,58,42,0.1)'; };
-  const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#f3f4f6'; e.target.style.boxShadow = 'none'; };
+  const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#1a3a2a'; e.target.style.boxShadow = '0 1px 0 0 #d1f470'; };
+  const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#dfe4df'; e.target.style.boxShadow = 'none'; };
 
   const renderContactForm = (isEdit: boolean) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '20px 24px' }}>
+    <div className="contacts-modal-body">
       <div>
         <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
         <p style={S.hint}>Same customer-entered profile fields as the WhatsApp Subscribe form.</p>
@@ -953,7 +953,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <label htmlFor="contact-profile-username" style={S.label}>WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
         <input id="contact-profile-username" style={S.input} value={formProfileUsername} onChange={e => setFormProfileUsername(e.target.value)} placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50} onFocus={focusStyle} onBlur={blurStyle} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="contacts-form-grid">
         <div>
           <label htmlFor="contact-company-name" style={S.label}>Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
           <input id="contact-company-name" style={S.input} value={formCompanyName} onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
@@ -966,7 +966,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
       <div>
         <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="contacts-form-grid">
           {ADDRESS_FIELDS.map(spec => (
             <div key={spec.key}>
               <label htmlFor={`contact-${spec.key}`} style={S.label}>
@@ -1033,7 +1033,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
               }}
               placeholder="Code"
               aria-label="Phone country code"
-              style={{ width: '100%', padding: '8px 8px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff', color: '#374151', cursor: 'pointer' }}
+              style={{ ...S.input, width: '100%', cursor: 'pointer' }}
               onFocusCapture={focusStyle}
               onBlurCapture={blurStyle}
             />
@@ -1508,8 +1508,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
-        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
+          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1525,8 +1525,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
-        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
+          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
