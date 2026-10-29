@@ -13,7 +13,7 @@
   "screens": [
     {
       "id": "SELECT_TARGET",
-      "title": "Drop Docs",
+      "title": "Submit Request",
       "data": {
         "targets": {
           "type": "array",
@@ -170,7 +170,7 @@
     },
     {
       "id": "CONFIRMATION",
-      "title": "Drop Docs",
+      "title": "Submit Request",
       "terminal": true,
       "success": true,
       "data": {
