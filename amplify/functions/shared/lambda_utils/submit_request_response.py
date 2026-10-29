@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, Optional, Tuple
 
 from lambda_utils import canonical_flows, contact_store, flow_completion, flow_sessions, shared_tables
@@ -266,6 +267,33 @@ def save_request(data: Dict[str, Any], *, contact_id: str, phone: str, sender_na
         raise RuntimeError('Submit Request completion could not be saved')
 
     if paid_session is not None:
+        now = int(time.time())
+        try:
+            dynamodb.Table(shared_tables.payment_attempts_table_name()).update_item(
+                Key={'paymentAttemptId': binding.payment_attempt_id},
+                UpdateExpression=(
+                    'SET fulfillmentCompletedAt=:now, flowSubmissionId=:sid, '
+                    'serviceFlowCompletionStatus=:done, updatedAt=:now'),
+                ConditionExpression=(
+                    '#status=:paid AND singleOrderService=:true AND serviceCode=:service '
+                    'AND selectedOrderId=:order AND '
+                    '(attribute_not_exists(fulfillmentCompletedAt) OR flowSubmissionId=:sid)'),
+                ExpressionAttributeNames={'#status': 'status'},
+                ExpressionAttributeValues={
+                    ':now': now,
+                    ':sid': result.submission_id,
+                    ':done': 'COMPLETED',
+                    ':paid': 'PAYMENT_PAID',
+                    ':true': True,
+                    ':service': 'SUBMIT_REQUEST',
+                    ':order': binding.order_id,
+                },
+            )
+        except Exception as exc:
+            logger.warning(
+                '{"event":"f004_paid_fulfillment_projection_failed","error":"%s"}',
+                type(exc).__name__)
+            raise RuntimeError('Submit Request paid fulfilment could not be finalized') from exc
         flow_sessions.mark_consumed(
             dynamodb.Table(shared_tables.flow_drafts_table_name()),
             token=str(data.get('flow_token') or ''))
