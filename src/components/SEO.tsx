@@ -1,7 +1,7 @@
 /**
  * SEO Component - WECARE.DIGITAL
  *
- * Head tags for the authenticated Workspace screens and the noindex /get/ utility page. Public,
+ * Head tags for authenticated Workspace screens and the noindex exact-file Vault utility view. Public,
  * indexable pages use components/PageMeta.tsx instead; nothing that should rank renders this.
  *
  * DEFAULT IS noindex, nofollow. It used to be "index, follow", and because a component's <Head>
@@ -63,7 +63,8 @@ export default function SEO({
       {canonical && <link rel="canonical" key="canonical" href={`${BASE_URL}${canonical}`} />}
       
       {/* Open Graph. THE KEYS ARE LOAD-BEARING: next/head never de-duplicates by `property`, so
-          on /get/ - the one public route that renders this component - every unkeyed og: tag
+          on the exact-file Vault view - the public utility surface that renders this component -
+          every unkeyed og: tag
           here was emitted BESIDE _app.tsx's keyed copy (two og:title, og:description, og:image,
           og:type and og:site_name, measured on the export). Same keys as _app.tsx and PageMeta. */}
       <meta property="og:title" key="og:title" content={fullTitle} />
