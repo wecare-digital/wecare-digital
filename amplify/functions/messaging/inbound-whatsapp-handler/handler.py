@@ -45,7 +45,7 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
-from lambda_utils import customer_ideas
+from lambda_utils import customer_ideas, submit_request_response
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
@@ -2484,8 +2484,8 @@ def _process_message(
     if not sender_name and 'profile' in message:
         sender_name = message.get('profile', {}).get('name', '')
     
-    # Save private ideas before inbox dedup. A retry must repair a failed contact
-    # activity projection even when the inbound message has already been stored.
+    # Save endpointless Flow business records before inbox dedup. A retry must repair a
+    # failed contact/activity projection even when the transport message already exists.
     _idea_data = customer_ideas.idea_payload(message)
     _idea_contact = None
     _idea_result = None
@@ -2499,6 +2499,20 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id,
             customer_uuid_value=str(_idea_contact.get('customerUuid') or ''))
+
+    _submit_request_data = submit_request_response.request_payload(message)
+    _submit_request_contact = None
+    _submit_request_result = None
+    if _submit_request_data is not None:
+        _submit_request_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        _submit_request_result = submit_request_response.save_request(
+            _submit_request_data,
+            contact_id=_submit_request_contact.get('contactId') or _submit_request_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            request_id=request_id)
 
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the
@@ -2522,7 +2536,7 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = _idea_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+    contact = _idea_contact or _submit_request_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
     contact_id = contact.get('contactId') or contact.get('id')
     
     # Extract message content based on type.
@@ -2547,6 +2561,24 @@ def _process_message(
         }
         msg_type = 'flow_response'
         content = 'Flow response — Customer Idea'
+
+    _submit_request_inbox = None
+    if _submit_request_data is not None and _submit_request_result is not None:
+        _submit_request_inbox = {
+            'flowCode': submit_request_response.FLOW_CODE,
+            'flowType': 'form_submit',
+            'flowScreen': 'CONFIRMATION',
+            'flowSubmissionId': _submit_request_result.submission_id,
+            'flowReference': _submit_request_result.reference,
+            'flowAnswers': submit_request_response.response_answers(
+                _submit_request_data, _submit_request_result),
+            'flowAttachments': [],
+            'serviceRequestId': _submit_request_result.submission_id,
+            'serviceRequestStatus': _submit_request_result.item.get('status', 'open')
+                if _submit_request_result.item else 'open',
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Submit Request'
 
     # A shared contact card carried a name and a number that the old extractor threw
     # away, leaving an agent to ask the customer to retype it. Keep the sanitised
@@ -2662,11 +2694,14 @@ def _process_message(
     }
     if _idea_inbox:
         message_record.update(_idea_inbox)
+    if _submit_request_inbox:
+        message_record.update(_submit_request_inbox)
     
     # Keep the complete structured completion; a truncated transport label cannot
     # be reconstructed by the inbox. Both inbox stores must carry the same fields.
     from lambda_utils.flow_inbox import from_message as project_flow_message
-    _flow_card = project_flow_message(message) if _idea_data is None else {}
+    _flow_card = (project_flow_message(message)
+                  if _idea_data is None and _submit_request_data is None else {})
     if _flow_card:
         message_record.update(_flow_card)
         content = _flow_card['content']
@@ -2868,6 +2903,12 @@ def _process_message(
         elif interactive_type == 'nfm_reply':
             if _idea_data is not None:
                 return  # Persisted above; never route a private idea into auto-replies.
+            if _submit_request_data is not None:
+                # The completion is already one FlowSubmission + one Inbox card above.
+                # It is a customer message, so keep the 24-hour service window current,
+                # then stop before generic/post-payment routing can reinterpret it.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
+                return
             nfm = interactive.get('nfm_reply', {})
             if nfm.get('name') == 'address_message':
                 # Opens the 24-hour window like any customer message (see the `order` branch):
