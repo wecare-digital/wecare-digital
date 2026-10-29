@@ -308,6 +308,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ previewError, setPreviewError ] = useState( '' );
   const [ servicePrices, setServicePrices ] = useState<Record<string, ServicePrice>>( {} );
   const appliedPresetRef = useRef( '' );
+  const appliedCustomerRef = useRef( '' );
   const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
@@ -385,6 +386,22 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try { const r = await api.getInvoiceDeliveryLog( id ); setDeliveryLogs( r.deliveryLogs || [] ); } catch ( e ) { console.error( e ); }
   }, [] );
   useEffect( () => { loadCustomers(); loadInvoices(); }, [ loadCustomers, loadInvoices ] );
+
+  useEffect( () => {
+    const raw = router.query.customer;
+    const wanted = Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
+    if ( !wanted || appliedCustomerRef.current === wanted || customers.length === 0 ) return;
+    const match = customers.find( customer =>
+      customer.contactId === wanted ||
+      customer.customerUuid === wanted ||
+      customer.id === wanted ||
+      customer.customerDisplayId === wanted
+    );
+    if ( match ) {
+      setSelCustomer( match );
+      appliedCustomerRef.current = wanted;
+    }
+  }, [ router.query.customer, customers ] );
 
   /* Customer handlers */
   const openEditCust = ( c: Contact ) => {
