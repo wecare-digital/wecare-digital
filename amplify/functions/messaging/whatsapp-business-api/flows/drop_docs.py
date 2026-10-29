@@ -47,7 +47,7 @@ DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "stack-wecare-digital-Docume
 SERVICE_REQUESTS_TABLE = os.environ.get(
     "SERVICE_REQUESTS_TABLE", "stack-wecare-digital-ServiceRequestsTable"
 )
-MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "wecare-digital-get")
+PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()\nMEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "wecare-digital-get")
 WABA2_ID = os.environ.get("WABA2_ID", "2513394156072604")
 PHONE1_META_ID = os.environ.get("PHONE1_META_ID", "1016149501586345")
 PHONE2_META_ID = os.environ.get("PHONE2_META_ID", "1055232054343117")
