@@ -265,6 +265,20 @@ def keyword_launch_decision(*, capability: str, registry_row: Optional[Mapping[s
     return LaunchDecision(True, 'allowed')
 
 
+def publication_decision(*, capability: str,
+                         registry_row: Optional[Mapping[str, Any]]) -> LaunchDecision:
+    """Whether canonical + FlowRegistry + Meta publication controls allow a launch.
+
+    This deliberately does not choose a door. Keyword, staff, payment and authenticated
+    website entry points each have their own authorization rules, but all of them must refuse
+    when the canonical Flow, registry row or last-synced Meta state is not sendable.
+    """
+    if not canonical_flows.canonical_contract(capability):
+        return LaunchDecision(False, 'no_contract')
+    reason = _publication_reason(capability, registry_row)
+    return LaunchDecision(not bool(reason), reason or 'allowed')
+
+
 def manual_launch_decision(*, capability: str, registry_row: Optional[Mapping[str, Any]],
                            role: str) -> LaunchDecision:
     """Whether a staff member with `role` may send this Flow to one customer right now.
