@@ -127,6 +127,16 @@ def prepare_and_send(event, lambda_client, get_flow):
                 or contract.flow_capability != str(line.get('flowCapability') or '')):
             return {'outcome': 'SERVICE_CONTRACT_MISMATCH'}
 
+        # Vault has no Meta Flow. A single-order Vault payment created before the generic route
+        # was closed has no file binding, so it cannot be fulfilled safely. Fail closed instead
+        # of pretending "vault" is a Flow or unlocking an arbitrary customer file.
+        if contract.fulfillment_kind == 'secure_download':
+            return {
+                'outcome': 'VAULT_SECURE_FILE_BINDING_REQUIRED',
+                'serviceCode': contract.service_code,
+                'orderNumber': selected_order_number,
+            }
+
         # The owner is completing the new Meta Flows separately. Final wiring is intentionally
         # fail-closed: no old quick-reply template, no guessed Flow id and no generic fallback is
         # sent. Once the canonical Flow is published this seam becomes the one-flow launcher.
