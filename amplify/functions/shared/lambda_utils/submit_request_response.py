@@ -28,6 +28,11 @@ FLOW_NAME = 'WD-F004-Submit-Request'
 FLOW_VERSION = '7.3'
 SUBMISSION_PREFIX = 'WD-SR'
 
+# The published Pickup Flow was cloned from F004 and still carries FLOW_KEY below.
+# Our generic sender mints request_pickup tokens as `request_pi-...`; keep those
+# completions out of the Submit Request saver rather than silently misfiling them.
+PICKUP_TOKEN_PREFIXES = ('request_pi-', 'request_pickup-')
+
 
 def request_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Recognise only the published F004 completion; leave every other nfm_reply alone."""
@@ -41,7 +46,12 @@ def request_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
         return None
-    return data if isinstance(data, dict) and data.get('flow_key') == FLOW_KEY else None
+    if not isinstance(data, dict) or data.get('flow_key') != FLOW_KEY:
+        return None
+    flow_token = str(data.get('flow_token') or '').strip()
+    if flow_token.startswith(PICKUP_TOKEN_PREFIXES):
+        return None
+    return data
 
 
 def _clean_text(data: Dict[str, Any], key: str, *, required: bool = False,
