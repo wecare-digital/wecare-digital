@@ -2408,7 +2408,8 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
     Public input for Flow-backed services is deliberately only
     ``serviceCode + selectedOrderNumber``. Customer id, price, SKU, internal order id, phone
     and Flow identity are all server-owned. Vault is not accepted here: it is bought per secure
-    file from /get/ and must carry a server-verified file binding before any payment exists.
+    file from /vault/?file=<fileId> and must carry a server-verified file binding before any
+    payment exists.
     The public order number resolves through the immutable CommerceKeys ORDERNO# reservation,
     then the OrderTable row is re-read and ownership/status are verified before the context is
     allowed near checkout.
