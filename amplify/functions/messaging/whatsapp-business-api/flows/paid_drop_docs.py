@@ -64,15 +64,22 @@ def _recipient(db, row):
     return contact, phone
 
 
-def prepare_and_send(event, lambda_client):
-    """Send the paid F003 door once. Money has already moved; never creates a second charge."""
+def prepare_and_send(event, lambda_client, request_key=""):
+    """Send the paid F003 door once. Money has already moved; never creates a second charge.
+
+    New single-order purchases pass an internal FULFILLMENT# key directly. Legacy request
+    purchases keep resolving the historical ORDER# pointer. Neither path creates a public
+    WD-REQ identifier.
+    """
     db = boto3.resource("dynamodb")
     requests = db.Table(REQUESTS_TABLE)
     order_id = str(event.get("orderId") or "")
-    pointer = requests.get_item(
-        Key={"requestId": "ORDER#" + order_id}, ConsistentRead=True
-    ).get("Item") or {}
-    request_key = str(pointer.get("targetRequestId") or "")
+    request_key = str(request_key or "").strip()
+    if not request_key:
+        pointer = requests.get_item(
+            Key={"requestId": "ORDER#" + order_id}, ConsistentRead=True
+        ).get("Item") or {}
+        request_key = str(pointer.get("targetRequestId") or "")
     row = requests.get_item(Key={"requestId": request_key}, ConsistentRead=True).get("Item") or {}
     if (not request_key or row.get("kind") != service_requests.DROP_DOCS
             or str(row.get("orderId") or "") != order_id
