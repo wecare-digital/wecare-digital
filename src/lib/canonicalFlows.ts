@@ -52,10 +52,10 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'submit_request', label: 'Submit Request',
     flowId: '993516553092471', status: 'PUBLISHED', metaName: 'WD-F004-Submit-Request',
   },
-  // F005 Request Amendment replacement. Completion handling is ready while Meta remains DRAFT.
+  // F005 Request Amendment replacement, published on Meta 2026-10-29.
   amend_request: {
     capability: 'amend_request', label: 'Request Amendment',
-    flowId: '1421471529574569', status: 'DRAFT', metaName: 'WD-F005-Request-Amendment',
+    flowId: '2408621596338289', status: 'PUBLISHED', metaName: 'WD-F004-Request-Amendment',
   },
   // F003 Drop Docs replacement, published on Meta 2026-10-28.
   drop_docs: {
