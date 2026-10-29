@@ -23,7 +23,7 @@ CANONICAL_FLOWS = {
     # DEPRECATED on Meta (live read 2026-10-25): it cannot be sent, so `published_flow` no longer
     # offers it. The id stays as the identity of past paid submissions; paid requests start on
     # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).
-    'submit_request': ('1107164111921876', 'DEPRECATED', 'WD_Submit_Request_Paid_v1'),
+    # F004 Submit Request replacement, published on Meta 2026-10-29. The Flow is\n    # endpointless-style at completion; inbound nfm_reply persistence owns the business row.\n    'submit_request': ('993516553092471', 'PUBLISHED', 'WD-F004-Submit-Request'),
     # The former amendment drafts no longer exist on Meta; amendment remains website-only.
     'amend_request':  (None, 'NONE', None),
     # F003 Drop Docs replacement, published on Meta 2026-10-28.
