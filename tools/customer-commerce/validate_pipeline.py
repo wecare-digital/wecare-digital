@@ -1,8 +1,9 @@
-"""Run every customer-commerce source/package check and write one diagnostic report."""
+"""Run every customer-commerce source/package check and write one report."""
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -33,6 +34,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument(
+        '--runtime-bucket',
+        default=os.environ.get('CUSTOMER_COMMERCE_RUNTIME_BUCKET', ''),
+    )
     args = parser.parse_args()
 
     if args.output.exists():
@@ -47,6 +52,8 @@ def main() -> None:
             str(HERE / 'prepare_release.py'),
             '--output',
             str(args.output),
+            '--runtime-bucket',
+            args.runtime_bucket,
         ],
         [
             sys.executable,
@@ -67,6 +74,7 @@ def main() -> None:
     report = {
         'schemaVersion': 'customer-commerce-validation-v1',
         'success': success,
+        'runtimeBucketConfigured': bool(args.runtime_bucket),
         'results': results,
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
