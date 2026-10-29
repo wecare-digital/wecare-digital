@@ -96,6 +96,50 @@ def send_review(event, lambda_client):
     return {'outcome': 'REVIEW_INCLUDED_IN_INVOICE_TEMPLATE'}
 
 
+def _single_order_fulfillment(requests, *, event, payref, line, contract):
+    """Create/read one internal paid fulfillment row for the already-finalized payment.
+
+    The key is payment-attempt scoped and never customer-facing. There is no WD-REQ identifier,
+    no second order and no catalog-service session on this path.
+    """
+    attempt = str(event.get('paymentAttemptId') or '').strip()
+    order_id = str(line.get('selectedOrderId') or '').strip()
+    order_number = str(line.get('selectedOrderNumber') or '').strip()
+    reference = str(event.get('referenceId') or '').strip()
+    customer_id = str(payref.get('customerId') or '').strip()
+    if not (attempt and order_id and order_number and reference and customer_id):
+        return '', None
+    key = 'FULFILLMENT#' + attempt
+    now = int(time.time())
+    item = {
+        'requestId': key,
+        'recordType': 'PAID_SERVICE_FULFILLMENT',
+        'kind': contract.service_code,
+        'customerId': customer_id,
+        'orderId': order_id,
+        'orderNumber': order_number,
+        'paymentAttemptId': attempt,
+        'referenceId': reference,
+        'serviceVariantId': contract.sku,
+        'flowCapability': contract.flow_capability,
+        'fulfillmentKind': contract.fulfillment_kind,
+        'paidAt': now,
+        'updatedAt': now,
+    }
+    try:
+        requests.put_item(Item=item, ConditionExpression='attribute_not_exists(requestId)')
+        return key, item
+    except Exception as error:
+        if getattr(error, 'response', {}).get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        current = requests.get_item(Key={'requestId': key}, ConsistentRead=True).get('Item') or {}
+        immutable = ('kind', 'customerId', 'orderId', 'orderNumber', 'paymentAttemptId',
+                     'referenceId', 'serviceVariantId', 'flowCapability', 'fulfillmentKind')
+        if not current or any(str(current.get(k) or '') != str(item.get(k) or '') for k in immutable):
+            return '', None
+        return key, current
+
+
 def prepare_and_send(event, lambda_client, get_flow):
     """Activate the paid service without sending any post-payment interactive Flow.
 
@@ -124,12 +168,13 @@ def prepare_and_send(event, lambda_client, get_flow):
         contract = request_service_contracts.request_service_contract(line.get('serviceCode'))
         if (contract is None
                 or contract.sku != str(line.get('sku') or '')
-                or contract.flow_capability != str(line.get('flowCapability') or '')):
+                or contract.flow_capability != str(line.get('flowCapability') or '')
+                or contract.fulfillment_kind != str(line.get('fulfillmentKind') or '')):
             return {'outcome': 'SERVICE_CONTRACT_MISMATCH'}
 
         # Vault has no Meta Flow. A single-order Vault payment created before the generic route
         # was closed has no file binding, so it cannot be fulfilled safely. Fail closed instead
-        # of pretending "vault" is a Flow or unlocking an arbitrary customer file.
+        # of pretending Vault is a Flow or unlocking an arbitrary customer file.
         if contract.fulfillment_kind == 'secure_download':
             return {
                 'outcome': 'VAULT_SECURE_FILE_BINDING_REQUIRED',
@@ -137,9 +182,18 @@ def prepare_and_send(event, lambda_client, get_flow):
                 'orderNumber': selected_order_number,
             }
 
-        # The owner is completing the new Meta Flows separately. Final wiring is intentionally
-        # fail-closed: no old quick-reply template, no guessed Flow id and no generic fallback is
-        # sent. Once the canonical Flow is published this seam becomes the one-flow launcher.
+        # F003 already exists. Bind the paid single-order purchase to one internal fulfillment
+        # row and launch F003 from that payment proof. Replays hit the same row/session claim.
+        if contract.service_code == service_requests.DROP_DOCS:
+            request_key, _row = _single_order_fulfillment(
+                requests, event=event, payref=payref, line=line, contract=contract)
+            if not request_key:
+                return {'outcome': 'SERVICE_FULFILLMENT_UNAVAILABLE'}
+            from .paid_drop_docs import prepare_and_send as drop_docs_send
+            return drop_docs_send(event, lambda_client, request_key=request_key)
+
+        # The remaining three services are blocked before payment until their new canonical
+        # Meta Flows are PUBLISHED. Keep the post-payment seam fail-closed too.
         return {
             'outcome': 'SERVICE_FLOW_PENDING_WIRING',
             'serviceCode': contract.service_code,
