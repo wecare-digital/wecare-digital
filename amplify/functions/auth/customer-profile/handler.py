@@ -847,11 +847,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.error(json.dumps({"event": "customer_profile_error", "error": type(exc).__name__}))
         return _no_store(cors_response(500, {"error": "INTERNAL_ERROR"}, origin))
     creating = owned is None
+    # Empty POST is the authenticated identity bootstrap used immediately after WhatsApp-OTP
+    # sign-in and before Vault native payment. It creates only the minimal phone-bound contact
+    # when no contact exists yet; profile completeness is still enforced for any user-entered
+    # profile creation. This is what lets a secure-file customer (who may have been provisioned
+    # directly from Vault) join the shared ContactsTable without inventing name/email/address.
+    bootstrap_only = creating and not body
 
     # (5) Presence-driven validation, driven by that row.
     first_name = sanitize_html(body.get("firstName"), max_length=100).strip()
     last_name = sanitize_html(body.get("lastName"), max_length=100).strip()
-    if creating:
+    if creating and not bootstrap_only:
         if not first_name or not last_name:
             return _no_store(cors_response(400, {"error": "NAME_REQUIRED"}, origin))
     elif bool(first_name) != bool(last_name):
@@ -872,10 +878,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             email = identity.normalize_email(body.get("email"))
         except identity.InvalidEmailAddress:
             return _no_store(cors_response(400, {"error": "INVALID_EMAIL"}, origin))
-    elif creating:
+    elif creating and not bootstrap_only:
         return _no_store(cors_response(400, {"error": "INVALID_EMAIL"}, origin))
 
-    if creating and address is None:
+    if creating and not bootstrap_only and address is None:
         return _no_store(cors_response(
             400, {"error": "INVALID_ADDRESS", "code": "ADDRESS_REQUIRED"}, origin))
 
