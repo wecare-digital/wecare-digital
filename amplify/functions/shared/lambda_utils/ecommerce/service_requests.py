@@ -385,16 +385,46 @@ def _intent_id(body: Any) -> str:
     return value
 
 
-def checkout_preflight(line_items: Any, body: Any) -> Optional[Tuple[int, Dict[str, str]]]:
-    """``None`` to proceed, or ``(status, payload)`` to refuse. PURE: before profile, pricing or
-    DynamoDB.
+def _single_order_context(context: Any, line: Optional[ServiceLine] = None) -> Optional[Dict[str, str]]:
+    """Validated server-only single-order binding, or None.
 
-    * a non-service basket -> ``None`` (byte-identical behaviour for every other order);
-    * a refused service line -> 409 with its code;
-    * no well-formed ``serviceIntentId`` -> 409 ``SERVICE_INTENT_REQUIRED``: a paid service with
-      no intent would be a paid service with no request.
+    This object is NEVER read from the HTTP body. The authenticated request-service-start handler
+    constructs it only after resolving the selected public Order Number through CommerceKeys and
+    re-reading the owned OrderTable row. Keeping it as a separate argument makes a browser field
+    with the same spelling inert rather than an authorization bypass.
+    """
+    if not isinstance(context, Mapping) or context.get("singleOrder") is not True:
+        return None
+    service_code = str(context.get("serviceCode") or "").strip().upper()
+    selected_order_id = str(context.get("selectedOrderId") or "").strip()
+    selected_order_number = str(context.get("selectedOrderNumber") or "").strip().upper()
+    sku = canonical_variant_id(context.get("sku"))
+    flow_capability = str(context.get("flowCapability") or "").strip()
+    if (not service_code or not selected_order_id or not selected_order_number
+            or not sku or not flow_capability):
+        return None
+    if SERVICE_KIND_BY_VARIANT.get(sku) != service_code:
+        return None
+    if line is not None and (line.kind != service_code or line.variant_id != sku):
+        return None
+    return {
+        "serviceCode": service_code,
+        "selectedOrderId": selected_order_id,
+        "selectedOrderNumber": selected_order_number,
+        "sku": sku,
+        "flowCapability": flow_capability,
+    }
 
-    The price itself is checked after the native quote exists, by ``native_service_line_paise``.
+
+def checkout_preflight(line_items: Any, body: Any, *,
+                       verified_service_context: Any = None
+                       ) -> Optional[Tuple[int, Dict[str, str]]]:
+    """``None`` to proceed, or ``(status, payload)`` to refuse. PURE.
+
+    Legacy callers still prove a service purchase with ``serviceIntentId``. The new public
+    request-service-start route proves the stronger contract first — authenticated owner +
+    existing Order Number — and passes that proof as ``verified_service_context``, a Python
+    argument that is never populated from request JSON.
     """
     try:
         line = service_line(line_items)
@@ -406,6 +436,8 @@ def checkout_preflight(line_items: Any, body: Any) -> Optional[Tuple[int, Dict[s
         logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_UNAVAILABLE,
                                 "catalog": "retired"}))
         return 409, refusal(SERVICE_UNAVAILABLE)
+    if _single_order_context(verified_service_context, line) is not None:
+        return None
     if not _intent_id(body):
         logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_INTENT_REQUIRED}))
         return 409, refusal(SERVICE_INTENT_REQUIRED)
@@ -451,28 +483,26 @@ def native_service_line_paise(snapshot: Any, line_items: Any) -> Optional[int]:
 
 
 def payref_extra(line_items: Any, body: Any, *,
-                 line_paise: Optional[int]) -> Dict[str, Any]:
-    """``{}`` for a non-service basket, else ``{"serviceLine": {kind, variantId, paise, intentId}}``.
+                 line_paise: Optional[int],
+                 verified_service_context: Any = None) -> Dict[str, Any]:
+    """Server-owned service join stored beside one immutable payment reference.
 
-    This is the join (plan D3): checkout writes it onto the ``PAYREF#`` reservation it already
-    makes, and the service-requests Lambda reads it back after the order exists. Checkout gains
-    no table and no IAM change. Called only after ``checkout_preflight`` passed.
-
-    ``line_paise`` is the line's price as frozen in the native quote, as returned by
-    ``native_service_line_paise``. That is the figure the customer is charged for the thing being
-    bought, so it is the only one that can honestly be recorded as what they paid for. ``None``
-    records ``None``, so an unpriced row is visibly unpriced rather than silently zero, and
-    ``service_request_store.activate`` refuses it.
-
-    REQUIRED KEYWORD, WITH NO DEFAULT, and the missing default is the point. Omitting it used to
-    be silent and wrote ``paise: None``, which ``activate`` refuses as ``AMOUNT_MISMATCH`` ->
-    ``PAID_SERVICE_UNMATCHED`` -- *after* the customer's money has moved. A ``TypeError`` at
-    import and test time is the cheapest possible version of that same mistake. Pass ``None``
-    explicitly when there is genuinely no quote to read a figure from.
+    Legacy intent purchases keep their ``intentId``. A single-order purchase instead records
+    the already-verified existing order identity and Flow capability. It never records or mints a
+    customer-facing request id.
     """
     line = service_line(line_items)
     if line is None:
         return {}
+    single = _single_order_context(verified_service_context, line)
+    if single is not None:
+        return {"serviceLine": {
+            "kind": line.kind,
+            "variantId": line.variant_id,
+            "paise": line_paise,
+            "singleOrder": True,
+            **single,
+        }}
     return {"serviceLine": {"kind": line.kind, "variantId": line.variant_id,
                             "paise": line_paise, "intentId": _intent_id(body)}}
 
@@ -504,6 +534,7 @@ __all__ = [
     "VAULT_FILE_REQUIRED", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected",
     "canonical_variant_id", "checkout_preflight", "has_service_line", "intent_rebound",
+    "_single_order_context",
     "is_service_product", "native_service_line_paise", "payref_extra", "refusal",
     "service_line",
 ]

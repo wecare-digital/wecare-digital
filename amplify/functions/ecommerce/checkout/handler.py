@@ -106,7 +106,7 @@ from lambda_utils.ecommerce.blog_contribution import (
     CONTRIBUTION_CHOICES_PAISE, CONTRIBUTION_PRODUCT_IDS, ContributionRejected)
 # Phase O-1 services (Submit Request / Request Amendment): the server allow-list and its
 # per-line price assertion. All logic lives in the module; this file only calls it.
-from lambda_utils.ecommerce import service_requests
+from lambda_utils.ecommerce import service_requests, request_service_contracts
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
 from lambda_utils.ecommerce import service_pricing_native
@@ -368,7 +368,8 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket", "order"):
+    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket", "order",
+                    "request-service-start"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/status"):
@@ -377,6 +378,8 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
         return "prepare"
     if path.endswith("/verify-callback"):
         return "verify"
+    if path.endswith("/request-service-start"):
+        return "request-service-start"
     return "create"
 
 
@@ -556,6 +559,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # checkout-CREATE path.
         if action == "order":
             return _order_detail(identity, body, origin)
+        if action == "request-service-start":
+            return _request_service_start(identity, body, origin)
         return _create(identity, body, origin)
     except customer_auth.CustomerNotAuthorized:
         # Same opaque 401 as unauthenticated, so the endpoint is not an IDOR oracle.
@@ -769,12 +774,34 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     quote = snapshot.quote
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
-    # Native catalog prices are GST-inclusive today. The only adjustment between merchandise +
-    # delivery and collection is the always-on Delight discount.
-    discount_paise = max(
-        0, merchandise_paise + delivery_paise - int(quote.collection_before_convenience_paise))
+    pricing_metadata = (
+        frozen.get("pricingMetadata") if isinstance(frozen.get("pricingMetadata"), dict) else {}
+    )
+    supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
+    explicit_discount = pricing_metadata.get("discountPaise")
 
-    subtotal_paise = merchandise_paise
+    # Vault / Drop Docs have an explicit supply-GST step before Delight. Meta ORDER_DETAILS has
+    # one tax field, which is already used for GST on the convenience fee. To keep the payment
+    # sheet arithmetically honest, fold the supply GST into the one service item's displayed
+    # amount and label that item as GST-inclusive. Delight remains Meta's separate discount row,
+    # Express remains shipping, and GST on the convenience fee remains tax.
+    if supply_gst_paise:
+        if len(items) != 1:
+            raise ValueError("explicit supply GST requires exactly one service item")
+        items[0]["amount"]["value"] += supply_gst_paise
+        items[0]["name"] = (items[0]["name"] + " (incl. GST 18%)")[:60]
+
+    display_merchandise_paise = merchandise_paise + supply_gst_paise
+    if explicit_discount is not None:
+        discount_paise = max(0, int(explicit_discount))
+    else:
+        # Ordinary native carts already carry GST-inclusive catalogue prices. For those carts the
+        # only adjustment between merchandise + delivery and collection is Delight.
+        discount_paise = max(
+            0, display_merchandise_paise + delivery_paise
+            - int(quote.collection_before_convenience_paise))
+
+    subtotal_paise = display_merchandise_paise
     if quote.convenience_fee_paise:
         # A non-catalog line: no retailer_id. `retailer_id` names a catalog content id, and this
         # fee is not in any catalog, so a made-up one would be a synthetic catalog identity.
@@ -2374,9 +2401,77 @@ def _website_verify(identity: customer_auth.CustomerIdentity, body: Dict[str, An
     }, origin)
 
 
+def _request_service_start(identity: customer_auth.CustomerIdentity,
+                           body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Start one paid request service against one EXISTING owned order.
+
+    Public input is deliberately only ``serviceCode + selectedOrderNumber``. Customer id,
+    price, SKU, internal order id, phone and Flow identity are all server-owned. The public order
+    number resolves through the immutable CommerceKeys ORDERNO# reservation, then the OrderTable
+    row is re-read and ownership/status are verified before the context is allowed near checkout.
+    """
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_REQUEST"}, origin)
+    allowed = {"serviceCode", "selectedOrderNumber", "action"}
+    if any(key not in allowed for key in body):
+        return cors_response(400, {"error": "INVALID_REQUEST_FIELDS"}, origin)
+
+    service_code = str(body.get("serviceCode") or "").strip().upper()
+    selected_order_number = str(body.get("selectedOrderNumber") or "").strip().upper()
+    contract = request_service_contracts.request_service_contract(service_code)
+    if contract is None:
+        return cors_response(400, {"error": "UNKNOWN_SERVICE"}, origin)
+    if not order_keys.is_public_order_number(selected_order_number):
+        return cors_response(400, {"error": "INVALID_ORDER_NUMBER"}, origin)
+
+    # The reservation is the immutable number->internal-order join. Never scan OrderTable and
+    # never trust an internal id supplied by the browser.
+    reservation = _keys_table().get_item(
+        Key={"orderId": order_keys.ORDER_NUMBER_PREFIX + selected_order_number},
+        ConsistentRead=True,
+    ).get("Item") or {}
+    selected_order_id = str(reservation.get("orderIdRef") or "")
+    if not selected_order_id:
+        # Missing and foreign orders are intentionally indistinguishable to the caller.
+        return cors_response(404, {"error": "ORDER_NOT_AVAILABLE"}, origin)
+
+    order = _table(ORDERS_TABLE).get_item(
+        Key={"orderId": selected_order_id}, ConsistentRead=True
+    ).get("Item") or {}
+    if (str(order.get("customerId") or "") != identity.customer_id
+            or str(order.get("orderNumber") or "").upper() != selected_order_number
+            or payment_status.canonical(order.get("paymentStatus")) != payment_status.CAPTURED):
+        return cors_response(404, {"error": "ORDER_NOT_AVAILABLE"}, origin)
+
+    line_items = [{
+        "catalogReference": {
+            "catalogItemId": contract.product_id,
+            "options": {"variantId": contract.sku},
+        },
+        "quantity": 1,
+    }]
+    verified_context = {
+        "singleOrder": True,
+        "serviceCode": contract.service_code,
+        "selectedOrderId": selected_order_id,
+        "selectedOrderNumber": selected_order_number,
+        "sku": contract.sku,
+        "flowCapability": contract.flow_capability,
+    }
+    # Context is passed as a Python argument, never copied into the request body. That is the
+    # authorization boundary that prevents a browser from forging an owned order.
+    return _create(
+        identity,
+        {"lineItems": line_items},
+        origin,
+        verified_service_context=verified_context,
+    )
+
+
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
-            native_contact: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            native_contact: Optional[Dict[str, Any]] = None,
+            verified_service_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -2385,7 +2480,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
     # Services use the same pre-payment intent guard on both payment rails. A WhatsApp payment
     # must never be able to create a paid service with no request/target attached.
-    service_guard = service_requests.checkout_preflight(line_items, body)
+    service_guard = service_requests.checkout_preflight(
+        line_items, body, verified_service_context=verified_service_context)
     if service_guard is not None:
         return cors_response(service_guard[0], service_guard[1], origin)
 
@@ -2604,7 +2700,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 extra["contactId"] = public_contact_id
         if service_requests.has_service_line(line_items):
             extra.update(**service_requests.payref_extra(
-                line_items, body, line_paise=native_service_paise))
+                line_items, body, line_paise=native_service_paise,
+                verified_service_context=verified_service_context))
         if catalog_session is not None:
             extra.update(channel='whatsapp', nativeCatalogService=True,
                          customerPhone=_profile_phone(identity))
@@ -2625,6 +2722,19 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = checkout_mode
+    if verified_service_context is not None:
+        single = service_requests._single_order_context(verified_service_context)
+        if single is None:
+            return cors_response(409, {"error": "SERVICE_CONTEXT_INVALID"}, origin)
+        attempt.update(
+            singleOrderService=True,
+            serviceCode=single["serviceCode"],
+            serviceSku=single["sku"],
+            selectedOrderId=single["selectedOrderId"],
+            selectedOrderNumber=single["selectedOrderNumber"],
+            serviceKind=single["serviceCode"],
+            flowCapability=single["flowCapability"],
+        )
     if snapshot is not None:
         catalog_contents = _catalog_contents(snapshot)
         if catalog_contents:
