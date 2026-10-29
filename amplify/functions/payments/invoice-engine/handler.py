@@ -990,23 +990,15 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'error': 'Discount codes are retired; eligible orders receive Delight automatically',
             'errorCode': 'AMOUNT_ALREADY_CAPTURED' if captured else 'COUPONS_RETIRED',
         })
-    manual_discount = Decimal('0')
     if not body.get('amountIsTaxInclusive'):
         try:
-            manual_discount = Decimal(str(body.get('discount') or 0)).quantize(
-                Decimal('0.01'), rounding=ROUND_HALF_UP)
+            manual_discount = Decimal(str(body.get('discount') or 0))
         except (InvalidOperation, ValueError, TypeError):
             manual_discount = Decimal('NaN')
-        if not manual_discount.is_finite() or manual_discount < 0:
+        if not manual_discount.is_finite() or manual_discount != 0:
             return _resp(400, {
-                'error': 'Discount must be a non-negative amount',
-                'errorCode': 'INVALID_DISCOUNT',
-            })
-        if manual_discount > 0 and str(body.get('entryPoint') or 'manual') not in (
-                'manual', 'pay_flow', 'whatsapp'):
-            return _resp(400, {
-                'error': 'Manual discount is available only for staff-raised collections',
-                'errorCode': 'MANUAL_DISCOUNT_NOT_ALLOWED',
+                'error': 'Manual discounts are not editable; eligible invoices receive Delight automatically',
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
             })
     input_error = _invoice_input_error(body)
     if input_error:
@@ -1395,11 +1387,10 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # path uses — so an invoice and a cart for one order can never disagree. Pure arithmetic: no
     # table, no provider, no hold, no refusal path.
     #
-    # `discount` is the total customer reduction from here on. Captured/tax-inclusive
-    # invoices preserve the verified captured discount. Fresh staff collections may add one
-    # validated manual discount; automatic Delight is then added to that figure.
-    discount = discount if amount_is_tax_inclusive else manual_discount
-    manual_discount_rupees = Decimal('0') if amount_is_tax_inclusive else manual_discount
+    # Captured/tax-inclusive invoices preserve their verified discount. Fresh invoice
+    # collections have no editable discount: only the server-owned Delight policy may reduce them.
+    discount = discount if amount_is_tax_inclusive else Decimal('0')
+    manual_discount_rupees = Decimal('0')
     coupon_discount_rupees = Decimal('0')
     coupon_discount_paise = 0
     redemption_attributes: Dict[str, Any] = {}
@@ -1424,7 +1415,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             coupon_discount_paise = delight_discount_paise
             coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
             stored_coupon_code = default_coupon.DELIGHT_CODE
-            discount = manual_discount_rupees + coupon_discount_rupees
+            discount = coupon_discount_rupees
             # Recorded so the receipt and the Meta discount row can name the "Delight" line, but
             # NOT held: a fixed owner policy has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is
             # exempt from the single-use and per-customer limits a campaign coupon would have had.
@@ -1438,14 +1429,6 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         coupon_discount_rupees = discount
         redemption_attributes['couponCode'] = stored_coupon_code
         redemption_attributes['couponDiscount'] = _dec(discount)
-
-    maximum_discount = subtotal + tax + shipping + effective_gp + effective_nf + handling
-    if not amount_is_tax_inclusive and discount > maximum_discount:
-        return _resp(400, {
-            'error': 'Discount cannot exceed the amount before convenience fee',
-            'errorCode': 'DISCOUNT_EXCEEDS_PAYABLE',
-            'maximumDiscount': _money_display(maximum_discount),
-        })
 
     # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
     # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
