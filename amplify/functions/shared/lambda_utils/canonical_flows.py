@@ -24,8 +24,8 @@ CANONICAL_FLOWS = {
     # offers it. The id stays as the identity of past paid submissions; paid requests start on
     # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).
     # F004 Submit Request replacement, published on Meta 2026-10-29. The Flow is\n    # endpointless-style at completion; inbound nfm_reply persistence owns the business row.\n    'submit_request': ('993516553092471', 'PUBLISHED', 'WD-F004-Submit-Request'),
-    # The former amendment drafts no longer exist on Meta; amendment remains website-only.
-    'amend_request':  (None, 'NONE', None),
+    # F005 Request Amendment replacement. Completion handling is ready while Meta remains DRAFT.
+    'amend_request':  ('1421471529574569', 'DRAFT', 'WD-F005-Request-Amendment'),
     # F003 Drop Docs replacement, published on Meta 2026-10-28.
     'drop_docs':      ('39581903361452878', 'PUBLISHED', 'WD-F003-DROP-DOCS'),
     'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
