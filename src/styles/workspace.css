@@ -466,3 +466,371 @@
     border-color: CanvasText;
   }
 }
+
+
+/* ==========================================================================
+   PAYMENTS — single authoritative workspace layout
+   Mirrors /auth/ tokens: hairline card, lime top rule, 24px radius,
+   Inter typography, underline fields. This block intentionally lives in
+   workspace.css (the final workspace layer) so legacy inner-ux rules cannot
+   fracture or displace the canonical Payments page.
+   ========================================================================== */
+.workspace-shell .payments-shell {
+  --payments-green: var(--public-brand-green, #1a3a2a);
+  --payments-lime: var(--public-brand-lime, #d1f470);
+  --payments-hair: var(--public-hairline, #e6e9e5);
+  --payments-bg: var(--public-bg, #fff);
+  --payments-text: var(--public-text, #111);
+  --payments-muted: #6e7782;
+}
+.workspace-shell .payments-shell .ps-content {
+  width: 100%;
+  min-width: 0;
+}
+.workspace-shell .payments-shell .ps-content > * {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.workspace-shell .payments-shell .pf-auth-surface {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 var(--workspace-page-x) 72px !important;
+  box-sizing: border-box;
+  font-family: var(--font-sans) !important;
+}
+.workspace-shell .payments-shell .pf-auth-surface .pf-tab-body {
+  padding: 0 !important;
+}
+.workspace-shell .payments-shell .pf-create-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(440px, .92fr) !important;
+  gap: 32px !important;
+  align-items: start;
+}
+.workspace-shell .payments-shell .pf-composer-main,
+.workspace-shell .payments-shell .pf-live-preview {
+  min-width: 0;
+}
+.workspace-shell .payments-shell .pf-composer-heading {
+  margin: 8px 0 22px;
+}
+.workspace-shell .payments-shell .pf-composer-heading h3 {
+  margin: 4px 0 8px !important;
+  color: var(--payments-green) !important;
+  font-size: clamp(34px, 3.25vw, 50px) !important;
+  line-height: .98 !important;
+  letter-spacing: -.055em !important;
+  font-weight: 760 !important;
+}
+.workspace-shell .payments-shell .pf-composer-heading p,
+.workspace-shell .payments-shell .pf-composer-card-head p,
+.workspace-shell .payments-shell .pf-live-preview-note {
+  color: var(--payments-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+.workspace-shell .payments-shell .pf-composer-kicker,
+.workspace-shell .payments-shell .default-items-kicker {
+  color: var(--payments-green) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .09em !important;
+  text-transform: uppercase;
+}
+.workspace-shell .payments-shell .pf-composer-card,
+.workspace-shell .payments-shell .pf-live-preview,
+.workspace-shell .payments-shell .default-items-panel {
+  border: 1px solid var(--payments-hair) !important;
+  border-top: 4px solid var(--payments-lime) !important;
+  border-radius: 24px !important;
+  background: var(--payments-bg) !important;
+  box-shadow: 0 14px 38px rgba(26,58,42,.08) !important;
+  box-sizing: border-box;
+}
+.workspace-shell .payments-shell .pf-composer-card::before,
+.workspace-shell .payments-shell .pf-live-preview::before {
+  content: none !important;
+}
+.workspace-shell .payments-shell .pf-composer-card {
+  margin-bottom: 22px;
+  padding: clamp(24px, 2.5vw, 34px) !important;
+}
+.workspace-shell .payments-shell .pf-live-preview {
+  position: sticky !important;
+  top: 84px !important;
+  min-height: 640px;
+  padding: clamp(24px, 2.5vw, 34px) !important;
+}
+.workspace-shell .payments-shell .pf-live-preview-head {
+  align-items: flex-start;
+  gap: 18px;
+}
+.workspace-shell .payments-shell .pf-live-preview-head h4 {
+  margin: 4px 0 0;
+  color: var(--payments-text);
+  font-size: clamp(24px, 2vw, 31px);
+  line-height: 1.03;
+  letter-spacing: -.04em;
+}
+.workspace-shell .payments-shell .pf-authority-badge,
+.workspace-shell .payments-shell .default-items-head > span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--payments-lime);
+  color: var(--payments-green);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.workspace-shell .payments-shell .pf-customer-summary,
+.workspace-shell .payments-shell .pf-address-warning,
+.workspace-shell .payments-shell .pf-delivery-summary {
+  margin-bottom: 18px !important;
+  padding: 14px 16px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: #f8faf3 !important;
+  color: var(--payments-green) !important;
+  box-shadow: none !important;
+}
+.workspace-shell .payments-shell .pf-item-card {
+  padding: 18px 0 8px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--payments-hair) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.workspace-shell .payments-shell .pf-item-card:first-child {
+  padding-top: 4px !important;
+  border-top: 0 !important;
+}
+.workspace-shell .payments-shell .pf-auth-surface .form-group label {
+  margin-bottom: 7px;
+  color: #44504a;
+  font-size: 12px;
+  font-weight: 700;
+}
+.workspace-shell .payments-shell .pf-auth-surface input:not([type="checkbox"]):not([type="radio"]),
+.workspace-shell .payments-shell .pf-auth-surface textarea,
+.workspace-shell .payments-shell .pf-auth-surface select,
+.workspace-shell .payments-shell .pf-auth-surface .search-input {
+  min-height: 56px !important;
+  padding: 8px 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--payments-hair) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--payments-text) !important;
+  box-shadow: none !important;
+  font-family: var(--font-sans) !important;
+  font-size: 16px !important;
+}
+.workspace-shell .payments-shell .pf-auth-surface input:focus,
+.workspace-shell .payments-shell .pf-auth-surface textarea:focus,
+.workspace-shell .payments-shell .pf-auth-surface select:focus,
+.workspace-shell .payments-shell .pf-auth-surface .search-input:focus {
+  outline: 0 !important;
+  border-bottom-color: var(--payments-green) !important;
+  box-shadow: 0 1px 0 0 var(--payments-lime) !important;
+}
+.workspace-shell .payments-shell .pf-preview-image-shell {
+  width: 100%;
+  max-height: none !important;
+  margin-top: 18px;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 18px;
+  background: #f4f5f3;
+}
+.workspace-shell .payments-shell .pf-preview-image-shell img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: none !important;
+  object-fit: contain;
+}
+.workspace-shell .payments-shell .pf-preview-loading,
+.workspace-shell .payments-shell .pf-preview-error,
+.workspace-shell .payments-shell .pf-preview-empty {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  padding: 30px;
+  border-radius: 18px;
+  background: #f8faf3;
+  text-align: center;
+}
+.workspace-shell .payments-shell .pf-preview-totals {
+  margin-top: 18px;
+  border-top: 0;
+}
+.workspace-shell .payments-shell .pf-preview-totals > div {
+  padding: 10px 2px;
+  border-bottom: 1px solid #edf0ed;
+  font-size: 13px;
+}
+.workspace-shell .payments-shell .pf-preview-totals .pf-preview-total {
+  margin-top: 10px;
+  padding: 15px 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--payments-lime);
+  color: var(--payments-green);
+}
+.workspace-shell .payments-shell .default-items {
+  width: 100%;
+  padding: 0 var(--workspace-page-x) 72px;
+  box-sizing: border-box;
+}
+.workspace-shell .payments-shell .default-items-panel {
+  width: 100%;
+  overflow: hidden;
+}
+.workspace-shell .payments-shell .default-items-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px 24px;
+}
+.workspace-shell .payments-shell .default-items-head h2 {
+  margin: 4px 0 8px;
+  color: var(--payments-green);
+  font-size: clamp(32px, 3vw, 46px);
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+.workspace-shell .payments-shell .default-items-head p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--payments-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.workspace-shell .payments-shell .default-items-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-top: 1px solid var(--payments-hair);
+  background: #fff;
+}
+.workspace-shell .payments-shell .default-items-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 13px;
+}
+.workspace-shell .payments-shell .default-items-table th,
+.workspace-shell .payments-shell .default-items-table td {
+  padding: 15px 18px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid #edf0ed;
+  white-space: nowrap;
+}
+.workspace-shell .payments-shell .default-items-table th {
+  background: #f8faf3;
+  color: #66716c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.workspace-shell .payments-shell .default-items-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.workspace-shell .payments-shell .default-items-table td:first-child {
+  width: 28%;
+  min-width: 210px;
+  white-space: normal;
+}
+.workspace-shell .payments-shell .default-items-table td:first-child strong,
+.workspace-shell .payments-shell .default-items-table td:first-child small {
+  display: block;
+}
+.workspace-shell .payments-shell .default-items-table td:first-child small {
+  margin-top: 4px;
+  color: #8a9490;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.workspace-shell .payments-shell .default-items-table button {
+  min-height: 40px !important;
+  padding: 8px 15px !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--payments-lime) !important;
+  color: var(--payments-green) !important;
+  box-shadow: none !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+.workspace-shell .payments-shell .default-items-table button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.workspace-shell .payments-shell .ledger {
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--workspace-page-x) 72px;
+  box-sizing: border-box;
+}
+.workspace-shell .payments-shell .ledger .pf-auth-surface {
+  padding: 0 !important;
+}
+.workspace-shell .payments-shell .ledger-switch {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border: 1px solid var(--payments-hair);
+  border-radius: 14px;
+  background: #f8faf3;
+}
+@media (max-width: 1100px) {
+  .workspace-shell .payments-shell .pf-create-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, .88fr) !important;
+    gap: 26px !important;
+  }
+}
+@media (max-width: 920px) {
+  .workspace-shell .payments-shell .pf-create-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .workspace-shell .payments-shell .pf-live-preview {
+    position: static !important;
+    min-height: 0;
+  }
+}
+@media (max-width: 700px) {
+  .workspace-shell .payments-shell .pf-auth-surface,
+  .workspace-shell .payments-shell .default-items,
+  .workspace-shell .payments-shell .ledger {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  .workspace-shell .payments-shell .default-items-head {
+    flex-direction: column;
+    padding: 22px 20px 18px;
+  }
+  .workspace-shell .payments-shell .pf-composer-card,
+  .workspace-shell .payments-shell .pf-live-preview,
+  .workspace-shell .payments-shell .default-items-panel {
+    border-radius: 20px !important;
+  }
+  .workspace-shell .payments-shell .default-items-table {
+    min-width: 820px;
+  }
+}
