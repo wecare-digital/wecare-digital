@@ -63,6 +63,9 @@ frontend:
         - rm -rf /tmp/customer-commerce-release
         - python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
         - python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/customer-commerce-runtime.zip
+        # Stage only the verified, content-addressed backend artifacts. This does not update the
+        # CloudFormation stack or move the live alias; deployment remains a separate reviewed step.
+        - export CUSTOMER_COMMERCE_SOURCE_SHA="$(python3 -c "import json; print(json.load(open('/tmp/customer-commerce-release/release-manifest.json'))['sourceSha256'])")"; test -n "$CUSTOMER_COMMERCE_SOURCE_SHA"; export CUSTOMER_COMMERCE_RELEASE_PREFIX="s3://cdk-hnb659fds-assets-775261844268-us-east-1/customer-commerce/$CUSTOMER_COMMERCE_SOURCE_SHA"; aws s3 cp /tmp/customer-commerce-release/customer-commerce-runtime.zip "$CUSTOMER_COMMERCE_RELEASE_PREFIX/runtime.zip" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/customer-commerce-stack.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/stack.json" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/release-manifest.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/release-manifest.json" --only-show-errors
     build:
       commands:
         # Browser Maps credential is build-scoped only. Do not persist a Maps public-key alias
