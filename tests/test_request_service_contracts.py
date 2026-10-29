@@ -160,14 +160,64 @@ def test_request_services_are_structurally_excluded_from_meta_catalog():
     assert product_guard < meta_guard
 
 
-def test_single_order_vault_never_enters_flow_wiring():
+def test_single_order_vault_never_enters_flow_launcher():
     source = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py").read_text()
     start = source.index("if line.get('singleOrder') is True:")
-    block = source[start:start + 5000]
+    block = source[start:start + 6000]
     secure = block.index("if contract.fulfillment_kind == 'secure_download':")
     refused = block.index("VAULT_SECURE_FILE_BINDING_REQUIRED", secure)
-    flow = block.index("SERVICE_FLOW_PENDING_WIRING", refused)
+    flow = block.index("return _launch_single_order_flow(", refused)
     assert secure < refused < flow
+
+
+def test_single_order_flow_launcher_is_paid_bound_idempotent_and_template_gated():
+    source = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py").read_text()
+    start = source.index("def _launch_single_order_flow")
+    end = source.index("\ndef tables", start)
+    block = source[start:end]
+    assert 'finalizationStage") or "") != "ORDER_FINALIZED"' in block
+    assert "single_order_flow.verify_paid_session" in block
+    assert "serviceFlowLaunchStatus" in block
+    assert "SERVICE_FLOW_RECONCILIATION_REQUIRED" in block
+    assert "_template_ready(contract.flow_capability)" in block
+    assert "SERVICE_FLOW_TEMPLATE_PENDING" in block
+    assert "whatsapp_templates.paid_service_flow_send_fields" in block
+    assert "WD-REQ-" not in block
+
+
+def test_paid_launcher_template_registry_matches_live_canonical_names():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+    for name in (
+        "submit_request_flow",
+        "request_amendment_flow",
+        "_dropdoc_flow",
+        "pickup_request_flow",
+        "track_ship_flow",
+    ):
+        assert name in source
+    assert 'DROP_DOCS_FLOW = Template(name="drop_docs_flow"' not in source
+    assert "paid_service_flow_send_fields" in source
+    assert '"selected_target": "order:" + order' in source
+    assert '"parent_order": order' in source
+
+
+def test_pickup_completion_has_dedicated_paid_session_saver_and_inbound_wiring():
+    saver = (ROOT / "amplify/functions/shared/lambda_utils/request_pickup_response.py").read_text()
+    assert 'CAPABILITY = "request_pickup"' in saver
+    assert 'TOKEN_PREFIX = "pickuppaid-"' in saver
+    assert "single_order_flow.verify_paid_session" in saver
+    assert 'service_code="REQUEST_PICKUP"' in saver
+    assert "pickupCompletedAt" in saver
+    assert "fulfillmentCompletedAt" in saver
+    assert "ServiceRequestsTable" not in saver
+    assert "WD-REQ-" not in saver
+
+    inbound = (ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py").read_text()
+    parse = inbound.index("request_pickup_response.pickup_payload")
+    save = inbound.index("request_pickup_response.save_pickup", parse)
+    dedup = inbound.index("# Deduplicate using whatsappMessageId.", save)
+    assert parse < save < dedup
+    assert "Flow response — Pickup Request" in inbound
 
 
 def test_customer_flow_hint_occurs_after_confirmed_invoice_not_during_activation_hint():
