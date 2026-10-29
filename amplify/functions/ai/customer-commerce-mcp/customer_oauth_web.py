@@ -53,19 +53,28 @@ def resume_authorization(event: dict, params: dict | None=None) -> dict | None:
     if row.get('kind') not in {'web-auth', 'oauth-auth'}:
         return None
     requested = params or {}
+    oauth_fields = {
+        'client_id', 'redirect_uri', 'response_type', 'scope', 'state',
+        'resource', 'code_challenge', 'code_challenge_method',
+    }
     if row.get('kind') == 'oauth-auth':
         client(row['client'])
         if row.get('resource') != resource():
             raise AuthError('Invalid authorization resource')
         if requested:
-            oauth_fields = {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}
             if not oauth_fields.intersection(requested):
                 return None
             expected = validate_authorize(requested)
             if any((row.get('client') != expected['client_id'], row.get('redirect') != expected['redirect_uri'], row.get('state') != expected['state'], row.get('scope') != expected['scope'], row.get('challenge') != expected['code_challenge'])):
                 return None
-    elif requested and website_return(requested.get('return', '')) != row.get('return'):
-        return None
+    else:
+        # A website sign-in cookie must never satisfy a host OAuth request. Likewise, unknown
+        # website query fields are not silently discarded; the caller starts a fresh validated
+        # flow (or receives an invalid-request response) instead of inheriting unrelated state.
+        if set(requested) - {'return'}:
+            return None
+        if requested and website_return(requested.get('return', '')) != row.get('return'):
+            return None
     login = uncapsule(row['cipher'], row['client'], key)
     if STORE.take(key) is None:
         return website_recovery()
