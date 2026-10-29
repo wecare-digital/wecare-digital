@@ -59,6 +59,7 @@ frontend:
         # the same release gate so a frontend merge cannot silently leave an undeployable backend.
         - python3 tools/customer-commerce/verify.py
         - python3 tools/customer-commerce/verify_oauth.py
+        - python3 tools/customer-commerce/verify_auth_isolation.py
         - rm -rf /tmp/customer-commerce-release
         - python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
         - python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/customer-commerce-runtime.zip
