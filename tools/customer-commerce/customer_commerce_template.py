@@ -10,11 +10,11 @@ ROUTES = {
     1: 'GET /.well-known/oauth-protected-resource',
     2: 'GET /.well-known/oauth-authorization-server',
     3: 'GET /oauth/authorize',
-    4: 'POST /oauth/authorize',
     5: 'POST /oauth/token',
     6: 'POST /oauth/revoke',
-    # Route7 and Route8 were the duplicate backend GET/POST /auth page.
-    # Their logical IDs stay vacant so an update deletes only those resources.
+    # Route4 was the legacy authorization-form POST; Route7 and Route8 were the
+    # duplicate backend GET/POST /auth page. Their logical IDs stay vacant so an update
+    # deletes only those obsolete resources.
     9: 'GET /auth/state',
     10: 'POST /auth/step',
 }
