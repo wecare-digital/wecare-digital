@@ -10,6 +10,8 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, CreateInvoiceEngineResult, ApiResult, SendPaymentLinkResult } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
+import { SERVICE_CHOICES, type ServiceChoice } from '../../../config/services';
+import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../../lib/servicePricing';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
   contactDeliveryAddress, formatAddress, type AddressFormFields,
@@ -44,7 +46,7 @@ const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: 
  * this change would keep offering all nine forever.
  */
 const DEFAULT_BRAND = 'WECARE.DIGITAL';
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', discount: '0', purpose: DEFAULT_BRAND, orderId: '' };
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', purpose: DEFAULT_BRAND, orderId: '' };
 const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
 const TABS: ShellTab[] = [
   { id: 'create', label: 'Collect' },
@@ -310,6 +312,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ invoicePreview, setInvoicePreview ] = useState<api.InvoiceEnginePreview | null>( null );
   const [ previewLoading, setPreviewLoading ] = useState( false );
   const [ previewError, setPreviewError ] = useState( '' );
+  const [ servicePrices, setServicePrices ] = useState<Record<string, ServicePrice>>( {} );
+  const [ servicePricesLoading, setServicePricesLoading ] = useState( true );
   const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
@@ -453,6 +457,36 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     setCustSaving( false );
   };
 
+  useEffect( () => {
+    let active = true;
+    setServicePricesLoading( true );
+    fetchServicePrices()
+      .then( prices => { if ( active ) setServicePrices( prices ); } )
+      .finally( () => { if ( active ) setServicePricesLoading( false ); } );
+    return () => { active = false; };
+  }, [] );
+
+  const applyServicePreset = ( choice: ServiceChoice ) => {
+    const price = servicePrices[ choice.slug ];
+    if ( !price?.available ) {
+      showMsg( `${ choice.label } live price is unavailable. Nothing was added.`, 'error' );
+      return;
+    }
+    const expressPaise = price.breakdown?.expressPaise || 0;
+    setInvForm( current => ( {
+      ...current,
+      items: [ {
+        name: choice.label,
+        unitPrice: rupeesFromPaise( price.paise ),
+        quantity: '1',
+        gstRate: '18',
+        hsnSac: '',
+      } ],
+      shipping: rupeesFromPaise( expressPaise ),
+    } ) );
+    setShowAdvancedTax( false );
+  };
+
   /* Invoice form handlers */
   const buildInvoiceRequest = useCallback( ( referenceId?: string ): CreateInvoiceEngineRequest | null => {
     if ( !selCustomer ) return null;
@@ -480,7 +514,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         hsnSac: it.hsnSac.trim(),
       } ) ),
       shipping: parseFloat( invForm.shipping ) || 0,
-      discount: Math.max( 0, parseFloat( invForm.discount ) || 0 ),
       gstRate: config.default_gst_rate,
       purpose: DEFAULT_BRAND,
       orderId: invForm.orderId,
@@ -983,6 +1016,40 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     </div>
                   </div>
 
+                  <div className="pf-composer-card pf-default-invoice-table">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Default invoice items</h4>
+                        <p>Live request-service prices from ProductsTable. Use a preset to fill the invoice composer; final pricing remains server-authoritative.</p>
+                      </div>
+                      <span className="pf-authority-badge">{ servicePricesLoading ? 'Loading live prices' : 'Live catalog' }</span>
+                    </div>
+                    <div className="pf-preset-table-wrap">
+                      <table className="pf-preset-table">
+                        <thead>
+                          <tr><th>Request item</th><th>Item price</th><th>GST</th><th>Delight</th><th>Express</th><th>Payable</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          { SERVICE_CHOICES.map( choice => {
+                            const price = servicePrices[ choice.slug ];
+                            const breakdown = price?.available ? price.breakdown : undefined;
+                            return (
+                              <tr key={ choice.kind }>
+                                <td><strong>{ choice.label }</strong><small>{ choice.sku }</small></td>
+                                <td>{ price?.available ? `₹${ price.rupees }` : 'Unavailable' }</td>
+                                <td>{ breakdown ? fmtPaise( breakdown.supplyGstPaise ) : 'Auto' }</td>
+                                <td>{ breakdown ? `−${ fmtPaise( breakdown.delightPaise ) }` : 'Auto' }</td>
+                                <td>{ breakdown && breakdown.expressPaise > 0 ? fmtPaise( breakdown.expressPaise ) : '—' }</td>
+                                <td>{ breakdown ? fmtPaise( breakdown.totalPayablePaise ) : 'Preview after use' }</td>
+                                <td><Button variant="secondary" size="sm" disabled={ !price?.available } onClick={ () => applyServicePreset( choice ) }>Use</Button></td>
+                              </tr>
+                            );
+                          } ) }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
                   <div className="pf-composer-card">
                     <div className="pf-composer-card-head">
                       <div>
@@ -1043,19 +1110,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       <div className="form-group"><label htmlFor="pf-shipping">Express ({ '\u20B9' })</label><input id="pf-shipping" type="number" min="0" step="0.01" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /><span className="pf-field-help">Delivery / shipping charge shown to the customer as Express.</span></div>
                     </div>
                   </div>
-                  <div className="pf-composer-card pf-pricing-adjustment-card">
+                  <div className="pf-composer-card pf-auto-discount-card">
                     <div className="pf-composer-card-head">
                       <div>
-                        <h4>Discount</h4>
-                        <p>Optional staff adjustment. The server validates it and combines it with automatic Delight.</p>
+                        <h4>Automatic Delight</h4>
+                        <p>Read-only. The invoice engine calculates the eligible Delight discount automatically.</p>
                       </div>
+                      <span className="pf-authority-badge">Server calculated</span>
                     </div>
-                    <div className="pf-form-grid">
-                      <div className="form-group">
-                        <label htmlFor="pf-discount">Discount amount ({ '\u20B9' })</label>
-                        <input id="pf-discount" type="number" min="0" step="0.01" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } />
-                        <span className="pf-field-help">Preview and final payable are calculated by the invoice engine. No browser-side total is authoritative.</span>
-                      </div>
+                    <div className="pf-auto-discount-value">
+                      <span>Delight</span>
+                      <strong>{ invoicePreview && Number( invoicePreview.couponDiscount ) > 0 ? `−${ fmtMoney( Number( invoicePreview.couponDiscount ) ) }` : 'Calculated in preview' }</strong>
                     </div>
                   </div>
                   { /* The server's answer about these codes is rendered ABOVE the customer step,
@@ -1126,7 +1191,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <div className="pf-preview-totals">
                           <div><span>Items Subtotal</span><strong>{ fmtMoney( Number( invoicePreview.subtotal ) ) }</strong></div>
                           { Number( invoicePreview.couponDiscount ) > 0 && <div><span>Delight</span><strong>−{ fmtMoney( Number( invoicePreview.couponDiscount ) ) }</strong></div> }
-                          { Number( invoicePreview.discount ) - Number( invoicePreview.couponDiscount || 0 ) > 0 && <div><span>Discount</span><strong>−{ fmtMoney( Number( invoicePreview.discount ) - Number( invoicePreview.couponDiscount || 0 ) ) }</strong></div> }
                           { Number( invoicePreview.shipping ) > 0 && <div><span>Express</span><strong>{ fmtMoney( Number( invoicePreview.shipping ) ) }</strong></div> }
                           { Number( invoicePreview.convenienceFeeNet ) > 0 && <div><span>Convenience Fee</span><strong>{ fmtMoney( Number( invoicePreview.convenienceFeeNet ) ) }</strong></div> }
                           <div><span>{ invoicePreview.sellerGstin }</span><strong>{ fmtMoney( Number( invoicePreview.totalGst ) ) }</strong></div>
