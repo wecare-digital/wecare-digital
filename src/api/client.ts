@@ -569,16 +569,19 @@ export async function getContact ( contactId: string ): Promise<Contact | null> 
   return null;
 }
 
-export async function createContact ( contact: ContactMutation ): Promise<Contact | null> {
-  const data = await apiCall<any>( `${API_BASE}/contacts`, {
+export async function createContactResult ( contact: ContactMutation ): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts`, {
     method: 'POST',
     body: JSON.stringify( contact ),
   } );
-  if ( data )
-  {
-    return normalizeContact( data.contact || data );
-  }
-  return null;
+  if ( !result.ok ) return result;
+  const data = result.data;
+  return { ok: true, data: data ? normalizeContact( data.contact || data ) : null };
+}
+
+export async function createContact ( contact: ContactMutation ): Promise<Contact | null> {
+  const result = await createContactResult( contact );
+  return result.ok ? result.data : null;
 }
 
 /**
