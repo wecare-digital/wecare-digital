@@ -419,28 +419,10 @@ const PUBLIC_PAGE_META: Record<string, {
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
-  // The Customer service pages. They exist because the header's Customer service column offered
-  // six labels and every one resolved to /contact/ - six promises, one destination, on every
-  // page of the site. Header.tsx recorded that as a placeholder and named this as the fix.
-  // Contact us keeps /contact/, which is its real destination, so five of those six labels got a
-  // page. Vault (2026-09-30) and Request Pickup (2026-10-10) joined the group afterwards.
-  // Being listed HERE is what makes them render at all: this map is the public allowlist as
-  // well as the structured-data source, so a route missing from it serves an empty body at
-  // HTTP 200. They must stay in step with PUBLIC_EXACT in scripts/generate-sitemap.js.
-  '/submit-request': { name: 'Submit Request', type: 'WebPage', description: 'Start a new request, in your own words.' },
-  '/request-amendment': { name: 'Request Amendment', type: 'WebPage', description: 'Change a date, detail or scope on a request already under way.' },
-  '/drop-docs': { name: 'Drop Docs', type: 'WebPage', description: 'Send the documents a request needs, once.' },
-  // Vault is the return leg of Drop Docs and sits next to it for that reason. The sentence
-  // says "ask for a copy" rather than "download your documents": a copy is released after an
-  // identity check, so a description promising an on-demand download would describe a
-  // different page from the one that renders.
-  '/vault': { name: 'Vault', type: 'WebPage', description: 'Ask for a copy of a document held against one of your requests.' },
-  // Request Pickup is the third door in the same pair - Drop Docs sends paperwork in, Vault asks
-  // for a copy out, this one has it collected - so it sits directly after Vault. The sentence
-  // says "ask us to collect" rather than "book a pickup": a courier has to agree, so a
-  // description promising a booking would describe a page that does not exist.
-  '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
-  '/shipments/track': { name: 'Track', type: 'WebPage', description: 'Track an order, delivery or service request already with WECARE.DIGITAL.', serviceType: 'Shipment and request tracking' },
+  // Request-service and tracking routes are deliberately NOT marketing pages. They remain
+  // reachable for authenticated/deep-link customer journeys, but are registered separately in
+  // CUSTOMER_SERVICE_ROUTES below so they carry public chrome without indexable schema/sitemap
+  // exposure.
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
@@ -565,6 +547,18 @@ const getPublicPageSchema = ( pathname: string ) => {
    and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
    mounts across both files. */
 
+// Customer-session service routes: reachable, share the public shell, but never advertised to
+// crawlers or machine page catalogues. Keeping this separate from PUBLIC_PAGE_META is the
+// distinction between "customer can open the service" and "this is a public marketing page".
+const CUSTOMER_SERVICE_ROUTES = new Set( [
+  '/submit-request',
+  '/request-amendment',
+  '/drop-docs',
+  '/vault',
+  '/request-pickup',
+  '/shipments/track',
+] );
+
 export default function App ( { Component, pageProps }: AppProps ) {
   const router = useRouter();
 
@@ -663,6 +657,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // payment; the per-route fallback WebPage schema above is the correct, minimal markup for them.
     || router.pathname === '/checkout/status'
     || router.pathname === '/checkout/success'
+    || CUSTOMER_SERVICE_ROUTES.has( router.pathname )
     || Object.prototype.hasOwnProperty.call( PUBLIC_PAGE_META, router.pathname )
     || isContentPublic;
 
@@ -963,7 +958,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
               that name independently, so it SURVIVED on /cart, /checkout, /get and the other
               noindex pages and contradicted their own directive. Google applies the most
               restrictive rule, so it was never harmful, only noise; robots alone says it. */}
-          <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+          <meta name="robots" content={ CUSTOMER_SERVICE_ROUTES.has( router.pathname )
+            ? 'noindex, nofollow'
+            : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' } />
           <meta name="author" content="WECARE.DIGITAL" />
           <meta name="publisher" content="WECARE.DIGITAL" />
           <meta name="language" content="English" />
