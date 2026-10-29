@@ -854,9 +854,11 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             if not attempt:
                 raise RuntimeError('native cart payment attempt missing')
             evidence = None
-            if (outcome.outcome == order_creation.ORDER_CREATED
-                    and outcome.verified_captured_paise > 0
-                    and outcome.provider_payment_id):
+            if (outcome.verified_captured_paise > 0 and outcome.provider_payment_id):
+                # Fresh provider evidence is authoritative regardless of whether reconciliation
+                # allocated a new order identity. Single-order service payments intentionally
+                # return ORDER_ALREADY_EXISTS because they bind to the selected existing order,
+                # but this is still their FIRST verified capture and must reach accept_paid.
                 evidence = (outcome.provider_payment_id, outcome.verified_captured_paise)
             elif attempt.get('finalizationStage') != 'ORDER_FINALIZED':
                 stored_id = str(attempt.get('verifiedProviderPaymentId') or '')
