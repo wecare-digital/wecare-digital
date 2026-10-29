@@ -47,6 +47,7 @@ DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "stack-wecare-digital-Docume
 SERVICE_REQUESTS_TABLE = os.environ.get(
     "SERVICE_REQUESTS_TABLE", "stack-wecare-digital-ServiceRequestsTable"
 )
+PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()
 MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "wecare-digital-get")
 WABA2_ID = os.environ.get("WABA2_ID", "2513394156072604")
 PHONE1_META_ID = os.environ.get("PHONE1_META_ID", "1016149501586345")
@@ -111,20 +112,78 @@ def _customer_identity(contact: Dict[str, Any], phone: str) -> Optional[customer
     )
 
 def _paid_request(session: Any, identity: Optional[customer_auth.CustomerIdentity]) -> Dict[str, Any]:
-    """The one paid DROP_DOCS request bound to this server-issued payment Flow session."""
+    """The one finalized paid DROP_DOCS request bound to this payment Flow session."""
     if (session.launch_channel != flow_sessions.LAUNCH_PAYMENT
             or not session.service_request_key or identity is None):
         raise ValueError("Open Drop Docs from your paid request.")
+
     row = dynamodb.Table(SERVICE_REQUESTS_TABLE).get_item(
         Key={"requestId": session.service_request_key}, ConsistentRead=True
     ).get("Item") or {}
+    attempt_id = str(row.get("paymentAttemptId") or "").strip()
+    order_id = str(row.get("orderId") or "").strip()
     if (row.get("kind") != service_request_store.DROP_DOCS
             or str(row.get("customerId") or "") != identity.customer_id
-            or not row.get("orderId") or not row.get("paymentAttemptId")):
+            or not order_id or not attempt_id):
         raise ValueError("This Drop Docs payment is not available.")
+
+    attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+        Key={"paymentAttemptId": attempt_id}, ConsistentRead=True
+    ).get("Item") or {}
+    if (str(attempt.get("status") or "") != "PAYMENT_PAID"
+            or str(attempt.get("finalizationStage") or "") != "ORDER_FINALIZED"
+            or str(attempt.get("orderId") or "") != order_id
+            or str(attempt.get("customerId") or "") != identity.customer_id):
+        raise ValueError("This Drop Docs payment is not finalized.")
     return row
 
 
+def _upload_claim_id(flow_token: str) -> str:
+    """Opaque stable claim id; never persist the raw Flow token."""
+    return hashlib.sha256(str(flow_token).encode("utf-8")).hexdigest()
+
+
+def _claim_upload_entitlement(
+    session: Any,
+    identity: customer_auth.CustomerIdentity,
+    flow_token: str,
+) -> Dict[str, Any]:
+    """Reserve one paid entitlement before any customer document bytes are written."""
+    claim_id = _upload_claim_id(flow_token)
+    now = int(time.time())
+    table = dynamodb.Table(SERVICE_REQUESTS_TABLE)
+    try:
+        response = table.update_item(
+            Key={"requestId": session.service_request_key},
+            UpdateExpression=(
+                "SET dropDocsUploadClaimId=:claim, dropDocsUploadClaimedAt=:now, "
+                "dropDocsStatus=:uploading, updatedAt=:now"
+            ),
+            ConditionExpression=(
+                "kind=:kind AND customerId=:owner "
+                "AND attribute_not_exists(dropDocsCompletedAt) "
+                "AND (attribute_not_exists(dropDocsUploadClaimId) "
+                "OR dropDocsUploadClaimId=:claim)"
+            ),
+            ExpressionAttributeValues={
+                ":claim": claim_id,
+                ":now": now,
+                ":uploading": "UPLOAD_IN_PROGRESS",
+                ":kind": service_request_store.DROP_DOCS,
+                ":owner": identity.customer_id,
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return response.get("Attributes") or {}
+    except Exception as exc:  # noqa: BLE001
+        current = table.get_item(
+            Key={"requestId": session.service_request_key}, ConsistentRead=True
+        ).get("Item") or {}
+        if current.get("dropDocsCompletedAt"):
+            raise ValueError("This paid Drop Docs request has already been used.") from exc
+        if str(current.get("dropDocsUploadClaimId") or "") != claim_id:
+            raise ValueError("This paid Drop Docs request is already being used.") from exc
+        raise
 
 def _order_targets(phone: str) -> List[Dict[str, str]]:
     """Customer-owned orders labelled by reference, date/time, and customer-safe purpose."""
@@ -520,6 +579,20 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
         logger.warning("Drop Docs target validation failed: %s", type(exc).__name__)
         return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
 
+    # Claim the paid entitlement before fetching or writing any customer bytes. Retries from
+    # this exact Flow token are idempotent; another token for the same purchase is refused.
+    try:
+        paid_request = _claim_upload_entitlement(session, identity, flow_token)
+    except ValueError as exc:
+        return {"screen": "UPLOAD", "data": {"error_message": str(exc)[:200]}}
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({
+            "event": "f003_drop_docs_claim_failed",
+            "errorType": type(exc).__name__,
+            "requestId": request_id,
+        }))
+        return {"screen": "UPLOAD", "data": {"error_message": "Please try again."}}
+
     stored: List[Dict[str, Any]] = []
     try:
         for entry in picker:
@@ -605,16 +678,19 @@ def handle_upload(data: Dict, flow_token: str, request_id: str) -> Dict:
                 "SET #status=:completed, dropDocsCompletedAt=:now, flowSubmissionId=:submission, "
                 "dropDocsTargetKind=:target_kind, dropDocsTargetId=:target_id, "
                 "dropDocsTargetDisplay=:target_display, dropDocsNote=:note, "
-                "dropDocsDocumentIds=:document_ids, updatedAt=:now"
+                "dropDocsDocumentIds=:document_ids, updatedAt=:now "
+                "REMOVE dropDocsUploadClaimId, dropDocsUploadClaimedAt"
             ),
             ConditionExpression=(
-                "kind=:kind AND customerId=:owner AND attribute_not_exists(dropDocsCompletedAt)"
+                "kind=:kind AND customerId=:owner AND attribute_not_exists(dropDocsCompletedAt) "
+                "AND dropDocsUploadClaimId=:claim"
             ),
             ExpressionAttributeNames=update_names,
             ExpressionAttributeValues={
                 **update_values,
                 ":kind": service_request_store.DROP_DOCS,
                 ":owner": identity.customer_id,
+                ":claim": _upload_claim_id(flow_token),
             },
         )
     except Exception as exc:  # noqa: BLE001
