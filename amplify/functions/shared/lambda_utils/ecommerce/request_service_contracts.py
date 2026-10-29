@@ -6,7 +6,11 @@ remains the price authority and canonical_flows remains the Meta Flow-id authori
 
 Customer invariant:
     authenticated customer + existing Order Number + serviceCode
-      -> one payment -> one invoice -> one matching service Flow -> one fulfilment activity
+      -> one payment -> one invoice -> exactly one service fulfilment
+
+Flow-backed services launch one matching Meta Flow. Vault is deliberately different: it has no
+Meta Flow and fulfils through the secure-file entitlement/download rail. Request-service products
+remain ProductsTable price authorities but are never customer-visible Meta catalogue items.
 
 No contract below creates a second customer-facing order number or a public WD-REQ identifier.
 Technical payment/invoice/flow identifiers remain internal implementation details.
@@ -33,8 +37,10 @@ class RequestServiceContract:
     product_id: str
     sku: str
     flow_capability: str
+    fulfillment_kind: str = "flow"
     requires_existing_order: bool = True
-    one_payment_one_flow: bool = True
+    one_payment_one_fulfillment: bool = True
+    catalog_visible: bool = False
     supply_gst_bps: int = 0
     express_paise: int = 0
     pay_template: str = NATIVE_PAY_TEMPLATE
@@ -71,7 +77,8 @@ _CONTRACTS = (
         label="Vault",
         product_id="d4cfc6e8-10b3-5c47-94c8-3c69f4c03907",
         sku="RVT6K4Q8",
-        flow_capability="vault",
+        flow_capability="",
+        fulfillment_kind="secure_download",
         supply_gst_bps=1800,
         express_paise=2500,
     ),
@@ -89,6 +96,9 @@ REQUEST_SERVICE_CONTRACTS: Mapping[str, RequestServiceContract] = MappingProxyTy
 )
 REQUEST_SERVICE_BY_SKU: Mapping[str, RequestServiceContract] = MappingProxyType(
     {contract.sku: contract for contract in _CONTRACTS}
+)
+REQUEST_SERVICE_PRODUCT_IDS = frozenset(
+    str(contract.product_id).strip().lower() for contract in _CONTRACTS
 )
 
 
@@ -117,6 +127,7 @@ def payment_binding(service_code: object, selected_order_number: object) -> dict
         "selectedOrderNumber": order_number,
         "sku": contract.sku,
         "flowCapability": contract.flow_capability,
+        "fulfillmentKind": contract.fulfillment_kind,
         "payTemplate": contract.pay_template,
         "invoiceTemplate": contract.invoice_template,
     }
@@ -128,6 +139,7 @@ __all__ = [
     "ORDER_DETAILS_THUMBNAIL_KEY",
     "REQUEST_SERVICE_BY_SKU",
     "REQUEST_SERVICE_CONTRACTS",
+    "REQUEST_SERVICE_PRODUCT_IDS",
     "RequestServiceContract",
     "payment_binding",
     "request_service_contract",
