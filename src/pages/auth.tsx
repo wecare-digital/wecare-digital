@@ -144,8 +144,9 @@ const AuthPage: React.FC = () => {
         ariaLabel="WECARE.DIGITAL sign in"
         frame="One account."
         words={ WORDS }
-        sub="Sign in securely. Pick up where you left off."
+        sub="Pick up where you left off."
         mobileFoundation
+        compact
       >
         <section className="auth-card" aria-label="Sign in">
           <div className="auth-eyebrow" aria-hidden="true">
@@ -231,7 +232,7 @@ const AuthPage: React.FC = () => {
                     spellCheck={ false }
                     enterKeyHint="next"
                     maxLength={ 18 }
-                    placeholder="WhatsApp number"
+                    placeholder="WhatsApp"
                     value={ phone }
                     onChange={ event => {
                       setPhone( event.target.value.replace( /[^0-9 ]/g, '' ) );
