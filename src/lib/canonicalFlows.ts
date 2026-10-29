@@ -57,6 +57,12 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'amend_request', label: 'Request Amendment',
     flowId: '2408621596338289', status: 'PUBLISHED', metaName: 'WD-F004-Request-Amendment',
   },
+  // Request Pickup published on Meta 2026-10-29. Runtime completion handling stays guarded
+  // until the published completion payload carries the pickup-specific fields.
+  request_pickup: {
+    capability: 'request_pickup', label: 'Request Pickup',
+    flowId: '2988393421499259', status: 'PUBLISHED', metaName: 'WD-F005-Pick-Up-Request',
+  },
   // F003 Drop Docs replacement, published on Meta 2026-10-28.
   drop_docs: {
     capability: 'drop_docs', label: 'Drop Docs',
