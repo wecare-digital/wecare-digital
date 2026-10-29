@@ -6,6 +6,7 @@ reviewed source modules, making repository-to-Lambda drift file-comparable.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -46,12 +47,56 @@ def canonical_dial_codes() -> list[tuple[str, str, list[int]]]:
     ]
 
 
-def validated_sources() -> dict[str, bytes]:
+def assigned_literal(path: Path, name: str):
+    tree = ast.parse(path.read_text(), filename=str(path))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            return ast.literal_eval(node.value)
+    raise ValueError(f'{name} not found in {path}')
+
+
+def canonical_return_paths() -> list[str]:
+    frontend_text = (ROOT / 'src/lib/safeReturnPath.ts').read_text()
+    block = re.search(
+        r'ALLOWED_CUSTOMER_RETURN_PATHS\s*=\s*\[(.*?)\]\s*as const',
+        frontend_text,
+        re.S,
+    )
+    if not block:
+        raise ValueError('Frontend customer return-path allowlist unavailable')
+    frontend = set(re.findall(r"'(/[^']*)'", block.group(1)))
+    backend = set(assigned_literal(SOURCE / 'customer_oauth_config.py', 'WEBSITE_RETURNS'))
+    if frontend != backend:
+        raise ValueError(
+            'Frontend/backend customer return paths differ: '
+            f'frontend_only={sorted(frontend - backend)} '
+            f'backend_only={sorted(backend - frontend)}'
+        )
+
+    services_text = (ROOT / 'src/config/services.ts').read_text()
+    service_paths = set(re.findall(r"\bpath\s*:\s*'([^']+)'", services_text))
+    if not service_paths or not service_paths <= frontend:
+        raise ValueError(
+            'Service return paths missing from auth allowlist: '
+            f'{sorted(service_paths - frontend)}'
+        )
+    required = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/get/'}
+    if not required <= frontend:
+        raise ValueError(
+            f'Required customer return paths missing: {sorted(required - frontend)}'
+        )
+    return sorted(frontend)
+
+
+def validated_sources() -> tuple[dict[str, bytes], list[str]]:
     assets = runpy.run_path(str(SOURCE / 'connection_assets.py'))
     expected = canonical_dial_codes()
     actual = assets.get('DIAL_COUNTRIES')
     if not expected or expected != actual:
         raise ValueError('connection_assets.py differs from src/lib/dialCodes.ts')
+    return_paths = canonical_return_paths()
 
     files: dict[str, bytes] = {}
     for name in RUNTIME_FILES:
@@ -62,7 +107,7 @@ def validated_sources() -> dict[str, bytes]:
     combined = b'\n'.join(files[name] for name in RUNTIME_FILES)
     if b'def form(' in combined or b'BRAND_LOGO' in combined:
         raise ValueError('Backend presentation leaked into runtime source')
-    return files
+    return files, return_paths
 
 
 def write_zip(path: Path, files: dict[str, bytes]) -> bytes:
@@ -77,13 +122,13 @@ def write_zip(path: Path, files: dict[str, bytes]) -> bytes:
 
 def build(output: Path) -> dict:
     output.mkdir(parents=True, exist_ok=True)
-    files = validated_sources()
+    files, return_paths = validated_sources()
     zip_bytes = write_zip(output / 'customer-commerce-runtime.zip', files)
     runtime_hash = hashlib.sha256(zip_bytes).hexdigest()
     source_hash = hashlib.sha256(
         b''.join(name.encode() + b'\0' + files[name] for name in RUNTIME_FILES)
     ).hexdigest()
-    runtime_key = f'deployments/customer-commerce/{source_hash}/runtime.zip'
+    runtime_key = f'customer-commerce/{source_hash}/runtime.zip'
     template = build_template(source_hash, runtime_key)
     template_text = json.dumps(template, separators=(',', ':'))
     if len(template_text.encode()) > 51200:
@@ -105,6 +150,7 @@ def build(output: Path) -> dict:
         'publicSubmissionReady': False,
         'routes': list(ROUTES.values()),
         'runtimeFiles': list(RUNTIME_FILES),
+        'websiteReturns': return_paths,
         'presentationOwner': 'src/pages/auth.tsx',
         'backendRendersHtml': False,
         'countries': [],
