@@ -30,7 +30,7 @@ const CUSTOMERSERVICE_MENU = [
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Request Amendment', description: 'Edit or correct a submitted request; answered with the website link (no Flow)', flowId: canonicalFlowId('amend_request') ?? '-', keywords: 'Request Amendment' },
   { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '1475722977488573', keywords: 'appointment, schedule, meeting' },
   { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
-  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents securely through the published Drop Docs Flow', flowId: canonicalFlowId('drop_docs') ?? '-', keywords: 'Drop Docs' },
+  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Pay to activate Drop Docs, then choose the order/request and upload documents in F003', flowId: canonicalFlowId('drop_docs') ?? '-', keywords: 'Drop Docs' },
   { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
   // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound handler,
   // same order, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is WD_Leave_Review_v2, PUBLISHED
