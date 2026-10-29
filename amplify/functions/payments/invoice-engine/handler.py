@@ -990,15 +990,17 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'error': 'Discount codes are retired; eligible orders receive Delight automatically',
             'errorCode': 'AMOUNT_ALREADY_CAPTURED' if captured else 'COUPONS_RETIRED',
         })
+    manual_discount = Decimal('0')
     if not body.get('amountIsTaxInclusive'):
         try:
-            manual_discount = Decimal(str(body.get('discount') or 0))
+            manual_discount = Decimal(str(body.get('discount') or 0)).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
         except (InvalidOperation, ValueError, TypeError):
             manual_discount = Decimal('NaN')
-        if not manual_discount.is_finite() or manual_discount != 0:
+        if not manual_discount.is_finite() or manual_discount < 0:
             return _resp(400, {
-                'error': 'Manual discounts are retired; eligible orders receive Delight automatically',
-                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+                'error': 'Discount must be a non-negative amount',
+                'errorCode': 'INVALID_DISCOUNT',
             })
     input_error = _invoice_input_error(body)
     if input_error:
@@ -1390,7 +1392,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # `discount` is Delight-only from here on: a tax-inclusive capture already forced it to
     # Decimal('0'), and every other entry point starts at zero because manual discount entry is
     # retired. Delight overwrites it below when it applies.
-    discount = discount if amount_is_tax_inclusive else 0
+    discount = discount if amount_is_tax_inclusive else manual_discount
+    manual_discount_rupees = Decimal('0') if amount_is_tax_inclusive else manual_discount
     coupon_discount_rupees = Decimal('0')
     coupon_discount_paise = 0
     redemption_attributes: Dict[str, Any] = {}
@@ -1415,7 +1418,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             coupon_discount_paise = delight_discount_paise
             coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
             stored_coupon_code = default_coupon.DELIGHT_CODE
-            discount = coupon_discount_rupees
+            discount = manual_discount_rupees + coupon_discount_rupees
             # Recorded so the receipt and the Meta discount row can name the "Delight" line, but
             # NOT held: a fixed owner policy has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is
             # exempt from the single-use and per-customer limits a campaign coupon would have had.
@@ -1475,6 +1478,14 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         convenience_fee = Decimal(str(raw_convenience_fee or 0))
         convenience_fee_net = convenience_fee
         convenience_fee_gst = Decimal('0')
+
+    maximum_discount = subtotal + tax + shipping + effective_gp + effective_nf + handling
+    if not amount_is_tax_inclusive and discount > maximum_discount:
+        return _resp(400, {
+            'error': 'Discount cannot exceed the amount before convenience fee',
+            'errorCode': 'DISCOUNT_EXCEEDS_PAYABLE',
+            'maximumDiscount': _money_display(maximum_discount),
+        })
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
@@ -1555,6 +1566,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'buyerGstin': buyer_gstin or '',
                 'subtotal': _dec(subtotal),
                 'discount': _dec(discount),
+                'couponDiscount': _dec(coupon_discount_rupees),
+                'manualDiscount': _dec(manual_discount_rupees),
                 'shipping': _dec(shipping),
                 'handling': _dec(handling),
                 'tax': _dec(tax),
