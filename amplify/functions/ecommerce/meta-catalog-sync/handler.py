@@ -50,6 +50,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from lambda_utils import shared_tables
 from lambda_utils.ecommerce import meta_catalog_sync as catalog
+from lambda_utils.ecommerce import request_service_contracts
 from lambda_utils.logging import get_logger
 from lambda_utils.meta_version import graph_url
 
@@ -553,6 +554,12 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for item in raw:
         if str(item.get("status") or "active") == "archived":
+            continue
+        # Request services use ProductsTable for SKU/price authority and native ORDER_DETAILS
+        # payment, but are not customer-browsable Meta catalogue products. This structural
+        # exclusion wins even if a stale/admin-written row has metaEnabled=true.
+        product_id = str(item.get("id") or "").strip().lower()
+        if product_id in request_service_contracts.REQUEST_SERVICE_PRODUCT_IDS:
             continue
         # Meta publication is explicit and fail-closed. Only rows deliberately marked
         # metaEnabled=true may enter the desired Meta catalogue. Missing, false, null, or
