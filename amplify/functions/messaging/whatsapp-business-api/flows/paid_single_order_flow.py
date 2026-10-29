@@ -172,6 +172,12 @@ def prepare_and_send(event: Dict[str, Any], lambda_client: Any) -> Dict[str, Any
 
     token = flow_sessions.mint_token(context["tokenPrefix"], phone, "1")
     try:
+        send_fields = whatsapp_templates.paid_service_flow_send_fields(
+            service_code, context["orderNumber"], token)
+    except ValueError:
+        return {"outcome": "SERVICE_FLOW_TEMPLATE_UNAVAILABLE", "serviceCode": service_code}
+
+    try:
         flow_sessions.record_session(
             db.Table(flow_sessions.table_name()),
             capability=context["capability"],
@@ -209,7 +215,7 @@ def prepare_and_send(event: Dict[str, Any], lambda_client: Any) -> Dict[str, Any
                 ":paid": "PAYMENT_PAID",
                 ":finalized": "ORDER_FINALIZED",
                 ":now": now,
-                ":template": whatsapp_templates._PAID_SERVICE_FLOW_TEMPLATES[service_code].name,
+                ":template": str(send_fields.get("templateName") or ""),
                 ":cap": context["capability"],
                 ":zero": 0,
                 ":one": 1,
@@ -222,8 +228,7 @@ def prepare_and_send(event: Dict[str, Any], lambda_client: Any) -> Dict[str, Any
         "contactId": contact_key.resolve(contact),
         "recipientPhone": phone,
         "phoneNumberId": WABA1_SENDER,
-        **whatsapp_templates.paid_service_flow_send_fields(
-            service_code, context["orderNumber"], token),
+        **send_fields,
     }
 
     answer = None
