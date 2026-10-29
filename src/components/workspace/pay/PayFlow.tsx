@@ -993,23 +993,30 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
               ) : (
                 <div className="pf-create-layout">
                   <div className="pf-composer-main">
-                  <div className="info-banner pf-customer-summary">
-                    <div style={ { flex: 1 } }><strong>{ selCustomer.name }</strong> { '\u2014' } { selCustomer.phone } { selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</div>
-                    <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
-                  </div>
-                  {/* Address display */ }
-                  { hasPayableDeliveryAddress( selCustomer ) ? (
-                    <div className="inner-card pf-delivery-summary">
-                      <div><strong>Delivery Address:</strong> { formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
-                    </div>
-                  ) : (
-                    <div className="info-banner pf-address-warning">
-                      This contact only has a legacy/free-text address. Add address line 1, city, state and postal code before creating a physical-goods payment.
-                      <div style={ { marginTop: 8 } }>
-                        <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer ) }>Edit delivery address</Button>
+                  <div className="pf-context-grid">
+                    <div className="info-banner pf-customer-summary">
+                      <div>
+                        <span className="pf-context-label">Customer</span>
+                        <strong>{ selCustomer.name }</strong>
+                        <span>{ selCustomer.phone }{ selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</span>
                       </div>
+                      <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
                     </div>
-                  ) }
+                    { hasPayableDeliveryAddress( selCustomer ) ? (
+                      <div className="inner-card pf-delivery-summary">
+                        <span className="pf-context-label">Delivery</span>
+                        <div>{ formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
+                      </div>
+                    ) : (
+                      <div className="info-banner pf-address-warning">
+                        <span className="pf-context-label">Delivery</span>
+                        <div>This contact only has a legacy/free-text address. Add address line 1, city, state and postal code before creating a physical-goods payment.</div>
+                        <div style={ { marginTop: 8 } }>
+                          <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer ) }>Edit delivery address</Button>
+                        </div>
+                      </div>
+                    ) }
+                  </div>
                   <div className="pf-composer-heading">
                     <div>
                       <div className="pf-composer-kicker">Step 2</div>
@@ -1094,43 +1101,50 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   { /* The server's answer about these codes is rendered ABOVE the customer step,
                        outside this branch, because a successful create clears the selected
                        customer and would otherwise unmount the one record of what was applied. */ }
-                  <div className="pf-form-grid">
-                    { /* No Brand field (owner instruction 2026-10-25): every invoice is issued by
-                         WECARE.DIGITAL, the invoice header prints it, and `invForm.purpose` still
-                         carries DEFAULT_BRAND into the create request. */ }
-                    <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
-                  </div>
-                  <div className="pf-form-grid">
-                    <div className="form-group">
-                      { /* The `.form-group` captions on this page are UNASSOCIATED labels - no
-                           `for`, no wrapped control - so they were never a name source and these
-                           controls had no accessible name at all. Each caption stays where it is
-                           and the control takes `ariaLabel`, which adds a name where there was
-                           none and changes nothing on screen. */ }
-                      <label>Send From</label>
-                      <Select ariaLabel="Send from" value={ sendPhone }
-                        onChange={ v => setSendPhone( v ) }
-                        options={ phoneSelectOptions } />
+                  <div className="pf-composer-card pf-payment-request-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Payment request</h4>
+                        <p>Choose the sender and optional order reference. Final fees and payable remain server-authoritative.</p>
+                      </div>
+                      <span className="pf-authority-badge">ORDER_DETAILS</span>
                     </div>
-                    <div className="form-group">
-                      <label>WhatsApp payment</label>
-                      <span>WECAREDIGITAL · ORDER_DETAILS template</span>
+                    <div className="pf-payment-grid">
+                      <div className="form-group">
+                        <label>Order ID</label>
+                        <input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" />
+                      </div>
+                      <div className="form-group">
+                        <label>Send From</label>
+                        <Select ariaLabel="Send from" value={ sendPhone }
+                          onChange={ v => setSendPhone( v ) }
+                          options={ phoneSelectOptions } />
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>Goods Type</label>
-                      <span>Physical goods — confirmed delivery address required</span>
+                    <div className="pf-payment-meta">
+                      <div>
+                        <span>WhatsApp payment</span>
+                        <strong>WECAREDIGITAL · ORDER_DETAILS</strong>
+                      </div>
+                      <div>
+                        <span>Goods type</span>
+                        <strong>Physical goods</strong>
+                      </div>
+                      <div>
+                        <span>Delivery</span>
+                        <strong>Confirmed address required</strong>
+                      </div>
                     </div>
-                  </div>
-                  { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
-                    <div className="msg-bar error" style={ { margin: '0 0 12px', fontSize: 'var(--text-xs)' } }>Physical goods require a shipping address. Add one in the Customers tab.</div>
-                  ) }
-                  <div className="info-banner" style={ { marginBottom: 20, maxWidth: 620 } }>
-                    Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
-                  </div>
-
-                  <div className="pf-composer-actions">
-                    <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
-                    <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                    { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
+                      <div className="msg-bar error" style={ { margin: '14px 0 0', fontSize: 'var(--text-xs)' } }>Physical goods require a shipping address. Add one in the Customers tab.</div>
+                    ) }
+                    <div className="pf-server-note">
+                      Convenience fee and final total are calculated by the server. The stored invoice remains the authority for subtotal, tax, Delight and total.
+                    </div>
+                    <div className="pf-composer-actions">
+                      <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                      <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                    </div>
                   </div>
                   </div>
 
