@@ -335,6 +335,24 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             return next;
         } );
         try {
+            const identityReady = await api.ensureCustomerPaymentIdentity();
+            if ( !identityReady.ok ) {
+                if ( identityReady.failure.status === 401 ) {
+                    clearSession();
+                    setFiles( [] );
+                    redirectToAuth();
+                    return;
+                }
+                setFileFeedback( current => ( {
+                    ...current,
+                    [ file.fileId ]: {
+                        kind: 'error',
+                        message: 'We could not prepare your verified WhatsApp identity. Nothing has been charged. Please try again.',
+                    },
+                } ) );
+                return;
+            }
+
             const result = await api.requestMySecureFilePayment( file.fileId );
             if ( !result.ok ) {
                 if ( result.failure.status === 401 ) {
