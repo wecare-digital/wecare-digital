@@ -1,6 +1,6 @@
 """F005 Request Amendment completion -> one linked amendment FlowSubmission + Inbox projection.
 
-The F005 draft is an endpointless-style Flow. Its terminal complete payload carries the
+The published F005 Request Amendment Flow is endpointless-style at completion. Its terminal complete payload carries the
 customer-entered existing request number and amendment text. The parent request remains the
 system of record: this module never overwrites its subject/description. Instead it creates one
 immutable child amendment row (flowCode WD_AMEND) and links it through parentSubmissionId after
@@ -18,16 +18,16 @@ import uuid
 from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 
-from lambda_utils import contact_store, flow_completion, shared_tables
+from lambda_utils import canonical_flows, contact_store, flow_completion, shared_tables
 from lambda_utils.privacy import mask_contact_id
 
 logger = logging.getLogger(__name__)
 
 FLOW_KEY = 'wd_f005_request_amendment'
 DESIGN_SERVICE = 'request-amendment'
-FLOW_ID = '1421471529574569'
+FLOW_ID = canonical_flows.canonical_flow_id('amend_request') or '2408621596338289'
 FLOW_CODE = 'WD_AMEND'
-FLOW_NAME = 'WD-F005-Request-Amendment'
+FLOW_NAME = 'WD-F004-Request-Amendment'
 FLOW_VERSION = '7.3'
 SUBMISSION_PREFIX = 'WD-AMD'
 
@@ -219,7 +219,7 @@ def save_amendment(data: Dict[str, Any], *, contact_id: str, phone: str, sender_
 
     result = flow_completion.claim_completion(
         flow_token=message_id,
-        screen='REVIEW',
+        screen='CONFIRMATION',
         flow_code=FLOW_CODE,
         flow_type='amendment',
         phone=contact_store.digits(phone),
