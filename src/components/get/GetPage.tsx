@@ -414,10 +414,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                     { error && (
                         <div className="sf-note sf-note-bad" id="sf-error" role="alert">{ error }</div>
                     ) }
-                    { stage === 'loading' && (
-                        <p className="sf-empty" role="status">Checking secure access…</p>
-                    ) }
-
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
