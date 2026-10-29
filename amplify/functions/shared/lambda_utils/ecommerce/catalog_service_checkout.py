@@ -199,8 +199,8 @@ def meta_ready(readiness: dict, kind: str) -> bool:
         return bool(buttons and buttons[0].get('type') == 'URL'
                     and buttons[0].get('url') == 'https://wecare.digital/vault/?file={{1}}')
     if kind == 'DROP_DOCS':
-        launch = templates.get('drop_docs_flow') or {}
-        if (launch.get('name') != 'drop_docs_flow'
+        launch = templates.get('_dropdoc_flow') or {}
+        if (launch.get('name') != '_dropdoc_flow'
                 or not template_status.is_sendable(launch.get('status'))
                 or launch.get('language') != 'en'):
             return False
