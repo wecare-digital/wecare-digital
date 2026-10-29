@@ -227,6 +227,36 @@ def test_secure_files_provisioner_pins_native_vault_payment_invoke():
     assert '"VAULT_PAYMENT_FUNCTION": f"{VAULT_PAYMENT_FUNCTION}:live"' in source
 
 
+def test_vault_payment_bootstraps_authenticated_customer_contact_before_send():
+    profile = (ROOT / "amplify/functions/auth/customer-profile/handler.py").read_text()
+    assert "bootstrap_only = creating and not body" in profile
+    assert "if creating and not bootstrap_only:" in profile
+    assert "if creating and not bootstrap_only and address is None:" in profile
+
+    api = (ROOT / "src/api/client.ts").read_text()
+    assert "ensureCustomerPaymentIdentity" in api
+    assert "/customer/profile" in api
+
+    page = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    ensure = page.index("ensureCustomerPaymentIdentity")
+    pay = page.index("requestMySecureFilePayment", ensure)
+    assert ensure < pay
+
+
+def test_native_vault_sender_tolerates_fresh_contact_index_lag_without_creating_identity():
+    source = (
+        ROOT
+        / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py"
+    ).read_text()
+    start = source.index("def _send_native_payment")
+    block = source[start:start + 6500]
+    assert "contact_store.find_by_phone" in block
+    assert "uuid.uuid5" in block
+    assert "ConsistentRead=True" in block
+    assert "customer-profile owns creation/linking" in block
+    assert "contacts.put_item" not in block
+
+
 def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
     source = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
     native = source.index("# Product/cart native checkout carries the frozen cart snapshot")
