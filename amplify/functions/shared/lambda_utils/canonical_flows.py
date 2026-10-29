@@ -30,7 +30,7 @@ CANONICAL_FLOWS = {
     'request_pickup': ('2988393421499259', 'PUBLISHED', 'WD-F005-Pick-Up-Request'),
     # F003 Drop Docs replacement, published on Meta 2026-10-28.
     'drop_docs':      ('39581903361452878', 'PUBLISHED', 'WD-F003-DROP-DOCS'),
-    'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
+    'shipments':      ('1804165164183485', 'PUBLISHED', 'WD-F006-Track-Shipping'),
     'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
