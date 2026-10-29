@@ -74,7 +74,10 @@ def test_checkout_public_boundary_is_ids_only_and_server_verifies_order():
     assert "customerId" in block
     assert "payment_status.CAPTURED" in block
     assert "verified_service_context=verified_context" in block
-    assert "price" not in block.lower()
+    assert 'body.get("price")' not in block
+    assert 'body.get("amount")' not in block
+    assert 'body.get("customerId")' not in block
+    assert 'body.get("orderId")' not in block
     assert "WD-REQ-" not in block
 
 
