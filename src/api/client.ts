@@ -7744,6 +7744,19 @@ export interface CustomerVaultPaymentRequest {
 }
 
 /**
+ * Ensure this authenticated customer has the shared phone-bound ContactsTable identity used by
+ * native WhatsApp payment. Empty POST is intentional: customer-profile may claim an existing
+ * WhatsApp contact or create only the minimal verified-phone contact; it does not invent profile
+ * fields or payment state.
+ */
+export async function ensureCustomerPaymentIdentity (): Promise<ApiResult<Record<string, unknown>>> {
+  return customerApiCall(
+    `${API_BASE}/customer/profile`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+/**
  * Ask the backend to send native WhatsApp Review and Pay for this exact owned Vault file.
  *
  * The browser supplies only the file id in the path. The customer-pool token proves the caller;
