@@ -2805,6 +2805,105 @@ def _send_contract_flow(capability: str, record: Dict, body: Dict, mode: str,
     return _resp(200, sent)
 
 
+
+def _send_shipments_flow(record: Dict, body: Dict, mode: str,
+                         auth: Optional[Dict]) -> Dict:
+    """Controlled staff send for F006 Track Shipping.
+
+    F006 has a dynamic first screen, so a server-issued session is recorded before Meta
+    receives the message.  FlowRegistry keeps this door manual: no keyword/menu route is
+    enabled here, and caller-supplied flow tokens are refused.
+    """
+    from flows import common as flow_common
+    from lambda_utils import contact_store
+
+    if mode == 'draft':
+        return _resp(400, {'error': 'F006 sends use the published Flow.'})
+    if body.get('flowToken'):
+        return _resp(400, {'error': 'Flow tokens for F006 are issued by the server.'})
+
+    actor = _actor(auth)
+    role = str((auth or {}).get('role') or '')
+    if not actor or flow_launch._ROLE_RANK.get(role, 0) < flow_launch._ROLE_RANK[flow_launch.MANUAL_SEND_MIN_ROLE]:
+        return _resp(403, {'error': 'Operator or Admin is required to send F006.'})
+
+    try:
+        registry = flow_launch.read_registry_row(
+            dynamodb.Table(FLOW_REGISTRY_TABLE), str(record.get('flowId') or ''))
+    except Exception as e:
+        logger.error(json.dumps({'event': 'f006_registry_read_failed',
+                                 'errorType': type(e).__name__}))
+        return _resp(503, {'error': 'Could not read FlowRegistry; nothing was sent.'})
+    if not registry:
+        return _resp(409, {'error': 'F006 is not registered for sending.'})
+    if (str(registry.get('status') or '') != 'PUBLISHED'
+            or str(registry.get('metaStatus') or '').upper() not in ('PUBLISHED', 'THROTTLED')
+            or str(registry.get('entryMode') or '') != 'manual'
+            or flow_launch.parse_bool(registry.get('requiresPayment'))
+            or str(registry.get('flowCode') or '') != 'shipments'):
+        return _resp(409, {'error': 'F006 FlowRegistry controls do not allow this send.'})
+
+    table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
+    to = str(body.get('to') or '').strip()
+    bsuid = str(body.get('recipient') or '').strip()
+    try:
+        if to:
+            phone = contact_store.digits(to)
+            if not phone:
+                return _resp(400, {'error': 'to must be a WhatsApp phone number'})
+        elif bsuid:
+            contact_row = contact_store.find_by_bsuid(table, bsuid) or {}
+            phone = contact_store.digits(contact_row.get('phone'))
+            if not phone:
+                return _resp(400, {'error': 'That WhatsApp ID has no phone-backed customer profile'})
+        else:
+            return _resp(400, {'error': 'to (phone number) or recipient (BSUID) is required'})
+    except contact_store.IdentityConflict:
+        return _resp(409, {'error': 'More than one customer profile claims this customer. '
+                                    'Resolve it in Customers first.'})
+
+    token = flow_sessions.mint_token('shipments', phone, '1')
+    try:
+        session = flow_sessions.record_session(
+            dynamodb.Table(flow_sessions.table_name()),
+            capability='shipments',
+            token=token,
+            launch_channel=flow_sessions.LAUNCH_STAFF,
+            initiated_by=actor,
+        )
+    except (flow_sessions.FlowSessionUnavailable, ValueError):
+        return _resp(503, {'error': 'Could not start the F006 Flow session; nothing was sent.'})
+
+    parameters: Dict[str, Any] = {
+        'flow_message_version': '3',
+        'flow_token': token,
+        'flow_id': record['flowId'],
+        'flow_cta': body.get('flowCta', 'Open'),
+        'flow_action': 'data_exchange',
+    }
+    interactive: Dict[str, Any] = {
+        'type': 'flow',
+        'body': {'text': body.get('bodyText', 'Tap below to continue')},
+        'action': {'name': 'flow', 'parameters': parameters},
+    }
+    if body.get('headerText'):
+        interactive['header'] = {'type': 'text', 'text': body['headerText']}
+    if body.get('footerText'):
+        interactive['footer'] = {'text': body['footerText']}
+
+    response = _send_message(
+        PHONE1_META_ID, {'type': 'interactive', 'interactive': interactive}, {'to': phone})
+    if response.get('statusCode') != 200:
+        return response
+    sent = json.loads(response.get('body') or '{}')
+    sent.update({
+        'flowCode': 'shipments',
+        'launchChannel': flow_sessions.LAUNCH_STAFF,
+        'sessionExpiresAt': session.expires_at,
+    })
+    return _resp(200, sent)
+
+
 def _send_flow_msg(body: Dict, auth: Optional[Dict] = None) -> Dict:
     """Send a WhatsApp Flow through the canonical published-flow registry.
 
@@ -2837,6 +2936,11 @@ def _send_flow_msg(body: Dict, auth: Optional[Dict] = None) -> Dict:
         record = canonical_flows.published_flow_by_id(requested_id)
     elif requested_name:
         record = canonical_flows.published_flow_by_name(requested_name)
+
+    # F006 is a manual-only published Flow with a dynamic first screen.  Keep its
+    # server-issued session path separate from legacy generic sends.
+    if record and str(record.get('capability') or '') == 'shipments':
+        return _send_shipments_flow(record, body, mode, auth)
 
     # A contract Flow is recognised by id even when its canonical record is not published,
     # so a draft-mode send can never reach it through the generic path below.
