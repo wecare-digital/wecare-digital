@@ -534,7 +534,10 @@ def route(event:dict)->dict|None:
    params=parse(event.get('rawQueryString',''))
    json_transport=path=='/auth/state'
    target=connect_origin()
-   if target!=origin()and path in{'/auth','/oauth/authorize'}:
+   request_host=str((event.get('requestContext')or{}).get('domainName')or'')
+   canonical_host=urlparse(target).netloc
+   redirect_to_main=path=='/oauth/authorize'or(path=='/auth'and request_host!=canonical_host)
+   if target!=origin()and redirect_to_main:
     if path=='/oauth/authorize'or{'client_id','redirect_uri','response_type','scope','state','resource','code_challenge','code_challenge_method'}.intersection(params):
      validate_authorize(params)
     elif set(params)-{'return'}:
