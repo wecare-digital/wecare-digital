@@ -219,11 +219,17 @@ def _launch_verified_attempt(
     except Exception:
         return {"outcome": "SERVICE_FLOW_RECONCILIATION_REQUIRED", "serviceCode": code}
 
+    action_data = None
+    if code in ("SUBMIT_REQUEST", "REQUEST_AMENDMENT"):
+        action_data = {"selected_target": "order:" + order_number}
+    elif code == "DROP_DOCS":
+        action_data = {"parent_order": order_number, "manual_order_number": ""}
+
     body = {
         "contactId": contact_key.resolve(contact),
         "recipientPhone": phone,
         "phoneNumberId": str(attempt.get("phoneId") or PRIMARY_SENDER),
-        **whatsapp_templates.service_flow_send_fields(code, token),
+        **whatsapp_templates.service_flow_send_fields(code, token, action_data),
     }
     answer = None
     try:

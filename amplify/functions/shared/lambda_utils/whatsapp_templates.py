@@ -193,24 +193,28 @@ def vault_offer_document_name(raw: object) -> str:
     return text[:60].rstrip() or "Your document"
 
 
-def service_flow_send_fields(service_code: object, flow_token: str) -> dict:
+def service_flow_send_fields(service_code: object, flow_token: str,
+                             flow_action_data: Optional[dict] = None) -> dict:
     """Outbound fields for a common-body service Flow launcher.
 
-    The approved body has zero customer variables. Only the language selector and the
-    server-issued Flow token travel at send time.
+    The approved body has zero customer variables. Authorization stays in the server-issued
+    Flow token. When a paid service already has one verified existing order, flow_action_data
+    supplies only that server-derived order context so the Flow can open after the redundant
+    target-picker screen. No browser-supplied value is forwarded here.
     """
     template = service_flow_template(service_code)
-    token = str(flow_token or "").strip()
+    token = str(flow_token or '').strip()
     if template is None:
         raise ValueError("Service Flow template is not registered")
     if not token:
         raise ValueError("Service Flow token required")
+    button = {"index": 0, "flowToken": token}
+    if flow_action_data:
+        button["flowActionData"] = dict(flow_action_data)
     return {"isTemplate": True, "templateName": template.name,
             "templateParams": [template.language],
             "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
-            "templateFlowButton": {"index": 0, "flowToken": token}}
-
-
+            "templateFlowButton": button}
 def drop_docs_flow_send_fields(flow_token: str) -> dict:
     """Backward-compatible wrapper for the canonical paid F003 launcher."""
     return service_flow_send_fields("DROP_DOCS", flow_token)

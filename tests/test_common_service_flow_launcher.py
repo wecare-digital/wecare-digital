@@ -18,7 +18,8 @@ def test_common_service_flow_templates_are_utility_and_variable_free():
     assert 'name="drop_docs_flow"' not in source
     assert 'category="MARKETING"' not in source
     assert '"templateParams": [template.language]' in source
-    assert '"templateFlowButton": {"index": 0, "flowToken": token}' in source
+    assert 'button = {"index": 0, "flowToken": token}' in source
+    assert 'button["flowActionData"] = dict(flow_action_data)' in source
 
 
 def test_common_launcher_is_after_payment_and_exactly_once():
@@ -34,6 +35,8 @@ def test_common_launcher_is_after_payment_and_exactly_once():
     assert '"ACCEPTED"' in source
     assert '"SEND_REJECTED"' in source
     assert 'FunctionName="wecare-outbound-whatsapp:live"' in source
+    assert 'action_data = {"selected_target": "order:" + order_number}' in source
+    assert 'action_data = {"parent_order": order_number, "manual_order_number": ""}' in source
 
 
 def test_pickup_stays_fail_closed_until_its_asset_is_pickup_specific():
