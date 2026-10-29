@@ -14,8 +14,7 @@
  *   done (PAID + order number)                                        -> "Payment received", in place
  *   failed / cancelled / expired                                      -> "Payment wasn't completed"
  *   disabled (initiation off) / unknown                               -> a neutral holding message
- *   no session, or a 401 for this attempt                             -> "Sign in to see this payment"
- *
+ */
  * A paid attempt also empties the browser cart that handed it off (`lib/checkoutHandoff`): only
  * when this tab's /cart/ recorded THIS attempt, so an older status link never clears a newer cart.
  * The poll stops after POLL_CEILING_MS; past that, a settling payment points at /orders/.
@@ -111,8 +110,7 @@ type View =
   | 'paid'
   | 'finalizing'
   | 'failed'
-  | 'unavailable'
-  | 'signin';
+  | 'unavailable';
 
 interface AttemptView {
   status?: string;
@@ -190,12 +188,6 @@ const COPY: Record<View, { title: string; body: string }> = {
     title: 'Nothing to show here',
     body: 'We could not find a payment to confirm. If you have just paid, check WhatsApp for your confirmation.',
   },
-  // No session, or the server would not show this payment to the one this tab holds. Only a
-  // sign-in can answer either, so the screen asks for it and claims nothing about the payment.
-  signin: {
-    title: 'Sign in to see this payment',
-    body: 'Sign in on the WhatsApp number you checked out with to see this payment and your order.',
-  },
 };
 
 export default function CheckoutStatus (): React.ReactElement {
@@ -216,9 +208,7 @@ export default function CheckoutStatus (): React.ReactElement {
     try { session = getSession() || await restoreSession(); } catch { return false; }
     if ( !session )
     {
-      // No session: the screen cannot prove ownership, so it asks for a sign-in rather than
-      // guessing, and stops polling.
-      setView( 'signin' );
+      window.location.replace( '/auth?return=/orders/' );
       return true;
     }
     try
@@ -233,9 +223,7 @@ export default function CheckoutStatus (): React.ReactElement {
       } );
       if ( response.status === 401 )
       {
-        // Terminal here: the token expired, or this attempt is not this session's. A sign-in on
-        // the right number answers both.
-        setView( 'signin' );
+        window.location.replace( '/auth?return=/orders/' );
         return true;
       }
       if ( !response.ok )
@@ -390,14 +378,6 @@ export default function CheckoutStatus (): React.ReactElement {
             </>
           )}
 
-          {view === 'signin' && (
-            <div className="co-actions">
-              {/* Back to the orders page after sign-in: the sign-in return path cannot carry this
-                  page's `?a=`, and the orders page lists this payment's order once it is paid. */}
-              <Link className="co-btn co-btn-primary" href="/auth?return=/orders/">Sign in</Link>
-              <Link className="co-btn co-btn-quiet" href="/shop/">Return to the store</Link>
-            </div>
-          )}
 
           {view === 'failed' && (
             <div className="co-actions">
@@ -457,8 +437,7 @@ export default function CheckoutStatus (): React.ReactElement {
              site's own alpha: the heading above states the outcome, so the disc is a position
              marker and not the message. */
           .co-mark-failed,
-          .co-mark-unavailable,
-          .co-mark-signin{background:rgba(0,0,0,.06)}
+          .co-mark-unavailable{background:rgba(0,0,0,.06)}
 
           /* The order number and the amount, on the same two rungs /checkout/success gives the
              order number: a 14px/700 uppercase label at the dim rung, and the 22px/700/-.25px

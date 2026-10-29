@@ -27,12 +27,19 @@ export default function CheckoutSuccess (): React.ReactElement {
     void ( async () => {
       try {
         const session = getSession() || await restoreSession();
-        if ( !session ) return;
+        if ( !session ) {
+          window.location.replace( '/auth?return=/orders/' );
+          return;
+        }
         const response = await fetch( STATUS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.accessToken}` },
           body: JSON.stringify( { action: 'status', paymentAttemptId: attemptId } ),
         } );
+        if ( response.status === 401 ) {
+          window.location.replace( '/auth?return=/orders/' );
+          return;
+        }
         if ( !response.ok ) return;
         const data = await response.json() as { attempt?: { status?: string; orderNumber?: string } };
         const number = data.attempt?.orderNumber || '';
