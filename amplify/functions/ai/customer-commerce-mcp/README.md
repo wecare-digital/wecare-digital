@@ -26,7 +26,6 @@ The backend exposes only:
 - `GET /.well-known/oauth-authorization-server`
 - `GET /oauth/authorize` — validates a cached authorization request and redirects
   to `https://wecare.digital/auth`
-- `POST /oauth/authorize` — one-step compatibility for already-open legacy forms
 - `POST /oauth/token`
 - `POST /oauth/revoke`
 - `GET /auth/state`
