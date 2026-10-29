@@ -90,7 +90,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
-    // On by default: an unpaid document is only useful once its owner receives the Vault offer.
+    // On by default: an unpaid document is only useful once its owner receives native Review & Pay.
     const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
@@ -288,7 +288,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
             toast.success( `${displayName.trim() || file.name} registered to ${name.trim()}` );
             if ( requestAfterUpload )
             {
-                setStep( 'Sending the Vault offer on WhatsApp…' );
+                setStep( 'Sending Review & Pay on WhatsApp…' );
                 reportAction( await api.requestSecureFilePayment( ticket.data.fileId ) );
             }
             resetForm();
@@ -388,7 +388,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
 
                         <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-display">
-                                Vault message name <span className="sf-label-opt">({ '{{1}}' } in wecare_vault_request_ready)</span>
+                                Vault document name
                             </label>
                             <input
                                 id="sf-display"
@@ -400,7 +400,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                 disabled={ uploading }
                             />
                             <p className="sf-hint">
-                                Used as the document name in the Vault offer and customer Vault. Empty uses the file name.
+                                Used in the customer Vault and native payment details. Empty uses the file name.
                             </p>
                         </div>
 
@@ -447,11 +447,10 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                     onChange={ e => setRequestAfterUpload( e.target.checked ) }
                                     disabled={ uploading }
                                 />
-                                <span>Send the Vault offer on WhatsApp after upload</span>
+                                <span>Send Review &amp; Pay on WhatsApp after upload</span>
                             </label>
                             <p className="sf-hint">
-                                The customer gets the approved Vault request-ready message with the WECARE image header and an <strong>Unlock Vault</strong> button.
-                                Tapping it opens Review &amp; Pay for this exact file; Access Vault follows once paid.
+                                The backend sends the approved native payment template with <strong>Review and Pay</strong> for this exact file. Vault has no Flow; Access Vault follows after verified payment.
                             </p>
                         </div>
                     </div>
@@ -585,8 +584,8 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                                                 { acting === row.fileId
                                                                     ? 'Sending…'
                                                                     : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? 'Send renewal offer'
-                                                                        : 'Send Vault offer' }
+                                                                        ? 'Send renewal payment'
+                                                                        : 'Send Review & Pay' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (

@@ -191,6 +191,41 @@ def test_browser_skips_legacy_intent_and_cart_for_request_services():
     assert "Payment request sent to your registered WhatsApp number." in source
 
 
+def test_vault_browser_uses_native_whatsapp_and_never_seeds_cart():
+    source = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    assert "requestMySecureFilePayment" in source
+    assert "Sending to WhatsApp…" in source
+    assert "registered WhatsApp number" in source
+    assert "postRequestIntent" not in source
+    assert "setServiceLine" not in source
+    assert "CHECKOUT_PATH" not in source
+    assert "router.push" not in source
+    assert "Review this document in your cart" not in source
+    assert "sf-note-bad" not in source
+
+
+def test_customer_vault_payment_reproves_file_and_uses_native_payment_sender():
+    source = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+    customer = source[source.index("def _customer_request_payment"):
+                      source.index("\ndef _admin_request_payment")]
+    native = source[source.index("def _start_native_vault_payment"):
+                    source.index("\ndef _customer_request_payment")]
+    assert "_owned_active_file(file_id, identity)" in customer
+    assert 'state in ("OPEN", "READY")' in customer
+    assert 'state == "PAID_UNVERIFIED"' in customer
+    assert '"action": "sendPayment"' in native
+    assert '"ownerCustomerId": str(item["ownerCustomerId"])' in native
+    assert '"ownerPhone": str(item["ownerPhone"])' in native
+    assert "no website cart" in native
+    assert "no Meta Flow" in native
+
+
+def test_secure_files_provisioner_pins_native_vault_payment_invoke():
+    source = (ROOT / "scripts/provision_secure_files_api.py").read_text()
+    assert 'VAULT_PAYMENT_FUNCTION = "wecare-whatsapp-business-api"' in source
+    assert 'function:{VAULT_PAYMENT_FUNCTION}:*' in source
+    assert '"VAULT_PAYMENT_FUNCTION": f"{VAULT_PAYMENT_FUNCTION}:live"' in source
+
 
 def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
     source = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
