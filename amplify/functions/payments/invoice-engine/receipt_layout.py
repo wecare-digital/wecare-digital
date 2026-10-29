@@ -1,8 +1,8 @@
-"""WECARE.DIGITAL customer PAYMENT RECEIPT v13.
+"""WECARE.DIGITAL customer PAYMENT RECEIPT v14.
 
 Fixed-coordinate B2C renderer mapped to the owner-approved 1024 x 1536 reference receipt.
-The final paper treatment is transparent outside the receipt, with a thin neutral border on all
-four sides, straight left/right edges, and small receipt-cut zig-zags on the top and bottom only.
+The final paper treatment is transparent outside the receipt, with a thin neutral border and
+small receipt-cut zig-zags on all four sides, matching the approved owner mock.
 Content the reference does not contain (more item lines, more or fewer totals rows, a second
 amount-in-words line) moves everything below it instead of overlapping, so the canvas height
 follows the content; the two-line specimen is exactly 1024 x 1536. Long values shrink to fit
@@ -311,14 +311,14 @@ def _dotted_rule(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int) -> None:
 
 # ─── Paper frame ───────────────────────────────────────────────────────────────────────────────
 def _paper_polygon(bottom: float) -> list[tuple[float, float]]:
-    """Final B2C silhouette: straight sides, small zig-zag teeth only top and bottom."""
+    """Approved silhouette: small, even receipt-cut zig-zags on all four sides."""
     x0, x1 = PAPER_LEFT, PAPER_RIGHT
     y0, y1 = PAPER_TOP, bottom
     amp = EDGE_TOOTH_DEPTH
     step = EDGE_TOOTH_HALF_STEP
     pts: list[tuple[float, float]] = []
 
-    # Top: alternating small teeth.
+    # Top edge.
     x = x0
     pts.append((x0, y0))
     flip = 0
@@ -328,10 +328,16 @@ def _paper_polygon(bottom: float) -> list[tuple[float, float]]:
         flip += 1
     pts.append((x1, y0))
 
-    # Right side: intentionally straight.
+    # Right edge.
+    y = y0
+    flip = 0
+    while y + step < y1:
+        y += step
+        pts.append((x1 + (amp if flip % 2 == 0 else -amp), y))
+        flip += 1
     pts.append((x1, y1))
 
-    # Bottom: alternating teeth, mirrored back to the left.
+    # Bottom edge.
     x = x1
     flip = 0
     while x - step > x0:
@@ -340,9 +346,15 @@ def _paper_polygon(bottom: float) -> list[tuple[float, float]]:
         flip += 1
     pts.append((x0, y1))
 
-    # Left side closes straight.
-    return pts
+    # Left edge.
+    y = y1
+    flip = 0
+    while y - step > y0:
+        y -= step
+        pts.append((x0 + (-amp if flip % 2 == 0 else amp), y))
+        flip += 1
 
+    return pts
 
 def _frame(canvas: Image.Image, bottom: float) -> None:
     """Transparent exterior, white paper, subtle neutral shadow, and thin grey outline.
@@ -369,7 +381,7 @@ def _frame(canvas: Image.Image, bottom: float) -> None:
     paper_layer.putalpha(paper_mask)
     canvas.alpha_composite(paper_layer)
 
-    # Thin neutral border follows all four sides; zig-zag only top/bottom.
+    # Thin neutral border follows the approved zig-zag silhouette on all four sides.
     border_mask = Image.new("L", (w * ss, h * ss), 0)
     bd = ImageDraw.Draw(border_mask)
     bd.line(scaled + [scaled[0]], fill=255, width=max(1, round(BORDER_WIDTH * ss)), joint="curve")
