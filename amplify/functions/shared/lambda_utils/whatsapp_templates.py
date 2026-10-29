@@ -31,8 +31,11 @@ the production code and checks it against these live definitions:
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
     VAULT_OFFER    wecare_vault_request_ready             LEGACY compatibility only for already-sent
                                                           QUICK_REPLY "Unlock Vault" messages
-    DROP_DOCS_FLOW drop_docs_flow                         IMAGE header, FLOW button index 0
-                                                          (F003 SELECT_TARGET)
+    SUBMIT_FLOW    submit_request_flow                    UTILITY, IMAGE header, FLOW button
+    AMEND_FLOW     request_amendment_flow                 UTILITY, IMAGE header, FLOW button
+    DROP_DOCS_FLOW _dropdoc_flow                          UTILITY, IMAGE header, FLOW button
+    PICKUP_FLOW    pickup_request_flow                    UTILITY, IMAGE header, FLOW button
+    TRACK_FLOW     track_ship_flow                        UTILITY, IMAGE header, FLOW button
 
 `wecare_whatapp_native_pay_template` is the real approved spelling ("whatapp"); do not "fix" it.
 
@@ -113,11 +116,27 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 #: while old WhatsApp messages may still be tapped.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
-DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="MARKETING",
+SUBMIT_FLOW = Template(name="submit_request_flow", language="en", category="UTILITY",
+                       header="image", buttons=("flow",))
+AMEND_FLOW = Template(name="request_amendment_flow", language="en", category="UTILITY",
+                      header="image", buttons=("flow",))
+DROP_DOCS_FLOW = Template(name="_dropdoc_flow", language="en", category="UTILITY",
                           header="image", buttons=("flow",))
+PICKUP_FLOW = Template(name="pickup_request_flow", language="en", category="UTILITY",
+                       header="image", buttons=("flow",))
+TRACK_FLOW = Template(name="track_ship_flow", language="en", category="UTILITY",
+                      header="image", buttons=("flow",))
+
+PAID_SERVICE_FLOW_TEMPLATES = {
+    "submit_request": SUBMIT_FLOW,
+    "amend_request": AMEND_FLOW,
+    "drop_docs": DROP_DOCS_FLOW,
+    "request_pickup": PICKUP_FLOW,
+}
 
 ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
-                             LOCATION_PIN, VAULT_OFFER, DROP_DOCS_FLOW)
+                             LOCATION_PIN, VAULT_OFFER, SUBMIT_FLOW, AMEND_FLOW,
+                             DROP_DOCS_FLOW, PICKUP_FLOW, TRACK_FLOW)
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
@@ -166,19 +185,64 @@ def vault_offer_document_name(raw: object) -> str:
     return text[:60].rstrip() or "Your document"
 
 
-def drop_docs_flow_send_fields(flow_token: str) -> dict:
-    """Outbound fields for the paid F003 launch template.
+def paid_service_flow_send_fields(capability: str, flow_token: str,
+                                  order_number: str) -> dict:
+    """Fields for one paid single-order service launcher.
 
-    The FLOW button needs the exact server-issued token recorded before the send, and the IMAGE
-    header must be supplied at send time or Meta rejects the message.
+    The visible body value and the Flow action data are derived from the same verified public
+    Order Number. The caller must have recorded the Flow session before invoking the sender.
     """
+    key = str(capability or "").strip()
+    template = PAID_SERVICE_FLOW_TEMPLATES.get(key)
+    token = str(flow_token or "").strip()
+    order = str(order_number or "").strip().upper()
+    if template is None:
+        raise ValueError("Unknown paid service Flow capability")
+    if not token:
+        raise ValueError("Paid service Flow token required")
+    if not order.startswith("WD-ORD-"):
+        raise ValueError("Paid service Order Number required")
+
+    if key in ("submit_request", "amend_request"):
+        action_data = {"selected_target": "order:" + order}
+    elif key in ("drop_docs", "request_pickup"):
+        action_data = {"parent_order": order, "manual_order_number": ""}
+    else:
+        raise ValueError("Unsupported paid service Flow capability")
+
+    return {
+        "isTemplate": True,
+        "templateName": template.name,
+        "templateParams": [template.language, order],
+        "templateHeaderMedia": VAULT_HEADER_IMAGE,
+        "templateHeaderType": "image",
+        "templateFlowButton": {
+            "index": 0,
+            "flowToken": token,
+            "flowActionData": action_data,
+        },
+    }
+
+
+def drop_docs_flow_send_fields(flow_token: str, order_number: str = "") -> dict:
+    """Compatibility wrapper for F003 callers.
+
+    New single-order callers pass the verified Order Number. Legacy ServiceRequests callers still
+    launch through SELECT_TARGET and therefore omit it.
+    """
+    if order_number:
+        return paid_service_flow_send_fields("drop_docs", flow_token, order_number)
     token = str(flow_token or "").strip()
     if not token:
         raise ValueError("Drop Docs Flow token required")
-    return {"isTemplate": True, "templateName": DROP_DOCS_FLOW.name,
-            "templateParams": [DROP_DOCS_FLOW.language],
-            "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
-            "templateFlowButton": {"index": 0, "flowToken": token}}
+    return {
+        "isTemplate": True,
+        "templateName": DROP_DOCS_FLOW.name,
+        "templateParams": [DROP_DOCS_FLOW.language],
+        "templateHeaderMedia": VAULT_HEADER_IMAGE,
+        "templateHeaderType": "image",
+        "templateFlowButton": {"index": 0, "flowToken": token},
+    }
 
 
 def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
@@ -196,6 +260,9 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
 
 
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "VAULT_OFFER", "DROP_DOCS_FLOW", "ALL", "POST_PAYMENT_FORBIDDEN",
-           "by_name", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
-           "drop_docs_flow_send_fields", "vault_offer_document_name", "vault_offer_send_fields"]
+           "LOCATION_PIN", "VAULT_OFFER", "SUBMIT_FLOW", "AMEND_FLOW", "DROP_DOCS_FLOW",
+           "PICKUP_FLOW", "TRACK_FLOW", "PAID_SERVICE_FLOW_TEMPLATES", "ALL",
+           "POST_PAYMENT_FORBIDDEN", "by_name", "VAULT_HEADER_IMAGE",
+           "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
+           "paid_service_flow_send_fields", "drop_docs_flow_send_fields",
+           "vault_offer_document_name", "vault_offer_send_fields"]
