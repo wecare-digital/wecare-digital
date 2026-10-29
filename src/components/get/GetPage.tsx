@@ -407,15 +407,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         </div>
                     ) }
 
-                    {/* Errors here concern file access or loading only. Customer authentication
-                        itself is owned exclusively by /auth. */}
+                    {/* id is load-bearing: PhoneField and PillButton above point their
+                        aria-describedby at it, so a screen-reader user who tabs back to the field
+                        to correct it is told which control is at fault. The error is rendered here,
+                        above the form, rather than beside the field it concerns. */}
                     { error && (
                         <div className="sf-note sf-note-bad" id="sf-error" role="alert">{ error }</div>
                     ) }
-                    { stage === 'loading' && (
-                        <p className="sf-empty" role="status">Checking secure access…</p>
-                    ) }
-
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (

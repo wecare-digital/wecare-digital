@@ -23,7 +23,6 @@ import {
   isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
-import { whatsappServiceLink } from '../../config/whatsappServiceEntries';
 import OrderDetail from './OrderDetail';
 
 /**
@@ -47,16 +46,9 @@ import OrderDetail from './OrderDetail';
  * THE PAGE IS PUBLIC AND INDEXED, WHICH IS A CONSTRAINT ON THE FIRST RENDER. /orders is in
  * PUBLIC_PAGE_META, the sitemap allowlist and public-pages.json, and generate-sitemap.js refuses
  * a URL that is both allowlisted and blocked - so there is no noindex here, and the static export
- * is a real public page. The SERVER-RENDERED state is therefore `signedOut`: a useful page saying
- * what this is for plus the sign-in control, with no personal data. `loading` must never be the
- * first render, or the indexed headline would be "Loading…". The order list is client-only, which
- * is correct: it is per-person and must never sit in a static artifact.
- *
- * NO CODE IS SENT FROM THIS PAGE. The sign-in control is a LINK into the existing flow at
- * /auth (which owns all four of its phases, the two-codes-not-one registration path
- * and the owner's approved failure strings). Reimplementing any of that here is the one kind of
- * near-miss that is a sign-in outage. See the note on the gate below for why the label reads
- * "Sign in on WhatsApp".
+ * is a real public page. Personal order data remains client-only and is never emitted into the
+ * static artifact. Authentication is not rendered here: on hydration, a missing customer session
+ * redirects immediately to /auth?return=/orders/. /auth owns the complete phone/OTP flow.
  *
  * WHAT THIS PAGE DOES NOT CLAIM. It lists paid website orders, read from one bounded query over
  * the caller's own partition. It is not a tracker for a request or a booking, and the empty state
@@ -139,7 +131,7 @@ interface OrdersResponse {
  * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
  * export still renders `signedOut` first and the indexed page is unchanged.
  */
-type View = 'signedOut' | 'loading' | 'ready' | 'empty' | 'error' | 'focus';
+type View = 'loading' | 'ready' | 'empty' | 'error' | 'focus';
 type Failure = 'rate' | 'unavailable';
 
 type Outcome =
@@ -369,9 +361,8 @@ async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
 }
 
 export default function OrdersPage (): React.ReactElement {
-  const [ view, setView ] = useState<View>( 'signedOut' );
+  const [ view, setView ] = useState<View>( 'loading' );
   const [ failure, setFailure ] = useState<Failure>( 'unavailable' );
-  const [ expired, setExpired ] = useState( false );
   const [ token, setToken ] = useState( '' );
   const [ orders, setOrders ] = useState<OrderRow[]>( [] );
   const [ cursor, setCursor ] = useState( '' );
@@ -520,8 +511,7 @@ export default function OrdersPage (): React.ReactElement {
     setOrders( [] );
     setCursor( '' );
     setProfile( null );
-    setExpired( true );
-    setView( 'signedOut' );
+    window.location.replace( '/auth?return=/orders/' );
   };
 
   const applyFirstPage = ( data: OrdersResponse ) => {
@@ -539,9 +529,8 @@ export default function OrdersPage (): React.ReactElement {
     setView( 'error' );
   };
 
-  // The mount effect. `signedOut` is already rendered, so the only job is to find a session and
-  // move off it. restoreSession's rejection is swallowed into `signedOut` rather than into the
-  // error state: a failed silent refresh is not something the customer did.
+  // The mount effect owns the customer gate. /orders never renders a second sign-in surface:
+  // a missing or unrestorable customer session goes straight to the canonical /auth route.
   useEffect( () => {
     let live = true;
     ( async () => {
@@ -555,13 +544,14 @@ export default function OrdersPage (): React.ReactElement {
       if ( !session )
       {
         try { session = await restoreSession(); }
-        catch { /* stay signedOut */ }
+        catch { session = null; }
       }
       if ( !live ) return;
       if ( requested ) setFocusOrder( requested );
       if ( !session )
       {
         if ( requested ) stashPendingOrder( requested );
+        window.location.replace( '/auth?return=/orders/' );
         return;
       }
       setToken( session.accessToken );
@@ -698,42 +688,6 @@ export default function OrdersPage (): React.ReactElement {
               "nothing conversion-shaped in the band" rule. No page-level JSON-LD - _app.tsx owns
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
-          { view === 'signedOut' && (
-            <div className="ord-gate">
-              { expired && (
-                <p className="ord-notice" role="status">
-                  Your sign-in has expired. Sign in again to see your orders.
-                </p>
-              ) }
-              <p className="ord-p">
-                { focusOrder
-                  ? <>Sign in on your WhatsApp number to see order <span data-wc-no-translate>{ focusOrder }</span>.</>
-                  : 'Sign in on your WhatsApp number to see your orders.' }
-              </p>
-              { /* TWO WAYS IN, and each label says where it goes. "Sign in here" NAVIGATES to the
-                   on-site form (/auth) where the shopper enters their number and the
-                   code is delivered over WhatsApp - it opens the form, it does not send a code, so
-                   "here" (on the site) is the honest label. The sibling "Sign in on WhatsApp" opens
-                   the WhatsApp chat instead. /orders/ is in safeReturnPath's ALLOWED set, so the
-                   return survives rather than falling back to /cart/. PillButton renders ONLY
-                   `action`, so each string is both the visible text and the accessible name. */ }
-              <PillButton
-                as="a"
-                href="/auth?return=/orders/"
-                action="Sign in here"
-              />
-              <PillButton
-                as="a"
-                href={ whatsappServiceLink( 'orders' ) }
-                action="Sign in on WhatsApp"
-              />
-            </div>
-          ) }
-
-          { view === 'loading' && (
-            <p className="ord-p" role="status">Loading your orders…</p>
-          ) }
-
           { view === 'focus' && focusOrder && token && (
             <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
           ) }
