@@ -274,6 +274,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [editingContact, setEditingContact] = useState<api.Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [showImport, setShowImport] = useState(false);
   const toast = useToastContext();
   const confirm = useConfirm();
@@ -484,6 +485,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
     setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
+    setFormError('');
   };
 
   // Keyboard shortcuts
@@ -596,21 +598,30 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const handleCreate = async () => {
-    if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
-    if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
-    if (!formPhone && !formEmail) { toast.warning('Phone or email is required'); return; }
+    setFormError('');
+    const fail = ( message: string, fieldId?: string ) => {
+      setFormError(message);
+      toast.warning(message);
+      if ( fieldId ) requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
+    };
+    if (formName.trim().length > 200) { fail('Full name is too long (max 200 characters)', 'contact-name'); return; }
+    if (formProfileUsername.trim().length > 50) { fail('WhatsApp username is too long (max 50 characters)', 'contact-profile-username'); return; }
+    if (!formPhone && !formEmail) {
+      fail('Enter a WhatsApp phone or email. For payment testing, enter the WhatsApp phone number.', 'contact-phone');
+      return;
+    }
     if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
-      toast.warning('Invalid phone number format'); return;
+      fail('Invalid phone number format. Use the country code selector and enter the mobile number.', 'contact-phone'); return;
     }
     if (formEmail && !isValidEmail(formEmail)) {
-      toast.warning('Invalid email format'); return;
+      fail('Invalid email format', 'contact-email'); return;
     }
     const dup = checkDuplicate(formPhone, formEmail);
-    if (dup) { toast.warning(dup); return; }
+    if (dup) { fail(dup, formPhone ? 'contact-phone' : 'contact-email'); return; }
     const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
     setSaving(true);
     try {
-      const result = await api.createContact({
+      const result = await api.createContactResult({
         name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
         bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
         ...addressFieldsForPayload(),
@@ -618,9 +629,22 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
       } as any);
-      if (result) { toast.success('Customer created'); setShowModal(false); resetForm(); await loadContacts(); }
-      else toast.error('Failed to create contact');
-    } catch { toast.error('Failed to create contact'); }
+      if (result.ok && result.data) {
+        toast.success('Customer created');
+        setShowModal(false);
+        resetForm();
+        await loadContacts();
+      } else if (!result.ok) {
+        setFormError(result.failure.message || 'Contact was not created');
+        toast.error(result.failure.message || 'Contact was not created');
+      } else {
+        setFormError('Contact was not created. Check the customer details and try again.');
+        toast.error('Contact was not created');
+      }
+    } catch {
+      setFormError('Contact was not created because the request failed. Try again.');
+      toast.error('Failed to create contact');
+    }
     finally { setSaving(false); }
   };
 
@@ -949,6 +973,56 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <label htmlFor="contact-name" style={S.label}>Full name *</label>
         <input id="contact-name" style={S.input} value={formName} onChange={e => setFormName(e.target.value)} placeholder="Full name" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
       </div>
+      <div className="contacts-form-contact">
+        <div>
+          <label htmlFor="contact-phone" style={S.label}>WhatsApp phone <span className="contacts-required-note">Required for payment testing</span></label>
+          <div className="contacts-phone-control">
+            <div className="contacts-country-code">
+              <input
+                type="text"
+                value={showCountryDropdown ? countrySearch : formCountryCode}
+                onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); setFormError(''); }}
+                onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
+                onBlur={(e) => {
+                  const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
+                  if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
+                  setShowCountryDropdown(false);
+                }}
+                placeholder="Code"
+                aria-label="Phone country code"
+                style={{ ...S.input, width: '100%', cursor: 'pointer' }}
+                onFocusCapture={focusStyle}
+                onBlurCapture={blurStyle}
+              />
+              {showCountryDropdown && (
+                <div data-country-dropdown tabIndex={-1} className="contacts-country-dropdown">
+                  {COUNTRY_CODES
+                    .filter(cc =>
+                      cc.code.includes(countrySearch) ||
+                      cc.country.toLowerCase().includes(countrySearch.toLowerCase())
+                    )
+                    .map(cc => (
+                      <div
+                        key={cc.code}
+                        tabIndex={-1}
+                        onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); setFormError(''); }}
+                        className="contacts-country-option"
+                      >
+                        {cc.code} {cc.country}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+            <input id="contact-phone" style={S.input} value={formPhone} onChange={e => { setFormPhone(e.target.value); setFormError(''); }} placeholder="Mobile number" maxLength={20} onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+          <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp payment requests.</p>
+        </div>
+        <div>
+          <label htmlFor="contact-email" style={S.label}>Email <span className="contacts-required-note">or phone required</span></label>
+          <input id="contact-email" style={S.input} type="email" value={formEmail} onChange={e => { setFormEmail(e.target.value); setFormError(''); }} placeholder="name@example.com" onFocus={focusStyle} onBlur={blurStyle} />
+        </div>
+      </div>
       <div>
         <label htmlFor="contact-profile-username" style={S.label}>WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
         <input id="contact-profile-username" style={S.input} value={formProfileUsername} onChange={e => setFormProfileUsername(e.target.value)} placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50} onFocus={focusStyle} onBlur={blurStyle} />
@@ -1016,56 +1090,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
         <p style={{ ...S.label, marginBottom: 2 }}>Contact &amp; system identity</p>
         <p style={S.hint}>These fields are separate from the customer-entered F001 Subscribe profile.</p>
-      </div>
-      <div>
-        <label htmlFor="contact-phone" style={S.label}>Phone</label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <div style={{ position: 'relative', width: 120, flexShrink: 0 }}>
-            <input
-              type="text"
-              value={showCountryDropdown ? countrySearch : formCountryCode}
-              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); }}
-              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
-              onBlur={(e) => {
-                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
-                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
-                setShowCountryDropdown(false);
-              }}
-              placeholder="Code"
-              aria-label="Phone country code"
-              style={{ ...S.input, width: '100%', cursor: 'pointer' }}
-              onFocusCapture={focusStyle}
-              onBlurCapture={blurStyle}
-            />
-            {showCountryDropdown && (
-              <div data-country-dropdown tabIndex={-1} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 1000 }}>
-                {COUNTRY_CODES
-                  .filter(cc =>
-                    cc.code.includes(countrySearch) ||
-                    cc.country.toLowerCase().includes(countrySearch.toLowerCase())
-                  )
-                  .map(cc => (
-                    <div
-                      key={cc.code}
-                      tabIndex={-1}
-                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 'var(--text-sm)', color: '#374151', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                    >
-                      {cc.code} {cc.country}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-          <input id="contact-phone" style={S.input} value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="[Phone]" maxLength={20} onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <p style={S.hint}>Include country code</p>
-      </div>
-      <div>
-        <label htmlFor="contact-email" style={S.label}>Email</label>
-        <input id="contact-email" style={S.input} type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="[email]" onFocus={focusStyle} onBlur={blurStyle} />
       </div>
       <div style={S.row}>
         <div>
@@ -1515,6 +1539,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
+            {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
