@@ -297,7 +297,76 @@ def reconcile_payment(*,
         return _blocked(PROVIDER_PAYMENT_CONFLICT, "verified payment has no provider id",
                         payment_attempt_id=attempt_id)
 
-    # ── claim, then number. Only the winner numbers, so a loser burns nothing ──
+    # ── single-order service: claim THIS payment against the existing order identity ──
+    #
+    # The authenticated start boundary already resolved and ownership-checked this order. After
+    # capture we still do not mint a second internal/public order identity: the payment-attempt
+    # and provider-payment claims point at the selected existing order. finalization.accept_paid
+    # re-reads OrderTable and re-verifies owner + public number before appending the paid activity.
+    if attempt.get("singleOrderService") is True:
+        selected_order_id = str(attempt.get("selectedOrderId") or "")
+        selected_order_number = str(attempt.get("selectedOrderNumber") or "")
+        if not selected_order_id or not order_keys.is_public_order_number(selected_order_number):
+            return _blocked(IDENTITY_UNAVAILABLE,
+                            "single-order service attempt has no usable existing order identity",
+                            payment_attempt_id=attempt_id,
+                            provider_payment_id=provider_payment_id)
+        try:
+            claimed_id, won = order_keys.claim_order_for_payment(
+                table,
+                payment_attempt_id=attempt_id,
+                order_id=selected_order_id,
+                provider_transaction_id=provider_payment_id,
+                key_attr=key_attr,
+                extra={"referenceId": reference_id, "singleOrderService": True},
+            )
+            if not won:
+                adopted = (
+                    order_keys.resolve_order_for_provider_payment(
+                        table, provider_payment_id, key_attr=key_attr)
+                    or order_keys.resolve_order_for_payment(
+                        table, attempt_id, key_attr=key_attr)
+                    or {}
+                )
+                if adopted.get("paymentAttemptId") != attempt_id:
+                    return _blocked(
+                        PROVIDER_PAYMENT_CONFLICT,
+                        "provider payment is already bound to another attempt",
+                        payment_attempt_id=attempt_id,
+                        provider_payment_id=provider_payment_id,
+                    )
+                claimed_id = str(adopted.get("orderIdRef") or claimed_id)
+            if claimed_id != selected_order_id:
+                return _blocked(
+                    IDENTITY_UNAVAILABLE,
+                    "single-order service payment resolved to a different order",
+                    payment_attempt_id=attempt_id,
+                    provider_payment_id=provider_payment_id,
+                )
+            recorded_number = order_keys.record_order_number_on_claim(
+                table,
+                payment_attempt_id=attempt_id,
+                order_number=selected_order_number,
+                key_attr=key_attr,
+            )
+        except (order_keys.OrderIdentityUnavailable, ValueError) as error:
+            return _blocked(
+                IDENTITY_UNAVAILABLE,
+                f"could not bind service payment to existing order: {type(error).__name__}",
+                payment_attempt_id=attempt_id,
+                provider_payment_id=provider_payment_id,
+            )
+        return ReconciliationOutcome(
+            ORDER_ALREADY_EXISTS,
+            "verified service capture bound to the selected existing order",
+            order_id=selected_order_id,
+            order_number=recorded_number,
+            payment_attempt_id=attempt_id,
+            provider_payment_id=provider_payment_id,
+            verified_captured_paise=provider_amount,
+        )
+
+    # ── ordinary purchase: claim, then number. Only the winner numbers ──
     order_id = order_keys.new_order_id()
     try:
         claimed_id, won = order_keys.claim_order_for_payment(
