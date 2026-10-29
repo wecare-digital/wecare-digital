@@ -2405,10 +2405,13 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
                            body: Dict[str, Any], origin: str) -> Dict[str, Any]:
     """Start one paid request service against one EXISTING owned order.
 
-    Public input is deliberately only ``serviceCode + selectedOrderNumber``. Customer id,
-    price, SKU, internal order id, phone and Flow identity are all server-owned. The public order
-    number resolves through the immutable CommerceKeys ORDERNO# reservation, then the OrderTable
-    row is re-read and ownership/status are verified before the context is allowed near checkout.
+    Public input for Flow-backed services is deliberately only
+    ``serviceCode + selectedOrderNumber``. Customer id, price, SKU, internal order id, phone
+    and Flow identity are all server-owned. Vault is not accepted here: it is bought per secure
+    file from /get/ and must carry a server-verified file binding before any payment exists.
+    The public order number resolves through the immutable CommerceKeys ORDERNO# reservation,
+    then the OrderTable row is re-read and ownership/status are verified before the context is
+    allowed near checkout.
     """
     if not isinstance(body, dict):
         return cors_response(400, {"error": "INVALID_REQUEST"}, origin)
@@ -2421,6 +2424,10 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
     contract = request_service_contracts.request_service_contract(service_code)
     if contract is None:
         return cors_response(400, {"error": "UNKNOWN_SERVICE"}, origin)
+    if contract.fulfillment_kind != "flow":
+        # Vault is deliberately absent from the generic request rail. Charging it without the
+        # exact owned secure file would create money with nothing safe to unlock.
+        return cors_response(409, {"error": "SERVICE_REQUIRES_SECURE_FILE"}, origin)
     if not order_keys.is_public_order_number(selected_order_number):
         return cors_response(400, {"error": "INVALID_ORDER_NUMBER"}, origin)
 
@@ -2457,6 +2464,7 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
         "selectedOrderNumber": selected_order_number,
         "sku": contract.sku,
         "flowCapability": contract.flow_capability,
+        "fulfillmentKind": contract.fulfillment_kind,
     }
     # Context is passed as a Python argument, never copied into the request body. That is the
     # authorization boundary that prevents a browser from forging an owned order.
