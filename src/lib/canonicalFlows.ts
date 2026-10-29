@@ -52,10 +52,10 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'submit_request', label: 'Submit Request',
     flowId: '993516553092471', status: 'PUBLISHED', metaName: 'WD-F004-Submit-Request',
   },
-  // The former amendment drafts no longer exist on Meta; amendment remains website-only.
+  // F005 Request Amendment replacement. Completion handling is ready while Meta remains DRAFT.
   amend_request: {
     capability: 'amend_request', label: 'Request Amendment',
-    flowId: null, status: 'NONE', metaName: null,
+    flowId: '1421471529574569', status: 'DRAFT', metaName: 'WD-F005-Request-Amendment',
   },
   // F003 Drop Docs replacement, published on Meta 2026-10-28.
   drop_docs: {
