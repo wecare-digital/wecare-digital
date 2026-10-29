@@ -21,6 +21,51 @@ logger = logging.getLogger(__name__)
 HISTORY_TABLE = shared_tables.status_history_table_name()
 
 
+# F005 (1421471529574569) keeps the cloned three-screen design:
+# SELECT_ORDER -> AMENDMENT -> REVIEW. The endpoint is used only for the customer-owned
+# order/request pickers; the terminal REVIEW completion arrives later as nfm_reply.
+def handle_f005_init(data: Dict, flow_token: str, request_id: str) -> Dict:
+    """INIT -> SELECT_ORDER with the sender's real orders."""
+    phone = get_phone_from_token(flow_token)
+    orders = fetch_orders_for_flow(phone, data.get('email', ''))
+    if not orders:
+        orders = [{'id': 'none', 'title': 'No orders found'}]
+    return {'screen': 'SELECT_ORDER', 'data': {'orders': orders}}
+
+
+def _f005_request_choices(order_id: str) -> list:
+    """Real service requests for one order; exclude reviews/docs/amendments and other responses."""
+    if not order_id or order_id == 'none':
+        return []
+    requests = []
+    for sub in get_submissions_for_order(order_id):
+        # Submit Request rows (including staff-created requests) share this canonical code/type.
+        if sub.get('flowCode') != '01.WD_SR' and sub.get('flowType') != 'form_submit':
+            continue
+        sub_num = sub.get('submissionNumber') or sub.get('submissionId') or ''
+        if not sub_num:
+            continue
+        subject = (sub.get('subject') or sub.get('requestType') or 'Request')[:30]
+        status = (sub.get('status') or 'open').replace('_', ' ').title()
+        requests.append({'id': sub_num, 'title': f'{sub_num} — {subject} — {status}'})
+    return requests
+
+
+def handle_f005_select_order(data: Dict, flow_token: str, request_id: str) -> Dict:
+    """SELECT_ORDER data_exchange -> same AMENDMENT screen populated with existing requests."""
+    order_id = str(data.get('parent_order') or '').strip()
+    requests = _f005_request_choices(order_id)
+    if not requests:
+        requests = [{'id': 'none', 'title': 'No existing requests found for this order'}]
+    return {
+        'screen': 'AMENDMENT',
+        'data': {
+            'parent_order': order_id,
+            'requests': requests,
+        },
+    }
+
+
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
     """INIT → fetch orders."""
     phone = get_phone_from_token(flow_token)
