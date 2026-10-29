@@ -15,7 +15,19 @@ CUSTOMER_CLIENT = '4avmt9n4gpmkvkdk88qbtit33o'
 SCOPES = {'commerce:read', 'commerce:write'}
 WEBSITE_CLIENT = 'wecare-website'
 WEBSITE_ORIGIN = 'https://wecare.digital'
-WEBSITE_RETURNS = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/'}
+WEBSITE_RETURNS = {
+    '/',
+    '/cart/',
+    '/checkout/',
+    '/orders/',
+    '/blog/',
+    '/submit-request/',
+    '/request-amendment/',
+    '/drop-docs/',
+    '/get/',
+    '/vault/',
+    '/request-pickup/',
+}
 _CLIENTS: dict[str, object] = {}
 
 class AuthError(ValueError):
