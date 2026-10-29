@@ -217,12 +217,6 @@ const describeCreateFailure = ( result: Extract<CreateInvoiceEngineResult, { ok:
   const next = status === 401 ? ' Sign in again, then retry.' : retryable ? ' You can retry.' : '';
   return `Invoice not created (status ${ status })${ said }.${ next }`;
 };
-/** Integer paise -> a rupee string. */
-const fmtPaise = ( paise: number ) => {
-  const digits = String( Math.max( 0, Math.trunc( paise || 0 ) ) );
-  const whole = digits.length > 2 ? digits.slice( 0, -2 ) : '0';
-  return `\u20B9${Number( whole ).toLocaleString( 'en-IN' )}.${digits.slice( -2 ).padStart( 2, '0' )}`;
-};
 
 /**
  * THE ADDRESS BLOCK, rendered from `ADDRESS_FIELDS` and composed through `formatAddress`.
@@ -313,7 +307,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ previewLoading, setPreviewLoading ] = useState( false );
   const [ previewError, setPreviewError ] = useState( '' );
   const [ servicePrices, setServicePrices ] = useState<Record<string, ServicePrice>>( {} );
-  const [ servicePricesLoading, setServicePricesLoading ] = useState( true );
   const appliedPresetRef = useRef( '' );
   const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
@@ -460,10 +453,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
 
   useEffect( () => {
     let active = true;
-    setServicePricesLoading( true );
-    fetchServicePrices()
-      .then( prices => { if ( active ) setServicePrices( prices ); } )
-      .finally( () => { if ( active ) setServicePricesLoading( false ); } );
+    fetchServicePrices().then( prices => { if ( active ) setServicePrices( prices ); } );
     return () => { active = false; };
   }, [] );
 
@@ -1025,40 +1015,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       <div className="pf-composer-kicker">Step 2</div>
                       <h3>Invoice composer</h3>
                       <p>Add the goods being collected for. Pricing, Delight, GST, convenience fee and the final payable remain server-authoritative.</p>
-                    </div>
-                  </div>
-
-                  <div className="pf-composer-card pf-default-invoice-table">
-                    <div className="pf-composer-card-head">
-                      <div>
-                        <h4>Default invoice items</h4>
-                        <p>Live request-service prices from ProductsTable. Use a preset to fill the invoice composer; final pricing remains server-authoritative.</p>
-                      </div>
-                      <span className="pf-authority-badge">{ servicePricesLoading ? 'Loading live prices' : 'Live catalog' }</span>
-                    </div>
-                    <div className="pf-preset-table-wrap">
-                      <table className="pf-preset-table">
-                        <thead>
-                          <tr><th>Request item</th><th>Item price</th><th>GST</th><th>Delight</th><th>Express</th><th>Payable</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                          { SERVICE_CHOICES.map( choice => {
-                            const price = servicePrices[ choice.slug ];
-                            const breakdown = price?.available ? price.breakdown : undefined;
-                            return (
-                              <tr key={ choice.kind }>
-                                <td><strong>{ choice.label }</strong><small>{ choice.sku }</small></td>
-                                <td>{ price?.available ? `₹${ price.rupees }` : 'Unavailable' }</td>
-                                <td>{ breakdown ? fmtPaise( breakdown.supplyGstPaise ) : 'Auto' }</td>
-                                <td>{ breakdown ? `−${ fmtPaise( breakdown.delightPaise ) }` : 'Auto' }</td>
-                                <td>{ breakdown && breakdown.expressPaise > 0 ? fmtPaise( breakdown.expressPaise ) : '—' }</td>
-                                <td>{ breakdown ? fmtPaise( breakdown.totalPayablePaise ) : 'Preview after use' }</td>
-                                <td><Button variant="secondary" size="sm" disabled={ !price?.available } onClick={ () => applyServicePreset( choice ) }>Use</Button></td>
-                              </tr>
-                            );
-                          } ) }
-                        </tbody>
-                      </table>
                     </div>
                   </div>
 
