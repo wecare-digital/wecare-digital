@@ -530,6 +530,8 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
 
     subtotal = amount("subtotal")
     discount = amount("discount")
+    delight_discount = amount("couponDiscount")
+    manual_discount = max(Decimal("0"), discount - delight_discount)
     shipping = amount("shipping")
     handling = amount("handling")
     supply_tax = amount("tax")
@@ -541,8 +543,10 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     total = amount("total")
 
     totals: list[tuple[str, Decimal]] = [("Items Subtotal", subtotal)]
-    if discount:
-        totals.append(("Delight", -discount))
+    if delight_discount:
+        totals.append(("Delight", -delight_discount))
+    if manual_discount:
+        totals.append(("Discount", -manual_discount))
     if shipping:
         totals.append(("Express", shipping))
     if handling:
