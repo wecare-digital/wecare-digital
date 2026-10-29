@@ -96,7 +96,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
       amend_request: { keywords: ['amend request', 'update request'], message: { body: '✏️ Need to make a change? Update your submitted request with the correct details.', flowCta: 'Update Request' }, flowId: canonicalFlowId('amend_request') ?? '-' },
       schedule_appointment: { keywords: ['appointment', 'book appointment'], message: { body: '📅 Schedule a consultation or service visit at a time that works best for you.', flowCta: 'Book Appointment' }, flowId: '1475722977488573' },
       sehat_appointment: { keywords: ['sehat', 'appointment', 'book appointment'], message: { body: '🩺 Book an appointment with a qualified professional.', flowCta: 'Book Appointment' }, flowId: '1892784521355352' },
-      drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Send your supporting documents securely to help us process your request.', flowCta: 'Upload Documents' }, flowId: canonicalFlowId('drop_docs') ?? '-' },
+      drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Start Drop Docs checkout. After payment, F003 opens so you can choose the order/request and upload documents.', flowCta: 'Start Drop Docs' }, flowId: canonicalFlowId('drop_docs') ?? '-' },
       enterprise_assist: { keywords: ['enterprise', 'b2b'], message: { body: '💼 Corporate, B2B, and bulk inquiries. Tell us what you need and our team will assist you.', flowCta: 'Enterprise Support' }, flowId: '2132515287534606' },
       // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound
       // handler, as the same ordered list, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is
@@ -123,13 +123,20 @@ const ScriptsPageBody: React.FC<Props> = () => {
     } catch { /* use defaults */ }
 
     for (const [key, ft] of Object.entries(flowTriggers)) {
+      const isPaidDropDocs = key === 'drop_docs';
       items.push({
         id: `flow_${key}`,
         category: 'Flow Trigger',
-        trigger: `Keywords: ${ft.keywords.slice(0, 4).join(', ')}`,
-        messageType: 'Flow Form (data_exchange)',
-        content: `Body: ${ft.message.body}\nCTA: ${ft.message.flowCta}\nFlow ID: ${ft.flowId}`,
-        phone: 'Phone 1: Flow form\nPhone 2: Flow form (if flowId2) or CTA link',
+        trigger: isPaidDropDocs
+          ? `Keywords: ${ft.keywords.slice(0, 4).join(', ')} → paid checkout`
+          : `Keywords: ${ft.keywords.slice(0, 4).join(', ')}`,
+        messageType: isPaidDropDocs ? 'Paid checkout → F003 Flow' : 'Flow Form (data_exchange)',
+        content: isPaidDropDocs
+          ? `Body: ${ft.message.body}\nCTA: ${ft.message.flowCta}\nAfter payment: launch F003\nFlow ID: ${ft.flowId}`
+          : `Body: ${ft.message.body}\nCTA: ${ft.message.flowCta}\nFlow ID: ${ft.flowId}`,
+        phone: isPaidDropDocs
+          ? 'Paid checkout first; F003 launches after successful payment'
+          : 'Phone 1: Flow form\nPhone 2: Flow form (if flowId2) or CTA link',
         editable: true,
         configKey: 'flow_triggers_config',
       });
@@ -146,7 +153,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
     const ctaLinks = [
       { key: 'sr', label: 'Submit Request' }, { key: 'tr', label: 'Track Request' },
       { key: 'ar', label: 'Update Request' }, { key: 'sa', label: 'Book Appointment' },
-      { key: 'sehat', label: 'Book Appointment' }, { key: 'dd', label: 'Upload Documents' },
+      { key: 'sehat', label: 'Book Appointment' }, { key: 'dd', label: 'Start Drop Docs' },
       { key: 'ea', label: 'Enterprise Support' }, { key: 'lr', label: 'Leave Feedback' },
       { key: 'sub', label: 'Subscribe' }, { key: 'pay', label: 'Pay Now' },
     ];
