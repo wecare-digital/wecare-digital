@@ -93,7 +93,7 @@ const F004SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = 
       <dd style={ { margin: 0, fontFamily: 'monospace', overflowWrap: 'anywhere' } }>{ submission.submissionNumber || submission.submissionId }</dd>
     </dl>
   </details>;
-
+};
 
 /** The per-row Update control. `cancelled` is in this list and in no filter list. */
 const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
