@@ -295,8 +295,9 @@ const AuthPage: React.FC = () => {
 
       <style jsx>{`
         .auth-card{width:min(100%,560px);max-width:100%;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);color:var(--public-text);font-family:var(--font-sans);box-sizing:border-box}
-        .auth-eyebrow{display:flex;align-items:center;justify-content:center;width:52px;height:52px;margin:0 0 34px;border-radius:50%;background:var(--public-brand-lime)}
-        .auth-eyebrow-icon{width:34px;height:34px;border-radius:50%;display:block;object-fit:contain}
+        /* Match the header navigation chip: soft neutral rounded square, not a circle. */
+        .auth-eyebrow{display:flex;align-items:center;justify-content:center;width:60px;height:60px;margin:0 0 28px;border-radius:14px;background:#f4f7ee;overflow:hidden;flex:0 0 auto}
+        .auth-eyebrow-icon{width:28px;height:28px;display:block;object-fit:contain}
         .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         /* Exact public-menu search treatment: no box, no side border, no fill; one bottom hairline. */
         .phone-control{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:56px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;box-shadow:none;transition:border-color .2s,box-shadow .2s}
@@ -331,8 +332,8 @@ const AuthPage: React.FC = () => {
         }
         @media(max-width:767px){
           .auth-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
-          .auth-eyebrow{width:48px;height:48px;margin-bottom:28px}
-          .auth-eyebrow-icon{width:31px;height:31px}
+          .auth-eyebrow{width:56px;height:56px;margin-bottom:24px;border-radius:12px}
+          .auth-eyebrow-icon{width:26px;height:26px}
           .auth-label{font-size:var(--public-mobile-card-size)}
           .phone-control{min-height:54px}
           .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;font-size:16px}
