@@ -26,7 +26,7 @@ export interface ServiceChoice {
 }
 
 const TEST_SERVICE_CHOICES: readonly ServiceChoice[] = [
-  { kind:'SUBMIT_REQUEST', productId:SERVICES_PRODUCT_ID, variantId:'22222222-2222-4222-8222-222222222222', label:'Submit Request', slug:'submit-request', path:'/submit-request/', needsTarget:false, choiceId:'21212121-2121-4121-8121-212121212121', sku:'TEST-SUBMIT' },
+  { kind:'SUBMIT_REQUEST', productId:SERVICES_PRODUCT_ID, variantId:'22222222-2222-4222-8222-222222222222', label:'Submit Request', slug:'submit-request', path:'/submit-request/', needsTarget:true, choiceId:'21212121-2121-4121-8121-212121212121', sku:'TEST-SUBMIT' },
   { kind:'REQUEST_AMENDMENT', productId:SERVICES_PRODUCT_ID, variantId:'33333333-3333-4333-8333-333333333333', label:'Request Amendment', slug:'request-amendment', path:'/request-amendment/', needsTarget:true, choiceId:'31313131-3131-4131-8131-313131313131', sku:'TEST-AMEND' },
   { kind:'DROP_DOCS', productId:SERVICES_PRODUCT_ID, variantId:'44444444-4444-4444-8444-444444444444', label:'Drop Docs', slug:'drop-docs', path:'/drop-docs/', needsTarget:true, choiceId:'41414141-4141-4141-8141-414141414141', sku:'TEST-DROP' },
   { kind:'VAULT', productId:SERVICES_PRODUCT_ID, variantId:'55555555-5555-4555-8555-555555555555', label:'Vault', slug:'vault', path:'/vault/', needsTarget:true, choiceId:'51515151-5151-4151-8151-515151515151', sku:'TEST-VAULT' },
@@ -34,7 +34,7 @@ const TEST_SERVICE_CHOICES: readonly ServiceChoice[] = [
 ];
 
 const LIVE_SERVICE_CHOICES: readonly ServiceChoice[] = [
-  { kind:'SUBMIT_REQUEST', productId:'f829697a-b1db-5c4e-bfce-51d1487278a7', variantId:'RSR7M2P9', label:'Submit Request', slug:'submit-request', path:'/submit-request/', needsTarget:false, choiceId:'RSR7M2P9', sku:'RSR7M2P9' },
+  { kind:'SUBMIT_REQUEST', productId:'f829697a-b1db-5c4e-bfce-51d1487278a7', variantId:'RSR7M2P9', label:'Submit Request', slug:'submit-request', path:'/submit-request/', needsTarget:true, choiceId:'RSR7M2P9', sku:'RSR7M2P9' },
   { kind:'REQUEST_AMENDMENT', productId:'7133c98d-de8d-5e56-94ff-8d9fea7aa331', variantId:'RAM5Q8K4', label:'Request Amendment', slug:'request-amendment', path:'/request-amendment/', needsTarget:true, choiceId:'RAM5Q8K4', sku:'RAM5Q8K4' },
   { kind:'DROP_DOCS', productId:'e1ca7833-5d7d-567b-837c-face04647598', variantId:'RDD9P3M7', label:'Drop Docs', slug:'drop-docs', path:'/drop-docs/', needsTarget:true, choiceId:'RDD9P3M7', sku:'RDD9P3M7' },
   { kind:'VAULT', productId:'d4cfc6e8-10b3-5c47-94c8-3c69f4c03907', variantId:'RVT6K4Q8', label:'Vault', slug:'vault', path:'/vault/', needsTarget:true, choiceId:'RVT6K4Q8', sku:'RVT6K4Q8' },
