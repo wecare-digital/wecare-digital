@@ -1,8 +1,8 @@
-"""WECARE.DIGITAL customer PAYMENT RECEIPT v11.
+"""WECARE.DIGITAL customer PAYMENT RECEIPT v13.
 
-Fixed-coordinate renderer mapped to the owner-approved 1024 x 1536 reference receipt
-(``FINA INV1.png``: two item lines, five totals rows, one amount-in-words line). Every
-coordinate, colour, type size and the wavy lime frame below was measured from that reference.
+Fixed-coordinate B2C renderer mapped to the owner-approved 1024 x 1536 reference receipt.
+The final paper treatment is transparent outside the receipt, with a thin neutral border on all
+four sides, straight left/right edges, and small receipt-cut zig-zags on the top and bottom only.
 Content the reference does not contain (more item lines, more or fewer totals rows, a second
 amount-in-words line) moves everything below it instead of overlapping, so the canvas height
 follows the content; the two-line specimen is exactly 1024 x 1536. Long values shrink to fit
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import io
 import math
-import random
 import re
 from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal, ROUND_HALF_UP
@@ -29,8 +28,6 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 INK = (10, 12, 16)
 HEAD = (0, 0, 0)
 PAPER = (252, 252, 251)
-BAND = (193, 249, 14)          # wavy frame
-GLOW = (182, 219, 60)          # soft halo outside the frame
 BAR = (195, 246, 34)           # PAYMENT RECEIPT bar, PAID pill, AMOUNT PAID bar
 RULE = (196, 251, 15)          # masthead underline
 FOOTER_RULE = (189, 243, 12)
@@ -39,28 +36,24 @@ PALE = (225, 239, 219)         # BILL TO bar, Customer ID pills, item header
 DIVIDER = (150, 153, 163)
 DOTS = (208, 211, 216)         # dotted row separators
 TAX_SEPARATOR = (130, 130, 142)
-STAMP_GREEN = (3, 104, 7)
-SPARK_DARK = (10, 133, 7)
-SPARK_LIME = (186, 244, 10)
 WEB_GREEN = (8, 118, 16)
 RED = (255, 0, 64)             # brand dot, #ff0040 as in BrandLockup
 
 BASE_W = 1024
 
-# ─── Frame geometry (centre line of the lime band) ────────────────────────────────────────────
-FRAME_LEFT = 130.2
-FRAME_RIGHT = 893.3
-FRAME_TOP = 39.85
-FRAME_RADIUS = 24.0
-FRAME_BOTTOM_BELOW_HERO = 400.5   # band centre below the AMOUNT PAID bar top
-CANVAS_BELOW_HERO = 468           # canvas bottom below the AMOUNT PAID bar top
-WAVE_AMPLITUDE = 4.2
-WAVE_PERIOD = 36.6
-BAND_WIDTH = 12.2
-GLOW_RADIUS = 7.0
-GLOW_STRENGTH = 0.46
-GLOW_OFFSET = (1, 3)              # the reference halo sits slightly lower-right of the band
-FRAME_SUPERSAMPLE = 3
+# ─── Final paper geometry ──────────────────────────────────────────────────────────────────────
+PAPER_LEFT = 122.0
+PAPER_RIGHT = 902.0
+PAPER_TOP = 25.0
+FRAME_BOTTOM_BELOW_HERO = 400.5
+CANVAS_BELOW_HERO = 468
+EDGE_TOOTH_DEPTH = 8.0
+EDGE_TOOTH_HALF_STEP = 15.0
+BORDER = (100, 105, 112)
+BORDER_WIDTH = 1.6
+SHADOW = (35, 39, 45)
+SHADOW_RADIUS = 8.0
+SHADOW_ALPHA = 0.18
 
 # ─── Columns ──────────────────────────────────────────────────────────────────────────────────
 BAR_X0, BAR_X1 = 158, 867         # full-width bars (left edge, exclusive right edge)
@@ -93,8 +86,6 @@ TYPE: dict[str, tuple[str, float, int, float]] = {
     "contact": ("regular", 22.0, 0, 0.0),
     "customer_label": ("bold", 19.0, 0, 0.0),
     "customer_value": ("semibold", 20.0, 0, 0.0),
-    "buyer_label": ("regular", 19.4, 0, 0.0),
-    "buyer_value": ("bold", 21.4, 0, 0.0),
     "address": ("regular", 18.5, 0, 0.0),
     "place_label": ("regular", 17.8, 0, 0.0),
     "place_value": ("bold", 19.4, 0, 0.0),
@@ -110,14 +101,13 @@ TYPE: dict[str, tuple[str, float, int, float]] = {
     "thanks": ("bold", 39.0, 1, 0.0),
     "visit": ("semibold", 19.8, 0, 5.5),
     "website": ("semibold", 21.4, 0, 0.0),
-    "stamp": ("bold", 68.7, 1, 0.0),
 }
 
 # ─── Vertical rhythm (baselines in px) ────────────────────────────────────────────────────────
 FACT_BASELINES = (445.0, 476.0, 506.0)
 BILL_FIRST_BASELINE = 594.0
 # Distance into each left bill-to line from the previous printed one (reference spacing).
-BILL_PITCH = {"phone": 30.0, "email": 28.0, "customer": 31.5, "buyer": 33.5}
+BILL_PITCH = {"phone": 30.0, "email": 28.0, "customer": 31.5}
 ADDRESS_BASELINES = (597.0, 625.0, 653.0, 681.0)
 PLACE_BASELINE = 685.5
 PLACE_BASELINE_LOW = 715.0        # only when the address needs a fourth line
@@ -128,19 +118,8 @@ TOTAL_PITCH = 37.1
 HERO_GAP = 21.2                   # last totals baseline -> AMOUNT PAID bar top
 WORDS_LINE = 25.0
 
-# ─── Masthead mark and PAID stamp ─────────────────────────────────────────────────────────────
+# ─── Masthead mark ─────────────────────────────────────────────────────────────────────────────
 LOGO_BOX = (365, 71, 448, 164)    # ink box of the bag mark in the reference
-STAMP_SIZE = (278, 98)            # outer box, measured on the de-rotated reference stamp
-STAMP_BORDER = 9.5
-STAMP_RADIUS = 16
-STAMP_ANGLE = 10.44               # degrees, counter-clockwise
-STAMP_DISC = (50.0, 47.5, 29.0)   # centre x, centre y, radius (stamp-box coordinates)
-STAMP_CHECK = ((38.5, 48.0), (43.5, 56.5), (62.5, 40.5))
-STAMP_CHECK_WIDTH = 8.0
-STAMP_WORD = (88.0, 79.0)         # left-baseline anchor of "PAID" (stamp-box coordinates)
-STAMP_SPECKLES = 180
-STAMP_SEED = 1806
-
 
 class _Fonts:
     """Per-render font cache; each face falls back to regular, then Pillow's default face."""
@@ -330,69 +309,74 @@ def _dotted_rule(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int) -> None:
         draw.line((x, y, min(x + 1, x1), y), fill=DOTS, width=1)
 
 
-# ─── Frame ────────────────────────────────────────────────────────────────────────────────────
-def _frame_path(bottom: float, ss: int) -> list[tuple[float, float]]:
-    """Closed wavy centre line: a rounded rectangle displaced along its normal by a cosine with
-    a whole number of waves, so the edge closes without a seam."""
-    x0, x1, y0, y1, r = FRAME_LEFT, FRAME_RIGHT, FRAME_TOP, bottom, FRAME_RADIUS
-    sw, sh, arc = x1 - x0 - 2 * r, y1 - y0 - 2 * r, math.pi * r / 2
+# ─── Paper frame ───────────────────────────────────────────────────────────────────────────────
+def _paper_polygon(bottom: float) -> list[tuple[float, float]]:
+    """Final B2C silhouette: straight sides, small zig-zag teeth only top and bottom."""
+    x0, x1 = PAPER_LEFT, PAPER_RIGHT
+    y0, y1 = PAPER_TOP, bottom
+    amp = EDGE_TOOTH_DEPTH
+    step = EDGE_TOOTH_HALF_STEP
+    pts: list[tuple[float, float]] = []
 
-    def edge(px: float, py: float, dx: float, dy: float, nx: float, ny: float) -> Callable:
-        return lambda t: ((px + dx * t, py + dy * t), (nx, ny))
+    # Top: alternating small teeth.
+    x = x0
+    pts.append((x0, y0))
+    flip = 0
+    while x + step < x1:
+        x += step
+        pts.append((x, y0 + (-amp if flip % 2 == 0 else amp)))
+        flip += 1
+    pts.append((x1, y0))
 
-    def corner(cx: float, cy: float, start: float) -> Callable:
-        def at(t: float):
-            theta = start + t / r
-            return ((cx + r * math.cos(theta), cy + r * math.sin(theta)),
-                    (math.cos(theta), math.sin(theta)))
-        return at
+    # Right side: intentionally straight.
+    pts.append((x1, y1))
 
-    segments = [
-        (sw, edge(x0 + r, y0, 1, 0, 0, -1)),
-        (arc, corner(x1 - r, y0 + r, -math.pi / 2)),
-        (sh, edge(x1, y0 + r, 0, 1, 1, 0)),
-        (arc, corner(x1 - r, y1 - r, 0.0)),
-        (sw, edge(x1 - r, y1, -1, 0, 0, 1)),
-        (arc, corner(x0 + r, y1 - r, math.pi / 2)),
-        (sh, edge(x0, y1 - r, 0, -1, -1, 0)),
-        (arc, corner(x0 + r, y0 + r, math.pi)),
-    ]
-    perimeter = sum(length for length, _ in segments)
-    waves = max(1, round(perimeter / WAVE_PERIOD))
-    samples = math.ceil(perimeter / 1.2)
-    points: list[tuple[float, float]] = []
-    index, start = 0, 0.0
-    for i in range(samples):
-        s = i * perimeter / samples
-        while index < len(segments) - 1 and s > start + segments[index][0]:
-            start += segments[index][0]
-            index += 1
-        (px, py), (nx, ny) = segments[index][1](s - start)
-        offset = WAVE_AMPLITUDE * math.cos(2 * math.pi * waves * s / perimeter)
-        points.append(((px + nx * offset) * ss, (py + ny * offset) * ss))
-    return points
+    # Bottom: alternating teeth, mirrored back to the left.
+    x = x1
+    flip = 0
+    while x - step > x0:
+        x -= step
+        pts.append((x, y1 + (amp if flip % 2 == 0 else -amp)))
+        flip += 1
+    pts.append((x0, y1))
+
+    # Left side closes straight.
+    return pts
 
 
-def _frame(canvas: Image.Image, band_bottom: float) -> None:
-    """Off-white paper inside a wavy lime band with a soft lime halo; outside stays transparent
-    (stored as transparent white so an alpha-dropping viewer shows white, not black)."""
+def _frame(canvas: Image.Image, bottom: float) -> None:
+    """Transparent exterior, white paper, subtle neutral shadow, and thin grey outline.
+
+    No lime exterior frame or glow. Lime remains an internal brand accent only.
+    """
     w, h = canvas.size
-    ss = FRAME_SUPERSAMPLE
-    points = _frame_path(band_bottom, ss)
-    band = Image.new("L", (w * ss, h * ss), 0)
-    ImageDraw.Draw(band).line(points + points[:1], fill=255, width=round(BAND_WIDTH * ss),
-                              joint="curve")
-    paper = Image.new("L", (w * ss, h * ss), 0)
-    ImageDraw.Draw(paper).polygon(points, fill=255)
-    band = band.resize((w, h), Image.Resampling.BOX)
-    paper = paper.resize((w, h), Image.Resampling.BOX)
-    glow = ImageChops.offset(band, *GLOW_OFFSET).filter(ImageFilter.GaussianBlur(GLOW_RADIUS))
-    glow = glow.point(lambda v: min(255, round(v * GLOW_STRENGTH)))
-    for colour, alpha in ((GLOW, glow), (PAPER, paper), (BAND, band)):
-        layer = Image.new("RGBA", (w, h), colour + (0,))
-        layer.putalpha(alpha)
-        canvas.alpha_composite(layer)
+    ss = 4
+    pts = _paper_polygon(bottom)
+    scaled = [(round(x * ss), round(y * ss)) for x, y in pts]
 
+    paper_mask = Image.new("L", (w * ss, h * ss), 0)
+    ImageDraw.Draw(paper_mask).polygon(scaled, fill=255)
+    paper_mask = paper_mask.resize((w, h), Image.Resampling.LANCZOS)
+
+    # Neutral shadow on transparency, never a coloured halo.
+    shadow = paper_mask.filter(ImageFilter.GaussianBlur(SHADOW_RADIUS))
+    shadow = shadow.point(lambda v: min(255, round(v * SHADOW_ALPHA)))
+    shadow_layer = Image.new("RGBA", (w, h), SHADOW + (0,))
+    shadow_layer.putalpha(shadow)
+    canvas.alpha_composite(shadow_layer, (2, 3))
+
+    paper_layer = Image.new("RGBA", (w, h), PAPER + (0,))
+    paper_layer.putalpha(paper_mask)
+    canvas.alpha_composite(paper_layer)
+
+    # Thin neutral border follows all four sides; zig-zag only top/bottom.
+    border_mask = Image.new("L", (w * ss, h * ss), 0)
+    bd = ImageDraw.Draw(border_mask)
+    bd.line(scaled + [scaled[0]], fill=255, width=max(1, round(BORDER_WIDTH * ss)), joint="curve")
+    border_mask = border_mask.resize((w, h), Image.Resampling.LANCZOS)
+    border_layer = Image.new("RGBA", (w, h), BORDER + (0,))
+    border_layer.putalpha(border_mask)
+    canvas.alpha_composite(border_layer)
 
 def _logo(canvas: Image.Image, logo_bytes: bytes | None) -> bool:
     """Fit the immutable receipt bag mark (trimmed to its ink) into the reference ink box."""
@@ -415,51 +399,8 @@ def _logo(canvas: Image.Image, logo_bytes: bytes | None) -> bool:
         return False
 
 
-def _stamp(canvas: Image.Image, fonts: _Fonts, centre: tuple[float, float]) -> None:
-    """Rotated rubber-stamp PAID mark: rounded border, check disc and word, drawn at 3x."""
-    ss = 3
-    pad = 8
-    bw, bh = STAMP_SIZE
-    size = ((bw + 2 * pad) * ss, (bh + 2 * pad) * ss)
-    mask = Image.new("L", size, 0)
-    d = ImageDraw.Draw(mask)
-    o = pad * ss
-    d.rounded_rectangle((o, o, o + bw * ss - 1, o + bh * ss - 1), radius=STAMP_RADIUS * ss,
-                        outline=255, width=round(STAMP_BORDER * ss))
-    cx, cy, r = o + STAMP_DISC[0] * ss, o + STAMP_DISC[1] * ss, STAMP_DISC[2] * ss
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
-    check = [(o + x * ss, o + y * ss) for x, y in STAMP_CHECK]
-    d.line(check, fill=0, width=round(STAMP_CHECK_WIDTH * ss), joint="curve")
-    cap = STAMP_CHECK_WIDTH / 2 * ss
-    for x, y in (check[0], check[-1]):
-        d.ellipse((x - cap, y - cap, x + cap, y + cap), fill=0)
-    face, word_size, stroke, _tracking = TYPE["stamp"]
-    d.text((o + STAMP_WORD[0] * ss, o + STAMP_WORD[1] * ss), "PAID",
-           font=fonts.get(face, word_size * ss), fill=255, anchor="ls",
-           stroke_width=stroke * ss, stroke_fill=255)
-    # Seeded ink wear, so the same receipt facts always produce the same PNG bytes.
-    rng = random.Random(STAMP_SEED)
-    for _ in range(STAMP_SPECKLES):
-        x = o + rng.uniform(0, bw) * ss
-        y = o + rng.uniform(0, bh) * ss
-        rr = rng.uniform(0.3, 0.85) * ss
-        d.ellipse((x - rr, y - rr, x + rr, y + rr), fill=0)
-    layer = Image.new("RGBA", size, STAMP_GREEN + (0,))
-    layer.putalpha(mask)
-    layer = layer.rotate(STAMP_ANGLE, resample=Image.Resampling.BICUBIC, expand=True)
-    out_w, out_h = layer.width // ss, layer.height // ss
-    layer = layer.resize((out_w, out_h), Image.Resampling.LANCZOS,
-                         box=(0, 0, out_w * ss, out_h * ss))
-    canvas.alpha_composite(layer, (round(centre[0] - out_w / 2), round(centre[1] - out_h / 2)))
-
 
 # ─── Field formatting ─────────────────────────────────────────────────────────────────────────
-def _buyer_gstin(invoice: Mapping[str, Any], seller_gstin: Any) -> str:
-    value = str(invoice.get("buyerGstin") or invoice.get("gstin") or "").strip().upper()
-    seller = str(seller_gstin or "").strip().upper()
-    return "" if not value or value == seller else value
-
-
 def _place(invoice: Mapping[str, Any]) -> str:
     state = str(invoice.get("state") or invoice.get("shippingState") or "").strip()
     if state.casefold() in {"west bengal", "wb"}:
@@ -569,7 +510,6 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     ref = str(invoice.get("referenceId") or "").strip()
     txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
     seller_gstin = str(company.get("gstin") or "").strip()
-    buyer_gstin = _buyer_gstin(invoice, seller_gstin)
     place = _place(invoice)
     customer_id = str(customer_id or "").strip()
 
@@ -683,11 +623,6 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
         put.put("customer_label", "Customer ID:", 168, baseline, fill=HEAD)
         put.put("customer_value", customer_id, 312, baseline + 0.5, fill=HEAD, max_w=192,
                 min_size=14)
-    if buyer_gstin:
-        baseline += BILL_PITCH["buyer"]
-        put.put("buyer_label", "Buyer GSTIN:", LEFT_X, baseline)
-        put.put("buyer_value", buyer_gstin, 293, baseline, fill=HEAD,
-                max_w=COLUMN_DIVIDER_X - 10 - 293, min_size=14)
     _stroke(canvas, [(COLUMN_DIVIDER_X, 580), (COLUMN_DIVIDER_X, 678)], 2, DIVIDER)
 
     address, address_size = _address_lines(fonts, invoice, TEXT_RIGHT - ADDRESS_X,
@@ -736,12 +671,8 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     for i, line in enumerate(words_lines):
         put.put("words", line, 166, hero + 96 + i * WORDS_LINE)
 
-    # PAID stamp and trace block. "Paid On" is printed only for a captured payment.
-    if paid:
-        _stroke(canvas, [(174.9, low + 138.7), (190.7, low + 151.5)], 6, SPARK_DARK)
-        _stroke(canvas, [(207.1, low + 132.6), (209.3, low + 144.4)], 6, SPARK_LIME)
-        _stroke(canvas, [(165.2, low + 170.5), (180.2, low + 171.1)], 6, SPARK_LIME)
-        _stamp(canvas, fonts, (335.4, low + 184.8))
+    # Transaction trace block. The payment state is shown once above in Status.
+    # No duplicate PAID stamp/footer mark is rendered.
     _stroke(canvas, [(515.3, low + 131), (515.3, low + 228)], 2, DIVIDER)
     trace = [("Txn ID:", txn), ("Receipt Ref:", ref)]
     if paid:
