@@ -189,12 +189,6 @@
       "description": "CV, professional profile and pitch deck creation built from real experience."
     },
     {
-      "path": "/shipments/track",
-      "group": "services",
-      "name": "Track",
-      "description": "Track an order, delivery or service request already with WECARE.DIGITAL."
-    },
-    {
       "path": "/expo-week",
       "group": "services",
       "name": "Expo Week",
@@ -211,36 +205,6 @@
       "group": "services",
       "name": "Niji Setu",
       "description": "A QR code people scan to reach you on a masked call."
-    },
-    {
-      "path": "/submit-request",
-      "group": "customerservice",
-      "name": "Submit Request",
-      "description": "Start a new request, in your own words."
-    },
-    {
-      "path": "/request-amendment",
-      "group": "customerservice",
-      "name": "Request Amendment",
-      "description": "Change a date, detail or scope on a request already under way."
-    },
-    {
-      "path": "/drop-docs",
-      "group": "customerservice",
-      "name": "Drop Docs",
-      "description": "Send the documents a request needs, once."
-    },
-    {
-      "path": "/vault",
-      "group": "customerservice",
-      "name": "Vault",
-      "description": "Ask for a copy of a document held against one of your requests."
-    },
-    {
-      "path": "/request-pickup",
-      "group": "customerservice",
-      "name": "Request Pickup",
-      "description": "Ask us to collect documents for a request already under way."
     },
     {
       "path": "/privacy",
