@@ -46,17 +46,28 @@ The service retains:
 - strict same-site return-path allowlisting;
 - isolation between website and host OAuth pending sessions;
 - CSRF binding and exact-origin checks;
+- fail-closed identity, custody and protocol errors;
+- strict validation of the single downstream `wd_csid` session cookie before it
+  is forwarded to the browser;
 - non-cacheable, anti-framing and noindex responses;
 - no OTP, Cognito token or credential in MCP arguments, results or logs.
 
+Opaque record identifiers are generated with a CSPRNG and stored by SHA-256
+lookup key. They are not passwords or user-selected secrets; the stable fast
+hash prevents a table read from yielding usable bearer tokens without changing
+existing session-key compatibility.
+
 ## Verification and release
 
-Run the complete source and packaged-runtime suite with:
+The runtime bucket is supplied by the deployment environment rather than stored
+with a production account number in source. For local verification:
 
 ```bash
+export CUSTOMER_COMMERCE_RUNTIME_BUCKET="your-private-artifact-bucket"
 python3 tools/customer-commerce/validate_pipeline.py \
   --output /tmp/customer-commerce-release \
-  --report /tmp/customer-commerce-validation.json
+  --report /tmp/customer-commerce-validation.json \
+  --runtime-bucket "$CUSTOMER_COMMERCE_RUNTIME_BUCKET"
 ```
 
 The runner executes the conversation checks, OAuth/OTP checks, website/OAuth
@@ -70,9 +81,13 @@ A successful build emits:
 - `customer-commerce-stack.json`
 - `release-manifest.json`
 
-Amplify stages these verified, content-addressed files under the private, encrypted,
-versioned CDK assets bucket. Staging does not update CloudFormation or move the
-`live` alias.
+Amplify derives the private CDK assets bucket from its active STS identity and
+stages these verified, content-addressed files there. Staging does not update
+CloudFormation or move the `live` alias.
+
+The generated CloudFormation template contains no live KMS key ARN. A production
+update must pass `CustodyKeyArn` explicitly or use CloudFormation
+`UsePreviousValue` for the existing stack parameter.
 
 For every production deployment:
 
@@ -83,7 +98,7 @@ For every production deployment:
 4. require the change set to contain only intended function/version/alias and
    route changes;
 5. execute it with a new `DeploymentRevision`;
-6. verify alias `live`, the exact nine API routes, OAuth metadata, `/auth/state`,
+6. verify alias `live`, the exact eight API routes, OAuth metadata, `/auth/state`,
    `/auth/step`, and the shared website `/auth` page;
 7. run `scripts/generate_release_manifest.py` to join the Git commit, Lambda
    version, route hash and Amplify job in one release record.
