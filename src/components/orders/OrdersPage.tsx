@@ -69,6 +69,7 @@ import OrderDetail from './OrderDetail';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const MY_ORDERS_URL = `${ API_BASE }/ecommerce/my-orders`;
 const MY_INVOICE_URL = `${ API_BASE }/ecommerce/my-invoice`;
+const PROFILE_URL = `${ API_BASE }/customer/profile`;
 
 /**
  * How long after an empty FIRST page we ask once more. The arrival path that needs it is real:
@@ -372,6 +373,7 @@ export default function OrdersPage (): React.ReactElement {
   const [ moreFailed, setMoreFailed ] = useState( false );
   const [ showProfile, setShowProfile ] = useState( false );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'name' );
+  const [ profileAction, setProfileAction ] = useState<'idle' | 'busy' | 'sent' | 'failed'>( 'idle' );
   /**
    * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
    * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
@@ -512,6 +514,36 @@ export default function OrdersPage (): React.ReactElement {
     setCursor( '' );
     setProfile( null );
     window.location.replace( '/auth?return=/orders/' );
+  };
+
+  const sendProfileUpdate = async () => {
+    if ( !token || profileAction === 'busy' ) return;
+    setProfileAction( 'busy' );
+    try {
+      const response = await fetch( PROFILE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${ token }`,
+        },
+        body: JSON.stringify( { action: 'sendProfileUpdate' } ),
+      } );
+      if ( response.status === 401 ) { expire(); return; }
+      const reply = await response.json().catch( () => ( {} ) );
+      if ( !response.ok || reply.status !== 'PROFILE_UPDATE_SENT' ) {
+        setProfileAction( 'failed' );
+        return;
+      }
+      setProfileAction( 'sent' );
+    } catch {
+      setProfileAction( 'failed' );
+    }
+  };
+
+  const signOut = () => {
+    clearSession();
+    window.location.replace( '/auth/' );
   };
 
   const applyFirstPage = ( data: OrdersResponse ) => {
@@ -829,7 +861,35 @@ export default function OrdersPage (): React.ReactElement {
               <div className="ord-main">
           { orders.length > 0 && (
             <section className="ord-list" aria-labelledby="ord-history">
-              <h2 className="ord-h2" id="ord-history">Order history</h2>
+              <div className="ord-list-head">
+                <h2 className="ord-h2" id="ord-history">Order history</h2>
+                <div className="ord-account-actions" aria-label="Account actions">
+                  <button
+                    type="button"
+                    className="ord-account-action ord-update"
+                    onClick={ sendProfileUpdate }
+                    disabled={ profileAction === 'busy' }
+                    aria-busy={ profileAction === 'busy' ? 'true' : undefined }
+                  >
+                    Update
+                  </button>
+                  <button
+                    type="button"
+                    className="ord-account-action ord-signout"
+                    onClick={ signOut }
+                  >
+                    Signout
+                  </button>
+                </div>
+                { profileAction === 'sent' && (
+                  <p className="ord-account-status" role="status">Profile update sent on WhatsApp.</p>
+                ) }
+                { profileAction === 'failed' && (
+                  <p className="ord-account-status ord-account-status-error" role="status">
+                    Could not send the profile update. Try again.
+                  </p>
+                ) }
+              </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
                    table semantics in several screen readers, which would trade the owner's
@@ -1527,6 +1587,22 @@ export default function OrdersPage (): React.ReactElement {
             border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);
             box-shadow:0 14px 38px rgba(26,58,42,.08);
           }
+          .ord-list-head{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+          .ord-account-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+          .ord-account-action{
+            display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+            padding:8px 16px;border:2px solid var(--public-brand-green);border-radius:11px;
+            color:var(--public-brand-green);font:inherit;font-size:16px;font-weight:700;line-height:1.35;
+            cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s;
+          }
+          .ord-update{background:var(--public-brand-lime)}
+          .ord-signout{background:var(--public-accent-amber)}
+          .ord-account-action:hover:not(:disabled){background:#fff;transform:translateY(-1px);box-shadow:var(--public-lift-shadow)}
+          .ord-account-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .ord-account-action:disabled{opacity:.55;cursor:default}
+          .ord-account-action[aria-busy='true']{cursor:progress}
+          .ord-account-status{margin:0;font-size:14px;font-weight:600;line-height:1.45;color:var(--public-brand-green)}
+          .ord-account-status-error{color:#8a2e22}
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
