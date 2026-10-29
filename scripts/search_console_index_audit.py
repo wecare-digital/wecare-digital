@@ -78,7 +78,6 @@ DEFAULT_PATHS = [
     "/anew/",                   # a marketing route
     "/grahak-os/",              # carries its own product-level SoftwareApplication schema
     "/contact/",                # ContactPage, the conversion route
-    "/get/",                    # public but ABSENT from the sitemap - a known gap
     "/llms.txt",                # the AI surface, to see if Google treats it as a page
     "/terms/",                  # a thin legal page, the most likely to be declined on merit
 ]
