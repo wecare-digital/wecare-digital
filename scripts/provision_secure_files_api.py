@@ -118,8 +118,10 @@ RETIRED_ROUTES = {
 }
 
 
-# The one Lambda secure-files invokes for WhatsApp delivery.
+# The two explicit WhatsApp capabilities secure-files may invoke: delivery of Access Vault and
+# the native Vault payment orchestrator. No wildcard Lambda invoke permission is allowed.
 WA_SENDER = "wecare-outbound-whatsapp"
+VAULT_PAYMENT_FUNCTION = "wecare-whatsapp-business-api"
 
 EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
@@ -244,12 +246,14 @@ def policy_document() -> dict:
                 "Sid": "WhatsAppDelivery",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
-                # Named individually rather than a wildcard: this role should be able to send
-                # WhatsApp messages, not invoke the fleet. Delivery sends a Vault link, so it
-                # no longer uploads media through the business API.
+                # Named individually rather than a wildcard: this role may deliver the Access
+                # Vault template and ask the existing business-api service rail to send native
+                # Review and Pay. It may not invoke the rest of the fleet.
                 "Resource": [
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}",
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}:*",
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{VAULT_PAYMENT_FUNCTION}",
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{VAULT_PAYMENT_FUNCTION}:*",
                 ],
             },
             {
@@ -374,16 +378,17 @@ def environment() -> dict:
         # Meta's OWN phone-number id; the handler derives the customer's WABA stamp from it.
         # It is NOT a valid `phoneNumberId` for `wecare-outbound-whatsapp`.
         "META_PHONE_NUMBER_ID": "1016149501586345",
-        # The AWS-style sender id `outbound-whatsapp` requires for secure-file delivery.
-        # Payment initiation no longer exists in this Lambda; commerce/checkout owns it.
+        # The AWS-style sender id outbound-whatsapp requires for secure-file delivery.
         "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
         "PARTNER_GROUP": "Partner",
         # Secure-files owns document delivery only; payment templates belong to commerce.
         # Every paid file is announced with the approved `wecare_default_download` template
         # (lambda_utils.whatsapp_templates), so no template name, media uploader or WhatsApp
         # link TTL is configured here. `wd_file_delivery` is not on WABA1 (readback 2026-10-25).
-        # The `live` alias, never $LATEST's unpublished code.
+        # Explicit live aliases, never $LATEST's unpublished code. secure-files does not build
+        # payment details; the business-api/commerce native rail still owns that work.
         "WA_SENDER_FUNCTION": f"{WA_SENDER}:live",
+        "VAULT_PAYMENT_FUNCTION": f"{VAULT_PAYMENT_FUNCTION}:live",
         # Web redeem: a browser follows it instantly. The only presigned link issued.
         "DOWNLOAD_URL_TTL_SECONDS": "60",
         # OTP_PROBE_* deliberately absent. The enumeration budget is enforced in

@@ -1340,31 +1340,54 @@ def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str,
     return cors_response(200, {"fileId": file_id, "status": "revoked"}, origin)
 
 
-# ── admin: ask for ₹49, or resend the Access Vault link ──────────────────────
+
+# ── Vault native WhatsApp payment, or resend the Access Vault link ────────────
 
 BUSINESS_API_FUNCTION = os.environ.get(
     "VAULT_PAYMENT_FUNCTION", "wecare-whatsapp-business-api:live")
 
-#: What staff are told for each answer of the ₹49 Vault message. Every sentence says whether
-#: anything reached the customer, because that is what decides the next step.
+#: One interpretation of the native Vault payment sender's outcomes for both customer and staff
+#: callers. The sender is the existing WhatsApp ORDER_DETAILS / Review and Pay rail; this Lambda
+#: never builds a payment payload, never trusts a browser amount and never opens the website cart.
 _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
-    "VAULT_OFFER_SENT": (
-        200, "The ₹49 Vault message was sent on WhatsApp. When the customer taps Unlock Vault, "
-             "they get Review and Pay for this file, then Access Vault once paid."),
-    "VAULT_OFFER_UNCONFIRMED": (
-        202, "The Vault message may have been sent. Check the chat before sending it again."),
-    "VAULT_OFFER_NOT_SENT": (502, "The Vault message was not sent."),
-    "VAULT_OFFER_RECENT": (
-        409, "A Vault message for this file went out less than a minute ago. Nothing was sent."),
-    "CONTACT_AMBIGUOUS": (
-        409, "This number belongs to more than one contact. Merge them in Contacts, then send "
-             "again. Nothing was sent."),
-    "VAULT_FILE_UNAVAILABLE": (
-        409, "This file cannot be offered: it is not active or not bound to its customer."),
+    "PAYMENT_REQUEST_SENT": (
+        200, "Payment request sent to the registered WhatsApp number. Complete Review and Pay there."),
+    "PAYMENT_REQUEST_UNCONFIRMED": (
+        202, "The payment request may have been sent. Check WhatsApp before trying again."),
+    "CATALOG_SERVICE_RECONCILIATION_REQUIRED": (
+        202, "A Vault payment may already be in progress. Check WhatsApp before trying again."),
+    "CATALOG_SERVICE_ALREADY_PREPARING": (
+        202, "A Vault payment request is already being prepared. Check WhatsApp."),
+    "CATALOG_SERVICE_ALREADY_PREPARED": (
+        202, "A Vault payment request is already in progress. Check WhatsApp."),
+    "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS": (
+        202, "A service payment is already in progress. Complete it in WhatsApp before starting another."),
     "VAULT_ACCESS_ACTIVE": (
-        409, "This file is paid and can be downloaded. Send the Access Vault link instead."),
+        409, "This file is already paid and available. Do not pay again."),
+    "PAID_UNVERIFIED": (
+        409, "A payment is recorded for this file but access is still being confirmed. Do not pay again."),
+    "CONTACT_AMBIGUOUS": (
+        409, "This WhatsApp number is linked to more than one contact. Nothing was sent."),
+    "WHATSAPP_IDENTITY_REQUIRED": (
+        409, "The registered WhatsApp identity is not ready for payment. Nothing was sent."),
+    "VAULT_FILE_UNAVAILABLE": (
+        409, "This document is not available for Vault payment."),
+    "VAULT_PAYMENT_NOT_PREPARED": (
+        409, "Vault payment could not be prepared. Nothing was sent."),
+    "NATIVE_SERVICE_META_NOT_READY": (
+        503, "WhatsApp payment is temporarily unavailable. Nothing was sent."),
+    "NATIVE_SERVICE_WRITEBACK_NOT_READY": (
+        503, "WhatsApp payment is temporarily unavailable. Nothing was sent."),
     "NATIVE_SERVICE_ROLLOUT_DISABLED": (
         503, "WhatsApp Vault payments are switched off. Nothing was sent."),
+    "CATALOG_SERVICE_UNAVAILABLE": (
+        503, "Vault payment is temporarily unavailable. Nothing was sent."),
+    "PAYMENT_REQUEST_NOT_SENT": (
+        502, "The payment request was not sent. Nothing was charged."),
+    "PAYMENT_REQUEST_REFUSED": (
+        502, "The payment request was refused before payment. Nothing was charged."),
+    "PAYMENT_INITIATION_DISABLED": (
+        503, "WhatsApp payment is temporarily unavailable. Nothing was sent."),
 }
 
 
@@ -1381,7 +1404,8 @@ def _owned_file_for_admin(file_id: str) -> Tuple[Optional[Dict[str, Any]], Optio
     return item, None
 
 
-def _admin_access_state(item: Dict[str, Any], now: int) -> str:
+def _file_access_state(item: Dict[str, Any], now: int) -> str:
+    """Authoritative sale/download state for one owner-bound file."""
     eid = str(item.get("vaultEntitlementId") or "")
     entitlement = None
     if eid:
@@ -1395,20 +1419,97 @@ def _admin_access_state(item: Dict[str, Any], now: int) -> str:
     return _access_state(item, entitlement, now)
 
 
-def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Send the file's owner the ₹49 Vault message on WhatsApp (template wecare_vault_request_ready).
+def _start_native_vault_payment(
+    item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
+) -> Dict[str, Any]:
+    """Ask the existing native WhatsApp rail for ONE exact-file Review and Pay.
 
-    business-api `catalogService.sendOffer` sends "Your <document> copy is ready! Pay ₹49…" with
-    an "Unlock Vault" button tied to THIS file. Nothing is charged here. The customer's tap opens
-    the commerce Review and Pay for exactly this file, server-priced, and payment then sends the
-    Access Vault link. The tap also proves the customer, so no linked WhatsApp contact is needed
-    beforehand.
+    The only values passed across the internal boundary are re-read from the owner-bound file row.
+    The business-api re-checks the file and customer again, creates the file-bound service intent
+    including the durable entitlement proof for EXPIRED renewal, then commerce owns authoritative
+    ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF reservation and the Meta ORDER_DETAILS
+    send. There is no website cart, no browser amount and no Meta Flow in this Vault path.
+    """
+    try:
+        response = _lambda_client().invoke(
+            FunctionName=BUSINESS_API_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "catalogService", "action": "sendPayment",
+                "fileId": str(item["fileId"]),
+                "ownerCustomerId": str(item["ownerCustomerId"]),
+                "ownerPhone": str(item["ownerPhone"]),
+                "requestedBy": str(requested_by or "")[:64],
+            }).encode("utf-8"),
+        )
+        answer = json.loads(response["Payload"].read() or b"{}")
+        if response.get("FunctionError"):
+            answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+    except Exception as exc:  # noqa: BLE001
+        # A timeout may happen after Meta accepted the idempotent send. Never auto-retry a money
+        # message from here; tell the caller to check WhatsApp.
+        logger.warning(json.dumps({"event": "vault_native_payment_invoke_unconfirmed",
+                                   "error": type(exc).__name__}))
+        answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+
+    outcome = str(answer.get("outcome") or "PAYMENT_REQUEST_UNCONFIRMED")
+    logger.info(json.dumps({"event": "vault_native_payment_requested",
+                            "fileId": str(item.get("fileId") or ""),
+                            "outcome": outcome, "renewal": state == "EXPIRED",
+                            "requestedBy": str(requested_by or "")[:32]}))
+    code, message = _PAYMENT_REQUEST_REPLIES.get(
+        outcome, (502, "Vault payment could not be started. Nothing was charged."))
+    body = {
+        "outcome": outcome,
+        "fileId": str(item.get("fileId") or ""),
+        "message": message,
+        "renewal": state == "EXPIRED",
+        "accessState": state,
+    }
+    if code >= 400:
+        body["error"] = outcome
+    return cors_response(code, body, origin)
+
+
+def _customer_request_payment(
+    file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origin: str,
+) -> Dict[str, Any]:
+    """Customer Vault CTA -> native WhatsApp Review and Pay for this exact owned file.
+
+    The path parameter only names a candidate. Ownership is re-proven from the customer-pool
+    session against both permanent customer id and verified phone before any payment call.
+    OPEN/READY and PAID_UNVERIFIED are terminal no-charge answers.
+    """
+    item = _owned_active_file(file_id, identity)
+    if not item:
+        return _not_registered(origin)
+    state = _file_access_state(item, int(time.time()))
+    if state in ("OPEN", "READY"):
+        code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
+        return cors_response(code, {
+            "error": "VAULT_ACCESS_ACTIVE", "outcome": "VAULT_ACCESS_ACTIVE",
+            "fileId": file_id, "accessState": state, "message": message,
+        }, origin)
+    if state == "PAID_UNVERIFIED":
+        code, message = _PAYMENT_REQUEST_REPLIES["PAID_UNVERIFIED"]
+        return cors_response(code, {
+            "error": "PAID_UNVERIFIED", "outcome": "PAID_UNVERIFIED",
+            "fileId": file_id, "accessState": state, "message": message,
+        }, origin)
+    return _start_native_vault_payment(
+        item, state, origin, requested_by="customer:" + str(identity.get("subject") or "")[:40])
+
+
+def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Staff-triggered native Review and Pay for one owner-bound Vault file.
+
+    This uses the same exact-file native WhatsApp payment rail as the customer Vault CTA. The
+    legacy sendOffer business-api action remains only as a rolling-deploy alias; no new
+    request-ready/Unlock Vault message is created here.
     """
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
-    # Legacy published rows may still carry a staff-entered name. Normalize before the
-    # business-api re-reads the row to render {{1}} of the Vault offer.
     if item.get("sourceDocumentId"):
         system_name = _system_name_for_file(item)
         if str(item.get("displayName") or "") != system_name:
@@ -1418,47 +1519,22 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
                 ExpressionAttributeValues={":n": system_name},
             )
             item["displayName"] = system_name
-    state = _admin_access_state(item, int(time.time()))
+    state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
-        return cors_response(code, {"error": "VAULT_ACCESS_ACTIVE", "message": message}, origin)
+        return cors_response(code, {
+            "error": "VAULT_ACCESS_ACTIVE", "outcome": "VAULT_ACCESS_ACTIVE",
+            "fileId": file_id, "accessState": state, "message": message,
+        }, origin)
     if state == "PAID_UNVERIFIED":
-        return cors_response(409, {"error": "PAID_UNVERIFIED",
-                                   "message": "A payment is recorded for this file but its access "
-                                              "could not be read. Reconcile it; do not charge again."},
-                             origin)
-
-    try:
-        response = _lambda_client().invoke(
-            FunctionName=BUSINESS_API_FUNCTION,
-            InvocationType="RequestResponse",
-            Payload=json.dumps({
-                "internalAction": "catalogService", "action": "sendOffer",
-                "fileId": file_id, "ownerCustomerId": item["ownerCustomerId"],
-                "ownerPhone": item["ownerPhone"],
-                "requestedBy": str((event.get("_auth") or {}).get("username", ""))[:64],
-            }).encode("utf-8"),
-        )
-        answer = json.loads(response["Payload"].read() or b"{}")
-        if response.get("FunctionError"):
-            answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(json.dumps({"event": "vault_offer_invoke_failed",
-                                   "error": type(exc).__name__}))
-        answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
-    outcome = str(answer.get("outcome") or "VAULT_OFFER_UNCONFIRMED")
-    logger.info(json.dumps({"event": "vault_offer_requested", "fileId": file_id,
-                            "outcome": outcome, "renewal": state == "EXPIRED"}))
-    code, message = _PAYMENT_REQUEST_REPLIES.get(
-        outcome, (502, "The Vault message was not sent (" + outcome + ")."))
-    detail = str(answer.get("detail") or "")[:120]
-    if outcome == "VAULT_OFFER_NOT_SENT" and detail:
-        message = message + " " + detail[:1].upper() + detail[1:] + "."
-    body = {"outcome": outcome, "fileId": file_id, "message": message,
-            "renewal": state == "EXPIRED"}
-    if code >= 400:
-        body["error"] = outcome
-    return cors_response(code, body, origin)
+        code, message = _PAYMENT_REQUEST_REPLIES["PAID_UNVERIFIED"]
+        return cors_response(code, {
+            "error": "PAID_UNVERIFIED", "outcome": "PAID_UNVERIFIED",
+            "fileId": file_id, "accessState": state, "message": message,
+        }, origin)
+    return _start_native_vault_payment(
+        item, state, origin,
+        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64])
 
 
 def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
@@ -1466,7 +1542,7 @@ def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
-    state = _admin_access_state(item, int(time.time()))
+    state = _file_access_state(item, int(time.time()))
     if state == "UNPAID":
         return cors_response(409, {"error": "NOT_PAID",
                                    "message": "This file has not been paid for. Request ₹49 instead."},
@@ -2482,6 +2558,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == "GET":
                 return _redeem(tail[0], event, identity, origin)
             return cors_response(405, {"error": "Method not allowed"}, origin)
+
+        # This route is shared by customer and staff callers. A verified customer-pool token is
+        # handled before the admin Authenticator; a staff token falls through to Operator auth.
+        if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
+            identity = _customer_identity(event)
+            if identity:
+                return _customer_request_payment(tail[0], event, identity, origin)
 
         # ---- admin surface ---------------------------------------------------
         denied = require_auth(event, "Operator")
