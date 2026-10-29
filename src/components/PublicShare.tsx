@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 import {
   CONTRIBUTION_AMOUNT_LABEL,
   CONTRIBUTION_CHOICES,
+  CONTRIBUTION_PRODUCT_ID,
 } from '../config/contribution';
 import { setContribution } from '../lib/cart';
 import { whatsappShareHref } from '../config/share';
 import { symbol } from '../config/materialSymbols';
+import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
 
 /**
  * The compact page-tail action dock.
@@ -15,8 +18,10 @@ import { symbol } from '../config/materialSymbols';
  * Contribute and Share reveal short dropdowns; Subscribe has one destination, so it stays a
  * direct WhatsApp link. There is no page-level opt-out for Contribute: this is one common block.
  *
- * Contribute has ONE commerce entry: Checkout. It seeds the contribution in /cart/. The customer
- * reviews it there and chooses Pay on WhatsApp or Pay here only on the post-cart checkout page.
+ * Contribute has ONE commerce entry: native WhatsApp checkout. It seeds the contribution in
+ * /cart/, then goes through the same WhatsApp-OTP service gate as every other paid entry. The
+ * pending action pins channel=whatsapp so the cart resumes directly onto Review and Pay instead
+ * of asking the customer to choose a second payment rail.
  */
 export interface PublicShareProps {
   /** Override the shared URL. Defaults to the clean current URL after hydration. */
@@ -46,6 +51,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   title,
   label = 'Share',
 } ) => {
+  const router = useRouter();
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
   const [ resolvedTitle, setResolvedTitle ] = useState( title || '' );
   const [ openMenu, setOpenMenu ] = useState<OpenMenu>( null );
@@ -110,16 +116,28 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     setOpenMenu( current => current === menu ? null : menu );
   }, [] );
 
-  const onCheckout = useCallback( () => {
+  const onCheckout = useCallback( async () => {
     if ( busy ) return;
     setBusy( true );
     try {
+      // The cart stores ids only. ProductsTable remains the price authority at checkout.
       setContribution( SUGGESTED.variantId );
+      await goToServiceAction( router, {
+        destination: CHECKOUT_PATH,
+        action: {
+          kind: 'checkout',
+          channel: 'whatsapp',
+          productId: CONTRIBUTION_PRODUCT_ID,
+          variantId: SUGGESTED.variantId,
+          label: 'Contribute',
+        },
+      } );
     } catch {
-      /* A rejected variant writes nothing; /cart/ still loads and remains the safe fallback. */
+      // Stay on the widget when either the cart write or auth/navigation fails; no payment
+      // request has been sent at this point and the customer can safely retry.
+      setBusy( false );
     }
-    if ( typeof window !== 'undefined' ) window.location.assign( '/cart/' );
-  }, [ busy ] );
+  }, [ busy, router ] );
 
   const onNativeShare = useCallback( () => {
     if ( typeof navigator === 'undefined' || typeof navigator.share !== 'function' ) return;
@@ -206,7 +224,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
             <div className="ps-menu-title contribute-label">
               { `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
             </div>
-            <p className="ps-menu-sub">Review it in your cart, then choose how to pay.</p>
+            <p className="ps-menu-sub">Review it in your cart, then pay securely on WhatsApp.</p>
           </div>
 
           <div className="ps-menu-list">
@@ -223,7 +241,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">{ busy ? 'One moment…' : 'Checkout' }</span>
-                <span className="ps-menu-note">Review contribution in cart</span>
+                <span className="ps-menu-note">Review, then pay on WhatsApp</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </button>
