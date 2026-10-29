@@ -369,7 +369,7 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
     if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket", "order",
-                    "request-service-start"):
+                    "request-service-start", "track-flow-start"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/status"):
@@ -380,6 +380,8 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
         return "verify"
     if path.endswith("/request-service-start"):
         return "request-service-start"
+    if path.endswith("/track-flow-start"):
+        return "track-flow-start"
     return "create"
 
 
@@ -561,6 +563,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _order_detail(identity, body, origin)
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
+        if action == "track-flow-start":
+            return _track_flow_start(identity, body, origin)
         return _create(identity, body, origin)
     except customer_auth.CustomerNotAuthorized:
         # Same opaque 401 as unauthenticated, so the endpoint is not an IDOR oracle.
@@ -2477,6 +2481,75 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
         origin,
         verified_service_context=verified_context,
     )
+
+
+def _track_flow_start(identity: customer_auth.CustomerIdentity,
+                      body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Send the free authenticated Track Flow. No product price or payment object is created."""
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_REQUEST"}, origin)
+    if any(key not in {"action"} for key in body):
+        return cors_response(400, {"error": "INVALID_REQUEST_FIELDS"}, origin)
+
+    phone = _profile_phone(identity)
+    contact = None
+    try:
+        response = _table(CONTACTS_TABLE).query(
+            IndexName="phone-index",
+            KeyConditionExpression=Key("phone").eq(phone),
+            Limit=5,
+        )
+        for row in response.get("Items") or []:
+            if row.get("deletedAt") is not None or row.get("isDeleted"):
+                continue
+            if str(row.get("checkoutCustomerId") or "") != identity.customer_id:
+                continue
+            if contact_store.canonical_phone(row.get("phone")) != contact_store.canonical_phone(phone):
+                continue
+            contact = row
+            break
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({"event": "track_flow_contact_lookup_failed",
+                                 "error": type(exc).__name__}))
+        return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
+
+    if not contact:
+        return cors_response(409, {
+            "error": "VERIFIED_CUSTOMER_REQUIRED",
+            "message": "Sign in with your registered WhatsApp number to use Track.",
+        }, origin)
+
+    try:
+        response = _lambda_client().invoke(
+            FunctionName="wecare-whatsapp-business-api:live",
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "prepareCustomerTrackFlow",
+                "customerId": identity.customer_id,
+                "customerPhone": contact_store.canonical_phone(phone),
+                "contactId": contact_key.resolve(contact),
+            }).encode("utf-8"),
+        )
+        raw = response["Payload"].read()
+        answer = json.loads(raw or b"{}")
+        if response.get("FunctionError"):
+            answer = {}
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({"event": "track_flow_invoke_failed",
+                                 "error": type(exc).__name__}))
+        return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
+
+    outcome = str(answer.get("outcome") or "")
+    if outcome == "TRACK_FLOW_SENT":
+        return cors_response(200, {
+            "status": "TRACK_FLOW_SENT",
+            "message": "Track has been sent to your registered WhatsApp number.",
+        }, origin)
+    if outcome == "VERIFIED_CUSTOMER_REQUIRED":
+        return cors_response(409, {"error": "VERIFIED_CUSTOMER_REQUIRED"}, origin)
+    if outcome == "TRACK_FLOW_SEND_REJECTED":
+        return cors_response(502, {"error": "TRACK_FLOW_SEND_REJECTED"}, origin)
+    return cors_response(503, {"error": "TRACK_FLOW_UNAVAILABLE"}, origin)
 
 
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
