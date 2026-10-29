@@ -221,7 +221,7 @@ delivery only; it has no price environment variable or fallback amount. There ar
 | Staff | Secure files → **Send Vault request-ready message** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.sendOffer` sends template `wecare_vault_request_ready`: "📄 Your requested *{document}* is available in your Vault. Amount due for this request: *₹49*." with an **Unlock Vault** quick reply carrying an opaque offer token (`VAULTOFFER#<token>` in CommerceKeys, 7 days) |
 | Customer | Taps **Unlock Vault** | inbound routes the tap to `catalogService.unlock`; the tap is the identity evidence, and the offer's file gets one Review and Pay (or Access Vault if already paid). An unknown, expired, revoked, reassigned or otherwise unusable offer stops with the single customer message "This document is not available right now." |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
-| Customer | `/vault/?file=` or `/get/` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
+| Customer | `/vault/?file=<fileId>` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
 
 The offer charges nothing and needs no linked WhatsApp contact beforehand: commerce's identity
 bridge proves the customer from the tap, a signed inbound message, as it does for a cart. The
