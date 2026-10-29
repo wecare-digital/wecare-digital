@@ -110,6 +110,8 @@ DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTI
                     header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
                         header="location", automated=False)
+PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
+                           header="image", buttons=("flow",))
 #: Legacy compatibility for Vault offers that were sent before direct native Review & Pay became
 #: the default staff rail. Existing QUICK_REPLY "Unlock Vault" taps still resolve their bound file,
 #: but new staff sends go straight to PAY and do not emit this template. Keep the registry entry
@@ -136,7 +138,7 @@ SERVICE_FLOW_TEMPLATES: Mapping[str, Template] = {
 }
 
 ALL: Tuple[Template, ...] = (
-    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, VAULT_OFFER,
+    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PROFILE_DETAILS, VAULT_OFFER,
     SUBMIT_REQUEST_FLOW, REQUEST_AMENDMENT_FLOW, DROP_DOCS_FLOW, REQUEST_PICKUP_FLOW,
     TRACK_SHIPPING_FLOW,
 )
@@ -235,7 +237,7 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
 
 
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
+           "LOCATION_PIN", "PROFILE_DETAILS", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
            "DROP_DOCS_FLOW", "REQUEST_PICKUP_FLOW", "TRACK_SHIPPING_FLOW",
            "SERVICE_FLOW_TEMPLATES", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name",
            "service_flow_template", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX",
