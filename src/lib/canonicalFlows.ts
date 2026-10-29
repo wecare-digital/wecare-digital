@@ -50,7 +50,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
   // of past paid submissions; paid requests start on the website.
   submit_request: {
     capability: 'submit_request', label: 'Submit Request',
-    flowId: '1107164111921876', status: 'DEPRECATED', metaName: 'WD_Submit_Request_Paid_v1',
+    flowId: '993516553092471', status: 'PUBLISHED', metaName: 'WD-F004-Submit-Request',
   },
   // The former amendment drafts no longer exist on Meta; amendment remains website-only.
   amend_request: {
