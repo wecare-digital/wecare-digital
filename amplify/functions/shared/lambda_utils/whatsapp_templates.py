@@ -224,6 +224,21 @@ def paid_service_flow_send_fields(capability: str, flow_token: str,
     }
 
 
+def track_flow_send_fields(flow_token: str) -> dict:
+    """Outbound fields for the free authenticated F006 Track launcher."""
+    token = str(flow_token or "").strip()
+    if not token:
+        raise ValueError("Track Flow token required")
+    return {
+        "isTemplate": True,
+        "templateName": TRACK_FLOW.name,
+        "templateParams": [TRACK_FLOW.language],
+        "templateHeaderMedia": VAULT_HEADER_IMAGE,
+        "templateHeaderType": "image",
+        "templateFlowButton": {"index": 0, "flowToken": token},
+    }
+
+
 def drop_docs_flow_send_fields(flow_token: str, order_number: str = "") -> dict:
     """Compatibility wrapper for F003 callers.
 
@@ -264,5 +279,5 @@ __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", 
            "PICKUP_FLOW", "TRACK_FLOW", "PAID_SERVICE_FLOW_TEMPLATES", "ALL",
            "POST_PAYMENT_FORBIDDEN", "by_name", "VAULT_HEADER_IMAGE",
            "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
-           "paid_service_flow_send_fields", "drop_docs_flow_send_fields",
+           "paid_service_flow_send_fields", "track_flow_send_fields", "drop_docs_flow_send_fields",
            "vault_offer_document_name", "vault_offer_send_fields"]
