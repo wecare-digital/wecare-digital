@@ -70,7 +70,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
   },
   shipments: {
     capability: 'shipments', label: 'Shipments',
-    flowId: '849713848195607', status: 'DRAFT', metaName: 'WD_Shipments_Design_v1',
+    flowId: '1804165164183485', status: 'PUBLISHED', metaName: 'WD-F006-Track-Shipping',
   },
   leave_review: {
     capability: 'leave_review', label: 'Leave Review',
