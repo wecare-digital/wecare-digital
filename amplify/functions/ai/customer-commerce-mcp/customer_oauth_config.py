@@ -118,6 +118,13 @@ def redirect(location: str, status: int=302) -> dict:
 def parse(value: str) -> dict:
     if not isinstance(value, str) or len(value.encode()) > 8192:
         raise AuthError('Invalid request')
+    # API Gateway represents a request with no query parameters as the empty
+    # string. Python 3.10's parse_qsl(..., strict_parsing=True) rejects that
+    # representation as a malformed field, while newer Python versions accept
+    # it as an empty query. Treat only the truly empty transport value as no
+    # parameters; non-empty malformed queries still go through strict parsing.
+    if value == '':
+        return {}
     pairs = parse_qsl(value, keep_blank_values=True, strict_parsing=True)
     if len(pairs) != len({key for key, _ in pairs}) or len(pairs) > 20:
         raise AuthError('Ambiguous request')
