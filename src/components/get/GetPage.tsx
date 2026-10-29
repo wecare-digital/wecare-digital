@@ -98,13 +98,9 @@ const GET_WORDS: CycleWord[] = [
 ];
 
 const AUTH_WORDS: CycleWord[] = [
-    { word: 'WECARE.DIGITAL', tint: '#fef3c7', dot: '#f0a818' },
-    { word: 'WhatsApp', tint: '#dcfce7', dot: '#22c55e' },
-    { word: 'Android', tint: '#e0f2fe', dot: '#0284c7' },
-    { word: 'iOS', tint: '#f3f4f6', dot: '#6b7280' },
-    { word: 'ChatGPT', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'Claude', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'Gemini', tint: '#fee2e2', dot: '#dc2626' },
+    { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
+    { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
+    { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
 ];
 
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
@@ -363,14 +359,15 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
                 the same reason. */}
             <RotatingHero
-                frame={ targetFileId ? 'One account. Anywhere you need it.' : 'Collect your' }
+                frame={ targetFileId ? 'One account.' : 'Collect your' }
                 words={ targetFileId ? AUTH_WORDS : GET_WORDS }
                 sub={ targetFileId
-                    ? 'Sign in with WhatsApp. Continue anywhere.'
+                    ? 'Sign in securely. Pick up where you left off.'
                     : 'Verify your mobile number on WhatsApp, and whatever has been shared with you is right here.' }
-                ariaLabel={ targetFileId ? 'One account. Anywhere you need it.' : 'Collect your files' }
+                ariaLabel={ targetFileId ? 'WECARE.DIGITAL Vault' : 'Collect your files' }
+                mobileFoundation
             >
-                <div className="sf-card">
+                <div className={ targetFileId ? 'sf-card sf-card-auth' : 'sf-card' }>
                     {/* THE HEADING AND LEAD RENDER ON THE 'files' STAGE ONLY, and that is a fold
                         fix as much as a copy fix.
 
@@ -430,14 +427,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                 return (
                                     <div key={ file.fileId } className={ targetFileId ? 'sf-file sf-file-deep' : 'sf-file' }>
                                         <div className="sf-file-head">
-                                            { targetFileId && (
-                                                <span className="sf-file-icon" aria-hidden="true">
-                                                    <svg viewBox="0 0 24 24" focusable="false">
-                                                        <path d="M7 3h7l4 4v14H7z"/>
-                                                        <path d="M14 3v5h5M10 13h5M10 17h5"/>
-                                                    </svg>
-                                                </span>
-                                            ) }
                                             <div className="sf-file-copy">
                                                 <div className="sf-file-name">{ file.displayName }</div>
                                                 <div className="sf-file-meta">
@@ -447,7 +436,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                         && ` · downloaded ${ file.downloadCount } time${ file.downloadCount === 1 ? '' : 's' }` }
                                                 </div>
                                             </div>
-                                            { targetFileId && isPaid && <span className="sf-paid-badge">Paid</span> }
                                         </div>
 
                                         { isPaid ? (
@@ -455,7 +443,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                 <div className={ targetFileId ? 'sf-file-action' : undefined }>
                                                     <button
                                                         type="button"
-                                                        className="sf-download-action"
+                                                        className={ targetFileId ? 'sf-auth-action sf-auth-primary' : 'sf-download-action' }
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
@@ -465,8 +453,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                 </div>
                                                 <p className={ targetFileId ? 'sf-paid-note' : 'sf-fine' }>
                                                     { state === 'OPEN'
-                                                        ? `Paid. Download again for free${ ends ? ` until ${ ends }` : ' while your access window is open' }.`
-                                                        : 'Paid. Your access window starts with your first download.' }
+                                                        ? `Access is active${ ends ? ` until ${ ends }` : '' }. Download again anytime before it ends.`
+                                                        : 'Your 24-hour access starts with your first download.' }
                                                 </p>
                                             </>
                                         ) : state === 'PAID_UNVERIFIED' ? (
@@ -476,27 +464,44 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                             </p>
                                         ) : (
                                             <>
-                                                <PillButton
-                                                    as="button"
-                                                    type="button"
-                                                    label="Vault"
-                                                    action={ working === file.fileId
-                                                        ? 'Preparing checkout…'
-                                                        : price === null || payablePrice === null
-                                                            ? 'Price unavailable'
-                                                            : state === 'EXPIRED'
-                                                                ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
-                                                                : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
-                                                    block
-                                                    onClick={ () => { void handleVaultCheckout( file ); } }
-                                                    disabled={ working === file.fileId || price === null || payablePrice === null }
-                                                    busy={ working === file.fileId }
-                                                />
-                                                <p className="sf-fine">
-                                                    { state === 'EXPIRED' ? 'Your access window has ended. ' : '' }
-                                                    This exact document is bound to checkout before payment. Review the
-                                                    cart, then choose Pay here or Pay on WhatsApp. The server confirms
-                                                    the final payable amount before any payment starts.
+                                                { targetFileId ? (
+                                                    <button
+                                                        type="button"
+                                                        className="sf-auth-action sf-auth-primary"
+                                                        onClick={ () => { void handleVaultCheckout( file ); } }
+                                                        disabled={ working === file.fileId || price === null || payablePrice === null }
+                                                        aria-busy={ working === file.fileId }
+                                                    >
+                                                        { working === file.fileId
+                                                            ? 'Preparing checkout…'
+                                                            : price === null || payablePrice === null
+                                                                ? 'Price unavailable'
+                                                                : state === 'EXPIRED'
+                                                                    ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
+                                                                    : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
+                                                    </button>
+                                                ) : (
+                                                    <PillButton
+                                                        as="button"
+                                                        type="button"
+                                                        label="Vault"
+                                                        action={ working === file.fileId
+                                                            ? 'Preparing checkout…'
+                                                            : price === null || payablePrice === null
+                                                                ? 'Price unavailable'
+                                                                : state === 'EXPIRED'
+                                                                    ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
+                                                                    : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
+                                                        block
+                                                        onClick={ () => { void handleVaultCheckout( file ); } }
+                                                        disabled={ working === file.fileId || price === null || payablePrice === null }
+                                                        busy={ working === file.fileId }
+                                                    />
+                                                ) }
+                                                <p className={ targetFileId ? 'sf-vault-note' : 'sf-fine' }>
+                                                    { state === 'EXPIRED'
+                                                        ? 'Your 24-hour access has ended. Renew this document to open another 24-hour download window.'
+                                                        : 'Review this document in your cart, then choose how to pay.' }
                                                 </p>
                                             </>
                                         ) }
@@ -553,14 +558,22 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                    .rh-layout's 96px gap and .rh-shell's padding are unreachable from here. Every
                    mitigation has to live in the hero's children. Do not try. */
                 .sf-card{width:100%;max-width:460px;margin:0}
-                .sf-access-eyebrow{
-                  display:inline-flex;align-items:center;gap:9px;min-height:42px;margin:0 0 18px;
-                  padding:0 15px;border-radius:999px;background:var(--public-brand-lime);
-                  color:var(--public-brand-green);font-size:18px;font-weight:700;line-height:1.1;
+                .sf-card-auth{
+                  width:min(100%,560px);max-width:560px;padding:36px 40px 40px;
+                  border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
+                  border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
+                  color:var(--public-text);font-family:var(--font-sans);
                 }
-                .sf-access-icon{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center}
-                .sf-access-icon svg,.sf-file-icon svg{
-                  width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;
+                .sf-access-eyebrow{
+                  display:inline-flex;align-items:center;gap:12px;min-height:52px;margin:0 0 34px;
+                  padding:0 22px;border-radius:999px;background:var(--public-brand-lime);
+                  color:var(--public-brand-green);font-size:var(--public-card-size);
+                  font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
+                  letter-spacing:var(--public-card-tracking);
+                }
+                .sf-access-icon{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center}
+                .sf-access-icon svg{
+                  width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;
                   stroke-linecap:round;stroke-linejoin:round;
                 }
 
@@ -655,6 +668,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 .sf-file-deep{
                   padding:13px;border:0;box-shadow:inset 0 0 0 1px rgba(26,58,42,.07);
                 }
+                .sf-card-auth .sf-file-deep{
+                  margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;
+                }
                 .sf-file-head{display:flex;gap:11px;align-items:flex-start}
                 .sf-file-icon{
                   width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
@@ -669,11 +685,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 }
                 .sf-file-deep .sf-file-name{font-size:15px;color:var(--public-brand-green)}
                 .sf-file-deep .sf-file-meta{margin:3px 0 0;font-size:13px}
-                .sf-paid-badge{
-                  flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--public-lime-tint);
-                  color:var(--public-brand-green);font-size:11px;font-weight:700;
+                .sf-card-auth .sf-file-name{
+                  color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+                  line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
                 }
-                .sf-file-action{margin-top:13px}
+                .sf-card-auth .sf-file-meta{
+                  margin:8px 0 0;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4;
+                }
+                .sf-file-action{margin-top:22px}
                 .sf-download-action{
                   display:inline-flex;align-items:center;width:max-content;max-width:100%;
                   min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;padding:6px 9px;
@@ -695,11 +714,26 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   outline:3px solid var(--public-brand-green);outline-offset:3px;
                 }
                 .sf-download-action:disabled{opacity:.55;cursor:progress}
-                .sf-paid-note{
-                  margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#fff;
-                  box-shadow:inset 4px 0 0 var(--public-brand-lime);
-                  color:var(--public-body);font-size:14px;line-height:1.45;
+                .sf-auth-action{
+                  min-height:48px;margin-top:22px;padding:8px 14px;border:0;border-radius:10px;
+                  background:var(--public-lime-tint);color:var(--public-brand-green);
+                  font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+                  text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+                  cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s;
                 }
+                .sf-file-action .sf-auth-action{margin-top:0}
+                .sf-auth-action:hover:not(:disabled){
+                  background:var(--public-brand-lime);transform:translateY(-1px);
+                  box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
+                }
+                .sf-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+                .sf-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+                .sf-auth-primary{font-weight:700}
+                .sf-paid-note,.sf-vault-note{
+                  margin:14px 0 0;color:var(--public-muted);
+                  font-size:var(--public-supporting-size);line-height:1.45;
+                }
+                .sf-paid-note{padding:0;background:transparent;box-shadow:none}
 
                 /* No secondary website-checkout CTA is rendered for file delivery. */
 
@@ -731,9 +765,21 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   background:#fff;border-inline-start:4px solid #1a3a2a;color:var(--public-brand-green);
                 }
 
+                @media(max-width:767px){
+                  .sf-card-auth{width:100%;padding:28px 20px 30px;border-radius:20px}
+                  .sf-access-eyebrow{
+                    min-height:48px;margin-bottom:28px;padding-inline:18px;
+                    font-size:var(--public-mobile-card-size);
+                  }
+                  .sf-card-auth .sf-file-name{font-size:var(--public-mobile-card-size)}
+                  .sf-card-auth .sf-file-meta,.sf-paid-note,.sf-vault-note{
+                    font-size:var(--public-mobile-supporting-size);
+                  }
+                  .sf-auth-action{min-height:46px;font-size:var(--public-mobile-cta-font-size)}
+                }
                 @media(prefers-reduced-motion:reduce){
-                  .sf-input,.sf-download-action{transition:none}
-                  .sf-download-action:hover:not(:disabled){transform:none;box-shadow:none}
+                  .sf-input,.sf-download-action,.sf-auth-action{transition:none}
+                  .sf-download-action:hover:not(:disabled),.sf-auth-action:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
         </>
