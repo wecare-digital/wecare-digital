@@ -162,7 +162,7 @@ export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
     label: 'Drop Docs',
     flowType: 'drop_docs',
     entryMode: 'payment_template',
-    entryTemplateName: 'drop_docs_flow',
+    entryTemplateName: '_dropdoc_flow',
     requiresPayment: true,
     submissionPrefix: 'WD-DOC',
     wabaId: '2094615664435155',

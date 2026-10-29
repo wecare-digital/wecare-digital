@@ -90,7 +90,7 @@ def readiness(graph):
     templates = {}
     for name, ident in {'wecare_whatapp_native_pay_template': '2714938845570815',
                         'wecare_default_download': '1410998911012572',
-                        'drop_docs_flow': '1681315560321380'}.items():
+                        '_dropdoc_flow': '1041974032198332'}.items():
         info = graph(ident, params={'fields': 'id,name,status,language,components'})
         templates[name] = {k: info.get(k) for k in ('id', 'name', 'status', 'language', 'components', 'error')}
     return {'templates': templates}

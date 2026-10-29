@@ -135,7 +135,7 @@ CANONICAL_CONTRACTS = {
         'label': 'Drop Docs',
         'flowType': 'drop_docs',
         'entryMode': 'payment_template',
-        'entryTemplateName': 'drop_docs_flow',
+        'entryTemplateName': '_dropdoc_flow',
         'requiresPayment': True,
         'submissionPrefix': 'WD-DOC',
         'wabaId': '2094615664435155',

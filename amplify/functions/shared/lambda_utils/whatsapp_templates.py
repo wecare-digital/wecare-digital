@@ -31,8 +31,11 @@ the production code and checks it against these live definitions:
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
     VAULT_OFFER    wecare_vault_request_ready             LEGACY compatibility only for already-sent
                                                           QUICK_REPLY "Unlock Vault" messages
-    DROP_DOCS_FLOW drop_docs_flow                         IMAGE header, FLOW button index 0
-                                                          (F003 SELECT_TARGET)
+    SUBMIT_REQUEST_FLOW     submit_request_flow           UTILITY, IMAGE header, FLOW button index 0
+    REQUEST_AMENDMENT_FLOW request_amendment_flow          UTILITY, IMAGE header, FLOW button index 0
+    DROP_DOCS_FLOW          _dropdoc_flow                  UTILITY, IMAGE header, FLOW button index 0
+    REQUEST_PICKUP_FLOW     pickup_request_flow            UTILITY, IMAGE header, FLOW button index 0
+    TRACK_SHIPPING_FLOW     track_ship_flow                UTILITY, IMAGE header, FLOW button index 0
 
 `wecare_whatapp_native_pay_template` is the real approved spelling ("whatapp"); do not "fix" it.
 
@@ -59,7 +62,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Tuple
+from typing import FrozenSet, Mapping, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -113,11 +116,30 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 #: while old WhatsApp messages may still be tapped.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
-DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="MARKETING",
+SUBMIT_REQUEST_FLOW = Template(name="submit_request_flow", language="en", category="UTILITY",
+                               header="image", buttons=("flow",))
+REQUEST_AMENDMENT_FLOW = Template(name="request_amendment_flow", language="en", category="UTILITY",
+                                  header="image", buttons=("flow",))
+DROP_DOCS_FLOW = Template(name="_dropdoc_flow", language="en", category="UTILITY",
                           header="image", buttons=("flow",))
+REQUEST_PICKUP_FLOW = Template(name="pickup_request_flow", language="en", category="UTILITY",
+                               header="image", buttons=("flow",))
+TRACK_SHIPPING_FLOW = Template(name="track_ship_flow", language="en", category="UTILITY",
+                               header="image", buttons=("flow",))
 
-ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
-                             LOCATION_PIN, VAULT_OFFER, DROP_DOCS_FLOW)
+SERVICE_FLOW_TEMPLATES: Mapping[str, Template] = {
+    "SUBMIT_REQUEST": SUBMIT_REQUEST_FLOW,
+    "REQUEST_AMENDMENT": REQUEST_AMENDMENT_FLOW,
+    "DROP_DOCS": DROP_DOCS_FLOW,
+    "REQUEST_PICKUP": REQUEST_PICKUP_FLOW,
+    "TRACK_SHIPPING": TRACK_SHIPPING_FLOW,
+}
+
+ALL: Tuple[Template, ...] = (
+    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, VAULT_OFFER,
+    SUBMIT_REQUEST_FLOW, REQUEST_AMENDMENT_FLOW, DROP_DOCS_FLOW, REQUEST_PICKUP_FLOW,
+    TRACK_SHIPPING_FLOW,
+)
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
@@ -128,6 +150,11 @@ def by_name(name: str) -> Optional[Template]:
     """The registered template with this exact name, or None."""
     wanted = str(name or "").strip()
     return next((template for template in ALL if template.name == wanted), None)
+
+
+def service_flow_template(service_code: object) -> Optional[Template]:
+    """The common-body Flow launcher registered for one service code."""
+    return SERVICE_FLOW_TEMPLATES.get(str(service_code or "").strip().upper())
 
 
 #: The brand image the Vault templates carry in their IMAGE header, served publicly.
@@ -166,19 +193,27 @@ def vault_offer_document_name(raw: object) -> str:
     return text[:60].rstrip() or "Your document"
 
 
-def drop_docs_flow_send_fields(flow_token: str) -> dict:
-    """Outbound fields for the paid F003 launch template.
+def service_flow_send_fields(service_code: object, flow_token: str) -> dict:
+    """Outbound fields for a common-body service Flow launcher.
 
-    The FLOW button needs the exact server-issued token recorded before the send, and the IMAGE
-    header must be supplied at send time or Meta rejects the message.
+    The approved body has zero customer variables. Only the language selector and the
+    server-issued Flow token travel at send time.
     """
+    template = service_flow_template(service_code)
     token = str(flow_token or "").strip()
+    if template is None:
+        raise ValueError("Service Flow template is not registered")
     if not token:
-        raise ValueError("Drop Docs Flow token required")
-    return {"isTemplate": True, "templateName": DROP_DOCS_FLOW.name,
-            "templateParams": [DROP_DOCS_FLOW.language],
+        raise ValueError("Service Flow token required")
+    return {"isTemplate": True, "templateName": template.name,
+            "templateParams": [template.language],
             "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
             "templateFlowButton": {"index": 0, "flowToken": token}}
+
+
+def drop_docs_flow_send_fields(flow_token: str) -> dict:
+    """Backward-compatible wrapper for the canonical paid F003 launcher."""
+    return service_flow_send_fields("DROP_DOCS", flow_token)
 
 
 def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
@@ -196,6 +231,9 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
 
 
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "VAULT_OFFER", "DROP_DOCS_FLOW", "ALL", "POST_PAYMENT_FORBIDDEN",
-           "by_name", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
-           "drop_docs_flow_send_fields", "vault_offer_document_name", "vault_offer_send_fields"]
+           "LOCATION_PIN", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
+           "DROP_DOCS_FLOW", "REQUEST_PICKUP_FLOW", "TRACK_SHIPPING_FLOW",
+           "SERVICE_FLOW_TEMPLATES", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name",
+           "service_flow_template", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX",
+           "download_send_fields", "service_flow_send_fields", "drop_docs_flow_send_fields",
+           "vault_offer_document_name", "vault_offer_send_fields"]
