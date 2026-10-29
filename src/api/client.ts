@@ -310,9 +310,14 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
           ? ( nestedError as Record<string, unknown> ).message
           : undefined
       );
-      const msg = nestedMessage || nestedError || errorBody?.message;
+      const msg = (
+        typeof nestedMessage === 'string' ? nestedMessage
+          : typeof nestedError === 'string' ? nestedError
+            : typeof errorBody?.message === 'string' ? errorBody.message
+              : ''
+      );
       message = msg
-        ? `HTTP ${response.status}: ${String( msg )}`
+        ? `HTTP ${response.status}: ${msg}`
         : `HTTP ${response.status}: ${response.statusText}`;
     }
 
