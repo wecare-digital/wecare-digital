@@ -131,7 +131,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Tell our team what these documents are for."
+            "text": "Tell our team what you need help with."
           },
           {
             "type": "Form",
@@ -154,12 +154,10 @@
                     "name": "CONFIRMATION"
                   },
                   "payload": {
-                    "message": "Your request has been received.",
-                    "file_count": "0",
+                    "message": "Your request has been received and linked for review.",
                     "reference_number": "${data.selected_target}",
                     "note": "${form.note}",
-                    "submission_id": "PREVIEW",
-                    "attachments": []
+                    "submission_id": "PREVIEW"
                   }
                 }
               }
@@ -176,11 +174,7 @@
       "data": {
         "message": {
           "type": "string",
-          "__example__": "Your documents are stored securely and linked for review."
-        },
-        "file_count": {
-          "type": "string",
-          "__example__": "3"
+          "__example__": "Your request has been received and linked for review."
         },
         "reference_number": {
           "type": "string",
@@ -188,35 +182,11 @@
         },
         "note": {
           "type": "string",
-          "__example__": "Please review these documents."
+          "__example__": "Please help me with this order."
         },
         "submission_id": {
           "type": "string",
-          "__example__": "WD-DOC-ABC123"
-        },
-        "attachments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "filename": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
-              }
-            }
-          },
-          "__example__": [
-            {
-              "key": "secure/u/dropdocs/flow/wecare-digital-example.pdf",
-              "filename": "wecare-digital-123456.pdf",
-              "type": "application/pdf"
-            }
-          ]
+          "__example__": "WD-SR-ABC123"
         }
       },
       "layout": {
@@ -240,7 +210,7 @@
           },
           {
             "type": "TextHeading",
-            "text": "Documents received"
+            "text": "Request received"
           },
           {
             "type": "TextBody",
@@ -255,22 +225,16 @@
             "text": "${data.reference_number}"
           },
           {
-            "type": "TextBody",
-            "text": "Files received: ${data.file_count}"
-          },
-          {
             "type": "Footer",
             "label": "Done",
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "flow_key": "wd_f003_drop_docs",
-                "schema_version": "7",
+                "flow_key": "wd_f004_submit_request",
+                "schema_version": "1",
                 "submission_id": "${data.submission_id}",
                 "reference_number": "${data.reference_number}",
-                "note": "${data.note}",
-                "documents": "${data.attachments}",
-                "file_count": "${data.file_count}"
+                "note": "${data.note}"
               }
             }
           }
