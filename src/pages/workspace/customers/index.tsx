@@ -493,16 +493,14 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
       if (e.key === 'Escape') {
         if (detailContact) { setDetailContact(null); return; }
-        if (showModal) { setShowModal(false); return; }
         if (showEditModal) { setShowEditModal(false); setEditingContact(null); return; }
       }
       if (inInput) return;
-      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); resetForm(); setShowModal(true); }
       if (e.key === '/') { e.preventDefault(); searchInputRef.current?.focus(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [showModal, showEditModal, detailContact]);
+  }, [showEditModal, detailContact]);
 
   // Filter + sort (includes tag search)
   const filteredSorted = useMemo(() => {
@@ -1110,9 +1108,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           </div>
 
           {/* Action buttons */}
-          <button onClick={() => { resetForm(); setShowModal(true); }} title="Add customer (N)" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, cursor: 'pointer' }}>
-            <AddUserIcon />
-          </button>
           <button onClick={() => setShowImport(!showImport)} title="Import customers" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', color: '#374151', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
             <UploadIcon />
           </button>
@@ -1122,6 +1117,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           <button onClick={() => loadContacts()} title="Refresh" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
             <RefreshIcon />
           </button>
+          <span className="contacts-provenance-note">New customers come from verified customer / WhatsApp identity.</span>
           <button type="button" onClick={() => setShowManageData(true)} title="Review customer data quality"
             style={{ minHeight: 40, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 650 }}>
             Manage data
@@ -1505,23 +1501,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           </div>
         )}
       </div>
-
-      {/* Add Customer Modal — Fix #10: accessibility */}
-      {showModal && (
-        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
-              <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
-            </div>
-            {renderContactForm(false)}
-            <div style={{ padding: '16px 24px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={handleCreate} disabled={saving} style={{ padding: '8px 20px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Create'}</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
