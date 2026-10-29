@@ -110,13 +110,9 @@ export const CUSTOMERSERVICE: ProductDef[] = [
      * VAULT IS THE RETURN LEG OF DROP DOCS, and the pair is why it sits directly beneath it in
      * the menu: one page is for sending paperwork in, this one is for getting it back out.
      *
-     * IT IS NOT A SECOND /get/. /get/ is the mechanism - verify a number over WhatsApp, then
-     * collect what was shared with you - and it is noindex,nofollow with no inbound link
-     * anywhere in the export, because it is reached from the message carrying the link.
-     * Somebody whose document was never shared into it lands on an empty screen. This page is
-     * the part that belongs in a menu: what is kept, how long, how you ask for a copy, and
-     * what we will not do. The third point describes the mechanism; the CTA still goes to
-     * /contact/, like every other row in this group, because asking always works.
+     * /vault/ is the public service page and /vault/?file=<fileId> is the only exact-file
+     * customer download surface. The approved WhatsApp delivery template lands on that query
+     * route after identity verification; /get/ is no longer a second customer file collection.
      *
      * The boundary note is the important half. A page called Vault invites the assumption that
      * everything is kept forever and can be downloaded on demand, and neither is true - the
