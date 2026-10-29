@@ -121,45 +121,49 @@ def _paid_attempt(db: Any, *, payment_attempt_id: str, order_id: str,
     return attempt
 
 
-def launch_single_order_service(
+def _track_purchase_attempt(db: Any, *, payment_attempt_id: str, order_id: str) -> dict:
+    """A finalized ordinary order containing one Track Shipping product line, or {}."""
+    attempt = db.Table(shared_tables.payment_attempts_table_name()).get_item(
+        Key={"paymentAttemptId": payment_attempt_id}, ConsistentRead=True
+    ).get("Item") or {}
+    if (str(attempt.get("status") or "") != "PAYMENT_PAID"
+            or str(attempt.get("finalizationStage") or "") != "ORDER_FINALIZED"
+            or str(attempt.get("orderId") or "") != order_id
+            or attempt.get("singleOrderService") is True):
+        return {}
+    spec = attempt.get("invoiceLines") if isinstance(attempt.get("invoiceLines"), dict) else {}
+    lines = spec.get("lines") if isinstance(spec.get("lines"), list) else []
+    matches = [
+        line for line in lines
+        if isinstance(line, dict)
+        and str(line.get("variantId") or "").strip().upper() == "SHT8M5P3"
+        and type(line.get("quantity")) is int
+        and line.get("quantity") == 1
+    ]
+    return attempt if len(matches) == 1 else {}
+
+
+def _launch_verified_attempt(
     *,
-    event: dict,
-    service_code: str,
-    capability: str,
+    db: Any,
+    attempts: Any,
+    attempt: dict,
+    spec: LaunchSpec,
+    code: str,
     order_id: str,
     order_number: str,
     lambda_client: Any,
 ) -> dict:
-    """Send one post-invoice service launcher, or return a stable fail-closed outcome."""
-    code = str(service_code or "").strip().upper()
-    spec = LAUNCH_SPECS.get(code)
-    if spec is None or spec.capability != str(capability or "").strip():
-        return {"outcome": "SERVICE_FLOW_LAUNCH_CONTRACT_MISMATCH"}
-    if not spec.enabled:
-        return {"outcome": spec.blocked_outcome or "SERVICE_FLOW_LAUNCH_DISABLED",
-                "serviceCode": code}
-
+    """Issue the session and send one launcher for an already-verified paid attempt."""
     flow = canonical_flows.published_flow(spec.capability)
     template = whatsapp_templates.service_flow_template(code)
     if (flow is None or template is None or template.category != "UTILITY"
             or template.buttons != ("flow",)):
         return {"outcome": "SERVICE_FLOW_LAUNCH_UNAVAILABLE", "serviceCode": code}
 
-    payment_attempt_id = str(event.get("paymentAttemptId") or "").strip()
+    payment_attempt_id = str(attempt.get("paymentAttemptId") or "").strip()
     if not payment_attempt_id or not order_id or not order_number:
         return {"outcome": "SERVICE_FLOW_PAYMENT_CONTEXT_MISSING", "serviceCode": code}
-
-    db = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    attempts = db.Table(shared_tables.payment_attempts_table_name())
-    attempt = _paid_attempt(
-        db,
-        payment_attempt_id=payment_attempt_id,
-        order_id=order_id,
-        order_number=order_number,
-        service_code=code,
-    )
-    if not attempt:
-        return {"outcome": "SERVICE_FLOW_PAYMENT_NOT_FINALIZED", "serviceCode": code}
 
     current = str(attempt.get("serviceFlowNotificationStatus") or "")
     if current == "ACCEPTED":
@@ -218,7 +222,7 @@ def launch_single_order_service(
     body = {
         "contactId": contact_key.resolve(contact),
         "recipientPhone": phone,
-        "phoneNumberId": PRIMARY_SENDER,
+        "phoneNumberId": str(attempt.get("phoneId") or PRIMARY_SENDER),
         **whatsapp_templates.service_flow_send_fields(code, token),
     }
     answer = None
@@ -247,7 +251,7 @@ def launch_single_order_service(
         )
     except Exception:
         # The wire result is more important than a projection write. Treat an unrecorded
-        # accepted/unknown send as ambiguous so no caller automatically emits a duplicate.
+        # accepted send as ambiguous so no caller automatically emits a duplicate.
         if status == "ACCEPTED":
             status = "SEND_UNKNOWN"
 
@@ -259,4 +263,83 @@ def launch_single_order_service(
     }
 
 
-__all__ = ["LaunchSpec", "LAUNCH_SPECS", "launch_single_order_service"]
+def launch_single_order_service(
+    *,
+    event: dict,
+    service_code: str,
+    capability: str,
+    order_id: str,
+    order_number: str,
+    lambda_client: Any,
+) -> dict:
+    """Send one post-invoice request-service launcher, or fail closed."""
+    code = str(service_code or "").strip().upper()
+    spec = LAUNCH_SPECS.get(code)
+    if spec is None or spec.capability != str(capability or "").strip():
+        return {"outcome": "SERVICE_FLOW_LAUNCH_CONTRACT_MISMATCH"}
+    if not spec.enabled:
+        return {"outcome": spec.blocked_outcome or "SERVICE_FLOW_LAUNCH_DISABLED",
+                "serviceCode": code}
+
+    payment_attempt_id = str(event.get("paymentAttemptId") or "").strip()
+    if not payment_attempt_id or not order_id or not order_number:
+        return {"outcome": "SERVICE_FLOW_PAYMENT_CONTEXT_MISSING", "serviceCode": code}
+
+    db = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+    attempts = db.Table(shared_tables.payment_attempts_table_name())
+    attempt = _paid_attempt(
+        db,
+        payment_attempt_id=payment_attempt_id,
+        order_id=order_id,
+        order_number=order_number,
+        service_code=code,
+    )
+    if not attempt:
+        return {"outcome": "SERVICE_FLOW_PAYMENT_NOT_FINALIZED", "serviceCode": code}
+    return _launch_verified_attempt(
+        db=db,
+        attempts=attempts,
+        attempt=attempt,
+        spec=spec,
+        code=code,
+        order_id=order_id,
+        order_number=order_number,
+        lambda_client=lambda_client,
+    )
+
+
+def launch_track_shipping_purchase(event: dict, lambda_client: Any):
+    """Launch Track Shipping after a paid Shop/catalog order containing SKU SHT8M5P3.
+
+    Returns None when the finalized order did not buy Track Shipping, allowing the legacy
+    non-service post-invoice path to continue unchanged.
+    """
+    payment_attempt_id = str(event.get("paymentAttemptId") or "").strip()
+    order_id = str(event.get("orderId") or "").strip()
+    if not payment_attempt_id or not order_id:
+        return None
+    db = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+    attempts = db.Table(shared_tables.payment_attempts_table_name())
+    attempt = _track_purchase_attempt(
+        db, payment_attempt_id=payment_attempt_id, order_id=order_id
+    )
+    if not attempt:
+        return None
+    order_number = str(attempt.get("orderNumber") or "").strip().upper()
+    spec = LAUNCH_SPECS["TRACK_SHIPPING"]
+    return _launch_verified_attempt(
+        db=db,
+        attempts=attempts,
+        attempt=attempt,
+        spec=spec,
+        code="TRACK_SHIPPING",
+        order_id=order_id,
+        order_number=order_number,
+        lambda_client=lambda_client,
+    )
+
+
+__all__ = [
+    "LaunchSpec", "LAUNCH_SPECS", "launch_single_order_service",
+    "launch_track_shipping_purchase",
+]
