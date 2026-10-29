@@ -1069,3 +1069,61 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Customers — turn duplicate identity into a usable existing-customer action. */
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card {
+  flex: 0 0 auto;
+  margin: 8px 24px 4px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--public-hairline, #e6e9e5);
+  border-radius: 14px;
+  background: #f8faf3;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card > div:first-child {
+  min-width: 0;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card span,
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card strong,
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card small {
+  display: block;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card span {
+  margin-bottom: 3px;
+  color: #6e7782;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card strong {
+  color: #1a3a2a;
+  font-size: 14px;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #68736d;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 680px) {
+  .workspace-shell .contacts-auth-modal .contacts-duplicate-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
