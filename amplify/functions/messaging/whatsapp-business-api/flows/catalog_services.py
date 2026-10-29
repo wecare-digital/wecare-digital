@@ -26,6 +26,7 @@ import os
 import re
 import secrets
 import time
+import uuid
 import boto3
 from lambda_utils import contact_key, contact_store, customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.identity import customer as customer_identity
@@ -470,6 +471,23 @@ def _send_native_payment(event, client, db, keys, contacts, now):
         contact = contact_store.find_by_phone(contacts, phone)
     except contact_store.IdentityConflict:
         return {'outcome': 'CONTACT_AMBIGUOUS'}
+
+    # The authenticated website bootstrap writes the deterministic checkout-customer row and its
+    # phone-index entry in one DynamoDB PutItem. The GSI is eventually consistent, so an immediate
+    # Vault click can legitimately miss that row for a moment even though the authoritative base
+    # table already has it. Fall back to the deterministic id with a strongly consistent read,
+    # accepting it only when owner + phone match exactly. This is NOT a second identity creation
+    # path; customer-profile owns creation/linking.
+    if not contact:
+        checkout_contact_id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, 'wecare:checkout-customer:' + owner))
+        direct = contacts.get_item(
+            Key={'id': checkout_contact_id}, ConsistentRead=True).get('Item') or {}
+        if (contact_store.is_live(direct)
+                and str(direct.get('checkoutCustomerId') or '') == owner
+                and contact_store.canonical_phone(direct.get('phone')) == phone):
+            contact = direct
+
     contact_id = contact_key.resolve(contact) if contact else ''
     if not contact_id:
         return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
