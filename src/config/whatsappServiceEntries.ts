@@ -1,19 +1,22 @@
 /** Public entry links open chat with a keyword; backend verifies identity before returning data. */
 import { REVIEW_ENTRY_URL, REVIEW_FLOW_ID } from '../lib/reviewEntry';
+import { canonicalFlowId } from '../lib/canonicalFlows';
+
 export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'orders', label: 'Orders', keyword: 'Orders', messageLink: 'https://wa.me/message/2OQZCYBSMU4SE1', flowId: '', state: 'Canonical customer order numbers; paginated' },
-  { slug: 'submit-request', label: 'Submit Request', keyword: 'Submit Request', messageLink: 'https://wa.me/message/5DRZXKBJTZDQG1', flowId: '1107164111921876', state: 'Published; opens after verified payment' },
-  { slug: 'request-amendment', label: 'Request Amendment', keyword: 'Request Amendment', messageLink: 'https://wa.me/message/HD5C4LAUYOOID1', flowId: '3678132465672138', state: 'Existing draft; publication pending' },
-  { slug: 'drop-docs', label: 'Drop Docs', keyword: 'Drop Docs', messageLink: 'https://wa.me/message/BCYW2SEPI5R4D1', flowId: '1211063631104445', state: 'Existing draft; publication pending' },
+  { slug: 'submit-request', label: 'Submit Request', keyword: 'Submit Request', messageLink: 'https://wa.me/message/5DRZXKBJTZDQG1', flowId: canonicalFlowId( 'submit_request' ) || '', state: 'Published on Meta; canonical Submit Request flow' },
+  { slug: 'request-amendment', label: 'Request Amendment', keyword: 'Request Amendment', messageLink: 'https://wa.me/message/HD5C4LAUYOOID1', flowId: canonicalFlowId( 'amend_request' ) || '', state: 'Published on Meta; canonical Request Amendment flow' },
+  { slug: 'drop-docs', label: 'Drop Docs', keyword: 'Drop Docs', messageLink: 'https://wa.me/message/BCYW2SEPI5R4D1', flowId: canonicalFlowId( 'drop_docs' ) || '', state: 'Published on Meta; payment-gated Drop Docs flow' },
   { slug: 'vault', label: 'Vault', keyword: 'Vault', messageLink: 'https://wa.me/message/4J6E277ZRFHLK1', flowId: '', state: 'Secure file selection and delivery; no extra Flow' },
-  // Request Pickup, added 2026-10-10 with the fifth service variant. It shares the dedicated
-  // pickup Meta short link used directly by the /request-pickup page.
-  { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: '', state: 'Public page live; uses the dedicated pickup Meta short link' },
-  { slug: 'shipments-track', label: 'Track', keyword: 'Shipment Track', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Track child page; carrier booking remains separate' },
-  { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: REVIEW_FLOW_ID, state: 'Direct review Meta short link; no public review page' },
+  // Request Pickup uses the dedicated pickup Meta short link. The canonical Flow is published,
+  // payment-gated in FlowRegistry, and its completion path remains guarded until the published
+  // payload is pickup-specific.
+  { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: canonicalFlowId( 'request_pickup' ) || '', state: 'Published on Meta; payment-gated; completion wiring guarded' },
+  { slug: 'shipments-track', label: 'Track', keyword: 'Shipment Track', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: canonicalFlowId( 'shipments' ) || '', state: 'Published on Meta; canonical shipment tracking flow' },
+  { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: REVIEW_FLOW_ID, state: 'Published on Meta; direct review Meta short link' },
   // Subscribe has no website page. Customer-facing Subscribe actions go straight to this
   // dedicated Meta conversation; keep it byte-equal to SUBSCRIBE_CTA_HREF.
-  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Direct Subscribe Meta short link; no public Subscribe page' },
+  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: canonicalFlowId( 'subscribe' ) || '', state: 'Published on Meta; direct Subscribe Meta short link' },
   { slug: 'anew', label: 'Anew', keyword: 'Start a conversation', messageLink: 'https://wa.me/message/F2D7PVR5Q45MP1', flowId: '', state: 'Public Anew conversation entry' },
   // No Meta short link exists for this entry; the empty messageLink makes whatsappServiceLink
   // fall back to the keyword deep link (wa.me/919330994400?text=Customer%20ID), which opens
