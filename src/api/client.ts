@@ -4989,9 +4989,9 @@ export interface CreateInvoiceEngineRequest {
   /** ISO country code for the delivery address; the engine stores it and defaults to IN. */
   countryCode?: string;
   /*
-   * Coupon and gift-card codes remain retired. `discount` is an optional staff-entered amount
-   * on the Admin-authenticated invoice route. The invoice engine validates it, combines it with
-   * automatic Delight, and remains the only pricing authority.
+   * Coupon, gift-card and manual discount entry are retired. Fresh Workspace invoices do not
+   * send `discount`; the invoice engine applies automatic Delight. The optional field remains
+   * only for verified captured/legacy invoice contracts and non-zero fresh values are refused.
    */
 }
 
