@@ -234,6 +234,103 @@ def _workspace_order_fields(attempt):
             }}
 
 
+def _accept_paid_single_order_service(*, attempts, orders, attempt,
+                                      provider_id: str, razorpay_paise: int) -> bool:
+    """Attach one verified service payment to an existing owned order. Idempotent.
+
+    Returns True when the activity is recorded (or was already recorded). It never changes the
+    original order's purchase/payment status and never creates a second order row.
+    """
+    selected_order_id = str(attempt.get("selectedOrderId") or "")
+    selected_order_number = str(attempt.get("selectedOrderNumber") or "")
+    customer_id = str(attempt.get("customerId") or "")
+    attempt_id = str(attempt.get("paymentAttemptId") or "")
+    service_code = str(attempt.get("serviceCode") or "")
+    service_sku = str(attempt.get("serviceSku") or "")
+    flow_capability = str(attempt.get("flowCapability") or "")
+    if not (selected_order_id and selected_order_number and customer_id and attempt_id
+            and service_code and service_sku and flow_capability):
+        _stage(attempts, attempt_id, 'NEEDS_RECONCILIATION',
+               finalizationReason='SINGLE_ORDER_SERVICE_CONTEXT_MISSING')
+        return False
+
+    current = orders.get_item(
+        Key={'orderId': selected_order_id}, ConsistentRead=True).get('Item') or {}
+    if (str(current.get('customerId') or '') != customer_id
+            or str(current.get('orderNumber') or '') != selected_order_number):
+        _stage(attempts, attempt_id, 'NEEDS_RECONCILIATION',
+               finalizationReason='SINGLE_ORDER_OWNERSHIP_MISMATCH')
+        return False
+
+    if not _tenders_reconcile(attempt, razorpay_paise):
+        _stage(attempts, attempt_id, 'NEEDS_RECONCILIATION',
+               finalizationReason='TENDER_SUM_MISMATCH')
+        return False
+
+    now = int(time.time())
+    activity = {
+        'activityType': 'REQUEST_SERVICE',
+        'serviceCode': service_code,
+        'sku': service_sku,
+        'paymentAttemptId': attempt_id,
+        'referenceId': str(attempt.get('referenceId') or ''),
+        'providerPaymentId': provider_id,
+        'amountPaise': attempt.get('amountPaise'),
+        'currency': attempt.get('currency'),
+        'flowCapability': flow_capability,
+        'flowStatus': 'PENDING',
+        'paidAt': now,
+    }
+    try:
+        orders.update_item(
+            Key={'orderId': selected_order_id},
+            UpdateExpression=(
+                'SET serviceActivities = list_append(if_not_exists(serviceActivities, :empty), :activity), '
+                'serviceActivityPaymentIds = list_append('
+                'if_not_exists(serviceActivityPaymentIds, :empty), :attempts), '
+                'latestServiceActivityAt = :now'
+            ),
+            ConditionExpression=(
+                'customerId = :customer AND orderNumber = :number AND '
+                '(attribute_not_exists(serviceActivityPaymentIds) OR '
+                'NOT contains(serviceActivityPaymentIds, :attempt))'
+            ),
+            ExpressionAttributeValues={
+                ':empty': [],
+                ':activity': [activity],
+                ':attempts': [attempt_id],
+                ':attempt': attempt_id,
+                ':customer': customer_id,
+                ':number': selected_order_number,
+                ':now': now,
+            },
+        )
+    except Exception as error:
+        if not _conditional(error):
+            raise
+        # Conditional failure is either a harmless replay or an ownership conflict. Re-read to
+        # distinguish them without weakening the write condition.
+        current = orders.get_item(
+            Key={'orderId': selected_order_id}, ConsistentRead=True).get('Item') or {}
+        recorded = [str(value) for value in (current.get('serviceActivityPaymentIds') or [])]
+        if (str(current.get('customerId') or '') != customer_id
+                or str(current.get('orderNumber') or '') != selected_order_number
+                or attempt_id not in recorded):
+            _stage(attempts, attempt_id, 'NEEDS_RECONCILIATION',
+                   finalizationReason='SINGLE_ORDER_ACTIVITY_CONFLICT')
+            return False
+
+    _stage(
+        attempts,
+        attempt_id,
+        'ORDER_FINALIZED',
+        orderId=selected_order_id,
+        orderNumber=selected_order_number,
+        serviceActivityRecordedAt=now,
+    )
+    return True
+
+
 def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_paise):
     """Create the complete internal order and resume only documented writes.
 
@@ -263,6 +360,16 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
         _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
                finalizationReason='PURCHASED_SNAPSHOT_MISSING')
         return
+    if attempt.get('singleOrderService') is True:
+        _accept_paid_single_order_service(
+            attempts=attempts,
+            orders=orders,
+            attempt=attempt,
+            provider_id=provider_id,
+            razorpay_paise=razorpay_paise,
+        )
+        return
+
     order = {'orderId': outcome['orderId'], 'orderNumber': outcome['orderNumber'],
              'customerId': attempt['customerId'], 'paymentAttemptId': attempt['paymentAttemptId'],
              'referenceId': attempt['referenceId'], 'providerPaymentId': provider_id,
