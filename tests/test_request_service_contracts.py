@@ -23,12 +23,28 @@ def test_all_five_request_services_use_single_order_contract():
     }
     for contract in m.REQUEST_SERVICE_CONTRACTS.values():
         assert contract.requires_existing_order is True
-        assert contract.one_payment_one_flow is True
+        assert contract.one_payment_one_fulfillment is True
+        assert contract.catalog_visible is False
         assert contract.pay_template == "wecare_whatapp_native_pay_template"
         assert contract.invoice_template == "wecare_default_invoice_image_template"
         assert contract.order_details_thumbnail_key.endswith(
             "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"
         )
+
+
+def test_vault_is_secure_download_not_meta_flow():
+    m = _load()
+    vault = m.REQUEST_SERVICE_CONTRACTS["VAULT"]
+    assert vault.fulfillment_kind == "secure_download"
+    assert vault.flow_capability == ""
+
+    flow_backed = {
+        code for code, contract in m.REQUEST_SERVICE_CONTRACTS.items()
+        if contract.fulfillment_kind == "flow"
+    }
+    assert flow_backed == {
+        "SUBMIT_REQUEST", "REQUEST_AMENDMENT", "DROP_DOCS", "REQUEST_PICKUP"
+    }
 
 
 def test_vault_and_drop_docs_keep_the_special_pricing_contract_only():
@@ -50,7 +66,9 @@ def test_browser_contract_mirrors_backend_stable_ids():
         assert contract.service_code in source
         assert contract.product_id in source
         assert contract.sku in source
-        assert contract.flow_capability in source
+        assert contract.fulfillment_kind in source
+        if contract.flow_capability:
+            assert contract.flow_capability in source
 
 
 def test_payment_binding_contains_no_public_request_id():
@@ -58,6 +76,8 @@ def test_payment_binding_contains_no_public_request_id():
     binding = m.payment_binding("VAULT", "WD-ORD-82K4M7")
     assert binding["selectedOrderNumber"] == "WD-ORD-82K4M7"
     assert binding["serviceCode"] == "VAULT"
+    assert binding["fulfillmentKind"] == "secure_download"
+    assert binding["flowCapability"] == ""
     assert "requestId" not in binding
     assert all("WD-REQ-" not in str(value) for value in binding.values())
 
@@ -74,11 +94,29 @@ def test_checkout_public_boundary_is_ids_only_and_server_verifies_order():
     assert "customerId" in block
     assert "payment_status.CAPTURED" in block
     assert "verified_service_context=verified_context" in block
+    assert "SERVICE_REQUIRES_SECURE_FILE" in block
     assert 'body.get("price")' not in block
     assert 'body.get("amount")' not in block
     assert 'body.get("customerId")' not in block
     assert 'body.get("orderId")' not in block
     assert "WD-REQ-" not in block
+
+
+def test_native_request_payment_order_details_are_not_meta_catalog_items():
+    source = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text()
+    start = source.index("def _cart_order_details")
+    end = source.index("\ndef _native_invoice_lines", start)
+    block = source[start:end]
+    # ProductsTable is pricing authority upstream, but the Meta payment wire is non-catalog:
+    # item name/amount/quantity only. Outbound adds the India compliance fields.
+    assert '"catalog_id"' not in block
+    assert '"retailer_id"' not in block
+    assert '"name": name[:60]' in block
+    assert '"amount": {"value": unit_paise, "offset": 100}' in block
+
+    outbound = (ROOT / "amplify/functions/messaging/outbound-whatsapp/handler.py").read_text()
+    assert "country_of_origin" in outbound
+    assert "business_identity.meta_importer_fields()" in outbound
 
 
 def test_single_order_capture_reuses_number_instead_of_reserving_another():
@@ -112,6 +150,24 @@ def test_legacy_request_activator_cannot_mint_request_for_single_order_payment()
     assert marker in source
     block = source[source.index(marker):source.index(marker) + 500]
     assert "NOT_A_SERVICE_ORDER" in block
+
+
+def test_request_services_are_structurally_excluded_from_meta_catalog():
+    source = (ROOT / "amplify/functions/ecommerce/meta-catalog-sync/handler.py").read_text()
+    assert "request_service_contracts.REQUEST_SERVICE_PRODUCT_IDS" in source
+    product_guard = source.index("if product_id in request_service_contracts.REQUEST_SERVICE_PRODUCT_IDS:")
+    meta_guard = source.index('if item.get("metaEnabled") is not True:', product_guard)
+    assert product_guard < meta_guard
+
+
+def test_single_order_vault_never_enters_flow_wiring():
+    source = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py").read_text()
+    start = source.index("if line.get('singleOrder') is True:")
+    block = source[start:start + 5000]
+    secure = block.index("if contract.fulfillment_kind == 'secure_download':")
+    refused = block.index("VAULT_SECURE_FILE_BINDING_REQUIRED", secure)
+    flow = block.index("SERVICE_FLOW_PENDING_WIRING", refused)
+    assert secure < refused < flow
 
 
 def test_customer_flow_hint_occurs_after_confirmed_invoice_not_during_activation_hint():
