@@ -83,8 +83,8 @@ from uuid import uuid4
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import (contact_key, contact_store, customer_auth, customer_session, payment_readiness,
-                          payment_status, shared_tables, whatsapp_templates)
+from lambda_utils import (canonical_flows, contact_key, contact_store, customer_auth, customer_session,
+                          payment_readiness, payment_status, shared_tables, whatsapp_templates)
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     india_address, order_channel, order_creation, order_delivery, order_keys, payment_address,
@@ -2428,6 +2428,16 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
         # Vault is deliberately absent from the generic request rail. Charging it without the
         # exact owned secure file would create money with nothing safe to unlock.
         return cors_response(409, {"error": "SERVICE_REQUIRES_SECURE_FILE"}, origin)
+
+    # A Flow-backed service must have a canonical PUBLISHED Flow before money can move.
+    # F003 Drop Docs is live today. Submit Request, Amendment and Pickup stay fail-closed until
+    # their replacement Meta Flows are published and registered.
+    if canonical_flows.published_flow(contract.flow_capability) is None:
+        return cors_response(409, {
+            "error": "SERVICE_FULFILLMENT_UNAVAILABLE",
+            "serviceCode": contract.service_code,
+        }, origin)
+
     if not order_keys.is_public_order_number(selected_order_number):
         return cors_response(400, {"error": "INVALID_ORDER_NUMBER"}, origin)
 
@@ -2742,6 +2752,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             selectedOrderNumber=single["selectedOrderNumber"],
             serviceKind=single["serviceCode"],
             flowCapability=single["flowCapability"],
+            fulfillmentKind=single["fulfillmentKind"],
         )
     if snapshot is not None:
         catalog_contents = _catalog_contents(snapshot)
