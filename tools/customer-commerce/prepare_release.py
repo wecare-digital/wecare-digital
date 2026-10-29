@@ -9,16 +9,15 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import runpy
 import zipfile
 
 from customer_commerce_template import (
-    EXPECTED_ACCOUNT,
     EXPECTED_REGION,
     ROUTES,
-    RUNTIME_BUCKET,
     build_template,
 )
 
@@ -39,9 +38,14 @@ RUNTIME_FILES = (
 def canonical_dial_codes() -> list[tuple[str, str, list[int]]]:
     text = (ROOT / 'src/lib/dialCodes.ts').read_text()
     return [
-        (code, country, [int(number) for number in re.findall(r'\d+', lengths)])
+        (
+            code,
+            country,
+            [int(number) for number in re.findall(r'\d+', lengths)],
+        )
         for code, country, lengths in re.findall(
-            r"\{ code: '([^']+)', country: '([^']+)', nationalDigits: \[([^\]]*)\] \}",
+            r"\{ code: '([^']+)', country: '([^']+)', "
+            r'nationalDigits: \[([^\]]*)\] \}',
             text,
         )
     ]
@@ -52,7 +56,10 @@ def assigned_literal(path: Path, name: str):
     for node in tree.body:
         if not isinstance(node, ast.Assign):
             continue
-        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+        if any(
+            isinstance(target, ast.Name) and target.id == name
+            for target in node.targets
+        ):
             return ast.literal_eval(node.value)
     raise ValueError(f'{name} not found in {path}')
 
@@ -67,7 +74,12 @@ def canonical_return_paths() -> list[str]:
     if not block:
         raise ValueError('Frontend customer return-path allowlist unavailable')
     frontend = set(re.findall(r"'(/[^']*)'", block.group(1)))
-    backend = set(assigned_literal(SOURCE / 'customer_oauth_config.py', 'WEBSITE_RETURNS'))
+    backend = set(
+        assigned_literal(
+            SOURCE / 'customer_oauth_config.py',
+            'WEBSITE_RETURNS',
+        )
+    )
     if frontend != backend:
         raise ValueError(
             'Frontend/backend customer return paths differ: '
@@ -76,7 +88,9 @@ def canonical_return_paths() -> list[str]:
         )
 
     services_text = (ROOT / 'src/config/services.ts').read_text()
-    service_paths = set(re.findall(r"\bpath\s*:\s*'([^']+)'", services_text))
+    service_paths = set(
+        re.findall(r"\bpath\s*:\s*'([^']+)'", services_text)
+    )
     if not service_paths or not service_paths <= frontend:
         raise ValueError(
             'Service return paths missing from auth allowlist: '
@@ -85,7 +99,8 @@ def canonical_return_paths() -> list[str]:
     required = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/get/'}
     if not required <= frontend:
         raise ValueError(
-            f'Required customer return paths missing: {sorted(required - frontend)}'
+            f'Required customer return paths missing: '
+            f'{sorted(required - frontend)}'
         )
     return sorted(frontend)
 
@@ -95,7 +110,9 @@ def validated_sources() -> tuple[dict[str, bytes], list[str]]:
     expected = canonical_dial_codes()
     actual = assets.get('DIAL_COUNTRIES')
     if not expected or expected != actual:
-        raise ValueError('connection_assets.py differs from src/lib/dialCodes.ts')
+        raise ValueError(
+            'connection_assets.py differs from src/lib/dialCodes.ts'
+        )
     return_paths = canonical_return_paths()
 
     files: dict[str, bytes] = {}
@@ -110,30 +127,57 @@ def validated_sources() -> tuple[dict[str, bytes], list[str]]:
     return files, return_paths
 
 
+def validated_runtime_bucket(value: str) -> str:
+    bucket = str(value or '').strip()
+    if not re.fullmatch(
+        r'(?=.{3,63}$)(?!-)(?!.*\.\.)(?!.*\.-)(?!.*-\.)'
+        r'[a-z0-9][a-z0-9.-]*[a-z0-9]',
+        bucket,
+    ):
+        raise ValueError(
+            'A valid CUSTOMER_COMMERCE_RUNTIME_BUCKET is required'
+        )
+    return bucket
+
+
 def write_zip(path: Path, files: dict[str, bytes]) -> bytes:
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as archive:
         for name in RUNTIME_FILES:
-            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            info = zipfile.ZipInfo(
+                name,
+                date_time=(2020, 1, 1, 0, 0, 0),
+            )
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             archive.writestr(info, files[name])
     return path.read_bytes()
 
 
-def build(output: Path) -> dict:
+def build(output: Path, runtime_bucket: str) -> dict:
     output.mkdir(parents=True, exist_ok=True)
+    bucket = validated_runtime_bucket(runtime_bucket)
     files, return_paths = validated_sources()
-    zip_bytes = write_zip(output / 'customer-commerce-runtime.zip', files)
+    zip_bytes = write_zip(
+        output / 'customer-commerce-runtime.zip',
+        files,
+    )
     runtime_hash = hashlib.sha256(zip_bytes).hexdigest()
     source_hash = hashlib.sha256(
-        b''.join(name.encode() + b'\0' + files[name] for name in RUNTIME_FILES)
+        b''.join(
+            name.encode() + b'\0' + files[name]
+            for name in RUNTIME_FILES
+        )
     ).hexdigest()
     runtime_key = f'customer-commerce/{source_hash}/runtime.zip'
-    template = build_template(source_hash, runtime_key)
+    template = build_template(source_hash, runtime_key, bucket)
     template_text = json.dumps(template, separators=(',', ':'))
     if len(template_text.encode()) > 51200:
-        raise ValueError('Modular template unexpectedly exceeds direct CloudFormation limit')
-    (output / 'customer-commerce-stack.json').write_text(template_text + '\n')
+        raise ValueError(
+            'Modular template unexpectedly exceeds direct CloudFormation limit'
+        )
+    (output / 'customer-commerce-stack.json').write_text(
+        template_text + '\n'
+    )
 
     manifest = {
         'sourceSha256': source_hash,
@@ -141,9 +185,8 @@ def build(output: Path) -> dict:
         'runtimeBytes': len(zip_bytes),
         'templateBytes': len(template_text.encode()),
         'templateRequiresS3': False,
-        'runtimeBucket': RUNTIME_BUCKET,
+        'runtimeBucket': bucket,
         'runtimeKey': runtime_key,
-        'expectedAccount': EXPECTED_ACCOUNT,
         'expectedRegion': EXPECTED_REGION,
         'providerWrites': False,
         'deploymentExecuted': False,
@@ -167,8 +210,12 @@ def build(output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument(
+        '--runtime-bucket',
+        default=os.environ.get('CUSTOMER_COMMERCE_RUNTIME_BUCKET', ''),
+    )
     args = parser.parse_args()
-    print(json.dumps(build(args.output)))
+    print(json.dumps(build(args.output, args.runtime_bucket)))
 
 
 if __name__ == '__main__':
