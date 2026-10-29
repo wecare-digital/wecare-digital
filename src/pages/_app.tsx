@@ -615,16 +615,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // page to the menu and the sitemap while forgetting this one - which renders an empty body
   // with HTTP 200 and is invisible until someone loads the route. Deriving the allowlist from
   // the metadata map means a product cannot exist for structured data but not for rendering.
-  // /get is public but NOT marketing, so it is listed here rather than added to
-  // PUBLIC_PAGE_META: it must render without a staff sign-in, but it should not
-  // acquire WebPage/BreadcrumbList structured data or appear in the sitemap. It is
-  // the customer file-collection page - a visitor verifies their own number over
-  // WhatsApp against the customer pool, which has nothing to do with the staff
-  // Authenticator this branch would otherwise wrap it in.
-  //
-  // Without this line the page renders the staff sign-in screen at HTTP 200, which
-  // is precisely the "404 that does not look like one" the comment above warns
-  // about. Found exactly that way on the live site when this page was at /files.
+  // /get is no longer a customer file surface. It is a redirect-only legacy signpost
+  // to /vault/ and is handled before the public chrome branch below, so it renders no second
+  // header/body/footer while the redirect fires. /get/<*> remains the unrelated media namespace.
   // '/contact-test' WAS LISTED HERE AND HAD TO COME OFF. It was the only route that was
   // both in this allowlist AND wrapped in the authenticated <Layout> by its own page file,
   // and the combination leaked the dashboard into public HTML: because the export is
@@ -655,7 +648,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // files; there is no separate public HTML documentation route to keep in sync.
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'
-    || router.pathname === '/get'
     // The shop cart and customer OTP sign-in are customer-session surfaces: public chrome,
     // robots:noindex per page, and deliberately OUT of PUBLIC_PAGE_META, the sitemap and AI manifest.
     // /auth is a real Next page now. Only its state/step endpoints are rewritten to the auth API,
@@ -782,6 +774,17 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // restoring this. Grammarly injecting attributes into <body> is the known one, and
   // suppressHydrationWarning on that element is the targeted answer - blanking the
   // document is not.
+
+  // Legacy /get/ is redirect-only. Render its Head stub without public chrome so it can never
+  // appear as a second customer file/download page before the redirect completes.
+  if ( router.pathname === '/get' )
+  {
+    return (
+      <ErrorBoundary>
+        <Component { ...pageProps } />
+      </ErrorBoundary>
+    );
+  }
 
   // Public page
   if ( isPublic )
