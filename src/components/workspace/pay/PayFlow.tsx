@@ -468,19 +468,29 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         } ),
       };
       if ( editCust.id ) {
-        const updated = await api.updateContact( editCust.id, saveData as any );
-        if ( !updated ) throw new Error( 'Customer update was not confirmed' );
-        if ( selCustomer?.id === editCust.id ) setSelCustomer( updated );
+        const result = await api.updateContactResult( editCust.id, saveData as any );
+        if ( !result.ok ) {
+          showMsg( result.failure.message || 'Customer update was refused.', 'error' );
+          return;
+        }
+        if ( !result.data ) {
+          showMsg( 'Customer update was accepted, but the refreshed customer record was unavailable. Reload before collecting payment.', 'error' );
+          return;
+        }
+        if ( selCustomer?.id === editCust.id ) setSelCustomer( result.data );
         showMsg( 'Customer updated' );
       } else {
-        const created = await api.createContact( saveData as any );
-        if ( !created ) throw new Error( 'Customer create was not confirmed' );
+        const result = await api.createContactResult( saveData as any );
+        if ( !result.ok ) {
+          showMsg( result.failure.message || 'Customer creation was refused.', 'error' );
+          return;
+        }
         showMsg( 'Customer created' );
       }
       closeEditCust();
       void loadCustomers();
     } catch ( e ) { showMsg( 'Save failed', 'error' ); }
-    setCustSaving( false );
+    finally { setCustSaving( false ); }
   };
 
   useEffect( () => {
