@@ -3,9 +3,9 @@
   "data_api_version": "3.0",
   "routing_model": {
     "ORDER_SELECT": [
-      "SUBMIT_REQUEST_FORM"
+      "REVIEW"
     ],
-    "SUBMIT_REQUEST_FORM": [
+    "REVIEW": [
       "THANK_YOU"
     ],
     "THANK_YOU": []
@@ -44,49 +44,47 @@
             "text": "Select order"
           },
           {
-            "type": "Dropdown",
-            "name": "order_id",
-            "label": "Order",
-            "required": true,
-            "data-source": "${data.orders}"
-          },
-          {
-            "type": "Footer",
-            "label": "Next",
-            "on-click-action": {
-              "name": "data_exchange",
-              "payload": {
-                "order_id": "${form.order_id}"
+            "type": "Form",
+            "name": "order_form",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "order_id",
+                "label": "Order",
+                "required": true,
+                "data-source": "${data.orders}"
+              },
+              {
+                "type": "Footer",
+                "label": "Next",
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "REVIEW"
+                  },
+                  "payload": {
+                    "order_id": "${form.order_id}"
+                  }
+                }
               }
-            }
+            ]
           }
         ]
       }
     },
     {
-      "id": "SUBMIT_REQUEST_FORM",
+      "id": "REVIEW",
       "title": "Submit Request",
       "data": {
         "order_id": {
           "type": "string",
           "__example__": "WD-ORD-K4M7PQR9"
-        },
-        "order_short_id": {
-          "type": "string",
-          "__example__": "K4M7PQR9"
         }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextCaption",
-            "text": "Order"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.order_short_id}"
-          },
           {
             "type": "TextArea",
             "name": "description",
