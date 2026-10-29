@@ -166,8 +166,9 @@ def test_single_order_vault_never_enters_flow_wiring():
     block = source[start:start + 5000]
     secure = block.index("if contract.fulfillment_kind == 'secure_download':")
     refused = block.index("VAULT_SECURE_FILE_BINDING_REQUIRED", secure)
-    flow = block.index("SERVICE_FLOW_PENDING_WIRING", refused)
-    assert secure < refused < flow
+    launch = block.index("return launch_single_order_service(", refused)
+    assert secure < refused < launch
+    assert "SERVICE_FLOW_PENDING_WIRING" not in block
 
 
 def test_customer_flow_hint_occurs_after_confirmed_invoice_not_during_activation_hint():
