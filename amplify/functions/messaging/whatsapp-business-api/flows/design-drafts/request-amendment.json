@@ -45,7 +45,7 @@
                 "data-source": [
                   {
                     "id": "WD-ORD-K4M7PQR9",
-                    "title": "Example order \u00b7 K4M7PQR9"
+                    "title": "Example order · K4M7PQR9"
                   },
                   {
                     "id": "not_found",
@@ -156,7 +156,7 @@
     },
     {
       "id": "REVIEW",
-      "title": "Ready to submit?",
+      "title": "Request Amendment",
       "data": {
         "parent_order": {
           "type": "string",
