@@ -257,6 +257,21 @@ def test_native_vault_sender_tolerates_fresh_contact_index_lag_without_creating_
     assert "contacts.put_item" not in block
 
 
+def test_whatsapp_identity_bridge_tolerates_fresh_contact_index_lag():
+    source = (
+        ROOT
+        / "amplify/functions/auth/customer-registration/handler.py"
+    ).read_text()
+    start = source.index("def _ensure_whatsapp_identity")
+    block = source[start:start + 7000]
+    assert "contact_store.find_by_phone" in block
+    assert "strongly consistent exact-id fallback" in block
+    assert 'Key={"id": contact_id}, ConsistentRead=True' in block
+    assert "contact_store.is_live(direct)" in block
+    assert "contact_store.canonical_phone(direct.get(\"phone\")) == phone" in block
+    assert "_cognito_user_for_sub(existing_owner, phone)" in block
+
+
 def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
     source = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
     native = source.index("# Product/cart native checkout carries the frozen cart snapshot")
