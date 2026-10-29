@@ -314,6 +314,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ previewError, setPreviewError ] = useState( '' );
   const [ servicePrices, setServicePrices ] = useState<Record<string, ServicePrice>>( {} );
   const [ servicePricesLoading, setServicePricesLoading ] = useState( true );
+  const appliedPresetRef = useRef( '' );
   const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
@@ -486,6 +487,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     } ) );
     setShowAdvancedTax( false );
   };
+
+  useEffect( () => {
+    const raw = router.query.preset;
+    const preset = Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
+    if ( !preset || appliedPresetRef.current === preset ) return;
+    const choice = SERVICE_CHOICES.find( item => item.slug === preset );
+    const price = servicePrices[ preset ];
+    if ( !choice || !price?.available ) return;
+    appliedPresetRef.current = preset;
+    applyServicePreset( choice );
+  }, [ router.query.preset, servicePrices ] );
 
   /* Invoice form handlers */
   const buildInvoiceRequest = useCallback( ( referenceId?: string ): CreateInvoiceEngineRequest | null => {
