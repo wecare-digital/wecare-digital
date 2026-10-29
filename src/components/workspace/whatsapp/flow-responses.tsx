@@ -79,6 +79,22 @@ const F002SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = 
   </details>;
 };
 
+const F004SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = ( { submission } ) => {
+  const data = parseFormData( submission.formData );
+  const target = String( data.selected_target || submission.orderId || submission.orderReference || '' )
+    .replace( /^(order|request):/, '' );
+  const note = String( data.note || data.description || submission.description || '' );
+  return <details>
+    <summary style={ { cursor: 'pointer' } }>{ submission.subject || 'Submit Request' }</summary>
+    <dl style={ { margin: '8px 0 0', display: 'grid', gridTemplateColumns: 'minmax(120px, 0.7fr) minmax(180px, 1.3fr)', gap: '4px 10px' } }>
+      { target && <><dt style={ { fontWeight: 600 } }>Linked to</dt><dd style={ { margin: 0, overflowWrap: 'anywhere' } }>{ target }</dd></> }
+      { note && <><dt style={ { fontWeight: 600 } }>Note</dt><dd style={ { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }>{ note }</dd></> }
+      <dt style={ { fontWeight: 600 } }>Request ID</dt>
+      <dd style={ { margin: 0, fontFamily: 'monospace', overflowWrap: 'anywhere' } }>{ submission.submissionNumber || submission.submissionId }</dd>
+    </dl>
+  </details>;
+
+
 /** The per-row Update control. `cancelled` is in this list and in no filter list. */
 const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
   { value: 'awaiting_order_verification', label: 'Awaiting order verification' },
@@ -311,6 +327,8 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <td style={ { padding: '8px 10px', maxWidth: 280 } }>
                           {s.flowType === 'customer_idea' ? (
                             <F002SubmissionDetails submission={ s } />
+                          ) : s.flowCode === '01.WD_SR' ? (
+                            <F004SubmissionDetails submission={ s } />
                           ) : s.flowType === 'invoice_copy' ? (
                             <details>
                               <summary style={{ cursor: 'pointer' }}>Invoice copy</summary>
