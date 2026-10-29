@@ -1,20 +1,21 @@
 {
   "version": "7.3",
+  "data_api_version": "3.0",
   "routing_model": {
-    "SELECT_ORDER": [
-      "AMENDMENT"
+    "SELECT_TARGET": [
+      "NOTE"
     ],
-    "AMENDMENT": [
-      "REVIEW"
+    "NOTE": [
+      "CONFIRMATION"
     ],
-    "REVIEW": []
+    "CONFIRMATION": []
   },
   "screens": [
     {
-      "id": "SELECT_ORDER",
+      "id": "SELECT_TARGET",
       "title": "Request Amendment",
       "data": {
-        "orders": {
+        "targets": {
           "type": "array",
           "items": {
             "type": "object",
@@ -29,8 +30,12 @@
           },
           "__example__": [
             {
-              "id": "WD-ORD-K4M7PQR9",
-              "title": "K4M7PQR9 — 28 Oct 2026, 7:05 AM"
+              "id": "order:WD-ORD-K4M7PQR9",
+              "title": "Order · K4M7PQR9 — 28 Oct 2026, 7:05 AM"
+            },
+            {
+              "id": "request:WD-REQ-A1B2C3D4",
+              "title": "Request · WD-REQ-A1B2C3D4 · Submit Request"
             }
           ]
         }
@@ -45,6 +50,14 @@
             "height": 88,
             "scale-type": "contain",
             "alt-text": "WECARE.DIGITAL"
+          },
+          {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAtUlEQVR42u2TMRKDQAwDlbw4X81f0osCcMyhY9KkSXZpwCd0smd8e74elmxZsm1J27uG+vreTu2glHLd+2mvB6WmztHhkK2d5mz7853uwuh8+n0M3E2UAp+GM3VQrrvfvn1LrR+9Z1rtVdBRuXrNlGXSlTWdqKwwXbnmVnnl2AdlhYnKMunK1OD5ulmDnypTsKHBi8kPDV5M/tjgXQDwc7DYACw2ALDYAMBiAwCLDQAsNsD/sADMw7edeU5bDwAAAABJRU5ErkJggg==",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE.DIGITAL profile color accent"
           },
           {
             "type": "TextHeading",
@@ -52,26 +65,30 @@
           },
           {
             "type": "TextBody",
-            "text": "Select the order linked to the request you want to change."
+            "text": "Select the order or request you want to amend."
           },
           {
             "type": "Form",
-            "name": "service_form",
+            "name": "target_form",
             "children": [
               {
                 "type": "Dropdown",
-                "name": "parent_order",
-                "label": "Your order",
+                "name": "selected_target",
+                "label": "Order or request",
                 "required": true,
-                "data-source": "${data.orders}"
+                "data-source": "${data.targets}"
               },
               {
                 "type": "Footer",
-                "label": "Next",
+                "label": "Continue",
                 "on-click-action": {
-                  "name": "data_exchange",
+                  "name": "navigate",
                   "payload": {
-                    "parent_order": "${form.parent_order}"
+                    "selected_target": "${form.selected_target}"
+                  },
+                  "next": {
+                    "type": "screen",
+                    "name": "NOTE"
                   }
                 }
               }
@@ -81,32 +98,12 @@
       }
     },
     {
-      "id": "AMENDMENT",
+      "id": "NOTE",
       "title": "Request Amendment",
       "data": {
-        "parent_order": {
+        "selected_target": {
           "type": "string",
-          "__example__": "WD-ORD-K4M7PQR9"
-        },
-        "requests": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              }
-            }
-          },
-          "__example__": [
-            {
-              "id": "WD-SR-A1B2C3D4",
-              "title": "WD-SR-A1B2C3D4 — Submit Request — Open"
-            }
-          ]
+          "__example__": "order:WD-ORD-K4M7PQR9"
         }
       },
       "layout": {
@@ -121,45 +118,55 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAtUlEQVR42u2TMRKDQAwDlbw4X81f0osCcMyhY9KkSXZpwCd0smd8e74elmxZsm1J27uG+vreTu2glHLd+2mvB6WmztHhkK2d5mz7853uwuh8+n0M3E2UAp+GM3VQrrvfvn1LrR+9Z1rtVdBRuXrNlGXSlTWdqKwwXbnmVnnl2AdlhYnKMunK1OD5ulmDnypTsKHBi8kPDV5M/tjgXQDwc7DYACw2ALDYAMBiAwCLDQAsNsD/sADMw7edeU5bDwAAAABJRU5ErkJggg==",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE.DIGITAL profile color accent"
+          },
+          {
             "type": "TextHeading",
-            "text": "What would you like to change?"
+            "text": "Request Amendment"
           },
           {
             "type": "TextBody",
-            "text": "Select the existing request, then describe the change you want us to review."
+            "text": "Enter the existing request and the change you want to request."
           },
           {
             "type": "Form",
-            "name": "service_form",
+            "name": "note_form",
             "children": [
               {
-                "type": "Dropdown",
+                "type": "TextInput",
                 "name": "request_number",
-                "label": "Existing request",
+                "label": "Existing Request",
                 "required": true,
-                "data-source": "${data.requests}"
+                "input-type": "text",
+                "max-chars": 100
               },
               {
                 "type": "TextArea",
-                "name": "amendment",
-                "label": "Describe the change",
+                "name": "change_requested",
+                "label": "Change Requested",
                 "required": true,
-                "max-length": 600,
-                "helper-text": "Tell us what should be corrected, added, or updated."
+                "max-length": 300
               },
               {
                 "type": "Footer",
-                "label": "Review amendment",
+                "label": "Continue",
                 "on-click-action": {
                   "name": "navigate",
-                  "payload": {
-                    "parent_order": "${data.parent_order}",
-                    "request_number": "${form.request_number}",
-                    "amendment": "${form.amendment}"
-                  },
                   "next": {
                     "type": "screen",
-                    "name": "REVIEW"
+                    "name": "CONFIRMATION"
+                  },
+                  "payload": {
+                    "message": "Your request amendment has been received and linked for review.",
+                    "reference_number": "${data.selected_target}",
+                    "request_number": "${form.request_number}",
+                    "change_requested": "${form.change_requested}",
+                    "submission_id": "PREVIEW"
                   }
                 }
               }
@@ -169,20 +176,30 @@
       }
     },
     {
-      "id": "REVIEW",
+      "id": "CONFIRMATION",
       "title": "Request Amendment",
+      "terminal": true,
+      "success": true,
       "data": {
-        "parent_order": {
+        "message": {
+          "type": "string",
+          "__example__": "Your request amendment has been received and linked for review."
+        },
+        "reference_number": {
           "type": "string",
           "__example__": "WD-ORD-K4M7PQR9"
+        },
+        "submission_id": {
+          "type": "string",
+          "__example__": "WD-SR-ABC123"
         },
         "request_number": {
           "type": "string",
           "__example__": "WD-SR-A1B2C3D4"
         },
-        "amendment": {
+        "change_requested": {
           "type": "string",
-          "__example__": "Please update the delivery instructions."
+          "__example__": "Please update the request details."
         }
       },
       "layout": {
@@ -197,56 +214,47 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAtUlEQVR42u2TMRKDQAwDlbw4X81f0osCcMyhY9KkSXZpwCd0smd8e74elmxZsm1J27uG+vreTu2glHLd+2mvB6WmztHhkK2d5mz7853uwuh8+n0M3E2UAp+GM3VQrrvfvn1LrR+9Z1rtVdBRuXrNlGXSlTWdqKwwXbnmVnnl2AdlhYnKMunK1OD5ulmDnypTsKHBi8kPDV5M/tjgXQDwc7DYACw2ALDYAMBiAwCLDQAsNsD/sADMw7edeU5bDwAAAABJRU5ErkJggg==",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE.DIGITAL profile color accent"
+          },
+          {
             "type": "TextHeading",
-            "text": "Review your amendment"
+            "text": "Amendment received"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.message}"
           },
           {
             "type": "TextCaption",
-            "text": "Order"
+            "text": "Linked to"
           },
           {
-            "type": "TextBody",
-            "text": "${data.parent_order}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Request"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.request_number}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Your amendment"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.amendment}"
-          },
-          {
-            "type": "TextBody",
-            "text": "We’ll review whether this change can be made and update you on WhatsApp."
+            "type": "TextSubheading",
+            "text": "${data.reference_number}"
           },
           {
             "type": "Footer",
-            "label": "Submit amendment",
+            "label": "Done",
             "on-click-action": {
               "name": "complete",
               "payload": {
                 "flow_key": "wd_f005_request_amendment",
                 "design_service": "request-amendment",
-                "parent_order": "${data.parent_order}",
+                "schema_version": "1",
+                "submission_id": "${data.submission_id}",
+                "reference_number": "${data.reference_number}",
                 "request_number": "${data.request_number}",
-                "amendment": "${data.amendment}"
+                "amendment": "${data.change_requested}"
               }
             }
           }
         ]
-      },
-      "terminal": true,
-      "success": true
+      }
     }
-  ],
-  "data_api_version": "3.0"
+  ]
 }
