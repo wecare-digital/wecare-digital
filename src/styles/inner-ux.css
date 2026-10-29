@@ -3795,3 +3795,262 @@ html {
 .pf-preset-table td:first-child strong,
 .pf-preset-table td:first-child small { display: block; }
 .pf-preset-table td:first-child small { margin-top: 2px; color: #8a9490; font-size: 10px; }
+
+
+/* ==========================================================================
+   PAYMENTS / COLLECT — AUTH/HOME VISUAL SYSTEM V2
+   Left = invoice builder. Right = server-rendered receipt preview.
+   Borderless lifted blocks + auth-style underline fields.
+   ========================================================================== */
+.pf-auth-surface {
+  max-width: 1480px;
+  padding-inline: clamp(18px, 3vw, 42px);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
+.pf-auth-surface .pf-tab-body {
+  padding-top: 26px;
+}
+.pf-auth-surface .pf-create-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
+  gap: clamp(28px, 3.2vw, 48px);
+  align-items: start;
+}
+.pf-auth-surface .pf-composer-main {
+  min-width: 0;
+}
+.pf-auth-surface .pf-composer-heading {
+  margin: 8px 0 24px;
+}
+.pf-auth-surface .pf-composer-heading h3 {
+  margin: 4px 0 8px;
+  color: #1a3a2a;
+  font-size: clamp(32px, 3.3vw, 52px) !important;
+  line-height: .98;
+  letter-spacing: -.055em;
+  font-weight: 760;
+}
+.pf-auth-surface .pf-composer-heading p,
+.pf-auth-surface .pf-composer-card-head p,
+.pf-auth-surface .pf-live-preview-note {
+  color: #6e7782;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.pf-auth-surface .pf-composer-kicker {
+  color: #1a3a2a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.pf-auth-surface .pf-customer-summary,
+.pf-auth-surface .pf-address-warning,
+.pf-auth-surface .pf-delivery-summary {
+  margin-bottom: 18px !important;
+  padding: 14px 16px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: #f8faf3 !important;
+  color: #1a3a2a !important;
+  box-shadow: none !important;
+}
+.pf-auth-surface .pf-delivery-summary {
+  max-width: none !important;
+  font-size: 13px !important;
+}
+.pf-auth-surface .pf-composer-card,
+.pf-auth-surface .pf-live-preview,
+.pf-auth-surface .inner-card {
+  border: 0 !important;
+  background: #fff !important;
+  box-shadow: 0 14px 38px rgba(26,58,42,.075) !important;
+}
+.pf-auth-surface .pf-composer-card {
+  margin-bottom: 22px;
+  padding: clamp(20px, 2.2vw, 28px);
+  border-radius: 22px !important;
+}
+.pf-auth-surface .pf-composer-card::before,
+.pf-auth-surface .pf-live-preview::before {
+  content: "";
+  display: block;
+  height: 4px;
+  margin: calc(-1 * clamp(20px, 2.2vw, 28px)) calc(-1 * clamp(20px, 2.2vw, 28px)) 22px;
+  border-radius: 22px 22px 0 0;
+  background: #d1f470;
+}
+.pf-auth-surface .pf-live-preview {
+  position: sticky;
+  top: 92px;
+  min-height: 620px;
+  padding: clamp(20px, 2.2vw, 28px);
+  border-radius: 24px !important;
+}
+.pf-auth-surface .pf-live-preview::before {
+  margin: calc(-1 * clamp(20px, 2.2vw, 28px)) calc(-1 * clamp(20px, 2.2vw, 28px)) 20px;
+  border-radius: 24px 24px 0 0;
+}
+.pf-auth-surface .pf-live-preview-head h4 {
+  margin-top: 4px;
+  color: #111;
+  font-size: clamp(22px, 2vw, 30px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+.pf-auth-surface .pf-authority-badge {
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #d1f470;
+  color: #1a3a2a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pf-auth-surface .pf-item-card {
+  padding: 18px 0 8px;
+  border: 0 !important;
+  border-top: 1px solid #e9ede8 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+.pf-auth-surface .pf-item-card:first-child {
+  border-top: 0 !important;
+  padding-top: 4px;
+}
+.pf-auth-surface .form-group label {
+  margin-bottom: 7px;
+  color: #4c5550;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.pf-auth-surface input:not([type="checkbox"]):not([type="radio"]),
+.pf-auth-surface textarea,
+.pf-auth-surface select,
+.pf-auth-surface .search-input {
+  min-height: 54px !important;
+  padding: 8px 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #dfe4df !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #111 !important;
+  box-shadow: none !important;
+  font-size: 16px !important;
+  transition: border-color .18s, box-shadow .18s;
+}
+.pf-auth-surface input:focus,
+.pf-auth-surface textarea:focus,
+.pf-auth-surface select:focus,
+.pf-auth-surface .search-input:focus {
+  outline: 0 !important;
+  border-bottom-color: #1a3a2a !important;
+  box-shadow: 0 1px 0 0 #d1f470 !important;
+}
+.pf-auth-surface input::placeholder,
+.pf-auth-surface textarea::placeholder {
+  color: rgba(0,0,0,.38);
+}
+.pf-auth-surface .pf-field-help {
+  margin-top: 7px;
+  color: #8a918d;
+  font-size: 11px;
+}
+.pf-auth-surface .pf-auto-discount-value {
+  border: 0 !important;
+  border-radius: 14px;
+  background: #f8faf3;
+}
+.pf-auth-surface .pf-preset-table-wrap {
+  border: 0 !important;
+  border-radius: 16px;
+  background: #fbfcf8;
+  overflow-x: auto;
+}
+.pf-auth-surface .pf-preset-table th {
+  background: transparent;
+  color: #7a827e;
+}
+.pf-auth-surface .pf-preset-table th,
+.pf-auth-surface .pf-preset-table td {
+  border-bottom-color: #e8ece7;
+}
+.pf-auth-surface .pf-preview-image-shell {
+  max-height: none;
+  margin-top: 16px;
+  padding: 0;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 18px;
+  background: #f4f5f3;
+}
+.pf-auth-surface .pf-preview-image-shell img {
+  width: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+.pf-auth-surface .pf-preview-loading,
+.pf-auth-surface .pf-preview-error,
+.pf-auth-surface .pf-preview-empty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  border-radius: 16px;
+  background: #f8faf3;
+  text-align: center;
+}
+.pf-auth-surface .pf-preview-totals {
+  margin-top: 18px;
+  border-top: 0;
+}
+.pf-auth-surface .pf-preview-totals > div {
+  padding: 10px 2px;
+  border-bottom-color: #edf0ed;
+  font-size: 13px;
+}
+.pf-auth-surface .pf-preview-totals .pf-preview-total {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #d1f470;
+  color: #1a3a2a;
+}
+.pf-auth-surface .pf-composer-actions {
+  margin-top: 8px;
+  gap: 12px;
+}
+@media (max-width: 1180px) {
+  .pf-auth-surface .pf-create-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, .9fr);
+    gap: 26px;
+  }
+}
+@media (max-width: 980px) {
+  .pf-auth-surface .pf-create-layout {
+    grid-template-columns: 1fr;
+  }
+  .pf-auth-surface .pf-live-preview {
+    position: static;
+    min-height: 0;
+  }
+}
+@media (max-width: 767px) {
+  .pf-auth-surface {
+    padding-inline: 14px;
+  }
+  .pf-auth-surface .pf-composer-heading h3 {
+    font-size: 34px !important;
+  }
+  .pf-auth-surface .pf-composer-card,
+  .pf-auth-surface .pf-live-preview {
+    padding: 18px;
+    border-radius: 18px !important;
+  }
+  .pf-auth-surface .pf-composer-card::before,
+  .pf-auth-surface .pf-live-preview::before {
+    margin: -18px -18px 18px;
+    border-radius: 18px 18px 0 0;
+  }
+}
