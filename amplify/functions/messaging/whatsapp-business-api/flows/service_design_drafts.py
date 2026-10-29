@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 WABA = '2094615664435155'
 NAMES = {
     'submit-request': 'WD-F004-Submit-Request',
-    'request-amendment': 'WD_Request_Amendment_Design_v1',
+    'request-amendment': 'WD-F004-Request-Amendment',
     'drop-docs': 'WD-F003-DROP-DOCS',
     'vault': 'WD_Vault_Design_v1',
     'shipments': 'WD_Shipments_Design_v1',
