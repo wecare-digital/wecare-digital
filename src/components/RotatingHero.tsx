@@ -138,9 +138,15 @@ interface RotatingHeroProps {
    * established RotatingHero mobile behavior until their own migration.
    */
   mobileFoundation?: boolean;
+  /**
+   * Content-fit mode for transactional pages such as /auth. Landing pages reserve a full
+   * viewport so their hero reads as a complete first screen; compact pages should end when
+   * their actual content ends so the shared Stay connected/footer surfaces follow naturally.
+   */
+  compact?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false, compact = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -213,6 +219,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
       'rh-shell',
       insideMain ? 'is-inside-main' : '',
       mobileFoundation ? 'uses-mobile-foundation' : '',
+      compact ? 'is-compact' : '',
     ].filter( Boolean ).join( ' ' ) } aria-label={ ariaLabel }>
       <div className={ [
         'rh-layout',
@@ -279,6 +286,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           color:var(--public-text);
         }
         .rh-shell.is-inside-main{min-height:0}
+        .rh-shell.is-compact{min-height:0}
+        .rh-shell.is-compact .rh-layout{padding-bottom:32px}
         .rh-layout{
           width:100%;max-width:var(--public-content-max);margin:0 auto;
           padding:80px 24px 48px;box-sizing:border-box;
@@ -329,7 +338,9 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         @media(max-width:767px){
           .rh-split{gap:32px}
           .rh-shell{min-height:100vh;min-height:100dvh;padding-top:96px}
+          .rh-shell.is-compact{min-height:0}
           .rh-layout{padding:48px 16px 40px;gap:64px}
+          .rh-shell.is-compact .rh-layout{padding-bottom:24px;gap:48px}
           .rh-head{line-height:1.1}
           /* Opt-in only: migrated page families consume the shared mobile foundation.
              Higher specificity deliberately keeps the 40px canonical hero on normal phones;
