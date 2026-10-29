@@ -13,7 +13,28 @@
     {
       "id": "SELECT_ORDER",
       "title": "Request Amendment",
-      "data": {},
+      "data": {
+        "orders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "WD-ORD-K4M7PQR9",
+              "title": "K4M7PQR9 — 28 Oct 2026, 7:05 AM"
+            }
+          ]
+        }
+      },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -27,11 +48,11 @@
           },
           {
             "type": "TextHeading",
-            "text": "Request Amendment"
+            "text": "Choose an order"
           },
           {
             "type": "TextBody",
-            "text": "Choose the order linked to your existing request."
+            "text": "Select the order linked to the request you want to change."
           },
           {
             "type": "Form",
@@ -42,44 +63,19 @@
                 "name": "parent_order",
                 "label": "Your order",
                 "required": true,
-                "data-source": [
-                  {
-                    "id": "WD-ORD-K4M7PQR9",
-                    "title": "Example order · K4M7PQR9"
-                  },
-                  {
-                    "id": "not_found",
-                    "title": "I cannot find my order"
-                  }
-                ]
-              },
-              {
-                "type": "TextInput",
-                "name": "manual_order_number",
-                "label": "Order number",
-                "required": false,
-                "helper-text": "Enter the number from your receipt if your order is not listed."
+                "data-source": "${data.orders}"
               },
               {
                 "type": "Footer",
                 "label": "Next",
                 "on-click-action": {
-                  "name": "navigate",
+                  "name": "data_exchange",
                   "payload": {
-                    "parent_order": "${form.parent_order}",
-                    "manual_order_number": "${form.manual_order_number}"
-                  },
-                  "next": {
-                    "type": "screen",
-                    "name": "AMENDMENT"
+                    "parent_order": "${form.parent_order}"
                   }
                 }
               }
             ]
-          },
-          {
-            "type": "TextCaption",
-            "text": "Example orders are shown in this unpublished design preview."
           }
         ]
       }
@@ -92,9 +88,25 @@
           "type": "string",
           "__example__": "WD-ORD-K4M7PQR9"
         },
-        "manual_order_number": {
-          "type": "string",
-          "__example__": ""
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "WD-SR-A1B2C3D4",
+              "title": "WD-SR-A1B2C3D4 — Submit Request — Open"
+            }
+          ]
         }
       },
       "layout": {
@@ -114,23 +126,26 @@
           },
           {
             "type": "TextBody",
-            "text": "Add a correction or new information to a request already under way."
+            "text": "Select the existing request, then describe the change you want us to review."
           },
           {
             "type": "Form",
             "name": "service_form",
             "children": [
               {
-                "type": "TextInput",
+                "type": "Dropdown",
                 "name": "request_number",
-                "label": "Request number",
-                "required": true
+                "label": "Existing request",
+                "required": true,
+                "data-source": "${data.requests}"
               },
               {
                 "type": "TextArea",
                 "name": "amendment",
                 "label": "Describe the change",
-                "required": true
+                "required": true,
+                "max-length": 600,
+                "helper-text": "Tell us what should be corrected, added, or updated."
               },
               {
                 "type": "Footer",
@@ -139,7 +154,6 @@
                   "name": "navigate",
                   "payload": {
                     "parent_order": "${data.parent_order}",
-                    "manual_order_number": "${data.manual_order_number}",
                     "request_number": "${form.request_number}",
                     "amendment": "${form.amendment}"
                   },
@@ -161,10 +175,6 @@
         "parent_order": {
           "type": "string",
           "__example__": "WD-ORD-K4M7PQR9"
-        },
-        "manual_order_number": {
-          "type": "string",
-          "__example__": ""
         },
         "request_number": {
           "type": "string",
@@ -188,7 +198,7 @@
           },
           {
             "type": "TextHeading",
-            "text": "Keep your request moving"
+            "text": "Review your amendment"
           },
           {
             "type": "TextCaption",
@@ -216,7 +226,7 @@
           },
           {
             "type": "TextBody",
-            "text": "We will review what can be changed and update you here on WhatsApp."
+            "text": "We’ll review whether this change can be made and update you on WhatsApp."
           },
           {
             "type": "Footer",
@@ -224,9 +234,9 @@
             "on-click-action": {
               "name": "complete",
               "payload": {
+                "flow_key": "wd_f005_request_amendment",
                 "design_service": "request-amendment",
                 "parent_order": "${data.parent_order}",
-                "manual_order_number": "${data.manual_order_number}",
                 "request_number": "${data.request_number}",
                 "amendment": "${data.amendment}"
               }
@@ -237,5 +247,6 @@
       "terminal": true,
       "success": true
     }
-  ]
+  ],
+  "data_api_version": "3.0"
 }
