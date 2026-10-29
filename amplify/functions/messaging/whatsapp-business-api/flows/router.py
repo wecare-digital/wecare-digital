@@ -108,8 +108,15 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── AMEND REQUEST FLOW ──
     if flow_key in ('amend_requ',) or flow_key.startswith('amend'):
+        # F005 keeps the cloned SELECT_ORDER -> AMENDMENT -> REVIEW UI. INIT supplies the
+        # sender-owned orders; SELECT_ORDER data_exchange supplies requests for that order.
         if action == 'INIT':
-            return amend_request.handle_init(data, flow_token, request_id)
+            return amend_request.handle_f005_init(data, flow_token, request_id)
+        if screen == 'SELECT_ORDER' and action == 'data_exchange':
+            return amend_request.handle_f005_select_order(data, flow_token, request_id)
+
+        # Legacy/deprecated amendment assets used these older screen ids. Keep the handlers
+        # readable for historical replay without changing F005's three-screen contract.
         if screen == 'ORDER_SELECT':
             return amend_request.handle_order_select(data, flow_token, request_id)
         if screen == 'SELECT_REQUEST':
