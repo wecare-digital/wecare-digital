@@ -45,7 +45,7 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
-from lambda_utils import customer_ideas, submit_request_response
+from lambda_utils import customer_ideas, request_amendment_response, submit_request_response
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
@@ -2514,6 +2514,21 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id)
 
+    _request_amendment_data = request_amendment_response.amendment_payload(message)
+    _request_amendment_contact = None
+    _request_amendment_result = None
+    if _request_amendment_data is not None:
+        _request_amendment_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        _request_amendment_result = request_amendment_response.save_amendment(
+            _request_amendment_data,
+            contact_id=_request_amendment_contact.get('contactId')
+                or _request_amendment_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            request_id=request_id)
+
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the
     # fast-redelivery race window (Meta redelivering within the GSI's eventual-
@@ -2536,7 +2551,11 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = _idea_contact or _submit_request_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+    contact = (_idea_contact or _submit_request_contact or _request_amendment_contact
+               or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
+                                         username=sender_username,
+                                         contact_book_name=sender_contact_book_name,
+                                         parent_bsuid=msg_parent_bsuid))
     contact_id = contact.get('contactId') or contact.get('id')
     
     # Extract message content based on type.
@@ -2579,6 +2598,29 @@ def _process_message(
         }
         msg_type = 'flow_response'
         content = 'Flow response — Submit Request'
+
+    _request_amendment_inbox = None
+    if _request_amendment_data is not None and _request_amendment_result is not None:
+        _amendment_item = _request_amendment_result.item or {}
+        _request_amendment_inbox = {
+            'flowCode': request_amendment_response.FLOW_CODE,
+            'flowType': 'amendment',
+            'flowScreen': 'CONFIRMATION',
+            'flowSubmissionId': _request_amendment_result.submission_id,
+            'flowReference': _request_amendment_result.reference,
+            'flowAnswers': request_amendment_response.response_answers(
+                _request_amendment_data, _request_amendment_result),
+            'flowAttachments': [],
+            # Keep the service context on the original request when ownership verification
+            # succeeded; the amendment itself remains addressable via flowSubmissionId.
+            'serviceRequestId': (
+                _amendment_item.get('parentSubmissionId')
+                or _request_amendment_result.submission_id),
+            'serviceRequestStatus': _amendment_item.get(
+                'status', 'awaiting_order_verification'),
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Request Amendment'
 
     # A shared contact card carried a name and a number that the old extractor threw
     # away, leaving an agent to ask the customer to retype it. Keep the sanitised
@@ -2696,12 +2738,17 @@ def _process_message(
         message_record.update(_idea_inbox)
     if _submit_request_inbox:
         message_record.update(_submit_request_inbox)
+    if _request_amendment_inbox:
+        message_record.update(_request_amendment_inbox)
     
     # Keep the complete structured completion; a truncated transport label cannot
     # be reconstructed by the inbox. Both inbox stores must carry the same fields.
     from lambda_utils.flow_inbox import from_message as project_flow_message
-    _flow_card = (project_flow_message(message)
-                  if _idea_data is None and _submit_request_data is None else {})
+    _flow_card = (
+        project_flow_message(message)
+        if (_idea_data is None and _submit_request_data is None
+            and _request_amendment_data is None)
+        else {})
     if _flow_card:
         message_record.update(_flow_card)
         content = _flow_card['content']
@@ -2792,6 +2839,7 @@ def _process_message(
         timestamp=timestamp,
         **(_idea_inbox or {}),
         **(_submit_request_inbox or {}),
+        **(_request_amendment_inbox or {}),
     )
 
     # ── A revoke marks the message it deleted ──
@@ -2908,6 +2956,11 @@ def _process_message(
                 # The completion is already one FlowSubmission + one Inbox card above.
                 # It is a customer message, so keep the 24-hour service window current,
                 # then stop before generic/post-payment routing can reinterpret it.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
+                return
+            if _request_amendment_data is not None:
+                # Same completion contract as Submit Request: durable business row and
+                # structured Inbox card were saved above before transport dedup.
                 _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
                 return
             nfm = interactive.get('nfm_reply', {})
