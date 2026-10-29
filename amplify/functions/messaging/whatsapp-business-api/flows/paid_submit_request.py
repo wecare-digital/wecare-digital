@@ -97,11 +97,11 @@ def send_review(event, lambda_client):
 
 
 def prepare_and_send(event, lambda_client, get_flow):
-    """Activate the paid service without sending any post-payment interactive Flow.
+    """Dispatch exactly one fulfilment after the paid invoice.
 
-    The invoice template is the only post-payment customer message. Service details remain
-    available through the normal Submit Request Flow entry points; payment finalization does not
-    push a second Flow invitation.
+    New single-order services never enter the legacy ServiceRequests activation path. Supported
+    Flow-backed services use the gated server-bound launcher; Vault remains secure-download only
+    and Pickup stays fail-closed until its corrected replacement Flow is published.
     """
     requests, keys, _ = tables()
     payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
@@ -137,15 +137,26 @@ def prepare_and_send(event, lambda_client, get_flow):
                 'orderNumber': selected_order_number,
             }
 
-        # The owner is completing the new Meta Flows separately. Final wiring is intentionally
-        # fail-closed: no old quick-reply template, no guessed Flow id and no generic fallback is
-        # sent. Once the canonical Flow is published this seam becomes the one-flow launcher.
-        return {
-            'outcome': 'SERVICE_FLOW_PENDING_WIRING',
-            'serviceCode': contract.service_code,
-            'flowCapability': contract.flow_capability,
-            'orderNumber': selected_order_number,
-        }
+        # The currently published Pickup Flow still contains stale pre-payment copy and has no
+        # dedicated completion saver. Never launch it for a paid customer until the replacement
+        # asset is published and canonicalized.
+        if contract.service_code == 'REQUEST_PICKUP':
+            return {
+                'outcome': 'PICKUP_FLOW_REPLACEMENT_REQUIRED',
+                'serviceCode': contract.service_code,
+                'orderNumber': selected_order_number,
+            }
+
+        if contract.service_code not in ('SUBMIT_REQUEST', 'REQUEST_AMENDMENT', 'DROP_DOCS'):
+            return {
+                'outcome': 'SERVICE_FLOW_PENDING_WIRING',
+                'serviceCode': contract.service_code,
+                'flowCapability': contract.flow_capability,
+                'orderNumber': selected_order_number,
+            }
+
+        from .paid_single_order_flow import prepare_and_send as single_order_flow_send
+        return single_order_flow_send(event, lambda_client)
 
     if payref.get('nativeCatalogService'):
         result = lambda_client.invoke(
