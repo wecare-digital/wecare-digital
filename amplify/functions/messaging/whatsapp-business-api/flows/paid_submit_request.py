@@ -11,7 +11,7 @@ from lambda_utils.ecommerce import (
     order_keys,
 )
 from lambda_utils import flow_completion, shared_tables
-from .service_flow_launcher import launch_single_order_service
+from .service_flow_launcher import launch_single_order_service, launch_track_shipping_purchase
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,13 @@ def prepare_and_send(event, lambda_client, get_flow):
             order_number=selected_order_number,
             lambda_client=lambda_client,
         )
+
+    # Track Shipping is a normal Shop/catalog product rather than a request-service SKU.
+    # The webhook still reaches this common post-invoice hook for every finalized order, so
+    # detect its paid SKU here and send the same one-template/one-Flow launcher.
+    track_launch = launch_track_shipping_purchase(event, lambda_client)
+    if track_launch is not None:
+        return track_launch
 
     if payref.get('nativeCatalogService'):
         result = lambda_client.invoke(
