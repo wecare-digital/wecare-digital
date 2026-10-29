@@ -58,7 +58,7 @@ There is one customer receipt renderer for website checkout, WhatsApp catalog/ca
 
 Show when present:
 
-- Receipt Ref: the customer display reference `WD-PAY-` plus the first 8 canonical reference characters; the full canonical reference remains stored internally
+- Receipt Ref: the full stored `referenceId` (for example `WD-PAY-7CAE5A5A`), in the facts block and the trace block; a long reference shrinks to fit its column instead of being cut. The first-8-characters display rule from #1803 was retired by #1806
 - paid/capture date and time in IST
 - payment status, with captured payments shown as a lime `PAID` pill
 - Channel
