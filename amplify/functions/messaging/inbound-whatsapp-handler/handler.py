@@ -2791,6 +2791,7 @@ def _process_message(
         **{k: v for k, v in _flow_card.items() if k not in ('content', 'messageType')},
         timestamp=timestamp,
         **(_idea_inbox or {}),
+        **(_submit_request_inbox or {}),
     )
 
     # ── A revoke marks the message it deleted ──
