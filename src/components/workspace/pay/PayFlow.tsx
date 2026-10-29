@@ -243,7 +243,7 @@ const AddressFieldGroup: React.FC<{
   return (
     <>
       <p style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', margin: '8px 0 4px' } }>Delivery Address</p>
-      <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }>
+      <div className="pf-address-field-grid">
         { ADDRESS_FIELDS.map( spec => (
           <div className="form-group" key={ spec.key }>
             <label htmlFor={ `${idPrefix}-${spec.key}` }>
@@ -404,7 +404,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   }, [ router.query.customer, customers ] );
 
   /* Customer handlers */
-  const openEditCust = ( c: Contact ) => {
+  const openEditCust = ( c: Contact, focus?: 'phone' | 'address' ) => {
     const address = addressFieldsFromContact( c );
     const composed = contactDeliveryAddress( c );
     setEditCust( c );
@@ -414,6 +414,12 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       gstin: ( c as any ).gstin || '',
       ...address,
     } );
+    if ( focus ) {
+      window.setTimeout( () => {
+        const targetId = focus === 'phone' ? 'pf-cust-phone' : 'pf-cust-addr-addressLine1';
+        document.getElementById( targetId )?.focus();
+      }, 0 );
+    }
   };
   const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); };
   const saveCust = async () => {
@@ -461,9 +467,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
           in_pin_code: custForm.postalCode, landmark_area: custForm.locality,
         } ),
       };
-      if ( editCust.id ) { await api.updateContact( editCust.id, saveData as any ); showMsg( 'Customer updated' ); }
-      else { await api.createContact( saveData as any ); showMsg( 'Customer created' ); }
-      closeEditCust(); loadCustomers();
+      if ( editCust.id ) {
+        const updated = await api.updateContact( editCust.id, saveData as any );
+        if ( !updated ) throw new Error( 'Customer update was not confirmed' );
+        if ( selCustomer?.id === editCust.id ) setSelCustomer( updated );
+        showMsg( 'Customer updated' );
+      } else {
+        const created = await api.createContact( saveData as any );
+        if ( !created ) throw new Error( 'Customer create was not confirmed' );
+        showMsg( 'Customer created' );
+      }
+      closeEditCust();
+      void loadCustomers();
     } catch ( e ) { showMsg( 'Save failed', 'error' ); }
     setCustSaving( false );
   };
@@ -931,7 +946,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       <Button variant="ghost" size="sm" onClick={ closeEditCust }>{ '\u2715' }</Button>
                     </div>
                     <div className="form-group"><label>Name</label><input type="text" value={ custForm.name } onChange={ e => setCustForm( { ...custForm, name: e.target.value } ) } placeholder="Enter full name" /></div>
-                    <div className="form-group"><label>Phone</label><input type="tel" value={ custForm.phone } onChange={ e => setCustForm( { ...custForm, phone: e.target.value } ) } placeholder="Include country code" /></div>
+                    <div className="form-group"><label htmlFor="pf-cust-phone">Phone</label><input id="pf-cust-phone" type="tel" value={ custForm.phone } onChange={ e => setCustForm( { ...custForm, phone: e.target.value } ) } placeholder="Include country code" /></div>
                     <div className="form-group"><label>Email</label><input type="email" value={ custForm.email } onChange={ e => setCustForm( { ...custForm, email: e.target.value } ) } placeholder="Enter email address" /></div>
                     { /* ONE address input group. The free-text "Delivery Address" textarea that
                          used to sit here is the read-only composed preview inside this block
@@ -1012,24 +1027,34 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   <div className="pf-composer-main">
                   <div className="pf-context-grid">
                     <div className="info-banner pf-customer-summary">
-                      <div>
+                      <div className="pf-context-copy">
                         <span className="pf-context-label">Customer</span>
                         <strong>{ selCustomer.name }</strong>
-                        <span>{ selCustomer.phone }{ selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</span>
+                        <span>{ selCustomer.phone }{ selCustomer.email ? ' · ' + selCustomer.email : '' }</span>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
+                      <div className="pf-context-actions">
+                        <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer, 'phone' ) }>Edit number</Button>
+                        <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change customer</Button>
+                      </div>
                     </div>
                     { hasPayableDeliveryAddress( selCustomer ) ? (
                       <div className="inner-card pf-delivery-summary">
-                        <span className="pf-context-label">Delivery</span>
-                        <div>{ formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
+                        <div className="pf-context-copy">
+                          <span className="pf-context-label">Delivery</span>
+                          <div>{ formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
+                        </div>
+                        <div className="pf-context-actions">
+                          <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer, 'address' ) }>Edit address</Button>
+                        </div>
                       </div>
                     ) : (
                       <div className="info-banner pf-address-warning">
-                        <span className="pf-context-label">Delivery</span>
-                        <div>This contact only has a legacy/free-text address. Add address line 1, city, state and postal code before creating a physical-goods payment.</div>
-                        <div style={ { marginTop: 8 } }>
-                          <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer ) }>Edit delivery address</Button>
+                        <div className="pf-context-copy">
+                          <span className="pf-context-label">Delivery</span>
+                          <div>Add street address, city, state / region, postal code and country before creating a physical-goods payment.</div>
+                        </div>
+                        <div className="pf-context-actions">
+                          <Button variant="primary" size="sm" onClick={ () => openEditCust( selCustomer, 'address' ) }>Add address</Button>
                         </div>
                       </div>
                     ) }
@@ -1152,8 +1177,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <strong>Confirmed address required</strong>
                       </div>
                     </div>
-                    { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
-                      <div className="msg-bar error" style={ { margin: '14px 0 0', fontSize: 'var(--text-xs)' } }>Physical goods require a shipping address. Add one in the Customers tab.</div>
+                    { goodsType === 'physical-goods' && !hasPayableDeliveryAddress( selCustomer ) && (
+                      <div className="msg-bar error" style={ { margin: '14px 0 0', fontSize: 'var(--text-xs)' } }>Physical goods require a complete delivery address. Use Add address above before creating the payment request.</div>
                     ) }
                     <div className="pf-server-note">
                       Convenience fee and final total are calculated by the server. The stored invoice remains the authority for subtotal, tax, Delight and total.
