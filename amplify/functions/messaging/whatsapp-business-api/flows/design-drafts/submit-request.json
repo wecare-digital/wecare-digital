@@ -1,19 +1,41 @@
 {
   "version": "7.3",
+  "data_api_version": "3.0",
   "routing_model": {
-    "SELECT_ORDER": [
-      "REQUEST"
+    "ORDER_SELECT": [
+      "SUBMIT_REQUEST_FORM"
     ],
-    "REQUEST": [
-      "CONFIRMATION"
+    "SUBMIT_REQUEST_FORM": [
+      "THANK_YOU"
     ],
-    "CONFIRMATION": []
+    "THANK_YOU": []
   },
   "screens": [
     {
-      "id": "SELECT_ORDER",
+      "id": "ORDER_SELECT",
       "title": "Submit Request",
-      "data": {},
+      "data": {
+        "orders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "WD-ORD-K4M7PQR9",
+              "title": "Order · K4M7PQR9"
+            }
+          ]
+        }
+      },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -22,136 +44,114 @@
             "text": "Select order"
           },
           {
-            "type": "TextBody",
-            "text": "Choose the order you need help with."
+            "type": "Dropdown",
+            "name": "order_id",
+            "label": "Order",
+            "required": true,
+            "data-source": "${data.orders}"
           },
           {
-            "type": "Form",
-            "name": "request_form",
-            "children": [
-              {
-                "type": "Dropdown",
-                "name": "parent_order",
-                "label": "Order",
-                "required": true,
-                "data-source": [
-                  {
-                    "id": "WD-ORD-K4M7PQR9",
-                    "title": "Order · K4M7PQR9"
-                  }
-                ]
-              },
-              {
-                "type": "Footer",
-                "label": "Next",
-                "on-click-action": {
-                  "name": "navigate",
-                  "payload": {
-                    "parent_order": "${form.parent_order}"
-                  },
-                  "next": {
-                    "type": "screen",
-                    "name": "REQUEST"
-                  }
-                }
+            "type": "Footer",
+            "label": "Next",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "order_id": "${form.order_id}"
               }
-            ]
+            }
           }
         ]
       }
     },
     {
-      "id": "REQUEST",
+      "id": "SUBMIT_REQUEST_FORM",
       "title": "Submit Request",
       "data": {
-        "parent_order": {
-          "type": "string",
-          "__example__": "WD-ORD-K4M7PQR9"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "TextHeading",
-            "text": "How can we help?"
-          },
-          {
-            "type": "Form",
-            "name": "request_form",
-            "children": [
-              {
-                "type": "TextArea",
-                "name": "request",
-                "label": "What do you need help with?",
-                "required": true
-              },
-              {
-                "type": "Footer",
-                "label": "Continue",
-                "on-click-action": {
-                  "name": "navigate",
-                  "payload": {
-                    "parent_order": "${data.parent_order}",
-                    "request": "${form.request}"
-                  },
-                  "next": {
-                    "type": "screen",
-                    "name": "CONFIRMATION"
-                  }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "CONFIRMATION",
-      "title": "Confirm",
-      "terminal": true,
-      "data": {
-        "parent_order": {
+        "order_id": {
           "type": "string",
           "__example__": "WD-ORD-K4M7PQR9"
         },
-        "request": {
+        "order_short_id": {
           "type": "string",
-          "__example__": "Please help with this order."
+          "__example__": "K4M7PQR9"
         }
       },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
-          {
-            "type": "TextHeading",
-            "text": "Submit this request?"
-          },
           {
             "type": "TextCaption",
             "text": "Order"
           },
           {
             "type": "TextBody",
-            "text": "${data.parent_order}"
+            "text": "${data.order_short_id}"
           },
           {
-            "type": "TextCaption",
-            "text": "Request"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.request}"
+            "type": "TextArea",
+            "name": "description",
+            "label": "What do you need help with?",
+            "required": true,
+            "max-length": 600
           },
           {
             "type": "Footer",
             "label": "Submit request",
             "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "order_id": "${data.order_id}",
+                "description": "${form.description}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "THANK_YOU",
+      "title": "Request Submitted",
+      "terminal": true,
+      "data": {
+        "order_id": {
+          "type": "string",
+          "__example__": "WD-ORD-K4M7PQR9"
+        },
+        "order_short_id": {
+          "type": "string",
+          "__example__": "K4M7PQR9"
+        },
+        "request_number": {
+          "type": "string",
+          "__example__": "WD-SR-A1B2C3D4"
+        },
+        "payment_ref_id": {
+          "type": "string",
+          "__example__": "N/A"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Request submitted"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Request number"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.request_number}"
+          },
+          {
+            "type": "Footer",
+            "label": "Done",
+            "on-click-action": {
               "name": "complete",
               "payload": {
-                "design_service": "submit-request",
-                "parent_order": "${data.parent_order}",
-                "request": "${data.request}"
+                "request_number": "${data.request_number}"
               }
             }
           }
