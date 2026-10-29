@@ -44,13 +44,7 @@ const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: 
  * this change would keep offering all nine forever.
  */
 const DEFAULT_BRAND = 'WECARE.DIGITAL';
-/*
- * No `discount` field on the invoice form. Manual discount entry is retired and there is no coupon
- * system: the only discount an invoice carries is the always-on Delight policy (0.5% up to Rs50),
- * applied by the server on create. The form sends no discount and no coupon code; the browser
- * never computes a discount figure.
- */
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', purpose: DEFAULT_BRAND, orderId: '' };
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', discount: '0', purpose: DEFAULT_BRAND, orderId: '' };
 const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
 const TABS: ShellTab[] = [
   { id: 'create', label: 'Collect' },
@@ -486,6 +480,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         hsnSac: it.hsnSac.trim(),
       } ) ),
       shipping: parseFloat( invForm.shipping ) || 0,
+      discount: Math.max( 0, parseFloat( invForm.discount ) || 0 ),
       gstRate: config.default_gst_rate,
       purpose: DEFAULT_BRAND,
       orderId: invForm.orderId,
@@ -1048,9 +1043,21 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       <div className="form-group"><label htmlFor="pf-shipping">Express ({ '\u20B9' })</label><input id="pf-shipping" type="number" min="0" step="0.01" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /><span className="pf-field-help">Delivery / shipping charge shown to the customer as Express.</span></div>
                     </div>
                   </div>
-                  {/* No coupon field and no manual-adjustment field: there is no coupon system and
-                      manual discount entry is retired. The always-on Delight discount (0.5% up to
-                      Rs50) is applied by the server on create and previewed above after it answers. */}
+                  <div className="pf-composer-card pf-pricing-adjustment-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Discount</h4>
+                        <p>Optional staff adjustment. The server validates it and combines it with automatic Delight.</p>
+                      </div>
+                    </div>
+                    <div className="pf-form-grid">
+                      <div className="form-group">
+                        <label htmlFor="pf-discount">Discount amount ({ '\u20B9' })</label>
+                        <input id="pf-discount" type="number" min="0" step="0.01" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } />
+                        <span className="pf-field-help">Preview and final payable are calculated by the invoice engine. No browser-side total is authoritative.</span>
+                      </div>
+                    </div>
+                  </div>
                   { /* The server's answer about these codes is rendered ABOVE the customer step,
                        outside this branch, because a successful create clears the selected
                        customer and would otherwise unmount the one record of what was applied. */ }
@@ -1118,7 +1125,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         ) }
                         <div className="pf-preview-totals">
                           <div><span>Items Subtotal</span><strong>{ fmtMoney( Number( invoicePreview.subtotal ) ) }</strong></div>
-                          { Number( invoicePreview.couponDiscount || invoicePreview.discount ) > 0 && <div><span>Delight</span><strong>−{ fmtMoney( Number( invoicePreview.couponDiscount || invoicePreview.discount ) ) }</strong></div> }
+                          { Number( invoicePreview.couponDiscount ) > 0 && <div><span>Delight</span><strong>−{ fmtMoney( Number( invoicePreview.couponDiscount ) ) }</strong></div> }
+                          { Number( invoicePreview.discount ) - Number( invoicePreview.couponDiscount || 0 ) > 0 && <div><span>Discount</span><strong>−{ fmtMoney( Number( invoicePreview.discount ) - Number( invoicePreview.couponDiscount || 0 ) ) }</strong></div> }
                           { Number( invoicePreview.shipping ) > 0 && <div><span>Express</span><strong>{ fmtMoney( Number( invoicePreview.shipping ) ) }</strong></div> }
                           { Number( invoicePreview.convenienceFeeNet ) > 0 && <div><span>Convenience Fee</span><strong>{ fmtMoney( Number( invoicePreview.convenienceFeeNet ) ) }</strong></div> }
                           <div><span>{ invoicePreview.sellerGstin }</span><strong>{ fmtMoney( Number( invoicePreview.totalGst ) ) }</strong></div>
