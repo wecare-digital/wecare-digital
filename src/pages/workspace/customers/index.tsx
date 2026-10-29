@@ -276,6 +276,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
+  const [restoringDuplicate, setRestoringDuplicate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const toast = useToastContext();
   const confirm = useConfirm();
@@ -583,11 +584,39 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const useExistingForPayment = () => {
-    if (!duplicateContact) return;
+    if (!duplicateContact || duplicateContact.archivedAt) return;
     const customerKey = duplicateContact.contactId || duplicateContact.customerUuid || duplicateContact.id;
     setShowModal(false);
     resetForm();
     void router.push({ pathname: '/workspace/payments', query: { view: 'collect', customer: customerKey } });
+  };
+
+  const restoreExistingDuplicate = async () => {
+    if (!duplicateContact?.archivedAt || restoringDuplicate) return;
+    const contactId = duplicateContact.contactId || duplicateContact.id;
+    if (!contactId) return;
+    setRestoringDuplicate(true);
+    try {
+      const result = await api.restoreContact(contactId);
+      if (result.ok && result.data) {
+        setDuplicateContact(result.data);
+        setFormError('');
+        await loadContacts();
+        toast.success('Customer restored. You can now use this customer for payment.');
+        return;
+      }
+      const message = !result.ok && result.failure.status === 403
+        ? 'Admin access is required to restore this archived customer.'
+        : (!result.ok ? result.failure.message : 'Customer could not be restored.');
+      setFormError(message);
+      toast.error(message);
+    } catch {
+      const message = 'Customer could not be restored. Try again.';
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setRestoringDuplicate(false);
+    }
   };
 
   // Duplicate detection
@@ -692,10 +721,19 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         await loadContacts();
       } else if (!result.ok) {
         if (result.failure.status === 409) {
-          const existing = await resolveDuplicateContact(formPhone, formEmail);
+          // The Contacts backend is the identity authority. Normal list/search intentionally hides
+          // archived customers, so a duplicate 409 carries the canonical contact id and we fetch
+          // that row directly. Search remains only as a compatibility fallback for older runtime
+          // versions that do not yet return structured duplicate metadata.
+          const rawExistingId = result.failure.details?.existingContactId;
+          const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
+          const exact = existingId ? await api.getContact(existingId) : null;
+          const existing = exact || await resolveDuplicateContact(formPhone, formEmail);
           setDuplicateContact(existing);
           const message = existing
-            ? `Customer already exists: ${existing.name || existing.phone || existing.email || existing.contactId}`
+            ? (existing.archivedAt
+              ? `Customer already exists and is archived: ${existing.name || existing.phone || existing.email || existing.contactId}`
+              : `Customer already exists: ${existing.name || existing.phone || existing.email || existing.contactId}`)
             : (result.failure.message || 'A contact with this phone or email already exists');
           setFormError(message);
           toast.warning(message);
@@ -1609,13 +1647,27 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             {duplicateContact && (
               <div className="contacts-duplicate-card">
                 <div>
-                  <span>Existing customer</span>
+                  <span>{duplicateContact.archivedAt ? 'Existing archived customer' : 'Existing customer'}</span>
                   <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
-                  <small>{duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}</small>
+                  <small>
+                    {duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}
+                    {duplicateContact.archivedAt ? ' · archived' : ''}
+                  </small>
                 </div>
                 <div className="contacts-duplicate-actions">
                   <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
-                  <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
+                  {duplicateContact.archivedAt ? (
+                    <button
+                      type="button"
+                      onClick={restoreExistingDuplicate}
+                      disabled={restoringDuplicate}
+                      className="contacts-primary-action"
+                    >
+                      {restoringDuplicate ? 'Restoring...' : 'Restore customer'}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
+                  )}
                 </div>
               </div>
             )}
