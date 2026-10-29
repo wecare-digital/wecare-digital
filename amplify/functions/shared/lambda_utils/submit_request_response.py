@@ -29,10 +29,10 @@ FLOW_NAME = 'WD-F004-Submit-Request'
 FLOW_VERSION = '7.3'
 SUBMISSION_PREFIX = 'WD-SR'
 
-# The published Pickup Flow was cloned from F004 and still carries FLOW_KEY below.
-# Our generic sender mints request_pickup tokens as `request_pi-...`; keep those
-# completions out of the Submit Request saver rather than silently misfiling them.
-PICKUP_TOKEN_PREFIXES = ('request_pi-', 'request_pickup-')
+# Published Pickup and Track Shipping were cloned from F004 and still carry FLOW_KEY.
+# Their server-issued tokens are the only safe discriminator Meta returns with nfm_reply;
+# keep both out of the Submit Request saver rather than silently misfiling them.
+CLONED_FLOW_TOKEN_PREFIXES = ('request_pi-', 'request_pickup-', 'shipments-')
 PAID_TOKEN_PREFIXES = ('srpaid-',)
 
 
@@ -51,7 +51,7 @@ def request_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(data, dict) or data.get('flow_key') != FLOW_KEY:
         return None
     flow_token = str(data.get('flow_token') or '').strip()
-    if flow_token.startswith(PICKUP_TOKEN_PREFIXES):
+    if flow_token.startswith(CLONED_FLOW_TOKEN_PREFIXES):
         return None
     return data
 
