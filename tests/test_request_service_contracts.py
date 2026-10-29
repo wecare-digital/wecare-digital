@@ -133,3 +133,14 @@ def test_browser_skips_legacy_intent_and_cart_for_request_services():
     assert "setServiceLine" not in source
     assert "CHECKOUT_PATH" not in source
     assert "Payment request sent to your registered WhatsApp number." in source
+
+
+
+def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
+    source = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text()
+    native = source.index("# Product/cart native checkout carries the frozen cart snapshot")
+    block = source[native:native + 7000]
+    assert "outcome.verified_captured_paise > 0 and outcome.provider_payment_id" in block
+    assert "outcome.outcome == order_creation.ORDER_CREATED" not in block.split(
+        "elif attempt.get('finalizationStage')", 1
+    )[0]
