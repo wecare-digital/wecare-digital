@@ -1131,20 +1131,31 @@ def route(event: dict) -> dict | None:
         if path in {'/auth', '/auth/state', '/oauth/authorize'} and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
             json_transport = path == '/auth/state'
+            target = connect_origin()
+
+            # There is one customer sign-in page: the main-site /auth route. Direct API-host
+            # visits to /auth and cached /oauth/authorize links are protocol entry points only;
+            # redirect them before creating any auth state so no second HTML login surface exists.
+            if target != origin() and path in {'/auth', '/oauth/authorize'}:
+                if path == '/oauth/authorize' or {
+                    'client_id', 'redirect_uri', 'response_type', 'scope', 'state',
+                    'resource', 'code_challenge', 'code_challenge_method',
+                }.intersection(params):
+                    validate_authorize(params)
+                elif set(params) - {'return'}:
+                    raise AuthError('Invalid website sign-in request')
+                result = response(302, '')
+                result['headers']['Location'] = target + '/auth' + (
+                    ('?' + urlencode(params)) if params else ''
+                )
+                return result
+
             if path in {'/auth', '/auth/state'} and not {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}.intersection(params):
                 if not params:
                     pending = resume_authorization(event)
                     if pending is not None:
                         return pending
                 return website_get(params, json_transport=json_transport)
-            target = connect_origin()
-            # Hosts cache discovery. Redirect an initial GET on the legacy path before creating
-            # a session, so cookies and the subsequent POST stay on the main-site `/auth` page.
-            if target != origin() and path == '/oauth/authorize':
-                validate_authorize(params)
-                result = response(302, '')
-                result['headers']['Location'] = target + '/auth?' + urlencode(params)
-                return result
             return authorize_get(params, json_transport=json_transport)
         if method != 'POST':
             return response(405, {'error': 'invalid_request'})
