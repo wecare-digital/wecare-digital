@@ -170,6 +170,39 @@ def test_single_order_vault_never_enters_flow_wiring():
     assert secure < refused < flow
 
 
+def test_flow_service_is_refused_before_payment_until_canonical_flow_is_published():
+    source = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text()
+    start = source.index("def _request_service_start")
+    end = source.index("\ndef _create(", start)
+    block = source[start:end]
+    assert "canonical_flows.published_flow(contract.flow_capability)" in block
+    assert "SERVICE_FULFILLMENT_UNAVAILABLE" in block
+    assert block.index("SERVICE_FULFILLMENT_UNAVAILABLE") < block.index("return _create(")
+
+
+def test_single_order_drop_docs_uses_f003_internal_fulfillment_not_catalog_service():
+    source = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py").read_text()
+    start = source.index("if line.get('singleOrder') is True:")
+    end = source.index("if payref.get('nativeCatalogService'):", start)
+    block = source[start:end]
+    assert "service_requests.DROP_DOCS" in block
+    assert "_single_order_fulfillment" in block
+    assert "paid_drop_docs" in block
+    assert "nativeCatalogService" not in block
+    assert "'FULFILLMENT#' + attempt" in source
+    assert "WD-REQ identifier" in source
+
+
+def test_single_order_activity_records_fulfillment_not_flow_state():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/finalization.py").read_text()
+    start = source.index("def _accept_paid_single_order_service")
+    end = source.index("\ndef accept_paid", start)
+    block = source[start:end]
+    assert "fulfillmentKind" in block
+    assert "fulfillmentStatus" in block
+    assert "'flowStatus'" not in block
+
+
 def test_customer_flow_hint_occurs_after_confirmed_invoice_not_during_activation_hint():
     dispatch = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/service_request_dispatch.py").read_text()
     assert "preparePaidSubmitRequest" not in dispatch
