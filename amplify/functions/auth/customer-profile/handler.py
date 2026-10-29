@@ -68,7 +68,10 @@ PHONE_PAGE_LIMIT = 10
 
 _dynamodb = None
 _secrets = None
+_lambda = None
 _pepper_cache: Dict[str, str] = {}
+PROFILE_UPDATE_SENDER_FUNCTION = os.environ.get(
+    "PROFILE_UPDATE_SENDER_FUNCTION", "wecare-whatsapp-business-api:live")
 
 
 def _no_store(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,6 +85,46 @@ def _table(name: str):
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
     return _dynamodb.Table(name)
+
+
+def _lambda_client():
+    global _lambda
+    if _lambda is None:
+        _lambda = boto3.client("lambda", region_name=REGION)
+    return _lambda
+
+
+def _send_profile_update(phone: str, origin: str) -> Dict[str, Any]:
+    """Ask the internal WhatsApp boundary to send the approved F001 profile template."""
+    try:
+        response = _lambda_client().invoke(
+            FunctionName=PROFILE_UPDATE_SENDER_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "customerProfileUpdateTemplate",
+                "phone": phone,
+            }).encode("utf-8"),
+        )
+        raw = response.get("Payload").read()
+        result = json.loads(raw.decode("utf-8")) if raw else {}
+        if response.get("FunctionError"):
+            raise RuntimeError("profile update sender failed")
+        status = int(result.get("statusCode") or 500)
+        payload = result.get("body")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except (TypeError, ValueError):
+                payload = {}
+        if status >= 300 or not isinstance(payload, dict) or payload.get("status") != "PROFILE_UPDATE_SENT":
+            raise RuntimeError("profile update sender refused")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({"event": "customer_profile_update_send_failed",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "PROFILE_UPDATE_UNAVAILABLE"}, origin))
+    logger.info(json.dumps({"event": "customer_profile_update_sent"}))
+    return _no_store(cors_response(200, {"status": "PROFILE_UPDATE_SENT"}, origin))
 
 
 def _pepper() -> str:
@@ -802,6 +845,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # (1) Shape of the request. `mode` is not accepted and is never sent.
     body = _body(event)
+    if "action" in body:
+        if body != {"action": "sendProfileUpdate"}:
+            return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
+        try:
+            phone = identity.normalize_phone_preserving_country(identity_session.phone)
+        except identity.InvalidPhoneNumber:
+            return _no_store(cors_response(400, {"error": "INVALID_SESSION_PHONE"}, origin))
+        return _send_profile_update(phone, origin)
+
     allowed = {"firstName", "lastName", "companyName", "designation", "email", "emailProof", "address"}
     if set(body) - allowed:
         return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
