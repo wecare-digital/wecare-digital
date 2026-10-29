@@ -57,3 +57,21 @@ def test_drop_docs_readiness_uses_current_approved_template():
     assert "templates.get('_dropdoc_flow')" in checkout
     assert "launch.get('name') != '_dropdoc_flow'" in checkout
     assert "'_dropdoc_flow': '1041974032198332'" in live
+
+
+def test_track_shipping_paid_product_uses_same_launcher():
+    source = (
+        ROOT
+        / "amplify/functions/messaging/whatsapp-business-api/flows/service_flow_launcher.py"
+    ).read_text()
+    dispatch = (
+        ROOT
+        / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py"
+    ).read_text()
+    assert '"TRACK_SHIPPING": LaunchSpec("TRACK_SHIPPING", "shipments", "shipments")' in source
+    assert 'str(line.get("variantId") or "").strip().upper() == "SHT8M5P3"' in source
+    assert "def launch_track_shipping_purchase(" in source
+    assert "launch_track_shipping_purchase(event, lambda_client)" in dispatch
+    assert '"track_ship_flow"' in (
+        ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
+    ).read_text()
