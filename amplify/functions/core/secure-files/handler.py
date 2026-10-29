@@ -1361,7 +1361,7 @@ _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
     "CATALOG_SERVICE_ALREADY_PREPARED": (
         202, "A Vault payment request is already in progress. Check WhatsApp."),
     "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS": (
-        202, "A service payment is already in progress. Complete it in WhatsApp before starting another."),
+        409, "Another service payment is already in progress. Complete it in WhatsApp before starting Vault payment."),
     "VAULT_ACCESS_ACTIVE": (
         409, "This file is already paid and available. Do not pay again."),
     "PAID_UNVERIFIED": (
@@ -1497,7 +1497,7 @@ def _customer_request_payment(
             "fileId": file_id, "accessState": state, "message": message,
         }, origin)
     return _start_native_vault_payment(
-        item, state, origin, requested_by="customer:" + str(identity.get("subject") or "")[:40])
+        item, state, origin, requested_by="customer")
 
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:

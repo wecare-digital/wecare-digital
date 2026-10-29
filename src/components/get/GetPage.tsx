@@ -21,34 +21,29 @@
  *
  * The trust model, which is the whole point
  * -----------------------------------------
- * Nothing on this page can grant access. Checkout binds one exact file to a server-owned Vault
- * service intent; the customer then uses the same /cart/ -> /checkout/ payment chooser as every
- * other purchase (Pay here or Pay on WhatsApp). The server decides access only from the durable
- * entitlement it writes after authoritative payment verification. Each successful redeem mints a
- * short-lived transport URL while a paid access window is open; ownership and window state are
- * enforced server-side.
+ * Nothing on this page can grant access. For UNPAID or EXPIRED, the browser names only this
+ * exact fileId to secure-files under the customer session. The backend re-proves ownership and
+ * entitlement state, then hands the file to the existing native WhatsApp Review and Pay rail.
+ * ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF and Meta ORDER_DETAILS are server-owned.
+ * There is no website cart and Vault has no Meta Flow. After authoritative capture the durable
+ * entitlement changes this same card to confirming/download state.
  *
  * Paying and renewing
  * -------------------
- * Each file carries `accessState`. UNPAID and EXPIRED files can enter checkout only after this
- * authenticated page asks /services/request-intent to bind that exact fileId to the verified
- * customer. The cart then offers Pay here or Pay on WhatsApp. PAID_UNVERIFIED is never offered a
- * payment: a recorded payment is reconciled, not sold again.
+ * Each file carries `accessState`. UNPAID and EXPIRED can request native WhatsApp payment;
+ * OPEN/READY never charge again, and PAID_UNVERIFIED only reconciles. After a payment request is
+ * sent, this page stays on /vault/?file=<id>, refreshes on focus and polls until the server-owned
+ * state changes.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../api/client';
-import { serviceByKind } from '../../config/services';
-import { setServiceLine } from '../../lib/cart';
-import { postRequestIntent } from '../../lib/serviceRequests';
-import { CHECKOUT_PATH } from '../../lib/serviceEntry';
 import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
-import { getSession, restoreSession, clearSession } from '../../lib/customerAuth';
+import { restoreSession, clearSession } from '../../lib/customerAuth';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -102,17 +97,19 @@ interface FilesPageProps {
     targetFileId: string;
 }
 
+type FileFeedback = { kind: 'status' | 'error'; message: string };
+
 export default function FilesPage ( { targetFileId }: FilesPageProps ) {
-    const router = useRouter();
     const [ stage, setStage ] = useState<Stage>( 'loading' );
     const [ error, setError ] = useState( '' );
 
     const [ files, setFiles ] = useState<SecureFile[]>( [] );
-    // The live ProductsTable price. Null until the canonical service-pricing endpoint can read
-    // it; checkout never starts from a guessed or file-local amount.
-    const [ price, setPrice ] = useState<number | null>( null );
+    // Display-only preview from the ProductsTable-backed pricing endpoint. The native payment
+    // backend re-prices independently before it creates any payment attempt.
     const [ payablePrice, setPayablePrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
+    const [ paymentWaiting, setPaymentWaiting ] = useState<Record<string, boolean>>( {} );
+    const [ fileFeedback, setFileFeedback ] = useState<Record<string, FileFeedback>>( {} );
 
     const redirectToAuth = useCallback( (): void => {
         if ( targetFileId && VAULT_FILE_ID_PATTERN.test( targetFileId ) )
@@ -154,15 +151,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         }
     }, [ targetFileId, redirectToAuth ] );
 
-    // Vault has no file-local or deploy-local price. This is the same ProductsTable-backed
-    // endpoint used by service pages; checkout independently re-prices again before a payment
-    // attempt exists. A missing price disables new/renewal checkout, never a paid download.
+    // Vault has no file-local or deploy-local price. This preview is display-only; the native
+    // WhatsApp payment backend independently re-prices before a payment attempt exists.
     useEffect( () => {
         let active = true;
         void fetchServicePrices().then( prices => {
             if ( !active ) return;
             const vault = prices.vault;
-            setPrice( vault?.available ? vault.paise : null );
             setPayablePrice(
                 vault?.available && vault.breakdown
                     ? vault.breakdown.totalPayablePaise
@@ -216,11 +211,12 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         return () => { active = false; };
     }, [ targetFileId, redirectToAuth ] );
 
-    // A recorded payment must never be sold twice. While any visible file is in the
-    // reconciliation state, refresh from the server every five seconds and when the customer
-    // returns to this tab. Polling stops as soon as the backend reports READY/OPEN/EXPIRED.
+    // After native Review and Pay is sent, the website stays on this exact file. Refresh while
+    // payment is pending or reconciling, and whenever the customer returns from WhatsApp.
     useEffect( () => {
-        if ( stage !== 'files' || !files.some( file => accessStateOf( file ) === 'PAID_UNVERIFIED' ) ) return;
+        const waiting = files.some( file => paymentWaiting[ file.fileId ] );
+        const reconciling = files.some( file => accessStateOf( file ) === 'PAID_UNVERIFIED' );
+        if ( stage !== 'files' || ( !waiting && !reconciling ) ) return;
 
         let active = true;
         const refresh = () => {
@@ -234,17 +230,45 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             window.clearInterval( interval );
             window.removeEventListener( 'focus', refresh );
         };
-    }, [ stage, files, loadFiles ] );
+    }, [ stage, files, paymentWaiting, loadFiles ] );
+
+    // Once the backend moves a file out of its sale state, the temporary "check WhatsApp"
+    // message has done its job. The authoritative OPEN/READY/PAID_UNVERIFIED UI takes over.
+    useEffect( () => {
+        const completed = files
+            .filter( file => paymentWaiting[ file.fileId ]
+                && accessStateOf( file ) !== 'UNPAID'
+                && accessStateOf( file ) !== 'EXPIRED' )
+            .map( file => file.fileId );
+        if ( completed.length === 0 ) return;
+        setPaymentWaiting( current => {
+            const next = { ...current };
+            completed.forEach( id => { delete next[ id ]; } );
+            return next;
+        } );
+        setFileFeedback( current => {
+            const next = { ...current };
+            completed.forEach( id => { delete next[ id ]; } );
+            return next;
+        } );
+    }, [ files, paymentWaiting ] );
 
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
+        const feedback = ( kind: FileFeedback['kind'], message: string ) => {
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind, message } } ) );
+        };
         if ( !accessId )
         {
-            setError( 'Paid Vault access is not ready for this file yet.' );
+            feedback( 'error', 'Paid Vault access is not ready for this file yet.' );
             return;
         }
         setWorking( file.fileId );
-        setError( '' );
+        setFileFeedback( current => {
+            const next = { ...current };
+            delete next[ file.fileId ];
+            return next;
+        } );
         try
         {
             const result = await api.redeemSecureFileDownload( file.fileId, accessId );
@@ -260,77 +284,99 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 if ( code === 'ACCESS_WINDOW_CLOSED' )
                 {
-                    // Every paid window has been used. Show the renewal for this file instead of
-                    // telling a customer who paid to contact support.
                     setFiles( current => current.map( row => row.fileId === file.fileId
                         ? { ...row, accessState: 'EXPIRED', accessWindowOpen: false }
                         : row ) );
-                    setError( 'Your access window for this file has ended. Renew it through checkout to download it again.' );
                     return;
                 }
-                setError(
+                feedback(
+                    'error',
                     code === 'NOT_REGISTERED'
                         ? 'This file is not registered to your verified number.'
                         : code === 'ACCESS_NOT_AUTHORIZED'
-                            ? 'We could not confirm a payment for this file. If you already paid, do not pay again; contact us and we will check it.'
+                            ? 'We could not confirm paid access for this file. If you already paid, do not pay again.'
                             : ( result.failure.message || 'Could not prepare the download.' )
                 );
                 return;
             }
             if ( !result.data.downloadUrl )
             {
-                setError( 'The download URL was not returned. Please try again.' );
+                feedback( 'error', 'The download URL was not returned. Please try again.' );
                 return;
             }
-            // The backend returns a short-lived S3 URL with Content-Disposition: attachment.
-            // Top-level navigation lets the browser download it without exposing the S3 key here.
             window.location.assign( result.data.downloadUrl );
         } catch ( err: any )
         {
-            setError( err?.message || 'Could not prepare the download.' );
+            feedback( 'error', err?.message || 'Could not prepare the download.' );
         } finally
         {
             setWorking( '' );
         }
     };
 
-    const handleVaultCheckout = async ( file: SecureFile ) => {
+    const handleVaultPayment = async ( file: SecureFile ) => {
         const state = accessStateOf( file );
         if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
-        const live = getSession();
-        if ( !live ) {
-            setFiles( [] );
-            redirectToAuth();
+        if ( payablePrice === null ) {
+            setFileFeedback( current => ( {
+                ...current,
+                [ file.fileId ]: {
+                    kind: 'error',
+                    message: 'The live Vault price could not be confirmed. Nothing has been charged. Please refresh and try again.',
+                },
+            } ) );
             return;
         }
-        const service = serviceByKind( 'VAULT' );
-        if ( !service || price === null ) {
-            setError( 'The live Vault price could not be confirmed. Nothing has been charged. Please refresh and try again.' );
-            return;
-        }
+
         setWorking( file.fileId );
-        setError( '' );
+        setFileFeedback( current => {
+            const next = { ...current };
+            delete next[ file.fileId ];
+            return next;
+        } );
         try {
-            const outcome = await postRequestIntent(
-                live.accessToken, 'VAULT', undefined, file.fileId,
-            );
-            if ( outcome.kind === 'expired' ) {
-                clearSession();
-                setFiles( [] );
-                redirectToAuth();
+            const result = await api.requestMySecureFilePayment( file.fileId );
+            if ( !result.ok ) {
+                if ( result.failure.status === 401 ) {
+                    clearSession();
+                    setFiles( [] );
+                    redirectToAuth();
+                    return;
+                }
+                if ( result.failure.code === 'VAULT_ACCESS_ACTIVE'
+                    || result.failure.code === 'PAID_UNVERIFIED' ) {
+                    await loadFiles();
+                    return;
+                }
+                setFileFeedback( current => ( {
+                    ...current,
+                    [ file.fileId ]: {
+                        kind: 'error',
+                        message: result.failure.message
+                            || 'We could not send the Vault payment request. Nothing has been charged.',
+                    },
+                } ) );
                 return;
             }
-            if ( outcome.kind !== 'ok' ) {
-                if ( outcome.kind === 'refused' ) setError( outcome.message );
-                else if ( outcome.kind === 'rate' ) setError( 'Please try again in a moment. Nothing has been charged.' );
-                else if ( outcome.kind === 'notFound' ) setError( 'This document is not available right now.' );
-                else setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
-                return;
-            }
-            setServiceLine( service.variantId, outcome.intent.intentId, price );
-            await router.push( CHECKOUT_PATH );
+
+            setPaymentWaiting( current => ( { ...current, [ file.fileId ]: true } ) );
+            setFileFeedback( current => ( {
+                ...current,
+                [ file.fileId ]: {
+                    kind: 'status',
+                    message: result.data.message
+                        || 'Payment request sent to your registered WhatsApp number. Complete Review and Pay there.',
+                },
+            } ) );
+            void loadFiles();
         } catch {
-            setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
+            setFileFeedback( current => ( {
+                ...current,
+                [ file.fileId ]: {
+                    kind: 'error',
+                    message: 'We could not send the Vault payment request. Nothing has been charged. Please try again.',
+                },
+            } ) );
         } finally {
             setWorking( '' );
         }
@@ -373,16 +419,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 mobileFoundation
             >
                 <div className="sf-card">
-                    {/* Keep the page-level error above the file list so assistive technology
-                        announces failures before the customer reaches the affected action. */}
-                    { error && (
-                        <div className="sf-note sf-note-bad" id="sf-error" role="alert">{ error }</div>
-                    ) }
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
-                                <p className="sf-empty">
-                                    There are no files shared with your number right now.
+                                <p className="sf-empty" role={ error ? 'alert' : undefined }>
+                                    { error || 'There are no files shared with your number right now.' }
                                 </p>
                             ) }
 
@@ -390,6 +431,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                 const state = accessStateOf( file );
                                 const isPaid = state === 'OPEN' || state === 'READY';
                                 const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
+                                const feedback = fileFeedback[ file.fileId ];
+                                const waitingForPayment = Boolean( paymentWaiting[ file.fileId ] );
 
                                 return (
                                     <div key={ file.fileId } className="sf-file">
@@ -431,29 +474,40 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             </p>
                                         ) : (
                                             <>
-                                                <div className="sf-file-action">
-                                                    <button
-                                                        type="button"
-                                                        className="sf-file-action-button"
-                                                        onClick={ () => { void handleVaultCheckout( file ); } }
-                                                        disabled={ working === file.fileId || price === null || payablePrice === null }
-                                                        aria-busy={ working === file.fileId }
-                                                    >
-                                                        { working === file.fileId
-                                                            ? 'Preparing checkout…'
-                                                            : price === null || payablePrice === null
-                                                                ? 'Price unavailable'
-                                                                : state === 'EXPIRED'
-                                                                    ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
-                                                                    : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
-                                                    </button>
-                                                </div>
+                                                { waitingForPayment ? (
+                                                    <p className="sf-payment-note" role="status">
+                                                        { feedback?.message
+                                                            || 'Payment request sent to your registered WhatsApp number. Complete Review and Pay there.' }
+                                                    </p>
+                                                ) : (
+                                                    <div className="sf-file-action">
+                                                        <button
+                                                            type="button"
+                                                            className="sf-file-action-button"
+                                                            onClick={ () => { void handleVaultPayment( file ); } }
+                                                            disabled={ working === file.fileId || payablePrice === null }
+                                                            aria-busy={ working === file.fileId }
+                                                        >
+                                                            { working === file.fileId
+                                                                ? 'Sending to WhatsApp…'
+                                                                : payablePrice === null
+                                                                    ? 'Price unavailable'
+                                                                    : state === 'EXPIRED'
+                                                                        ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
+                                                                        : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
+                                                        </button>
+                                                    </div>
+                                                ) }
                                                 <p className="sf-state-note">
                                                     { state === 'EXPIRED'
-                                                        ? 'Your 24-hour access has ended. Renew this document to open another 24-hour download window.'
-                                                        : 'Review this document in your cart, then choose how to pay.' }
+                                                        ? 'Your 24-hour access has ended. Renew sends Review and Pay to your registered WhatsApp number.'
+                                                        : 'Checkout sends Review and Pay to your registered WhatsApp number.' }
                                                 </p>
                                             </>
+                                        ) }
+
+                                        { feedback?.kind === 'error' && (
+                                            <p className="sf-file-error" role="alert">{ feedback.message }</p>
                                         ) }
                                     </div>
                                 );
@@ -602,39 +656,23 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
                   font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
                 }
-                /* No secondary website-checkout CTA is rendered for file delivery. */
+                .sf-payment-note{
+                  margin:0;max-width:480px;color:var(--public-brand-green);
+                  font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
+                }
+                .sf-file-error{
+                  margin:14px 0 0;max-width:480px;color:var(--public-brand-green);
+                  font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
+                }
 
                 .sf-empty{
                   font-size:var(--public-supporting-size);line-height:1.5;color:var(--public-muted);margin:0;
                 }
 
-                /* Status banners. Colour is never the only signal - each carries role
-                   alert or status, so a screen reader announces them regardless. */
-                .sf-note{
-                  margin:0 0 20px;padding:14px 16px;border-radius:999px;
-                  font-size:16px;line-height:1.5;
-                }
-                /* NO RED, matching .si-error on /account/sign-in, which the owner had already
-                   stripped of red. This was #fee2e2 on #ef4444 with #7f1d1d text - three colours
-                   the home design does not contain, on a site whose only red is the full stop in
-                   the wordmark. It is now the lime state tint behind a 4px #d1f470 inline-start
-                   edge with #1a3a2a type at weight 700. Colour is not carrying the meaning:
-                   role=alert announces it and the sentence states the problem, so the 4px edge and
-                   the weight are a luminance and weight step rather than a hue change - which is
-                   what survives forced-colors and reduced colour discrimination. Logical
-                   inline-start, so the edge follows the reading direction. */
-                .sf-note-bad{
-                  background:var(--public-lime-tint);border-inline-start:4px solid var(--public-brand-lime);
-                  font-weight:700;color:var(--public-brand-green);
-                }
-                .sf-note-ok{
-                  background:#fff;border-inline-start:4px solid #1a3a2a;color:var(--public-brand-green);
-                }
-
                 @media(max-width:767px){
                   .sf-file{padding:26px 20px 28px;border-radius:20px}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
-                  .sf-file-meta,.sf-state-note,.sf-confirming-note{
+                  .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
                   }
                   .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}

@@ -207,29 +207,30 @@ it is absent from the Lambda runtime, and the Orders API is a single POST.
 config a caller actually sees and `update_function_configuration` alone changes nothing.
 It reported "verified" once against a stale alias; it now fails and names the fix.
 
-## Asking for ₹49, and renewals (2026-10-26)
+## Native WhatsApp payment and renewals (2026-10-29)
 
 A file is sold per document, one access window at a time, and every payment is the commerce
 Review and Pay for that one file (server-priced, WABA1 only). **Vault has no WhatsApp Flow.**
 ProductsTable is the only payment/display price authority: customer surfaces read
-`GET /ecommerce/service-prices`, and checkout independently re-prices the exact Vault SKU from
-ProductsTable before creating a payment attempt. Secure-files owns file identity, entitlement and
-delivery only; it has no price environment variable or fallback amount. There are three ways in:
+`GET /ecommerce/service-prices`, and the native payment backend independently re-prices the exact
+Vault SKU from ProductsTable before creating a PaymentAttempt. Secure-files owns file identity,
+entitlement and delivery and invokes the existing native Review and Pay rail; it has no price
+environment variable or fallback amount. There are three ways in:
 
 | Who | Where | What happens |
 |---|---|---|
-| Staff | Secure files → **Send Vault request-ready message** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.sendOffer` sends template `wecare_vault_request_ready`: "📄 Your requested *{document}* is available in your Vault. Amount due for this request: *₹49*." with an **Unlock Vault** quick reply carrying an opaque offer token (`VAULTOFFER#<token>` in CommerceKeys, 7 days) |
-| Customer | Taps **Unlock Vault** | inbound routes the tap to `catalogService.unlock`; the tap is the identity evidence, and the offer's file gets one Review and Pay (or Access Vault if already paid). An unknown, expired, revoked, reassigned or otherwise unusable offer stops with the single customer message "This document is not available right now." |
+| Staff | Secure files → **Send Review & Pay** → `POST /secure-files/{fileId}/request-payment` | secure-files re-checks file state and invokes business-api `catalogService.sendPayment`; commerce sends `wecare_whatapp_native_pay_template` for that exact file |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
-| Customer | `/vault/?file=<fileId>` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
+| Customer | `/vault/?file=<fileId>` → **Checkout/Renew** | the customer-pool token proves the caller; secure-files re-proves exact file ownership + entitlement state and invokes the same native Review and Pay rail. The browser stays on Vault: no cart and no website payment chooser |
+| Legacy customer | Already-sent **Unlock Vault** quick reply | `catalogService.unlock` remains compatibility only; it resolves the bound file and joins the same native Review and Pay rail |
 
-The offer charges nothing and needs no linked WhatsApp contact beforehand: commerce's identity
-bridge proves the customer from the tap, a signed inbound message, as it does for a cart. The
-offer template is blocked in the Inbox template sender, because only Secure files can mint the
-token that ties its button to a document.
+The browser never submits a trusted amount, SKU, customer id or payment state. For an EXPIRED file,
+business-api reads the durable entitlement and allows a renewal only when every paid window has
+been used. OPEN/READY and PAID_UNVERIFIED never create another payable request.
 
 Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`) for a paid file; it
-never charges and never opens a window.
+never charges and never opens an unpaid window. Vault remains a secure-download fulfilment and has
+no Meta Flow.
 
 Drop Docs (Service → Documents → **Add Document**) is a different store: managed document
 records live in `DocumentTable` and are not billable merely because they exist there. Staff can
