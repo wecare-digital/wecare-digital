@@ -1002,6 +1002,12 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'error': 'Discount must be a non-negative amount',
                 'errorCode': 'INVALID_DISCOUNT',
             })
+        if manual_discount > 0 and str(body.get('entryPoint') or 'manual') not in (
+                'manual', 'pay_flow', 'whatsapp'):
+            return _resp(400, {
+                'error': 'Manual discount is available only for staff-raised collections',
+                'errorCode': 'MANUAL_DISCOUNT_NOT_ALLOWED',
+            })
     input_error = _invoice_input_error(body)
     if input_error:
         return _resp(400, {'error': input_error, 'errorCode': 'INVALID_AMOUNT'})
@@ -1389,9 +1395,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # path uses — so an invoice and a cart for one order can never disagree. Pure arithmetic: no
     # table, no provider, no hold, no refusal path.
     #
-    # `discount` is Delight-only from here on: a tax-inclusive capture already forced it to
-    # Decimal('0'), and every other entry point starts at zero because manual discount entry is
-    # retired. Delight overwrites it below when it applies.
+    # `discount` is the total customer reduction from here on. Captured/tax-inclusive
+    # invoices preserve the verified captured discount. Fresh staff collections may add one
+    # validated manual discount; automatic Delight is then added to that figure.
     discount = discount if amount_is_tax_inclusive else manual_discount
     manual_discount_rupees = Decimal('0') if amount_is_tax_inclusive else manual_discount
     coupon_discount_rupees = Decimal('0')
@@ -1432,6 +1438,14 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         coupon_discount_rupees = discount
         redemption_attributes['couponCode'] = stored_coupon_code
         redemption_attributes['couponDiscount'] = _dec(discount)
+
+    maximum_discount = subtotal + tax + shipping + effective_gp + effective_nf + handling
+    if not amount_is_tax_inclusive and discount > maximum_discount:
+        return _resp(400, {
+            'error': 'Discount cannot exceed the amount before convenience fee',
+            'errorCode': 'DISCOUNT_EXCEEDS_PAYABLE',
+            'maximumDiscount': _money_display(maximum_discount),
+        })
 
     # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
     # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
@@ -1478,14 +1492,6 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         convenience_fee = Decimal(str(raw_convenience_fee or 0))
         convenience_fee_net = convenience_fee
         convenience_fee_gst = Decimal('0')
-
-    maximum_discount = subtotal + tax + shipping + effective_gp + effective_nf + handling
-    if not amount_is_tax_inclusive and discount > maximum_discount:
-        return _resp(400, {
-            'error': 'Discount cannot exceed the amount before convenience fee',
-            'errorCode': 'DISCOUNT_EXCEEDS_PAYABLE',
-            'maximumDiscount': _money_display(maximum_discount),
-        })
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
