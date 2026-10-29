@@ -42,8 +42,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import SEO from '../SEO';
-import OtpResend from '../OtpResend';
-import PhoneField from '../PhoneField';
 import PillButton from '../PillButton';
 import RotatingHero from '../RotatingHero';
 import type { CycleWord } from '../RotatingHero';
@@ -54,10 +52,7 @@ import { setServiceLine } from '../../lib/cart';
 import { postRequestIntent } from '../../lib/serviceRequests';
 import { CHECKOUT_PATH } from '../../lib/serviceEntry';
 import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
-import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
-import {
-    requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
-} from '../../lib/customerAuth';
+import { getSession, restoreSession, clearSession } from '../../lib/customerAuth';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -115,7 +110,7 @@ const AUTH_WORDS: CycleWord[] = [
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 
-type Stage = 'mobile' | 'otp' | 'files';
+type Stage = 'loading' | 'files';
 
 interface FilesPageProps {
     /** Optional WhatsApp Vault deep-link target. Ownership is still proven server-side. */
@@ -124,20 +119,7 @@ interface FilesPageProps {
 
 export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const router = useRouter();
-    const [ stage, setStage ] = useState<Stage>( 'mobile' );
-    // `mobile` holds the COMPOSED E.164 string, not raw keystrokes. The field itself is now the
-    // divided PhoneField, which owns a dial-code segment and a national-number segment, so the two
-    // states below are what the customer types and `mobile` is what the backend is keyed on. It is
-    // set once, in handleRequestOtp, and handleSubmitOtp reuses it so the code is verified against
-    // exactly the number the challenge was issued for.
-    const [ mobile, setMobile ] = useState( '' );
-    const [ dialCode, setDialCode ] = useState<string>( DEFAULT_DIAL_CODE );
-    const [ national, setNational ] = useState( '' );
-    const [ code, setCode ] = useState( '' );
-    const [ session, setSession ] = useState( '' );
-    const [ destination, setDestination ] = useState( '' );
-    const [ busy, setBusy ] = useState( false );
-    const [ message, setMessage ] = useState( '' );
+    const [ stage, setStage ] = useState<Stage>( 'loading' );
     const [ error, setError ] = useState( '' );
 
     const [ files, setFiles ] = useState<SecureFile[]>( [] );
@@ -147,17 +129,19 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const [ payablePrice, setPayablePrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
 
-    const redirectExactFileToAuth = useCallback( (): boolean => {
-        if ( !targetFileId || !VAULT_FILE_ID_PATTERN.test( targetFileId ) ) return false;
-        try
+    const redirectToAuth = useCallback( (): void => {
+        if ( targetFileId && VAULT_FILE_ID_PATTERN.test( targetFileId ) )
         {
-            window.sessionStorage.setItem( VAULT_AUTH_RETURN_FILE_KEY, targetFileId );
-        } catch
-        {
-            // Same-tab storage is best-effort. Ownership still has to pass on the server.
+            try
+            {
+                window.sessionStorage.setItem( VAULT_AUTH_RETURN_FILE_KEY, targetFileId );
+            } catch
+            {
+                // Same-tab storage is best-effort. Ownership still has to pass on the server.
+            }
         }
-        window.location.replace( '/auth' );
-        return true;
+        const returnPath = targetFileId ? '/vault/' : '/get/';
+        window.location.replace( `/auth?return=${ encodeURIComponent( returnPath ) }` );
     }, [ targetFileId ] );
 
     const loadFiles = useCallback( async () => {
@@ -178,14 +162,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         } else if ( result.failure.status === 401 )
         {
             clearSession();
-            if ( redirectExactFileToAuth() ) return;
-            setStage( 'mobile' );
-            setError( 'Your secure access expired. Please verify again.' );
+            redirectToAuth();
+            return;
         } else
         {
             setError( result.failure.message || 'Could not load your files' );
         }
-    }, [ targetFileId, redirectExactFileToAuth ] );
+    }, [ targetFileId, redirectToAuth ] );
 
     // Vault has no file-local or deploy-local price. This is the same ProductsTable-backed
     // endpoint used by service pages; checkout independently re-prices again before a payment
@@ -205,8 +188,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         return () => { active = false; };
     }, [] );
 
-    // Exact-file WhatsApp links use the canonical /auth page. /get/ keeps its collection
-    // verification flow. That means the deep-link can never drift away from the current sign-in UI.
+    // /auth is the only customer sign-in surface. Both /get/ and exact-file /vault/ links
+    // restore a server-owned customer session here; when none exists, this page redirects to
+    // /auth with a return path instead of rendering another phone/OTP form.
     useEffect( () => {
         let active = true;
         void restoreSession()
@@ -214,7 +198,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 if ( !active ) return null;
                 if ( !restored )
                 {
-                    redirectExactFileToAuth();
+                    redirectToAuth();
                     return null;
                 }
                 return api.listMySecureFiles();
@@ -236,7 +220,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 } else if ( result.failure.status === 401 )
                 {
                     clearSession();
-                    redirectExactFileToAuth();
+                    redirectToAuth();
                 } else
                 {
                     setError( result.failure.message || 'Could not load your files. Please try again.' );
@@ -246,7 +230,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 if ( active ) setError( 'Sign-in is temporarily unavailable. Please try again.' );
             } );
         return () => { active = false; };
-    }, [ targetFileId, redirectExactFileToAuth ] );
+    }, [ targetFileId, redirectToAuth ] );
 
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
@@ -267,9 +251,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 {
                     clearSession();
                     setFiles( [] );
-                    if ( redirectExactFileToAuth() ) return;
-                    setStage( 'mobile' );
-                    setError( 'Your secure access expired. Please verify again.' );
+                    redirectToAuth();
                     return;
                 }
                 if ( code === 'ACCESS_WINDOW_CLOSED' )
@@ -314,9 +296,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         const live = getSession();
         if ( !live ) {
             setFiles( [] );
-            if ( redirectExactFileToAuth() ) return;
-            setStage( 'mobile' );
-            setError( 'Your secure access expired. Please verify again.' );
+            redirectToAuth();
+            return;
             return;
         }
         const service = serviceByKind( 'VAULT' );
@@ -333,9 +314,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             if ( outcome.kind === 'expired' ) {
                 clearSession();
                 setFiles( [] );
-                if ( redirectExactFileToAuth() ) return;
-                setStage( 'mobile' );
-                setError( 'Your secure access expired. Please verify again.' );
+                redirectToAuth();
                 return;
             }
             if ( outcome.kind !== 'ok' ) {
@@ -353,114 +332,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             setWorking( '' );
         }
     };
-
-    /**
-     * The divided field's contents, as the E.164 string the backend keys the customer on.
-     *
-     * LIFTED FROM the retired customer sign-in composeE164 DELIBERATELY, not re-derived. That page already
-     * solved this and the two must agree byte for byte, because both hand the result to the same
-     * customerAuth.requestOtp and the same Cognito pool. Re-inventing the rule here is how the two
-     * sign-in surfaces would drift apart on numbers that are rare enough not to be noticed quickly.
-     *
-     * A PASTED INTERNATIONAL NUMBER BEATS THE SELECTOR. People paste "+971 50 123 4567" into a
-     * number box constantly, and prefixing the selected code regardless would build
-     * "+91971501234567" - wrong in a way the customer cannot see, because both the code they
-     * pasted and the code on screen look right. "00" counts as a typed code too: it is how the
-     * international prefix is dialled across much of Europe and the Gulf.
-     *
-     * normaliseMobile stays the single source of the E.164 rule and the length bound and is NOT
-     * changed - it has to match the backend. It is handed a string that already carries a country
-     * code, so its "any ten digits starting 6-9 is Indian" inference cannot fire and silently
-     * mislabel an overseas number.
-     */
-    const composeE164 = useCallback( (): string => {
-        const raw = String( national || '' ).trim();
-        if ( !raw ) throw new Error( 'Enter your mobile number.' );
-        const typedOwnCode = /^(\+|00)/.test( raw );
-        const digits = typedOwnCode
-            ? raw.replace( /^(\+|00)/, '' ).replace( /\D/g, '' ).replace( /^0+/, '' )
-            : dialCode.replace( /\D/g, '' ) + raw.replace( /\D/g, '' ).replace( /^0+/, '' );
-        if ( !digits ) throw new Error( 'Enter your mobile number.' );
-        try
-        {
-            return normaliseMobile( digits );
-        }
-        catch
-        {
-            throw new Error( 'That does not look like a valid mobile number.' );
-        }
-    }, [ dialCode, national ] );
-
-    const handleRequestOtp = async () => {
-        setError( '' );
-        setBusy( true );
-        try
-        {
-            // Compose and fail fast on an obviously bad number, exactly as before - the difference
-            // is only that the country code now comes from the field's own segment rather than
-            // being inferred from ten digits.
-            const e164 = composeE164();
-            setMobile( e164 );
-            const challenge = await requestOtp( e164 );
-
-            // Stop here rather than showing a code screen no code will ever satisfy.
-            // Cognito issues a challenge for an unknown number too, so without this
-            // the person waits indefinitely for a message that was never sent.
-            if ( !challenge.registered )
-            {
-                setError(
-                    'No files are registered to this number. '
-                    + 'Check the number, or contact us if you were expecting a file.',
-                );
-                return;
-            }
-
-            setSession( challenge.session );
-            setDestination( challenge.destination );
-            setStage( 'otp' );
-            setMessage( 'Code sent on WhatsApp.' );
-        } catch ( err: any )
-        {
-            setError( err?.message || 'Could not start verification' );
-        } finally
-        {
-            setBusy( false );
-        }
-    };
-
-    const handleSubmitOtp = async () => {
-        setError( '' );
-        setBusy( true );
-        try
-        {
-            const result = await submitOtp( mobile, code, session );
-            if ( !result )
-            {
-                setError( 'That code was not correct. Try again.' );
-                setCode( '' );
-                return;
-            }
-            setMessage( '' );
-            await loadFiles();
-        } catch ( err: any )
-        {
-            const next = nextSessionFrom( err );
-            if ( next ) setSession( next );
-            if ( err?.name === 'NotAuthorizedException' )
-            {
-                setError( 'Too many incorrect attempts. Start again.' );
-                setStage( 'mobile' );
-                setCode( '' );
-            } else
-            {
-                setError( err?.message || 'Verification failed' );
-            }
-        } finally
-        {
-            setBusy( false );
-        }
-    };
-
 
     return (
         <>
@@ -536,121 +407,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         </div>
                     ) }
 
-                    {/* id is load-bearing: PhoneField and PillButton above point their
-                        aria-describedby at it, so a screen-reader user who tabs back to the field
-                        to correct it is told which control is at fault. The error is rendered here,
-                        above the form, rather than beside the field it concerns. */}
+                    {/* Errors here concern file access or loading only. Customer authentication
+                        itself is owned exclusively by /auth. */}
                     { error && (
                         <div className="sf-note sf-note-bad" id="sf-error" role="alert">{ error }</div>
                     ) }
-                    { message && !error && (
-                        <div className="sf-note sf-note-ok" role="status">{ message }</div>
-                    ) }
-
-                    { stage === 'mobile' && !targetFileId && (
-                        <div className="sf-form">
-                            {/* THE SAME DIVIDED FIELD AS /account/sign-in, on owner instruction: the
-                                two sign-in surfaces were showing a different phone input and a
-                                different button, and this one was the odd one out. PhoneField owns
-                                the anatomy and its own CSS (styled-jsx cannot scope a capitalised
-                                component, so it must be self-styling); this page owns only the
-                                label and what the segments mean. The <label> points at the NUMBER
-                                segment, the part a customer types into; the code segment carries
-                                its own aria-label, because a visible second label inside the box
-                                would defeat the point of the box. */}
-                            <label className="sf-label" htmlFor="sf-mobile">WhatsApp number</label>
-                            <PhoneField
-                                id="sf-mobile"
-                                dialCode={ dialCode }
-                                onDialCodeChange={ setDialCode }
-                                number={ national }
-                                onNumberChange={ setNational }
-                                disabled={ busy }
-                                invalid={ !!error }
-                                describedBy={ error ? 'sf-hint sf-error' : 'sf-hint' }
-                                /* No placeholder override - PhoneField derives the country-aware
-                                   wording ("10-digit WhatsApp number" on +91) from the same table
-                                   its validation uses, so the hint cannot contradict the rule. */
-                            />
-                            <p className="sf-hint" id="sf-hint">
-                                Pick your country code, then the number WhatsApp is on.
-                            </p>
-                            {/* THE TWO-SEGMENT PILL (PillButton), the home-page phone-number
-                                treatment and the same control /account/sign-in and /cart/ use. The
-                                LEFT segment is the static label; the RIGHT segment is the action and
-                                is also the control's accessible name, so it still answers to "Send
-                                code". Semantics unchanged: a real button running handleRequestOtp,
-                                disabled while busy. */}
-                            <PillButton
-                                as="button"
-                                type="button"
-                                label="Collect"
-                                action={ busy ? 'Sending…' : 'Send OTP on WhatsApp' }
-                                block
-                                onClick={ handleRequestOtp }
-                                disabled={ busy }
-                                busy={ busy }
-                                describedBy={ error ? 'sf-error' : undefined }
-                            />
-                        </div>
-                    ) }
-
-                    { stage === 'otp' && !targetFileId && (
-                        <div className="sf-form">
-                            <label className="sf-label" htmlFor="code">
-                                Code sent to { destination || 'your number' }
-                            </label>
-                            <input
-                                id="code"
-                                className="sf-input"
-                                value={ code }
-                                onChange={ e => setCode( e.target.value.replace( /\D/g, '' ).slice( 0, 6 ) ) }
-                                placeholder="——————"
-                                inputMode="numeric"
-                                autoComplete="one-time-code"
-                                aria-invalid={ error ? 'true' : undefined }
-                                aria-describedby={ error ? 'sf-error' : undefined }
-                                disabled={ busy }
-                            />
-                            {/* THE SAME PILL AS THE STAGE BEFORE IT. This is the heart of the
-                                owner's report: the two stages showed different-looking controls, so
-                                moving from the number step to the code step felt like landing on
-                                another site. Both stages now render the identical PillButton, so
-                                the only thing that changes between them is the words. */}
-                            <PillButton
-                                as="button"
-                                type="button"
-                                label="Collect"
-                                action={ busy ? 'Verifying…' : 'Verify WhatsApp OTP' }
-                                block
-                                onClick={ handleSubmitOtp }
-                                disabled={ busy || code.length < 4 }
-                                busy={ busy }
-                                describedBy={ error ? 'sf-error' : undefined }
-                            />
-                            {/* THE WAY OUT OF A CODE THAT NEVER ARRIVED, which this stage did
-                                not have: "Use a different number" below is a way to start over,
-                                not a way to try the same number again. Same shared control as
-                                /account/sign-in/, so the two sign-in surfaces cannot drift
-                                apart on the resend the way they did on the send.
-                                handleRequestOtp is reused verbatim - it already re-issues the
-                                challenge and re-enters this stage, so a resend is the same call
-                                the first send made, not a second code path to keep in step. */}
-                            <div className="sf-resend">
-                                <OtpResend
-                                    onResend={ () => { void handleRequestOtp(); } }
-                                    busy={ busy }
-                                    block
-                                />
-                            </div>
-                            <button
-                                className="sf-quiet"
-                                onClick={ () => { setStage( 'mobile' ); setCode( '' ); setMessage( '' ); } }
-                                disabled={ busy }
-                            >
-                                Use a different number
-                            </button>
-                        </div>
+                    { stage === 'loading' && (
+                        <p className="sf-empty" role="status">Checking secure access…</p>
                     ) }
 
                     { stage === 'files' && (
