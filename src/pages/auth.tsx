@@ -307,8 +307,8 @@ const AuthPage: React.FC = () => {
         .country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 var(--public-brand-lime);z-index:2}
         .phone-control>input,.code-control{min-width:0;width:100%;min-height:54px;padding:0 2px 0 14px;border:0;border-radius:0;background:transparent;color:var(--public-text);font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);letter-spacing:var(--public-body-tracking);text-overflow:ellipsis;box-shadow:none;outline:0;-webkit-appearance:none;appearance:none}
         .phone-control>input::placeholder,.code-control::placeholder{color:rgba(0,0,0,.42)}
-        .code-control{border:1.5px solid var(--public-brand-lime);border-radius:18px;box-shadow:0 2px 0 rgba(26,58,42,.18)}
-        .code-control:focus{border-color:var(--public-brand-green);box-shadow:0 0 0 3px rgba(209,244,112,.4),0 2px 0 rgba(26,58,42,.18)}
+        .code-control{border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;box-shadow:none;transition:border-color .2s,box-shadow .2s}
+        .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
         .country-search{display:block;padding:0 14px;border-bottom:0}
         .country-search input{width:100%;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
@@ -338,7 +338,7 @@ const AuthPage: React.FC = () => {
           .phone-control{min-height:54px}
           .country-trigger{min-width:82px;min-height:52px;padding:0 10px 0 2px;font-size:16px}
           .phone-control>input{min-height:52px;padding:0 2px 0 12px;font-size:16px}
-          .code-control{min-height:56px;padding-inline:16px;border-radius:16px;font-size:16px}
+          .code-control{min-height:52px;padding:0 2px;border-radius:0;font-size:16px}
           .auth-action{font-size:var(--public-mobile-cta-font-size);min-height:48px}
           .country-panel{position:fixed;top:auto;inset-inline:16px;bottom:max(16px,env(safe-area-inset-bottom));width:auto;max-width:none;max-height:min(62dvh,460px);border-radius:18px}
           .country-search{padding-inline:16px}
