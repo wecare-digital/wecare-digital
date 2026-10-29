@@ -6,10 +6,13 @@ Customer commerce MCP and OAuth protocol service behind `POST /mcp` on HTTP API
 ## Ownership boundary
 
 - **Website presentation:** `src/pages/auth.tsx`, wrapped by the shared public shell.
-- **Auth protocol/state:** `customer_oauth.py`.
+- **Auth protocol and state:** the `customer_oauth_*.py` modules.
 - **MCP tools:** `handler.py`.
-- **Phone validation data:** `connection_assets.py`; `prepare_release.py` fails if
-  it differs from the canonical `src/lib/dialCodes.ts` list.
+- **Phone validation data:** `connection_assets.py`; release validation compares it
+  with `src/lib/dialCodes.ts`.
+- **Post-sign-in destinations:** `src/lib/safeReturnPath.ts` and
+  `customer_oauth_config.py`; release validation requires the two allowlists and
+  every configured service path to agree exactly.
 
 The Lambda does **not** render the `/auth` page, header, menu, cart, hero, footer,
 Stay connected block, language/support widget, or any other website HTML.
@@ -41,42 +44,50 @@ The service retains:
 - resource-bound scopes and opaque one-use access/refresh records;
 - KMS-encrypted Cognito custody;
 - Cognito `GetUser` verification before customer authority is accepted;
-- strict website return-path allowlisting;
+- strict same-site return-path allowlisting;
+- isolation between website and host OAuth pending sessions;
 - CSRF binding and exact-origin checks;
 - non-cacheable, anti-framing and noindex responses;
 - no OTP, Cognito token or credential in MCP arguments, results or logs.
 
 ## Verification and release
 
+Run the complete source and packaged-runtime suite with:
+
 ```bash
-python3 tools/customer-commerce/verify.py
-python3 tools/customer-commerce/verify_oauth.py
-python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
-python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/customer-commerce-runtime.zip
+python3 tools/customer-commerce/validate_pipeline.py \
+  --output /tmp/customer-commerce-release \
+  --report /tmp/customer-commerce-validation.json
 ```
 
-`prepare_release.py` compiles the exact reviewed modules, verifies the dial-code
-contract, writes a deterministic modular zip, and emits:
+The runner executes the conversation checks, OAuth/OTP checks, website/OAuth
+session-isolation checks, deterministic release build, and exact packaged-runtime
+checks. `prepare_release.py` also rejects backend presentation code, dial-code
+drift, return-path drift, and unallowlisted service paths.
+
+A successful build emits:
 
 - `customer-commerce-runtime.zip`
 - `customer-commerce-stack.json`
 - `release-manifest.json`
 
-The generated template references the content-addressed runtime zip in S3,
-publishes an immutable Lambda version and moves alias `live`; production never
-invokes `$LATEST`.
+Amplify stages these verified, content-addressed files under the private, encrypted,
+versioned CDK assets bucket. Staging does not update CloudFormation or move the
+`live` alias.
 
-For every deployment:
+For every production deployment:
 
-1. merge the reviewed source;
-2. run the four commands above;
-3. create a CloudFormation change set using the generated template and the
-   stack's existing parameter values;
-4. use a new `DeploymentRevision`;
-5. execute the change set;
-6. verify alias `live`, exact API routes, OAuth metadata, `/auth/state`,
-   `/auth/step`, and the website `/auth` page;
-7. run `generate_release_manifest.py` to join the Git commit, Lambda version,
-   API route hash and Amplify job in one release record.
+1. merge the reviewed source after the branch Amplify build passes;
+2. start and verify the production Amplify release;
+3. inspect a CloudFormation change set built from the staged template and the
+   stack's existing production parameters;
+4. require the change set to contain only intended function/version/alias and
+   route changes;
+5. execute it with a new `DeploymentRevision`;
+6. verify alias `live`, the exact nine API routes, OAuth metadata, `/auth/state`,
+   `/auth/step`, and the shared website `/auth` page;
+7. run `scripts/generate_release_manifest.py` to join the Git commit, Lambda
+   version, route hash and Amplify job in one release record.
 
-Production configuration is recorded in `config/lambda-env-manifest.json`.
+Production configuration fingerprints are recorded in
+`config/lambda-env-manifest.json`.
