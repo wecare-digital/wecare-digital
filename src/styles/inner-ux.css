@@ -4054,3 +4054,232 @@ html {
     border-radius: 18px 18px 0 0;
   }
 }
+
+
+/* ==========================================================================
+   CUSTOMERS — AUTH/HOME VISUAL SYSTEM V2
+   Visible manual-add action, borderless data surface, auth-style fields.
+   ========================================================================== */
+.contacts-auth-surface {
+  max-width: 1480px;
+  padding-inline: clamp(18px, 3vw, 42px);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
+.contacts-auth-surface .workspace-page-head {
+  margin-bottom: 26px;
+}
+.contacts-auth-surface .workspace-page-head h1 {
+  margin: 4px 0 8px;
+  color: #111;
+  font-size: clamp(42px, 5vw, 66px);
+  line-height: .96;
+  letter-spacing: -.06em;
+  font-weight: 780;
+}
+.contacts-auth-surface .workspace-page-head p:last-child {
+  max-width: 760px;
+  color: #6e7782;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.contacts-auth-surface .contacts-auth-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 0 !important;
+  border-radius: 20px !important;
+  background: #fff !important;
+  box-shadow: 0 14px 36px rgba(26,58,42,.07) !important;
+}
+.contacts-auth-surface .contacts-count-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #f8faf3;
+  color: #1a3a2a;
+  font-size: 12px;
+  font-weight: 800;
+}
+.contacts-auth-surface .contacts-search-wrap {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 220px;
+  max-width: 460px;
+}
+.contacts-auth-surface .contacts-search-wrap svg {
+  left: 2px !important;
+}
+.contacts-auth-surface .contacts-search-input {
+  width: 100% !important;
+  min-height: 48px !important;
+  padding: 8px 2px 8px 30px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #dfe4df !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 15px !important;
+}
+.contacts-auth-surface .contacts-primary-action,
+.contacts-auth-modal .contacts-primary-action {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 14px;
+  background: #d1f470;
+  color: #1a3a2a;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: none;
+}
+.contacts-auth-surface .contacts-primary-action:hover,
+.contacts-auth-modal .contacts-primary-action:hover {
+  transform: translateY(-1px);
+}
+.contacts-auth-surface .contacts-icon-action,
+.contacts-auth-surface .contacts-secondary-action,
+.contacts-auth-modal .contacts-secondary-action {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 0;
+  border-radius: 14px;
+  background: #f8faf3;
+  color: #1a3a2a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.contacts-auth-surface .contacts-icon-action {
+  width: 46px;
+  padding: 0;
+}
+.contacts-auth-surface .contacts-auth-table {
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  background: #fff !important;
+  box-shadow: 0 16px 40px rgba(26,58,42,.07) !important;
+}
+.contacts-auth-surface .contacts-auth-table table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+.contacts-auth-surface .contacts-auth-table th {
+  background: #f8faf3 !important;
+  border-bottom: 0 !important;
+  color: #59635e !important;
+  font-size: 12px !important;
+}
+.contacts-auth-surface .contacts-auth-table td {
+  border-bottom: 1px solid #edf0ed !important;
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+}
+.contacts-auth-surface .contacts-auth-table tbody tr:hover {
+  background: #fbfcf8 !important;
+}
+.contacts-auth-surface input:not([type="checkbox"]):not([type="radio"]),
+.contacts-auth-surface textarea,
+.contacts-auth-surface select,
+.contacts-auth-modal input:not([type="checkbox"]):not([type="radio"]),
+.contacts-auth-modal textarea,
+.contacts-auth-modal select {
+  min-height: 52px !important;
+  padding: 8px 2px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #dfe4df !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111 !important;
+  font-size: 15px !important;
+}
+.contacts-auth-surface input:focus,
+.contacts-auth-surface textarea:focus,
+.contacts-auth-surface select:focus,
+.contacts-auth-modal input:focus,
+.contacts-auth-modal textarea:focus,
+.contacts-auth-modal select:focus {
+  outline: 0 !important;
+  border-bottom-color: #1a3a2a !important;
+  box-shadow: 0 1px 0 0 #d1f470 !important;
+}
+.contacts-auth-surface .contact-card {
+  border: 0 !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 12px 30px rgba(26,58,42,.07) !important;
+}
+.contacts-auth-modal {
+  border: 0 !important;
+  border-radius: 24px !important;
+  background: #fff !important;
+  box-shadow: 0 24px 70px rgba(26,58,42,.18) !important;
+}
+.contacts-auth-modal::before {
+  content: "";
+  display: block;
+  height: 4px;
+  border-radius: 24px 24px 0 0;
+  background: #d1f470;
+}
+.contacts-auth-modal .contacts-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 26px 14px;
+  border: 0 !important;
+  background: #fff !important;
+}
+.contacts-auth-modal .contacts-modal-head h2 {
+  margin: 0 !important;
+  color: #111 !important;
+  font-size: 24px !important;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+  font-weight: 760 !important;
+}
+.contacts-auth-modal .contacts-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 22px;
+  border: 0 !important;
+}
+@media (max-width: 767px) {
+  .contacts-auth-surface {
+    padding-inline: 14px;
+  }
+  .contacts-auth-surface .workspace-page-head h1 {
+    font-size: 46px;
+  }
+  .contacts-auth-surface .contacts-auth-toolbar {
+    padding: 12px;
+    border-radius: 18px !important;
+  }
+  .contacts-auth-surface .contacts-search-wrap {
+    order: 1;
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .contacts-auth-surface .contacts-primary-action {
+    flex: 1 1 auto;
+  }
+  .contacts-auth-modal {
+    border-radius: 20px 20px 0 0 !important;
+  }
+}
