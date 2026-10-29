@@ -135,9 +135,18 @@ const COLUMNS: NavColumn[] = [
         heading: 'Request',
         links: [
           { label: 'Orders', href: '/orders/', match: '/orders' },
-          // Paid request services and Track are customer-session/deep-link journeys, not public
-          // navigation destinations. They remain reachable after auth and from WhatsApp, but do
-          // not advertise a parallel public entry that can bypass the intended journey.
+          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request' },
+          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
+          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
+          { label: 'Vault', href: '/vault/', match: '/vault' },
+          {
+            label: 'Shipments',
+            searchTerms: [ 'track', 'pickup' ],
+            children: [
+              { label: 'Track', href: '/shipments/track/', match: '/shipments/track', searchTerms: [ 'shipments', 'tracking' ] },
+              { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
+            ],
+          },
           { label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true },
           { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
         ],
