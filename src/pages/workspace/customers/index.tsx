@@ -275,6 +275,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
   const [showImport, setShowImport] = useState(false);
   const toast = useToastContext();
   const confirm = useConfirm();
@@ -486,6 +487,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
+    setDuplicateContact(null);
   };
 
   // Keyboard shortcuts
@@ -537,6 +539,55 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const normalizePhoneForMatch = (value: string): string => value.replace(/\D/g, '');
+
+  const findDuplicateContact = (phone: string, email: string, excludeId?: string): api.Contact | null => {
+    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
+    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const wantedEmail = email.trim().toLowerCase();
+    return contacts.find(c => {
+      if (excludeId && c.contactId === excludeId) return false;
+      const samePhone = !!wantedPhone && normalizePhoneForMatch(c.phone || '') === wantedPhone;
+      const sameEmail = !!wantedEmail && !!c.email && c.email.trim().toLowerCase() === wantedEmail;
+      return samePhone || sameEmail;
+    }) || null;
+  };
+
+  const resolveDuplicateContact = async (phone: string, email: string): Promise<api.Contact | null> => {
+    const local = findDuplicateContact(phone, email);
+    if (local) return local;
+    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
+    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const wantedEmail = email.trim().toLowerCase();
+    for (const query of [fullPhone, email].filter(Boolean)) {
+      const result = await api.searchContactsResult(query, 20);
+      if (!result.ok) continue;
+      const exact = result.data.find(contact => {
+        const samePhone = !!wantedPhone && normalizePhoneForMatch(contact.phone || '') === wantedPhone;
+        const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
+        return samePhone || sameEmail;
+      });
+      if (exact) return exact;
+    }
+    return null;
+  };
+
+  const openExistingDuplicate = () => {
+    if (!duplicateContact) return;
+    const existing = duplicateContact;
+    setShowModal(false);
+    resetForm();
+    setDetailContact(existing);
+  };
+
+  const useExistingForPayment = () => {
+    if (!duplicateContact) return;
+    const customerKey = duplicateContact.contactId || duplicateContact.customerUuid || duplicateContact.id;
+    setShowModal(false);
+    resetForm();
+    void router.push({ pathname: '/workspace/payments', query: { view: 'collect', customer: customerKey } });
   };
 
   // Duplicate detection
@@ -599,6 +650,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
   const handleCreate = async () => {
     setFormError('');
+    setDuplicateContact(null);
     const fail = ( message: string, fieldId?: string ) => {
       setFormError(message);
       toast.warning(message);
@@ -617,7 +669,11 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       fail('Invalid email format', 'contact-email'); return;
     }
     const dup = checkDuplicate(formPhone, formEmail);
-    if (dup) { fail(dup, formPhone ? 'contact-phone' : 'contact-email'); return; }
+    if (dup) {
+      setDuplicateContact(findDuplicateContact(formPhone, formEmail));
+      fail(dup, formPhone ? 'contact-phone' : 'contact-email');
+      return;
+    }
     const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
     setSaving(true);
     try {
@@ -635,8 +691,18 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         resetForm();
         await loadContacts();
       } else if (!result.ok) {
-        setFormError(result.failure.message || 'Contact was not created');
-        toast.error(result.failure.message || 'Contact was not created');
+        if (result.failure.status === 409) {
+          const existing = await resolveDuplicateContact(formPhone, formEmail);
+          setDuplicateContact(existing);
+          const message = existing
+            ? `Customer already exists: ${existing.name || existing.phone || existing.email || existing.contactId}`
+            : (result.failure.message || 'A contact with this phone or email already exists');
+          setFormError(message);
+          toast.warning(message);
+        } else {
+          setFormError(result.failure.message || 'Contact was not created');
+          toast.error(result.failure.message || 'Contact was not created');
+        }
       } else {
         setFormError('Contact was not created. Check the customer details and try again.');
         toast.error('Contact was not created');
@@ -1540,6 +1606,19 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             </div>
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
+            {duplicateContact && (
+              <div className="contacts-duplicate-card">
+                <div>
+                  <span>Existing customer</span>
+                  <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
+                  <small>{duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}</small>
+                </div>
+                <div className="contacts-duplicate-actions">
+                  <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
+                  <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
+                </div>
+              </div>
+            )}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
