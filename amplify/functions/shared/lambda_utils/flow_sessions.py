@@ -71,6 +71,10 @@ class FlowSession:
     expires_at: int
     consumed_at: int
     service_request_key: str = ""
+    payment_attempt_id: str = ""
+    order_id: str = ""
+    order_number: str = ""
+    service_code: str = ""
 
 
 def table_name() -> str:
@@ -125,6 +129,8 @@ def _int(value: Any) -> int:
 
 def record_session(table: Any, *, capability: str, token: str, launch_channel: str,
                    initiated_by: str, service_request_key: str = "",
+                   payment_attempt_id: str = "", order_id: str = "",
+                   order_number: str = "", service_code: str = "",
                    now: Optional[int] = None) -> FlowSession:
     """Persist the proof of issue BEFORE the Flow message is sent. Raises on any failure.
 
@@ -140,12 +146,26 @@ def record_session(table: Any, *, capability: str, token: str, launch_channel: s
         raise ValueError('a session needs a capability, a WABA slot, a phone and an initiator')
     issued = int(time.time() if now is None else now)
     service_key = str(service_request_key or "").strip()[:200]
-    if launch_channel == LAUNCH_PAYMENT and not service_key:
-        raise ValueError('a payment Flow session needs its paid service request')
-    session = FlowSession(capability=capability, phone=phone, waba=waba,
-                          launch_channel=launch_channel, initiated_by=actor,
-                          created_at=issued, expires_at=issued + SESSION_TTL_SECONDS,
-                          consumed_at=0, service_request_key=service_key)
+    attempt_id = str(payment_attempt_id or "").strip()[:200]
+    paid_order_id = str(order_id or "").strip()[:200]
+    paid_order_number = str(order_number or "").strip().upper()[:200]
+    paid_service_code = str(service_code or "").strip().upper()[:80]
+
+    # Legacy paid Flows bind to a ServiceRequests row. The new single-order contract deliberately
+    # creates no WD-REQ row, so it binds the session to the verified PaymentAttempt + existing
+    # Order instead. Exactly one of those two authorities must be present for a payment launch.
+    has_single_order_payment = bool(
+        attempt_id and paid_order_id and paid_order_number and paid_service_code)
+    if launch_channel == LAUNCH_PAYMENT and not (service_key or has_single_order_payment):
+        raise ValueError(
+            'a payment Flow session needs a paid service request or single-order payment context')
+    session = FlowSession(
+        capability=capability, phone=phone, waba=waba,
+        launch_channel=launch_channel, initiated_by=actor,
+        created_at=issued, expires_at=issued + SESSION_TTL_SECONDS,
+        consumed_at=0, service_request_key=service_key,
+        payment_attempt_id=attempt_id, order_id=paid_order_id,
+        order_number=paid_order_number, service_code=paid_service_code)
     try:
         table.put_item(Item={
             'draftKey': session_key(phone, token),
@@ -158,6 +178,10 @@ def record_session(table: Any, *, capability: str, token: str, launch_channel: s
             'createdAt': issued,
             'expiresAt': session.expires_at,
             **({'serviceRequestKey': service_key} if service_key else {}),
+            **({'paymentAttemptId': attempt_id} if attempt_id else {}),
+            **({'orderId': paid_order_id} if paid_order_id else {}),
+            **({'orderNumber': paid_order_number} if paid_order_number else {}),
+            **({'serviceCode': paid_service_code} if paid_service_code else {}),
             'ttl': session.expires_at + _ROW_RETENTION_SECONDS,
         }, ConditionExpression='attribute_not_exists(draftKey)')
     except Exception as exc:  # noqa: BLE001 - every failure means "not issued"
@@ -186,13 +210,18 @@ def verify_session(table: Any, *, capability: str, token: str, rejected_message:
     expires_at = _int(item.get('expiresAt'))
     if expires_at <= checked:
         raise FlowSessionRejected('session_expired', rejected_message)
-    return FlowSession(capability=capability, phone=phone,
-                       waba=str(item.get('waba') or waba_from_token(token)),
-                       launch_channel=str(item.get('launchChannel') or ''),
-                       initiated_by=str(item.get('initiatedBy') or ''),
-                       created_at=_int(item.get('createdAt')), expires_at=expires_at,
-                       consumed_at=_int(item.get('consumedAt')),
-                       service_request_key=str(item.get('serviceRequestKey') or ''))
+    return FlowSession(
+        capability=capability, phone=phone,
+        waba=str(item.get('waba') or waba_from_token(token)),
+        launch_channel=str(item.get('launchChannel') or ''),
+        initiated_by=str(item.get('initiatedBy') or ''),
+        created_at=_int(item.get('createdAt')), expires_at=expires_at,
+        consumed_at=_int(item.get('consumedAt')),
+        service_request_key=str(item.get('serviceRequestKey') or ''),
+        payment_attempt_id=str(item.get('paymentAttemptId') or ''),
+        order_id=str(item.get('orderId') or ''),
+        order_number=str(item.get('orderNumber') or ''),
+        service_code=str(item.get('serviceCode') or ''))
 
 
 def mark_consumed(table: Any, *, token: str, now: Optional[int] = None) -> bool:

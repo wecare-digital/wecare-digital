@@ -66,21 +66,8 @@ const PUBLIC_EXACT = new Set( [
   '/ritual-guru/ritva',
   '/ritual-guru/puja-guidance',
   '/ritual-guru/diy-puja-kit',
-  // The Customer service pages. Same rule as the product group above: these must stay in
-  // step with PUBLIC_PAGE_META in _app.tsx, because a route advertised here but missing
-  // there serves an empty body at HTTP 200 - i.e. it would put blank pages in front of a
-  // crawler. They replaced six menu labels that all resolved to /contact/.
-  '/drop-docs',
-  '/request-amendment',
-  // Request Pickup joined the group on 2026-10-10 as the fifth service request variant.
-  // Alphabetical, so it follows /request-amendment.
-  '/request-pickup',
-  '/shipments/track',
-  '/submit-request',
-  // Vault is the return leg of Drop Docs: /vault/ is the public service page and
-  // /vault/?file=<fileId> is the one exact-file customer download surface. /get/ is only a
-  // legacy redirect signpost; /get/<*> remains the media namespace.
-  '/vault',
+  // Paid request-service and Track routes are customer-session/deep-link surfaces. They are
+  // intentionally absent from this crawl allowlist; _app keeps them renderable and noindex.
   // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
   // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
   // src/pages/shop/index.tsx is recreated), so it belongs in the sitemap. Its PUBLIC_PAGE_META

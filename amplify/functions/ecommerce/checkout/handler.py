@@ -738,7 +738,8 @@ def _catalog_contents(snapshot) -> list:
 
 
 def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
-                        address: Dict[str, Any], now: int) -> Dict[str, Any]:
+                        address: Dict[str, Any], now: int, *,
+                        requires_delivery: bool = True) -> Dict[str, Any]:
     """Build Meta ORDER_DETAILS from the same frozen server-authoritative cart quote.
 
     The browser contributes only product/variant ids and quantities. Names are display-only reads
@@ -835,33 +836,34 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
         }
         order["couponCode"] = default_coupon.DELIGHT_CODE
 
-    full_address = ", ".join(
-        part for part in (
-            str(address.get("addressLine1") or "").strip(),
-            str(address.get("addressLine2") or "").strip(),
-        ) if part)
-    shipping_info = {
-        "country": str(address.get("countryCode") or "IN"),
-        "addresses": [{
-            # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
-            # name Meta shows before payment is the name the order page shows after it.
-            "name": order_delivery.recipient_name(profile)[:60],
-            "address": full_address[:300],
-            "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
-            "city": str(address.get("city") or "")[:60],
-            "state": str(address.get("state") or "")[:60],
-            "in_pin_code": str(address.get("postalCode") or "")[:12],
-        }],
-    }
-    return {
+    result = {
         "reference_id": reference_id,
-        "type": "physical-goods",
+        "type": "physical-goods" if requires_delivery else "digital-goods",
         "currency": "INR",
         "payment_configuration": EXPECTED_CONFIGURATION_NAME,
         "total_amount": {"value": int(quote.total_payable_paise), "offset": 100},
-        "shipping_info": shipping_info,
         "order": order,
     }
+    if requires_delivery:
+        full_address = ", ".join(
+            part for part in (
+                str(address.get("addressLine1") or "").strip(),
+                str(address.get("addressLine2") or "").strip(),
+            ) if part)
+        result["shipping_info"] = {
+            "country": str(address.get("countryCode") or "IN"),
+            "addresses": [{
+                # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
+                # name Meta shows before payment is the name the order page shows after it.
+                "name": order_delivery.recipient_name(profile)[:60],
+                "address": full_address[:300],
+                "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
+                "city": str(address.get("city") or "")[:60],
+                "state": str(address.get("state") or "")[:60],
+                "in_pin_code": str(address.get("postalCode") or "")[:12],
+            }],
+        }
+    return result
 
 
 def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
@@ -2499,6 +2501,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # intent flow above; this arm is for ordinary product/contribution baskets.
     cart_profile: Optional[Dict[str, Any]] = None
     cart_address: Optional[Dict[str, Any]] = None
+    requires_delivery = bool(catalog_session is None and _basket_requires_delivery(line_items))
     if catalog_session is None:
         # Native WhatsApp cart payment already has a signed-inbound, phone-bound ContactsTable
         # row from _native_whatsapp_identity. It must NOT require a browser profile/email just to
@@ -2513,21 +2516,27 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                     "error": "PROFILE_REQUIRED",
                     "message": "Verify and save your checkout details first.",
                 }, origin)
-        cart_address = contact_address.from_contact(cart_profile)
-        if cart_address is None:
-            return cors_response(409, {
-                "error": "DELIVERY_DETAILS_REQUIRED",
-                "message": "Confirm your delivery address before paying on WhatsApp.",
-            }, origin)
-        try:
-            payment_address.assert_payable(
-                cart_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
-        except payment_address.UnpayableAddress:
-            return cors_response(409, {
-                "error": "DELIVERY_DETAILS_REQUIRED",
-                "message": "This delivery address cannot be used for WhatsApp payment. "
-                           "Update it or choose Pay here.",
-            }, origin)
+
+        # A contribution or request-service basket has no shipment. Requiring a delivery address
+        # for it made the native WhatsApp rail stricter than the website rail and blocked signed-in
+        # customers from paying for a purely digital/service transaction. Physical baskets still
+        # fail closed on the same India payment-address checks as before.
+        if requires_delivery:
+            cart_address = contact_address.from_contact(cart_profile)
+            if cart_address is None:
+                return cors_response(409, {
+                    "error": "DELIVERY_DETAILS_REQUIRED",
+                    "message": "Confirm your delivery address before paying on WhatsApp.",
+                }, origin)
+            try:
+                payment_address.assert_payable(
+                    cart_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+            except payment_address.UnpayableAddress:
+                return cors_response(409, {
+                    "error": "DELIVERY_DETAILS_REQUIRED",
+                    "message": "This delivery address cannot be used for WhatsApp payment. "
+                               "Update it or choose Pay here.",
+                }, origin)
 
     # 1. Authoritative total, from ProductsTable. Both the ordinary cart WhatsApp rail and the
     #    catalog-service leg use the exact same native quote as website prepare. The browser sent
@@ -2761,9 +2770,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             attempt[customer_uuid.ATTRIBUTE] = public_uuid
         if public_contact_id:
             attempt["contactId"] = public_contact_id
-        # The address the ORDER_DETAILS message below shows Meta as `shipping_info`, frozen here
-        # so the order this payment becomes ships there even if the profile is edited later.
-        attempt.update(order_delivery.attempt_fields(cart_address, cart_profile))
+        # Only a shipping basket freezes delivery fields. Digital/service transactions have no
+        # shipment and therefore no synthetic delivery address on the eventual order.
+        if requires_delivery and cart_address is not None:
+            attempt.update(order_delivery.attempt_fields(cart_address, cart_profile))
     if catalog_session is not None:
         # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
         # `purchasedSnapshot` + `snapshotHash`, which `finalization.accept_paid` turns into the
@@ -2851,7 +2861,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     else:
         contact_id = contact_key.resolve(cart_profile or {})
         details = _cart_order_details(
-            snapshot, reference_id, cart_profile or {}, cart_address or {}, int(time.time()))
+            snapshot, reference_id, cart_profile or {}, cart_address or {}, int(time.time()),
+            requires_delivery=requires_delivery)
     # The sender recorded on the PAYREF# row above, so the Meta binding lookup after capture
     # addresses the phone that actually sent this payment request.
     sent = _send_order_details(

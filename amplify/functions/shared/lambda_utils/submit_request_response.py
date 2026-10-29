@@ -16,7 +16,8 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from lambda_utils import canonical_flows, contact_store, flow_completion, shared_tables
+from lambda_utils import canonical_flows, contact_store, flow_completion, flow_sessions, shared_tables
+from lambda_utils.ecommerce import order_keys, single_order_flow
 from lambda_utils.privacy import mask_contact_id
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ SUBMISSION_PREFIX = 'WD-SR'
 # Our generic sender mints request_pickup tokens as `request_pi-...`; keep those
 # completions out of the Submit Request saver rather than silently misfiling them.
 PICKUP_TOKEN_PREFIXES = ('request_pi-', 'request_pickup-')
+PAID_TOKEN_PREFIXES = ('srpaid-',)
 
 
 def request_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -104,14 +106,31 @@ def _verified_target(db: Any, raw: str, *, contact_id: str, phone: str) -> Tuple
 
     if kind == 'order' and ref:
         try:
-            row = db.Table(shared_tables.orders_table_name()).get_item(
-                Key={'orderId': ref}, ConsistentRead=True).get('Item') or {}
+            order_id = ref
+            # New public Order Numbers are display identifiers, never OrderTable partition keys.
+            # Resolve through the immutable CommerceKeys ORDERNO# reservation first. Legacy
+            # internal ids remain readable for historical Flow submissions.
+            if order_keys.is_public_order_number(ref):
+                reservation = db.Table(shared_tables.commerce_keys_table_name()).get_item(
+                    Key={'orderId': order_keys.ORDER_NUMBER_PREFIX + ref},
+                    ConsistentRead=True,
+                ).get('Item') or {}
+                order_id = str(reservation.get('orderIdRef') or '')
+            row = (
+                db.Table(shared_tables.orders_table_name()).get_item(
+                    Key={'orderId': order_id}, ConsistentRead=True).get('Item') or {}
+                if order_id else {}
+            )
         except Exception as exc:  # storage uncertainty is not an ownership proof
             logger.warning('{"event":"f004_order_lookup_failed","error":"%s"}',
                            type(exc).__name__)
-            row = {}
+            order_id, row = '', {}
         if _same_customer(row, contact_id=contact_id, phone=phone):
-            return {**base, 'orderId': ref}, 'open'
+            return {
+                **base,
+                'orderId': order_id,
+                'orderNumber': str(row.get('orderNumber') or ref),
+            }, 'open'
         return {**base, 'orderReference': ref}, 'awaiting_order_verification'
 
     if kind == 'request' and ref:
@@ -130,6 +149,36 @@ def _verified_target(db: Any, raw: str, *, contact_id: str, phone: str) -> Tuple
         return {**base, 'orderReference': ref}, 'awaiting_order_verification'
 
     return base, 'awaiting_order_verification'
+
+
+def _paid_binding(db: Any, data: Dict[str, Any], *, phone: str):
+    """Verify a new single-order paid launcher. Legacy/unpaid entries return None."""
+    token = str(data.get('flow_token') or '').strip()
+    if not token.startswith(PAID_TOKEN_PREFIXES):
+        return None
+    try:
+        session = flow_sessions.verify_session(
+            db.Table(shared_tables.flow_drafts_table_name()),
+            capability='submit_request',
+            token=token,
+            rejected_message='This Submit Request form is no longer available.',
+        )
+        binding = single_order_flow.verify_paid_session(
+            session=session,
+            attempts=db.Table(shared_tables.payment_attempts_table_name()),
+            orders=db.Table(shared_tables.orders_table_name()),
+            capability='submit_request',
+            service_code='SUBMIT_REQUEST',
+            phone=phone,
+        )
+    except (flow_sessions.FlowSessionRejected, flow_sessions.FlowSessionUnavailable,
+            single_order_flow.PaidFlowBindingError) as exc:
+        raise ValueError('This Submit Request payment could not be verified.') from exc
+
+    kind, reference = _target_parts(_clean_text(data, 'reference_number', limit=240))
+    if kind != 'order' or reference.upper() != binding.order_number.upper():
+        raise ValueError('Submit Request order does not match the paid order.')
+    return session, binding
 
 
 def response_answers(data: Dict[str, Any], result: flow_completion.CompletionResult) -> list:
@@ -155,8 +204,21 @@ def save_request(data: Dict[str, Any], *, contact_id: str, phone: str, sender_na
     target = _clean_text(data, 'reference_number', required=True, limit=240)
     note = _clean_text(data, 'note', required=True, limit=2000)
     schema_version = _clean_text(data, 'schema_version', limit=20) or '1'
-    target_extra, status = _verified_target(
-        dynamodb, target, contact_id=contact_id, phone=phone)
+    paid = _paid_binding(dynamodb, data, phone=phone)
+    if paid is not None:
+        paid_session, binding = paid
+        target_extra, status = ({
+            'targetType': 'order',
+            'targetReference': binding.order_number,
+            'orderId': binding.order_id,
+            'orderNumber': binding.order_number,
+            'paymentAttemptId': binding.payment_attempt_id,
+            'singleOrderService': True,
+        }, 'open')
+    else:
+        paid_session = None
+        target_extra, status = _verified_target(
+            dynamodb, target, contact_id=contact_id, phone=phone)
 
     form = {
         'selected_target': target,
@@ -202,6 +264,11 @@ def save_request(data: Dict[str, Any], *, contact_id: str, phone: str, sender_na
     )
     if result.status == 'error':
         raise RuntimeError('Submit Request completion could not be saved')
+
+    if paid_session is not None:
+        flow_sessions.mark_consumed(
+            dynamodb.Table(shared_tables.flow_drafts_table_name()),
+            token=str(data.get('flow_token') or ''))
 
     # Repairable projection used by inbound media linking: photos/documents sent after this
     # Flow attach to the same service case for 14 days. A webhook retry may safely rewrite

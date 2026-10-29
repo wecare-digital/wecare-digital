@@ -18,7 +18,8 @@ import uuid
 from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 
-from lambda_utils import canonical_flows, contact_store, flow_completion, shared_tables
+from lambda_utils import canonical_flows, contact_store, flow_completion, flow_sessions, shared_tables
+from lambda_utils.ecommerce import single_order_flow
 from lambda_utils.privacy import mask_contact_id
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ FLOW_CODE = 'WD_AMEND'
 FLOW_NAME = 'WD-F004-Request-Amendment'
 FLOW_VERSION = '7.3'
 SUBMISSION_PREFIX = 'WD-AMD'
+PAID_TOKEN_PREFIXES = ('amendpaid-',)
 
 
 def amendment_payload(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -118,6 +120,11 @@ def _find_parent(table: Any, request_number: str) -> Dict[str, Any]:
 
 
 def _order_reference(data: Dict[str, Any]) -> str:
+    # Published F005 terminal payload calls this reference_number. Older endpoint/data-exchange
+    # previews used parent_order/manual_order_number; retain those reads for historical replay.
+    reference = _strip_ref_prefix(_text(data, 'reference_number', limit=240))
+    if reference:
+        return reference
     selected = _strip_ref_prefix(_text(data, 'parent_order', limit=240))
     manual = _strip_ref_prefix(_text(data, 'manual_order_number', limit=240))
     return manual if selected in ('', 'none', 'not_found') else selected
@@ -141,6 +148,36 @@ def _write_history(db: Any, parent: Dict[str, Any], amendment_id: str,
     except Exception as exc:
         logger.warning('{"event":"f005_history_write_failed","error":"%s","requestId":"%s"}',
                        type(exc).__name__, request_id)
+
+
+def _paid_binding(db: Any, data: Dict[str, Any], *, phone: str):
+    """Verify a new single-order paid amendment launcher; legacy entries return None."""
+    token = str(data.get('flow_token') or '').strip()
+    if not token.startswith(PAID_TOKEN_PREFIXES):
+        return None
+    try:
+        session = flow_sessions.verify_session(
+            db.Table(shared_tables.flow_drafts_table_name()),
+            capability='amend_request',
+            token=token,
+            rejected_message='This Request Amendment form is no longer available.',
+        )
+        binding = single_order_flow.verify_paid_session(
+            session=session,
+            attempts=db.Table(shared_tables.payment_attempts_table_name()),
+            orders=db.Table(shared_tables.orders_table_name()),
+            capability='amend_request',
+            service_code='REQUEST_AMENDMENT',
+            phone=phone,
+        )
+    except (flow_sessions.FlowSessionRejected, flow_sessions.FlowSessionUnavailable,
+            single_order_flow.PaidFlowBindingError) as exc:
+        raise ValueError('This Request Amendment payment could not be verified.') from exc
+
+    reference = _order_reference(data)
+    if reference.upper() != binding.order_number.upper():
+        raise ValueError('Request Amendment order does not match the paid order.')
+    return session, binding
 
 
 def response_answers(data: Dict[str, Any], result: flow_completion.CompletionResult) -> list:
@@ -167,21 +204,35 @@ def save_amendment(data: Dict[str, Any], *, contact_id: str, phone: str, sender_
         _text(data, 'request_number', required=True, limit=240))
     amendment = _text(data, 'amendment', required=True, limit=2000)
     customer_order_ref = _order_reference(data)
+    paid = _paid_binding(dynamodb, data, phone=phone)
 
     submissions = dynamodb.Table(shared_tables.flow_submissions_table_name())
     candidate = _find_parent(submissions, request_number)
     parent = candidate if _same_customer(candidate, contact_id=contact_id, phone=phone) else {}
 
     parent_id = str(parent.get('submissionId') or '')
-    order_id = str(parent.get('orderId') or '')
-    verified = bool(parent_id)
-    status = 'submitted' if verified else 'awaiting_order_verification'
-
-    # The order carried by the Flow is only advisory. The parent request's verified order wins.
-    order_mismatch = bool(
-        verified and customer_order_ref and order_id and customer_order_ref != order_id)
-    if order_mismatch:
-        status = 'awaiting_order_verification'
+    parent_order_id = str(parent.get('orderId') or '')
+    if paid is not None:
+        paid_session, binding = paid
+        order_id = binding.order_id
+        verified = bool(parent_id)
+        # The payment proves the existing order. The typed request number is still verified
+        # independently and, when found, must belong to that SAME order.
+        order_mismatch = bool(parent_id and parent_order_id and parent_order_id != binding.order_id)
+        status = 'submitted' if verified and not order_mismatch else 'awaiting_order_verification'
+    else:
+        paid_session = None
+        order_id = parent_order_id
+        verified = bool(parent_id)
+        status = 'submitted' if verified else 'awaiting_order_verification'
+        # Legacy Flow payloads sometimes carried the internal order id. Keep that historical
+        # advisory check without treating a public WD-ORD number as an OrderTable key.
+        order_mismatch = bool(
+            verified and customer_order_ref and order_id
+            and not customer_order_ref.startswith('WD-ORD-')
+            and customer_order_ref != order_id)
+        if order_mismatch:
+            status = 'awaiting_order_verification'
 
     form = {
         'request_number': request_number,
@@ -207,6 +258,11 @@ def save_amendment(data: Dict[str, Any], *, contact_id: str, phone: str, sender_
         'customerRequestReference': request_number,
         'customerOrderReference': customer_order_ref,
         'parentVerification': 'verified' if verified else 'unverified',
+        **({
+            'paymentAttemptId': binding.payment_attempt_id,
+            'singleOrderService': True,
+            'orderNumber': binding.order_number,
+        } if paid is not None else {}),
     }
     if parent_id:
         extra['parentSubmissionId'] = parent_id
@@ -237,6 +293,11 @@ def save_amendment(data: Dict[str, Any], *, contact_id: str, phone: str, sender_
     )
     if result.status == 'error':
         raise RuntimeError('Request Amendment completion could not be saved')
+
+    if paid_session is not None:
+        flow_sessions.mark_consumed(
+            dynamodb.Table(shared_tables.flow_drafts_table_name()),
+            token=str(data.get('flow_token') or ''))
 
     if result.created and parent:
         _write_history(dynamodb, parent, result.submission_id, amendment, request_id)
