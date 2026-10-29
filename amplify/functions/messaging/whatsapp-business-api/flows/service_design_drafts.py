@@ -14,7 +14,7 @@ NAMES = {
     'request-amendment': 'WD-F004-Request-Amendment',
     'drop-docs': 'WD-F003-DROP-DOCS',
     'vault': 'WD_Vault_Design_v1',
-    'shipments': 'WD_Shipments_Design_v1',
+    'shipments': 'WD-F006-Track-Shipping',
     'leave-review': 'WD-F002-LEAVE-REVIEW',
     'orders': 'WD_Orders_Design_v1',
     'subscribe': 'WD_Subscribe_Design_v1',
