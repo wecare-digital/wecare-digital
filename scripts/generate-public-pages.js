@@ -153,8 +153,16 @@ const STRUCTURAL = [
   // generate-sitemap.js lists both in PUBLIC_EXACT with no group rule to place them.
   { path: '/hunar/kaushal', group: 'services' },
   { path: '/hunar/prastuti', group: 'services' },
-  { path: '/shipments/track', group: 'services' },
 ];
+
+const NON_INDEXABLE_CUSTOMER_ROUTES = new Set( [
+  '/submit-request',
+  '/request-amendment',
+  '/drop-docs',
+  '/vault',
+  '/request-pickup',
+  '/shipments/track',
+] );
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );
 
@@ -288,7 +296,9 @@ function buildPages ( catalog ) {
   // groups themselves are declared rather than alphabetically.
   for ( const entry of STRUCTURAL ) assign( entry, entry.group );
   for ( const entry of contentModule( PRODUCTS_PATH, 'PRODUCTS' ) ) assign( entry, 'services' );
-  for ( const entry of contentModule( CUSTOMERSERVICE_PATH, 'CUSTOMERSERVICE' ) ) assign( entry, 'customerservice' );
+  for ( const entry of contentModule( CUSTOMERSERVICE_PATH, 'CUSTOMERSERVICE' ) ) {
+    if ( !NON_INDEXABLE_CUSTOMER_ROUTES.has( entry.path ) ) assign( entry, 'customerservice' );
+  }
   for ( const entry of legalPages() ) assign( entry, 'legal' );
 
   const claimed = new Map();
