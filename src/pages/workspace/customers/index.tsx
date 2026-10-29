@@ -1087,7 +1087,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   return (
     <Layout onSignOut={signOut} user={user}>
       <SEO title="Customers" description="Canonical customer identity, address and activity." noindex />
-      <div className="inner-page-container">
+      <div className="inner-page-container contacts-auth-surface">
         <header className="workspace-page-head">
           <p className="workspace-page-eyebrow">Workspace</p>
           <h1>Customers</h1>
@@ -1095,7 +1095,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         </header>
 
         {/* Toolbar */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div className="contacts-auth-toolbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           {/* Contact count badge */}
           <span style={{ background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, fontSize: 'var(--text-sm)', padding: '4px 12px', borderRadius: 13 }}>
             {filteredSorted.length} contact{filteredSorted.length !== 1 ? 's' : ''}
@@ -1205,7 +1205,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <div style={{ display: 'flex', gap: 0 }}>
           {/* Desktop Table View */}
           {!isMobile && (
-          <div className="contacts-table-wrapper" style={{ flex: 1, minWidth: 0, border: '2px solid #f3f4f6', borderRadius: 13, overflow: 'hidden', background: '#fff' }}>
+          <div className="contacts-table-wrapper contacts-auth-table" style={{ flex: 1, minWidth: 0, border: '2px solid #f3f4f6', borderRadius: 13, overflow: 'hidden', background: '#fff' }}>
             {loading ? <div style={{ padding: 24 }}><SkeletonTable rows={8} /></div> : loadError ? (
               <div style={{ padding: 48, textAlign: 'center' }}>
                 {/*
@@ -1509,7 +1509,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+          <div className="customer-modal-panel contacts-auth-modal" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
