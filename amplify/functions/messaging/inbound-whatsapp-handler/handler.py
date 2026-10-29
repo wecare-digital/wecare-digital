@@ -45,7 +45,8 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
-from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response
+from lambda_utils import (customer_ideas, request_amendment_response, request_pickup_response,
+                          submit_request_response, track_shipping_response)
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
@@ -2544,6 +2545,21 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id)
 
+    _request_pickup_data = request_pickup_response.pickup_payload(message)
+    _request_pickup_contact = None
+    _request_pickup_result = None
+    if _request_pickup_data is not None:
+        _request_pickup_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        _request_pickup_result = request_pickup_response.save_pickup(
+            _request_pickup_data,
+            contact_id=_request_pickup_contact.get('contactId')
+                or _request_pickup_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            request_id=request_id)
+
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the
     # fast-redelivery race window (Meta redelivering within the GSI's eventual-
@@ -2567,7 +2583,7 @@ def _process_message(
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
     contact = (_idea_contact or _track_shipping_contact or _submit_request_contact
-               or _request_amendment_contact
+               or _request_amendment_contact or _request_pickup_contact
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
                                          contact_book_name=sender_contact_book_name,
@@ -2655,6 +2671,24 @@ def _process_message(
         }
         msg_type = 'flow_response'
         content = 'Flow response — Request Amendment'
+
+    _request_pickup_inbox = None
+    if _request_pickup_data is not None and _request_pickup_result is not None:
+        _pickup_item = _request_pickup_result.item or {}
+        _request_pickup_inbox = {
+            'flowCode': request_pickup_response.FLOW_CODE,
+            'flowType': 'pickup_request',
+            'flowScreen': 'REVIEW',
+            'flowSubmissionId': _request_pickup_result.submission_id,
+            'flowReference': _request_pickup_result.reference,
+            'flowAnswers': request_pickup_response.response_answers(
+                _request_pickup_data, _request_pickup_result),
+            'flowAttachments': [],
+            'pickupRequestId': _request_pickup_result.submission_id,
+            'pickupRequestStatus': _pickup_item.get('status', 'submitted'),
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Pickup Request'
 
     # A shared contact card carried a name and a number that the old extractor threw
     # away, leaving an agent to ask the customer to retype it. Keep the sanitised
@@ -2776,6 +2810,8 @@ def _process_message(
         message_record.update(_submit_request_inbox)
     if _request_amendment_inbox:
         message_record.update(_request_amendment_inbox)
+    if _request_pickup_inbox:
+        message_record.update(_request_pickup_inbox)
     
     # Keep the complete structured completion; a truncated transport label cannot
     # be reconstructed by the inbox. Both inbox stores must carry the same fields.
@@ -2783,7 +2819,8 @@ def _process_message(
     _flow_card = (
         project_flow_message(message)
         if (_idea_data is None and _track_shipping_data is None
-            and _submit_request_data is None and _request_amendment_data is None)
+            and _submit_request_data is None and _request_amendment_data is None
+            and _request_pickup_data is None)
         else {})
     if _flow_card:
         message_record.update(_flow_card)
@@ -2877,6 +2914,7 @@ def _process_message(
         **(_track_shipping_inbox or {}),
         **(_submit_request_inbox or {}),
         **(_request_amendment_inbox or {}),
+        **(_request_pickup_inbox or {}),
     )
 
     # ── A revoke marks the message it deleted ──
@@ -3003,6 +3041,10 @@ def _process_message(
             if _request_amendment_data is not None:
                 # Same completion contract as Submit Request: durable business row and
                 # structured Inbox card were saved above before transport dedup.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
+                return
+            if _request_pickup_data is not None:
+                # Paid Pickup completion was persisted and bound to its PaymentAttempt above.
                 _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
                 return
             nfm = interactive.get('nfm_reply', {})
