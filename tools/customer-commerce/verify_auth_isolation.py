@@ -3,8 +3,15 @@ from __future__ import annotations
 
 from http.cookies import SimpleCookie
 import json
+from pathlib import Path
+import sys
 import unittest
 from urllib.parse import urlencode
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+SOURCE = ROOT / 'amplify/functions/ai/customer-commerce-mcp'
+sys.path.insert(0, str(SOURCE))
 
 import customer_oauth as auth
 from verify_oauth import OAuthContract
