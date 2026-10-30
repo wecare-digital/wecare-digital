@@ -1455,7 +1455,7 @@ def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     """
     none = {"status": "NOT_TRACKED", "observedAt": None}
     result = {"nativePay": none, "processing": none,
-              "completed": none, "invoice": none}
+              "completed": none, "invoice": none, "autoAccess": none}
     entitlement_id = str(item.get("vaultEntitlementId") or "")
     if not entitlement_id or not item.get("ownerCustomerId") or not item.get("ownerPhone"):
         return result
@@ -1481,6 +1481,21 @@ def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     ref = str(grant.get("reference") or "")
     if not ref or len(ref) > 160:
         return result
+    # The automatic Access Vault send belongs to the exact paid request/grant.
+    # This is a direct PK read already permitted for secure-files, not a scan
+    # by phone number, amount, order name or provider message ID.
+    request_id = str(grant.get("requestId") or "")
+    if request_id:
+        request = _table(SERVICE_REQUESTS_TABLE).get_item(
+            Key={"requestId": request_id}, ConsistentRead=True).get("Item") or {}
+        if (request.get("requestId") == request_id
+                and request.get("kind") == "VAULT"
+                and request.get("customerId") == item["ownerCustomerId"]
+                and request.get("vaultFileId") == item["fileId"]
+                and request.get("referenceId") == ref
+                and request.get("vaultNotificationStatus") == "ACCEPTED"):
+            result["autoAccess"] = _logged_send_evidence(
+                str(request.get("vaultNotificationStatusMessageId") or ""), None)
     # The outbound payment template is bound by the same server-owned reference.
     outbound = _table(os.environ.get(
         "WA_OUTBOUND_TABLE", "stack-wecare-digital-WhatsAppOutboundTable"))
