@@ -1212,6 +1212,9 @@ def _website_quote_preview(identity: customer_auth.CustomerIdentity,
                 "discountLabel": "Delight" if discount else "",
                 "deliveryPaise": delivery,
                 "requiresDelivery": _basket_requires_delivery(line_items),
+                "deliveryLabel": ("Express service" if
+                                  (snapshot.frozen_data.get("pricingMetadata") or {}).get("policy", "").startswith("vault-dropdocs")
+                                  else "Delivery"),
                 "convenienceFeePaise": convenience,
                 "convenienceGstPaise": convenience_gst,
                 "totalPayablePaise": total,
