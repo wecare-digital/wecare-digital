@@ -183,8 +183,7 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { view === 'paid' && (
             <div className="co-actions">
-              <Link className="co-btn co-btn-primary" href={ orderPagePath( orderNumber ) }>View your order</Link>
-              <Link className="co-btn co-btn-quiet" href="/shop/">Continue shopping</Link>
+              <Link className="co-auth-action co-auth-primary" href={ orderPagePath( orderNumber ) }>Order</Link>
             </div>
           ) }
 
@@ -196,27 +195,26 @@ export default function CheckoutStatus (): React.ReactElement {
             <>
               <p className="co-note">This is taking longer than usual. Your orders page shows the latest status.</p>
               <div className="co-actions">
-                <Link className="co-btn co-btn-primary" href="/orders/">Check your orders</Link>
+                <Link className="co-auth-action co-auth-primary" href="/orders/">Orders</Link>
               </div>
             </>
           ) }
 
           { view === 'failed' && (
             <div className="co-actions">
-              <Link className="co-btn co-btn-primary" href="/shop/">Start again</Link>
-              <Link className="co-btn co-btn-quiet" href="/">Back to home</Link>
+              <Link className="co-auth-action co-auth-primary" href="/cart/">Retry</Link>
             </div>
           ) }
 
           { view === 'unavailable' && (
             <div className="co-actions">
-              <Link className="co-btn co-btn-quiet" href="/shop/">Return to the store</Link>
+              <Link className="co-auth-action" href="/orders/">Orders</Link>
             </div>
           ) }
         </section>
 
         <style jsx>{`
-          .co-card{width:100%;max-width:700px;margin:0}
+          .co-card{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
           .co-mark{inline-size:56px;block-size:56px;margin-block-end:24px;border-radius:50%}
           .co-mark-confirming,.co-mark-finalizing{border:3px solid rgba(0,0,0,.12);border-block-start-color:#3da35a;animation:co-spin 900ms linear infinite}
           .co-mark-paid{background:#3da35a;display:flex;align-items:center;justify-content:center}
@@ -227,15 +225,14 @@ export default function CheckoutStatus (): React.ReactElement {
           .co-facts dt{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--public-muted)}
           .co-facts dd{margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
           .co-note{margin:0;font-size:16px;line-height:1.55;color:var(--public-muted)}
-          .co-actions{margin-block-start:28px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-          .co-card :global(.co-btn){display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);padding-inline:26px;border-radius:var(--public-cta-radius);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;line-height:normal;transition:background-color .2s,transform .2s,box-shadow .2s}
-          .co-card :global(.co-btn-primary){background:var(--public-brand-lime);border:var(--public-cta-border) solid var(--public-brand-green);color:var(--public-brand-green)}
-          .co-card :global(.co-btn-primary:hover){background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .co-card :global(.co-btn-quiet){background:#fff;border:var(--public-cta-border) solid var(--public-brand-lime);color:var(--public-brand-green)}
-          .co-card :global(.co-btn-quiet:hover){background:rgba(209,244,112,.22)}
-          .co-card :global(.co-btn:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .co-actions{margin-block-start:28px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+          .co-card :global(.co-auth-action){display:inline-flex;align-items:center;justify-content:center;min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;touch-action:manipulation;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}
+          .co-card :global(.co-auth-primary){font-weight:700}
+          .co-card :global(.co-auth-action:hover){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+          .co-card :global(.co-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
           @keyframes co-spin{to{transform:rotate(360deg)}}
-          @media(prefers-reduced-motion:reduce){.co-mark-confirming,.co-mark-finalizing{animation:none}.co-card :global(.co-btn){transition:none}.co-card :global(.co-btn:hover){transform:none;box-shadow:none}}
+          @media(max-width:767px){.co-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}.co-actions{display:grid;grid-template-columns:1fr;width:100%}.co-card :global(.co-auth-action){width:100%}}
+          @media(prefers-reduced-motion:reduce){.co-mark-confirming,.co-mark-finalizing{animation:none}.co-card :global(.co-auth-action){transition:none}.co-card :global(.co-auth-action:hover){transform:none;box-shadow:none}}
         `}</style>
       </RotatingHero>
     </>
