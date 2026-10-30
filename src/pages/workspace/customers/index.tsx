@@ -366,6 +366,8 @@ const Customers: React.FC<PageProps> = () => {
 
   // Fix #7: Deleting state to prevent double-click on delete modal
   const [deleting, setDeleting] = useState(false);
+  // Synchronous guard: state alone is not an atomic lock across confirmation dialogs.
+  const customerMutationInFlight = useRef(false);
 
   // Fix #12 (R2): Track Escape to prevent onBlur from committing after cancel
   const inlineEditCancelled = useRef(false);
@@ -900,6 +902,7 @@ const Customers: React.FC<PageProps> = () => {
   // Archive is a distinct non-destructive state. It hides the canonical customer from daily
   // queues while preserving the identity row and every linked order/invoice/payment/consent record.
   const handleArchive = async (contactId: string, contactName?: string) => {
+    if (deleting || customerMutationInFlight.current) return;
     const current = contacts.find(c => c.contactId === contactId);
     if (current?.locked) { toast.warning('This contact is protected. An administrator must unlock it before archiving.'); return; }
     const ok = await confirm({
@@ -907,7 +910,8 @@ const Customers: React.FC<PageProps> = () => {
       message: `Archive ${contactName ? `"${contactName}"` : 'this contact'}? It will be hidden from the contacts list. The record, its messages and any payment links are kept, and an admin can restore it.`,
       confirmText: 'Archive',
     });
-    if (!ok) return;
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
     setDeleting(true);
     try {
       const result = await api.archiveContact(contactId, 'Archived from Customers workspace after operator review');
@@ -918,13 +922,13 @@ const Customers: React.FC<PageProps> = () => {
       }
       else toast.error('Failed to archive contact');
     } catch { toast.error('Failed to archive contact'); }
-    finally { setDeleting(false); }
+    finally { customerMutationInFlight.current = false; setDeleting(false); }
   };
 
   // Staff Delete is only a guarded soft-delete. It never purges messages or releases a
   // phone reservation, so it cannot be used as a workaround for an orphaned-identity 409.
   const handleDeleteCustomer = async (contactId: string, contactName?: string) => {
-    if (deleting) return;
+    if (deleting || customerMutationInFlight.current) return;
     const current = contacts.find(c => c.contactId === contactId);
     if (current?.locked) {
       toast.warning('This customer is protected by a retention lock; ask an administrator to review it.');
@@ -936,11 +940,12 @@ const Customers: React.FC<PageProps> = () => {
       confirmText: 'Delete customer',
       danger: true,
     });
-    if (!ok) return;
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
     setDeleting(true);
     try {
       const result = await api.softDeleteContactResult(contactId);
-      if (result.ok && result.data?.success && result.data.deleteType === 'soft') {
+      if (result.ok && result.data?.success && (result.data.deleteType === 'soft' || result.data.deleteType == null)) {
         toast.success('Customer removed from the active list; their phone remains reserved.');
         setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
         if (detailContact?.contactId === contactId) setDetailContact(null);
@@ -959,6 +964,7 @@ const Customers: React.FC<PageProps> = () => {
     } catch {
       toast.error('Delete request failed. Customer was not confirmed deleted.');
     } finally {
+      customerMutationInFlight.current = false;
       setDeleting(false);
     }
   };
