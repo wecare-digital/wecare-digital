@@ -32,7 +32,8 @@ def test_whatsapp_preview_is_read_only_and_uses_backend_authorities():
     assert "normalMessageCountOnFullManualPath" in preview
     assert "Server-generated signed offer token" in preview
     assert "Vault link plus an optional WhatsApp document" in preview
-    assert "read-only reference previews" in preview
+    assert "The approved template wording is fixed" in preview
+    assert "offerBodyText" in preview
     assert "https://wecare.digital/vault/?file=" in preview
 
 
