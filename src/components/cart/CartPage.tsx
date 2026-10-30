@@ -8,8 +8,8 @@ import { buildPageTitle } from '../../lib/page-title';
  * {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a Authorization: Bearer token from getSession().
  * It does NOT post {action:'create'} and has not for some time; that line said so for long enough
  * to mislead anyone tracing which payment path the storefront uses. Cart purchases are collected
- * HERE, on the website, through Razorpay Standard Checkout — `create` is the in-WhatsApp leg and
- * it refuses a non-catalog session outright. The lineItems carry catalogue references and
+ * via the selected rail: Razorpay Standard Checkout on the website, or the existing native
+ * WhatsApp ORDER_DETAILS payment request. The lineItems carry catalogue references and
  * quantities ONLY (src/lib/cart.ts, toLineItems) - the browser never sends a price.
  *
  * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
@@ -125,7 +125,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { CHECKOUT_METHOD_PATH, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -680,10 +680,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         const { items: merged, merged: placed } = mergeClaimedLines( outcome.lines );
         setItems( merged );
-        // Said out loud only when NOTHING could be placed. A partial merge needs no sentence: the
-        // customer pays for the lines they can see, which the server reconciles the cart down to.
-        setBasketClaim( outcome.lines.length > 0 && placed === 0
-          ? CLAIM_NOT_SHOWN_MESSAGE : null );
+        const notShortBasket = outcome.lines.length !== 1
+          || outcome.lines.some( line => Number( line.quantity ) !== 1 );
+        setBasketClaim( notShortBasket
+          ? 'Short checkout supports one item with quantity one. Select a single product to pay.'
+          : outcome.lines.length > 0 && placed === 0 ? CLAIM_NOT_SHOWN_MESSAGE : null );
         stripBasketParam();
         return;
       }
@@ -1396,6 +1397,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
+    // Older browser storage may contain a multi-line cart. Do not silently remove lines or
+    // charge a subset: show the customer the full selection and require an explicit choice.
+    if ( currentItems.length > 1 )
+    {
+      setItems( currentItems );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Short checkout supports one item at a time. Remove the other items to continue.',
+      } );
+      return;
+    }
     const unresolved = currentItems.find( needsVariantSelection );
     if ( unresolved )
     {
@@ -1414,11 +1426,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       return;
     }
 
-    // Cart review and identity/profile readiness are complete. Payment rail selection happens
-    // exactly once on /checkout/, never on a product route and never inline in the cart.
+    // Part 1: the payment method is selected directly on this review page. Keep the legacy
+    // /checkout/ route for bookmarked links, but avoid the extra page in the ordinary journey.
     if ( !chosenChannel )
     {
-      window.location.assign( CHECKOUT_METHOD_PATH );
+      setNotice( { kind: 'quiet', message: 'Choose Pay on WhatsApp or Pay on website below.' } );
       return;
     }
 
@@ -1687,6 +1699,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
+              <p className="cart-body" role="note">
+                One item per payment. The listed price is for reference. Your final amount,
+                including applicable discounts, taxes and fees, comes from secure checkout
+                before you confirm payment.
+              </p>
+
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
                   the browser.
@@ -1793,20 +1811,29 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 </p>
               ) }
 
-              <div className="cart-actions">
+              <div className="cart-actions" role="group" aria-label="Choose payment method">
                 { railTerminal
                   ? <Link className="cart-auth-action cart-auth-primary" href="/orders/">Orders</Link>
-                  : <button
-                      className="cart-auth-action cart-auth-primary"
-                      type="button"
-                      onClick={ () => { void proceed(); } }
-                      disabled={ busy || railTerminal }
-                      aria-busy={ busy ? 'true' : undefined }
-                    >
-                      { busy
-                        ? 'Preparing…'
-                        : ( profile ? ( paymentBlocked ? 'Try again' : profileStatus === 'ready' ? 'Pay securely' : 'Continue checkout' ) : 'Proceed' ) }
-                    </button> }
+                  : <>
+                      <button
+                        className="cart-auth-action cart-auth-primary"
+                        type="button"
+                        onClick={ () => { void proceed( 'whatsapp' ); } }
+                        disabled={ busy }
+                        aria-busy={ busy && selectedCheckoutChannelRef.current === 'whatsapp' ? 'true' : undefined }
+                      >
+                        { busy && selectedCheckoutChannelRef.current === 'whatsapp' ? 'Preparing…' : 'Pay on WhatsApp' }
+                      </button>
+                      <button
+                        className="cart-auth-action"
+                        type="button"
+                        onClick={ () => { void proceed( 'website' ); } }
+                        disabled={ busy }
+                        aria-busy={ busy && selectedCheckoutChannelRef.current === 'website' ? 'true' : undefined }
+                      >
+                        { busy && selectedCheckoutChannelRef.current === 'website' ? 'Preparing…' : 'Pay on website' }
+                      </button>
+                    </> }
               </div>
             </>
           )}
