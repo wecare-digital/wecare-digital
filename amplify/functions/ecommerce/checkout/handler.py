@@ -996,6 +996,54 @@ def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
 
 
 
+def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart: dict,
+                        reader, now: int, canonical: list):
+    """Quote one voluntary contribution at exactly its ProductsTable amount.
+
+    Contribute has no fulfilment/shipping and no convenience fee. Product/variant activity is
+    still validated by the native supply engine; only the final fee policy is replaced with the
+    already-defined contribution exemption.
+    """
+    if len(canonical) != 1:
+        raise ContributionRejected("CONTRIBUTION_REQUIRES_ONE_LINE")
+    product_id, variant_id, quantity = canonical[0]
+    if str(product_id).lower() not in CONTRIBUTION_PRODUCT_IDS:
+        raise ContributionRejected("UNKNOWN_CONTRIBUTION_PRODUCT")
+    if variant_id not in CONTRIBUTION_CHOICES_PAISE:
+        raise ContributionRejected("UNKNOWN_CONTRIBUTION_VARIANT")
+    if quantity != 1:
+        raise ContributionRejected("CONTRIBUTION_QUANTITY_MUST_BE_ONE")
+
+    base = native_checkout.quote_native_cart(
+        ephemeral_cart,
+        product_reader=reader,
+        customer_id=identity.customer_id,
+        created_at=now,
+        ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
+        shipping_policy=native_shipping.ShippingPolicy(),
+        gst_bps=0,
+        coupon_definition=None,
+    )
+    frozen = base.frozen_data if isinstance(base.frozen_data, dict) else {}
+    quote = checkout_pricing.exempt_quote(
+        base.quote.collection_before_convenience_paise,
+        currency="INR",
+    )
+    return checkout_pricing.build_snapshot(
+        customer_id=base.customer_id,
+        cart_id=base.cart_id,
+        cart_revision=base.cart_revision,
+        quote=quote,
+        created_at=base.created_at,
+        ttl_seconds=base.expires_at - base.created_at,
+        site=frozen.get("site"),
+        items=frozen.get("items") if isinstance(frozen.get("items"), list) else [],
+        address=frozen.get("address"),
+        delivery=frozen.get("delivery"),
+        pricing_metadata={"policy": "contribution-exempt-2026-10-30"},
+    )
+
+
 def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
     """Price a basket of `catalogReference` line items into a native QuoteSnapshot.
 
@@ -1053,13 +1101,24 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
             # Never let a browser claim a physical product needs no delivery. The native shipping
             # policy currently charges zero, and actual shipping rules can be enforced by a
             # trusted product policy.
-            "requiresDelivery": True,
+            "requiresDelivery": product_id.lower() not in CONTRIBUTION_PRODUCT_IDS,
         })
     ephemeral_cart = {
         "cartId": "native:" + cart_key,
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
+    # A contribution is a separate voluntary payment contract. Do not mix it with products or
+    # service fulfilment: that would either add a fee to the contribution or make one checkout
+    # produce two different legal/fulfilment outcomes.
+    contribution_lines = [
+        row for row in canonical if str(row[0]).lower() in CONTRIBUTION_PRODUCT_IDS
+    ]
+    if contribution_lines:
+        if len(contribution_lines) != len(canonical):
+            raise ContributionRejected("CONTRIBUTION_MUST_BE_SEPARATE")
+        return _contribution_quote(identity, ephemeral_cart, reader, now, canonical)
+
     # Delight is server-owned. Vault/Drop Docs use the explicit owner-approved service sequence;
     # every other basket keeps its existing native pricing contract.
     from lambda_utils.ecommerce import default_coupon, service_requests
