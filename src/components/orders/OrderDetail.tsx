@@ -44,6 +44,7 @@ interface OrderItem {
 
 interface OrderCharges {
   merchandisePaise: number;
+  supplyGstPaise: number;
   deliveryPaise: number;
   discountPaise: number;
   convenienceFeePaise: number;
