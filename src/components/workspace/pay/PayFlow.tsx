@@ -1194,8 +1194,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       Convenience fee and final total are calculated by the server. The stored invoice remains the authority for subtotal, tax, Delight and total.
                     </div>
                     <div className="pf-composer-actions">
-                      <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
-                      <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                      <Button variant="primary" size="lg" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                      <Button variant="secondary" size="lg" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
                     </div>
                   </div>
                   </div>
