@@ -306,11 +306,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   // Form state
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formBsuid, setFormBsuid] = useState('');
-  const [formUsername, setFormUsername] = useState('');
   const [formProfileUsername, setFormProfileUsername] = useState('');
-  const [formContactBookName, setFormContactBookName] = useState('');
   /*
    * THE ADDRESS, as ONE piece of state over the eight `contact_address._RULES` fields.
    *
@@ -334,7 +330,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
    */
   const [formAddress, setFormAddress] = useState<AddressFormFields>({ ...EMPTY_ADDRESS_FIELDS });
   const [formShippingAddress, setFormShippingAddress] = useState('');
-  const [formGstin, setFormGstin] = useState('');
   const [formCompanyName, setFormCompanyName] = useState('');
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
@@ -480,11 +475,9 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
 
   const resetForm = () => {
-    setFormName(''); setFormPhone(''); setFormEmail('');
-    setFormBsuid(''); setFormUsername(''); setFormProfileUsername(''); setFormContactBookName('');
+    setFormName(''); setFormPhone(''); setFormProfileUsername('');
     setFormShippingAddress(''); setFormCountryCode('+91');
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
-    setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
     setDuplicateContact(null);
@@ -779,8 +772,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     
     setFormCountryCode(matchedCode);
     setFormPhone(phoneNumber);
-    setFormEmail(contact.email || '');
-    setFormBsuid(contact.bsuid || ''); setFormUsername(contact.username || ''); setFormProfileUsername(contact.profileUsername || ''); setFormContactBookName(contact.contactBookName || '');
+    setFormProfileUsername(contact.profileUsername || '');
     setFormShippingAddress(contact.shippingAddress || '');
     /*
      * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, and MIGRATE two historical mistakes while doing
@@ -811,7 +803,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       country: checkout?.country || contact.country || EMPTY_ADDRESS_FIELDS.country,
       countryCode: checkout?.countryCode || EMPTY_ADDRESS_FIELDS.countryCode,
     });
-    setFormGstin((contact as any).gstin || '');
     setFormCompanyName(contact.companyName || '');
     setFormDesignation(contact.designation || '');
     setShowEditModal(true);
@@ -826,13 +817,20 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       toast.warning('Invalid phone number format'); return;
     }
     const dup = checkDuplicate(formPhone, '', editingContact.contactId);
-    if (dup) { toast.warning(dup); return; }
+    if (dup) {
+      setDuplicateContact(findDuplicateContact(formPhone, '', editingContact.contactId));
+      setFormError(dup);
+      toast.warning(dup);
+      return;
+    }
     const missingAddress = ADDRESS_FIELDS.find(spec => spec.required && !String(formAddress[spec.key] || '').trim());
     if (missingAddress || !addressComplete(formAddress)) { toast.warning(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`); document.getElementById(`contact-${missingAddress?.key || 'country'}`)?.focus(); return; }
     const fullPhone = contactPhoneE164(formPhone, formCountryCode);
     setSaving(true);
     try {
-      const result = await api.updateContact(editingContact.contactId, {
+      setFormError('');
+      setDuplicateContact(null);
+      const result = await api.updateContactResult(editingContact.contactId, {
         name: formName.trim(), phone: fullPhone || undefined,
         // Hidden email and Meta identifiers are preserved by omitting them, not rewriting stale values.
         profileUsername: formProfileUsername.trim() || undefined,
@@ -840,10 +838,33 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         designation: formDesignation.trim() || undefined,
         ...addressFieldsForPayload(),
       } as any);
-      if (result) { toast.success('Customer updated'); setShowEditModal(false); setEditingContact(null); resetForm(); await loadContacts(); }
-      else toast.error('Failed to update contact');
-    } catch { toast.error('Failed to update contact'); }
-    finally { setSaving(false); }
+      if (result.ok && result.data) {
+        toast.success('Customer updated');
+        setShowEditModal(false);
+        setEditingContact(null);
+        resetForm();
+        await loadContacts();
+      } else if (!result.ok) {
+        // The backend remains the identity authority if the local list is stale.
+        if (result.failure.status === 409) {
+          const existingId = result.failure.details?.existingContactId;
+          const exact = typeof existingId === 'string' ? await api.getContact(existingId) : null;
+          const existing = exact || await resolveDuplicateContact(formPhone, '');
+          if (existing && existing.contactId !== editingContact.contactId) setDuplicateContact(existing);
+        }
+        const message = result.failure.message || 'Customer update was refused.';
+        setFormError(message);
+        toast.error(message);
+      } else {
+        const message = 'The update returned no customer record. Refresh before editing again.';
+        setFormError(message);
+        toast.warning(message);
+      }
+    } catch {
+      const message = 'Could not update customer. Check your connection and try again.';
+      setFormError(message);
+      toast.error(message);
+    } finally { setSaving(false); }
   };
 
   // Archive is a distinct non-destructive state. It hides the canonical customer from daily
@@ -1168,6 +1189,30 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     </div>
   </div>
 );
+
+  const duplicateContactCard = duplicateContact ? (
+    <div className="contacts-duplicate-card">
+      <div>
+        <span>{duplicateContact.archivedAt ? 'Existing archived customer' : 'Existing customer'}</span>
+        <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
+        <small>
+          {duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}
+          {duplicateContact.archivedAt ? ' · archived' : ''}
+        </small>
+      </div>
+      <div className="contacts-duplicate-actions">
+        <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
+        {duplicateContact.archivedAt ? (
+          <button type="button" onClick={restoreExistingDuplicate} disabled={restoringDuplicate}
+            className="contacts-primary-action">
+            {restoringDuplicate ? 'Restoring...' : 'Restore customer'}
+          </button>
+        ) : (
+          <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <Layout onSignOut={signOut} user={user}>
@@ -1601,33 +1646,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             </div>
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
-            {duplicateContact && (
-              <div className="contacts-duplicate-card">
-                <div>
-                  <span>{duplicateContact.archivedAt ? 'Existing archived customer' : 'Existing customer'}</span>
-                  <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
-                  <small>
-                    {duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}
-                    {duplicateContact.archivedAt ? ' · archived' : ''}
-                  </small>
-                </div>
-                <div className="contacts-duplicate-actions">
-                  <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
-                  {duplicateContact.archivedAt ? (
-                    <button
-                      type="button"
-                      onClick={restoreExistingDuplicate}
-                      disabled={restoringDuplicate}
-                      className="contacts-primary-action"
-                    >
-                      {restoringDuplicate ? 'Restoring...' : 'Restore customer'}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
-                  )}
-                </div>
-              </div>
-            )}
+            {duplicateContactCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
@@ -1645,6 +1664,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
+            {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
+            {duplicateContactCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>
