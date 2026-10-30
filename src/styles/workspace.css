@@ -813,8 +813,8 @@
   .workspace-shell .payments-shell .pf-auth-surface,
   .workspace-shell .payments-shell .default-items,
   .workspace-shell .payments-shell .ledger {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
+    padding-left: var(--public-mobile-page-gutter, 16px) !important;
+    padding-right: var(--public-mobile-page-gutter, 16px) !important;
   }
   .workspace-shell .payments-shell .default-items-head {
     flex-direction: column;
@@ -873,8 +873,14 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+/* Payments follows Home's content-driven control geometry. Do not force every compact
+   secondary action onto the global 44px mobile floor; the component size/padding owns height. */
 .workspace-shell .payments-shell .pf-context-actions .btn {
-  min-height: 44px;
+  min-height: 0;
+}
+.workspace-shell .payments-shell .ps-tab,
+.workspace-shell .payments-shell .ledger-switch button {
+  min-height: 0 !important;
 }
 .workspace-shell .payments-shell .pf-address-field-grid {
   display: grid;
@@ -1034,6 +1040,15 @@
   }
   .workspace-shell .payments-shell .pf-payment-request-card .pf-composer-actions .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* button.css applies a blanket 44px min-height to every .btn on phones. Payments opts out:
+     compact secondary controls keep their declared component height while primary actions
+     retain their own larger geometry from the existing primary-button rules. */
+  .workspace-shell .payments-shell .btn {
+    min-height: 0;
   }
 }
 
