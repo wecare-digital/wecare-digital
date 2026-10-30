@@ -88,6 +88,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
       <style jsx>{`
         .identity-card{
           margin:24px 0 0;padding:0;border:0;border-radius:0;background:transparent;color:var(--public-text);
+          font-family:var(--font-sans);
         }
         .identity-head{display:flex;align-items:center;justify-content:flex-start;margin-bottom:12px}
         .identity-rows{margin:0;display:grid;gap:0}
@@ -96,10 +97,10 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           align-items:center;padding:13px 0;border-bottom:1px solid var(--public-hairline);
         }
         .identity-address-row{grid-template-columns:minmax(120px,170px) minmax(0,1fr) auto}
-        dt{color:var(--public-brand-green);font-size:14px;font-weight:700}
+        dt{color:var(--public-brand-green);font-size:var(--public-supporting-size);font-weight:700}
         dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-inline-size:0}
         .identity-value{
-          color:var(--public-text);font-size:16px;line-height:1.5;overflow-wrap:anywhere;
+          color:var(--public-text);font-size:var(--public-data-size);line-height:1.5;overflow-wrap:anywhere;
         }
         button{
           min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;

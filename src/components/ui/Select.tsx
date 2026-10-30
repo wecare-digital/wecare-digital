@@ -64,6 +64,8 @@ type SelectBaseProps = {
     invalid?: boolean;
     describedBy?: string;
     className?: string;
+    /** Opt-in theme for the portalled OPEN list; ancestor CSS cannot reach it. */
+    menuClassName?: string;
     /** Layout only: width / flex / margin. Appearance belongs to form-controls.css. */
     style?: React.CSSProperties;
     maxMenuHeight?: number;
@@ -105,6 +107,7 @@ const Select: React.FC<SelectProps> = ( {
     invalid = false,
     describedBy,
     className,
+    menuClassName,
     style,
     maxMenuHeight = 320,
     layer = 'default',
@@ -390,6 +393,7 @@ const Select: React.FC<SelectProps> = ( {
                 onDismiss={ onDismiss }
                 maxHeight={ maxMenuHeight }
                 layer={ layer }
+                className={ menuClassName }
             >
                 { /* The listbox takes the SAME resolved wiring as the trigger rather than
                      always pointing at labelId, which is what design 5.2's line literally

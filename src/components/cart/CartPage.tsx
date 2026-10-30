@@ -1261,7 +1261,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [] );
 
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    const chosenChannel = channel ?? checkoutChannel;
+    // The checkout chooser's one-shot action is consumed on arrival. Preserve
+    // that explicit rail when a saved-profile/address editor interrupts checkout.
+    const chosenChannel = channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel;
     if ( chosenChannel ) selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
@@ -1339,7 +1341,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // can branch on its RETURNED value; `setProfileStatus` is still called, as a cache for the
     // next render and the next click.
     let status = profileStatus;
-    let mode: CheckoutProfileMode = profile?.name ? 'address' : 'create';
+    // An owned phone-only bootstrap needs a name edit, not a new profile form.
+    let mode: CheckoutProfileMode = profile ? ( profile.name ? 'address' : 'name' ) : 'create';
     if ( status === 'unknown' || status === 'checking' )
     {
       setProfileStatus( 'checking' );
@@ -1693,14 +1696,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   Delight on a contribution and this panel is hidden to match. A render-time read of
                   `items` is correct here. */}
 
-              {/* THE RETURNING CUSTOMER SEES WHAT WE ALREADY KNOW, not a form. Rendered only on
-                  'ready', which means profile complete AND an address on file, so the Deliver row
-                  can never be empty. The card STAYS while an editor is open beneath it - with its
-                  three buttons disabled - so the customer can see what they are changing from. */}
-              { profile && ( profileStatus === 'ready' || ( !cartRequiresDelivery() && Boolean( profile.name ) ) ) && (
+              {/* A returning customer's stored identity must remain visible when the
+                  shipping address is missing. Non-shipping baskets omit the Deliver row;
+                  physical baskets explicitly label an unsaved address. */}
+              { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
                 <CheckoutIdentityCard
                   identity={ profile }
                   showAddress={ cartRequiresDelivery() }
+                  emptyAddressLabel="Not saved yet"
                   editorOpen={ showProfile }
                   onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
                   onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
@@ -1802,7 +1805,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     >
                       { busy
                         ? 'Preparing…'
-                        : ( profile ? ( paymentBlocked ? 'Try again' : 'Pay securely' ) : 'Proceed' ) }
+                        : ( profile ? ( paymentBlocked ? 'Try again' : profileStatus === 'ready' ? 'Pay securely' : 'Continue checkout' ) : 'Proceed' ) }
                     </button> }
               </div>
             </>
