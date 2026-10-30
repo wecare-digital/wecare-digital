@@ -139,19 +139,15 @@ const CheckoutProfile: React.FC<Props> = ( {
   return (
     <section className="checkout-profile" aria-labelledby="checkout-profile-title">
       <div className="checkout-profile-head">
-        <div>
-          <p className="checkout-profile-eyebrow">Checkout details</p>
-          <h2 id="checkout-profile-title">
-            { mode === 'address'
-              ? 'Update your delivery address'
-              : mode === 'email'
-                ? 'Change your email'
-                : mode === 'profile' || mode === 'name'
-                  ? 'Update your profile'
-                  : 'Confirm your details' }
-          </h2>
-        </div>
-        <span className="phone-verified">✓ WhatsApp verified</span>
+        <h2 id="checkout-profile-title">
+          { mode === 'address'
+            ? 'Update your delivery address'
+            : mode === 'email'
+              ? 'Change your email'
+              : mode === 'profile' || mode === 'name'
+                ? 'Update your profile'
+                : 'Confirm your details' }
+        </h2>
       </div>
 
       { showProfile && (
@@ -250,21 +246,11 @@ const CheckoutProfile: React.FC<Props> = ( {
           margin:28px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
           border-radius:0;background:transparent;color:var(--public-text);font-family:var(--font-sans);
         }
-        .checkout-profile-head{
-          display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:24px;
-        }
-        .checkout-profile-eyebrow{
-          margin:0 0 6px;color:var(--public-brand-green);font-size:12px;font-weight:700;
-          letter-spacing:.08em;text-transform:uppercase;
-        }
+        .checkout-profile-head{display:flex;align-items:start;margin-bottom:24px}
         .checkout-profile h2{
           margin:0;color:var(--public-text);font-size:var(--public-card-size);
           font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
           letter-spacing:var(--public-card-tracking);
-        }
-        .phone-verified{
-          display:inline-flex;align-items:center;white-space:nowrap;color:var(--public-brand-green);
-          font-size:14px;font-weight:600;line-height:1.4;
         }
         .checkout-profile-grid{
           display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;margin:0 0 24px;
@@ -317,7 +303,6 @@ const CheckoutProfile: React.FC<Props> = ( {
         @media(max-width:767px){
           .checkout-profile{padding-top:22px}
           .checkout-profile-head{display:block;margin-bottom:22px}
-          .phone-verified{margin-top:10px}
           .checkout-profile-grid{grid-template-columns:1fr;gap:18px}
           .checkout-profile-grid .span-2{grid-column:auto}
           .checkout-profile h2{font-size:var(--public-mobile-card-size)}
