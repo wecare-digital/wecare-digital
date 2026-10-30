@@ -260,6 +260,7 @@ type Outcome =
   | { kind: 'UNAUTHORIZED' }
   | { kind: 'MALFORMED' }
   | { kind: 'SDK_UNAVAILABLE' }
+  | { kind: 'QUOTE_CHANGED' }
   | { kind: 'LOST' }
   | { kind: 'PROFILE_REQUIRED' }
   | { kind: 'DELIVERY_DETAILS_REQUIRED' }
@@ -743,6 +744,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     session: CustomerSession,
     lineItems: ReturnType<typeof toLineItems>,
     channel: CheckoutChannel,
+    expectedTotalPaise: number,
     // AN ARGUMENT, not a ref read inside the body, for the same reason `lineItems` is one: this
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
@@ -772,7 +774,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify( {
-          action: channel === 'whatsapp' ? 'create' : 'prepare',
+          action: 'prepare',
           lineItems,
           requestKey: getCheckoutRequestKey( lineItems ),
           // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
@@ -827,6 +829,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         )
         {
           return { kind: 'MALFORMED' };
+        }
+
+        // A quote change between review and prepare must never open a payment modal.
+        // Exact integer paise equality is checked BEFORE invoking the provider SDK.
+        if ( options.currency !== 'INR' || options.amountPaise !== expectedTotalPaise ) {
+          return { kind: 'QUOTE_CHANGED' };
         }
 
         const sdkReady = await loadRazorpaySdk();
@@ -1053,6 +1061,16 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( outcome.kind === 'OPENED' || outcome.kind === 'NAVIGATED' )
     {
       justSavedRef.current = false;
+      return;
+    }
+
+    if ( outcome.kind === 'QUOTE_CHANGED' )
+    {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteRevision( previous => previous + 1 );
+      setNotice( { kind: 'quiet', message:
+        'The payable amount changed. Review the updated price breakdown before paying.' } );
       return;
     }
 
@@ -1293,7 +1311,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
     // Website payment is the ordinary cart action. An explicit WhatsApp choice still uses
     // the existing native leg, and survives the profile editor / sign-in round trip.
-    const chosenChannel = channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel ?? 'website';
+    // Website checkout is the only payment rail on this page. WhatsApp has its
+    // own route, where no payment is started until that separate project ships.
+    const chosenChannel: CheckoutChannel = 'website';
+    void channel;
+    void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
@@ -1429,13 +1451,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
-    if ( currentItems.length > 1 || currentItems.some( item => item.quantity !== 1 ) )
-    {
-      setItems( currentItems );
-      setPaymentBlocked( true );
-      setNotice( { kind: 'quiet', message: SHORT_COMMERCE_ONE_PRODUCT_MESSAGE } );
-      return;
-    }
+    // A full website basket is allowed; the server checks every line/quantity.
     const unresolved = currentItems.find( needsVariantSelection );
     if ( unresolved )
     {
@@ -1447,12 +1463,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       } );
       return;
     }
-    const lineItems = toLineItems( currentItems );
-    if ( lineItems.length === 0 )
-    {
+    let lineItems: CheckoutLineItem[];
+    try { lineItems = toLineItems( currentItems ); }
+    catch {
+      setItems( currentItems );
+      setNotice( { kind: 'quiet', message: 'Review the quantities in your cart.' } );
+      return;
+    }
+    if ( lineItems.length === 0 ) {
       setItems( readCart() );
       return;
     }
+    if ( !quote || quoteFor !== basketFingerprint( lineItems ) || quoteLoading ) {
+      setNotice( { kind: 'quiet', message:
+        'Wait for the verified price breakdown before opening Razorpay.' } );
+      setQuoteRevision( previous => previous + 1 );
+      return;
+    }
+    const expectedTotalPaise = quote.charges.totalPaise;
 
     // Payment is initiated from this reviewed one-product cart, without a second chooser page.
     // The two existing server actions, their idempotency key, and verification remain unchanged.
@@ -1466,7 +1494,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
       // re-posts of a request whose cart was already abandoned, and abandoning it a second time
       // would mint a third cart.
-      let outcome = await postPrepare( session, lineItems, chosenChannel, resetCart );
+      let outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1480,7 +1508,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         justSavedRef.current = false;
         await sleep( POST_SAVE_RETRY_MS );
-        outcome = await postPrepare( session, lineItems, chosenChannel );
+        outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise );
       }
 
       // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
@@ -1522,7 +1550,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
         }
-        outcome = await postPrepare( session, lineItems, chosenChannel );
+        outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise );
       }
 
       applyOutcome( outcome, session );
@@ -1534,7 +1562,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus, checkoutChannel ] );
+  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
