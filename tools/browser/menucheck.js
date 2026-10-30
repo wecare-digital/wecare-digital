@@ -95,8 +95,9 @@ const fail = ( message ) => { throw new Error( message ); };
         fail( `${viewport.name}: menu lime top accent drifted ${JSON.stringify( panelStyle )}` );
       }
 
-      // Contact us uses the owner-supplied Material Symbols Outlined "person" SVG, not
-      // the Rounded person_text font ligature. Verify both the normal and search views.
+      // Contact us uses the exact uploaded Material Symbols Outlined "person_text" SVG,
+      // embedded as a path instead of downloading a second icon font.
+      // Verify both the normal menu and the search results.
       const checkContactIcon = async ( state ) => {
         const contact = menu.getByRole( 'link', { name: 'Contact us', exact: true } );
         if ( await contact.count() !== 1 || await contact.getAttribute( 'href' ) !== '/contact/' ) {
@@ -114,12 +115,12 @@ const fail = ( message ) => { throw new Error( message ); };
             ariaHidden: node.getAttribute( 'aria-hidden' ),
           };
         } );
+        const expectedPath = 'M34,36V33H44v3H34ZM30,25.5v-3H44v3H30ZM26,15V12H44v3H26ZM11.78,22.13Q10.1,20.45 10.1,17.9t1.67-4.23T16,12t4.23,1.67T21.9,17.9t-1.68,4.23T16,23.8t-4.22-1.67ZM4,36V32.7q0-0.95 0.45-1.8t1.2-1.2q2.25-1.6 4.93-2.38T16,26.55t5.4,0.85t4.95,2.3q0.7,0.5 1.18,1.27T28,32.7V36H4Zm7.23-5.65q-2.58,0.8-4.48,2.1V33h18.5V32.45q-1.95-1.3-4.5-2.1T16,29.55t-4.77,0.8ZM18.1,20q0.8-0.8 0.8-2.1t-0.8-2.1T16,15t-2.1,0.8t-0.8,2.1T13.9,20T16,20.8T18.1,20ZM16,17.9ZM16,33Z';
         if ( artwork.viewBox !== '0 0 48 48'
-          || !artwork.path.startsWith( 'M18.6,21.85q-2.1-2.1' )
-          || !artwork.path.endsWith( 'M24,16.45ZM24,37Z' )
+          || artwork.path !== expectedPath
           || artwork.fill !== 'rgb(26, 58, 42)' || artwork.stroke !== 'none'
           || artwork.ariaHidden !== 'true' ) {
-          fail( `${viewport.name} (${state}): Contact us person icon drifted ${JSON.stringify( artwork )}` );
+          fail( `${viewport.name} (${state}): Contact us person_text icon drifted ${JSON.stringify( artwork )}` );
         }
       };
       await checkContactIcon( 'menu' );
