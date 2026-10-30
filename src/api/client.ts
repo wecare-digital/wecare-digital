@@ -7612,9 +7612,9 @@ async function secureFileAction (
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
   {
-    const body = action === 'send-offer' && options?.offerBodyText !== undefined
+    const requestBody = action === 'send-offer' && options?.offerBodyText !== undefined
       ? JSON.stringify( { offerBodyText: options.offerBodyText } ) : '{}';
-    const response = await authFetch( url, { method: 'POST', body } );
+    const response = await authFetch( url, { method: 'POST', body: requestBody } );
     let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
     try { body = await response.json(); } catch { body = {}; }
     if ( response.status >= 502 && typeof body.outcome !== 'string' )
