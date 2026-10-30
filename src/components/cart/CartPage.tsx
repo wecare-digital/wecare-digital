@@ -1339,7 +1339,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // can branch on its RETURNED value; `setProfileStatus` is still called, as a cache for the
     // next render and the next click.
     let status = profileStatus;
-    let mode: CheckoutProfileMode = profile?.name ? 'address' : 'create';
+    let mode: CheckoutProfileMode = profile?.name ? 'address' : profile ? 'name' : 'create';
     if ( status === 'unknown' || status === 'checking' )
     {
       setProfileStatus( 'checking' );
