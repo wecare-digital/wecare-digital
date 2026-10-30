@@ -51,9 +51,9 @@ export default function CheckoutMethodPage (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero
-        frame="Choose"
+        frame="Checkout"
         words={ [ { word: 'payment', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        ariaLabel="Choose payment method"
+        ariaLabel="Checkout payment"
       >
         <section className="checkout-method" aria-label="Payment method">
           <div className="checkout-method-actions">
