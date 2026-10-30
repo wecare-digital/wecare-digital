@@ -1,7 +1,6 @@
 /** Channel Settings — sender identities and per-channel configuration. */
 import React from 'react';
 import Link from 'next/link';
-import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
 import { colors } from '../../../../lib/design-tokens';
@@ -71,10 +70,10 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     if ( embedded ) return content;
     return (
-        <Layout user={ user } onSignOut={ signOut }>
+        <>
             <SEO title="Channel Settings | WECARE.DIGITAL" description="Unified channel settings & consent" noindex={ true } />
             { content }
-        </Layout>
+        </>
     );
 };
 
