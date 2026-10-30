@@ -67,6 +67,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
+    const [ storage, setStorage ] = useState<api.SecureFileStorage | null>( null );
     // On by default: an unpaid document is only useful once its owner receives native Review & Pay.
     const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
@@ -84,6 +85,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         {
             setFiles( result.data.files || [] );
             setTruncated( !!result.data.truncated );
+            setStorage( result.data.storage || null );
             setLoadError( '' );
         } else
         {
@@ -134,6 +136,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             {
                 setFiles( result.data.files || [] );
                 setTruncated( !!result.data.truncated );
+                setStorage( result.data.storage || null );
                 setLoadError( '' );
             } else
             {
@@ -334,6 +337,26 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
                     <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' } · {'{{1}}'} = Vault file ID</small></div>
                     <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
+                </section>
+
+                <section className="sf-storage-card" aria-label="Vault private storage">
+                    <div>
+                        <span>Private Vault source</span>
+                        <strong className="sf-mono">
+                            { storage
+                                ? `s3://${ storage.bucket }/${ storage.sourcePrefix }`
+                                : 'Reading private storage location…' }
+                        </strong>
+                    </div>
+                    <div>
+                        <span>Delivery renditions</span>
+                        <strong className="sf-mono">
+                            { storage
+                                ? `s3://${ storage.bucket }/${ storage.deliveryPrefix }`
+                                : '—' }
+                        </strong>
+                    </div>
+                    <p>Vault metadata stays in SecureFilesTable. Raw per-file S3 keys are not exposed to Workspace.</p>
                 </section>
 
                 <section className="sf-panel" aria-labelledby="sf-add">
@@ -736,6 +759,15 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                   color:var(--text-muted);font-size:var(--text-sm);line-height:1.5;
                 }
 
+                .sf-storage-card{
+                  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+                  margin:0 0 20px;padding:14px 16px;border:1px solid rgba(26,58,42,.12);
+                  border-radius:14px;background:#f8faf3;
+                }
+                .sf-storage-card>div{min-width:0}
+                .sf-storage-card span{display:block;margin-bottom:4px;color:rgba(26,58,42,.62);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+                .sf-storage-card strong{display:block;color:var(--accent);font-size:13px;overflow-wrap:anywhere}
+                .sf-storage-card p{grid-column:1/-1;margin:2px 0 0;color:var(--text-muted);font-size:12px;line-height:1.45}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
@@ -913,6 +945,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                 @media(max-width:760px){
                   .sf-wrap{padding:16px}
+                  .sf-storage-card{grid-template-columns:1fr}
                   .sf-head{margin-bottom:20px}
                   .sf-lead{font-size:17px}
                   .sf-panel{padding:18px 16px;border-radius:16px}
