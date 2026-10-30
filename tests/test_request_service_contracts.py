@@ -291,6 +291,18 @@ def test_staff_vault_offer_is_message_id_audited_and_unlock_gates_payment():
     assert "CATALOGSERVICEMSG#" in unlock
 
 
+def test_access_vault_acceptance_persists_provider_message_id():
+    source = (
+        ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py"
+    ).read_text()
+    send_once = source[source.index("def _send_once"):
+                       source.index("\ndef _open_paid_window")]
+    assert "whatsappMessageId" in send_once
+    assert "messageId" in send_once
+    assert "key + 'MessageId=:mid'" in send_once
+    assert "status = 'ACCEPTED'" in send_once
+
+
 def test_secure_files_provisioner_pins_native_vault_payment_invoke():
     source = (ROOT / "scripts/provision_secure_files_api.py").read_text()
     assert 'VAULT_PAYMENT_FUNCTION = "wecare-whatsapp-business-api"' in source
