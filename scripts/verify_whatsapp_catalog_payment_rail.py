@@ -519,6 +519,10 @@ def run(root: Path) -> int:
     )["UserPool"]["Id"]
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
+    # The real Vault redeem path HEADs the private object before issuing any
+    # signed URL. Keep this hermetic S3 bucket populated rather than bypassing
+    # that production safety check.
+    boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="wecare-digital-get")
 
     from lambda_utils import contact_key, template_media, wa_internal_event  # noqa: E402
     from lambda_utils.ecommerce import checkout_pricing, default_coupon, meta_catalog_sync as mcs
@@ -2279,6 +2283,13 @@ def run(root: Path) -> int:
                 if str(row.get("orderId", "")).startswith("VAULTOFFER#") and row.get("fileId") == file_id}
 
     def register_vault_file(customer: Dict[str, str], file_id: str, name: str) -> None:
+        # Mirror publish ordering: a Vault record must point at an existing,
+        # private, nonempty object. moto serves S3 in-process; nothing is uploaded.
+        s3 = boto3.client("s3", region_name="us-east-1")
+        pdf = b"%PDF-1.4\n" + b"0" * 991
+        for key in ("secure/u/" + file_id + ".pdf", "secure/d/" + file_id + ".pdf"):
+            s3.put_object(Bucket="wecare-digital-get", Key=key,
+                          Body=pdf, ContentType="application/pdf")
         _table("SecureFilesTable").put_item(Item={
             "fileId": file_id, "ownerPhone": customer["digits"], "ownerCustomerId": customer["sub"],
             "status": "active", "createdAt": str(int(time.time())), "displayName": name,
