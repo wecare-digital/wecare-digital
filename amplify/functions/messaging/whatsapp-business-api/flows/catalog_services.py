@@ -88,7 +88,8 @@ def _send_access(client, row, file_id):
 def readiness(graph):
     """Live Meta readback of the two templates a Vault purchase needs. Reads only."""
     templates = {}
-    for name, ident in {'wecare_vault_request_ready': '29124703577146420',\n                        'wecare_whatapp_native_pay_template': '2714938845570815',
+    for name, ident in {'wecare_vault_request_ready': '29124703577146420',
+                        'wecare_whatapp_native_pay_template': '2714938845570815',
                         'wecare_default_download': '1410998911012572',
                         '_dropdoc_flow': '1041974032198332'}.items():
         info = graph(ident, params={'fields': 'id,name,status,language,components'})
