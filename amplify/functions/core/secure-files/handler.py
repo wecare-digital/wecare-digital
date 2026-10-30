@@ -1678,6 +1678,11 @@ def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) ->
                                    "error": type(exc).__name__}))
         answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
     outcome = str(answer.get("outcome") or "VAULT_OFFER_UNCONFIRMED")
+    # Preserve only the provider message ID of this confirmed send. An unconfirmed
+    # attempt must not retain the prior send's WAMID or claim handset delivery.
+    wamid = str(answer.get("whatsappMessageId") or "") if outcome == "VAULT_OFFER_SENT" else ""
+    if not wamid.startswith("wamid.") or len(wamid) > 512:
+        wamid = ""
     code, message = _VAULT_OFFER_REPLIES.get(
         outcome, (502, "The Vault-ready request could not be completed. Nothing was charged."))
     try:
@@ -1685,8 +1690,10 @@ def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) ->
             ":actor": actor,
             ":when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             ":status": outcome[:80],
+            ":msg": wamid,
         }
-        audit_update = "SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, lastOfferOutcome=:status"
+        audit_update = ("SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, "
+                        "lastOfferOutcome=:status, lastOfferMessageId=:msg")
         if offer_text is not None:
             offer_audit_values[":text"] = offer_text
             audit_update += ", lastOfferBodyText=:text"
