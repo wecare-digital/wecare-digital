@@ -24,14 +24,52 @@ types one exact keyword (default `subscribe`, `signup`, `sign up`, `register`, `
 `/subscribe`; matching is the whole message, case-insensitive), and the inbound Lambda sends a
 native Flow message. No template, no payment, no internal event. The contract rejects any
 registry row that says otherwise, and the generic keyword loop refuses to open F001 under any
-other trigger key. No Meta template opens F001 either: `feedback_survey_form_1`, whose button
-opened it with NAVIGATE (skipping INIT and the session, so the form arrived empty and then
-expired) and whose copy promised notification updates, was deleted on 2026-10-25. Its definition
-is kept in `docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
+other trigger key. The previous generic `feedback_survey_form_1` template was deleted on 2026-10-25 because its
+NAVIGATE button bypassed INIT and had no verified Flow session. Its definition is preserved in
+`docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
+The authenticated Orders-page profile icon is a separate, session-backed website launch,
+described below; it must not bypass INIT when using the data-exchange template.
 
 A staff send is the controlled QA/support door, not a second entry mode: Operator or Admin,
 one customer at a time, recorded with the sender's identity, available before keyword launch
 is switched on. It uses the same published Flow, copy and session rules.
+
+## Authenticated Orders-page profile update
+
+The public `/orders/` page requires a verified customer session before sending. Its profile
+icon calls `POST /customer/profile` with `action: sendProfileUpdate`. The profile Lambda
+passes only the session-owned phone to the internal WhatsApp sender. The sender checks that
+F001 is PUBLISHED, mints a 24-hour one-use F001 session, and sends an approved Utility
+template containing a Flow button. The website shows a brief lime toast only when Meta
+accepts that send; it does **not** claim that the customer saved their profile.
+
+The existing `service_details` template (Utility, English, image header,
+"View Details" button) was originally approved with a `NAVIGATE` action. The
+`flow_action_data` sent alongside that action has not reliably populated optional
+fields on the handset, even though the customer record contains them. On 2026-10-30
+the owner requested **editing this existing template in place**, not switching to a
+new template. In-place edits require an explicit Meta confirmation and are
+re-submitted for review; the category may change after review.
+
+**Meta-only button change:** retain the original template ID and name, image,
+body text, footer, and button label/Flow ID. Change only the FLOW button
+from `NAVIGATE` (screen `PROFILE`) to `DATA_EXCHANGE` (omit
+`navigate_screen`). On tap Meta must call `INIT` on
+`/wa-business/flow-data`; `flows/subscribe_profile.py` validates the session,
+reads the canonical contact and returns PROFILE and ADDRESS values, including
+optional username, organization, job title and address fields. The published Flow
+already has the required `init-values` bindings.
+
+**Activation gate:** inspect `service_details` again in Meta after approval:
+the template must be APPROVED and its FLOW button must use
+`DATA_EXCHANGE`. Review its category; a separate test template was reclassified
+as MARKETING despite using the same body text. Do not route or send a pending
+or rejected template. No Lambda template-name switch is needed. Verify a signed
+`flow_endpoint_signature`, a `flow_funnel init_received` and `init_success`,
+optional-value prefill, and a successful REVIEW save from a controlled handset.
+If it fails, inspect the Data Exchange logs before changing any customer data.
+The website's lime success toast confirms message acceptance, not completion of
+the customer's profile update.
 
 ## Launch controls
 

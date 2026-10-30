@@ -62,3 +62,46 @@ def test_customer_checkout_dropdown_menu_is_branded_not_workspace_grey():
     assert address.count('menuClassName="public-checkout-select"') == 2
     assert ".ui-popover.public-checkout-select .ui-select-option[aria-selected=" in css
     assert "background-color: var(--public-brand-lime);" in css
+
+
+def test_orders_profile_feedback_is_a_transient_brand_toast():
+    orders = (ROOT / "src/components/orders/OrdersPage.tsx").read_text()
+    assert "'Sent on WhatsApp'" in orders
+    assert "'Couldn’t send. Try again.'" in orders
+    assert "window.setTimeout( () => setProfileAction( 'idle' ), 4000 )" in orders
+    assert "profileAction === 'failed' ? 'alert' : 'status'" in orders
+    assert "onClick={ () => setProfileAction( 'idle' ) }" in orders
+    assert ".ord-profile-toast{" in orders
+    assert "background:var(--public-brand-lime);color:var(--public-brand-green)" in orders
+    assert "Profile update sent on WhatsApp." not in orders
+
+
+def test_website_profile_template_uses_data_exchange_for_optional_prefill():
+    templates = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+    sender = (ROOT / "amplify/functions/messaging/whatsapp-business-api/handler.py").read_text()
+    media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text()
+    f001 = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/subscribe_profile.py").read_text()
+    flow_path = ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/published/subscribe.json"
+
+    # The original Meta template is edited in place, never swapped to a new name.
+    # Meta's button action must be verified independently after its review.
+    assert 'PROFILE_DETAILS = Template(name="service_details"' in templates
+    assert '"service_details": SHARED_TEMPLATE_HEADER' in media
+    assert '"wecare_profile_update_f001": SHARED_TEMPLATE_HEADER' not in media
+    assert "WA_PROFILE_UPDATE_TEMPLATE" not in templates
+    send = sender.split("def _customer_profile_update_template(", 1)[1].split("\ndef handler(", 1)[0]
+    assert "action = {'flow_token': token}" in send
+    assert "action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)" in send
+    assert "template = whatsapp_templates.PROFILE_DETAILS" in send
+    assert "return handle_init(payload, flow_token, request_id)" in f001
+    assert "values = _screen_values(row, session.phone)" in f001
+
+    import json
+    flow = json.loads(flow_path.read_text())
+    screens = {screen["id"]: screen for screen in flow["screens"]}
+    profile_form = next(c for c in screens["PROFILE"]["layout"]["children"] if c["type"] == "Form")
+    address_form = next(c for c in screens["ADDRESS"]["layout"]["children"] if c["type"] == "Form")
+    for field in ("full_name", "username", "company_name", "designation"):
+        assert profile_form["init-values"][field] == "${data." + field + "}"
+    for field in ("address_line1", "address_line2", "locality", "city", "state", "postal_code", "country"):
+        assert address_form["init-values"][field] == "${data." + field + "}"
