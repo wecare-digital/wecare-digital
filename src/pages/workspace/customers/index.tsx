@@ -16,7 +16,7 @@ import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
-  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, formatAddress,
+  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressComplete, addressPayload, formatAddress,
   type AddressFormFields,
 } from '../../../lib/address-format';
 
@@ -685,29 +685,36 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       toast.warning(message);
       if ( fieldId ) requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
     };
+    if (!formName.trim()) { fail('Enter the full name.', 'contact-name'); return; }
     if (formName.trim().length > 200) { fail('Full name is too long (max 200 characters)', 'contact-name'); return; }
     if (formProfileUsername.trim().length > 50) { fail('WhatsApp username is too long (max 50 characters)', 'contact-profile-username'); return; }
-    if (!formPhone && !formEmail) {
-      fail('Enter a WhatsApp phone or email. For payment testing, enter the WhatsApp phone number.', 'contact-phone');
+    if (!formPhone) {
+      fail('Enter the linked WhatsApp phone number.', 'contact-phone');
       return;
     }
     if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
       fail('Invalid phone number format. Use the country code selector and enter the mobile number.', 'contact-phone'); return;
     }
-    if (formEmail && !isValidEmail(formEmail)) {
-      fail('Invalid email format', 'contact-email'); return;
-    }
-    const dup = checkDuplicate(formPhone, formEmail);
+    const dup = checkDuplicate(formPhone, '');
     if (dup) {
-      setDuplicateContact(findDuplicateContact(formPhone, formEmail));
-      fail(dup, formPhone ? 'contact-phone' : 'contact-email');
+      const existing = findDuplicateContact(formPhone, '');
+      setDuplicateContact(existing);
+      setFormError('');
+      toast.warning(existing
+        ? 'This WhatsApp number is already saved. Open the existing customer or use it for payment.'
+        : 'This WhatsApp number already belongs to an existing customer.');
+      return;
+    }
+    const missingAddress = ADDRESS_FIELDS.find(spec => spec.required && !String(formAddress[spec.key] || '').trim());
+    if (missingAddress || !addressComplete(formAddress)) {
+      fail(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`, `contact-${missingAddress?.key || 'country'}`);
       return;
     }
     const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
     setSaving(true);
     try {
       const result = await api.createContactResult({
-        name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
+        name: formName, phone: fullPhone || undefined,
         bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
         ...addressFieldsForPayload(),
         gstin: formGstin || undefined,
@@ -728,15 +735,18 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           const rawExistingId = result.failure.details?.existingContactId;
           const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
           const exact = existingId ? await api.getContact(existingId) : null;
-          const existing = exact || await resolveDuplicateContact(formPhone, formEmail);
+          const existing = exact || await resolveDuplicateContact(formPhone, '');
           setDuplicateContact(existing);
-          const message = existing
-            ? (existing.archivedAt
-              ? `Customer already exists and is archived: ${existing.name || existing.phone || existing.email || existing.contactId}`
-              : `Customer already exists: ${existing.name || existing.phone || existing.email || existing.contactId}`)
-            : (result.failure.message || 'A contact with this phone or email already exists');
-          setFormError(message);
-          toast.warning(message);
+          if (existing) {
+            setFormError('');
+            toast.warning(existing.archivedAt
+              ? 'This WhatsApp customer already exists and is archived. Restore it below.'
+              : 'This WhatsApp customer already exists. Open it or use it for payment below.');
+          } else {
+            const message = 'This WhatsApp number already belongs to an existing customer. Search by number to open it.';
+            setFormError(message);
+            toast.warning(message);
+          }
         } else {
           setFormError(result.failure.message || 'Contact was not created');
           toast.error(result.failure.message || 'Contact was not created');
@@ -814,17 +824,17 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const handleUpdate = async () => {
+    if (!formName.trim()) { toast.warning('Full name is required'); document.getElementById('contact-name')?.focus(); return; }
     if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
     if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
-    if (!editingContact || (!formPhone && !formEmail)) { toast.warning('Phone or email is required'); return; }
+    if (!editingContact || !formPhone) { toast.warning('WhatsApp phone is required'); return; }
     if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
       toast.warning('Invalid phone number format'); return;
     }
-    if (formEmail && !isValidEmail(formEmail)) {
-      toast.warning('Invalid email format'); return;
-    }
-    const dup = checkDuplicate(formPhone, formEmail, editingContact.contactId);
+    const dup = checkDuplicate(formPhone, '', editingContact.contactId);
     if (dup) { toast.warning(dup); return; }
+    const missingAddress = ADDRESS_FIELDS.find(spec => spec.required && !String(formAddress[spec.key] || '').trim());
+    if (missingAddress || !addressComplete(formAddress)) { toast.warning(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`); document.getElementById(`contact-${missingAddress?.key || 'country'}`)?.focus(); return; }
     const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
     setSaving(true);
     try {
@@ -1060,157 +1070,131 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   // Inline styles for form (bypasses Next.js style jsx scoping)
   const S: Record<string, React.CSSProperties> = {
     label: { display: 'block', fontSize: 12, lineHeight: 1.3, fontWeight: 700, color: '#44504a', marginBottom: 6 },
-    input: { width: '100%', minHeight: 46, padding: '8px 0', border: 0, borderBottom: '1px solid #dfe4df', borderRadius: 0, fontSize: 15, lineHeight: 1.35, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: 'transparent', color: '#111' },
+    input: { width: '100%', minHeight: 46, padding: '8px 0', border: 0, borderBottom: '1px solid #dfe4df', borderRadius: 0, fontSize: 16, lineHeight: 1.35, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: 'transparent', color: '#111' },
     row: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 18 },
     hint: { fontSize: 11, lineHeight: 1.4, color: '#8a918d', marginTop: 4 },
   };
   const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#1a3a2a'; e.target.style.boxShadow = '0 1px 0 0 #d1f470'; };
   const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#dfe4df'; e.target.style.boxShadow = 'none'; };
 
-  const renderContactForm = (isEdit: boolean) => (
-    <div className="contacts-modal-body">
+  const renderContactForm = (_isEdit: boolean) => (
+  <div className="contacts-modal-body">
+    <div>
+      <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
+      <p style={S.hint}>The same profile and address fields the customer completes in WhatsApp Subscribe.</p>
+    </div>
+    <div>
+      <label htmlFor="contact-name" style={S.label}>Full name *</label>
+      <input id="contact-name" style={S.input} value={formName}
+        onChange={e => { setFormName(e.target.value); setFormError(''); }}
+        placeholder="Full name" maxLength={200} autoComplete="name"
+        onFocus={focusStyle} onBlur={blurStyle} />
+    </div>
+    <div className="contacts-form-contact">
       <div>
-        <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
-        <p style={S.hint}>Same customer-entered profile fields as the WhatsApp Subscribe form.</p>
-      </div>
-      <div>
-        <label htmlFor="contact-name" style={S.label}>Full name *</label>
-        <input id="contact-name" style={S.input} value={formName} onChange={e => setFormName(e.target.value)} placeholder="Full name" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      <div className="contacts-form-contact">
-        <div>
-          <label htmlFor="contact-phone" style={S.label}>WhatsApp phone <span className="contacts-required-note">Required for payment testing</span></label>
-          <div className="contacts-phone-control">
-            <div className="contacts-country-code">
-              <input
-                type="text"
-                value={showCountryDropdown ? countrySearch : formCountryCode}
-                onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); setFormError(''); }}
-                onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
-                onBlur={(e) => {
-                  const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
-                  if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
-                  setShowCountryDropdown(false);
-                }}
-                placeholder="Code"
-                aria-label="Phone country code"
-                style={{ ...S.input, width: '100%', cursor: 'pointer' }}
-                onFocusCapture={focusStyle}
-                onBlurCapture={blurStyle}
-              />
-              {showCountryDropdown && (
-                <div data-country-dropdown tabIndex={-1} className="contacts-country-dropdown">
-                  {COUNTRY_CODES
-                    .filter(cc =>
-                      cc.code.includes(countrySearch) ||
-                      cc.country.toLowerCase().includes(countrySearch.toLowerCase())
-                    )
-                    .map(cc => (
-                      <div
-                        key={cc.code}
-                        tabIndex={-1}
-                        onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); setFormError(''); }}
-                        className="contacts-country-option"
-                      >
-                        {cc.code} {cc.country}
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-            <input id="contact-phone" style={S.input} value={formPhone} onChange={e => { setFormPhone(e.target.value); setFormError(''); }} placeholder="Mobile number" maxLength={20} onFocus={focusStyle} onBlur={blurStyle} />
+        <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
+        <div className="contacts-phone-control">
+          <div className="contacts-country-code">
+            <input
+              type="text"
+              value={showCountryDropdown ? countrySearch : formCountryCode}
+              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); setFormError(''); }}
+              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
+              onBlur={(e) => {
+                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
+                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
+                setShowCountryDropdown(false);
+              }}
+              placeholder="Code"
+              aria-label="Phone country code"
+              style={{ ...S.input, width: '100%', cursor: 'pointer' }}
+              onFocusCapture={focusStyle}
+              onBlurCapture={blurStyle}
+            />
+            {showCountryDropdown && (
+              <div data-country-dropdown tabIndex={-1} className="contacts-country-dropdown">
+                {COUNTRY_CODES
+                  .filter(cc => cc.code.includes(countrySearch) || cc.country.toLowerCase().includes(countrySearch.toLowerCase()))
+                  .map(cc => (
+                    <div key={cc.code} tabIndex={-1}
+                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); setFormError(''); }}
+                      className="contacts-country-option">
+                      {cc.code} {cc.country}
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
-          <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp payment requests.</p>
+          <input id="contact-phone" style={S.input} value={formPhone}
+            onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); }}
+            placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
+            onFocus={focusStyle} onBlur={blurStyle} />
         </div>
-        <div>
-          <label htmlFor="contact-email" style={S.label}>Email <span className="contacts-required-note">or phone required</span></label>
-          <input id="contact-email" style={S.input} type="email" value={formEmail} onChange={e => { setFormEmail(e.target.value); setFormError(''); }} placeholder="name@example.com" onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-      </div>
-      <div>
-        <label htmlFor="contact-profile-username" style={S.label}>WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
-        <input id="contact-profile-username" style={S.input} value={formProfileUsername} onChange={e => setFormProfileUsername(e.target.value)} placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50} onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      <div className="contacts-form-grid">
-        <div>
-          <label htmlFor="contact-company-name" style={S.label}>Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
-          <input id="contact-company-name" style={S.input} value={formCompanyName} onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <div>
-          <label htmlFor="contact-designation" style={S.label}>Job title <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
-          <input id="contact-designation" style={S.input} value={formDesignation} onChange={e => setFormDesignation(e.target.value)} placeholder="Optional" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-      </div>
-
-      <div>
-        <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
-        <div className="contacts-form-grid">
-          {ADDRESS_FIELDS.map(spec => (
-            <div key={spec.key}>
-              <label htmlFor={`contact-${spec.key}`} style={S.label}>
-                {spec.label}{spec.required ? ' *' : ''}
-                {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
-              </label>
-              {spec.key === 'country' ? (
-                <select
-                  id={`contact-${spec.key}`}
-                  style={S.input}
-                  value={formAddress.country}
-                  onChange={e => setFormAddress({
-                    ...formAddress,
-                    country: e.target.value,
-                    countryCode: countryCodeForName(e.target.value),
-                  })}
-                  onFocus={focusStyle}
-                  onBlur={blurStyle}
-                >
-                  {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
-                </select>
-              ) : (
-                <input
-                  id={`contact-${spec.key}`}
-                  style={S.input}
-                  value={formAddress[spec.key]}
-                  maxLength={spec.maxLength}
-                  placeholder={spec.placeholder}
-                  onChange={e => setFormAddress({ ...formAddress, [spec.key]: e.target.value })}
-                  onFocus={focusStyle}
-                  onBlur={blurStyle}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
-        <div
-          data-address-preview="contact"
-          aria-readonly="true"
-          style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}
-        >
-          {formatAddress(formAddress) || formShippingAddress || '\u2014'}
-        </div>
-      </div>
-
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-        <p style={{ ...S.label, marginBottom: 2 }}>Contact &amp; system identity</p>
-        <p style={S.hint}>These fields are separate from the customer-entered F001 Subscribe profile.</p>
-      </div>
-      <div style={S.row}>
-        <div>
-          <label htmlFor="contact-bsuid" style={S.label}>WhatsApp BSUID <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
-          <input id="contact-bsuid" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formBsuid} onChange={e => setFormBsuid(e.target.value)} placeholder="e.g. IN.13491208655302741918" onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <div>
-          <label htmlFor="contact-username" style={S.label}>Meta WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
-          <input id="contact-username" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="Meta profile username" onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-      </div>
-      <div>
-        <label htmlFor="contact-book-name" style={S.label}>Contact Book Name <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
-        <input id="contact-book-name" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formContactBookName} onChange={e => setFormContactBookName(e.target.value)} placeholder="Meta contact book name" onFocus={focusStyle} onBlur={blurStyle} />
+        <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp service and payment requests.</p>
       </div>
     </div>
-  );
+    <div>
+      <label htmlFor="contact-profile-username" style={S.label}>
+        WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
+      </label>
+      <input id="contact-profile-username" style={S.input} value={formProfileUsername}
+        onChange={e => setFormProfileUsername(e.target.value)}
+        placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50}
+        onFocus={focusStyle} onBlur={blurStyle} />
+    </div>
+    <div className="contacts-form-grid">
+      <div>
+        <label htmlFor="contact-company-name" style={S.label}>
+          Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
+        </label>
+        <input id="contact-company-name" style={S.input} value={formCompanyName}
+          onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200}
+          autoComplete="organization" onFocus={focusStyle} onBlur={blurStyle} />
+      </div>
+      <div>
+        <label htmlFor="contact-designation" style={S.label}>
+          Job title <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
+        </label>
+        <input id="contact-designation" style={S.input} value={formDesignation}
+          onChange={e => setFormDesignation(e.target.value)} placeholder="Optional" maxLength={200}
+          autoComplete="organization-title" onFocus={focusStyle} onBlur={blurStyle} />
+      </div>
+    </div>
+
+    <div>
+      <p style={{ ...S.label, marginBottom: 2 }}>Your address</p>
+      <p style={{ ...S.hint, marginBottom: 10 }}>Used for service, delivery, and account details.</p>
+      <div className="contacts-form-grid">
+        {ADDRESS_FIELDS.map(spec => (
+          <div key={spec.key}>
+            <label htmlFor={`contact-${spec.key}`} style={S.label}>
+              {spec.label}{spec.required ? ' *' : ''}
+              {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
+            </label>
+            {spec.key === 'country' ? (
+              <select id={`contact-${spec.key}`} style={S.input} value={formAddress.country}
+                onChange={e => setFormAddress({ ...formAddress, country: e.target.value, countryCode: countryCodeForName(e.target.value) })}
+                onFocus={focusStyle} onBlur={blurStyle}>
+                {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
+              </select>
+            ) : (
+              <input id={`contact-${spec.key}`} style={S.input} value={formAddress[spec.key]}
+                maxLength={spec.maxLength} placeholder={spec.placeholder}
+                autoComplete={spec.key === 'postalCode' ? 'postal-code' : spec.key === 'city' ? 'address-level2' : spec.key === 'state' ? 'address-level1' : spec.key === 'addressLine1' ? 'street-address' : 'off'}
+                onChange={e => { setFormAddress({ ...formAddress, [spec.key]: e.target.value }); setFormError(''); }}
+                onFocus={focusStyle} onBlur={blurStyle} />
+            )}
+          </div>
+        ))}
+      </div>
+      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
+      <div data-address-preview="contact" aria-readonly="true"
+        style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}>
+        {formatAddress(formAddress) || formShippingAddress || '\u2014'}
+      </div>
+    </div>
+  </div>
+);
 
   return (
     <Layout onSignOut={signOut} user={user}>
@@ -1761,7 +1745,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     .workspace-shell .contact-card-email{overflow-wrap:anywhere;word-break:break-word}
     .workspace-shell .contact-card-actions{flex:0 0 auto}
     .workspace-shell .contact-card-actions button{
-      min-width:44px !important;min-height:44px !important;
+      min-width:0 !important;min-height:0 !important;
       display:inline-flex;align-items:center;justify-content:center;
     }
     .workspace-shell .customer-detail-panel{
@@ -1789,7 +1773,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       border-radius:16px 16px 0 0 !important;
     }
     .workspace-shell .customer-page-btn{
-      min-width:44px !important;min-height:44px !important;
+      min-width:0 !important;min-height:0 !important;
       display:inline-flex;align-items:center;justify-content:center;
     }
   }
