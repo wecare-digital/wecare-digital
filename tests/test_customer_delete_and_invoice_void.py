@@ -57,6 +57,7 @@ def conflict_payload(*, owner: str = "", row: dict | None = None,
         ),
         "_duplicate_owner_row": lambda _phone, _email, exclude_id=None: existing,
         "ARCHIVED_AT_ATTRIBUTE": "archivedAt",
+        "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
         "MERGE_COMPLETE": "merged",
         "logger": SimpleNamespace(warning=lambda *_args, **_kwargs: None),
     }
