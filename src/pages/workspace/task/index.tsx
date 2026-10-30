@@ -59,7 +59,7 @@ const STATUS_PAINT: Record<Status, { bg: string; fg: string }> = {
 
 const UNASSIGNED = '__unassigned__';
 
-const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
+const TasksPage: React.FC<PageProps> = () => {
   const toast = useToastContext();
   const [ rows, setRows ] = useState<api.ConversationMeta[]>( [] );
   const [ names, setNames ] = useState<Record<string, string>>( {} );
