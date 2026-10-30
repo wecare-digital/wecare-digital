@@ -232,9 +232,6 @@ const PAY_GST_OPTIONS: SelectOption[] = GST_RATES.map(
 /* LAYOUT ONLY - `.ui-pay-gst` capped the native control at 110px inside `.ui-pay-row`. */
 const PAY_GST_SELECT_STYLE: React.CSSProperties = { flex: '0 0 110px' };
 
-// Reaction quick-set for the per-message react popover.
-const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅' ];
-
 // Friendly label for a message — avoids showing bare "[unknown]" / "[whatsapp]".
 const TYPE_LABELS: Record<string, string> = {
     // `text`, `call`, `template` and `interactive_list` are here so an empty-content
@@ -332,8 +329,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ replyText, setReplyText ] = useState( '' );
     const [ sending, setSending ] = useState( false );
     const [ replyingTo, setReplyingTo ] = useState<api.Message | null>( null );
-    const [ deletingId, setDeletingId ] = useState<string | null>( null );
-    const [ reviewUpdating, setReviewUpdating ] = useState<string | null>( null );
     const [ visibleCount, setVisibleCount ] = useState( 50 );
     const [ selectedWaba, setSelectedWaba ] = useState( WABAS[ 0 ].id );
     // True once the agent has changed "Send from" for the conversation that is
@@ -362,8 +357,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // Multi-file media staging
     const [ mediaFiles, setMediaFiles ] = useState<File[]>( [] );
     const [ mediaPreview, setMediaPreview ] = useState<string | null>( null );
-    // Per-message reaction
-    const [ reactFor, setReactFor ] = useState<string | null>( null );
     // Full TTS picker
     const [ ttsText, setTtsText ] = useState( '' );
     const [ ttsLang, setTtsLang ] = useState( 'en-IN' );
@@ -396,20 +389,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
-
-    const handleInboxReviewAction = async ( message: api.Message, status: 'approved' | 'flagged' | 'hidden' ) => {
-        if ( !message.reviewId ) return;
-        setReviewUpdating( message.reviewId );
-        try {
-            const ok = await api.updateReview( message.reviewId, { status } );
-            if ( !ok ) { toast.error( 'Review update failed' ); return; }
-            setMessages( rows => rows.map( row => row.messageId === message.messageId
-                ? { ...row, reviewStatus: status } : row ) );
-            toast.success( `Review ${status}` );
-        } finally {
-            setReviewUpdating( null );
-        }
-    };
 
     const loadData = useCallback( async () => {
         try
@@ -482,7 +461,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
     // Reset composer context when switching conversations.
     useEffect( () => {
-        setReplyingTo( null ); setReplyText( '' ); setVisibleCount( 50 ); setShowTemplateSender( false ); setShowRcsTemplates( false ); setEmailSubject( '' ); setSummary( '' ); setMediaFiles( [] ); setMediaPreview( null ); setEmojiSearch( '' ); setShowEmoji( false ); setReactFor( null );
+        setReplyingTo( null ); setReplyText( '' ); setVisibleCount( 50 ); setShowTemplateSender( false ); setShowRcsTemplates( false ); setEmailSubject( '' ); setSummary( '' ); setMediaFiles( [] ); setMediaPreview( null ); setEmojiSearch( '' ); setShowEmoji( false );
         if ( selected ) setUnreadIds( prev => { if ( !prev.has( selected ) ) return prev; const next = new Set( prev ); next.delete( selected ); try { window.localStorage.setItem( 'wd_unread', JSON.stringify( Array.from( next ) ) ); } catch { } return next; } );
     }, [ selected ] );
 
@@ -504,21 +483,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         const m = await api.addConversationNote( selected, t, user?.username || user?.signInDetails?.loginId || 'agent' );
         if ( m ) { setMeta( m ); setNoteText( '' ); }
     }, [ noteText, selected, user ] );
-
-    const handleDelete = useCallback( async ( m: api.Message ) => {
-        if ( deletingId ) return;
-        setDeletingId( m.messageId );
-        try
-        {
-            const ok = await api.deleteMessage( m.messageId, ( ( m.direction || '' ).toUpperCase() === 'OUTBOUND' ? 'OUTBOUND' : 'INBOUND' ) );
-            if ( ok )
-            {
-                setMessages( prev => prev.filter( x => x.messageId !== m.messageId ) );
-                toast.success( 'Message deleted' );
-            } else toast.error( 'Delete failed' );
-        } catch { toast.error( 'Delete failed' ); }
-        finally { setDeletingId( null ); }
-    }, [ deletingId, toast ] );
 
     // Multi-file media staging: validate per-type size, then queue for send.
     const handleMediaSelect = useCallback( ( e: React.ChangeEvent<HTMLInputElement> ) => {
@@ -860,20 +824,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         } catch { toast.error( 'Voice note failed' ); }
         finally { setSending( false ); }
     }, [ ttsText, ttsVoice, ttsLang, ttsEngine, replyTarget, selectedWaba, toast, loadData ] );
-
-    const handleReact = useCallback( async ( m: api.Message, emoji: string ) => {
-        const wamid = ( m as any ).whatsappMessageId;
-        const { contactId } = replyTarget;
-        setReactFor( null );
-        if ( !wamid || !contactId ) { toast.error( 'Cannot react to this message' ); return; }
-        try
-        {
-            const bsuid = selected ? contactDir[ selected ]?.bsuid : undefined;
-            await api.sendWhatsAppReaction( { contactId, reactionMessageId: wamid, reactionEmoji: emoji, phoneNumberId: ( m as any ).awsPhoneNumberId || selectedWaba, recipientBsuid: bsuid } );
-            toast.success( `Reacted ${emoji}` );
-            setTimeout( loadData, 800 );
-        } catch { toast.error( 'Reaction failed' ); }
-    }, [ replyTarget, selectedWaba, selected, contactDir, toast, loadData ] );
 
     const updatePayItem = ( i: number, field: 'name' | 'amount' | 'quantity' | 'gstRate', val: string ) =>
         setPayItems( p => p.map( ( it, idx ) => idx === i ? { ...it, [ field ]: val } : it ) );
@@ -1357,27 +1307,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                                 { flowResponseTitle( m ) } · Flow response
                                                             </div>
                                                             <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
-                                                            { m.reviewId && (
-                                                                <div style={ { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--borderLight)' } }>
-                                                                    <div style={ { fontSize: 'var(--text-xs)', marginBottom: 6 } }>
-                                                                        Feedback status: <b>{ m.reviewStatus || 'pending' }</b>
-                                                                        { m.reviewRating ? ` · ${'⭐'.repeat( Math.max( 0, Math.min( 5, m.reviewRating ) ) )}` : '' }
-                                                                        { m.reviewOrderId ? ` · ${m.reviewOrderId}` : '' }
-                                                                    </div>
-                                                                    { ( m.flowCode === 'WD_IDEA' || m.flowType === 'customer_idea' ) && <p style={ { fontSize: 'var(--text-xs)', margin: '0 0 8px', color: 'var(--text-muted)' } }>Private feedback. These controls only set its internal status; they do not publish, send a reply, or delete this message.</p> }
-                                                                    <div style={ { display: 'flex', gap: 6, flexWrap: 'wrap' } }>
-                                                                        { ( [ 'approved', 'flagged', 'hidden' ] as const ).map( status => (
-                                                                            <button key={ status } type="button" className="ui-msg-act"
-                                                                                disabled={ reviewUpdating === m.reviewId }
-                                                                                title={ status === 'approved' ? 'Mark feedback approved' : status === 'flagged' ? 'Mark feedback for attention' : 'Mark hidden in the review workflow; keep this message' }
-                                                                                onClick={ () => handleInboxReviewAction( m, status ) }
-                                                                                style={ { border: '1px solid var(--border)', borderRadius: 6, padding: '4px 7px', opacity: 1 } }>
-                                                                                { status === 'approved' ? 'Approve' : status === 'flagged' ? 'Flag' : 'Mark hidden' }
-                                                                            </button>
-                                                                        ) ) }
-                                                                    </div>
-                                                                </div>
-                                                            ) }
                                                         </div>
                                                     ) }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
@@ -1424,18 +1353,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                             const tip = waErrorTooltip( ( m as any ).errorCode, rawErr ) || 'Send failed';
                                                             return <span className="ui-st ui-st-failed" title={ tip }>failed ⓘ</span>;
                                                         } )() }
-                                                        <button className="ui-msg-act" title="Reply" onClick={ () => setReplyingTo( m ) }>↩</button>
-                                                        <button className="ui-msg-act" title="Delete" disabled={ deletingId === m.messageId } onClick={ () => handleDelete( m ) }>🗑</button>
-                                                        { ch === 'whatsapp' && ( m as any ).whatsappMessageId && (
-                                                            <span className="ui-react-wrap">
-                                                                <button className="ui-msg-act" title="React" onClick={ () => setReactFor( reactFor === m.messageId ? null : m.messageId ) }>☺</button>
-                                                                { reactFor === m.messageId && (
-                                                                    <span className="ui-react-pop">
-                                                                        { REACT_EMOJIS.map( em => (
-                                                                            <button key={ em } type="button" className="ui-react-em" onClick={ () => handleReact( m, em ) }>{ em }</button>
-                                                                        ) ) }
-                                                                    </span>
-                                                                ) }
                                                             </span>
                                                         ) }
                                                     </span>
