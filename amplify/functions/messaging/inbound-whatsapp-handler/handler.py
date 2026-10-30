@@ -157,13 +157,13 @@ COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
 # row can override it at runtime - see `_catalog_orders_enabled`.
 WA_CATALOG_ORDERS_ENABLED = os.environ.get(
     'WA_CATALOG_ORDERS_ENABLED', 'false').strip().lower() in ('true', '1', 'yes', 'on')
-# Where the hand-off link points. The public cart page, which already reads a session and owns the
-# claim effect. Trailing slash because the site is a static export and `/cart` would redirect.
-CART_HANDOFF_URL = os.environ.get('CART_HANDOFF_URL', 'https://wecare.digital/cart/')
+# The one checkout page owns the phone-bound basket claim. Never link to a retired
+# cart route: it is removed, not redirected. Keep the environment override for rollout.
+CART_HANDOFF_URL = os.environ.get('CART_HANDOFF_URL', 'https://wecare.digital/checkout/')
 # The reply copy. NO PRICE, NO TOTAL, NO ITEM COUNT IN MONEY TERMS - the website checkout prices
 # the basket from ProductsTable when the customer opens it (`checkout_pricing.compute_quote`), and
 # a figure here would be a second total with a different authority.
-CART_HANDOFF_BUTTON = 'Open my cart'
+CART_HANDOFF_BUTTON = 'Review checkout'
 CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it and pay securely. '
                      'Sign in with this same WhatsApp number and the items will be waiting.')
 
@@ -7106,7 +7106,7 @@ def _phone_suffix(phone: str) -> str:
 
 
 def _handoff_url(token: str) -> str:
-    """The link the customer opens. `/cart/?basket=<token>` on the public site.
+    """The link the customer opens. `/checkout/?basket=<token>` on the public site.
 
     The token is the only thing in the URL. It names a basket, it is phone-bound on the row, and
     the claim additionally requires a signed-in session whose phone matches - so a leaked link
