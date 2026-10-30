@@ -90,9 +90,11 @@ def test_customer_modal_distinguishes_existing_customer_from_orphaned_identity_c
     assert "No duplicate customer was created." in page
 
     # A normal duplicate remains actionable rather than surfacing a raw HTTP status.
-    assert "This WhatsApp number already belongs to an existing customer. Search by number to open it." in page
-    assert "Search customer" in page
-    assert "searchExistingCustomer" in page
+    assert "Search by number to open it" not in page
+    assert "Showing the matching customer search." in page
+    assert "setSearchQuery(fullPhone)" in page
+    assert "setDebouncedSearch(fullPhone)" in page
+    assert "searchExistingCustomer" not in page
     assert ".replace(/^HTTP\\s+\\d+:\\s*/i, '')" in page
 
 
