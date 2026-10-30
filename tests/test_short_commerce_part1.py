@@ -13,6 +13,10 @@ METHOD = (ROOT / "src/pages/checkout/index.tsx").read_text(encoding="utf-8")
 LEGACY_SUCCESS = (ROOT / "src/pages/checkout/success.tsx").read_text(encoding="utf-8")
 STATUS_PAGE = (ROOT / "src/pages/checkout/status.tsx").read_text(encoding="utf-8")
 SERVICE = (ROOT / "src/lib/serviceEntry.ts").read_text(encoding="utf-8")
+LEGACY_CART = (ROOT / "src/pages/cart.tsx").read_text(encoding="utf-8")
+QUOTE_COMPONENT = (ROOT / "src/components/cart/CheckoutPriceBreakdown.tsx").read_text(encoding="utf-8")
+CHECKOUT_BACKEND = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
+ORDERS = (ROOT / "src/components/orders/OrdersPage.tsx").read_text(encoding="utf-8")
 
 
 def _part(text: str, start: str, end: str) -> str:
@@ -68,18 +72,18 @@ def test_cart_directly_preserves_both_existing_checkout_actions():
     assert "CART_RESET_REQUIRED" in PAGE
 
 
-def test_legacy_checkout_url_only_redirects_to_cart_not_payment():
-    assert "router.replace( CHECKOUT_PATH )" in METHOD
-    assert "Continue to cart" in METHOD
-    # The JS redirect is progressive enhancement: the statically exported fallback
-    # must retain a visible page title for the audited release and assistive tech.
-    assert "<h1>Checkout continues in your cart</h1>" in METHOD
-    assert 'noindex,nofollow' in METHOD
-    assert "Pay on WhatsApp" not in METHOD
-    assert "goToServiceAction" not in METHOD
-    assert "checkout.razorpay.com" not in METHOD
-    assert "export const CHECKOUT_PATH = '/cart/';" in SERVICE
+def test_checkout_is_the_one_review_and_direct_razorpay_page():
+    assert "export { default } from '../../components/cart/CartPage';" in METHOD
+    assert "router.replace( `/checkout/${ query }` )" in LEGACY_CART
+    assert 'href="/checkout/"' in LEGACY_CART
+    assert "export const CHECKOUT_PATH = '/checkout/';" in SERVICE
     assert "export const SIGN_IN_PATH = '/auth';" in SERVICE
+    assert "proceed( 'website' )" in PAGE
+    assert "proceed( 'whatsapp' )" in PAGE
+    assert 'const razorpay = new window.Razorpay(' in PAGE
+    # The deprecated cart route must not start money or show another choice.
+    assert 'new window.Razorpay' not in LEGACY_CART
+
 
 def test_legacy_success_uses_the_one_verified_payment_status_screen():
     # No independent client-side "payment successful" logic survives on a legacy route.
@@ -94,11 +98,34 @@ def test_legacy_success_uses_the_one_verified_payment_status_screen():
     assert "Do not pay again." in STATUS_PAGE
 
 
-def test_display_catalogue_price_never_replaces_authoritative_payable():
-    page = PAGE
-    assert "Catalog price shown above." in page
-    assert "The final amount after applicable discounts," in page
-    assert "WhatsApp" in page and "Review and Pay" in page
-    assert "options.amountPaise" in page
-    assert "amount: options.amountPaise" in page
-    assert "action: channel === 'whatsapp' ? 'create' : 'prepare'" in page
+def test_checkout_quote_is_server_owned_and_complete():
+    assert '<CheckoutPriceBreakdown' in PAGE
+    assert 'websiteQuoteReady' in PAGE
+    assert "options.amountPaise" in PAGE
+    assert "amount: options.amountPaise" in PAGE
+    for key in ('subtotalPaise', 'supplyGstPaise', 'discountPaise',
+                'deliveryPaise', 'convenienceFeePaise', 'convenienceGstPaise',
+                'totalPayablePaise'):
+        assert key in QUOTE_COMPONENT
+    assert "action: 'quote'" in QUOTE_COMPONENT
+    assert "QUOTE_READY" in QUOTE_COMPONENT
+    assert "const line = ( amount: number ) => formatPaiseINR( amount, 'INR' );" in QUOTE_COMPONENT
+    assert '"quote"' in CHECKOUT_BACKEND
+    preview = CHECKOUT_BACKEND.split('def _website_quote_preview(', 1)[1].split(
+        '\\ndef _reserve_website_attempt(', 1)[0]
+    assert 'short_purchase.one_unit_lines(line_items)' in preview
+    assert '_website_snapshot(identity, line_items' in preview
+    assert '_website_invoice_lines(snapshot)' in preview
+    assert 'merchandise + supply_gst + delivery - discount + convenience + convenience_gst != total' in preview
+    assert 'snapshot.quote.total_payable_paise' in preview
+    assert 'create_order' not in preview
+    assert 'reserve_attempt' not in preview
+
+
+def test_paid_order_expands_in_existing_orders_table():
+    assert "view === 'focus'" not in ORDERS
+    assert '<OrderDetail' not in ORDERS
+    assert 'setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) )' in ORDERS
+    assert '<table className="ord-table">' in ORDERS
+    assert 'Download invoice' in ORDERS
+    assert 'router.replace( orderPagePath( orderNumber ) )' in STATUS_PAGE
