@@ -13,6 +13,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
+import { contactPhoneE164, contactPhoneMatchKey } from '../../../lib/contactPhone';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressComplete, addressPayload, formatAddress,
@@ -304,11 +305,7 @@ const Customers: React.FC<PageProps> = () => {
   // Form state
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formBsuid, setFormBsuid] = useState('');
-  const [formUsername, setFormUsername] = useState('');
   const [formProfileUsername, setFormProfileUsername] = useState('');
-  const [formContactBookName, setFormContactBookName] = useState('');
   /*
    * THE ADDRESS, as ONE piece of state over the eight `contact_address._RULES` fields.
    *
@@ -332,13 +329,10 @@ const Customers: React.FC<PageProps> = () => {
    */
   const [formAddress, setFormAddress] = useState<AddressFormFields>({ ...EMPTY_ADDRESS_FIELDS });
   const [formShippingAddress, setFormShippingAddress] = useState('');
-  const [formGstin, setFormGstin] = useState('');
   const [formCompanyName, setFormCompanyName] = useState('');
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
 
-  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
 
   // Delete confirmation (uses global useConfirm)
 
@@ -480,11 +474,9 @@ const Customers: React.FC<PageProps> = () => {
 
 
   const resetForm = () => {
-    setFormName(''); setFormPhone(''); setFormEmail('');
-    setFormBsuid(''); setFormUsername(''); setFormProfileUsername(''); setFormContactBookName('');
+    setFormName(''); setFormPhone(''); setFormProfileUsername('');
     setFormShippingAddress(''); setFormCountryCode('+91');
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
-    setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
     setDuplicateContact(null);
@@ -541,15 +533,13 @@ const Customers: React.FC<PageProps> = () => {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const normalizePhoneForMatch = (value: string): string => value.replace(/\D/g, '');
-
+  // Both preflight and 409 fallback use the same E.164 comparison key.
   const findDuplicateContact = (phone: string, email: string, excludeId?: string): api.Contact | null => {
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const wantedPhone = contactPhoneMatchKey(contactPhoneE164(phone, formCountryCode));
     const wantedEmail = email.trim().toLowerCase();
     return contacts.find(c => {
-      if (excludeId && c.contactId === excludeId) return false;
-      const samePhone = !!wantedPhone && normalizePhoneForMatch(c.phone || '') === wantedPhone;
+      if (excludeId && (c.contactId === excludeId || c.id === excludeId)) return false;
+      const samePhone = !!wantedPhone && contactPhoneMatchKey(c.phone || '') === wantedPhone;
       const sameEmail = !!wantedEmail && !!c.email && c.email.trim().toLowerCase() === wantedEmail;
       return samePhone || sameEmail;
     }) || null;
@@ -558,14 +548,14 @@ const Customers: React.FC<PageProps> = () => {
   const resolveDuplicateContact = async (phone: string, email: string): Promise<api.Contact | null> => {
     const local = findDuplicateContact(phone, email);
     if (local) return local;
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const fullPhone = contactPhoneE164(phone, formCountryCode);
+    const wantedPhone = contactPhoneMatchKey(fullPhone);
     const wantedEmail = email.trim().toLowerCase();
     for (const query of [fullPhone, email].filter(Boolean)) {
       const result = await api.searchContactsResult(query, 20);
       if (!result.ok) continue;
       const exact = result.data.find(contact => {
-        const samePhone = !!wantedPhone && normalizePhoneForMatch(contact.phone || '') === wantedPhone;
+        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
         const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
         return samePhone || sameEmail;
       });
@@ -578,6 +568,8 @@ const Customers: React.FC<PageProps> = () => {
     if (!duplicateContact) return;
     const existing = duplicateContact;
     setShowModal(false);
+    setShowEditModal(false);
+    setEditingContact(null);
     resetForm();
     setDetailContact(existing);
   };
@@ -586,6 +578,8 @@ const Customers: React.FC<PageProps> = () => {
     if (!duplicateContact || duplicateContact.archivedAt) return;
     const customerKey = duplicateContact.contactId || duplicateContact.customerUuid || duplicateContact.id;
     setShowModal(false);
+    setShowEditModal(false);
+    setEditingContact(null);
     resetForm();
     void router.push({ pathname: '/workspace/payments', query: { view: 'collect', customer: customerKey } });
   };
@@ -618,15 +612,10 @@ const Customers: React.FC<PageProps> = () => {
     }
   };
 
-  // Duplicate detection
+  // Reuse exactly the same format-insensitive owner lookup as the 409 fallback.
   const checkDuplicate = (phone: string, email: string, excludeId?: string): string | null => {
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    for (const c of contacts) {
-      if (excludeId && c.contactId === excludeId) continue;
-      if (fullPhone && c.phone === fullPhone) return `Phone ${fullPhone} already exists (${c.name || 'unnamed'})`;
-      if (email && c.email && c.email.toLowerCase() === email.toLowerCase()) return `Email ${email} already exists (${c.name || 'unnamed'})`;
-    }
-    return null;
+    const existing = findDuplicateContact(phone, email, excludeId);
+    return existing ? `Customer already exists (${existing.name || existing.phone || 'unnamed'})` : null;
   };
 
   /**
@@ -672,9 +661,9 @@ const Customers: React.FC<PageProps> = () => {
     const cleaned = phone.replace(/[\s\-().]/g, '');
     return /^\+?\d{7,15}$/.test(cleaned);
   };
-  const isValidEmail = (email: string): boolean => {
-    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
-  };
+  // Email is intentionally absent from the F001 form, but still editable in the legacy table.
+  const isValidEmail = (email: string): boolean =>
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 
   const handleCreate = async () => {
     setFormError('');
@@ -691,7 +680,7 @@ const Customers: React.FC<PageProps> = () => {
       fail('Enter the linked WhatsApp phone number.', 'contact-phone');
       return;
     }
-    if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
+    if (formPhone && !isValidPhone(contactPhoneE164(formPhone, formCountryCode))) {
       fail('Invalid phone number format. Use the country code selector and enter the mobile number.', 'contact-phone'); return;
     }
     const dup = checkDuplicate(formPhone, '');
@@ -709,16 +698,15 @@ const Customers: React.FC<PageProps> = () => {
       fail(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`, `contact-${missingAddress?.key || 'country'}`);
       return;
     }
-    const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
+    const fullPhone = contactPhoneE164(formPhone, formCountryCode);
     setSaving(true);
     try {
       const result = await api.createContactResult({
-        name: formName, phone: fullPhone || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
+        name: formName.trim(), phone: fullPhone || undefined,
+        profileUsername: formProfileUsername.trim() || undefined,
+        companyName: formCompanyName.trim() || undefined,
+        designation: formDesignation.trim() || undefined,
         ...addressFieldsForPayload(),
-        gstin: formGstin || undefined,
-        companyName: formCompanyName || undefined,
-        designation: formDesignation || undefined,
       } as any);
       if (result.ok && result.data) {
         toast.success('Customer created');
@@ -762,6 +750,8 @@ const Customers: React.FC<PageProps> = () => {
   };
 
   const handleEdit = (contact: api.Contact) => {
+    setFormError('');
+    setDuplicateContact(null);
     setEditingContact(contact);
     setFormName(contact.name || '');
     const ph = contact.phone || '';
@@ -784,8 +774,7 @@ const Customers: React.FC<PageProps> = () => {
     
     setFormCountryCode(matchedCode);
     setFormPhone(phoneNumber);
-    setFormEmail(contact.email || '');
-    setFormBsuid(contact.bsuid || ''); setFormUsername(contact.username || ''); setFormProfileUsername(contact.profileUsername || ''); setFormContactBookName(contact.contactBookName || '');
+    setFormProfileUsername(contact.profileUsername || '');
     setFormShippingAddress(contact.shippingAddress || '');
     /*
      * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, and MIGRATE two historical mistakes while doing
@@ -816,7 +805,6 @@ const Customers: React.FC<PageProps> = () => {
       country: checkout?.country || contact.country || EMPTY_ADDRESS_FIELDS.country,
       countryCode: checkout?.countryCode || EMPTY_ADDRESS_FIELDS.countryCode,
     });
-    setFormGstin((contact as any).gstin || '');
     setFormCompanyName(contact.companyName || '');
     setFormDesignation(contact.designation || '');
     setShowEditModal(true);
@@ -827,28 +815,58 @@ const Customers: React.FC<PageProps> = () => {
     if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
     if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
     if (!editingContact || !formPhone) { toast.warning('WhatsApp phone is required'); return; }
-    if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
+    if (formPhone && !isValidPhone(contactPhoneE164(formPhone, formCountryCode))) {
       toast.warning('Invalid phone number format'); return;
     }
     const dup = checkDuplicate(formPhone, '', editingContact.contactId);
-    if (dup) { toast.warning(dup); return; }
+    if (dup) {
+      setDuplicateContact(findDuplicateContact(formPhone, '', editingContact.contactId));
+      setFormError(dup);
+      toast.warning(dup);
+      return;
+    }
     const missingAddress = ADDRESS_FIELDS.find(spec => spec.required && !String(formAddress[spec.key] || '').trim());
     if (missingAddress || !addressComplete(formAddress)) { toast.warning(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`); document.getElementById(`contact-${missingAddress?.key || 'country'}`)?.focus(); return; }
-    const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
+    const fullPhone = contactPhoneE164(formPhone, formCountryCode);
     setSaving(true);
     try {
-      const result = await api.updateContact(editingContact.contactId, {
-        name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
+      setFormError('');
+      setDuplicateContact(null);
+      const result = await api.updateContactResult(editingContact.contactId, {
+        name: formName.trim(), phone: fullPhone || undefined,
+        // Hidden email and Meta identifiers are preserved by omitting them, not rewriting stale values.
+        profileUsername: formProfileUsername.trim() || undefined,
+        companyName: formCompanyName.trim() || undefined,
+        designation: formDesignation.trim() || undefined,
         ...addressFieldsForPayload(),
-        gstin: formGstin || undefined,
-        companyName: formCompanyName || undefined,
-        designation: formDesignation || undefined,
       } as any);
-      if (result) { toast.success('Customer updated'); setShowEditModal(false); setEditingContact(null); resetForm(); await loadContacts(); }
-      else toast.error('Failed to update contact');
-    } catch { toast.error('Failed to update contact'); }
-    finally { setSaving(false); }
+      if (result.ok && result.data) {
+        toast.success('Customer updated');
+        setShowEditModal(false);
+        setEditingContact(null);
+        resetForm();
+        await loadContacts();
+      } else if (!result.ok) {
+        // The backend remains the identity authority if the local list is stale.
+        if (result.failure.status === 409) {
+          const existingId = result.failure.details?.existingContactId;
+          const exact = typeof existingId === 'string' ? await api.getContact(existingId) : null;
+          const existing = exact || await resolveDuplicateContact(formPhone, '');
+          if (existing && existing.contactId !== editingContact.contactId) setDuplicateContact(existing);
+        }
+        const message = result.failure.message || 'Customer update was refused.';
+        setFormError(message);
+        toast.error(message);
+      } else {
+        const message = 'The update returned no customer record. Refresh before editing again.';
+        setFormError(message);
+        toast.warning(message);
+      }
+    } catch {
+      const message = 'Could not update customer. Check your connection and try again.';
+      setFormError(message);
+      toast.error(message);
+    } finally { setSaving(false); }
   };
 
   // Archive is a distinct non-destructive state. It hides the canonical customer from daily
@@ -1094,35 +1112,14 @@ const Customers: React.FC<PageProps> = () => {
         <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
         <div className="contacts-phone-control">
           <div className="contacts-country-code">
-            <input
-              type="text"
-              value={showCountryDropdown ? countrySearch : formCountryCode}
-              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); setFormError(''); }}
-              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
-              onBlur={(e) => {
-                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
-                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
-                setShowCountryDropdown(false);
-              }}
-              placeholder="Code"
-              aria-label="Phone country code"
-              style={{ ...S.input, width: '100%', cursor: 'pointer' }}
-              onFocusCapture={focusStyle}
-              onBlurCapture={blurStyle}
-            />
-            {showCountryDropdown && (
-              <div data-country-dropdown tabIndex={-1} className="contacts-country-dropdown">
-                {COUNTRY_CODES
-                  .filter(cc => cc.code.includes(countrySearch) || cc.country.toLowerCase().includes(countrySearch.toLowerCase()))
-                  .map(cc => (
-                    <div key={cc.code} tabIndex={-1}
-                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); setFormError(''); }}
-                      className="contacts-country-option">
-                      {cc.code} {cc.country}
-                    </div>
-                  ))}
-              </div>
-            )}
+            <select id="contact-country-code" aria-label="WhatsApp country calling code"
+              style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
+              onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); }}
+              onFocus={focusStyle} onBlur={blurStyle}>
+              {COUNTRY_CODES.map(cc => (
+                <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
+              ))}
+            </select>
           </div>
           <input id="contact-phone" style={S.input} value={formPhone}
             onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); }}
@@ -1194,6 +1191,30 @@ const Customers: React.FC<PageProps> = () => {
     </div>
   </div>
 );
+
+  const duplicateContactCard = duplicateContact ? (
+    <div className="contacts-duplicate-card">
+      <div>
+        <span>{duplicateContact.archivedAt ? 'Existing archived customer' : 'Existing customer'}</span>
+        <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
+        <small>
+          {duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}
+          {duplicateContact.archivedAt ? ' · archived' : ''}
+        </small>
+      </div>
+      <div className="contacts-duplicate-actions">
+        <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
+        {duplicateContact.archivedAt ? (
+          <button type="button" onClick={restoreExistingDuplicate} disabled={restoringDuplicate}
+            className="contacts-primary-action">
+            {restoringDuplicate ? 'Restoring...' : 'Restore customer'}
+          </button>
+        ) : (
+          <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -1627,33 +1648,7 @@ const Customers: React.FC<PageProps> = () => {
             </div>
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
-            {duplicateContact && (
-              <div className="contacts-duplicate-card">
-                <div>
-                  <span>{duplicateContact.archivedAt ? 'Existing archived customer' : 'Existing customer'}</span>
-                  <strong>{duplicateContact.name || 'Unnamed customer'}</strong>
-                  <small>
-                    {duplicateContact.phone || duplicateContact.email || duplicateContact.contactId}
-                    {duplicateContact.archivedAt ? ' · archived' : ''}
-                  </small>
-                </div>
-                <div className="contacts-duplicate-actions">
-                  <button type="button" onClick={openExistingDuplicate} className="contacts-secondary-action">Open existing customer</button>
-                  {duplicateContact.archivedAt ? (
-                    <button
-                      type="button"
-                      onClick={restoreExistingDuplicate}
-                      disabled={restoringDuplicate}
-                      className="contacts-primary-action"
-                    >
-                      {restoringDuplicate ? 'Restoring...' : 'Restore customer'}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
-                  )}
-                </div>
-              </div>
-            )}
+            {duplicateContactCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
@@ -1671,6 +1666,8 @@ const Customers: React.FC<PageProps> = () => {
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
+            {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
+            {duplicateContactCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>

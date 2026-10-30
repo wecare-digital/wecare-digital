@@ -1199,30 +1199,16 @@
   position: relative;
   min-width: 0;
 }
-.workspace-shell .contacts-auth-modal .contacts-country-dropdown {
-  position: absolute;
-  z-index: 1400;
-  top: calc(100% + 6px);
-  left: 0;
-  width: 240px;
-  max-width: calc(100vw - 64px);
-  max-height: 220px;
-  overflow-y: auto;
-  border: 1px solid var(--public-hairline, #e6e9e5);
-  border-top: 4px solid var(--public-brand-lime, #d1f470);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 16px 38px rgba(26,58,42,.14);
-}
-.workspace-shell .contacts-auth-modal .contacts-country-option {
-  padding: 10px 12px;
-  color: #1a3a2a;
-  font-size: 12px;
+.workspace-shell .contacts-auth-modal .contacts-country-code select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
-.workspace-shell .contacts-auth-modal .contacts-country-option:hover {
-  background: #f8faf3;
-}
+
 .workspace-shell .contacts-auth-modal .contacts-modal-error {
   flex: 0 0 auto;
   margin: 0 24px 4px;
@@ -1361,5 +1347,39 @@
   .workspace-shell .contacts-auth-modal .contacts-modal-actions,
   .workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Collect customer editor is shared across the Create and Customers tabs; keep its message
+   visible above mobile bottom-sheet actions without overflowing the phone viewport. */
+.workspace-shell .payments-shell .pf-customer-editor .pf-modal-error {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #b42318;
+  border-radius: 8px;
+  background: #fff4f2;
+  color: #8a1c12;
+  font-size: var(--public-supporting-size, 16px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .workspace-shell .payments-shell .pf-modal-overlay {
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+  }
+  .workspace-shell .payments-shell .pf-customer-editor {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
