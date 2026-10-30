@@ -37,6 +37,8 @@ lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 
 SCHEDULED_TABLE = os.environ.get('SCHEDULED_TABLE', 'stack-wecare-digital-ScheduledMessagesTable')
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
 OUTBOUND_LAMBDA = os.environ.get('OUTBOUND_LAMBDA', 'wecare-outbound-whatsapp:live')
+VAULT_SCHEDULE_LAMBDA = 'wecare-secure-files:live'
+VAULT_SCHEDULE_KIND = 'VAULT_ACTION_V1'
 
 # CORS headers provided by lambda_utils.response.cors_headers(origin)
 
@@ -416,6 +418,39 @@ def _dispatch_outcome(response):
     return 'DISPATCH_UNKNOWN', 'OUTBOUND_SEND_UNRESOLVED'
 
 
+def _dispatch_vault_schedule(item, token):
+    """Never submit Vault payment templates to the generic sender.
+
+    The secure-files Lambda uses this one-use token to revalidate the owner,
+    current paid state, live offer price and permitted action before sending.
+    """
+    try:
+        response = lambda_client.invoke(
+            FunctionName=VAULT_SCHEDULE_LAMBDA,
+            InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'internalAction': 'dispatchScheduledVaultAction',
+                'scheduleId': str(item.get('id') or ''),
+                'dispatchToken': token,
+            }).encode('utf-8'),
+        )
+        if response.get('StatusCode') != 200 or response.get('FunctionError'):
+            return 'DISPATCH_UNKNOWN', 'VAULT_INVOKE_UNRESOLVED'
+        data = json.loads(response['Payload'].read() or b'{}')
+        if not isinstance(data, dict):
+            return 'DISPATCH_UNKNOWN', 'VAULT_RESPONSE_UNRESOLVED'
+        outcome = data.get('result')
+        if outcome == 'SENT':
+            return 'SENT', ''
+        if outcome == 'FAILED':
+            # A terminal domain refusal; the schedule must not retry.
+            return 'FAILED', str(data.get('reason') or 'VAULT_ACTION_REFUSED')[:80]
+        return 'DISPATCH_UNKNOWN', 'VAULT_SEND_UNCONFIRMED'
+    except Exception:
+        # An invoke timeout may happen AFTER WhatsApp accepted the send.
+        return 'DISPATCH_UNKNOWN', 'VAULT_INVOKE_UNRESOLVED'
+
+
 def _process_due_messages(request_id: str) -> Dict[str, Any]:
     """Claim pending rows once; an interrupted/ambiguous dispatch requires staff review."""
     table = dynamodb.Table(SCHEDULED_TABLE)
@@ -458,7 +493,10 @@ def _process_due_messages(request_id: str) -> Dict[str, Any]:
                     continue
                 raise
             counts['processed'] += 1
-            if not item.get('contactId') or not item.get('templateName'):
+            if item.get('kind') == VAULT_SCHEDULE_KIND:
+                # Vault is owner-bound and payment-gated; never use templateParams here.
+                outcome, reason = _dispatch_vault_schedule(item, token)
+            elif not item.get('contactId') or not item.get('templateName'):
                 outcome, reason = 'FAILED', 'MISSING_RECIPIENT_OR_TEMPLATE'
             else:
                 # The stored envelope is nested (button indexes, coordinates), so its numbers come
