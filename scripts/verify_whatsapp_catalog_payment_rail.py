@@ -835,6 +835,62 @@ def run(root: Path) -> int:
           len(replies) == 1 and "Nothing has been charged" in str(replies[0].get("content")),
           [r.get("content") or r.get("interactiveType") for r in replies])
 
+
+    # Exercise the signed-off native and website preflight boundaries with the
+    # flag ON. These are full production handlers against moto, not string tests.
+    # The request must be refused BEFORE any provider attempt or payment message.
+    if short_mode:
+        short_buyer = shop.customer(39)
+        for label, lines in (
+                ("two_units", [{"product_retailer_id": tee, "quantity": 2}]),
+                ("two_products", [{"product_retailer_id": tee, "quantity": 1},
+                                  {"product_retailer_id": kit, "quantity": 1}])):
+            before = W.mark()
+            deliver(order_event(build, short_buyer["digits"], "wamid.HERMETIC.SHORT." + label, lines))
+            calls = W.since(before, "invocations")
+            replies = [_outbound_body(c) for c in calls if c["function"] == "wecare-outbound-whatsapp"]
+            check("SHORT", "native Meta " + label + ": rejects full cart before payment",
+                  len(replies) == 1 and "Short checkout accepts one item" in
+                  str(replies[0].get("content")) and not _checkout_invokes(calls)
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  [str(reply.get("content", ""))[:75] for reply in replies])
+
+        from lambda_utils import customer_auth as _short_auth
+        who = _short_auth.CustomerIdentity(
+            customer_id=short_buyer["sub"], subject=short_buyer["sub"],
+            phone=short_buyer["phone"])
+        for action, callback in (("prepare", checkout._website_prepare),
+                                 ("create", checkout._create)):
+            for label, lines in (
+                    ("two_units", [{"quantity": 2}]),
+                    ("two_lines", [{"quantity": 1}, {"quantity": 1}])):
+                before = W.mark()
+                reply = callback(who, {"action": action,
+                                       "requestKey": "short-denial",
+                                       "lineItems": lines}, "https://wecare.digital")
+                body = json.loads(reply.get("body") or "{}")
+                check("SHORT", action + " " + label + ": refuses before price or attempt",
+                      reply.get("statusCode") == 409
+                      and body.get("error") == "SHORT_CHECKOUT_ONE_ITEM"
+                      and not _attempts_for(short_buyer["sub"])
+                      and not _pay_sends(W.since(before, "meta_sends")),
+                      {"status": reply.get("statusCode"), "error": body.get("error")})
+
+        for label, lines in (
+                ("two_units", [{"productId": shop.kit, "variantId": "KIT1", "quantity": 2}]),
+                ("two_lines", [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1},
+                               {"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}])):
+            before = W.mark()
+            reply = checkout.handler({
+                "internalAction": "prepareNativeCart", "lines": lines,
+                "contactId": short_buyer["contactId"], "senderPhone": short_buyer["digits"],
+                "phoneNumberId": PHONE_ID_1}, FakeContext("wecare-checkout"))
+            check("SHORT", "internal native " + label + ": refuses before attempt",
+                  reply.get("outcome") == "NATIVE_CART_SHORT_ONLY"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")), reply)
+
     # ── 3. Meta redelivers the same webhook ────────────────────────────────────────────────────
     print("\n== 3. duplicate webhook delivery (same wamid)")
     mark = W.mark()
@@ -2048,8 +2104,9 @@ def run(root: Path) -> int:
     lena = shop.customer(12)
     for label, lines_in, expected in (
             ("a Vault line mixed with goods", [service_line(service_requests.VAULT), {"product_retailer_id": tee, "quantity": 1}],
-             "ordered on its own"),
-            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)], "ordered on its own"),
+             "Short checkout accepts one item" if short_mode else "ordered on its own"),
+            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)],
+             "Short checkout accepts one item" if short_mode else "ordered on its own"),
             ("Submit Request (not sold on WhatsApp)", [service_line(service_requests.SUBMIT_REQUEST)],
              "cannot be bought from the WhatsApp catalog")):
         mark = W.mark()
