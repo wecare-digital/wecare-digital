@@ -93,6 +93,19 @@ published version has that hash. Keep the code-build source SHA, review, and
 operator-approved manifest separate; continue requiring protected staging,
 provider parity, Meta QA, and release-owner approval before changing :live.
 
+## ON/OFF payment-rail regression before live activation
+
+The payment-safe CI must now run the **same production handler graph** with
+`SHORT_COMMERCE_PART1_ENABLED` both OFF and ON. OFF retains the historical
+multi-quantity payment checks. ON uses one known product, quantity one, and
+checks server-priced ORDER_DETAILS, signed simulated Razorpay capture, the
+idempotent paid order, statutory invoice and WhatsApp receipt. ON also verifies
+a two-product cart and a quantity-two cart create no payment attempt or payable
+WhatsApp message. This is a **hermetic** provider simulation: no real customer
+payment, Meta send or cloud write occurs. It cannot replace the authorized
+payment capture, published Meta Flow/handset QA or operator-approved release
+manifest required elsewhere in this document.
+
 ## Verified at audit time
 
 - GitHub PRs #1964 and #1965 are merged; branch push CI passed on
