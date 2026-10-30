@@ -99,6 +99,7 @@ ROUTES = [
     # WhatsApp is not linked yet), and resend the Access Vault link for a paid file.
     ("POST", "/secure-files/{fileId}/request-payment"),
     ("POST", "/secure-files/{fileId}/send-offer"),
+    ("GET", "/secure-files/{fileId}/message-log"),
     ("POST", "/secure-files/{fileId}/send-access"),
     # customer surface (customer-pool token, checked inside the handler)
     ("GET", "/secure-files/mine"),
@@ -185,6 +186,17 @@ def policy_document() -> dict:
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-MessagesTable",
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ContactsTable",
                 ],
+            },
+            {
+                "Sid": "ReadVerifiedWhatsAppMessageStatus",
+                "Effect": "Allow",
+                # ONLY status lookups by server-recorded provider message IDs;
+                # never permit a scan or a customer-supplied phone search.
+                "Action": ["dynamodb:Query"],
+                "Resource": (
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-MessagesTable/index/whatsappMessageId-index"
+                ),
             },
             {
                 "Sid": "DropDocsRequestRows",
