@@ -424,7 +424,12 @@ def test_manual_workspace_vault_offer_precedes_customer_payment():
     assert preview.index("name: 'Paid invoice'") < preview.index("name: 'Access Vault'")
     assert page.count("api.sendSecureFileOffer(") == 1
     assert documents.count("api.sendSecureFileOffer(") == 3
-    assert "api.requestSecureFilePayment(" not in page
+    # Direct staff payment is an explicitly confirmed action, never automatic on upload.
+    assert "api.requestSecureFilePayment( target.fileId )" in page
+    assert "Send Review & Pay now" in page
+    assert "Send payment request" in page
+    upload = page.split("const handleUpload = async () => {", 1)[1].split("const handleRevoke", 1)[0]
+    assert "requestSecureFilePayment" not in upload
     assert "api.requestSecureFilePayment(" not in documents
     assert "secureFileAction( fileId, 'send-offer' )" in api
     assert "secureFileAction( fileId, 'request-payment' )" in api
@@ -456,7 +461,8 @@ def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
     assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
     assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
     assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 4" in delivery
-    assert "Review & send Unlock Vault" in ui
+    assert "Send Unlock Vault now" in ui
+    assert "Send Unlock Vault on WhatsApp?" in ui
     assert "validOfferBodyText" in ui
     assert "api.sendSecureFileOffer( target.fileId, variable )" in ui
     assert "Manual Vault stage 1" in template_registry
