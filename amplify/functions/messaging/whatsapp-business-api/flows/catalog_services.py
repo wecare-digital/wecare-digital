@@ -477,6 +477,17 @@ def _send_offer(event, client, db, keys, contacts, now):
     if (file.get('status') != 'active' or file.get('ownerCustomerId') != owner
             or file.get('ownerPhone') != owner_phone):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
+    # {{1}} is independently authored staff text, never the S3 object name.
+    # Missing means an older Documents caller: preserve its existing automatic fallback.
+    if 'offerBodyText' in event:
+        offer_body_text = event.get('offerBodyText')
+        if (not isinstance(offer_body_text, str) or not offer_body_text
+                or len(offer_body_text) > 60
+                or whatsapp_templates.vault_offer_document_name(offer_body_text) != offer_body_text):
+            return {'outcome': 'VAULT_OFFER_TEXT_INVALID'}
+    else:
+        offer_body_text = whatsapp_templates.vault_offer_document_name(
+            file.get('displayName') or 'Document')
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
@@ -506,7 +517,8 @@ def _send_offer(event, client, db, keys, contacts, now):
              'ownerCustomerId': owner, 'phone': phone, 'contactId': contact_id,
              'createdAt': now, 'expiresAt': now + OFFER_TTL_SECONDS, 'fileState': state,
              'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
-             'offerTemplate': whatsapp_templates.VAULT_OFFER.name}
+             'offerTemplate': whatsapp_templates.VAULT_OFFER.name,
+             'offerBodyText': offer_body_text}
     keys.put_item(Item=offer, ConditionExpression='attribute_not_exists(orderId)')
     # No contact id is fine: outbound resolves or creates the contact from the number.
     recipient = {'contactId': contact_id, 'phone': phone,
@@ -516,7 +528,7 @@ def _send_offer(event, client, db, keys, contacts, now):
             client, recipient,
             idempotencyKey='vault-offer:' + token,
             **whatsapp_templates.vault_offer_send_fields(
-                file.get('displayName') or file.get('originalFilename'), token),
+                offer_body_text, token),
         )
     except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
         response = None
