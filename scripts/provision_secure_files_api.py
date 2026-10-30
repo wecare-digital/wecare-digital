@@ -219,7 +219,7 @@ def policy_document() -> dict:
                 "Sid": "VaultScheduledMessages",
                 "Effect": "Allow",
                 "Action": ["dynamodb:GetItem", "dynamodb:PutItem",
-                           "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"],
+                           "dynamodb:UpdateItem"],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ScheduledMessagesTable",
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-SecureFilesTable",
