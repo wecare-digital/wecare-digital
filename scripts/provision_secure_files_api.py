@@ -188,6 +188,17 @@ def policy_document() -> dict:
                 ],
             },
             {
+                "Sid": "ReadNativeVaultPaymentSendId",
+                "Effect": "Allow",
+                # The GSI projects the primary key but not the message ID.
+                # Exact GetItem only; no scans or writes.
+                "Action": ["dynamodb:GetItem"],
+                "Resource": (
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-WhatsAppOutboundTable"
+                ),
+            },
+            {
                 "Sid": "ReadPaidVaultJourneyLogs",
                 "Effect": "Allow",
                 # Read-only GSI/PK queries bound to a verified paid entitlement.
