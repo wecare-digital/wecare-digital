@@ -506,8 +506,8 @@
 .workspace-shell .payments-shell .pf-create-layout {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(440px, .92fr) !important;
-  gap: 32px !important;
+  grid-template-columns: minmax(0, 1.2fr) minmax(390px, .8fr) !important;
+  gap: 28px !important;
   align-items: start;
 }
 .workspace-shell .payments-shell .pf-composer-main,
@@ -561,7 +561,7 @@
 .workspace-shell .payments-shell .pf-live-preview {
   position: sticky !important;
   top: 84px !important;
-  min-height: 640px;
+  min-height: 520px;
   padding: clamp(24px, 2.5vw, 34px) !important;
 }
 .workspace-shell .payments-shell .pf-live-preview-head {
@@ -801,13 +801,8 @@
 }
 @media (max-width: 1100px) {
   .workspace-shell .payments-shell .pf-create-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(380px, .88fr) !important;
-    gap: 26px !important;
-  }
-}
-@media (max-width: 920px) {
-  .workspace-shell .payments-shell .pf-create-layout {
     grid-template-columns: 1fr !important;
+    gap: 24px !important;
   }
   .workspace-shell .payments-shell .pf-live-preview {
     position: static !important;
@@ -830,6 +825,16 @@
   .workspace-shell .payments-shell .default-items-panel {
     border-radius: 20px !important;
   }
+  .workspace-shell .payments-shell .pf-composer-card,
+  .workspace-shell .payments-shell .pf-live-preview {
+    padding: 20px !important;
+  }
+  .workspace-shell .payments-shell .pf-address-field-grid {
+    grid-template-columns: 1fr;
+  }
+  .workspace-shell .payments-shell .pf-preview-empty {
+    min-height: 200px;
+  }
   .workspace-shell .payments-shell .default-items-table {
     min-width: 820px;
   }
@@ -839,7 +844,7 @@
 /* Payments hierarchy polish: compact context, coherent request card, denser data table. */
 .workspace-shell .payments-shell .pf-context-grid {
   display: grid;
-  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 22px;
 }
@@ -856,10 +861,25 @@
 .workspace-shell .payments-shell .pf-context-grid .pf-customer-summary {
   justify-content: space-between;
 }
-.workspace-shell .payments-shell .pf-context-grid .pf-customer-summary > div:first-child,
-.workspace-shell .payments-shell .pf-context-grid .pf-delivery-summary,
-.workspace-shell .payments-shell .pf-context-grid .pf-address-warning {
+.workspace-shell .payments-shell .pf-context-copy {
   min-width: 0;
+  flex: 1 1 auto;
+}
+.workspace-shell .payments-shell .pf-context-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-shell .payments-shell .pf-context-actions .btn {
+  min-height: 44px;
+}
+.workspace-shell .payments-shell .pf-address-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
 }
 .workspace-shell .payments-shell .pf-context-grid .pf-customer-summary strong,
 .workspace-shell .payments-shell .pf-context-grid .pf-customer-summary span:not(.pf-context-label) {
@@ -993,6 +1013,20 @@
   }
   .workspace-shell .payments-shell .pf-payment-meta {
     gap: 1px;
+  }
+  .workspace-shell .payments-shell .pf-context-grid .pf-customer-summary,
+  .workspace-shell .payments-shell .pf-context-grid .pf-address-warning,
+  .workspace-shell .payments-shell .pf-context-grid .pf-delivery-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workspace-shell .payments-shell .pf-context-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .workspace-shell .payments-shell .pf-context-actions .btn {
+    width: 100%;
   }
   .workspace-shell .payments-shell .pf-payment-request-card .pf-composer-actions {
     display: grid;
