@@ -74,9 +74,11 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
                         accepted.get('mode') == 'DRY_RUN' or accepted.get('status') == 'dry_run'):
                     status = 'SEND_REJECTED'
                 else:
-                    status = 'ACCEPTED'
                     if isinstance(accepted, dict):
                         whatsapp_message_id = str(accepted.get('whatsappMessageId') or '')
+                    # The provider WAMID is required for status webhook reconciliation.
+                    # A 200 with no WAMID is uncertain, never proof of Meta acceptance.
+                    status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'
             elif code in (400, 401, 403, 404, 413, 415, 422):
                 status = 'SEND_REJECTED'
     except Exception:
