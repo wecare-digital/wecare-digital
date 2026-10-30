@@ -11,7 +11,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -58,7 +57,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO
         title="Service"
         description="Vault delivery and voluntary contribution operations."
@@ -181,7 +180,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
           .vault-switch button{padding-inline:11px}
         }
       `}</style>
-    </Layout>
+    </>
   );
 };
 
