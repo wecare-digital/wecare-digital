@@ -573,76 +573,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 .sf-loading strong{font-size:var(--public-card-size);line-height:1.2;color:var(--public-heading)}
                 .sf-loading>span:last-child{font-size:var(--public-supporting-size);line-height:1.45;color:var(--public-muted)}
-                /* The site's section-heading rung, identical to .home-close-title. Now on an <h2>
-                   rather than an <h1> (the hero owns the page's one h1); the rule is unchanged
-                   because it styles by CLASS, not by tag, so the rung is pixel-identical. */
-                .sf-title{
-                  margin:0 0 16px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);
-                  line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading);
-                }
-                /* The one body level. */
-                .sf-lead{
-                  margin:0 0 28px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);
-                  letter-spacing:var(--public-body-tracking);color:var(--public-body);
-                }
-
                 .sf-form{display:block}
-
-                /* Matched to .si-label on /account/sign-in: 14px/700. Was weight 600 here, which
-                   is a rung this site does not use for a field label. */
-                .sf-label{
-                  display:block;margin:0 0 8px;font-size:14px;font-weight:700;
-                  letter-spacing:-.1px;color:var(--public-brand-green);
-                }
-                /* Matched to .si-hint on /account/sign-in, so the one line of guidance under the
-                   number field reads the same on both sign-in surfaces. */
-                .sf-hint{
-                  margin:0 0 20px;font-size:16px;line-height:1.55;color:var(--public-muted);
-                }
-                /* THE CODE FIELD NOW DRESSES LIKE .si-input, byte for byte: 52px (matching the
-                   pill below it, so the field and the button it feeds are the same height), 1px
-                   #e5e7eb static hairline, 10px radius, 17px type.
-                   IT WAS 2px rgba(26,58,42,.18) ON A 12px RADIUS AT 16px - a border, radius and
-                   size this site uses nowhere else, which is a large part of why the owner saw the
-                   two sign-in surfaces as different. The WhatsApp number beside it is PhoneField,
-                   which owns its own outline, radius and height and already matches these numbers;
-                   the two controls are styled in two places on purpose.
-                   17px also clears the 16px floor below which iOS Safari zooms the viewport on
-                   focus, which on a one-field form looks like the page jumping. */
-                .sf-input{
-                  width:100%;box-sizing:border-box;min-height:52px;padding:0 16px;
-                  margin:0 0 20px;font-family:inherit;font-size:17px;color:#1a1a1a;
-                  background:#fff;border:1px solid var(--public-hairline);border-radius:999px;
-                  transition:border-color .2s;
-                }
-                .sf-input:focus{outline:none;border-color:var(--public-brand-green)}
-                .sf-input:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;box-shadow:0 0 0 3px rgba(209,244,112,.28)}
-                .sf-input:disabled{opacity:.6}
-                /* NO .sf-input-code RULE ANY MORE. The code field had bespoke 22px/600/centred
-                   type tracked out at .34em, which made the second stage look like a different
-                   control from the first - half of exactly what the owner reported. The reference
-                   surface settles it: /account/sign-in's code field is a plain .si-input, so plain
-                   is both the consistent answer AND the site-matching one. The onChange digit-strip
-                   and slice(0,6) stay - that is input hygiene, not styling. */
-
-
-                /* The resend stacks under the verify button rather than sitting beside it: at
-                   280px two 52px pills cannot share a row without wrapping mid-label, and a
-                   wrapped button row reads as a layout fault. Stacked is the same at every
-                   width, and it matches /account/sign-in/. */
-                .sf-resend{margin-top:12px}
-                /* min-height:44px, NOT padding alone. padding:10px on a 15px line measured 38px
-                   tall in the built export - under the 44px floor this site holds everything
-                   else to, and only passing on mobile because tokens.css forces 44px on every
-                   button below 768px. A tap target should not depend on a breakpoint. */
-                .sf-quiet{
-                  display:flex;align-items:center;justify-content:center;
-                  width:100%;min-height:44px;margin-top:12px;padding:10px;
-                  border:0;background:transparent;color:rgba(26,58,42,.72);
-                  font-family:inherit;font-size:15px;cursor:pointer;
-                }
-                .sf-quiet:hover{color:var(--public-brand-green);text-decoration:underline}
-                .sf-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
                 /* The auth-inspired outer card owns the surface; the exact file is its content,
                    not a second nested card. */
@@ -714,7 +645,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}
                 }
                 @media(prefers-reduced-motion:reduce){
-                  .sf-input,.sf-file-action-button{transition:none}
+                  .sf-file-action-button{transition:none}
                   .sf-file-action-button:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
