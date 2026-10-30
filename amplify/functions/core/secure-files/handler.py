@@ -1829,15 +1829,18 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
     actor = str((event.get("_auth") or {}).get("username", "staff"))[:128]
     ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
     outcome = "VAULT_LINK_SENT" if ok else "VAULT_LINK_NOT_SENT"
+    # Only a confirmed provider ID can later be joined to webhook delivery events.
+    wamid = str(detail) if ok and str(detail).startswith("wamid.") and len(str(detail)) <= 512 else ""
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": file_id},
             UpdateExpression=("SET lastAccessSentBy=:by, lastAccessSentAt=:at, "
-                              "lastAccessSendOutcome=:outcome"),
+                              "lastAccessSendOutcome=:outcome, lastAccessMessageId=:wamid"),
             ExpressionAttributeValues={
                 ":by": actor,
                 ":at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 ":outcome": outcome,
+                ":wamid": wamid,
             },
         )
     except Exception as exc:  # noqa: BLE001 - send result stands even if audit enrichment fails
