@@ -236,7 +236,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         .checkout-profile-grid .span-2{grid-column:1/-1}
         .checkout-profile-grid label{
           display:flex;flex-direction:column;gap:7px;min-width:0;color:var(--public-text);
-          font-size:14px;font-weight:600;
+          font-size:var(--public-supporting-size);font-weight:600;
         }
         .checkout-profile-grid label>span{min-width:0}
         .checkout-profile-grid input{
