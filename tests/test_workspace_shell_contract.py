@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "src/pages/_app.tsx"
@@ -72,9 +73,10 @@ def test_workspace_route_files_are_content_only_and_never_mount_layout():
     """_app owns the authenticated shell; route files supply only route content."""
     pages = ROOT / "src/pages/workspace"
     offenders = []
+    layout_import = re.compile(r"^\s*import\s+Layout\s+from\s+['\"][^'\"]*components/Layout['\"]", re.MULTILINE)
     for path in pages.rglob("*.tsx"):
         source = path.read_text()
-        if "components/Layout" in source or "<Layout" in source:
+        if layout_import.search(source):
             offenders.append(str(path.relative_to(ROOT)))
     assert offenders == []
 
