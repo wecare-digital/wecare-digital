@@ -416,8 +416,10 @@ def test_manual_workspace_vault_offer_precedes_customer_payment():
 
     assert "wecare_vault_request_ready" in page
     assert "Unlock Vault" in page
-    assert page.index("<strong>Vault ready</strong>") < page.index("<strong>Review &amp; Pay</strong>")
-    assert page.index("<strong>Receipt · Leave Review</strong>") < page.index("<strong>Access Vault</strong>")
+    preview = (ROOT / "src/components/workspace/service/VaultJourneyPreview.tsx").read_text()
+    assert preview.index("name: 'Vault ready'") < preview.index("name: 'Review & Pay'")
+    assert preview.index("name: 'Order updates'") < preview.index("name: 'Paid invoice'")
+    assert preview.index("name: 'Paid invoice'") < preview.index("name: 'Access Vault'")
     assert page.count("api.sendSecureFileOffer(") == 2
     assert documents.count("api.sendSecureFileOffer(") == 3
     assert "api.requestSecureFilePayment(" not in page
@@ -452,17 +454,21 @@ def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
     assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
     assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
     assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 2" in delivery
-    assert "Vault ready → Review &amp; Pay" in ui
+    assert "Vault ready" in ui
+    assert "validOfferBodyText" in ui
+    assert "api.sendSecureFileOffer( target.fileId, variable )" in ui
     assert "Manual Vault stage 1" in template_registry
 
 
 def test_workspace_vault_shows_download_template_variable_mapping():
     page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
-    assert "wecare_default_download" in page
-    assert "Template variable {'{{1}}'}" in page
-    assert "Copy {'{{1}}'}" in page
+    preview = (ROOT / "src/components/workspace/service/VaultJourneyPreview.tsx").read_text()
+    assert "wecare_default_download" in preview
+    assert "URL {'{{1}}'}" in preview
+    assert "offerBodyText" in page
+    assert "Body {'{{1}}'}" in preview
     assert "handleCopyId( reviewFile )" in page
-    assert "Staff do not type or override it." in page
+    assert "Server-created file ID after publish" in preview
 
 
 def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
@@ -541,8 +547,9 @@ def test_workspace_vault_exposes_authoritative_private_storage_location():
     assert "export interface SecureFileStorage" in client
     assert "storage?: SecureFileStorage" in client
 
-    assert "Private Vault source" in page
-    assert "Delivery renditions" in page
-    assert "s3://${ storage.bucket }/${ storage.sourcePrefix }" in page
-    assert "s3://${ storage.bucket }/${ storage.deliveryPrefix }" in page
-    assert "Raw per-file S3 keys are not exposed to Workspace." in page
+    # Source prefixes stay server-only; the client sees just the system UUID filename.
+    preview = (ROOT / "src/components/workspace/service/VaultJourneyPreview.tsx").read_text()
+    assert "wecare-digital-<uuid>" in preview
+    assert "Generated stored filename" in preview
+    assert "s3Key={ " not in page
+    assert "storage.sourcePrefix" not in page
