@@ -502,44 +502,6 @@ function loadRazorpaySdk (): Promise<boolean> {
  * the reviewed amount and the Razorpay amount are the same number the browser never computes.
  */
 
-/**
- * THE CONTRIBUTION ROW CHOOSES AN AMOUNT, IT DOES NOT COUNT COPIES.
- *
- * A stepper labelled "Qty" is the wrong control for a contribution: two copies of a Rs.250
- * contribution is not a Rs.500 contribution, it is a basket the server refuses as two
- * contributions. So the row offers the three amounts instead of a count.
- *
- * A NATIVE `<select>` ON PURPOSE, AND IT REPLACED A FREE-TEXT FIELD (owner model change,
- * 2026-10-04). The previous revision held a draft string, committed on blur or Enter, validated
- * against Rs.10-Rs.1,00,000 bounds, and rendered a help line on refusal - all of it to keep an
- * arbitrary keystroke from becoming money, because `min`/`max`/`step` on a number input are not
- * enforced while typing or on paste. A control that can only emit one of three committed values
- * deletes that whole apparatus: there is no draft, no commit moment, no rejection and no help
- * text, because there is no invalid value to produce.
- *
- * `setContribution` still SETS rather than increments, so changing the amount replaces the line
- * rather than adding a second one.
- */
-function ContributionAmount (
-  { item }: { item: CartItem; onCommitted: () => void },
-): React.ReactElement {
-  // A contribution is a single, one-time product with ONE fixed amount, so there is no choice to
-  // make: the amount-chooser dropdown is replaced by static text (owner request). The figure is
-  // resolved from CONTRIBUTION_CHOICES by the line's variantId so it stays catalogue-accurate,
-  // with the item's own name (which carries the amount) as the fallback.
-  const choice = CONTRIBUTION_CHOICES.find(
-    c => c.variantId.toLowerCase() === String( item.variantId || '' ).trim().toLowerCase(),
-  );
-  const amountLabel = choice ? `\u20B9${ choice.rupees }` : ( item.name || '\u20B9250' );
-
-  return (
-    <>
-      <span className="cart-qty-label">Contribute amount</span>
-      <span className="cart-amount-static">{ amountLabel }</span>
-    </>
-  );
-}
-
 function RedemptionPanel (): React.ReactElement {
   // THE ONE, ALWAYS-ON DISCOUNT. Delight is not a code the customer types and not a staff-set
   // promo: it is a fixed owner policy applied SERVER-SIDE at checkout on every order. There is no
@@ -1743,9 +1705,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
-                      { isContributionItem( item )
-                        ? <ContributionAmount item={ item } onCommitted={ () => setItems( readCart() ) } />
-                        : null }
                       <button
                         className="cart-remove"
                         type="button"
