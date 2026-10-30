@@ -37,7 +37,7 @@ type ProfileGroup = { title: string; note: string; rows: [ string, string ][] };
  * The canonical structured address wins; an older address is shown only when no canonical
  * one exists, and is labelled as not yet confirmed by the customer.
  */
-function profileGroups ( contact: api.Contact, fallbackPhone: string ): ProfileGroup[] {
+function profileGroups ( contact: api.Contact, fallbackPhone: string, whatsAppName = '' ): ProfileGroup[] {
     const dash = ( value?: string ) => ( value && value.trim() ) || '—';
     const canonical = contact.checkoutDeliveryAddress ? formatAddress( contact.checkoutDeliveryAddress ) : '';
     const anyAddress = canonical || contactDeliveryAddress( contact );
@@ -49,6 +49,7 @@ function profileGroups ( contact: api.Contact, fallbackPhone: string ): ProfileG
             rows: [
                 [ 'Customer ID', dash( contact.customerDisplayId || contact.customerUuid ) ],
                 [ 'Phone', dash( contact.phone || fallbackPhone ) ],
+                [ 'WhatsApp display name', dash( whatsAppName ) ],
                 [ 'Meta WhatsApp username', contact.username ? `@${contact.username.replace( /^@/, '' )}` : '—' ],
                 [ 'WhatsApp BSUID', contact.bsuid ? `${contact.bsuid.slice( 0, 8 )}…` : '—' ],
             ],
@@ -112,8 +113,8 @@ const GatedMedia: React.FC<{ messageId?: string; url: string; kind: 'image' | 'v
     };
 
 const WABAS = [
-    { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
-    { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
+    { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display, metaPhoneId: WHATSAPP_PHONES.primary.metaPhoneId },
+    { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display, metaPhoneId: WHATSAPP_PHONES.secondary.metaPhoneId },
 ];
 
 // The media picker's accept list: every WhatsApp-supported MIME from WA_ACCEPT_STRING
@@ -176,6 +177,30 @@ const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
 const WABA_OPTIONS: SelectOption[] = WABAS.map(
     w => ( { value: w.id, label: `${ w.name } (${ w.display })` } )
 );
+// Filter by the receiving WABA independently of the outbound Send from chooser.
+// Both accounts are visible by default. Older rows can use a Meta id or phone.
+const WABA_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'ALL', label: 'Both WhatsApp accounts' },
+    ...WABAS.map( w => ( { value: w.id, label: `${ w.name } (${ w.display })` } ) ),
+];
+
+const messageWabaId = ( m: api.Message ): string => {
+    if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
+    const id = m.awsPhoneNumberId || '';
+    const stored = WABAS.find( w => w.id === id || w.metaPhoneId === id );
+    if ( stored ) return stored.id;
+    const receivingDigits = ( m.receivingPhone || '' ).replace( /\D/g, '' );
+    return WABAS.find( w => receivingDigits && w.display.replace( /\D/g, '' ) === receivingDigits )?.id || '';
+};
+const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
+
+// Show a provider-supplied name only when it is not the read API's phone fallback.
+const realWhatsAppName = ( m: api.Message ): string => {
+    if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
+    const name = ( m.senderName || '' ).trim();
+    if ( !name || name.toLowerCase() === 'unknown' || /^[+\d\s()-]+$/.test( name ) ) return '';
+    return name;
+};
 const SMS_TYPE_OPTIONS: SelectOption[] = [
     { value: 'TRANSACTIONAL', label: 'Transactional' },
     { value: 'PROMOTIONAL', label: 'Promotional' },
@@ -270,6 +295,7 @@ interface Conversation {
     contactId: string;
     name: string;
     channels: Set<string>;
+    wabas: Set<string>;
     lastContent: string;
     // Carried so the preview can call prettyMsg instead of keeping a second copy of
     // its logic — a duplicate is how the unsupported label stayed wrong in one place.
@@ -300,6 +326,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const presetChannel = ( channel || '' ).toLowerCase();
     const [ channelFilter, setChannelFilter ] = useState<string>(
         presetChannel && presetChannel in CHANNEL ? presetChannel : 'ALL' );
+    const [ wabaFilter, setWabaFilter ] = useState<string>( 'ALL' );
     const [ search, setSearch ] = useState( '' );
     const [ loading, setLoading ] = useState( true );
     const [ replyText, setReplyText ] = useState( '' );
@@ -399,7 +426,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             const names: Record<string, string> = {};
             const dir: Record<string, api.Contact> = {};
             contacts.forEach( c => {
-                names[ c.contactId ] = c.name || c.phone || c.email || c.contactId;
+                names[ c.contactId ] = c.name || c.email || '';
                 dir[ c.contactId ] = c;
             } );
             setContactNames( names );
@@ -434,6 +461,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         if ( presetChannel || !router.isReady ) return;
         const q = String( router.query.channel || '' ).toLowerCase();
         setChannelFilter( q && q in CHANNEL ? q : 'ALL' );
+        setWabaFilter( 'ALL' );
     }, [ router.isReady, router.query.channel, presetChannel ] );
 
     useEffect( () => {
@@ -538,6 +566,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             const ch = ( m.channel || 'whatsapp' ).toLowerCase();
             if ( channelFilter !== 'ALL' && ch !== channelFilter ) continue;
+            const waba = messageWabaId( m );
+            if ( wabaFilter !== 'ALL' && waba !== wabaFilter ) continue;
             const cid = m.contactId || m.senderPhone || m.receivingPhone || 'unknown';
             const ts = new Date( m.timestamp ).getTime() || 0;
             const existing = map.get( cid );
@@ -545,8 +575,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 map.set( cid, {
                     contactId: cid,
-                    name: contactNames[ cid ] || m.senderName || m.senderPhone || m.receivingPhone || cid,
+                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone || m.receivingPhone || cid,
                     channels: new Set( [ ch ] ),
+                    wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
                     lastType: m.messageType || '',
                     lastTs: ts,
@@ -555,6 +586,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             } else
             {
                 existing.channels.add( ch );
+                if ( waba ) existing.wabas.add( waba );
+                if ( !contactNames[ cid ] && /^[+\d\s()-]+$/.test( existing.name ) && realWhatsAppName( m ) )
+                    existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
                 {
                     existing.lastTs = ts;
@@ -571,7 +605,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             list = list.filter( c => c.name.toLowerCase().includes( q ) || c.lastContent.toLowerCase().includes( q ) );
         }
         return list.sort( ( a, b ) => b.lastTs - a.lastTs );
-    }, [ messages, contactNames, channelFilter, search ] );
+    }, [ messages, contactNames, channelFilter, wabaFilter, search ] );
 
     // Thread for the selected conversation (chronological).
     const thread = useMemo( () => {
@@ -579,11 +613,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => channelFilter === 'ALL' || ( m.channel || 'whatsapp' ).toLowerCase() === channelFilter )
+            .filter( m => wabaFilter === 'ALL' || messageWabaId( m ) === wabaFilter )
             .sort( ( a, b ) => ( new Date( a.timestamp ).getTime() || 0 ) - ( new Date( b.timestamp ).getTime() || 0 ) );
-    }, [ messages, selected, channelFilter ] );
+    }, [ messages, selected, channelFilter, wabaFilter ] );
 
     const selectedConv = conversations.find( c => c.contactId === selected );
     const selectedContact = selected ? contactDir[ selected ] : undefined;
+    const whatsAppName = [ ...thread ].reverse().map( realWhatsAppName ).find( Boolean ) || '';
     const replyChannel = thread.length ? ( thread[ thread.length - 1 ].channel || 'whatsapp' ).toLowerCase() : 'whatsapp';
 
     // Derive the reply target (recipient phone, WABA, contactId) from the thread.
@@ -622,7 +658,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         const w = replyTarget.waba;
         if ( w && WABAS.some( x => x.id === w ) ) setSelectedWaba( w );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ selected ] );
+    }, [ selected, wabaFilter ] );
 
     // The WABA a reply actually goes out on. The thread's own WABA wins, because a
     // reply on the wrong one opens a conversation the customer never started; the
@@ -1098,8 +1134,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                          they waited for the payment batch rather than riding along with the
                          filters. No native select is left in this file. */ }
                     <Select ariaLabel="Channel" value={ channelFilter }
-                        onChange={ v => setChannelFilter( v ) }
+                        onChange={ v => { setChannelFilter( v ); setWabaFilter( 'ALL' ); setSelected( null ); } }
                         options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
+                    { ( channelFilter === 'ALL' || channelFilter === 'whatsapp' ) && (
+                        <Select ariaLabel="WhatsApp business account" value={ wabaFilter }
+                            onChange={ v => { setWabaFilter( v ); if ( v !== 'ALL' ) setChannelFilter( 'whatsapp' ); setSelected( null ); setReplyingTo( null ); } }
+                            options={ WABA_FILTER_OPTIONS } style={ { width: 260 } } />
+                    ) }
                 </div>
 
                 <div className={ `ui-panes ${selected ? 'has-selection' : ''}` }>
@@ -1153,12 +1194,12 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                             <div className="ui-empty">
                                 { channelFilter !== 'ALL' ? (
                                     <>
-                                        No { chMeta( channelFilter ).label } conversations.
+                                        No { wabaFilter !== 'ALL' ? `WhatsApp conversations for ${ wabaDisplay( wabaFilter ) }` : `${ chMeta( channelFilter ).label } conversations` }.
                                         { messages.length > 0 && (
                                             <>
                                                 <br />{ messages.length } message{ messages.length === 1 ? '' : 's' } on other channels.
                                                 <br />
-                                                <button type="button" className="ui-link-btn" onClick={ () => setChannelFilter( 'ALL' ) }>
+                                                <button type="button" className="ui-link-btn" onClick={ () => { setChannelFilter( 'ALL' ); setWabaFilter( 'ALL' ); } }>
                                                     Show all channels
                                                 </button>
                                             </>
@@ -1181,6 +1222,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 const cm = chMeta( ch );
                                                 return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                             } ) }
+                                            { Array.from( c.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
                                         </span>
                                     </div>
                                 </button>
@@ -1218,6 +1260,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             const cm = chMeta( ch );
                                             return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                         } ) }
+                                        { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
@@ -1237,7 +1280,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                         <div style={ { padding: '8px 10px', fontWeight: 700, borderBottom: '1px solid var(--border)' } }>WECARE.DIGITAL customer profile</div>
                                         <div style={ { overflowX: 'auto' } }>
                                             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-                                                { profileGroups( selectedContact, replyTarget.phone ).map( group => (
+                                                { profileGroups( selectedContact, replyTarget.phone, whatsAppName ).map( group => (
                                                     <tbody key={ group.title }>
                                                         <tr>
                                                             <th colSpan={ 2 } scope="colgroup" style={ { textAlign: 'left', padding: '8px 10px 4px', borderBottom: '1px solid var(--border)', fontWeight: 700 } }>
@@ -1286,6 +1329,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             <div key={ m.messageId } className={ `ui-msg ${out ? 'out' : 'in'}` }>
                                                 <div className="ui-msg-bubble">
                                                     <span className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>
+                                                    { messageWabaId( m ) && <span className="ui-badge ui-waba-badge">{ wabaDisplay( messageWabaId( m ) ) }</span> }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
@@ -1342,6 +1386,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                             className="ui-msg-text"
                                                             style={ revoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
                                                         >{ prettyMsg( m.content, m.messageType ) }</span>
+                                                    ) }
+                                                    { ( ( m.messageType || '' ).toLowerCase() === 'unsupported' || ( m.content || '' ).toLowerCase().startsWith( '[unsupported: ' ) ) && (
+                                                        <span className="ui-msg-meta">Meta did not include readable message content; this is not an inbox loading error.</span>
                                                     ) }
                                                     { revoked && (
                                                         // An inferred match is a guess, and an unlabelled guess shown as
@@ -1758,8 +1805,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-conv-time { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-conv-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px; }
         .ui-conv-preview { font-size: var(--text-xs); color: ${colors.textSecondary}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ui-badges { display: flex; gap: 4px; flex-shrink: 0; }
+        .ui-badges { display: flex; gap: 4px; flex-shrink: 1; flex-wrap: wrap; }
         .ui-badge { font-size: var(--text-xs); font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
+        .ui-waba-badge { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-muted); }
         .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; }
         .ui-thread-head { padding: 12px 16px; border-bottom: 1px solid ${colors.border}; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .ui-back { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
