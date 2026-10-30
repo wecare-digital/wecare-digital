@@ -371,6 +371,14 @@ export default function OrdersPage (): React.ReactElement {
   const [ loadingMore, setLoadingMore ] = useState( false );
   const [ moreFailed, setMoreFailed ] = useState( false );
   const [ profileAction, setProfileAction ] = useState<'idle' | 'busy' | 'sent' | 'failed'>( 'idle' );
+
+  // Public /orders is outside the authenticated ToastProvider. Keep the feedback local,
+  // transient and screen-reader accessible rather than leaving a permanent status line.
+  useEffect( () => {
+    if ( profileAction !== 'sent' && profileAction !== 'failed' ) return;
+    const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
+    return () => window.clearTimeout( timer );
+  }, [ profileAction ] );
   /**
    * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
    * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
@@ -704,13 +712,24 @@ export default function OrdersPage (): React.ReactElement {
                   <OrderActionIcon name="logout" />
                 </button>
               </div>
-              { profileAction === 'sent' && (
-                <p className="ord-account-status" role="status">Profile update sent on WhatsApp.</p>
-              ) }
-              { profileAction === 'failed' && (
-                <p className="ord-account-status ord-account-status-error" role="status">
-                  Could not send the profile update. Try again.
-                </p>
+              { ( profileAction === 'sent' || profileAction === 'failed' ) && (
+                <div
+                  className={ `ord-profile-toast${ profileAction === 'failed' ? ' ord-profile-toast-error' : '' }` }
+                  role={ profileAction === 'failed' ? 'alert' : 'status' }
+                >
+                  <span className="ord-profile-toast-icon" aria-hidden="true">
+                    { profileAction === 'sent' ? '✓' : '!' }
+                  </span>
+                  <span className="ord-profile-toast-text">
+                    { profileAction === 'sent' ? 'Sent on WhatsApp' : 'Couldn’t send. Try again.' }
+                  </span>
+                  <button
+                    className="ord-profile-toast-close"
+                    type="button"
+                    aria-label="Dismiss notification"
+                    onClick={ () => setProfileAction( 'idle' ) }
+                  >×</button>
+                </div>
               ) }
             </div>
           ) }
@@ -1342,8 +1361,34 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           .ord-account-action:disabled{opacity:.55;cursor:default}
           .ord-account-action[aria-busy='true']{cursor:progress}
-          .ord-account-status{margin:0;font-size:14px;font-weight:600;line-height:1.45;color:var(--public-brand-green)}
-          .ord-account-status-error{color:#8a2e22}
+          .ord-profile-toast{
+            position:fixed;inset-block-start:calc(88px + env(safe-area-inset-top,0px));
+            inset-inline-end:clamp(12px,4vw,32px);z-index:10002;
+            box-sizing:border-box;display:flex;align-items:center;gap:10px;
+            max-inline-size:min(360px,calc(100vw - 24px));padding:8px 10px 8px 14px;
+            border:1px solid var(--public-brand-lime);border-radius:14px;
+            background:var(--public-brand-lime);color:var(--public-brand-green);
+            box-shadow:0 12px 32px rgba(26,58,42,.14);
+            font-size:14px;font-weight:650;line-height:1.4;
+          }
+          .ord-profile-toast-icon{
+            display:inline-flex;align-items:center;justify-content:center;flex:0 0 25px;
+            block-size:25px;border-radius:50%;background:var(--public-brand-green);
+            color:var(--public-brand-lime);font-size:15px;font-weight:800;
+          }
+          .ord-profile-toast-text{min-inline-size:0;flex:1;overflow-wrap:anywhere}
+          .ord-profile-toast-close{
+            display:inline-flex;align-items:center;justify-content:center;
+            min-inline-size:40px;min-block-size:40px;padding:0;border:0;
+            background:transparent;color:inherit;border-radius:10px;
+            font:inherit;font-size:22px;cursor:pointer;
+          }
+          .ord-profile-toast-close:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+          .ord-profile-toast-error{background:var(--public-bg);color:#8a2e22}
+          .ord-profile-toast-error .ord-profile-toast-icon{background:#8a2e22;color:#fff}
+          @media(max-width:480px){
+            .ord-profile-toast{inset-inline:12px;max-inline-size:none}
+          }
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
