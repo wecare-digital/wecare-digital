@@ -59,3 +59,24 @@ def test_five_stage_logs_show_timestamps_and_do_not_fake_delivery():
     assert "full" not in timeline.lower() or "full evidence" in timeline.lower()
     assert "<VaultMessageTimeline file={ row } journey={ journey } />" in logs
     assert "<VaultMessageTimeline file={ currentFile } journey={ props.journey } />" in preview
+
+
+def test_message_delivery_status_lookup_is_staff_scoped_and_provider_id_bound():
+    handler = source("amplify/functions/core/secure-files/handler.py")
+    provisioner = source("scripts/provision_secure_files_api.py")
+    client = source("src/api/client.ts")
+    assert 'tail[1] == "message-log" and method == "GET"' in handler
+    assert handler.index('denied = require_auth(event, "Operator")') < handler.index('tail[1] == "message-log" and method == "GET"')
+    assert 'item, refusal = _owned_file_for_admin(file_id)' in handler
+    assert 'str(item.get("lastOfferMessageId") or "")' in handler
+    assert 'str(item.get("lastAccessMessageId") or "")' in handler
+    assert 'IndexName="whatsappMessageId-index"' in handler
+    assert 'Limit=3' in handler
+    assert 'row.get("direction")' in handler
+    assert 'otherStages": "ORDER_INVOICE_EVIDENCE_NOT_LINKED"' in handler
+    assert '("GET", "/secure-files/{fileId}/message-log")' in provisioner
+    assert '"Sid": "ReadVerifiedWhatsAppMessageStatus"' in provisioner
+    assert '"Action": ["dynamodb:Query"]' in provisioner
+    assert "readVaultMessageDeliveryLog" in client
+    assert "query(" in handler and "scan(" in handler  # legacy file listings only
+    assert "scan(**" not in handler.split('def _message_status_for_verified_send', 1)[1].split('def _admin_message_log', 1)[0]
