@@ -113,7 +113,12 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
                         header="location", automated=False)
 PDF_DOWNLOAD = Template(name="wecare_pdf_direct_download", language="en", category="UTILITY",
                         header="document", buttons=("flow",), automated=False)
-PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
+# Keep the legacy approved NAVIGATE template until Meta approves the DATA_EXCHANGE
+# replacement. Activate only after verifying approval and deploying the sender with
+# WA_PROFILE_UPDATE_TEMPLATE=wecare_profile_update_f001. The new template runs INIT
+# from the backend so optional customer fields always come from the saved contact.
+PROFILE_DETAILS = Template(name=os.environ.get("WA_PROFILE_UPDATE_TEMPLATE", "service_details"),
+                           language="en", category="UTILITY",
                            header="image", buttons=("flow",))
 #: Manual staff Vault publication sends this approved, document-bound IMAGE quick-reply first.
 #: The customer taps Unlock Vault to begin native Review & Pay. Keep legacy offer taps working,
