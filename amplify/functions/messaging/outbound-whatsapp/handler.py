@@ -2808,6 +2808,17 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             stored_content = (f'[Payment: ₹{pay_status.rupees_str(payment_amount_paise)} | '
                               f'{item_name} | Ref: {payment_ref_id}]')
         
+        # Keep the original S3 object key for a template header in the authenticated Inbox.
+        # Meta requires an uploaded media ID for the send, but that ID is not a downloadable
+        # Inbox image. Without the S3 key, an invoice PNG is saved as a text-only template.
+        # Never persist a presigned URL: messages-read signs private objects on each read.
+        inbox_template_header_key = None
+        if (is_template and template_header_media
+                and template_header_type in ('image', 'video', 'document')):
+            header_source = str(template_header_media)
+            if not header_source.startswith(('http://', 'https://')) and not header_source.isdigit():
+                inbox_template_header_key = media_paths.canonical(header_source)
+
         # Requirement 5.11: Store message record
         _store_message_record(
             message_id=message_id,
@@ -2817,7 +2828,8 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             is_template=is_template,
             whatsapp_message_id=whatsapp_message_id,
             media_id=whatsapp_media_id,
-            s3_key=s3_key,
+            # The body media (if present) takes precedence over the template header.
+            s3_key=s3_key or inbox_template_header_key,
             phone_number_id=phone_number_id,
             payment_reference_id=payment_ref_id,
             payment_amount_paise=payment_amount_paise,
