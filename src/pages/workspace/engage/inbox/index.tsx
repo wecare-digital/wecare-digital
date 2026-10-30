@@ -12,7 +12,6 @@ import FlowResponseDetails, { flowResponseTitle } from '../../../../components/F
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import InteractiveMessageComposer from '../../../../components/InteractiveMessageComposer';
 import ContactMessageComposer from '../../../../components/ContactMessageComposer';
@@ -1956,7 +1955,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     );
 
     if ( embedded ) return content;
-    return <Layout user={ user } onSignOut={ signOut }>{ content }</Layout>;
+    return content;
 };
 
 export default UnifiedInbox;
