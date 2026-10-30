@@ -21,6 +21,8 @@ def test_vault_workspace_has_single_customer_and_file_composer():
     assert "Save document to Vault" in page
     assert "Resend paid access (no charge)" in page
     assert "Review & send Unlock Vault" in page
+    assert "sendOfferAfterUpload" not in page
+    assert "Save only" in page
     assert "confirm( {" in page
     assert "Send Unlock Vault on WhatsApp?" in page
     assert "sf-review-backdrop" not in page
