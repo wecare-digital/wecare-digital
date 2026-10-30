@@ -53,6 +53,9 @@ def test_five_stage_logs_show_timestamps_and_do_not_fake_delivery():
     assert "Meta accepted" in timeline
     assert "does not mean delivered or read" in timeline
     assert "No stage-specific timestamp recorded" in timeline
+    assert "readVaultMessageDeliveryLog" in timeline
+    assert "providerStatus" in timeline
+    assert "READ" in timeline and "DELIVERED" in timeline and "FAILED" in timeline
     assert "full" not in timeline.lower() or "full evidence" in timeline.lower()
     assert "<VaultMessageTimeline file={ row } journey={ journey } />" in logs
     assert "<VaultMessageTimeline file={ currentFile } journey={ props.journey } />" in preview
