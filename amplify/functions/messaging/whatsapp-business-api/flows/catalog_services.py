@@ -548,7 +548,8 @@ def _send_offer(event, client, db, keys, contacts, now):
                              ExpressionAttributeValues={':now': now})
         except Exception:  # noqa: BLE001 - a newer offer owns the guard now
             pass
-    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED', 'detail': detail}
+    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED',
+            'detail': detail, 'whatsappMessageId': wamid if outcome == 'VAULT_OFFER_SENT' else ''}
 
 
 def _send_native_payment(event, client, db, keys, contacts, now):
