@@ -103,7 +103,7 @@ import {
   readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
+  serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
 import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
