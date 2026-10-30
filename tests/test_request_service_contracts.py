@@ -386,7 +386,9 @@ def test_vault_logs_are_fresh_and_missing_object_probe_permission_is_durable():
 
     secure_listing = client[client.index("export async function listSecureFiles"):
                             client.index("/** Revoke rather than delete")]
-    assert secure_listing.count("cache: 'no-store'") == 2
+    # Two list endpoints plus a third file-bound read-only delivery-status endpoint.
+    assert secure_listing.count("cache: 'no-store'") == 3
+    assert "readVaultMessageDeliveryLog" in secure_listing
 
     assert '"Sid": "SecureBucketExistenceProbe"' in provisioner
     assert '"Action": ["s3:ListBucket"]' in provisioner
