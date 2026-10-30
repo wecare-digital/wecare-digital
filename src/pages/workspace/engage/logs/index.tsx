@@ -490,8 +490,6 @@ const MessageLogsPage: React.FC<PageProps> = ( { embedded, channel } ) => {
     </>
   );
 
-  if ( embedded ) return content;
-
   return content;
 };
 
