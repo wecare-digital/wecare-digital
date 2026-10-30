@@ -10,7 +10,9 @@
  */
 import React from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
+import Header from '../../../components/Header';
+import Footer from '../../../components/Footer';
+import PublicShare from '../../../components/PublicShare';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
@@ -119,61 +121,169 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
-      <PageShell
-        key={ active }
-        className="payments-shell"
-        title="Payments"
-        subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
-        tabs={ TABS }
-        activeTab={ active }
-        defaultTab={ active }
-        onTabChange={ next => {
-          const view = mode( next );
-          void router.push( {
-            pathname: '/workspace/payments',
-            query: view === 'ledger'
-              ? { view: 'ledger', ledger: 'invoices' }
-              : view === 'defaults'
-                ? { view: 'defaults' }
-                : { view: 'collect' },
-          } );
-        } }
-      >
-        { ( tab ) => (
-          <>
-            { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
-            { tab === 'defaults' && (
-              <DefaultInvoiceItems onUse={ choice => {
+      { /*
+          Payments is a deliberate authenticated exception to the normal Workspace chrome.
+          The owner asked for the same public shell as /auth: the real Header/navigation,
+          Stay connected dock and Footer. We therefore do NOT render Layout here; two fixed
+          headers would collide. The structural .layout/.workspace-shell classes are retained
+          so existing payment styling and SupportWidget's authenticated translation boundary
+          still work. The operational surface stays data-wc-no-translate so customer names,
+          numbers, addresses and invoice details are never machine-translated.
+        */ }
+      <div className="layout workspace-shell payments-public-layout">
+        <Header />
+
+        <main id="main-content" className="main-content workspace-main payments-public-main" data-wc-no-translate="true">
+          <div className="inner-content-container">
+            <PageShell
+              key={ active }
+              className="payments-shell"
+              title="Payments"
+              subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
+              tabs={ TABS }
+              activeTab={ active }
+              defaultTab={ active }
+              actions={
+                <div className="payments-public-actions">
+                  <button type="button" onClick={ () => void router.push( '/workspace/' ) }>Workspace</button>
+                  { signOut && <button type="button" onClick={ signOut }>Sign out</button> }
+                </div>
+              }
+              onTabChange={ next => {
+                const view = mode( next );
                 void router.push( {
                   pathname: '/workspace/payments',
-                  query: { view: 'collect', preset: choice.slug },
+                  query: view === 'ledger'
+                    ? { view: 'ledger', ledger: 'invoices' }
+                    : view === 'defaults'
+                      ? { view: 'defaults' }
+                      : { view: 'collect' },
                 } );
-              } } />
-            ) }
-            { tab === 'ledger' && (
-              <section className="ledger" aria-label="Payment ledger">
-                <div className="ledger-switch" role="group" aria-label="Ledger view">
-                  <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
-                    aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
-                    Invoices
-                  </button>
-                  <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
-                    aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
-                    Activity
-                  </button>
-                </div>
-                { ledgerView === 'invoices'
-                  ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
-                  : <PaymentsActivity /> }
-              </section>
-            ) }
-          </>
-        ) }
-      </PageShell>
+              } }
+            >
+              { ( tab ) => (
+                <>
+                  { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
+                  { tab === 'defaults' && (
+                    <DefaultInvoiceItems onUse={ choice => {
+                      void router.push( {
+                        pathname: '/workspace/payments',
+                        query: { view: 'collect', preset: choice.slug },
+                      } );
+                    } } />
+                  ) }
+                  { tab === 'ledger' && (
+                    <section className="ledger" aria-label="Payment ledger">
+                      <div className="ledger-switch" role="group" aria-label="Ledger view">
+                        <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
+                          aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
+                          Invoices
+                        </button>
+                        <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
+                          aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
+                          Activity
+                        </button>
+                      </div>
+                      { ledgerView === 'invoices'
+                        ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
+                        : <PaymentsActivity /> }
+                    </section>
+                  ) }
+                </>
+              ) }
+            </PageShell>
+          </div>
+        </main>
 
-    </Layout>
+        <div className="payments-public-action-tail">
+          <PublicShare />
+        </div>
+        <Footer />
+
+        <style jsx>{`
+          .payments-public-layout{
+            display:block;
+            min-height:100vh;
+            min-height:100dvh;
+            background:var(--public-bg,#fff);
+            color:var(--public-text,#111);
+          }
+          .payments-public-main{
+            width:100%;
+            max-width:none;
+            min-height:calc(100vh - 108px);
+            min-height:calc(100dvh - 108px);
+            margin:0;
+            padding:108px 0 0;
+            overflow:visible;
+            background:#fff;
+          }
+          .payments-public-actions{
+            display:flex;
+            align-items:center;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+            gap:8px;
+          }
+          .payments-public-actions button{
+            padding:9px 14px;
+            border:1px solid var(--public-hairline,#e5e7eb);
+            border-radius:12px;
+            background:#fff;
+            color:var(--public-brand-green,#1a3a2a);
+            font:700 13px/1.2 var(--font-sans);
+            cursor:pointer;
+          }
+          .payments-public-actions button:hover{
+            border-color:var(--public-brand-lime,#d1f470);
+            background:#f8faf3;
+          }
+          .payments-public-actions button:focus-visible{
+            outline:2px solid var(--public-brand-green,#1a3a2a);
+            outline-offset:2px;
+          }
+          .payments-public-action-tail{
+            width:100%;
+            max-width:var(--public-content-max);
+            min-width:0;
+            margin:0 auto;
+            padding:8px var(--public-page-gutter) 48px;
+            overflow-x:hidden;
+            overflow-x:clip;
+            box-sizing:border-box;
+            font-family:var(--font-sans);
+            color:var(--public-text);
+          }
+          @media(max-width:767px){
+            .payments-public-main{
+              min-height:calc(100vh - 96px);
+              min-height:calc(100dvh - 96px);
+              padding-top:96px;
+            }
+            .payments-public-actions{
+              width:100%;
+              display:grid;
+              grid-template-columns:1fr 1fr;
+            }
+            .payments-public-actions button{width:100%}
+            .payments-public-action-tail{
+              padding-inline:16px;
+              padding-bottom:40px;
+            }
+          }
+          @media(max-width:480px){
+            .payments-public-actions{grid-template-columns:1fr}
+          }
+        `}</style>
+      </div>
+      { /*
+          SupportWidget is intentionally not mounted here. _app.tsx already mounts the one
+          authenticated WhatsApp + language widget after this page, and its contentRoot()
+          resolves to the .layout above. Duplicating it would create two fixed support pills.
+        */ }
+    </>
   );
 };
 

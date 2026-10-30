@@ -1461,10 +1461,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                           <div style={ { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' } }>
                             { /* The two in-table choosers on the Dues row. These were the
                                  smallest controls on the page - 4px/6px padding around 11px
-                                 type, well under the 44px tap floor - so they get visibly
-                                 taller, which is the same move every other in-table control in
-                                 this migration made. They state a flex basis because the cell
-                                 is a wrapping flex row and the trigger fills its field. */ }
+                                 type - so they keep enough component padding to remain readable
+                                 without inheriting a blanket phone-height floor. They state a
+                                 flex basis because the cell is a wrapping flex row and the
+                                 trigger fills its field. */ }
                             <Select ariaLabel="Send from" value={ sendPhone }
                               onChange={ v => setSendPhone( v ) }
                               options={ phoneSelectOptions } style={ DUES_PHONE_SELECT_STYLE } />
