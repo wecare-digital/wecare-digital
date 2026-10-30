@@ -10,12 +10,13 @@ Entry points
 * ``select`` - the customer's pick from that list. A paid file with access left gets the Access
   Vault link again at no charge; an unpaid file, or a paid one whose every window has been used,
   gets ONE priced Review and Pay.
+* ``sendVaultOffer`` - staff manual workflow: send the approved request-ready template
+  with a document-bound Unlock Vault quick reply; payment is created only on tap.
 * ``sendPayment`` - secure-files, when staff ask for payment on one Vault file. It creates a
   one-file native service session and sends the existing WhatsApp Review and Pay ORDER_DETAILS
   message directly. No separate Vault offer template is created or sent.
-* ``unlock`` - legacy compatibility for already-sent "Unlock Vault" offer buttons. Old taps
-  still resolve their bound file and continue to the same native Review and Pay rail; new staff
-  sends do not mint new offer tokens.
+* ``unlock`` - handles a document-bound Unlock Vault quick reply from staff offers,
+  including messages sent before this change. It validates owner and token before checkout.
 
 It never prices, reserves or sends a payment itself: it hands ONE session to `wecare-commerce`
 `prepareNativeCatalogService`. See `catalog_service_checkout.ALLOWED` for why only Vault is sold
@@ -86,7 +87,7 @@ def _send_access(client, row, file_id):
 
 
 def readiness(graph):
-    """Live Meta readback of the two templates a Vault purchase needs. Reads only."""
+    """Live Meta readback of the approved Vault-ready, payment and delivery templates."""
     templates = {}
     for name, ident in {'wecare_vault_request_ready': '29124703577146420',
                         'wecare_whatapp_native_pay_template': '2714938845570815',
@@ -184,11 +185,12 @@ def handle(event, client):
     now = int(time.time())
     action = event.get('action', 'start')
 
-    if action == 'sendOffer':
+    if action == 'sendVaultOffer':
+        # Staff's manual Vault journey begins with an owner-bound quick-reply template.
+        # Review and Pay follows only after the customer taps Unlock Vault.
         return _send_offer(event, client, db, keys, contacts, now)
-    if action == 'sendPayment':
-        # Direct native payment remains for authenticated customer entry points. Staff Vault
-        # requests use sendOffer so Unlock Vault is the stage-1 gate.
+    if action in ('sendPayment', 'sendOffer'):
+        # Preserve the existing direct payment route for older and customer callers.
         return _send_native_payment(event, client, db, keys, contacts, now)
     # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
     # customer action without its contact used to reach `get_item` with an empty key and crash.
@@ -434,7 +436,9 @@ def _offer_send_outcome(response):
     if 200 <= code < 300:
         if body.get('status') == 'dry_run' or body.get('mode') == 'DRY_RUN':
             return 'VAULT_OFFER_NOT_SENT', 'the sender is in dry-run mode'
-        return 'VAULT_OFFER_SENT', 'sent'
+        if not _offer_whatsapp_message_id(response):
+            return 'VAULT_OFFER_UNCONFIRMED', 'provider message ID missing'
+        return 'VAULT_OFFER_SENT', 'accepted by Meta; handset delivery pending'
     reason = str(body.get('error') or body.get('message') or '')[:120]
     if 400 <= code < 500:
         # Refused before or by Meta: nothing reached the customer.
@@ -443,23 +447,24 @@ def _offer_send_outcome(response):
     return 'VAULT_OFFER_UNCONFIRMED', 'HTTP %d' % code
 
 
-def _offer_message_id(response):
-    # Provider WAMID returned by outbound for an accepted offer, or empty.
+
+def _offer_whatsapp_message_id(response):
+    """Provider message ID, if present; never fabricate evidence of delivery."""
     if not isinstance(response, dict):
         return ''
-    try:
-        body = json.loads(response.get('body') or '{}')
-    except (TypeError, ValueError):
-        body = {}
-    if not isinstance(body, dict):
-        return ''
-    return str(body.get('whatsappMessageId') or body.get('messageId') or '')[:160]
+    payload = response.get('body')
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload or '{}')
+        except (TypeError, ValueError):
+            return ''
+    return str(payload.get('whatsappMessageId') or '') if isinstance(payload, dict) else ''
 
 def _send_offer(event, client, db, keys, contacts, now):
-    """Staff asked for ₹49 for one file: send the Vault offer (wecare_vault_request_ready). Never charges.
+    """Staff requested the approved Vault-ready template for one file. Never charges.
 
     The offer names the document and carries an opaque token in its "Unlock Vault" quick reply.
-    The tap, a signed inbound message, is the ordering and identity gate that opens Review and Pay
+    The tap, a signed inbound message, is what proves the customer and opens Review and Pay
     (`unlock`), so no linked contact is needed here. Answers an outcome and never messages the
     customer a refusal.
     """
@@ -485,9 +490,10 @@ def _send_offer(event, client, db, keys, contacts, now):
         return {'outcome': 'CONTACT_AMBIGUOUS'}
     try:
         keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
-                         UpdateExpression='SET lastOfferAt=:now',
-                         ConditionExpression='attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent',
-                         ExpressionAttributeValues={':now': now,
+                         UpdateExpression='SET lastOfferAt=:now, lastOfferState=:state',
+                         ConditionExpression=('attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent '
+                                              'OR lastOfferState <> :state'),
+                         ExpressionAttributeValues={':now': now, ':state': state,
                                                     ':recent': now - OFFER_RESEND_GUARD_SECONDS})
     except Exception as error:
         if _conditional_failed(error):
@@ -506,20 +512,21 @@ def _send_offer(event, client, db, keys, contacts, now):
     recipient = {'contactId': contact_id, 'phone': phone,
                  'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1}
     try:
-        response = _send(client, recipient, idempotencyKey='vault-offer:' + token, **whatsapp_templates.vault_offer_send_fields(
-            file.get('displayName') or file.get('originalFilename'), token))
+        response = _send(
+            client, recipient,
+            idempotencyKey='vault-offer:' + token,
+            **whatsapp_templates.vault_offer_send_fields(
+                file.get('displayName') or file.get('originalFilename'), token),
+        )
     except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
         response = None
     outcome, detail = _offer_send_outcome(response)
-    message_id = _offer_message_id(response)
-    update = 'SET #s=:s, sendDetail=:d'
-    values = {':s': outcome, ':d': detail}
-    if message_id:
-        update += ', offerMessageId=:mid'
-        values[':mid'] = message_id
-    keys.update_item(Key={'orderId': offer['orderId']}, UpdateExpression=update,
+    # Meta acceptance is not device delivery. Preserve the provider ID for the status webhook.
+    wamid = _offer_whatsapp_message_id(response) if outcome == 'VAULT_OFFER_SENT' else ''
+    keys.update_item(Key={'orderId': offer['orderId']},
+                     UpdateExpression='SET #s=:s, sendDetail=:d, whatsappMessageId=:wamid',
                      ExpressionAttributeNames={'#s': 'status'},
-                     ExpressionAttributeValues=values)
+                     ExpressionAttributeValues={':s': outcome, ':d': detail, ':wamid': wamid})
     if outcome == 'VAULT_OFFER_NOT_SENT':
         # Nothing reached the customer, so staff may try again straight away.
         try:
@@ -529,9 +536,7 @@ def _send_offer(event, client, db, keys, contacts, now):
                              ExpressionAttributeValues={':now': now})
         except Exception:  # noqa: BLE001 - a newer offer owns the guard now
             pass
-    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED',
-            'detail': detail, 'messageId': message_id}
-
+    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED', 'detail': detail}
 
 
 def _send_native_payment(event, client, db, keys, contacts, now):

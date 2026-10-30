@@ -422,7 +422,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         }
         else
         {
-          const sent = await api.requestSecureFilePayment( published.data.fileId );
+          const sent = await api.sendSecureFileOffer( published.data.fileId );
           reportVaultAction( sent );
         }
       }
@@ -565,7 +565,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     setActionLoading( true );
     try
     {
-      reportVaultAction( await api.requestSecureFilePayment( doc.vaultFileId ) );
+      reportVaultAction( await api.sendSecureFileOffer( doc.vaultFileId ) );
       void loadVaultFile( doc );
       void loadData();
     } finally
@@ -604,7 +604,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         }
         fileId = published.data.fileId;
       }
-      const sent = await api.requestSecureFilePayment( fileId );
+      const sent = await api.sendSecureFileOffer( fileId );
       reportVaultAction( sent );
       void loadData();
       if ( selected?.documentId === doc.documentId )

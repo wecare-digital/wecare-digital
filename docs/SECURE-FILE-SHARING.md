@@ -219,10 +219,33 @@ environment variable or fallback amount. There are three ways in:
 
 | Who | Where | What happens |
 |---|---|---|
-| Staff | Secure files → **Send Review & Pay** → `POST /secure-files/{fileId}/request-payment` | secure-files re-checks file state and invokes business-api `catalogService.sendPayment`; commerce sends `wecare_whatapp_native_pay_template` for that exact file |
+| Staff | Workspace Vault → **Send Vault-ready offer** → `POST /secure-files/{fileId}/send-offer` | After private Documents/S3 confirmation and Vault publishing, secure-files re-checks the owner and entitlement. Business-api sends approved `wecare_vault_request_ready` with IMAGE header and document-bound **Unlock Vault** quick reply. No payment is initiated until that customer taps it |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
 | Customer | `/vault/?file=<fileId>` → **Checkout/Renew** | the customer-pool token proves the caller; secure-files re-proves exact file ownership + entitlement state and invokes the same native Review and Pay rail. The browser stays on Vault: no cart and no website payment chooser |
-| Legacy customer | Already-sent **Unlock Vault** quick reply | `catalogService.unlock` remains compatibility only; it resolves the bound file and joins the same native Review and Pay rail |
+| Customer with Vault-ready offer | **Unlock Vault** quick reply | A signed inbound event resolves the opaque offer token, validates customer/file ownership, and invokes `catalogService.unlock` → native Review & Pay; old offer tokens still work |
+
+For manual uploads the customer-visible templates are: **(1)** `wecare_vault_request_ready`
+(IMAGE + Unlock Vault), **(2)** `wecare_whatapp_native_pay_template` (ORDER_DETAILS,
+after tap), **(3)** `wecare_order_status_v3` (processing then completed, two sends after
+verified capture), **(4)** `wecare_default_invoice_image_template` (paid invoice IMAGE +
+Leave Review Flow), **(5)** `wecare_default_download` (Access Vault dynamic URL, only
+after paid entitlement). The common IMAGE header comes from `whatsapp-header.png`; normal
+ORDER_DETAILS product rows use `WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png` rather
+than adding images to tax/fee rows. The download URL suffix is the server-bound fileId, never
+an operator-entered value.
+
+The offer sender records Meta's `whatsappMessageId` when available, together with a
+per-file resend guard and an offer token; a 2xx send indicates provider acceptance, **not**
+handset delivery. Status-webhook WAMIDs must be used for delivered/read confirmation.
+Customer tap and verified capture are ordering gates; arbitrary sleep intervals cannot
+replace either event. For a verified native Vault purchase only, the processing and completed
+order-status sends have a **1-second gap** after provider acceptance, and completed and the
+invoice have another 1-second gap. After the accepted invoice, the paid Vault fulfilment waits
+**2 seconds** before sending the Access Vault link. These are bounded UI-spacing delays, NOT
+a guarantee of handset order: strict delivered/read sequencing requires consuming `messages`
+webhook statuses for every stage's `whatsappMessageId` with a durable per-customer outbox.
+The existing post-capture order-status, receipt and paid-Vault dispatches retain their
+individual idempotency claims.
 
 The browser never submits a trusted amount, SKU, customer id or payment state. For an EXPIRED file,
 business-api reads the durable entitlement and allows a renewal only when every paid window has
@@ -239,7 +262,7 @@ owner-bound `SecureFilesTable` row for that immutable document version, and writ
 `vaultFileId` back to the document. Repeating Publish for the same version is idempotent. A
 confirmed replacement increments the document version and the next Publish gets a different Vault
 file id, so an older paid entitlement can never authorize replacement bytes. Direct uploads through
-**Secure files** remain the other supported Vault intake path.
+**Workspace Vault** use the same private Documents → S3 verification → Vault publication path.
 
 Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
 counter is the one original purchase) and `accessWindowCount`. A window opens against an unused paid

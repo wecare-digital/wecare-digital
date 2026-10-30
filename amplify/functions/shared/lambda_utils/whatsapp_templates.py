@@ -29,8 +29,8 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
-    VAULT_OFFER    wecare_vault_request_ready             Vault stage 1; QUICK_REPLY "Unlock Vault"
-                                                          gates native Review & Pay
+    VAULT_OFFER    wecare_vault_request_ready             Manual Vault stage 1: IMAGE header and
+                                                          bound QUICK_REPLY "Unlock Vault"
     SUBMIT_REQUEST_FLOW     submit_request_flow           UTILITY, IMAGE header, FLOW button index 0
     REQUEST_AMENDMENT_FLOW request_amendment_flow          UTILITY, IMAGE header, FLOW button index 0
     DROP_DOCS_FLOW          _dropdoc_flow                  UTILITY, IMAGE header, FLOW button index 0
@@ -112,9 +112,9 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
                         header="location", automated=False)
 PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
                            header="image", buttons=("flow",))
-#: Vault stage 1 for staff-requested payment. The template itself never charges: its opaque
-#: QUICK_REPLY "Unlock Vault" token binds one owner/file. The signed inbound tap is the gate that
-#: advances to the native Review & Pay rail. Existing historical offers remain compatible.
+#: Manual staff Vault publication sends this approved, document-bound IMAGE quick-reply first.
+#: The customer taps Unlock Vault to begin native Review & Pay. Keep legacy offer taps working,
+#: and do not emit this notification from the authenticated customer direct-checkout endpoint.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
 SUBMIT_REQUEST_FLOW = Template(name="submit_request_flow", language="en", category="UTILITY",

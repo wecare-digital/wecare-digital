@@ -250,57 +250,20 @@ def test_workspace_vault_upload_uses_document_intake_not_retired_direct_upload()
     assert ".sf-field{min-width:0}\\n" not in page
 
 
-def test_customer_and_staff_vault_payment_use_different_ordered_entry_gates():
+def test_customer_vault_payment_reproves_file_and_uses_native_payment_sender():
     source = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
     customer = source[source.index("def _customer_request_payment"):
                       source.index("\ndef _admin_request_payment")]
-    admin = source[source.index("def _admin_request_payment"):
-                   source.index("\ndef _start_native_vault_access")]
     native = source[source.index("def _start_native_vault_payment"):
                     source.index("\ndef _customer_request_payment")]
     assert "_owned_active_file(file_id, identity)" in customer
     assert 'state in ("OPEN", "READY")' in customer
     assert 'state == "PAID_UNVERIFIED"' in customer
-    assert '"action": action' in native
-    assert 'action: str = "sendPayment"' in native
-    assert 'action="sendOffer"' in admin
+    assert '"action": "sendPayment"' in native
     assert '"ownerCustomerId": str(item["ownerCustomerId"])' in native
     assert '"ownerPhone": str(item["ownerPhone"])' in native
     assert "no website cart" in native
     assert "no Meta Flow" in native
-
-
-def test_staff_vault_offer_is_message_id_audited_and_unlock_gates_payment():
-    source = (
-        ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py"
-    ).read_text()
-    offer = source[source.index("def _send_offer"):
-                   source.index("\ndef _send_native_payment")]
-    handle = source[source.index("def handle(event, client):"):]
-    unlock = source[source.index("def _unlock"):
-                    source.index("\ndef _offer_send_outcome")]
-    assert "whatsapp_templates.vault_offer_send_fields" in offer
-    assert "idempotencyKey='vault-offer:' + token" in offer
-    assert "offerMessageId" in offer
-    assert "'messageId': message_id" in offer
-    assert "OFFER_RESEND_GUARD_SECONDS" in offer
-    assert "action == 'sendOffer'" in handle
-    assert "return _send_offer" in handle
-    assert "action == 'sendPayment'" in handle
-    assert "_prepare_payment" in unlock
-    assert "CATALOGSERVICEMSG#" in unlock
-
-
-def test_access_vault_acceptance_persists_provider_message_id():
-    source = (
-        ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py"
-    ).read_text()
-    send_once = source[source.index("def _send_once"):
-                       source.index("\ndef _open_paid_window")]
-    assert "whatsappMessageId" in send_once
-    assert "messageId" in send_once
-    assert "key + 'MessageId=:mid'" in send_once
-    assert "status = 'ACCEPTED'" in send_once
 
 
 def test_secure_files_provisioner_pins_native_vault_payment_invoke():
@@ -440,6 +403,57 @@ def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_servi
     assert ">Request Amendment<" not in rendered
     assert ">Drop Docs<" not in rendered
     assert ">Appointments<" not in rendered
+
+
+def test_manual_workspace_vault_offer_precedes_customer_payment():
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    documents = (ROOT / "src/components/workspace/service/Documents.tsx").read_text()
+    api = (ROOT / "src/api/client.ts").read_text()
+    handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+    catalog = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py").read_text()
+    registry = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+    media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text()
+
+    assert "wecare_vault_request_ready" in page
+    assert "Unlock Vault" in page
+    assert page.index("<strong>Vault ready</strong>") < page.index("<strong>Review &amp; Pay</strong>")
+    assert page.index("<strong>Receipt · Leave Review</strong>") < page.index("<strong>Access Vault</strong>")
+    assert page.count("api.sendSecureFileOffer(") == 2
+    assert documents.count("api.sendSecureFileOffer(") == 3
+    assert "api.requestSecureFilePayment(" not in page
+    assert "api.requestSecureFilePayment(" not in documents
+    assert "secureFileAction( fileId, 'send-offer' )" in api
+    assert "secureFileAction( fileId, 'request-payment' )" in api
+    assert 'tail[1] == "send-offer"' in handler
+    assert '"action": "sendVaultOffer"' in handler
+    assert "if action == 'sendVaultOffer':" in catalog
+    assert "return _send_offer(event, client, db, keys, contacts, now)" in catalog
+    assert "def _unlock(" in catalog and "OFFER_FILE_PREFIX" in catalog
+    assert "whatsappMessageId" in catalog
+    assert 'VAULT_OFFER = Template(name="wecare_vault_request_ready"' in registry
+    assert "whatsapp-header.png" in media
+    assert "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png" in media
+
+
+def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
+    catalog = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py").read_text()
+    outbound = (ROOT / "amplify/functions/messaging/outbound-whatsapp/handler.py").read_text()
+    delivery = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py").read_text()
+    ui = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    template_registry = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+
+    assert "'wecare_vault_request_ready': '29124703577146420'" in catalog
+    assert "idempotencyKey='vault-offer:' + token" in catalog
+    assert "'offerTemplate': whatsapp_templates.VAULT_OFFER.name" in catalog
+    assert "if not _offer_whatsapp_message_id(response):" in catalog
+    assert "whatsappMessageId=:wamid" in catalog
+    assert "if action == 'sendVaultOffer':" in catalog
+    assert "if action in ('sendPayment', 'sendOffer'):" in catalog
+    assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
+    assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
+    assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 2" in delivery
+    assert "Vault ready → Review &amp; Pay" in ui
+    assert "Manual Vault stage 1" in template_registry
 
 
 def test_workspace_vault_shows_download_template_variable_mapping():

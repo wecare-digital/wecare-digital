@@ -3418,6 +3418,29 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
     }))
 
 
+def _is_paid_vault_checkout(reference_id: str) -> bool:
+    """Only genuine server-owned native Vault purchases receive short message spacing."""
+    if not reference_id:
+        return False
+    try:
+        payref = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        attempt_id = str(payref.get('paymentAttemptId') or '')
+        if not attempt_id:
+            return False
+        attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+            Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+        return (attempt.get('nativeCatalogService') is True
+                and str(attempt.get('serviceKind') or '') == 'VAULT')
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'vault_status_spacing_unavailable',
+                                   'error': type(error).__name__}))
+        return False
+
+
+_VAULT_STATUS_GAP_SECONDS = 1
+
+
 def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
                              request_id: str, *, invoice_id: str = '') -> None:
     """Finish the payment-only Meta lifecycle: pending -> processing -> completed.
@@ -3458,10 +3481,19 @@ def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number
             }))
             return
 
-        _invoke_order_status(
+        # Meta has accepted processing (or it is already current) before completed is sent.
+        # A one-second Vault-only gap reduces client-side message reordering; provider
+        # acceptance is not device delivery and capture/invoice guards remain authoritative.
+        vault_spacing = _is_paid_vault_checkout(reference_id)
+        if vault_spacing and processing_status == 200:
+            time.sleep(_VAULT_STATUS_GAP_SECONDS)
+        completed_status, _ = _invoke_order_status(
             invoice_id, 'completed', phone_number_id, request_id,
             event_prefix='order_status_completed',
             description='Payment complete.')
+        if vault_spacing and completed_status == 200:
+            # The receipt send immediately follows this synchronous status step.
+            time.sleep(_VAULT_STATUS_GAP_SECONDS)
     except Exception as error:  # noqa: BLE001 - must never mask the receipt step's outcome
         logger.warning(json.dumps({'event': 'payment_order_status_unavailable',
                                    'referenceId': reference_id, 'error': type(error).__name__,

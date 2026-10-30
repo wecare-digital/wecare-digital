@@ -68,8 +68,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
     const [ storage, setStorage ] = useState<api.SecureFileStorage | null>( null );
-    // On by default: an unpaid document is useful once its owner receives the Vault request-ready message.
-    const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
+    // On by default: manual Vault publication sends the approved Unlock Vault offer.
+    const [ sendOfferAfterUpload, setSendOfferAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
@@ -148,19 +148,19 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         return () => { cancelled = true; };
     }, [] );
 
-    /** Report a WhatsApp action. 202 means "may have been sent", which is not a success. */
+    /** Meta API acceptance is not handset delivery; 202 means an uncertain send. */
     const reportAction = ( result: api.SecureFileActionResult ) => {
         if ( result.ok && result.status !== 202 ) toast.success( result.message );
         else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
         else toast.error( result.message );
     };
 
-    const handleRequestPayment = async ( target: SecureFile ) => {
+    const handleSendOffer = async ( target: SecureFile ) => {
         if ( acting ) return;
         setActing( target.fileId );
         try
         {
-            reportAction( await api.requestSecureFilePayment( target.fileId ) );
+            reportAction( await api.sendSecureFileOffer( target.fileId ) );
             load( filterMobile || undefined );
         } finally
         {
@@ -280,10 +280,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             }
 
             toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
-            if ( requestAfterUpload )
+            if ( sendOfferAfterUpload )
             {
-                setStep( 'Sending Vault request on WhatsApp…' );
-                reportAction( await api.requestSecureFilePayment( published.data.fileId ) );
+                setStep( 'Sending Vault-ready message with Unlock Vault…' );
+                reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
             }
 
             resetForm();
@@ -327,17 +327,16 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     <p className="sf-eyebrow">Service · Vault</p>
                     <h1 className="sf-title">Vault</h1>
                     <p className="sf-lead">
-                        Upload a customer document into the private Documents store, publish it to Vault,
-                        then manage Review &amp; Pay and Access Vault from one place.
+                        Upload a customer document privately and publish it to Vault. The manual WhatsApp journey starts with Unlock Vault, then native payment, receipt and access.
                     </p>
                 </header>
 
                 <section className="sf-journey" aria-label="Vault customer journey">
-                    <div><span>1</span><strong>Vault request</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
-                    <div><span>2</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
-                    <div><span>3</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
-                    <div><span>4</span><strong>Receipt · Leave Review</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
-                    <div><span>5</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' } · {'{{1}}'} = Vault file ID</small></div>
+                    <div><span>1</span><strong>Vault ready</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
+                    <div><span>2</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'wecare_whatapp_native_pay_template' } · on customer tap</small></div>
+                    <div><span>3</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'wecare_order_status_v3 · processing → completed' }</small></div>
+                    <div><span>4</span><strong>Receipt · Leave Review</strong><small>{ vaultTemplates?.receipt || 'wecare_default_invoice_image_template' }</small></div>
+                    <div><span>5</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'wecare_default_download' } · {'{{1}}'} = Vault file ID</small></div>
                 </section>
 
                 <section className="sf-storage-card" aria-label="Vault private storage">
@@ -420,15 +419,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 <input
                                     id="sf-request"
                                     type="checkbox"
-                                    checked={ requestAfterUpload }
-                                    onChange={ e => setRequestAfterUpload( e.target.checked ) }
+                                    checked={ sendOfferAfterUpload }
+                                    onChange={ e => setSendOfferAfterUpload( e.target.checked ) }
                                     disabled={ uploading }
                                 />
-                                <span>Send Review &amp; Pay on WhatsApp after publishing</span>
+                                <span>Send Vault-ready message on WhatsApp after publishing</span>
                             </label>
                             <p className="sf-hint">
-                                Turn this off to publish the file without asking the customer to pay yet.
-                                Vault itself has no Meta Flow.
+                                Turn this off to publish privately without notifying the customer. With it on, the customer receives Unlock Vault; only their tap starts Review &amp; Pay.
                             </p>
                         </div>
                     </div>
@@ -552,15 +550,15 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
                                                             <button
                                                                 className="sf-act"
-                                                                onClick={ () => { void handleRequestPayment( row ); } }
+                                                                onClick={ () => { void handleSendOffer( row ); } }
                                                                 disabled={ !!acting }
                                                                 aria-busy={ acting === row.fileId }
                                                             >
                                                                 { acting === row.fileId
                                                                     ? 'Sending…'
                                                                     : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? 'Send renewal request'
-                                                                        : 'Send Vault request' }
+                                                                        ? 'Send renewal Vault offer'
+                                                                        : 'Send Vault-ready offer' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
@@ -637,14 +635,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-review-head">
                             <div>
                                 <p className="sf-review-eyebrow">Customer preview</p>
-                                <h2 id="sf-review-title">Vault request</h2>
-                                <p>wecare_vault_request_ready · Unlock Vault → { vaultTemplates?.nativePay || 'Native Review & Pay' }</p>
+                                <h2 id="sf-review-title">Vault ready → Review &amp; Pay</h2>
+                                <p>First: wecare_vault_request_ready · Unlock Vault. After the customer taps: { vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
                             </div>
                             <button
                                 type="button"
                                 className="sf-review-close"
                                 onClick={ () => setReviewFile( null ) }
-                                aria-label="Close Vault request preview"
+                                aria-label="Close Vault journey preview"
                             >
                                 ×
                             </button>
@@ -700,7 +698,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
                                     : vaultBreakdown === null
                                         ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'Stage 1 sends wecare_vault_request_ready. The customer taps Unlock Vault to receive Review & Pay. After verified payment: processing → completed → invoice with Leave Review → Access Vault. The final URL variable {{1}} is filled automatically from this exact Vault file ID. Staff do not type or override it.' }
+                                        : 'The customer receives Vault ready first. Their Unlock Vault tap starts native Review & Pay. After payment is verified, the receipt and Access Vault link follow. The dynamic URL uses this exact file ID. Staff do not type or override it.' }
                         </p>
                     </aside>
                 </div>
