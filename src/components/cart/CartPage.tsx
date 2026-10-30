@@ -1748,10 +1748,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 />
               ) }
 
-              <p className="cart-note">
-                Taxes and fees are shown before payment.
-              </p>
-
               {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
                   written inline here any more. */}
               { basketClaimLine }
@@ -1829,15 +1825,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              1px static hairline, 16px radius, no decorative shadow. */
           .cart-list{
             list-style:none;margin:0;padding:0;
-            border:0;border-block-start:1px solid var(--public-hairline);border-radius:0;background:transparent;
+            border:0;border-radius:0;background:transparent;
             overflow:visible;
           }
           /* Rows stay structurally identical; only the visual grouping changes. */
           .cart-row{
             display:flex;justify-content:space-between;align-items:center;gap:24px;
-            padding-block:20px;border-block-end:1px solid var(--public-hairline);flex-wrap:wrap;
+            padding-block:20px;border:0;flex-wrap:wrap;
           }
-          .cart-row:last-child{border-block-end:0}
           .cart-row-main{min-width:0}
           /* The card-heading rung: 22px/700/lh1.27/-.25px, the same three numbers as .shop-name
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
@@ -1893,17 +1888,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           }
           .cart-remove:hover{background:rgba(209,244,112,.22);color:#0f2a1d}
           .cart-remove:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
-          /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note (and now to .shopd-note / .brx-note,
-             which were migrated with it) so every boundary note on the public site reads the same:
-             near-white #fcfdfb surface, 1px hairline, 14px radius, 22px padding, legal-copy type
-             17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent 16px/faded aside copying
-             the old .shopd-note. 1px static, per the rule: 1px static, 2px hoverable. */
-          .cart-note{
-            margin:28px 0 0;padding:0;border:0;background:transparent;
-            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:var(--public-muted);
-          }
-
           /* NO RED, ON OWNER INSTRUCTION, AND THE PALETTE HAS A BETTER ANSWER ANYWAY.
              This was #fbe9e9 on a #f0c0c0 border with #8a1f1f text - three colours that appear
              nowhere in the home design, on a site whose only red is the single full stop in the
