@@ -69,22 +69,18 @@ export interface SettingsGroup {
 // THE SIDEBAR — daily streams only
 // ---------------------------------------------------------------------------
 /**
- * FLAT SIDEBAR (workspace redesign). Eight single-level streams, in the order the
- * redesign spec fixes: Messages, Contacts, Commerce, Payments, Service, Links, Tasks,
- * SEO. The sidebar renders ONLY the top level — there is no expand/collapse tree any
- * more — so `Layout.tsx` reads `item.path`, `item.label` and `item.icon` and nothing
- * else from each row.
+ * FLAT SIDEBAR (workspace redesign). The sidebar renders only top-level operating areas;
+ * there is no expand/collapse tree. `Layout.tsx` reads `item.path`, `item.label` and
+ * `item.icon` from each row.
  *
  * WHY `children` STILL EXISTS ON SOME ROWS
  * ----------------------------------------
- * The children are NOT a sidebar tree. They are the deep-link / command-palette index:
- * `getAllNavItems()` walks them so every destination that used to be a sidebar row (and
- * has no other home) stays findable by name in Ctrl+K and keeps resolving to a real
- * page. The dense sections (Service, SEO, Commerce) collapse into one page with in-page
- * tabs, and these child entries are how the palette reaches each tab's canonical path.
- * `isNavItemActive` matches on the row's own base path, so a child never renders a
- * second visible level. BottomNav takes the first four rows (Messages, Contacts,
- * Commerce, Payments) — all thumb-reachable daily streams.
+ * Children are a deep-link / command-palette index, not a second sidebar level.
+ * `getAllNavItems()` walks them so canonical sub-modes stay findable by name in Ctrl+K.
+ * Commerce and other multi-mode workspaces may therefore keep children even though the
+ * sidebar itself stays flat. Vault is intentionally different in milestone 1: it is the
+ * only visible Service capability and has no children until Flow-backed service items are
+ * deliberately added back. `isNavItemActive` matches on the row's own base path.
  */
 export const navigationConfig: NavItem[] = [
   {
@@ -130,24 +126,12 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Service is one workspace. Requests are the operational queue; customer-facing
-    // submit/track/amend steps and service tools are contextual deep-links, not primary tabs.
+    // Milestone 1: Vault is the only visible Service capability. Keep the canonical
+    // /workspace/service route so later Flow-backed service items can be added here
+    // deliberately without reviving the old mixed hub.
     path: '/workspace/service',
-    label: 'Service',
+    label: 'Vault',
     icon: 'order',
-    children: [
-      { path: '/workspace/service?view=requests', label: 'Requests' },
-      { path: '/workspace/service?view=requests&action=submit', label: 'Submit Request' },
-      { path: '/workspace/service?view=requests&action=track', label: 'Track Request' },
-      { path: '/workspace/service?view=requests&action=amend', label: 'Amend Request' },
-      { path: '/workspace/service?view=appointments', label: 'Appointments' },
-      { path: '/workspace/service?view=appointments&action=sehat-appointments', label: 'Sehat Appointments' },
-      { path: '/workspace/service?view=documents', label: 'Drop Docs' },
-      { path: '/workspace/service?view=vault', label: 'Vault' },
-      { path: '/workspace/service?view=requests&action=enterprise', label: 'Enterprise Cases' },
-      { path: '/workspace/service?view=requests&action=reviews', label: 'Reviews' },
-      { path: '/workspace/service?view=requests&action=faq', label: 'FAQ' },
-    ],
   },
   {
     path: '/workspace/platform',
@@ -385,14 +369,9 @@ export const moduleHomes: ModuleHome[] = [
     note: 'Collect and Ledger are the two primary money modes; invoices, payment state and evidence live inside Ledger.',
   },
   {
-    id: 'service-operations', label: 'Service', path: '/workspace/service',
-    innerPages: [
-      '/workspace/service?view=requests',
-      '/workspace/service?view=appointments',
-      '/workspace/service?view=documents',
-      '/workspace/service?view=vault',
-    ],
-    note: 'Requests, Appointments, Drop Docs and Vault are the primary service modes; the remaining capabilities open contextually.',
+    id: 'service-operations', label: 'Vault', path: '/workspace/service',
+    innerPages: [],
+    note: 'Vault is the only active Workspace service surface in milestone 1; it remains manual and has no customer Meta Flow.',
   },
   {
     id: 'platform-operations', label: 'Platform', path: '/workspace/platform',

@@ -19,7 +19,6 @@ const attention = [
   { label: 'Conversations', detail: 'Unread and customer conversations', href: '/workspace/communications?view=inbox' },
   { label: 'Payments', detail: 'Pending, failed and reconciled payment records', href: '/workspace/payments?view=ledger&ledger=activity' },
   { label: 'Orders', detail: 'Store and staff-created commerce orders', href: '/workspace/commerce' },
-  { label: 'Service requests', detail: 'Customer requests and Flow submissions', href: '/workspace/service?view=requests' },
   { label: 'Delivery issues', detail: 'Message delivery history and failures', href: '/workspace/communications?view=manage&section=delivery' },
   { label: 'Tasks', detail: 'Assigned work and follow-ups', href: '/workspace/task' },
 ];
@@ -36,7 +35,7 @@ const workspaces = [
   { label: 'Communications', detail: 'Inbox and communications management', href: '/workspace/communications' },
   { label: 'Commerce', detail: 'Orders and catalog', href: '/workspace/commerce' },
   { label: 'Payments', detail: 'Collect and ledger', href: '/workspace/payments' },
-  { label: 'Service', detail: 'Requests, appointments and documents', href: '/workspace/service' },
+  { label: 'Vault', detail: 'Manual secure-file delivery and access', href: '/workspace/service' },
   { label: 'Platform', detail: 'Infrastructure, integrations and diagnostics', href: '/workspace/platform' },
 ];
 
