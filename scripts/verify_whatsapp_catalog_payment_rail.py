@@ -882,7 +882,7 @@ def run(root: Path) -> int:
           and not _pay_sends(W.since(mark, "meta_sends")))
     index = _table("CommerceKeys").get_item(Key={"orderId": "WABASKETMSG#wamid.HERMETIC.CARA.1"}).get("Item")
     check("R8", "its dedupe index was rolled back", index is None)
-    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.2", [{"product_retailer_id": kit, "quantity": 2}]))
+    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.2", [{"product_retailer_id": kit, "quantity": 1 if short_enabled else 2}]))
     confirm_prefilled(cara, "wamid.HERMETIC.CARA.ADDR1")
     check("R8", "the customer's retry produced exactly ONE attempt and ONE payment template",
           len(_attempts_for(cara["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1)
@@ -2060,7 +2060,8 @@ def run(root: Path) -> int:
     for label, lines_in, expected in (
             ("a Vault line mixed with goods", [service_line(service_requests.VAULT), {"product_retailer_id": tee, "quantity": 1}],
              "Short checkout" if short_enabled else "ordered on its own"),
-            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)], "ordered on its own"),
+            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)],
+             "Short checkout" if short_enabled else "ordered on its own"),
             ("Submit Request (not sold on WhatsApp)", [service_line(service_requests.SUBMIT_REQUEST)],
              "cannot be bought from the WhatsApp catalog")):
         mark = W.mark()
