@@ -45,7 +45,6 @@ function ledgerMode ( rawView: string | string[] | undefined, rawLedger: string 
   return 'invoices';
 }
 
-
 const money = ( paise: number | undefined ): string =>
   typeof paise === 'number' ? `₹${ rupeesFromPaise( paise ) }` : '—';
 
@@ -65,42 +64,42 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
   return (
     <section className="default-items" aria-label="Default invoice items">
       <div className="default-items-panel">
-      <div className="default-items-head">
-        <div>
-          <div className="default-items-kicker">Server-priced presets</div>
-          <h2>Default invoice items</h2>
-          <p>Vault, Drop Docs and request services use live server pricing. Use a row to open Collect with that service already loaded.</p>
+        <div className="default-items-head">
+          <div>
+            <div className="default-items-kicker">Server-priced presets</div>
+            <h2>Default invoice items</h2>
+            <p>Vault, Drop Docs and request services use live server pricing. Use a row to open Collect with that service already loaded.</p>
+          </div>
+          <span>{ loading ? 'Loading live prices' : 'Live pricing' }</span>
         </div>
-        <span>{ loading ? 'Loading live prices' : 'Live pricing' }</span>
-      </div>
-      <div className="default-items-table-wrap">
-        <table className="default-items-table">
-          <thead>
-            <tr><th>Request item</th><th>Item price</th><th>GST</th><th>Delight</th><th>Express</th><th>Payable</th><th></th></tr>
-          </thead>
-          <tbody>
-            { SERVICE_CHOICES.map( choice => {
-              const price = prices[ choice.slug ];
-              const b = price?.available ? price.breakdown : undefined;
-              return (
-                <tr key={ choice.kind }>
-                  <td><strong>{ choice.label }</strong><small>{ choice.sku }</small></td>
-                  <td>{ price?.available ? `₹${ price.rupees }` : 'Unavailable' }</td>
-                  <td>{ b ? money( b.supplyGstPaise ) : 'Auto' }</td>
-                  <td>{ b ? `−${ money( b.delightPaise ) }` : 'Auto' }</td>
-                  <td>{ b && b.expressPaise > 0 ? money( b.expressPaise ) : '—' }</td>
-                  <td>{ b ? money( b.totalPayablePaise ) : 'Preview after use' }</td>
-                  <td>
-                    <button type="button" disabled={ !price?.available } onClick={ () => onUse( choice ) }>
-                      Use
-                    </button>
-                  </td>
-                </tr>
-              );
-            } ) }
-          </tbody>
-        </table>
-      </div>
+        <div className="default-items-table-wrap">
+          <table className="default-items-table">
+            <thead>
+              <tr><th>Request item</th><th>Item price</th><th>GST</th><th>Delight</th><th>Express</th><th>Payable</th><th></th></tr>
+            </thead>
+            <tbody>
+              { SERVICE_CHOICES.map( choice => {
+                const price = prices[ choice.slug ];
+                const b = price?.available ? price.breakdown : undefined;
+                return (
+                  <tr key={ choice.kind }>
+                    <td><strong>{ choice.label }</strong><small>{ choice.sku }</small></td>
+                    <td>{ price?.available ? `₹${ price.rupees }` : 'Unavailable' }</td>
+                    <td>{ b ? money( b.supplyGstPaise ) : 'Auto' }</td>
+                    <td>{ b ? `−${ money( b.delightPaise ) }` : 'Auto' }</td>
+                    <td>{ b && b.expressPaise > 0 ? money( b.expressPaise ) : '—' }</td>
+                    <td>{ b ? money( b.totalPayablePaise ) : 'Preview after use' }</td>
+                    <td>
+                      <button type="button" disabled={ !price?.available } onClick={ () => onUse( choice ) }>
+                        Use
+                      </button>
+                    </td>
+                  </tr>
+                );
+              } ) }
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
@@ -119,67 +118,61 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-  <Layout user={ user } onSignOut={ signOut } showBreadcrumbs={ false }>
-    <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
-    <PageShell
-                  key={ active }
-                  className="payments-shell"
-                  title="Payments"
-                  subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
-                  tabs={ TABS }
-                  activeTab={ active }
-                  defaultTab={ active }
-                  actions={
-                    <div className="payments-public-actions">
-                      <button type="button" onClick={ () => void router.push( '/workspace/' ) }>Workspace</button>
-                      { signOut && <button type="button" onClick={ signOut }>Sign out</button> }
-                    </div>
-                  }
-                  onTabChange={ next => {
-                    const view = mode( next );
-                    void router.push( {
-                      pathname: '/workspace/payments',
-                      query: view === 'ledger'
-                        ? { view: 'ledger', ledger: 'invoices' }
-                        : view === 'defaults'
-                          ? { view: 'defaults' }
-                          : { view: 'collect' },
-                    } );
-                  } }
-                >
-                  { ( tab ) => (
-                    <>
-                      { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
-                      { tab === 'defaults' && (
-                        <DefaultInvoiceItems onUse={ choice => {
-                          void router.push( {
-                            pathname: '/workspace/payments',
-                            query: { view: 'collect', preset: choice.slug },
-                          } );
-                        } } />
-                      ) }
-                      { tab === 'ledger' && (
-                        <section className="ledger" aria-label="Payment ledger">
-                          <div className="ledger-switch" role="group" aria-label="Ledger view">
-                            <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
-                              aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
-                              Invoices
-                            </button>
-                            <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
-                              aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
-                              Activity
-                            </button>
-                          </div>
-                          { ledgerView === 'invoices'
-                            ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
-                            : <PaymentsActivity /> }
-                        </section>
-                      ) }
-                    </>
-                  ) }
-                </PageShell>
-  </Layout>
-);
+    <Layout user={ user } onSignOut={ signOut } showBreadcrumbs={ false }>
+      <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
+      <PageShell
+        key={ active }
+        className="payments-shell"
+        title="Payments"
+        subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
+        tabs={ TABS }
+        activeTab={ active }
+        defaultTab={ active }
+        onTabChange={ next => {
+          const view = mode( next );
+          void router.push( {
+            pathname: '/workspace/payments',
+            query: view === 'ledger'
+              ? { view: 'ledger', ledger: 'invoices' }
+              : view === 'defaults'
+                ? { view: 'defaults' }
+                : { view: 'collect' },
+          } );
+        } }
+      >
+        { ( tab ) => (
+          <>
+            { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
+            { tab === 'defaults' && (
+              <DefaultInvoiceItems onUse={ choice => {
+                void router.push( {
+                  pathname: '/workspace/payments',
+                  query: { view: 'collect', preset: choice.slug },
+                } );
+              } } />
+            ) }
+            { tab === 'ledger' && (
+              <section className="ledger" aria-label="Payment ledger">
+                <div className="ledger-switch" role="group" aria-label="Ledger view">
+                  <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
+                    aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
+                    Invoices
+                  </button>
+                  <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
+                    aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
+                    Activity
+                  </button>
+                </div>
+                { ledgerView === 'invoices'
+                  ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
+                  : <PaymentsActivity /> }
+              </section>
+            ) }
+          </>
+        ) }
+      </PageShell>
+    </Layout>
+  );
 };
 
 export default PaymentsPage;
