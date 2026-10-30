@@ -7666,6 +7666,45 @@ export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActio
   return secureFileAction( fileId, 'send-access' );
 }
 
+/** Timed actions use the existing five-minute scheduled-messages worker, but dispatch
+ * only through the same owner-verified Vault backend (never generic template params). */
+export type VaultScheduleAction = 'offer' | 'payment' | 'access';
+export interface VaultScheduledAction {
+  scheduledId: string;
+  fileId: string;
+  action: VaultScheduleAction;
+  offerBodyText?: string;
+  scheduledAt: string;
+  status: 'PENDING' | 'DISPATCHING' | 'SENT' | 'FAILED' | 'DISPATCH_UNKNOWN' | 'CANCELLED';
+  createdAt: string;
+  sentAt?: string;
+  updatedAt?: string;
+  errorMessage?: string;
+}
+export function scheduleVaultAction (
+  fileId: string, action: VaultScheduleAction, scheduledAt: string, offerBodyText?: string,
+): Promise<ApiResult<{ schedule: VaultScheduledAction; message: string }>> {
+  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules`, {
+    method: 'POST',
+    body: JSON.stringify( { action, scheduledAt,
+      ...( action === 'offer' ? { offerBodyText } : {} ) } ),
+  } );
+}
+export function listVaultSchedules (
+  fileId: string,
+): Promise<ApiResult<{ schedules: VaultScheduledAction[] }>> {
+  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules`,
+    { cache: 'no-store' } );
+}
+export function cancelVaultScheduledAction (
+  fileId: string, scheduledId: string,
+): Promise<ApiResult<{ scheduledId: string; status: string }>> {
+  return apiCallResult(
+    `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules/${encodeURIComponent( scheduledId )}`,
+    { method: 'DELETE' },
+  );
+}
+
 /** Direct Vault upload is retired. Staff uploads use the Documents intake helpers below,
  * then publishDocumentToVault after S3 confirmation. */
 /** Admin listing. Pass a mobile number to scope it to one customer via the GSI. */
