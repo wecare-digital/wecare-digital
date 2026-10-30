@@ -294,9 +294,9 @@ function announce (): void {
 }
 
 /**
- * Add one product to the website cart. Website purchases are single-unit: adding the same
- * product/variant again is idempotent rather than increasing quantity. Quantity remains an
- * internal checkout field fixed to 1 so downstream catalog/payment contracts stay unchanged.
+ * Select the one storefront product for checkout. Re-selecting it is idempotent; choosing a
+ * different product or variant replaces the earlier UNPAID browser selection. Quantity remains
+ * fixed to 1 and the payment, order and invoice contracts are not changed.
  */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );
@@ -449,7 +449,7 @@ export const contributionOf = ( item: CartItem ): ContributionChoice | null =>
   isContributionItem( item ) ? contributionChoice( item.variantId ) : null;
 
 /**
- * Exactly one contribution line per cart, and choosing an amount SETS it.
+ * A contribution is the one selected cart line; choosing an amount SETS it.
  *
  * THE ARGUMENT IS A CHOICE, NOT AN AMOUNT (owner model change, 2026-10-04). It used to take a
  * rupee integer and validate it against ₹10–₹1,00,000 bounds, because the figure became the line's
@@ -491,7 +491,7 @@ export function setContribution ( variantId: string ): CartItem[] {
 }
 
 /**
- * Merge the lines a WhatsApp hand-off claim returned into the cart the customer pays from.
+ * Accept exactly one unit from a WhatsApp hand-off claim into the storefront cart.
  *
  * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the customer's SERVER-side cart, but
  * the cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
@@ -499,9 +499,10 @@ export function setContribution ( variantId: string ): CartItem[] {
  * customer saw no new items, and the next checkout reconciled the claimed lines straight back OUT
  * of the server-side cart, because the checkout makes that cart match the REQUEST.
  *
- * IT ADDS NO SECOND STORAGE PATH. Every write goes through `addItem` or `setContribution`, which
- * both end at `writeCart` - the one writer - so a claimed line is indistinguishable from a line
- * added on /shop/ and announces the same `CART_CHANGED_EVENT` for the header badge.
+ * IT ADDS NO SECOND STORAGE PATH. A single eligible claimed line goes through `addItem` or
+ * `setContribution`, which both use the same `writeCart` and `CART_CHANGED_EVENT`. Multi-line
+ * or multi-unit claims are NOT partly merged: the caller displays its existing refusal message,
+ * preserving the ability to reconcile the original WhatsApp basket without undercharging.
  *
  * A LINE THIS BUILD CANNOT PLACE IS SKIPPED, NOT GUESSED AT, and the count says so. A claimed
  * product can be absent from `SHOP_PRODUCTS` (added to ProductsTable since the committed snapshot
@@ -676,7 +677,7 @@ export const isServiceItem = ( item: CartItem ): boolean =>
   !!item.productId && SERVICE_PRODUCT_IDS.has( item.productId );
 
 /**
- * SET the one service line (replacing any other service line) and remember its intent id.
+ * SET the single selected service line (replacing any unpaid cart line) and remember its intent id.
  *
  * Exactly one service per order (the server refuses two), quantity 1, display name and price from
  * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
