@@ -426,16 +426,12 @@
     box-sizing: border-box;
   }
 
-  .workspace-shell .workspace-main .btn,
-  .workspace-shell .workspace-main button[role="combobox"] {
-    }
-
   .workspace-shell .workspace-main .ps-tab,
   .workspace-shell .workspace-main .comms-tabs button,
   .workspace-shell .workspace-main .commerce-tabs button,
   .workspace-shell .workspace-main .service-tabs button,
   .workspace-shell .workspace-main .ledger-switch button {
-      padding-inline: 14px !important;
+    padding-inline: 14px !important;
   }
 }
 
