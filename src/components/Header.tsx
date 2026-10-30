@@ -660,7 +660,10 @@ const Header: React.FC = () => {
                       onClick={ event => handleNavClick( event, link ) }
                     >
                       { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                        <span className="nav-row-material-symbol" aria-hidden="true">
+                        <span
+                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          aria-hidden="true"
+                        >
                           { NAV_MATERIAL_SYMBOLS[ link.label ] }
                         </span>
                       ) : (
@@ -755,7 +758,10 @@ const Header: React.FC = () => {
                                 onClick={ event => handleNavClick( event, link ) }
                               >
                                 { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                                  <span className="nav-row-material-symbol" aria-hidden="true">
+                                  <span
+                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          aria-hidden="true"
+                        >
                                     { NAV_MATERIAL_SYMBOLS[ link.label ] }
                                   </span>
                                 ) : (
@@ -778,7 +784,10 @@ const Header: React.FC = () => {
                             ) : (
                               <span className="nav-item nav-family-label">
                                 { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                                  <span className="nav-row-material-symbol" aria-hidden="true">
+                                  <span
+                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          aria-hidden="true"
+                        >
                                     { NAV_MATERIAL_SYMBOLS[ link.label ] }
                                   </span>
                                 ) : (
@@ -899,10 +908,6 @@ const Header: React.FC = () => {
            the bar being anchored to physical sides in a mirrored document. */
         .hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff;
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-        /* Screenshot-matched top hairline. It is painted as an overlay instead of a border so
-           desktop 108px and mobile 96px header geometry stay byte-for-byte unchanged. */
-        .hdr::before{content:'';position:absolute;top:0;inset-inline:0;height:2px;
-          background:#e3e5e3;pointer-events:none}
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
           .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }
@@ -1234,6 +1239,12 @@ const Header: React.FC = () => {
           font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
           letter-spacing:normal;text-transform:none;white-space:nowrap;
           font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
+        }
+        /* person_text has more internal whitespace than the other menu glyphs, so it needs a
+           slightly larger optical box to read at the same apparent size as the 20px SVG icons. */
+        .nav-row-material-symbol-contact{
+          width:22px;height:22px;flex-basis:22px;font-size:25px;
+          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 48;
         }
         .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
         .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
