@@ -239,6 +239,10 @@ type ProfileReply = {
   contactId?: string;
   name?: string;
   username?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  emailVerified?: boolean;
   companyName?: string;
   designation?: string;
   phone?: string;
@@ -275,6 +279,10 @@ function profileFrom ( reply: ProfileReply ): CheckoutProfileValue | null {
     contactId: String( reply.contactId || '' ),
     name: String( reply.name || '' ),
     username: String( reply.username || '' ),
+    firstName: String( reply.firstName || '' ),
+    lastName: String( reply.lastName || '' ),
+    email: String( reply.email || '' ),
+    emailVerified: reply.emailVerified === true,
     companyName: String( reply.companyName || '' ),
     designation: String( reply.designation || '' ),
     phone: String( reply.phone || '' ),
@@ -1327,7 +1335,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // can branch on its RETURNED value; `setProfileStatus` is still called, as a cache for the
     // next render and the next click.
     let status = profileStatus;
-    let mode: CheckoutProfileMode = profile?.email ? 'address' : 'create';
+    let mode: CheckoutProfileMode = profile?.name ? 'address' : 'create';
     if ( status === 'unknown' || status === 'checking' )
     {
       setProfileStatus( 'checking' );
@@ -1352,10 +1360,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // A missing ADDRESS blocks only a basket that needs delivery; a missing IDENTITY blocks every
     // basket, and `mode === 'create'` is exactly "there is no identity yet".
     //
-    // `mode`, NOT `profile?.email`: `profile` is a `useState` value captured in this closure and
+    // `mode`, NOT profile state: `profile` is a `useState` value captured in this closure and
     // `setProfile(...)` does not change it for the remainder of this invocation, and `profileFrom`
     // returns null for anything that is not PROFILE_READY. On a FIRST click `status` starts
-    // 'unknown' and `profile` is still undefined, so `!profile?.email` would be true and a
+    // 'unknown' and `profile` is still undefined, so a stale profile read would be true and a
     // contribution-only cart belonging to a fully provisioned customer would open the address
     // editor anyway -- failing on the first click and working on the second. `mode` carries no
     // stale read: it is reassigned from the reply inside the branch above.
