@@ -1593,8 +1593,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const pending = takePendingAction();
     if ( pending?.kind !== 'checkout' || !pending.channel ) return;
     selectedCheckoutChannelRef.current = pending.channel;
-    void proceed( pending.channel );
-  }, [ proceed ] );
+    // A sign-in return must not open Razorpay behind the customer's back.
+    // Show the fresh server quote first; the user explicitly presses Pay here.
+    setNotice( { kind: 'quiet', message: 'Review your total and select Pay here to continue.' } );
+  }, [] );
 
   const isEmpty = ready && items.length === 0;
   const singleSelectionRequired = ready && items.length > 0
