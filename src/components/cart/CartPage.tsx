@@ -1893,7 +1893,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           /* The card-heading rung: 22px/700/lh1.27/-.25px, the same three numbers as .shop-name
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
              It was 20px/600, a rung that exists nowhere else. */
-          .cart-name{font-size:var(--public-body-size);font-weight:600;line-height:1.3;letter-spacing:var(--public-body-tracking);margin:0 0 4px;color:var(--public-text)}
+          .cart-name{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 4px;color:var(--public-text)}
           /* Price in dark green, never lime: lime means actionable and the page's one lime surface
              is the button below. #1a3a2a on white is about 11:1. Tabular figures so a column of
              prices lines up on the decimal. */
