@@ -1176,12 +1176,12 @@
 
 /* Customers — make payment-test contact creation obvious and actionable. */
 .workspace-shell .contacts-auth-modal .contacts-form-contact {
-  display: block;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 20px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f8faf3;
 }
 .workspace-shell .contacts-auth-modal .contacts-required-note {
   margin-left: 6px;
@@ -1357,7 +1357,7 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
   .workspace-shell .contacts-auth-modal .contacts-country-code {
-    flex-basis: 82px;
+    flex: 0 0 88px;
   }
   .workspace-shell .contacts-auth-modal .contacts-modal-head,
   .workspace-shell .contacts-auth-modal .contacts-modal-body {
@@ -1480,14 +1480,16 @@
   padding: 0 !important;
   background: transparent !important;
 }
+/* Keep the Workspace card structure, but use the shared auth underline for its fields. */
 .workspace-shell .contacts-workspace-form-v2 input,
 .workspace-shell .contacts-workspace-form-v2 select,
 .workspace-shell .contacts-workspace-form-v2 textarea {
   min-height: 48px !important;
-  padding: 10px 12px !important;
-  border: 1px solid rgba(26,58,42,.14) !important;
-  border-radius: 12px !important;
-  background: #fff !important;
+  padding: 10px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--public-hairline, #dfe4df) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
   color: #111 !important;
 }
@@ -1495,11 +1497,17 @@
 .workspace-shell .contacts-workspace-form-v2 select:focus,
 .workspace-shell .contacts-workspace-form-v2 textarea:focus {
   outline: none !important;
-  border-color: #1a3a2a !important;
-  box-shadow: 0 0 0 3px rgba(209,244,112,.32) !important;
+  border-bottom-color: var(--public-brand-green, #1a3a2a) !important;
+  box-shadow: 0 1px 0 0 var(--public-brand-lime, #d1f470) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-country-code select,
+.workspace-shell .contacts-workspace-form-v2 .contacts-phone-control > input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .workspace-shell .contacts-workspace-form-v2 .contacts-country-code select {
-  padding-inline: 10px !important;
+  padding-inline-start: 2px !important;
 }
 .workspace-shell .contacts-workspace-form-v2 .contacts-optional {
   margin-left: 5px;
@@ -1525,6 +1533,41 @@
   background: #f8faf3 !important;
   color: #66716c !important;
 }
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card {
+  flex: 0 0 auto;
+  margin: 8px 24px 4px;
+  padding: 14px 16px;
+  border: 1px solid #f0b5ae;
+  border-left: 4px solid #b42318;
+  border-radius: 14px;
+  background: #fff4f2;
+}
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card span,
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card strong,
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card small {
+  display: block;
+}
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card span {
+  margin-bottom: 4px;
+  color: #8a1c12;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card strong {
+  color: #64130d;
+  font-size: 14px;
+}
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card small {
+  margin-top: 4px;
+  color: #8a3b33;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.workspace-shell .contacts-auth-modal .contacts-duplicate-search small {
+  white-space: normal !important;
+}
 @media (max-width: 767px) {
   .workspace-shell .contacts-workspace-form-v2 {
     width: 100% !important;
@@ -1535,6 +1578,9 @@
   }
   .workspace-shell .contacts-workspace-form-v2 .contacts-form-section {
     padding: 15px;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-reconciliation-card {
+    margin-inline: var(--public-mobile-page-gutter, 16px) !important;
   }
 }
 

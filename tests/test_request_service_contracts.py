@@ -394,19 +394,26 @@ def test_workspace_vault_shows_download_template_variable_mapping():
     assert "Staff do not type or override it." in page
 
 
-def test_request_services_removed_from_public_navigation_but_routes_retained():
-    # Customer-session actions remain available by direct link and authenticated workflows,
-    # but are deliberately absent from both the header graph and its derived menu search.
+def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
+    # Owner's contract: the complete Request menu MUST remain in the public header,
+    # while service URLs remain noindex, nofollow and out of search discovery.
     header = (ROOT / "src/components/Header.tsx").read_text()
     menu = header.split("const COLUMNS: NavColumn[] = [", 1)[1].split(
         "\nconst flattenMenuLinks", 1
     )[0]
-    assert "heading: 'Request'" not in menu
+    assert "heading: 'Request'" in menu
+    for label in (
+        "Orders", "Submit Request", "Request Amendment", "Drop Docs",
+        "Vault", "Shipments", "Track", "Pickup Request", "Leave Review", "Subscribe",
+    ):
+        assert f"label: '{label}'" in menu
     for path in (
         "/orders/", "/submit-request/", "/request-amendment/", "/drop-docs/",
         "/vault/", "/shipments/track/", "/request-pickup/",
     ):
-        assert f"href: '{path}'" not in menu
+        assert f"href: '{path}'" in menu
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in header
+    assert "const MENU_SEARCH_LINKS = flattenMenuLinks();" in header
 
     app = (ROOT / "src/pages/_app.tsx").read_text()
     service_routes = app.split("const CUSTOMER_SERVICE_ROUTES = new Set( [", 1)[1].split(

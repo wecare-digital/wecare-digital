@@ -10,9 +10,11 @@ import { customerserviceBySlug } from '../content/customerservice';
  * DELIBERATELY THIN, like Drop Docs and the rest of the Requests group. Copy lives in
  * src/content/customerservice.ts and the layout in ProductPage.tsx.
  *
- * VAULT IS THE RETURN LEG OF DROP DOCS: Drop Docs sends paperwork in; Vault returns
- * a copy. Request entries are intentionally absent from the public navigation. This page
- * remains reachable through an authenticated deep link and the approved delivery template.
+ * IT SITS UNDER DROP DOCS IN THE MENU because it is the same door in the other direction:
+ * Drop Docs sends paperwork in, Vault gets a copy back out. Unlike the Products column, the
+ * Requests rows in Header.tsx are written out rather than mapped from the content file, so
+ * this one needed adding there by hand - if it is ever missing from the menu, that is where
+ * to look, not here.
  *
  * Without a file query this remains the public Vault service page. The approved WhatsApp
  * template lands on /vault/?file={{1}}; that exact-file URL is the one customer download path

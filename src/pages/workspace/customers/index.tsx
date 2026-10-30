@@ -276,6 +276,7 @@ const Customers: React.FC<PageProps> = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
+  const [identityReconciliationRequired, setIdentityReconciliationRequired] = useState(false);
   const [restoringDuplicate, setRestoringDuplicate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const toast = useToastContext();
@@ -366,6 +367,8 @@ const Customers: React.FC<PageProps> = () => {
 
   // Fix #7: Deleting state to prevent double-click on delete modal
   const [deleting, setDeleting] = useState(false);
+  // Synchronous guard: state alone is not an atomic lock across confirmation dialogs.
+  const customerMutationInFlight = useRef(false);
 
   // Fix #12 (R2): Track Escape to prevent onBlur from committing after cancel
   const inlineEditCancelled = useRef(false);
@@ -480,6 +483,7 @@ const Customers: React.FC<PageProps> = () => {
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
     setDuplicateContact(null);
+    setIdentityReconciliationRequired(false);
   };
 
   // Keyboard shortcuts
@@ -555,20 +559,6 @@ const Customers: React.FC<PageProps> = () => {
       const result = await api.searchContactsResult(query, 20);
       if (!result.ok) continue;
       const exact = result.data.find(contact => {
-        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
-        const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
-        return samePhone || sameEmail;
-      });
-      if (exact) return exact;
-    }
-
-    // The modal may have an older local list than the write authority. Refresh once before
-    // declaring a duplicate unresolvable; this covers a customer created in another tab/session
-    // and older Contacts runtimes that return a generic 409 without existingContactId.
-    const fresh = await api.listContacts();
-    if (fresh.length) {
-      setContacts(fresh);
-      const exact = fresh.find(contact => {
         const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
         const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
         return samePhone || sameEmail;
@@ -682,6 +672,7 @@ const Customers: React.FC<PageProps> = () => {
   const handleCreate = async () => {
     setFormError('');
     setDuplicateContact(null);
+    setIdentityReconciliationRequired(false);
     const fail = ( message: string, fieldId?: string ) => {
       setFormError(message);
       toast.warning(message);
@@ -729,37 +720,47 @@ const Customers: React.FC<PageProps> = () => {
         await loadContacts();
       } else if (!result.ok) {
         if (result.failure.status === 409) {
-          // The Contacts backend is the identity authority. Normal list/search intentionally hides
-          // archived customers, so a duplicate 409 carries the canonical contact id and we fetch
-          // that row directly. Search remains only as a compatibility fallback for older runtime
-          // versions that do not yet return structured duplicate metadata.
-          const rawExistingId = result.failure.details?.existingContactId;
-          const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
-          const exact = existingId ? await api.getContact(existingId) : null;
-          const existing = exact || await resolveDuplicateContact(formPhone, '');
-          setDuplicateContact(existing);
-          if (existing) {
+          // A 409 has two materially different meanings. Do not call an orphaned strong-identity
+          // claim an "existing customer": there may be no customer row to open.
+          const reconciliationRequired =
+            result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
+            || result.failure.details?.reconciliationRequired === true;
+          if (reconciliationRequired) {
+            setDuplicateContact(null);
+                    setIdentityReconciliationRequired(true);
             setFormError('');
-            toast.warning(existing.archivedAt
-              ? 'This WhatsApp customer already exists and is archived. Restore it below.'
-              : 'This WhatsApp customer already exists. Open the existing customer below.');
+            toast.warning(
+              'This WhatsApp identity is reserved, but its customer record is unavailable. '
+              + 'An administrator must reconcile ownership before creating a customer.'
+            );
           } else {
-            const reconciliationRequired =
-              result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
-              || result.failure.details?.reconciliationRequired === true;
-            if (reconciliationRequired) {
-              const message = 'This WhatsApp identity is reserved, but its customer record needs administrator reconciliation.';
-              setFormError(message);
-              toast.warning(message);
+            // Normal duplicate: prefer the canonical id supplied by the backend. Search is only a
+            // compatibility fallback for older deployed runtimes that return a generic 409.
+            const rawExistingId = result.failure.details?.existingContactId;
+            const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
+            const exact = existingId ? await api.getContact(existingId) : null;
+            const existing = exact || await resolveDuplicateContact(formPhone, '');
+            setDuplicateContact(existing);
+            setIdentityReconciliationRequired(false);
+            if (existing) {
+                        setFormError('');
+              toast.warning(existing.archivedAt
+                ? 'This WhatsApp customer already exists and is archived. Restore it below.'
+                : 'This WhatsApp customer already exists. Open it or use it for payment below.');
             } else {
-              // A generic 409 from an older runtime with no resolvable customer row is not safe
-              // to describe as an existing customer. The strong identity is reserved, but its
-              // owner cannot be opened, so fail closed and ask for reconciliation.
-              const message =
-                'This WhatsApp number is already reserved, but its customer record could not be opened. '
-                + 'Administrator reconciliation is required before creating another customer.';
-              setFormError(message);
-              toast.warning(message);
+              // A stale Contacts runtime may return a generic 409 with no openable owner.
+              // Continue to the real Customers search automatically; do not strand staff
+              // in a modal with an instruction to search manually.
+              const fullPhone = contactPhoneE164(formPhone, formCountryCode);
+              setSearchQuery(fullPhone);
+              setDebouncedSearch(fullPhone);
+              setShowModal(false);
+              setShowEditModal(false);
+              resetForm();
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+              toast.warning(
+                'This WhatsApp number already belongs to an existing customer. Showing the matching customer search. If no record appears, ask an administrator to reconcile the identity.'
+              );
             }
           }
         } else {
@@ -917,6 +918,7 @@ const Customers: React.FC<PageProps> = () => {
   // Archive is a distinct non-destructive state. It hides the canonical customer from daily
   // queues while preserving the identity row and every linked order/invoice/payment/consent record.
   const handleArchive = async (contactId: string, contactName?: string) => {
+    if (deleting || customerMutationInFlight.current) return;
     const current = contacts.find(c => c.contactId === contactId);
     if (current?.locked) { toast.warning('This contact is protected. An administrator must unlock it before archiving.'); return; }
     const ok = await confirm({
@@ -924,7 +926,8 @@ const Customers: React.FC<PageProps> = () => {
       message: `Archive ${contactName ? `"${contactName}"` : 'this contact'}? It will be hidden from the contacts list. The record, its messages and any payment links are kept, and an admin can restore it.`,
       confirmText: 'Archive',
     });
-    if (!ok) return;
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
     setDeleting(true);
     try {
       const result = await api.archiveContact(contactId, 'Archived from Customers workspace after operator review');
@@ -935,7 +938,51 @@ const Customers: React.FC<PageProps> = () => {
       }
       else toast.error('Failed to archive contact');
     } catch { toast.error('Failed to archive contact'); }
-    finally { setDeleting(false); }
+    finally { customerMutationInFlight.current = false; setDeleting(false); }
+  };
+
+  // Staff Delete is only a guarded soft-delete. It never purges messages or releases a
+  // phone reservation, so it cannot be used as a workaround for an orphaned-identity 409.
+  const handleDeleteCustomer = async (contactId: string, contactName?: string) => {
+    if (deleting || customerMutationInFlight.current) return;
+    const current = contacts.find(c => c.contactId === contactId);
+    if (current?.locked) {
+      toast.warning('This customer is protected by a retention lock; ask an administrator to review it.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Delete customer from Workspace?',
+      message: `Delete ${contactName ? `"${contactName}"` : 'this customer'} from active customer records? This is a soft delete, NOT a permanent purge. The phone stays reserved and cannot be reused to create a new customer. Invoice, payment, order and audit history are never erased by this action. Choose Archive if you may need to restore the record.`,
+      confirmText: 'Delete customer',
+      danger: true,
+    });
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
+    setDeleting(true);
+    try {
+      const result = await api.softDeleteContactResult(contactId);
+      if (result.ok && result.data?.success && (result.data.deleteType === 'soft' || result.data.deleteType == null)) {
+        toast.success('Customer removed from the active list; their phone remains reserved.');
+        setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
+        if (detailContact?.contactId === contactId) setDetailContact(null);
+        await loadContacts();
+      } else if (!result.ok) {
+        const refusal = (result.failure.code || result.failure.message || '').toUpperCase();
+        const message = refusal.includes('CONTACT_LOCKED')
+          ? 'Delete refused: this customer is protected for legal retention.'
+          : refusal.includes('CONTACT_HAS_PAYMENTS') || refusal.includes('PAYMENT_LINKAGE_UNKNOWN')
+            ? 'Delete refused: linked payment/order history exists or could not be verified. Archive instead if permitted.'
+            : result.failure.message || 'Delete was refused by the server.';
+        toast.error(message);
+      } else {
+        toast.error('Delete was not confirmed by the server. Refresh before trying again.');
+      }
+    } catch {
+      toast.error('Delete request failed. Customer was not confirmed deleted.');
+    } finally {
+      customerMutationInFlight.current = false;
+      setDeleting(false);
+    }
   };
 
   const handleUnlock = async (contactId: string) => {
@@ -1144,7 +1191,7 @@ const Customers: React.FC<PageProps> = () => {
       <div className="contacts-form-intro">
         <span className="contacts-form-kicker">Workspace · Customers</span>
         <h3>{_isEdit ? 'Edit customer profile' : 'Create customer profile'}</h3>
-        <p>Canonical customer identity using the same profile and address contract as F001 Subscribe.</p>
+        <p>Customer identity, contact details and address in one place.</p>
       </div>
 
       <section className="contacts-form-section" aria-label="Customer identity">
@@ -1153,7 +1200,7 @@ const Customers: React.FC<PageProps> = () => {
             <strong>Identity</strong>
             <span>WhatsApp-first customer record</span>
           </div>
-          <small>F001</small>
+          <small>Required</small>
         </div>
 
         <div className="contacts-form-stack">
@@ -1172,7 +1219,7 @@ const Customers: React.FC<PageProps> = () => {
                 <div className="contacts-country-code">
                   <select id="contact-country-code" aria-label="WhatsApp country calling code"
                     style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
-                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); }}
+                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
                     onFocus={focusStyle} onBlur={blurStyle}>
                     {COUNTRY_CODES.map(cc => (
                       <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
@@ -1180,11 +1227,11 @@ const Customers: React.FC<PageProps> = () => {
                   </select>
                 </div>
                 <input id="contact-phone" style={S.input} value={formPhone}
-                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); }}
+                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
                   placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
                   onFocus={focusStyle} onBlur={blurStyle} />
               </div>
-              <p style={S.hint}>Used for WhatsApp service, verification and payment requests. Stored in canonical E.164 form.</p>
+              <p style={S.hint}>Used for WhatsApp service, verification and payment requests. The country code is stored in canonical E.164 form.</p>
             </div>
           </div>
 
@@ -1258,7 +1305,7 @@ const Customers: React.FC<PageProps> = () => {
           ))}
         </div>
         <div className="contacts-address-preview">
-          <span>Address preview</span>
+          <span>Composed address</span>
           <div data-address-preview="contact" aria-readonly="true">
             {formatAddress(formAddress) || formShippingAddress || '—'}
           </div>
@@ -1287,6 +1334,19 @@ const Customers: React.FC<PageProps> = () => {
         ) : (
           <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
         )}
+      </div>
+    </div>
+  ) : null;
+
+  const identityReconciliationCard = identityReconciliationRequired ? (
+    <div className="contacts-reconciliation-card" role="alert">
+      <div>
+        <span>Identity needs reconciliation</span>
+        <strong>This WhatsApp number is already reserved, but its customer record is unavailable.</strong>
+        <small>
+          A new customer is blocked until an administrator reconciles the existing identity ownership.
+          No duplicate customer was created.
+        </small>
       </div>
     </div>
   ) : null;
@@ -1549,8 +1609,9 @@ const Customers: React.FC<PageProps> = () => {
                         )}
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                            <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
-                            <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
+                            <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
+                            <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
+                            <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
                           </div>
                         </td>
                       </tr>
@@ -1599,8 +1660,9 @@ const Customers: React.FC<PageProps> = () => {
                         {c.email && <div className="contact-card-email">{c.email}</div>}
                       </div>
                       <div className="contact-card-actions" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
-                        <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
+                        <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
+                        <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
+                        <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
                       </div>
                     </div>
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
@@ -1684,10 +1746,12 @@ const Customers: React.FC<PageProps> = () => {
                   </div>
                 )}
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Archive</button>
+                <div className="contacts-detail-actions">
+                  <button type="button" onClick={() => { handleEdit(detailContact); setDetailContact(null); }} className="contacts-primary-action">Edit</button>
+                  <button type="button" onClick={() => void handleArchive(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-secondary-action">Archive</button>
+                  <button type="button" onClick={() => void handleDeleteCustomer(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-danger-action">Delete customer</button>
                 </div>
+                <p className="contacts-retention-note">Archive can be restored. Delete is a guarded soft delete: the phone remains reserved and financial records stay intact. Protected customers cannot be deleted.</p>
 
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />
@@ -1718,12 +1782,13 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
           <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
@@ -1737,12 +1802,13 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
           <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>

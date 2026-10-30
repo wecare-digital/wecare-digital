@@ -4357,3 +4357,75 @@ html {
     padding: 16px 18px 8px;
   }
 }
+
+/* Workspace Customers: explicit, distinguishable Archive and guarded soft-Delete actions.
+   These styles do not introduce a global control-height floor for mobile/WebView. */
+.workspace-shell .contacts-row-action {
+  flex: 0 0 auto;
+  min-width: 0;
+  border: 1px solid var(--public-hairline, #e5e7eb);
+  border-radius: 9px;
+  padding: 7px 9px;
+  background: #fff;
+  color: var(--public-brand-green, #1a3a2a);
+  font: 600 var(--public-meta-size, 13px)/1.25 var(--font-sans, sans-serif);
+  cursor: pointer;
+}
+.workspace-shell .contacts-danger-action {
+  border: 1px solid #dcaca4;
+  border-radius: 9px;
+  padding: 8px 11px;
+  color: #9b2920;
+  background: #fff8f7;
+  font: 600 var(--public-supporting-size, 14px)/1.3 var(--font-sans, sans-serif);
+  cursor: pointer;
+}
+.workspace-shell .contacts-danger-action:hover:not(:disabled) {
+  background: #fff0ed;
+}
+.workspace-shell .contacts-row-action:disabled,
+.workspace-shell .contacts-danger-action:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+.workspace-shell .contacts-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 16px;
+}
+.workspace-shell .contacts-detail-actions > button {
+  min-width: 0;
+  flex: 1 1 105px;
+}
+.workspace-shell .contacts-retention-note {
+  max-width: 64ch;
+  margin: 12px 0 0;
+  color: var(--public-muted, #6e7782);
+  font: 400 var(--public-supporting-size, 14px)/1.55 var(--font-sans, sans-serif);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .workspace-shell .contact-card-actions {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 6px;
+  }
+  .workspace-shell .contacts-detail-actions > button {
+    flex: 1 1 100%;
+  }
+}
+
+/* A numbered GST invoice cannot be deleted. Keep that explanation visible even when
+   the conditional Void button is absent for paid/captured invoices. */
+.workspace-shell .payments-shell .pf-invoice-retention-note {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0 0;
+  color: var(--public-muted, #6e7782);
+  font: 400 var(--public-supporting-size, 14px)/1.5 var(--font-sans, sans-serif);
+  overflow-wrap: anywhere;
+}

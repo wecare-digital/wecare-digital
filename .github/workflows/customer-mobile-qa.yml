@@ -9,6 +9,11 @@ on:
       - src/lib/contactPhone.ts
       - src/lib/address-format.ts
       - src/styles/workspace.css
+      - src/styles/inner-ux.css
+      - src/api/client.ts
+      - amplify/functions/core/contacts/handler.py
+      - amplify/functions/payments/invoice-engine/handler.py
+      - tests/test_customer_delete_and_invoice_void.py
       - tests/customerPhone.test.mjs
       - tests/test_customer_mobile_interactions.py
       - tests/test_customer_duplicate_resolution.py
@@ -35,4 +40,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_customer_mobile_interactions.py tests/test_customer_duplicate_resolution.py tests/test_customer_subscribe_form_contract.py
+      - run: python -m pytest -q tests/test_customer_mobile_interactions.py tests/test_customer_duplicate_resolution.py tests/test_customer_subscribe_form_contract.py tests/test_customer_delete_and_invoice_void.py

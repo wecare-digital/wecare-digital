@@ -58,16 +58,19 @@ const fail = ( message ) => { throw new Error( message ); };
       if ( await menu.getAttribute( 'id' ) !== 'public-navigation-menu' ) {
         fail( `${viewport.name}: public navigation id is missing or changed` );
       }
-      // The public Request section is hidden, but deep-linked customer routes still exist.
-      // Menu search derives from this same navigation graph, with no separate alias list.
-      if ( await menu.locator( '.nav-group-label', { hasText: 'Request' } ).count() ) {
-        fail( `${viewport.name}: removed Request heading was restored` );
+      // Owner invariant: the Request family stays visible on all devices and engines.
+      // Its service destinations remain customer-session URLs with noindex metadata.
+      if ( await menu.locator( '.nav-group-label', { hasText: 'Request' } ).count() !== 1 ) {
+        fail( `${viewport.name}: Request section missing from public menu` );
       }
       for ( const label of [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs',
         'Vault', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe' ] ) {
-        if ( await menu.getByRole( 'link', { name: label, exact: true } ).count() ) {
-          fail( `${viewport.name}: removed Request menu entry ${label} is visible` );
+        if ( await menu.getByRole( 'link', { name: label, exact: true } ).count() !== 1 ) {
+          fail( `${viewport.name}: Request menu entry ${label} missing or duplicated` );
         }
+      }
+      if ( await menu.getByText( 'Shipments', { exact: true } ).count() === 0 ) {
+        fail( `${viewport.name}: Shipments menu family missing` );
       }
       const box = await menu.boundingBox();
       if ( !box || box.height < 120 ) fail( `${viewport.name}: menu too short or invisible` );
@@ -122,7 +125,7 @@ const fail = ( message ) => { throw new Error( message ); };
       // Mobile intentionally keeps the same capped Products rail as desktop: seven
       // product rows plus the existing continuation button. The important safety contract is
       // that vertical overscroll remains AUTO, so reaching the end of Products can hand the
-      // gesture back to the main menu instead of trapping subsequent sections below it.
+      // gesture back to the main menu instead of trapping Request and later sections below it.
       if ( viewport.width <= 767 ) {
         const menuScroll = await menu.evaluate( node => ( {
           overflowY: getComputedStyle( node ).overflowY,
