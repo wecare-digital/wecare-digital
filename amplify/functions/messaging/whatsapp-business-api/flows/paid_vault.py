@@ -25,9 +25,10 @@ TEMPLATE_IMAGE_HEADER = {'templateHeaderMedia': HEADER_IMAGE, 'templateHeaderTyp
 
 
 # The paid-invoice send is accepted before the post-invoice Vault dispatch starts.
-# A bounded 2-second gap avoids placing the Access Vault link right on top of the receipt.
-# Provider/device ordering is still observed through WhatsApp status-webhook message IDs.
-_POST_RECEIPT_ACCESS_GAP_SECONDS = 2
+# A bounded four-second gap avoids placing Access Vault on top of the paid receipt.
+# Provider acceptance is NOT proof of handset delivery or handset order.
+# Payment + entitlement guards, durable per-stage send claims and no blind retries stay unchanged.
+_POST_RECEIPT_ACCESS_GAP_SECONDS = 4
 
 
 def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
