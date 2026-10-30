@@ -519,6 +519,10 @@ def run(root: Path) -> int:
     )["UserPool"]["Id"]
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
+    # The real Vault redeem path HEADs the private object before issuing any
+    # signed URL. Keep this hermetic S3 bucket populated rather than bypassing
+    # that production safety check.
+    boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="wecare-digital-get")
 
     from lambda_utils import contact_key, template_media, wa_internal_event  # noqa: E402
     from lambda_utils.ecommerce import checkout_pricing, default_coupon, meta_catalog_sync as mcs
@@ -787,8 +791,11 @@ def run(root: Path) -> int:
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
-        check("HDR", "fixed square payment order thumbnail", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/img/wecare-catalog-icon.png"), header["parameters"][0]["image"])
+        check("HDR", "approved payment IMAGE header and fixed square ORDER_DETAILS thumbnail",
+              header["parameters"][0]["image"]["link"] == template_media.PAYMENT_TEMPLATE_HEADER
+              and action["order"]["items"][0]["image"]["link"] == template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
+              {"header": header["parameters"][0]["image"]["link"],
+               "item": action["order"]["items"][0]["image"]["link"]})
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",
@@ -2249,8 +2256,8 @@ def run(root: Path) -> int:
             "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
             "contacts": [{"wa_id": customer["digits"], "profile": {"name": "Hermetic Buyer"}}],
             "messages": [message]}}]}
-        return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
-                     request_id=str(uuid.uuid4()))
+        return deliver(build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                             request_id=str(uuid.uuid4())))
 
     def sends_of(since: Dict[str, int], template: str) -> List[Dict[str, Any]]:
         return [s["payload"] for s in W.since(since, "meta_sends")
@@ -2276,6 +2283,13 @@ def run(root: Path) -> int:
                 if str(row.get("orderId", "")).startswith("VAULTOFFER#") and row.get("fileId") == file_id}
 
     def register_vault_file(customer: Dict[str, str], file_id: str, name: str) -> None:
+        # Mirror publish ordering: a Vault record must point at an existing,
+        # private, nonempty object. moto serves S3 in-process; nothing is uploaded.
+        s3 = boto3.client("s3", region_name="us-east-1")
+        pdf = b"%PDF-1.4\n" + b"0" * 991
+        for key in ("secure/u/" + file_id + ".pdf", "secure/d/" + file_id + ".pdf"):
+            s3.put_object(Bucket="wecare-digital-get", Key=key,
+                          Body=pdf, ContentType="application/pdf")
         _table("SecureFilesTable").put_item(Item={
             "fileId": file_id, "ownerPhone": customer["digits"], "ownerCustomerId": customer["sub"],
             "status": "active", "createdAt": str(int(time.time())), "displayName": name,

@@ -117,3 +117,17 @@ def test_vault_staff_selection_uses_home_lime_and_shared_font():
     assert "background:var(--public-brand-lime)" in src
     assert "background:var(--public-lime-tint)" in src
     assert "font-size:var(--public-supporting-size)" in src
+
+def test_vault_paid_download_filename_has_all_required_module_imports():
+    """A paid and stored Vault file must issue a signed URL, not crash on re.sub."""
+    source = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+    imported_re = any(
+        isinstance(node, ast.Import) and any(alias.name == "re" for alias in node.names)
+        for node in module.body
+    )
+    helper = next(node for node in module.body
+                  if isinstance(node, ast.FunctionDef) and node.name == "_safe_download_filename")
+    assert imported_re
+    assert "re.sub(" in ast.get_source_segment(source, helper)
+    assert "_safe_download_filename(item)" in source
