@@ -461,7 +461,7 @@ def _window_closed(entitlement: Optional[Dict[str, Any]], origin: str) -> Dict[s
         403,
         {
             "error": "ACCESS_WINDOW_CLOSED",
-            "message": "Your access window has ended. Renew access on WhatsApp to download again.",
+            "message": "Your 24-hour access has ended. Renew on the website or through WhatsApp to download again.",
             "windowCount": vault_window.window_count(entitlement),
             "renewable": True,
         },
@@ -2159,19 +2159,54 @@ def _open_access_window(entitlement: Dict[str, Any], now: Optional[int] = None) 
     return refreshed
 
 
+def _vault_file_storage_ready(item: Dict[str, Any]) -> bool:
+    """Never issue a dead or untrusted S3 link as if it were a successful download.
+
+    The private-object HEAD happens after verified customer ownership + paid window
+    checks. It cannot reveal existence to an anonymous customer and reads no bytes.
+    """
+    key = str(item.get("s3Key") or "")
+    if not key.startswith(SECURE_PREFIX) or key.endswith("/") or len(key) > 1024:
+        logger.warning(json.dumps({"event": "vault_download_invalid_storage_reference",
+                                   "fileId": str(item.get("fileId") or "")[:120]}))
+        return False
+    try:
+        result = _s3_client().head_object(Bucket=BUCKET, Key=key)
+        return int(result.get("ContentLength") or 0) > 0
+    except ClientError as exc:
+        logger.warning(json.dumps({"event": "vault_download_storage_check_failed",
+                                   "errorCode": exc.response.get("Error", {}).get("Code", ""),
+                                   "fileId": str(item.get("fileId") or "")[:120]}))
+        return False
+
+
+def _vault_storage_unavailable(origin: str) -> Dict[str, Any]:
+    return _no_store(cors_response(503, {
+        "error": "VAULT_STORAGE_UNAVAILABLE",
+        "message": "The private file could not be verified in storage. Do not pay again. Contact support.",
+    }, origin))
+
+
 def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
     """Record one expiring transport attempt without changing financial entitlement."""
     now = int(time.time())
+    # A presigned URL must expire NO LATER THAN the paid window. A link issued in
+    # the last few seconds must not create free access beyond the 24h deadline.
+    remaining = vault_window.window_ends_at(entitlement) - now
+    if remaining <= 0:
+        raise ValueError("paid access window expired before issuing transport")
+    ttl = min(int(DOWNLOAD_URL_TTL), remaining)
     session_id = SESSION_PREFIX + uuid.uuid4().hex
+    url = _download_url(item, ttl=ttl)
     _table(GRANTS_TABLE).put_item(Item={
         "grantId": session_id, "recordType": "VAULT_DOWNLOAD_SESSION",
         "entitlementId": entitlement["grantId"], "customerId": entitlement["customerId"],
         "fileId": entitlement["fileId"], "ownerPhone": entitlement["ownerPhone"],
-        "createdAt": now, "expiresAt": now + int(DOWNLOAD_URL_TTL),
+        "createdAt": now, "expiresAt": now + ttl,
     })
     return {
-        "downloadUrl": _download_url(item),
-        "expiresInSeconds": DOWNLOAD_URL_TTL,
+        "downloadUrl": url,
+        "expiresInSeconds": ttl,
         "downloadSessionId": session_id,
         "entitlementId": entitlement["grantId"],
     }
@@ -2452,6 +2487,8 @@ def _redeem_after_reconcile(
         entitlement = _open_access_window(entitlement, now)
     if not vault_window.window_open(entitlement, now):
         return _window_closed(entitlement, origin)
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     payload = _issue_download_session(entitlement, item)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
     payload["accessWindowCount"] = vault_window.window_count(entitlement)
@@ -2618,6 +2655,8 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     if not vault_window.window_open(entitlement, now):
         return _window_closed(entitlement, origin)
 
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     payload = _issue_download_session(entitlement, item)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
     payload["accessWindowCount"] = vault_window.window_count(entitlement)
