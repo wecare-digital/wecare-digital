@@ -86,6 +86,26 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     if flow_token and flow_token.startswith('subscribe'):
         return subscribe_profile.route(action, screen, data, flow_token, request_id)
 
+    # Approved invoice and manual Leave Review templates now use DATA_EXCHANGE,
+    # despite F002 remaining endpointless at completion. Its FEEDBACK screen has
+    # no private initial data; its signed nfm_reply is saved by customer_ideas.
+    # Never use the general order-list fallback for an invoice-bound review token.
+    if flow_token and flow_token.startswith('review-'):
+        from lambda_utils.ecommerce import review_token
+        if action == 'INIT' and review_token.is_review_token(flow_token):
+            return {'screen': 'FEEDBACK', 'data': {}}
+        return {'data': {'error': 'This review link is unavailable.'}}
+
+    # Shared SELECT_TARGET -> NOTE -> CONFIRMATION assets for paid single-order
+    # services. The retired handlers below return ORDER_SELECT/AMENDMENT screens,
+    # which do not exist in the approved customer-visible JSON. INIT must verify
+    # the issued session, captured payment and one bound order before any prefill.
+    if flow_token and flow_token.startswith(('srpaid-', 'amendpaid-', 'request_pickup-')):
+        if action == 'INIT':
+            from flows import paid_service_targets
+            return paid_service_targets.handle_init(flow_token)
+        return {'data': {'error': 'Unsupported paid service Flow action.'}}
+
     # ── SUBMIT REQUEST FLOW ──
     if flow_key in ('sr', 'submit_re') or flow_key.startswith('sr'):
         flow_config = {}
