@@ -164,7 +164,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         return () => { active = false; };
     }, [] );
 
-    const matchingCustomers = !selectedCustomerId && contactQuery.trim().length > 1
+    const matchingCustomers = !reviewFile && !selectedCustomerId && contactQuery.trim().length > 1
         ? customers.filter( customer =>
             ( customer.name || '' ).toLowerCase().includes( contactQuery.trim().toLowerCase() )
             || ( customer.phone || '' ).includes( contactQuery.trim() )
@@ -214,6 +214,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
     const prepareOffer = ( target: SecureFile ) => {
         setMode( 'existing' );
+        setSelectedCustomerId( '' );
+        setContactQuery( target.ownerName || '' );
         setReviewFile( target );
         setOfferBodyText( target.lastOfferBodyText || '' );
         document.getElementById( 'sf-offer-body-text' )?.scrollIntoView( { behavior: 'smooth', block: 'center' } );
@@ -475,7 +477,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     clearFileSelection();
                                 } }
                                 disabled={ uploading } autoComplete="off" />
-                            { selectedCustomerId ? (
+                            { mode === 'existing' && reviewFile ? (
+                                <p className="sf-hint">Selected file owner: { reviewFile.ownerName || 'Customer' } · { reviewFile.ownerPhoneMasked || 'masked' }. Ownership is locked to the published file.</p>
+                            ) : selectedCustomerId ? (
                                 <p className="sf-hint">Customer selected · <button type="button" className="sf-contact-change"
                                     onClick={ () => {
                                         setSelectedCustomerId( '' );
@@ -501,27 +505,33 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-identity-fields">
                             <div className="sf-field">
                                 <label className="sf-label" htmlFor="sf-name">Customer name</label>
-                                <input id="sf-name" className="sf-input" value={ name }
+                                <input id="sf-name" className="sf-input" value={ mode === 'existing' && reviewFile ? reviewFile.ownerName || '' : name }
                                     onChange={ event => {
                                         setSelectedCustomerId( '' );
                                         setName( event.target.value );
                                         clearFileSelection();
                                     } }
-                                    autoComplete="off" placeholder="Customer full name" disabled={ uploading } />
+                                    autoComplete="off" placeholder="Customer full name"
+                                    disabled={ uploading || ( mode === 'existing' && !!reviewFile ) } />
                             </div>
                             <div className="sf-field">
                                 <label className="sf-label" htmlFor="sf-mobile">WhatsApp mobile</label>
-                                <input id="sf-mobile" className="sf-input" value={ mobile }
+                                <input id="sf-mobile" className="sf-input" value={ mode === 'existing' && reviewFile ? reviewFile.ownerPhoneMasked || '' : mobile }
                                     onChange={ event => {
                                         setSelectedCustomerId( '' );
                                         setMobile( event.target.value );
                                         setFilterMobile( event.target.value );
                                         clearFileSelection();
                                     } }
-                                    autoComplete="tel" inputMode="tel" placeholder="+91…" disabled={ uploading } />
+                                    autoComplete="tel" inputMode="tel" placeholder="+91…"
+                                    disabled={ uploading || ( mode === 'existing' && !!reviewFile ) } />
                             </div>
                         </div>
-                        <p className="sf-hint sf-ownership-note">This verified mobile number owns the Vault file. The number is never taken from the uploaded filename.</p>
+                        <p className="sf-hint sf-ownership-note">
+                            { mode === 'existing' && reviewFile
+                                ? 'Published file owner is fixed server-side. Changing the upload form cannot transfer access.'
+                                : 'New upload: the entered mobile number is bound to the Vault file by the server, not the uploaded filename.' }
+                        </p>
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
                             <button type="button" className={ mode === 'upload' ? 'active' : '' }
                                 aria-pressed={ mode === 'upload' }
