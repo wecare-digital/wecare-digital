@@ -228,7 +228,6 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             gap:8px;
           }
           .payments-public-actions button{
-            min-height:44px;
             padding:9px 14px;
             border:1px solid var(--public-hairline,#e5e7eb);
             border-radius:12px;
@@ -274,7 +273,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
               padding-bottom:40px;
             }
           }
-          @media(max-width:420px){
+          @media(max-width:480px){
             .payments-public-actions{grid-template-columns:1fr}
           }
         `}</style>
