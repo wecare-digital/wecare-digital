@@ -50,6 +50,10 @@ const CART_KEY = 'wecare.cart.v1';
  */
 export const CART_CHANGED_EVENT = 'wecare:cart-changed';
 
+/** Part 1 storefront checkout: one catalogue selection, one unit, no invisible basket truncation. */
+export const SHORT_COMMERCE_ONE_PRODUCT_MESSAGE =
+  'Buy one product at a time (quantity 1). Remove extra cart lines to continue.';
+
 export interface CartItem {
   productId?: string;
   variantId?: string;
@@ -301,24 +305,21 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
   const ref = String( product.id || product.slug || '' ) + ( variantId ? `:${variantId}` : '' );
   if ( !ref ) return readCart();
   void qty;
-  const items = readCart();
-  const existing = items.find( item => item.ref === ref );
-  if ( !existing )
-  {
-    items.push( {
-      productId: product.id,
-      ...( variantId ? { variantId } : {} ),
-      ref,
-      slug: String( product.slug || '' ),
-      name: product.variants && product.variants.length > 1
-        ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
-        : String( product.name || '' ),
-      formattedPrice: String( product.formattedPrice || '' ),
-      quantity: 1,
-    } );
-  }
-  writeCart( items );
-  return items;
+  const existing = readCart().find( item => item.ref === ref );
+  const selected: CartItem = existing ? { ...existing, quantity: 1 } : {
+    productId: product.id,
+    ...( variantId ? { variantId } : {} ),
+    ref,
+    slug: String( product.slug || '' ),
+    name: product.variants && product.variants.length > 1
+      ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
+      : String( product.name || '' ),
+    formattedPrice: String( product.formattedPrice || '' ),
+    quantity: 1,
+  };
+  // A new selection replaces the prior UNPAID website selection. No multi-bag checkout.
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
@@ -468,8 +469,7 @@ export function setContribution ( variantId: string ): CartItem[] {
   const choice = contributionChoice( variantId );
   if ( !choice ) return readCart();
   const ref = `${CONTRIBUTION_PRODUCT_ID}:${choice.variantId}`;
-  const items = readCart().filter( item => !isContributionItem( item ) );
-  items.push( {
+  const selected: CartItem = {
     productId: CONTRIBUTION_PRODUCT_ID,
     variantId: choice.variantId,
     // The shape `addItem` builds, so `removeItem` and the `key` prop work unchanged.
@@ -485,9 +485,9 @@ export function setContribution ( variantId: string ): CartItem[] {
     // this had to be blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.
     formattedPrice: `\u20B9${ choice.rupees }.00`,
     quantity: 1,
-  } );
-  writeCart( items );
-  return items;
+  };
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
@@ -516,6 +516,13 @@ export function setContribution ( variantId: string ): CartItem[] {
  * already chosen an amount here, which is the basket the server refuses as two contributions.
  */
 export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[]; merged: number } {
+  // A WhatsApp hand-off may contain a legacy multi-line or multi-quantity basket.
+  // Never silently discard paid intent or choose an arbitrary line for checkout.
+  if ( !Array.isArray( lines ) || lines.length !== 1 ||
+       !Number.isInteger( lines[ 0 ].quantity ) || lines[ 0 ].quantity !== 1 )
+  {
+    return { items: readCart(), merged: 0 };
+  }
   let merged = 0;
   for ( const line of lines || [] )
   {
@@ -636,6 +643,12 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
  * server reads the authoritative total from ProductsTable, not from this.
  */
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
+  // Defense in depth for legacy/crafted carts; no request may silently drop a second line
+  // or turn a stored quantity > 1 into a charged single unit.
+  if ( items.length > 1 || items.some( item => item.quantity !== 1 ) )
+  {
+    throw new Error( SHORT_COMMERCE_ONE_PRODUCT_MESSAGE );
+  }
   return items
     .filter( item => item.ref && item.quantity > 0 )
     .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: 1 } ) );
@@ -679,8 +692,7 @@ export function setServiceLine (
   // and inventing one here would put a number on a cart row that the checkout had never priced. A
   // row with no usable amount is therefore not written at all.
   if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
-  const items = readCart().filter( item => !isServiceItem( item ) );
-  items.push( {
+  const selected: CartItem = {
     productId: choice.productId,
     variantId: choice.variantId,
     ref: `${ choice.productId }:${ choice.variantId }`,
@@ -692,14 +704,14 @@ export function setServiceLine (
     formattedPrice: `\u20B9${ Math.trunc( linePaise / 100 ) }`
       + `.${ String( linePaise % 100 ).padStart( 2, '0' ) }`,
     quantity: 1,
-  } );
+  };
   if ( hasWindow() )
   {
     window.localStorage.setItem(
       SERVICE_INTENT_KEY, JSON.stringify( { variantId: choice.variantId, intentId } ) );
   }
-  writeCart( items );
-  return items;
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
