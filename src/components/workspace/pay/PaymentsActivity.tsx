@@ -155,7 +155,7 @@ const PaymentsActivity: React.FC = () => {
         .pa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
         .pa-head h2{margin:0;color:var(--text);font-size:var(--h3)}
         .pa-head p{margin:4px 0 0;color:var(--text-muted);font-size:var(--text-sm);line-height:1.45}
-        .pa-head button,.pa-state button{min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);font:inherit;font-weight:650;cursor:pointer}
+        .pa-head button,.pa-state button{padding:8px 14px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);font:inherit;font-weight:650;cursor:pointer}
         .pa-head button:disabled{opacity:.55;cursor:default}
         .pa-state{padding:24px;border:1px solid var(--border);border-radius:14px;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:12px}
         .pa-state.error{color:var(--danger)}
