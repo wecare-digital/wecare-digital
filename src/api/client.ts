@@ -7568,14 +7568,12 @@ export interface SecureFile {
   lastOfferRequestedBy?: string;
   lastOfferRequestedAt?: string;
   lastOfferOutcome?: string;
-  lastOfferMessageId?: string;
   lastPaymentRequestedBy?: string;
   lastPaymentRequestedAt?: string;
   lastPaymentRequestOutcome?: string;
   lastAccessSentBy?: string;
   lastAccessSentAt?: string;
   lastAccessSendOutcome?: string;
-  lastAccessMessageId?: string;
 }
 
 export interface SecureFileLog extends SecureFile {
