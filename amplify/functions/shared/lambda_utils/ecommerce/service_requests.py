@@ -80,7 +80,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Dict, FrozenSet, Mapping, Optional, Tuple
 
-from lambda_utils.ecommerce import cart_contract
+from lambda_utils.ecommerce import cart_contract, pickup_activation
 
 logger = logging.getLogger(__name__)
 
@@ -442,10 +442,11 @@ def checkout_preflight(line_items: Any, body: Any, *,
         logger.info(json.dumps({"event": "service_refused",
                                 "reason": SERVICE_SEPARATE_CHECKOUT}))
         return 409, refusal(SERVICE_SEPARATE_CHECKOUT)
-    # The published Pickup Flow still carries a cloned Submit Request completion schema.
-    # Refuse every new checkout rail BEFORE any payment is created. The website's
-    # service selector is not a security boundary; this pure guard is shared by all rails.
-    if line.kind == REQUEST_PICKUP:
+    # All checkout rails refuse Pickup until an operator explicitly verifies
+    # the corrected published Meta completion asset and supplies its exact
+    # checksum attestation. This check remains pure and happens before any
+    # payment attempt or gateway call. The website is not a security boundary.
+    if line.kind == REQUEST_PICKUP and not pickup_activation.enabled():
         logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_NOT_PAYABLE,
                                 "serviceCode": REQUEST_PICKUP}))
         return 409, refusal(SERVICE_NOT_PAYABLE)
