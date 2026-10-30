@@ -21,6 +21,7 @@ import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
 import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 import { resolveWaMime, validateWaMediaSize, WA_ACCEPT_STRING } from '../../../lib/wa-media';
+import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -77,6 +78,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ vaultBreakdown, setVaultBreakdown ] = useState<ServicePriceBreakdown | null>( null );
     const [ vaultTemplates, setVaultTemplates ] = useState<ServicePaymentTemplates | null>( null );
     const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
+    const [ customers, setCustomers ] = useState<api.Contact[]>( [] );
+    const [ contactQuery, setContactQuery ] = useState( '' );
+    const [ selectedCustomerId, setSelectedCustomerId ] = useState( '' );
+    const [ mode, setMode ] = useState<'upload' | 'existing'>( 'upload' );
+    const [ journey, setJourney ] = useState<VaultRegistryJourney | null>( null );
+    const [ journeyError, setJourneyError ] = useState( '' );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
     const fetchInto = useCallback( async ( mobileFilter?: string ) => {
@@ -87,13 +94,16 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setTruncated( !!result.data.truncated );
             setStorage( result.data.storage || null );
             setLoadError( '' );
+            setLoading( false );
+            return result.data.files || [];
         } else
         {
             // Say why, rather than rendering an empty table that looks like "no files".
             setLoadError( result.failure.message || 'Could not load secure files' );
             setFiles( [] );
+            setLoading( false );
+            return null;
         }
-        setLoading( false );
     }, [] );
 
     /** Reload with the spinner, for buttons and post-upload refresh. */
@@ -101,6 +111,53 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setLoading( true );
         return fetchInto( mobileFilter );
     }, [ fetchInto ] );
+
+    useEffect( () => {
+        let active = true;
+        void api.listContacts().then( result => {
+            if ( active ) setCustomers( result );
+        } ).catch( () => {
+            // Manual customer entry stays available even if the CRM is unavailable.
+        } );
+        return () => { active = false; };
+    }, [] );
+
+    useEffect( () => {
+        let active = true;
+        void api.getSystemConfigResult( 'vault_whatsapp_template_journey_v1' ).then( result => {
+            if ( !active ) return;
+            if ( !result.ok ) {
+                setJourneyError( 'Saved journey registry unavailable; template preview is a reference.' );
+                return;
+            }
+            const parsed = parseVaultJourney( result.data.config );
+            setJourney( parsed );
+            setJourneyError( parsed ? '' : 'Saved journey mapping is missing or incomplete.' );
+        } ).catch( () => {
+            if ( active ) setJourneyError( 'Unable to read the saved Vault journey.' );
+        } );
+        return () => { active = false; };
+    }, [] );
+
+    const matchingCustomers = !selectedCustomerId && contactQuery.trim().length > 1
+        ? customers.filter( customer =>
+            ( customer.name || '' ).toLowerCase().includes( contactQuery.trim().toLowerCase() )
+            || ( customer.phone || '' ).includes( contactQuery.trim() )
+        ).slice( 0, 6 )
+        : [];
+
+    const chooseCustomer = ( contact: api.Contact ) => {
+        if ( !contact.phone ) return;
+        setName( contact.name || '' );
+        setMobile( contact.phone );
+        setContactQuery( contact.name || contact.phone );
+        setSelectedCustomerId( contact.id || contact.contactId );
+        setFilterMobile( contact.phone );
+        setFile( null );
+        setReviewFile( null );
+        setMode( 'existing' );
+        void load( contact.phone );
+    };
 
     useEffect( () => {
         let cancelled = false;
@@ -115,15 +172,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } );
         return () => { cancelled = true; };
     }, [] );
-
-    useEffect( () => {
-        if ( !reviewFile ) return;
-        const onKey = ( event: KeyboardEvent ) => {
-            if ( event.key === 'Escape' ) setReviewFile( null );
-        };
-        window.addEventListener( 'keydown', onKey );
-        return () => window.removeEventListener( 'keydown', onKey );
-    }, [ reviewFile ] );
 
     useEffect( () => {
         // Settled from the promise callback rather than the effect body: `loading`
@@ -157,6 +205,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
     const handleSendOffer = async ( target: SecureFile ) => {
         if ( acting ) return;
+        // Meta's approved offer says ₹49. Block an offer when live pricing disagrees.
+        if ( vaultPricePaise !== 4900 || !vaultBreakdown ) {
+            toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
+            return;
+        }
         setActing( target.fileId );
         try
         {
@@ -282,13 +335,25 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
             if ( sendOfferAfterUpload )
             {
-                setStep( 'Sending Vault-ready message with Unlock Vault…' );
-                reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
+                if ( vaultPricePaise === 4900 && vaultBreakdown )
+                {
+                    setStep( 'Sending Vault-ready message with Unlock Vault…' );
+                    reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
+                } else
+                {
+                    toast.warning( 'Published privately, but the approved ₹49 offer could not be matched to live pricing. No WhatsApp offer was sent.' );
+                }
             }
 
             resetForm();
-            await load( customerPhone );
+            setName( customerName );
+            setMobile( customerPhone );
+            setContactQuery( customerName );
+            const refreshed = await load( customerPhone );
             setFilterMobile( customerPhone );
+            const publishedFile = ( refreshed || [] ).find( item => item.fileId === published.data.fileId ) || null;
+            setReviewFile( publishedFile );
+            setMode( publishedFile ? 'existing' : 'upload' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
@@ -331,35 +396,54 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     </p>
                 </header>
 
-                <section className="sf-journey" aria-label="Vault customer journey">
-                    <div><span>1</span><strong>Vault ready</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
-                    <div><span>2</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'wecare_whatapp_native_pay_template' } · on customer tap</small></div>
-                    <div><span>3</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'wecare_order_status_v3 · processing → completed' }</small></div>
-                    <div><span>4</span><strong>Receipt · Leave Review</strong><small>{ vaultTemplates?.receipt || 'wecare_default_invoice_image_template' }</small></div>
-                    <div><span>5</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'wecare_default_download' } · {'{{1}}'} = Vault file ID</small></div>
-                </section>
-
-                <section className="sf-storage-card" aria-label="Vault private storage">
-                    <div>
-                        <span>Private Vault source</span>
-                        <strong className="sf-mono">
-                            { storage
-                                ? `s3://${ storage.bucket }/${ storage.sourcePrefix }`
-                                : 'Reading private storage location…' }
-                        </strong>
-                    </div>
-                    <div>
-                        <span>Delivery renditions</span>
-                        <strong className="sf-mono">
-                            { storage
-                                ? `s3://${ storage.bucket }/${ storage.deliveryPrefix }`
-                                : '—' }
-                        </strong>
-                    </div>
-                    <p>Vault metadata stays in SecureFilesTable. Raw per-file S3 keys are not exposed to Workspace.</p>
-                </section>
-
-                <section className="sf-panel" aria-labelledby="sf-add">
+                <section className="sf-workbench" aria-label="Vault customer and file workspace">
+                    <div className="sf-compose">
+                        <header className="sf-workbench-heading">
+                            <div>
+                                <h2>Customer &amp; document</h2>
+                                <p>Choose the customer and one file. Review the invoice, file and all WhatsApp steps alongside before any send.</p>
+                            </div>
+                            <span>Prepare</span>
+                        </header>
+                        <div className="sf-customer-picker">
+                            <label className="sf-label" htmlFor="sf-contact-search">Select customer</label>
+                            <input className="sf-input" id="sf-contact-search" type="search"
+                                placeholder="Search contact name or WhatsApp mobile"
+                                value={ contactQuery }
+                                onChange={ event => {
+                                    setSelectedCustomerId( '' );
+                                    setContactQuery( event.target.value );
+                                } }
+                                disabled={ uploading } autoComplete="off" />
+                            { selectedCustomerId ? (
+                                <p className="sf-hint">Customer selected · <button type="button" className="sf-contact-change"
+                                    onClick={ () => { setSelectedCustomerId( '' ); setContactQuery( '' ); } }>Change customer</button></p>
+                            ) : matchingCustomers.length > 0 ? (
+                                <div className="sf-customer-results" role="group" aria-label="Contact search results">
+                                    { matchingCustomers.map( contact => (
+                                        <button type="button" key={ contact.id || contact.contactId }
+                                            onClick={ () => chooseCustomer( contact ) } disabled={ uploading }>
+                                            <strong>{ contact.name || 'Customer' }</strong>
+                                            <small>{ contact.phone }</small>
+                                        </button>
+                                    ) ) }
+                                </div>
+                            ) : <p className="sf-hint">Choose a saved contact or enter the customer details below when uploading.</p> }
+                        </div>
+                        <div className="sf-document-mode" role="group" aria-label="Choose a document source">
+                            <button type="button" className={ mode === 'upload' ? 'active' : '' }
+                                aria-pressed={ mode === 'upload' }
+                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); } }>
+                                Upload new
+                            </button>
+                            <button type="button" className={ mode === 'existing' ? 'active' : '' }
+                                aria-pressed={ mode === 'existing' }
+                                onClick={ () => { setMode( 'existing' ); setFile( null ); } }>
+                                Existing Vault file
+                            </button>
+                        </div>
+                        { mode === 'upload' ? (
+                <section className="sf-upload-area" aria-labelledby="sf-add">
                     <h2 className="sf-h2" id="sf-add">Upload document</h2>
                     <p className="sf-note">
                         The file is saved privately as a Document first, verified in S3, then published to Vault.
@@ -441,6 +525,77 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 : 'One supported path: Documents → private S3 → confirm → Vault.' }
                         </span>
                     </div>
+                </section>
+                        ) : (
+                            <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
+                                <h3 className="sf-h2" id="sf-pick-title">Choose a published file</h3>
+                                <p className="sf-note">Payment and access are always tied to the exact customer-owned file.</p>
+                                <div className="sf-lookup">
+                                    <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
+                                        placeholder="Customer mobile" inputMode="tel"
+                                        onChange={ event => setFilterMobile( event.target.value ) } />
+                                    <button type="button" className="sf-cta sf-cta-quiet" onClick={ () => {
+                                        setReviewFile( null );
+                                        void load( filterMobile || undefined );
+                                    } }>Find</button>
+                                </div>
+                                { loadError && <p role="alert" className="sf-note">{ loadError }</p> }
+                                { loading ? <p className="sf-note"><Spinner /> Loading files…</p> : (
+                                    <div className="sf-file-choices" role="group" aria-label="Current Vault files">
+                                        { files.length === 0 && <p className="sf-note">No published Vault files found. Use Upload new.</p> }
+                                        { files.slice( 0, 12 ).map( item => (
+                                            <button type="button" key={ item.fileId }
+                                                className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
+                                                aria-pressed={ reviewFile?.fileId === item.fileId }
+                                                onClick={ () => setReviewFile( item ) }>
+                                                <span><strong>{ item.displayName }</strong>
+                                                    <small>{ item.ownerName || 'Customer' } · { formatBytes( item.sizeBytes ) }</small></span>
+                                                <span className="sf-choice-status">{ PURCHASE_LABELS[ accessStateOf( item ) ] }</span>
+                                            </button>
+                                        ) ) }
+                                        { files.length > 12 && <p className="sf-hint">Showing up to 12 files. Filter by mobile to narrow your search.</p> }
+                                    </div>
+                                ) }
+                                { reviewFile && (
+                                    <div className="sf-selection-actions">
+                                        <strong>{ reviewFile.displayName }</strong>
+                                        <small>{ reviewFile.accessWindowStatus || PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</small>
+                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
+                                            <button type="button" className="sf-cta"
+                                                onClick={ () => { void handleSendOffer( reviewFile ); } }
+                                                disabled={ !!acting || !vaultBreakdown || vaultPricePaise !== 4900 }>
+                                                { acting ? 'Sending…' : accessStateOf( reviewFile ) === 'EXPIRED' ? 'Send renewal offer' : 'Send Vault-ready offer' }
+                                            </button>
+                                        ) }
+                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'OPEN' || accessStateOf( reviewFile ) === 'READY' ) && (
+                                            <button type="button" className="sf-cta"
+                                                onClick={ () => { void handleSendAccess( reviewFile ); } }
+                                                disabled={ !!acting }>
+                                                { acting ? 'Sending…' : 'Send Access Vault (no charge)' }
+                                            </button>
+                                        ) }
+                                        { accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
+                                            <p role="status" className="sf-hint">Paid access needs reconciliation. Do not request payment again.</p> }
+                                    </div>
+                                ) }
+                            </section>
+                        ) }
+                    </div>
+                    <VaultJourneyPreview
+                        mode={ mode }
+                        customerName={ name }
+                        customerPhone={ mobile }
+                        draftFile={ file }
+                        selectedFile={ reviewFile }
+                        pricePaise={ vaultPricePaise }
+                        breakdown={ vaultBreakdown }
+                        templates={ vaultTemplates }
+                        priceLoading={ vaultPriceLoading }
+                        journey={ journey }
+                        journeyError={ journeyError }
+                        onCopyFileId={ () => { if ( reviewFile ) void handleCopyId( reviewFile ); } }
+                        onStaffDownload={ () => { if ( reviewFile ) void handleStaffDownload( reviewFile ); } }
+                    />
                 </section>
 
                 {/* ── registered files ──────────────────────────────────────────── */ }
@@ -573,9 +728,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         ) }
                                                         <button
                                                             className="sf-act"
-                                                            onClick={ () => setReviewFile( row ) }
+                                                            onClick={ () => {
+                                                                setMode( 'existing' );
+                                                                setReviewFile( row );
+                                                                document.getElementById( 'sf-journey-preview' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+                                                            } }
                                                         >
-                                                            Review &amp; Pay
+                                                            Preview journey
                                                         </button>
                                                         { row.sourceDocumentId && (
                                                             <button
@@ -618,155 +777,43 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 </section>
             </div>
 
-            { reviewFile && (
-                <div
-                    className="sf-review-backdrop"
-                    role="presentation"
-                    onMouseDown={ event => {
-                        if ( event.currentTarget === event.target ) setReviewFile( null );
-                    } }
-                >
-                    <aside
-                        className="sf-review-drawer"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="sf-review-title"
-                    >
-                        <div className="sf-review-head">
-                            <div>
-                                <p className="sf-review-eyebrow">Customer preview</p>
-                                <h2 id="sf-review-title">Vault ready → Review &amp; Pay</h2>
-                                <p>First: wecare_vault_request_ready · Unlock Vault. After the customer taps: { vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="sf-review-close"
-                                onClick={ () => setReviewFile( null ) }
-                                aria-label="Close Vault journey preview"
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div className="sf-review-item">
-                            <img
-                                src="https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"
-                                alt=""
-                                className="sf-review-thumb"
-                            />
-                            <div className="sf-review-itemcopy">
-                                <strong>Vault</strong>
-                                <span>{ reviewFile.displayName }</span>
-                                <small>{ formatBytes( reviewFile.sizeBytes ) } · Quantity 1</small>
-                            </div>
-                        </div>
-
-                        <div className="sf-review-breakdown">
-                            <div><span>Items</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
-                            <div><span>GST (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.supplyGstPaise )}` : '—' }</strong></div>
-                            <div><span>Delight</span><strong>{ vaultBreakdown ? `−₹${rupeesFromPaise( vaultBreakdown.delightPaise )}` : '—' }</strong></div>
-                            <div><span>Express</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.expressPaise )}` : '—' }</strong></div>
-                            <div><span>Convenience Fee</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
-                            <div><span>GST on Convenience Fee (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceGstPaise )}` : '—' }</strong></div>
-                            <div className="sf-review-total"><span>Amount Payable</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.totalPayablePaise )}` : '—' }</strong></div>
-                        </div>
-
-                        <div className="sf-review-meta">
-                            <div><span>Payment state</span><strong>{ PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</strong></div>
-                            <div><span>Customer</span><strong>{ reviewFile.ownerName || '—' }</strong></div>
-                            <div><span>Mobile</span><strong>{ reviewFile.ownerPhoneMasked || '—' }</strong></div>
-                            <div><span>Access template</span><strong className="sf-mono">{ vaultTemplates?.delivery || 'wecare_default_download' }</strong></div>
-                            <div>
-                                <span>Template variable {'{{1}}'}</span>
-                                <div className="sf-variable-value">
-                                    <strong className="sf-mono">{ reviewFile.fileId }</strong>
-                                    <button
-                                        type="button"
-                                        className="sf-copy-variable"
-                                        onClick={ () => { void handleCopyId( reviewFile ); } }
-                                    >
-                                        Copy {'{{1}}'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <p className="sf-review-note">
-                            { vaultPriceLoading
-                                ? 'Reading the live Vault price from ProductsTable…'
-                                : vaultPricePaise === null
-                                    ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
-                                    : vaultBreakdown === null
-                                        ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'The customer receives Vault ready first. Their Unlock Vault tap starts native Review & Pay. After payment is verified, the receipt and Access Vault link follow. The dynamic URL uses this exact file ID. Staff do not type or override it.' }
-                        </p>
-                    </aside>
-                </div>
-            ) }
-
             <style jsx>{ `
-                .sf-wrap{width:100%;max-width:1180px;padding:24px;box-sizing:border-box}
-                .sf-review-backdrop{
-                  position:fixed;inset:0;z-index:var(--z-drawer,1300);
-                  background:rgba(15,23,42,.26);display:flex;justify-content:flex-end;
-                }
-                .sf-review-drawer{
-                  width:min(440px,100%);height:100vh;height:100dvh;overflow:auto;background:#fff;
-                  padding:
-                    max(24px,env(safe-area-inset-top,0px))
-                    max(24px,env(safe-area-inset-right,0px))
-                    max(24px,env(safe-area-inset-bottom,0px))
-                    max(24px,env(safe-area-inset-left,0px));
-                  box-sizing:border-box;box-shadow:-18px 0 48px rgba(15,23,42,.18);
-                  border-left:1px solid rgba(26,58,42,.10);
-                  overscroll-behavior:contain;
-                }
-                .sf-review-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
-                .sf-review-head h2{margin:2px 0 4px;font-size:28px;line-height:1.1;color:var(--accent)}
-                .sf-review-head p{margin:0;color:var(--text-muted);font-size:var(--text-sm)}
-                .sf-review-eyebrow{text-transform:uppercase;letter-spacing:.08em;font-weight:700!important;font-size:var(--text-xs)!important;color:var(--accent)!important}
-                .sf-review-close{
-                  width:38px;height:38px;border:0;border-radius:10px;background:var(--lime-tint,#f4fbdc);
-                  color:var(--accent);font-size:26px;line-height:1;cursor:pointer;
-                }
-                .sf-review-item{
-                  display:flex;gap:14px;align-items:center;padding:14px;border-radius:14px;
-                  background:rgba(209,244,112,.20);border:1px solid rgba(26,58,42,.08);
-                }
-                .sf-review-thumb{width:58px;height:58px;object-fit:cover;border-radius:12px;background:#fff}
-                .sf-review-itemcopy{display:grid;gap:4px;min-width:0}
-                .sf-review-itemcopy strong{font-size:17px;color:var(--accent)}
-                .sf-review-itemcopy span{font-size:var(--text-sm);overflow-wrap:anywhere}
-                .sf-review-itemcopy small{color:var(--text-muted)}
-                .sf-review-breakdown{display:grid;gap:0;margin:22px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-                .sf-review-breakdown>div{display:flex;justify-content:space-between;gap:16px;padding:11px 0;font-size:var(--text-sm)}
-                .sf-review-breakdown>div+div{border-top:1px solid rgba(26,58,42,.07)}
-                .sf-review-total{font-size:17px!important;color:var(--accent)}
-                .sf-review-meta{display:grid;gap:10px}
-                .sf-review-meta>div{display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:var(--text-sm)}
-                .sf-review-meta span{color:var(--text-muted)}
-                .sf-review-meta strong{overflow-wrap:anywhere}
-                .sf-variable-value{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
-                .sf-copy-variable{
-                  flex:0 0 auto;min-height:32px;padding:0 10px;border:1px solid var(--border);
-                  border-radius:8px;background:#fff;color:var(--accent);font:700 12px/1 var(--font-sans);
-                  cursor:pointer;
-                }
-                .sf-copy-variable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-                .sf-review-note{
-                  margin:20px 0 0;padding:12px 14px;border-radius:12px;background:#f8faf9;
-                  color:var(--text-muted);font-size:var(--text-sm);line-height:1.5;
-                }
+                .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box}
 
-                .sf-storage-card{
-                  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
-                  margin:0 0 20px;padding:14px 16px;border:1px solid rgba(26,58,42,.12);
-                  border-radius:14px;background:#f8faf3;
-                }
-                .sf-storage-card>div{min-width:0}
-                .sf-storage-card span{display:block;margin-bottom:4px;color:rgba(26,58,42,.62);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
-                .sf-storage-card strong{display:block;color:var(--accent);font-size:13px;overflow-wrap:anywhere}
-                .sf-storage-card p{grid-column:1/-1;margin:2px 0 0;color:var(--text-muted);font-size:12px;line-height:1.45}
+                .sf-workbench{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr);align-items:start;gap:18px;margin:0 0 24px}
+                .sf-compose{min-width:0;background:#fff;border:1px solid var(--border);border-radius:16px;padding:20px}
+                .sf-workbench-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+                .sf-workbench-heading h2{margin:0 0 6px;font-size:20px;letter-spacing:-.4px;color:var(--text)}
+                .sf-workbench-heading p{margin:0;color:var(--text-muted);line-height:1.45;font-size:13px}
+                .sf-workbench-heading>span{font-size:11px;font-weight:800;color:var(--text-muted)}
+                .sf-customer-picker{margin:18px 0 0}
+                .sf-customer-results{display:grid;max-height:210px;overflow:auto;border:1px solid var(--border);border-radius:11px;margin-top:9px}
+                .sf-customer-results button{display:flex;gap:10px;justify-content:space-between;align-items:center;min-height:41px;text-align:left;border:0;border-top:1px solid var(--border-light,var(--border));background:#fff;padding:8px 11px;cursor:pointer;color:var(--text)}
+                .sf-customer-results button:first-child{border-top:0}
+                .sf-customer-results button:hover{background:var(--bg-secondary,#f8faf9)}
+                .sf-customer-results button strong{font-size:13px}
+                .sf-customer-results button small{color:var(--text-muted);font-size:12px}
+                .sf-contact-change{border:0;background:transparent;padding:2px 0;color:var(--accent);text-decoration:underline;font:700 12px var(--font-sans);cursor:pointer}
+                .sf-document-mode{display:flex;gap:6px;background:var(--bg-secondary,#f8faf9);border:1px solid var(--border);border-radius:12px;padding:5px;margin:20px 0 0}
+                .sf-document-mode button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font:700 13px var(--font-sans);color:var(--text-muted);cursor:pointer}
+                .sf-document-mode button.active{background:#fff;color:var(--accent);box-shadow:0 1px 6px rgba(26,58,42,.12)}
+                .sf-upload-area,.sf-existing-picker{padding:20px 0 0}
+                .sf-upload-area .sf-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+                .sf-upload-area .sf-note,.sf-existing-picker .sf-note{font-size:13px;line-height:1.5}
+                .sf-lookup{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:0 0 12px}
+                .sf-lookup .sf-cta{font-size:13px;min-height:46px;padding:0 16px}
+                .sf-file-choices{display:grid;gap:7px;max-height:360px;overflow:auto}
+                .sf-file-choices>button{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;text-align:left;padding:12px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);cursor:pointer}
+                .sf-file-choices>button.selected{border-color:var(--lime);background:rgba(209,244,112,.25)}
+                .sf-file-choices>button strong{display:block;font-size:13px;overflow-wrap:anywhere}
+                .sf-file-choices>button small{display:block;margin-top:4px;color:var(--text-muted);font-size:11px}
+                .sf-choice-status{font-size:11px;max-width:110px;text-align:right;color:var(--text-muted)}
+                .sf-selection-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-top:14px;margin-top:15px;border-top:1px solid var(--border)}
+                .sf-selection-actions>strong{font-size:13px;overflow-wrap:anywhere}
+                .sf-selection-actions>small{color:var(--text-muted);font-size:12px}
+                .sf-selection-actions .sf-cta{font-size:13px;min-height:44px;padding:0 16px}
+                @media(max-width:1080px){.sf-workbench{grid-template-columns:minmax(0,1fr)}}
+                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
@@ -800,9 +847,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                 /* Same panel treatment as .home-close-panel and the /files page. */
                 .sf-panel{
-                  padding:clamp(24px,3vw,40px);margin:0 0 24px;
-                  border:2px solid var(--lime);border-radius:14px;
-                  background:rgba(209,244,112,.22);
+                  padding:clamp(18px,2vw,28px);margin:0 0 24px;
+                  border:1px solid var(--border);border-radius:14px;background:#fff;
                 }
                 .sf-h2{
                   margin:0 0 6px;font-size:22px;font-weight:700;

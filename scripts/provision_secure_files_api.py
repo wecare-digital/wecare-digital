@@ -98,6 +98,7 @@ ROUTES = [
     # Ask the owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link when their
     # WhatsApp is not linked yet), and resend the Access Vault link for a paid file.
     ("POST", "/secure-files/{fileId}/request-payment"),
+    ("POST", "/secure-files/{fileId}/send-offer"),
     ("POST", "/secure-files/{fileId}/send-access"),
     # customer surface (customer-pool token, checked inside the handler)
     ("GET", "/secure-files/mine"),
