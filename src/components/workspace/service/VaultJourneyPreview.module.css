@@ -48,3 +48,25 @@
 .actions button:disabled{opacity:.5;cursor:default}
 @media(max-width:1080px){.preview{position:static}.steps{justify-content:flex-start}.stepButton{flex:1 0 70px}}
 @media(max-width:600px){.preview{padding:14px}.invoice,.messages,.delivery{padding:12px}.steps{overflow-x:auto}.stepButton{flex:0 0 80px}}
+
+/* One glance: WhatsApp first, then evidence; invoice/technical details are on demand. */
+.preview{background:#fcfdfa;gap:13px;border-color:#d7e3d7}
+.messages{border-color:#cfe0ce;background:#fff}
+.messages h3{font-size:14px;color:#193d26}
+.bubble{background:#eaf7eb;border-color:#d0e7d1;box-shadow:0 1px 0 rgba(30,59,39,.04);padding:16px}
+.bubble p{font-size:14px;line-height:1.6}
+.bubbleButton{min-height:35px;display:grid;place-items:center;font-size:12px}
+.steps{padding-top:3px;margin-bottom:5px}
+.activeStep{background:#e8f6d8}
+.disclosureTitle{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0;cursor:pointer;font-size:13px;font-weight:750;color:#274833;list-style:none}
+.disclosureTitle::-webkit-details-marker{display:none}
+.disclosureTitle:after{content:'+';margin-left:6px;color:#668573;font-size:19px}
+details[open]>.disclosureTitle:after{content:'−'}
+.disclosureTitle strong{margin-left:auto;color:#1f5731;font-size:14px}
+.disclosureTitle small{font-size:11px;font-weight:600;color:#748579}
+.invoice,.delivery{background:#fff;border:1px solid #dfe9dc}
+.invoice .invoiceTop{margin-top:15px}
+.technical{padding:10px 12px;margin-top:12px;border-radius:9px;background:#f7faf6;border:1px solid #e2ece1}
+.technical>.disclosureTitle{font-size:11px}
+.technical .variables{margin-top:10px}
+@media(max-width:600px){.preview{position:static}.bubble{padding:12px}.steps{overflow-x:auto}}
