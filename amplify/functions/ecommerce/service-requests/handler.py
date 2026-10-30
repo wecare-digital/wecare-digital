@@ -161,6 +161,7 @@ def _request_intent(identity, body: Dict[str, Any], origin: str, event=None) -> 
         return cors_response(429, {"error": "RATE_LIMITED"}, origin)
     try:
         vault_file = None
+        vault_entitlement = None
         original_order = None
         kind = str(body.get("kind") or "").upper()
         if kind == service_requests.SUBMIT_REQUEST:
@@ -182,10 +183,28 @@ def _request_intent(identity, body: Dict[str, Any], origin: str, event=None) -> 
                 return cors_response(401, {'error': 'PHONE_VERIFICATION_REQUIRED'}, origin)
             from lambda_utils.ecommerce import vault_access
             vault_file = vault_access.bind_file(_table(vault_access.FILES_TABLE), identity, body['fileId'])
+            # A paid Vault file can create a fresh website CART renewal intent only when its
+            # durable, owner-bound entitlement exists and its paid 24h window is exhausted.
+            # Previously this argument was never forwarded, so website renewals always
+            # returned VAULT_ALREADY_PAID even after the window expired.
+            if (vault_file.get('vaultPaymentStatus') == 'PAID'
+                    or vault_file.get('vaultAccessGrantId')
+                    or vault_file.get('vaultEntitlementId')):
+                entitlement_id = ('vault-entitlement#' + identity.customer_id
+                                  + '#' + str(vault_file['fileId']))
+                candidate = _table(vault_access.GRANTS_TABLE).get_item(
+                    Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
+                if (candidate.get('recordType') == 'VAULT_ENTITLEMENT'
+                        and candidate.get('entitlementState') == 'ACTIVE'
+                        and candidate.get('customerId') == identity.customer_id
+                        and candidate.get('fileId') == vault_file['fileId']
+                        and candidate.get('ownerPhone') == vault_file.get('ownerPhone')):
+                    vault_entitlement = candidate
         intent = store.request_intent(
             _table(SERVICE_REQUESTS_TABLE), identity,
             body.get("kind"), body.get("targetRequestId"),
-            vault_file=vault_file, original_order=original_order)
+            vault_file=vault_file, vault_entitlement=vault_entitlement,
+            original_order=original_order)
     except service_requests.ServiceRejected as rejected:
         if rejected.code == service_requests.SERVICE_NOT_OFFERED:
             return cors_response(409, service_requests.refusal(rejected.code), origin)
