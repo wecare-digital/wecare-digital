@@ -1,0 +1,81 @@
+name: Finalize shared Workspace shell
+
+on:
+  push:
+    branches:
+      - feat/payments-home-mobile-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/payments-home-mobile-foundation
+          fetch-depth: 0
+
+      - name: Remove duplicate page actions and protect session identity
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          payment_path = Path('src/pages/workspace/payments/index.tsx')
+          payment = payment_path.read_text(encoding='utf-8')
+          old_actions = '''                  actions={
+                    <div className="payments-public-actions">
+                      <button type="button" onClick={ () => void router.push( '/workspace/' ) }>Workspace</button>
+                      { signOut && <button type="button" onClick={ signOut }>Sign out</button> }
+                    </div>
+                  }
+'''
+          if payment.count(old_actions) != 1:
+              raise SystemExit(f'payments actions: expected one match, found {payment.count(old_actions)}')
+          payment = payment.replace(old_actions, '', 1)
+          payment_path.write_text(payment, encoding='utf-8')
+
+          layout_path = Path('src/components/Layout.tsx')
+          layout = layout_path.read_text(encoding='utf-8')
+          old_identity = '<div className="profile-identity">'
+          new_identity = '<div className="profile-identity" data-wc-no-translate="true">'
+          if layout.count(old_identity) != 1:
+              raise SystemExit(f'profile identity: expected one match, found {layout.count(old_identity)}')
+          layout = layout.replace(old_identity, new_identity, 1)
+          layout_path.write_text(layout, encoding='utf-8')
+
+          test_path = Path('tests/test_workspace_shared_shell_customer_form.py')
+          test = test_path.read_text(encoding='utf-8')
+          anchor = "    assert '<Footer />' not in source\n"
+          addition = "    assert '<Footer />' not in source\n    assert 'payments-public-actions' not in source\n"
+          if test.count(anchor) != 1:
+              raise SystemExit(f'test anchor: expected one match, found {test.count(anchor)}')
+          test = test.replace(anchor, addition, 1)
+          test_path.write_text(test, encoding='utf-8')
+
+          Path('.github/workflows/finalize-workspace-shell.yml').unlink()
+          PY
+
+      - name: Verify source contracts
+        shell: bash
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest -q tests/test_customer_duplicate_resolution.py tests/test_workspace_shared_shell_customer_form.py
+
+      - name: Verify TypeScript
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck --if-present
+
+      - name: Commit final changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(workspace): remove duplicate payments shell actions"
+          git push origin HEAD:feat/payments-home-mobile-foundation
