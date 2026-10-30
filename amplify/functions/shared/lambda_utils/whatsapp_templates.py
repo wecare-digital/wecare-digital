@@ -112,10 +112,9 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
                         header="location", automated=False)
 PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
                            header="image", buttons=("flow",))
-#: Legacy compatibility for Vault offers that were sent before direct native Review & Pay became
-#: the default staff rail. Existing QUICK_REPLY "Unlock Vault" taps still resolve their bound file,
-#: but new staff sends go straight to PAY and do not emit this template. Keep the registry entry
-#: while old WhatsApp messages may still be tapped.
+#: Manual staff Vault publication sends this approved, document-bound IMAGE quick-reply first.
+#: The customer taps Unlock Vault to begin native Review & Pay. Keep legacy offer taps working,
+#: and do not emit this notification from the authenticated customer direct-checkout endpoint.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
 SUBMIT_REQUEST_FLOW = Template(name="submit_request_flow", language="en", category="UTILITY",

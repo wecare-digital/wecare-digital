@@ -405,6 +405,36 @@ def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_servi
     assert ">Appointments<" not in rendered
 
 
+def test_manual_workspace_vault_offer_precedes_customer_payment():
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    documents = (ROOT / "src/components/workspace/service/Documents.tsx").read_text()
+    api = (ROOT / "src/api/client.ts").read_text()
+    handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+    catalog = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py").read_text()
+    registry = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+    media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text()
+
+    assert "wecare_vault_request_ready" in page
+    assert "Unlock Vault" in page
+    assert page.index("<strong>Vault ready</strong>") < page.index("<strong>Review &amp; Pay</strong>")
+    assert page.index("<strong>Receipt · Leave Review</strong>") < page.index("<strong>Access Vault</strong>")
+    assert page.count("api.sendSecureFileOffer(") == 2
+    assert documents.count("api.sendSecureFileOffer(") == 3
+    assert "api.requestSecureFilePayment(" not in page
+    assert "api.requestSecureFilePayment(" not in documents
+    assert "secureFileAction( fileId, 'send-offer' )" in api
+    assert "secureFileAction( fileId, 'request-payment' )" in api
+    assert 'tail[1] == "send-offer"' in handler
+    assert '"action": "sendVaultOffer"' in handler
+    assert "if action == 'sendVaultOffer':" in catalog
+    assert "return _send_offer(event, client, db, keys, contacts, now)" in catalog
+    assert "def _unlock(" in catalog and "OFFER_FILE_PREFIX" in catalog
+    assert "whatsappMessageId" in catalog
+    assert 'VAULT_OFFER = Template(name="wecare_vault_request_ready"' in registry
+    assert "whatsapp-header.png" in media
+    assert "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png" in media
+
+
 def test_workspace_vault_shows_download_template_variable_mapping():
     page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
     assert "wecare_default_download" in page

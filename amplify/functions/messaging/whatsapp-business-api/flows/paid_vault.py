@@ -24,6 +24,12 @@ HEADER_IMAGE = whatsapp_templates.VAULT_HEADER_IMAGE
 TEMPLATE_IMAGE_HEADER = {'templateHeaderMedia': HEADER_IMAGE, 'templateHeaderType': 'image'}
 
 
+# The paid-invoice send is accepted before the post-invoice Vault dispatch starts.
+# A bounded 2-second gap avoids placing the Access Vault link right on top of the receipt.
+# Provider/device ordering is still observed through WhatsApp status-webhook message IDs.
+_POST_RECEIPT_ACCESS_GAP_SECONDS = 2
+
+
 def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
     record_key = record_key or {'requestId': row['requestId']}
     current = requests.get_item(Key=record_key, ConsistentRead=True).get('Item') or {}
@@ -50,6 +56,7 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
             return False
         raise
     status = 'SEND_UNKNOWN'
+    whatsapp_message_id = ''
     try:
         response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse', Payload=json.dumps({'body': json.dumps(body)}).encode())
@@ -57,16 +64,32 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
         code = int(answer.get('statusCode', 500))
         if not response.get('FunctionError'):
             if 200 <= code < 300:
-                status = 'ACCEPTED'
+                accepted = answer.get('body') or {}
+                if isinstance(accepted, str):
+                    try:
+                        accepted = json.loads(accepted)
+                    except (TypeError, ValueError):
+                        accepted = {}
+                if isinstance(accepted, dict) and (
+                        accepted.get('mode') == 'DRY_RUN' or accepted.get('status') == 'dry_run'):
+                    status = 'SEND_REJECTED'
+                else:
+                    if isinstance(accepted, dict):
+                        whatsapp_message_id = str(accepted.get('whatsappMessageId') or '')
+                    # The provider WAMID is required for status webhook reconciliation.
+                    # A 200 with no WAMID is uncertain, never proof of Meta acceptance.
+                    status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'
             elif code in (400, 401, 403, 404, 413, 415, 422):
                 status = 'SEND_REJECTED'
     except Exception:
         # Failure may occur after Meta accepted the message. Never blindly retry it.
         pass
     requests.update_item(Key=record_key,
-        UpdateExpression='SET ' + key + '=:s, ' + retry_key + '=:retry',
+        UpdateExpression='SET ' + key + '=:s, ' + retry_key + '=:retry, '
+                         + key + 'MessageId=:wamid',
         ConditionExpression=key + '=:sending AND ' + attempts_key + '=:count',
         ExpressionAttributeValues={':s': status, ':retry': now + 30,
+                                   ':wamid': whatsapp_message_id,
                                    ':sending': 'SENDING', ':count': previous + 1})
     return status == 'ACCEPTED'
 
@@ -177,9 +200,12 @@ def _prepare_and_send(event, lambda_client):
     # no window below.
     delivered_before = (requests.get_item(Key={'requestId': row['requestId']}, ConsistentRead=True)
                         .get('Item') or {}).get('vaultNotificationStatus') == 'ACCEPTED'
-    # The link is the delivery: the template is approved for use outside the 24-hour window, so
-    # every paid (or renewed) file reaches the customer through it. `_send_once` keys on this
-    # purchase's request row, so a renewal - a new request - sends again.
+    # Only the verified post-invoice path invokes us. Leave a short gap before the final
+    # Access Vault message; the paid request row still deduplicates concurrent invocations.
+    # A sleep is spacing, not a receipt-delivered acknowledgement.
+    if not delivered_before:
+        time.sleep(_POST_RECEIPT_ACCESS_GAP_SECONDS)
+    # The approved download template is tied to this paid purchase's file ID.
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
     # Delivery starts the paid 24-hour window, as in secure-files `deliver_over_whatsapp`, which

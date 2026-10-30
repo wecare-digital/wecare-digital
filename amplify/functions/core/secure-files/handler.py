@@ -1468,6 +1468,27 @@ _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
 }
 
 
+#: This is a manual notification, not a payment order. API acceptance is not delivery.
+_VAULT_OFFER_REPLIES: Dict[str, Tuple[int, str]] = {
+    "VAULT_OFFER_SENT": (
+        200, "Vault-ready message accepted by WhatsApp. The customer can tap Unlock Vault to request payment."),
+    "VAULT_OFFER_UNCONFIRMED": (
+        202, "The Vault-ready message may have been sent. Check the chat before trying again."),
+    "VAULT_OFFER_RECENT": (
+        202, "A Vault-ready message was recently attempted. Check the chat before resending."),
+    "VAULT_OFFER_NOT_SENT": (
+        502, "The Vault-ready message was not sent. Nothing was charged."),
+    "VAULT_ACCESS_ACTIVE": (
+        409, "This file is already paid. Send Access Vault instead of another payment offer."),
+    "CONTACT_AMBIGUOUS": (
+        409, "This WhatsApp number is linked to more than one customer. Nothing was sent."),
+    "VAULT_FILE_UNAVAILABLE": (
+        409, "This file is not available for a Vault-ready message."),
+    "NATIVE_SERVICE_ROLLOUT_DISABLED": (
+        503, "The WhatsApp Vault service is currently disabled. Nothing was sent."),
+}
+
+
 def _owned_file_for_admin(file_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """The active, owner-bound file row, or (None, refusal code)."""
     item = _table(FILES_TABLE).get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item")
@@ -1589,6 +1610,70 @@ def _customer_request_payment(
         }, origin)
     return _start_native_vault_payment(
         item, state, origin, requested_by="customer")
+
+
+
+def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Send the approved Vault-ready offer for exactly one verified owner-bound file.
+
+    A staff upload does not initiate payment: the signed Unlock Vault reply is the gate
+    that creates the normal one-file native Review and Pay request. Keep the customer
+    request-payment route intact for direct authenticated checkout.
+    """
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
+    state = _file_access_state(item, int(time.time()))
+    if state in ("OPEN", "READY"):
+        return cors_response(409, {"error": "VAULT_ACCESS_ACTIVE",
+                                   "message": _VAULT_OFFER_REPLIES["VAULT_ACCESS_ACTIVE"][1]}, origin)
+    if state == "PAID_UNVERIFIED":
+        return cors_response(409, {"error": "PAID_UNVERIFIED",
+                                   "message": "Access needs reconciliation; do not request payment again."}, origin)
+    if state not in ("UNPAID", "EXPIRED"):
+        return cors_response(409, {"error": "VAULT_FILE_UNAVAILABLE"}, origin)
+    # Read identity and file attributes from SecureFilesTable, not from the staff request body.
+    actor = str((event.get("_auth") or {}).get("username") or "staff")[:64]
+    try:
+        response = _lambda_client().invoke(
+            FunctionName=BUSINESS_API_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "catalogService", "action": "sendVaultOffer",
+                "fileId": str(item["fileId"]),
+                "ownerCustomerId": str(item["ownerCustomerId"]),
+                "ownerPhone": str(item["ownerPhone"]),
+                "requestedBy": actor,
+            }).encode("utf-8"),
+        )
+        answer = json.loads(response["Payload"].read() or b"{}")
+        if response.get("FunctionError") or not isinstance(answer, dict):
+            answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
+    except Exception as exc:
+        # A timeout can follow Meta acceptance; never automatically send another offer.
+        logger.warning(json.dumps({"event": "vault_offer_invoke_unconfirmed",
+                                   "error": type(exc).__name__}))
+        answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
+    outcome = str(answer.get("outcome") or "VAULT_OFFER_UNCONFIRMED")
+    code, message = _VAULT_OFFER_REPLIES.get(
+        outcome, (502, "The Vault-ready request could not be completed. Nothing was charged."))
+    try:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": file_id},
+            UpdateExpression="SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, lastOfferOutcome=:status",
+            ExpressionAttributeValues={
+                ":actor": actor, ":when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ":status": outcome[:80],
+            },
+        )
+    except Exception as exc:
+        logger.warning(json.dumps({"event": "vault_offer_audit_failed",
+                                   "error": type(exc).__name__}))
+    result = {"outcome": outcome, "fileId": file_id, "message": message,
+              "renewal": state == "EXPIRED"}
+    if code >= 400:
+        result["error"] = outcome
+    return cors_response(code, result, origin)
 
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -2703,6 +2788,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
         if len(tail) == 2 and tail[1] == "revoke" and method == "POST":
             return _admin_revoke(tail[0], event, origin)
+        if len(tail) == 2 and tail[1] == "send-offer" and method == "POST":
+            return _admin_send_vault_offer(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
             return _admin_request_payment(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "send-access" and method == "POST":
