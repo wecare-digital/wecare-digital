@@ -122,6 +122,15 @@ const fail = ( message ) => { throw new Error( message ); };
           || artwork.ariaHidden !== 'true' ) {
           fail( `${viewport.name} (${state}): Contact us person_text icon drifted ${JSON.stringify( artwork )}` );
         }
+        // The source SVG paints only half its 48px viewBox height. Its 20px
+        // layout slot is intentionally scaled to 30px, without moving row text.
+        // At folded-phone widths the decorative icon is deliberately hidden.
+        if ( viewport.width > 340 ) {
+          const bounds = await icon.boundingBox();
+          if ( !bounds || bounds.width < 29.5 || bounds.height < 29.5 ) {
+            fail( `${viewport.name} (${state}): Contact us icon is undersized ${JSON.stringify( bounds )}` );
+          }
+        }
       };
       await checkContactIcon( 'menu' );
 
