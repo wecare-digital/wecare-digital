@@ -383,3 +383,12 @@ def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_servi
     assert ">Request Amendment<" not in rendered
     assert ">Drop Docs<" not in rendered
     assert ">Appointments<" not in rendered
+
+
+def test_workspace_vault_shows_download_template_variable_mapping():
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    assert "wecare_default_download" in page
+    assert "Template variable {'{{1}}'}" in page
+    assert "Copy {'{{1}}'}" in page
+    assert "handleCopyId( reviewFile )" in page
+    assert "Staff do not type or override it." in page
