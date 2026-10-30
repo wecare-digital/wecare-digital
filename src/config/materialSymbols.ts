@@ -38,7 +38,6 @@ export const MATERIAL_SYMBOLS = [
   'local_activity',
   'neurology',
   'notifications_active',
-  'person_text',
   'redeem',
   'share',
   'shopping_cart_checkout',
