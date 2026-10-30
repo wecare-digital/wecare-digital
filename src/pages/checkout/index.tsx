@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import React, { useCallback, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
-import CheckoutAction from '../../components/CheckoutAction';
 import { readCart } from '../../lib/cart';
 import {
   CHECKOUT_PATH,
@@ -59,22 +58,24 @@ export default function CheckoutMethodPage (): React.ReactElement {
       >
         <section className="checkout-method" aria-label="Payment method">
           <div className="checkout-method-actions">
-            <CheckoutAction
+            <button
+              type="button"
+              className="checkout-auth-action checkout-auth-primary"
               disabled={ Boolean( busy ) }
-              busy={ busy === 'whatsapp' }
-              ariaLabel="Pay on WhatsApp"
+              aria-busy={ busy === 'whatsapp' ? 'true' : undefined }
               onClick={ () => { void choose( 'whatsapp' ); } }
             >
               { busy === 'whatsapp' ? 'Preparing…' : 'Pay on WhatsApp' }
-            </CheckoutAction>
-            <CheckoutAction
+            </button>
+            <button
+              type="button"
+              className="checkout-auth-action"
               disabled={ Boolean( busy ) }
-              busy={ busy === 'website' }
-              ariaLabel="Pay here"
+              aria-busy={ busy === 'website' ? 'true' : undefined }
               onClick={ () => { void choose( 'website' ); } }
             >
               { busy === 'website' ? 'Preparing…' : 'Pay here' }
-            </CheckoutAction>
+            </button>
           </div>
 
           <p className="checkout-method-note">
@@ -84,13 +85,36 @@ export default function CheckoutMethodPage (): React.ReactElement {
 
           <style jsx>{`
             .checkout-method{
-              width:min(100%,720px);display:grid;gap:14px;margin-top:26px;
+              width:min(100%,560px);max-width:100%;display:grid;gap:18px;margin:0;
+              padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);
+              border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
+              border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
+              box-sizing:border-box;
             }
-            .checkout-method-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-            .checkout-method-note{
-              margin:4px 0 0;color:var(--public-muted);font-size:14px;line-height:1.5;
+            .checkout-method-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+            .checkout-auth-action{
+              min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
+              background:var(--public-lime-tint);color:var(--public-brand-green);
+              font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+              text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+              touch-action:manipulation;cursor:pointer;
+              transition:background-color .18s,transform .18s,box-shadow .18s;
             }
-            .checkout-method-error{margin:0;color:#b91c1c;font-size:14px;line-height:1.5}
+            .checkout-auth-primary{font-weight:700}
+            .checkout-auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+            .checkout-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+            .checkout-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+            .checkout-method-note{margin:0;color:var(--public-muted);font-size:14px;line-height:1.5}
+            .checkout-method-error{margin:0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);font-size:14px;font-weight:600;line-height:1.4}
+            @media(max-width:767px){
+              .checkout-method{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+              .checkout-method-actions{display:grid;grid-template-columns:1fr;width:100%}
+              .checkout-auth-action{width:100%}
+            }
+            @media(prefers-reduced-motion:reduce){
+              .checkout-auth-action{transition:none}
+              .checkout-auth-action:hover{transform:none;box-shadow:none}
+            }
           `}</style>
         </section>
       </RotatingHero>

@@ -12,6 +12,7 @@ import React, { useEffect, useState } from 'react';
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
+import { orderPagePath } from '../../lib/orderPage';
 
 const STATUS_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/ecommerce/checkout/status`;
 
@@ -55,6 +56,7 @@ export default function CheckoutSuccess (): React.ReactElement {
   }, [] );
 
   const heading = verified ? 'Payment successful' : checking ? 'Checking your order' : 'Order confirmation unavailable';
+  const destination = verified && orderNumber ? orderPagePath( orderNumber ) : '/orders/';
 
   return (
     <>
@@ -87,8 +89,9 @@ export default function CheckoutSuccess (): React.ReactElement {
           )}
 
           <div className="cs-actions">
-            <Link className="cs-btn cs-btn-primary" href="/shop/">Continue shopping</Link>
-            <Link className="cs-btn cs-btn-quiet" href="/">Back to home</Link>
+            <Link className="cs-auth-action cs-auth-primary" href={ destination }>
+              { verified ? 'Order' : 'Orders' }
+            </Link>
           </div>
         </section>
 
@@ -96,7 +99,7 @@ export default function CheckoutSuccess (): React.ReactElement {
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
-          .cs-card{width:100%;max-width:700px;margin:0}
+          .cs-card{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
 
           /* The disc is the palette's grassy green #3da35a, not a non-palette green - that value appears
              nowhere in the home design. 56px matches the status screen's mark, so the two
@@ -129,36 +132,13 @@ export default function CheckoutSuccess (): React.ReactElement {
             color:#1a3a2a;font-variant-numeric:tabular-nums;
           }
 
-          .cs-actions{
-            margin-block-start:32px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;
-          }
-          /* THE SITE CTA, NOT A 10px GREEN RECTANGLE. These were non-palette green fills with white text on
-             a 10px radius. The primary is the one lime surface this page is allowed: 52px, #d1f470
-             with #1a3a2a type, 2px border (2px means hoverable), 50px pill radius, 2px lift.
-             :global() IS MANDATORY - these are next/link, and styled-jsx does not scope a
-             capitalised component, so without it the compiled rule matches nothing and both render
-             as bare blue underlined text. */
-          .cs-card :global(.cs-btn){
-            display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
-            padding-inline:26px;border-radius:var(--public-cta-radius);font-family:inherit;font-size:var(--public-cta-font-size);
-            font-weight:var(--public-cta-font-weight);text-decoration:none;line-height:normal;
-            transition:background-color .2s,transform .2s,box-shadow .2s;
-          }
-          .cs-card :global(.cs-btn-primary){
-            background:#d1f470;border:2px solid #1a3a2a;color:#1a3a2a;
-          }
-          .cs-card :global(.cs-btn-primary:hover){background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          /* Outlined rather than a second lime fill, so the page keeps exactly one lime surface. */
-          .cs-card :global(.cs-btn-quiet){
-            background:#fff;border:2px solid #d1f470;color:#1a3a2a;
-          }
-          .cs-card :global(.cs-btn-quiet:hover){background:rgba(209,244,112,.22)}
-          .cs-card :global(.cs-btn:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
-
-          @media(prefers-reduced-motion:reduce){
-            .cs-card :global(.cs-btn){transition:none}
-            .cs-card :global(.cs-btn:hover){transform:none;box-shadow:none}
-          }
+          .cs-actions{margin-block-start:32px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+          .cs-card :global(.cs-auth-action){display:inline-flex;align-items:center;justify-content:center;min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;touch-action:manipulation;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}
+          .cs-card :global(.cs-auth-primary){font-weight:700}
+          .cs-card :global(.cs-auth-action:hover){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+          .cs-card :global(.cs-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
+          @media(max-width:767px){.cs-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}.cs-actions{display:grid;grid-template-columns:1fr;width:100%}.cs-card :global(.cs-auth-action){width:100%}}
+          @media(prefers-reduced-motion:reduce){.cs-card :global(.cs-auth-action){transition:none}.cs-card :global(.cs-auth-action:hover){transform:none;box-shadow:none}}
         `}</style>
       </RotatingHero>
     </>
