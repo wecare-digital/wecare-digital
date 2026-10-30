@@ -7562,6 +7562,8 @@ export interface SecureFile {
   ownerPhoneMasked?: string;
   uploadedBy?: string;
   workspaceRecordVersion?: number;
+  /** Staff-authored approved template body {{1}}, unrelated to storage name. */
+  lastOfferBodyText?: string;
   lastPaymentRequestedBy?: string;
   lastPaymentRequestedAt?: string;
   lastPaymentRequestOutcome?: string;
@@ -7605,11 +7607,14 @@ export interface SecureFileActionResult {
  */
 async function secureFileAction (
   fileId: string, action: 'send-offer' | 'request-payment' | 'send-access',
+  options?: { offerBodyText?: string },
 ): Promise<SecureFileActionResult> {
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
   {
-    const response = await authFetch( url, { method: 'POST', body: '{}' } );
+    const body = action === 'send-offer' && options?.offerBodyText !== undefined
+      ? JSON.stringify( { offerBodyText: options.offerBodyText } ) : '{}';
+    const response = await authFetch( url, { method: 'POST', body } );
     let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
     try { body = await response.json(); } catch { body = {}; }
     if ( response.status >= 502 && typeof body.outcome !== 'string' )
@@ -7638,8 +7643,13 @@ async function secureFileAction (
 
 /** Start the manual Vault journey with the approved IMAGE + Unlock Vault quick reply.
  * The customer tap (not the staff upload) initiates native Review and Pay. */
-export function sendSecureFileOffer ( fileId: string ): Promise<SecureFileActionResult> {
-  return secureFileAction( fileId, 'send-offer' );
+export function sendSecureFileOffer (
+  fileId: string, offerBodyText?: string,
+): Promise<SecureFileActionResult> {
+  // Existing callers may omit this while migrating their UI; the Vault workbench
+  // always supplies independently edited text and the backend validates it.
+  if ( offerBodyText === undefined ) return secureFileAction( fileId, 'send-offer' );
+  return secureFileAction( fileId, 'send-offer', { offerBodyText } );
 }
 
 /** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
