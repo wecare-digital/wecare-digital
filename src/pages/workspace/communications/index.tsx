@@ -11,7 +11,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -336,7 +335,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     : undefined;
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO title="Communications" description="Unified customer communications workspace." noindex />
 
       <main className="comms-page">
@@ -450,7 +449,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
           .manage-row,.comms-tabs button{scroll-behavior:auto}
         }
       `}</style>
-    </Layout>
+    </>
   );
 };
 
