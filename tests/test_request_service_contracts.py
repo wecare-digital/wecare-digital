@@ -250,20 +250,45 @@ def test_workspace_vault_upload_uses_document_intake_not_retired_direct_upload()
     assert ".sf-field{min-width:0}\\n" not in page
 
 
-def test_customer_vault_payment_reproves_file_and_uses_native_payment_sender():
+def test_customer_and_staff_vault_payment_use_different_ordered_entry_gates():
     source = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
     customer = source[source.index("def _customer_request_payment"):
                       source.index("\ndef _admin_request_payment")]
+    admin = source[source.index("def _admin_request_payment"):
+                   source.index("\ndef _start_native_vault_access")]
     native = source[source.index("def _start_native_vault_payment"):
                     source.index("\ndef _customer_request_payment")]
     assert "_owned_active_file(file_id, identity)" in customer
     assert 'state in ("OPEN", "READY")' in customer
     assert 'state == "PAID_UNVERIFIED"' in customer
-    assert '"action": "sendPayment"' in native
+    assert '"action": action' in native
+    assert 'action: str = "sendPayment"' in native
+    assert 'action="sendOffer"' in admin
     assert '"ownerCustomerId": str(item["ownerCustomerId"])' in native
     assert '"ownerPhone": str(item["ownerPhone"])' in native
     assert "no website cart" in native
     assert "no Meta Flow" in native
+
+
+def test_staff_vault_offer_is_message_id_audited_and_unlock_gates_payment():
+    source = (
+        ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py"
+    ).read_text()
+    offer = source[source.index("def _send_offer"):
+                   source.index("\ndef _send_native_payment")]
+    handle = source[source.index("def handle(event, client):"):]
+    unlock = source[source.index("def _unlock"):
+                    source.index("\ndef _offer_send_outcome")]
+    assert "whatsapp_templates.vault_offer_send_fields" in offer
+    assert "idempotencyKey='vault-offer:' + token" in offer
+    assert "offerMessageId" in offer
+    assert "'messageId': message_id" in offer
+    assert "OFFER_RESEND_GUARD_SECONDS" in offer
+    assert "action == 'sendOffer'" in handle
+    assert "return _send_offer" in handle
+    assert "action == 'sendPayment'" in handle
+    assert "_prepare_payment" in unlock
+    assert "CATALOGSERVICEMSG#" in unlock
 
 
 def test_secure_files_provisioner_pins_native_vault_payment_invoke():
