@@ -1584,6 +1584,151 @@
   }
 }
 
+/* Customers — align the F001 create/edit modal with the public/Auth typography contract.
+   The Workspace table keeps its dense application scale; this override is intentionally scoped to
+   the customer modal only. */
+.workspace-shell .contacts-workspace-form-v2 {
+  font-family: var(--font-sans) !important;
+  color: var(--public-text) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-modal-head h2 {
+  color: var(--public-text) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-card-size) !important;
+  font-weight: var(--public-card-weight) !important;
+  line-height: var(--public-card-leading) !important;
+  letter-spacing: var(--public-card-tracking) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-form-kicker {
+  color: var(--public-brand-green) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: .07em !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-form-intro h3 {
+  color: var(--public-text) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-card-size) !important;
+  font-weight: var(--public-card-weight) !important;
+  line-height: var(--public-card-leading) !important;
+  letter-spacing: var(--public-card-tracking) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-form-intro p,
+.workspace-shell .contacts-workspace-form-v2 .contacts-section-head span,
+.workspace-shell .contacts-workspace-form-v2 .contacts-address-preview > span {
+  color: var(--public-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-supporting-size) !important;
+  line-height: 1.45 !important;
+  letter-spacing: var(--public-body-tracking) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-section-head strong {
+  color: var(--public-text) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-data-size) !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-section-head small,
+.workspace-shell .contacts-workspace-form-v2 .contacts-optional {
+  color: var(--public-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+.workspace-shell .contacts-workspace-form-v2 label {
+  color: var(--public-text) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-supporting-size) !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  letter-spacing: var(--public-body-tracking) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 input,
+.workspace-shell .contacts-workspace-form-v2 select,
+.workspace-shell .contacts-workspace-form-v2 textarea {
+  min-height: 54px !important;
+  padding: 0 2px !important;
+  color: var(--public-text) !important;
+  font: var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans) !important;
+  letter-spacing: var(--public-body-tracking) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 input::placeholder,
+.workspace-shell .contacts-workspace-form-v2 textarea::placeholder {
+  color: rgba(0,0,0,.42) !important;
+  opacity: 1 !important;
+}
+.workspace-shell .contacts-workspace-form-v2 input::selection,
+.workspace-shell .contacts-workspace-form-v2 textarea::selection {
+  background: var(--public-lime-tint) !important;
+  color: var(--public-text) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 [data-address-preview="contact"] {
+  color: var(--public-muted) !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-supporting-size) !important;
+  line-height: 1.45 !important;
+}
+.workspace-shell .contacts-auth-modal .contacts-modal-error,
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card strong,
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card small,
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card strong,
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card small {
+  font-family: var(--font-sans) !important;
+  font-size: var(--public-supporting-size) !important;
+  line-height: 1.45 !important;
+}
+.workspace-shell .contacts-auth-modal .contacts-reconciliation-card span,
+.workspace-shell .contacts-auth-modal .contacts-duplicate-card span {
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-modal-actions button,
+.workspace-shell .contacts-auth-modal .contacts-primary-action,
+.workspace-shell .contacts-auth-modal .contacts-secondary-action {
+  font: 600 var(--public-cta-font-size)/1.35 var(--font-sans) !important;
+  letter-spacing: 0 !important;
+}
+@media (max-width: 767px) {
+  .workspace-shell .contacts-workspace-form-v2 .contacts-modal-head {
+    padding: 18px 18px 14px !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 .contacts-modal-head h2,
+  .workspace-shell .contacts-workspace-form-v2 .contacts-form-intro h3 {
+    font-size: var(--public-mobile-card-size) !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 .contacts-modal-body {
+    gap: 14px !important;
+    padding: 14px 16px 10px !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 .contacts-form-section {
+    padding: 14px !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 .contacts-form-stack,
+  .workspace-shell .contacts-workspace-form-v2 .contacts-form-grid {
+    gap: 14px !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 input,
+  .workspace-shell .contacts-workspace-form-v2 select,
+  .workspace-shell .contacts-workspace-form-v2 textarea {
+    min-height: 52px !important;
+    font-size: var(--public-mobile-form-font-size, 16px) !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 label,
+  .workspace-shell .contacts-workspace-form-v2 .contacts-form-intro p,
+  .workspace-shell .contacts-workspace-form-v2 .contacts-section-head span,
+  .workspace-shell .contacts-workspace-form-v2 [data-address-preview="contact"] {
+    font-size: 15px !important;
+  }
+  .workspace-shell .contacts-workspace-form-v2 .contacts-modal-actions button,
+  .workspace-shell .contacts-auth-modal .contacts-primary-action,
+  .workspace-shell .contacts-auth-modal .contacts-secondary-action {
+    font-size: var(--public-mobile-cta-font-size) !important;
+  }
+}
+
 /* Collect customer editor is shared across the Create and Customers tabs; keep its message
    visible above mobile bottom-sheet actions without overflowing the phone viewport. */
 .workspace-shell .payments-shell .pf-customer-editor .pf-modal-error {

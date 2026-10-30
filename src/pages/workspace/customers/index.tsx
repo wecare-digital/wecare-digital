@@ -1178,10 +1178,42 @@ const Customers: React.FC<PageProps> = () => {
 
   // Inline styles for form (bypasses Next.js style jsx scoping)
   const S: Record<string, React.CSSProperties> = {
-    label: { display: 'block', fontSize: 12, lineHeight: 1.3, fontWeight: 700, color: '#44504a', marginBottom: 6 },
-    input: { width: '100%', minHeight: 46, padding: '8px 0', border: 0, borderBottom: '1px solid #dfe4df', borderRadius: 0, fontSize: 16, lineHeight: 1.35, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: 'transparent', color: '#111' },
-    row: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 18 },
-    hint: { fontSize: 11, lineHeight: 1.4, color: '#8a918d', marginTop: 4 },
+    label: {
+      display: 'block',
+      marginBottom: 8,
+      color: 'var(--public-text)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--public-supporting-size)',
+      fontWeight: 600,
+      lineHeight: 1.35,
+      letterSpacing: 'var(--public-body-tracking)',
+    },
+    input: {
+      width: '100%',
+      minHeight: 54,
+      padding: '0 2px',
+      border: 0,
+      borderBottom: '1px solid var(--public-hairline)',
+      borderRadius: 0,
+      background: 'transparent',
+      color: 'var(--public-text)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--public-body-size)',
+      fontWeight: 'var(--public-body-weight)' as unknown as number,
+      lineHeight: 1.2,
+      letterSpacing: 'var(--public-body-tracking)',
+      outline: 'none',
+      transition: 'border-color 0.2s, box-shadow 0.2s',
+    },
+    row: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20 },
+    hint: {
+      marginTop: 6,
+      color: 'var(--public-muted)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--public-supporting-size)',
+      lineHeight: 1.45,
+      letterSpacing: 'var(--public-body-tracking)',
+    },
   };
   const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#1a3a2a'; e.target.style.boxShadow = '0 1px 0 0 #d1f470'; };
   const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#dfe4df'; e.target.style.boxShadow = 'none'; };
@@ -1782,7 +1814,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
           <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
+              <h2 style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--public-card-size)', fontWeight: 700, lineHeight: 'var(--public-card-leading)', letterSpacing: 'var(--public-card-tracking)', color: 'var(--public-text)' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
@@ -1802,7 +1834,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
           <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
+              <h2 style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 'var(--public-card-size)', fontWeight: 700, lineHeight: 'var(--public-card-leading)', letterSpacing: 'var(--public-card-tracking)', color: 'var(--public-text)' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
