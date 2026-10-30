@@ -67,8 +67,12 @@ def test_message_delivery_status_lookup_is_staff_scoped_and_provider_id_bound():
     client = source("src/api/client.ts")
     assert 'tail[1] == "message-log" and method == "GET"' in handler
     assert handler.index('denied = require_auth(event, "Operator")') < handler.index('tail[1] == "message-log" and method == "GET"')
-    assert 'item, refusal = _owned_file_for_admin(file_id)' in handler
+    message_log = handler.split('def _admin_message_log(', 1)[1].split('def _admin_revoke(', 1)[0]
+    assert 'item = _table(FILES_TABLE).get_item(' in message_log
+    assert '"UNKNOWN_FILE"' in message_log
     assert 'str(item.get("lastOfferMessageId") or "")' in handler
+    assert 'out["lastOfferMessageId"]' not in handler
+    assert 'out["lastAccessMessageId"]' not in handler
     assert 'str(item.get("lastAccessMessageId") or "")' in handler
     assert 'IndexName="whatsappMessageId-index"' in handler
     assert 'Limit=3' in handler
