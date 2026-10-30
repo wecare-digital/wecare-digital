@@ -68,7 +68,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
-    const [ storage, setStorage ] = useState<api.SecureFileStorage | null>( null );
     // On by default: manual Vault publication sends the approved Unlock Vault offer.
     const [ sendOfferAfterUpload, setSendOfferAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
@@ -92,7 +91,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         {
             setFiles( result.data.files || [] );
             setTruncated( !!result.data.truncated );
-            setStorage( result.data.storage || null );
             setLoadError( '' );
             setLoading( false );
             return result.data.files || [];
@@ -184,7 +182,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             {
                 setFiles( result.data.files || [] );
                 setTruncated( !!result.data.truncated );
-                setStorage( result.data.storage || null );
                 setLoadError( '' );
             } else
             {
