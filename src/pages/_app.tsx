@@ -644,13 +644,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // files; there is no separate public HTML documentation route to keep in sync.
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'
-    // The shop cart and customer OTP sign-in are customer-session surfaces: public chrome,
+    // Checkout and customer OTP sign-in are customer-session surfaces: public chrome,
     // robots:noindex per page, and deliberately OUT of PUBLIC_PAGE_META, the sitemap and AI manifest.
     // /auth is a real Next page now. Only its state/step endpoints are rewritten to the auth API,
     // so it receives the exact same Header/search/cart, PublicShare, Footer and SupportWidget as
     // every other public route instead of carrying a copied backend shell.
     || router.pathname === '/auth'
-    || router.pathname === '/cart'
     || router.pathname === '/checkout'
     // Checkout status + success are customer-session screens, not marketing pages: they carry the
     // public chrome (header/footer/support widget) but are deliberately kept OUT of
