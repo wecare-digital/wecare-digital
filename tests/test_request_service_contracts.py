@@ -192,16 +192,18 @@ def test_browser_skips_legacy_intent_and_cart_for_request_services():
     assert "Payment request sent to your registered WhatsApp number." in source
 
 
-def test_vault_browser_uses_native_whatsapp_and_never_seeds_cart():
+def test_vault_browser_uses_owner_bound_website_cart_and_native_whatsapp():
     source = (ROOT / "src/components/get/GetPage.tsx").read_text()
     assert "requestMySecureFilePayment" in source
     assert "Sending to WhatsApp…" in source
     assert "registered WhatsApp number" in source
-    assert "postRequestIntent" not in source
-    assert "setServiceLine" not in source
-    assert "CHECKOUT_PATH" not in source
+    assert "postRequestIntent(" in source
+    assert "session.accessToken, 'VAULT', undefined, file.fileId" in source
+    assert "setServiceLine( service.variantId, response.intent.intentId, vaultLinePrice )" in source
+    assert "serviceIntentFor( lineItems ) === response.intent.intentId" in source
+    assert "Add 24-hour renewal to cart" in source
+    assert "window.location.assign( '/cart/' )" in source
     assert "router.push" not in source
-    assert "Review this document in your cart" not in source
     assert "sf-note-bad" not in source
 
 
