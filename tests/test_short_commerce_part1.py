@@ -13,7 +13,6 @@ METHOD = (ROOT / "src/pages/checkout/index.tsx").read_text(encoding="utf-8")
 LEGACY_SUCCESS = (ROOT / "src/pages/checkout/success.tsx").read_text(encoding="utf-8")
 STATUS_PAGE = (ROOT / "src/pages/checkout/status.tsx").read_text(encoding="utf-8")
 SERVICE = (ROOT / "src/lib/serviceEntry.ts").read_text(encoding="utf-8")
-LEGACY_CART = (ROOT / "src/pages/cart.tsx").read_text(encoding="utf-8")
 QUOTE_COMPONENT = (ROOT / "src/components/cart/CheckoutPriceBreakdown.tsx").read_text(encoding="utf-8")
 CHECKOUT_BACKEND = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
 ORDERS = (ROOT / "src/components/orders/OrdersPage.tsx").read_text(encoding="utf-8")
@@ -74,15 +73,23 @@ def test_cart_directly_preserves_both_existing_checkout_actions():
 
 def test_checkout_is_the_one_review_and_direct_razorpay_page():
     assert "export { default } from '../../components/cart/CartPage';" in METHOD
-    assert "router.replace( `/checkout/${ query }` )" in LEGACY_CART
-    assert 'href="/checkout/"' in LEGACY_CART
+    assert not (ROOT / "src/pages/cart.tsx").exists()
+    assert "router.replace" not in METHOD
     assert "export const CHECKOUT_PATH = '/checkout/';" in SERVICE
     assert "export const SIGN_IN_PATH = '/auth';" in SERVICE
     assert "proceed( 'website' )" in PAGE
     assert "proceed( 'whatsapp' )" in PAGE
     assert 'const razorpay = new window.Razorpay(' in PAGE
-    # The deprecated cart route must not start money or show another choice.
-    assert 'new window.Razorpay' not in LEGACY_CART
+    # The retired cart route is missing, not a compatibility redirect.
+    assert "'/cart/'" not in (ROOT / 'src/lib/safeReturnPath.ts').read_text()
+    assert "'/cart/'" not in (
+        ROOT / 'amplify/functions/ai/customer-commerce-mcp/customer_oauth_config.py'
+    ).read_text()
+    inbound = (ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py').read_text()
+    assert "'https://wecare.digital/checkout/'" in inbound
+    assert "'https://wecare.digital/cart/'" not in inbound
+    vault = (ROOT / 'src/components/get/GetPage.tsx').read_text()
+    assert "window.location.assign( '/checkout/' )" in vault
 
 
 def test_legacy_success_uses_the_one_verified_payment_status_screen():
