@@ -145,6 +145,10 @@ def _is_direct_api_phone(phone_number_id: str) -> bool:
 _TEMPLATE_FLOW_KEYS = {
     '01_wecare_doc': 'subscribe', '02_wecare_video': 'subscribe', '03_wecare_images_': 'subscribe',
     '01_manish_doc': 'subscribe', '02_manish_video': 'subscribe', '03_manish_image': 'subscribe',
+    # F002's manual template is approved with DATA_EXCHANGE. It uses a static
+    # FEEDBACK INIT; the server-authenticated sender owns the later nfm_reply.
+    # The paid invoice instead supplies its own opaque review-* attribution token.
+    'wecare_leave_review': 'leave',
 }
 
 
