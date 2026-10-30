@@ -374,11 +374,12 @@ def test_vault_logs_show_storage_truth_and_real_send_actors():
         assert field in handler
 
 
-def test_service_workspace_keeps_vault_documents_logs_below_vault_only():
+def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_service_buttons():
     page = (ROOT / "src/pages/workspace/service/index.tsx").read_text()
-    assert "Documents" in page
-    assert "Logs" in page
-    assert "VaultLogs" in page
-    assert "Request Amendment" not in page
-    assert "Drop Docs" not in page
-    assert "Appointments" not in page
+    rendered = page[page.index("  return ("):]
+    assert "Documents" in rendered
+    assert "Logs" in rendered
+    assert "VaultLogs" in rendered
+    assert ">Request Amendment<" not in rendered
+    assert ">Drop Docs<" not in rendered
+    assert ">Appointments<" not in rendered
