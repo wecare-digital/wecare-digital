@@ -18,7 +18,8 @@ export default function OrderActionIcon (
 ): React.ReactElement {
   return (
     <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48"
-      width="24" height="24" fill="currentColor">
+      width="24" height="24" fill="currentColor"
+      stroke="var(--public-brand-green)" strokeWidth="1.5" strokeLinejoin="round">
       <path d={ PATHS[ name ] } />
     </svg>
   );
