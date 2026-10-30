@@ -700,7 +700,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
                                     : vaultBreakdown === null
                                         ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'Stage 1 sends wecare_vault_request_ready. The customer taps Unlock Vault to receive Review & Pay. After verified payment: processing → completed → invoice with Leave Review → Access Vault. The final URL variable {{1}} is filled automatically from this exact Vault file ID.' }
+                                        : 'Stage 1 sends wecare_vault_request_ready. The customer taps Unlock Vault to receive Review & Pay. After verified payment: processing → completed → invoice with Leave Review → Access Vault. The final URL variable {{1}} is filled automatically from this exact Vault file ID. Staff do not type or override it.' }
                         </p>
                     </aside>
                 </div>
