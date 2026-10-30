@@ -15,7 +15,7 @@ template each business step uses and what components that step must supply. Send
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
 The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback, plus
-`wecare_vault_request_ready` read back APPROVED on 2026-10-28; all eight `en`).
+`wecare_vault_request_ready` read back APPROVED on 2026-10-28; 15 `en` template versions verified on 2026-10-30).
 `scripts/check_whatsapp_template_payloads_live.py` builds each send with
 the production code and checks it against these live definitions:
 
