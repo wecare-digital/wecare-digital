@@ -1,16 +1,22 @@
 /**
- * Authenticated WECARE.DIGITAL workspace shell.
+ * Canonical authenticated WECARE.DIGITAL Workspace shell.
  *
- * Product rule: there is no global business sidebar and no workspace/module dropdown.
- * Workspace Home + search are the navigation system; topic pages own their local tabs/actions.
- * Profile contains personal/session controls only.
+ * Authentication stays in AuthShell/_app. This component owns authenticated chrome only:
+ * shared public Header -> Workspace action layer -> route content -> PublicShare -> Footer.
+ *
+ * Layout is intentionally also a compatibility boundary. A large retained Workspace surface
+ * imports Layout from nested components; nested Layout calls collapse to content-only so a child
+ * can never introduce a second Header/PublicShare/Footer.
  */
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, {
+  ReactNode, createContext, useContext, useEffect, useState,
+} from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Header from './Header';
+import Footer from './Footer';
+import PublicShare from './PublicShare';
 import SearchModal from './SearchModal';
-import BottomNav from './BottomNav';
-import BrandLockup from './BrandLockup';
 import PushOptIn from './PushOptIn';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useUserRole, isPartnerAllowed } from '../hooks/useUserRole';
@@ -21,7 +27,10 @@ interface LayoutProps {
   user?: any;
   onSignOut?: () => void;
   showBreadcrumbs?: boolean;
+  shellClassName?: string;
 }
+
+const WorkspaceShellContext = createContext( false );
 
 const SearchGlyph = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -41,14 +50,16 @@ const PersonGlyph = () => (
   </svg>
 );
 
-const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcrumbs = true } ) => {
+const Layout: React.FC<LayoutProps> = ( {
+  children, user, onSignOut, showBreadcrumbs = true, shellClassName = '',
+} ) => {
+  const nested = useContext( WorkspaceShellContext );
   const router = useRouter();
   const { isPartner, loading: roleLoading } = useUserRole();
   const [ searchOpen, setSearchOpen ] = useState( false );
   const [ profileOpen, setProfileOpen ] = useState( false );
   const shortcutsModal = useKeyboardShortcutsModal();
 
-  // Keep the existing partner boundary intact while the workspace IA is rebuilt.
   useEffect( () => {
     if ( !roleLoading && isPartner && !isPartnerAllowed( router.pathname ) ) {
       void router.replace( '/workspace/engage/whatsapp/my-account' );
@@ -64,233 +75,316 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
     { key: '/', action: () => setSearchOpen( true ), description: 'Open search' },
   ] );
 
+  /*
+   * Nested compatibility rule: retained operational components may still import Layout.
+   * Once an ancestor owns the shell, the nested call contributes content only.
+   */
+  if ( nested ) return <>{ children }</>;
+
   const isHome = router.pathname === '/workspace';
   const loginId = user?.signInDetails?.loginId || user?.email || '';
   const role = user?.role || 'Operator';
 
   return (
-    <div className={ `layout workspace-shell ${isHome ? 'workspace-home-shell' : ''}` }>
-      <header className="workspace-topbar">
-        <div className="workspace-topbar-inner">
-          <div className="workspace-leading">
-            { !isHome && (
-              <button type="button" className="workspace-back" onClick={ () => void router.push( '/workspace' ) }>
-                <span aria-hidden="true">←</span>
-                <span>Workspace</span>
-              </button>
-            ) }
-            <Link href="/workspace" className="workspace-brand" aria-label="WECARE.DIGITAL Workspace Home">
-              <BrandLockup compact />
-            </Link>
-          </div>
+    <WorkspaceShellContext.Provider value>
+      <div className={ `layout workspace-shell ${ isHome ? 'workspace-home-shell' : '' } ${ shellClassName }`.trim() }>
+        <Header />
 
-          <div className="workspace-actions" aria-label="Workspace actions">
-            <button type="button" className="workspace-action workspace-search"
-              onClick={ () => setSearchOpen( true ) } aria-label="Search workspace">
-              <SearchGlyph /><span>Search</span><kbd>⌘K</kbd>
-            </button>
-            <button type="button" className="workspace-action workspace-tasks"
-              onClick={ () => void router.push( '/workspace/task' ) } aria-label="Tasks">
-              <TasksGlyph /><span className="desktop-action-label">Tasks</span>
-            </button>
-            <div className="workspace-profile-wrap">
-              <button type="button" className={ `workspace-action ${profileOpen ? 'active' : ''}` }
-                aria-label="Profile" aria-expanded={ profileOpen }
-                onClick={ () => setProfileOpen( ( value ) => !value ) }>
-                <PersonGlyph /><span className="desktop-action-label">Profile</span>
-              </button>
-              { profileOpen && (
-                <>
-                  <button type="button" className="profile-scrim" aria-label="Close profile"
-                    onClick={ () => setProfileOpen( false ) } />
-                  <section className="profile-menu" aria-label="Profile menu">
-                    <div className="profile-identity">
-                      <strong>{ role }</strong>
-                      { loginId && <span>{ loginId }</span> }
-                    </div>
-                    {/* Native shells only - renders nothing on the web. The one place this
-                        app asks for notification permission, and only on a tap. */}
-                    <PushOptIn />
-                    { onSignOut && (
-                      <button type="button" className="profile-signout" onClick={ onSignOut }>
-                        Sign out
-                      </button>
-                    ) }
-                  </section>
-                </>
-              ) }
+        <div className="workspace-after-header">
+          <nav className="workspace-action-layer" aria-label="Workspace actions">
+            <div className="workspace-action-layer-inner">
+              <div className="workspace-action-leading">
+                { !isHome && (
+                  <Link href="/workspace" className="workspace-back" aria-label="Back to Workspace">
+                    <span aria-hidden="true">←</span>
+                    <span>Workspace</span>
+                  </Link>
+                ) }
+                <span className="workspace-context-label">Workspace</span>
+              </div>
+
+              <div className="workspace-actions">
+                <button type="button" className="workspace-action workspace-search"
+                  onClick={ () => setSearchOpen( true ) } aria-label="Search workspace">
+                  <SearchGlyph /><span>Search</span><kbd>⌘K</kbd>
+                </button>
+                <button type="button" className="workspace-action"
+                  onClick={ () => void router.push( '/workspace/task' ) } aria-label="Tasks">
+                  <TasksGlyph /><span>Tasks</span>
+                </button>
+                <div className="workspace-profile-wrap">
+                  <button type="button" className={ `workspace-action ${ profileOpen ? 'active' : '' }` }
+                    aria-label="Profile" aria-expanded={ profileOpen }
+                    onClick={ () => setProfileOpen( value => !value ) }>
+                    <PersonGlyph /><span>Profile</span>
+                  </button>
+                  { profileOpen && (
+                    <>
+                      <button type="button" className="profile-scrim" aria-label="Close profile"
+                        onClick={ () => setProfileOpen( false ) } />
+                      <section className="profile-menu" aria-label="Profile menu">
+                        <div className="profile-identity">
+                          <strong>{ role }</strong>
+                          { loginId && <span>{ loginId }</span> }
+                        </div>
+                        <PushOptIn />
+                        { onSignOut && (
+                          <button type="button" className="profile-signout" onClick={ onSignOut }>
+                            Sign out
+                          </button>
+                        ) }
+                      </section>
+                    </>
+                  ) }
+                </div>
+              </div>
             </div>
+          </nav>
+
+          {/*
+            Operational/customer records remain outside the language system. Shared Header,
+            Workspace action copy, Stay connected and Footer remain translatable.
+          */}
+          <main id="main-content" className="main-content workspace-main" data-wc-no-translate="true">
+            <div className="workspace-content-frame">
+              { showBreadcrumbs && <Breadcrumbs /> }
+              <div className="inner-content-container">
+                { children }
+              </div>
+            </div>
+          </main>
+
+          <div className="workspace-public-share">
+            <PublicShare />
           </div>
+          <Footer />
         </div>
-      </header>
 
-      {/*
-        data-wc-no-translate is a data-integrity guard. Customer names, phone numbers, message
-        bodies, order lines and money are operational records; translating them in place can
-        mutate what an operator believes the source data says.
-      */}
-      <main id="main-content" className="main-content workspace-main" data-wc-no-translate="true">
-        { showBreadcrumbs && <Breadcrumbs /> }
-        <div className="inner-content-container">
-          { children }
-        </div>
-      </main>
+        <SearchModal isOpen={ searchOpen } onClose={ () => setSearchOpen( false ) } />
+        <KeyboardShortcuts isOpen={ shortcutsModal.isOpen } onClose={ shortcutsModal.close } />
 
-      <BottomNav
-        onSearch={ () => setSearchOpen( true ) }
-        onProfile={ () => setProfileOpen( ( value ) => !value ) }
-        profileOpen={ profileOpen }
-      />
-      <SearchModal isOpen={ searchOpen } onClose={ () => setSearchOpen( false ) } />
-      <KeyboardShortcuts isOpen={ shortcutsModal.isOpen } onClose={ shortcutsModal.close } />
-
-      <style jsx>{`
-        .workspace-shell{
-          display:block;
-          min-height:100dvh;
-          min-height:100svh;
-          background:#fff;
-        }
-        .workspace-topbar{
-          position:sticky;
-          top:0;
-          z-index:1100;
-          background:rgba(255,255,255,.96);
-          border-bottom:1px solid var(--border);
-          backdrop-filter:blur(16px);
-          -webkit-backdrop-filter:blur(16px);
-          padding-top:env(safe-area-inset-top,0px);
-        }
-        .workspace-topbar-inner{
-          min-height:60px;
-          width:min(100%,1440px);
-          margin:0 auto;
-          padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap:16px;
-          box-sizing:border-box;
-        }
-        .workspace-leading,.workspace-actions{display:flex;align-items:center;gap:8px;min-width:0}
-        .workspace-brand{display:inline-flex;align-items:center;text-decoration:none;border-radius:10px;min-height:44px}
-        .workspace-back,.workspace-action{
-          min-height:44px;
-          min-width:44px;
-          border:1px solid var(--border);
-          border-radius:12px;
-          background:#fff;
-          color:var(--text);
-          font:inherit;
-          font-size:var(--text-sm);
-          font-weight:650;
-          cursor:pointer;
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          gap:8px;
-          padding:8px 12px;
-          -webkit-tap-highlight-color:transparent;
-        }
-        .workspace-back{border-color:transparent;padding-inline-start:4px}
-        .workspace-action:hover,.workspace-action.active,.workspace-back:hover{background:var(--bg-secondary);border-color:var(--lime)}
-        .workspace-action:focus-visible,.workspace-back:focus-visible,.workspace-brand:focus-visible,.profile-signout:focus-visible{
-          outline:2px solid var(--accent);outline-offset:2px
-        }
-        .workspace-search{min-width:min(32vw,260px);justify-content:flex-start}
-        .workspace-search kbd{
-          margin-inline-start:auto;
-          color:var(--text-muted);
-          background:var(--bg-secondary);
-          border:1px solid var(--border);
-          border-radius:6px;
-          padding:2px 6px;
-          font:inherit;
-          font-size:var(--text-xs);
-        }
-        .workspace-profile-wrap{position:relative;display:inline-flex}
-        .profile-scrim{position:fixed;inset:0;z-index:1;border:0;background:transparent;cursor:default}
-        .profile-menu{
-          position:absolute;
-          z-index:2;
-          top:calc(100% + 8px);
-          inset-inline-end:0;
-          width:min(300px,calc(100vw - 24px));
-          border:1px solid var(--border);
-          border-radius:14px;
-          background:#fff;
-          box-shadow:0 12px 36px rgba(0,0,0,.14);
-          overflow:hidden;
-        }
-        .profile-identity{display:flex;flex-direction:column;gap:4px;padding:16px}
-        .profile-identity strong{font-size:var(--text-md);color:var(--text)}
-        .profile-identity span{font-size:var(--text-xs);color:var(--text-muted);overflow-wrap:anywhere}
-        .profile-signout{
-          width:100%;min-height:48px;border:0;border-top:1px solid var(--border);
-          background:#fff;color:var(--text);font:inherit;font-weight:650;text-align:start;padding:12px 16px;cursor:pointer
-        }
-        .profile-signout:hover{background:var(--bg-secondary)}
-        .workspace-shell :global(.workspace-main){
-          margin-inline-start:0;
-          width:100%;
-          max-width:none;
-          min-height:calc(100dvh - 60px);
-          box-sizing:border-box;
-          overflow-x:clip;
-          padding:0;
-        }
-        .workspace-shell :global(.inner-content-container){
-          width:min(100%,1440px);
-          margin:0 auto;
-          box-sizing:border-box;
-          border-radius:0;
-        }
-        /* Workspace Home is a launchpad, not an inner tool panel. Layout.css gives every
-           inner-content-container a bordered 30px card; keeping that on /workspace created
-           the giant framed rectangle visible in the production screenshot. Other workspace
-           pages keep their existing panel contract. */
-        .workspace-home-shell :global(.inner-content-container){
-          border:0;
-          border-radius:0;
-          margin:0 auto;
-          overflow:visible;
-          background:#fff;
-        }
-        @media(max-width:768px){
-          .workspace-topbar-inner{min-height:56px;padding-block:6px}
-          .workspace-search{min-width:44px;width:44px;padding:0}
-          .workspace-search span,.workspace-search kbd,.desktop-action-label{display:none}
-          .workspace-back span:last-child{display:none}
-          .workspace-brand{max-width:150px;overflow:hidden}
-          .workspace-shell :global(.workspace-main){
-            min-height:calc(100dvh - 56px);
-            padding-bottom:calc(68px + env(safe-area-inset-bottom,0px));
+        <style jsx>{`
+          .workspace-shell{
+            display:block;
+            min-width:0;
+            min-height:100vh;
+            min-height:100dvh;
+            overflow-x:hidden;
+            overflow-x:clip;
+            background:var(--public-bg,#fff);
+            color:var(--public-text,#111);
+            font-family:var(--font-sans);
           }
-          .workspace-shell :global(.inner-content-container){margin:0;padding:0}
-        }
-        @media(max-width:360px){
-          .workspace-topbar-inner{
+          .workspace-after-header{
+            min-width:0;
+            min-height:calc(100vh - 108px);
+            min-height:calc(100dvh - 108px);
+            padding-top:108px;
+            overflow-x:hidden;
+            overflow-x:clip;
+          }
+          .workspace-action-layer{
+            width:100%;
+            border-bottom:1px solid var(--public-hairline,var(--border));
+            background:#fff;
+          }
+          .workspace-action-layer-inner{
+            width:100%;
+            max-width:var(--public-content-max);
+            min-width:0;
+            margin:0 auto;
+            padding:14px var(--public-page-gutter);
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            box-sizing:border-box;
+          }
+          .workspace-action-leading,.workspace-actions{
+            display:flex;
+            align-items:center;
             gap:8px;
-            padding-inline:
-              max(8px,env(safe-area-inset-left,0px))
-              max(8px,env(safe-area-inset-right,0px));
+            min-width:0;
           }
-          .workspace-brand{max-width:112px}
-          .workspace-actions{gap:4px}
-          /* Search and Tasks already have permanent bottom-nav destinations on phones.
-             Hiding the duplicated top-bar buttons is what lets Back + brand + Profile
-             reflow at the ~280px foldable harness without clipping. */
-          .workspace-search,.workspace-tasks{display:none}
-          .workspace-action,.workspace-back{padding:0}
-        }
-        @media(prefers-reduced-motion:reduce){
-          .workspace-topbar{scroll-behavior:auto}
-        }
-        @media(forced-colors:active){
-          .workspace-action,.workspace-back,.profile-menu{border:1px solid CanvasText}
-        }
-      `}</style>
-    </div>
+          .workspace-context-label{
+            color:var(--public-muted,var(--text-muted));
+            font-size:var(--public-meta-size,14px);
+            font-weight:700;
+            white-space:nowrap;
+          }
+          .workspace-back,.workspace-action{
+            min-width:0;
+            border:1px solid var(--public-hairline,var(--border));
+            border-radius:12px;
+            background:#fff;
+            color:var(--public-brand-green,var(--text));
+            font:650 var(--public-supporting-size,16px)/1.2 var(--font-sans);
+            cursor:pointer;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            padding:9px 12px;
+            text-decoration:none;
+            -webkit-tap-highlight-color:transparent;
+          }
+          .workspace-back{
+            border-color:transparent;
+            padding-inline-start:0;
+          }
+          .workspace-action:hover,.workspace-action.active,.workspace-back:hover{
+            background:var(--public-lime-tint,var(--bg-secondary));
+            border-color:var(--public-brand-lime,var(--lime));
+          }
+          .workspace-action:focus-visible,.workspace-back:focus-visible,.profile-signout:focus-visible{
+            outline:2px solid var(--public-brand-green,var(--accent));
+            outline-offset:2px;
+          }
+          .workspace-search{min-width:min(28vw,260px);justify-content:flex-start}
+          .workspace-search kbd{
+            margin-inline-start:auto;
+            color:var(--public-muted,var(--text-muted));
+            background:var(--public-lime-tint,var(--bg-secondary));
+            border:1px solid var(--public-hairline,var(--border));
+            border-radius:6px;
+            padding:2px 6px;
+            font:inherit;
+            font-size:var(--public-meta-size,14px);
+          }
+          .workspace-profile-wrap{position:relative;display:inline-flex;min-width:0}
+          .profile-scrim{position:fixed;inset:0;z-index:1190;border:0;background:transparent;cursor:default}
+          .profile-menu{
+            position:absolute;
+            z-index:1200;
+            top:calc(100% + 8px);
+            inset-inline-end:0;
+            width:min(300px,calc(100vw - 32px));
+            max-height:min(70vh,70dvh);
+            overflow:auto;
+            border:1px solid var(--public-hairline,var(--border));
+            border-radius:14px;
+            background:#fff;
+            box-shadow:0 12px 36px rgba(0,0,0,.14);
+          }
+          .profile-identity{display:flex;flex-direction:column;gap:4px;padding:16px}
+          .profile-identity strong{font-size:var(--public-card-size,18px);color:var(--public-text,var(--text))}
+          .profile-identity span{font-size:var(--public-meta-size,14px);color:var(--public-muted,var(--text-muted));overflow-wrap:anywhere}
+          .profile-signout{
+            width:100%;
+            border:0;
+            border-top:1px solid var(--public-hairline,var(--border));
+            background:#fff;
+            color:var(--public-brand-green,var(--text));
+            font:650 16px/1.3 var(--font-sans);
+            text-align:start;
+            padding:13px 16px;
+            cursor:pointer;
+          }
+          .profile-signout:hover{background:var(--public-lime-tint,var(--bg-secondary))}
+          .workspace-shell :global(.workspace-main){
+            width:100%;
+            max-width:none;
+            min-width:0;
+            min-height:0;
+            margin:0;
+            padding:0;
+            overflow-x:hidden;
+            overflow-x:clip;
+            box-sizing:border-box;
+          }
+          .workspace-content-frame{
+            width:100%;
+            max-width:var(--public-content-max);
+            min-width:0;
+            margin:0 auto;
+            padding:0 var(--public-page-gutter);
+            box-sizing:border-box;
+            overflow-x:hidden;
+            overflow-x:clip;
+          }
+          .workspace-shell :global(.inner-content-container){
+            width:100% !important;
+            max-width:100% !important;
+            min-width:0;
+            margin:0 auto !important;
+            box-sizing:border-box;
+          }
+          .workspace-public-share{
+            width:100%;
+            max-width:var(--public-content-max);
+            min-width:0;
+            margin:0 auto;
+            padding:8px var(--public-page-gutter) 48px;
+            box-sizing:border-box;
+            overflow-x:hidden;
+            overflow-x:clip;
+          }
+          @media(max-width:767px){
+            .workspace-after-header{
+              min-height:calc(100vh - 96px);
+              min-height:calc(100dvh - 96px);
+              padding-top:96px;
+            }
+            .workspace-action-layer-inner{
+              padding:
+                10px max(var(--public-mobile-page-gutter),env(safe-area-inset-right,0px))
+                10px max(var(--public-mobile-page-gutter),env(safe-area-inset-left,0px));
+              align-items:flex-start;
+              gap:10px;
+            }
+            .workspace-action-leading{padding-top:2px}
+            .workspace-context-label{display:none}
+            .workspace-actions{
+              justify-content:flex-end;
+              flex-wrap:wrap;
+            }
+            .workspace-action{
+              padding:8px 10px;
+              font-size:14px;
+            }
+            .workspace-search{min-width:0}
+            .workspace-search kbd{display:none}
+            .workspace-content-frame{
+              padding-inline:
+                max(var(--public-mobile-page-gutter),env(safe-area-inset-left,0px))
+                max(var(--public-mobile-page-gutter),env(safe-area-inset-right,0px));
+            }
+            .workspace-public-share{
+              padding-inline:
+                max(var(--public-mobile-page-gutter),env(safe-area-inset-left,0px))
+                max(var(--public-mobile-page-gutter),env(safe-area-inset-right,0px));
+              padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));
+            }
+            .profile-menu{
+              position:fixed;
+              inset-inline:max(var(--public-mobile-page-gutter),env(safe-area-inset-left,0px))
+                max(var(--public-mobile-page-gutter),env(safe-area-inset-right,0px));
+              top:auto;
+              bottom:calc(var(--public-mobile-page-gutter) + env(safe-area-inset-bottom,0px));
+              width:auto;
+              max-height:min(70vh,70dvh);
+            }
+          }
+          @media(max-width:399px){
+            .workspace-action-layer-inner{display:block}
+            .workspace-action-leading{margin-bottom:8px}
+            .workspace-actions{justify-content:flex-start}
+            .workspace-action{font-size:13px}
+          }
+          @media(max-width:279px){
+            .workspace-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+            .workspace-action,.workspace-profile-wrap{width:100%}
+            .workspace-action{justify-content:flex-start}
+          }
+          @media(prefers-reduced-motion:reduce){
+            .workspace-action,.workspace-back,.profile-signout{transition:none}
+          }
+          @media(forced-colors:active){
+            .workspace-action,.workspace-back,.profile-menu{border-color:CanvasText}
+          }
+        `}</style>
+      </div>
+    </WorkspaceShellContext.Provider>
   );
 };
 
