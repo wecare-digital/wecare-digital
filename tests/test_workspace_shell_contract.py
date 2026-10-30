@@ -201,8 +201,8 @@ def test_workspace_form_blocks_share_one_canonical_visual_contract():
         "background:#fff!important",
         "box-shadow:none!important",
         ":is(label,.ui-field-label)",
-        ":is(.field-hint,.form-hint,.ui-field-help,[class*="-hint"])",
-        ":is(.form-grid,[class*="-form-grid"],[class*="form-row"],[class*="-fields"])",
+        ':is(.field-hint,.form-hint,.ui-field-help,[class*="-hint"])',
+        ':is(.form-grid,[class*="-form-grid"],[class*="form-row"],[class*="-fields"])',
     ):
         assert token in css
 
