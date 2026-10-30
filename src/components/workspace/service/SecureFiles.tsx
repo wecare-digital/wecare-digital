@@ -77,8 +77,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
-    // On by default: manual Vault publication sends the approved Unlock Vault offer.
-    const [ sendOfferAfterUpload, setSendOfferAfterUpload ] = useState( true );
+    // Saving a file never sends a WhatsApp message; the offer is a separate confirmed action.
+    const [ confirmingOffer, setConfirmingOffer ] = useState( false );
+    const [ lastAcceptedOfferFileId, setLastAcceptedOfferFileId ] = useState( '' );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
@@ -218,30 +219,53 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     };
 
     const handleSendOffer = async ( target: SecureFile ) => {
-        if ( acting ) return;
-        const variable = validOfferBodyText( offerBodyText );
-        if ( !variable ) {
-            toast.error( 'Enter one line of WhatsApp {{1}} text (1–60 characters; no formatting).' );
+        if ( acting || confirmingOffer || uploading || mode !== 'existing' || reviewFile?.fileId !== target.fileId ) return;
+        if ( target.status !== 'active' || ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+            toast.error( 'This file does not need a payment offer. Review its access state.' );
             return;
         }
-        // Meta's approved offer says ₹49. Block an offer when live pricing disagrees.
+        const variable = validOfferBodyText( offerBodyText );
+        if ( !variable ) {
+            toast.error( 'Enter WhatsApp {{1}} text (1–60 characters, one line and no formatting).' );
+            return;
+        }
+        // Meta's approved offer says ₹49. Keep the existing live pricing guard.
         if ( vaultPricePaise !== 4900 || !vaultBreakdown ) {
             toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
             return;
         }
+        setConfirmingOffer( true );
+        let approved = false;
+        try {
+            approved = await confirm( {
+                title: 'Send Unlock Vault on WhatsApp?',
+                message: `Customer: ${target.ownerName || 'Selected customer'} (${target.ownerPhoneMasked || 'verified owner'}).\nFile: ${target.displayName}\nWhatsApp {{1}}: ${variable}\n\nThis sends one real message. Payment starts only after the customer taps Unlock Vault.`,
+                confirmText: 'Send WhatsApp offer',
+            } );
+        } finally {
+            setConfirmingOffer( false );
+        }
+        if ( !approved ) return;
+
         setActing( target.fileId );
-        try
-        {
-            reportAction( await api.sendSecureFileOffer( target.fileId, variable ) );
-            load( filterMobile || undefined );
-        } finally
-        {
+        try {
+            const result = await api.sendSecureFileOffer( target.fileId, variable );
+            reportAction( result );
+            if ( result.ok && result.status !== 202 ) setLastAcceptedOfferFileId( target.fileId );
+            void load( filterMobile || undefined );
+        } finally {
             setActing( '' );
         }
     };
 
     const handleSendAccess = async ( target: SecureFile ) => {
-        if ( acting ) return;
+        if ( acting || uploading ) return;
+        const approved = await confirm( {
+            title: 'Resend Access Vault link?',
+            message: `Send the existing paid Vault access link to ${target.ownerName || 'the selected owner'} for ${target.displayName}? No new payment is requested.`,
+            confirmText: 'Send access link',
+        } );
+        if ( !approved ) return;
         setActing( target.fileId );
         try
         {
@@ -281,24 +305,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         }
     };
 
-    const resetForm = () => {
-        setName( '' );
-        setMobile( '' );
-        setFile( null );
-    };
-
     const handleUpload = async () => {
         const customerName = name.trim();
         const customerPhone = mobile.trim();
         if ( !file ) { toast.error( 'Choose a document first' ); return; }
         if ( !customerName ) { toast.error( 'Customer name is required' ); return; }
         if ( !customerPhone ) { toast.error( 'Customer mobile number is required' ); return; }
-        const variable = validOfferBodyText( offerBodyText );
-        if ( sendOfferAfterUpload && !variable ) {
-            toast.error( 'Enter WhatsApp body {{1}} text before publishing and sending, or untick Send offer.' );
-            return;
-        }
-
+        // Saving a document requires no WhatsApp text: the separate offer is optional.
         const contentType = resolveWaMime( file );
         const validation = validateWaMediaSize( file, contentType );
         if ( !validation.ok )
@@ -356,20 +369,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 return;
             }
 
-            toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
-            if ( sendOfferAfterUpload )
-            {
-                if ( vaultPricePaise === 4900 && vaultBreakdown )
-                {
-                    setStep( 'Sending Vault-ready message with Unlock Vault…' );
-                    reportAction( await api.sendSecureFileOffer( published.data.fileId, variable! ) );
-                } else
-                {
-                    toast.warning( 'Published privately, but the approved ₹49 offer could not be matched to live pricing. No WhatsApp offer was sent.' );
-                }
-            }
-
-            resetForm();
+            toast.success( `${published.data.displayName || ticket.data.fileName} saved to Vault. No WhatsApp was sent.` );
+            setFile( null );
+            setLastAcceptedOfferFileId( '' );
             setName( customerName );
             setMobile( customerPhone );
             setContactQuery( customerName );
@@ -378,7 +380,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setFilterMobile( customerPhone );
             const publishedFile = ( refreshed || [] ).find( item => item.fileId === published.data.fileId ) || null;
             setReviewFile( publishedFile );
-            setMode( publishedFile ? 'existing' : 'upload' );
+            setMode( 'existing' );
+            if ( !publishedFile )
+                toast.info( 'File is saved. Use Find to refresh the document list, then review the WhatsApp offer.' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
