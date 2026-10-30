@@ -19,7 +19,7 @@ export const ALLOWED_CUSTOMER_RETURN_PATHS = [
 ] as const;
 
 const ALLOWED = new Set<string>( ALLOWED_CUSTOMER_RETURN_PATHS );
-const DEFAULT_RETURN = '/cart/';
+const DEFAULT_RETURN = '/checkout/';
 
 /** Staff-only or internal first path segments may never be customer returns. */
 const BLOCKED_FIRST_SEGMENTS = new Set( [
