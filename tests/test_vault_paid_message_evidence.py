@@ -30,6 +30,7 @@ def engine(tables):
     assert len(funcs) == len(wanted)
     namespace = {
         "Any": Any, "Dict": Dict, "os": os,
+        "GRANTS_TABLE": "stack-wecare-digital-DownloadGrantsTable",
         "_table": lambda name: tables[name],
         "_message_status_for_verified_send": lambda wamid: {
             "status": "DELIVERED" if wamid == "wamid.processing" else "READ",
