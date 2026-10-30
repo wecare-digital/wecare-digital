@@ -49,7 +49,7 @@ post-payment message and does not become payment-gated because commerce can link
 
 ## Meta Flow
 
-Source: `amplify/functions/messaging/whatsapp-business-api/flows/leave-review-flow-v2.json`.
+Source: `amplify/functions/messaging/whatsapp-business-api/flows/published/f002-leave-review.json`.
 
 | Screen | Purpose | Fields/data | Navigation | Terminal |
 |---|---|---|---|---|
@@ -59,8 +59,9 @@ Source: `amplify/functions/messaging/whatsapp-business-api/flows/leave-review-fl
 The completion payload contains `flow_key=wd_leave_review_v2`, `schema_version=4`,
 `topic` and `idea`. Visible and accessibility branding uses WECARE.DIGITAL.
 
-This Flow is endpointless. It opens with `navigate`, not `data_exchange`; there is no
-customer profile prefill step and no Contacts mutation.
+The retained F002 definition declares data API version 3.0 and has a provider-configured
+data endpoint. Its primary customer entry uses `navigate`, while completion is persisted from
+the inbound `nfm_reply`; it does not mutate Contacts.
 
 ## Data contract
 
@@ -137,7 +138,7 @@ Do not enable step 6 before steps 1–5 are live.
 | FlowRegistry | BLOCKED | Live row exists and is healthy but still uses legacy flowCode WD_IDEA and lacks the F002 entry contract | Canonicalize after deploy |
 | SystemConfig/runtime | BLOCKED | flow_triggers_config currently contains only F001 Subscribe | Enable F002 only after registry canonicalization |
 | Backend completion | READY IN CODE | customer_ideas writes through claim_completion | Must deploy |
-| Data exchange | N/A | Endpointless Flow; static navigate entry | Do not change to data_exchange |
+| Data exchange | PROVIDER CONFIGURED | Meta reports data API 3.0; entry uses navigate and completion uses nfm_reply | Verify on handset before changing runtime launch |
 | Contacts | READY | No Contacts mutation; trusted contact ID/phone are attached server-side | none |
 | Identity protection | READY | Sender identity comes from inbound webhook/contact resolution | none |
 | Consent | READY | No consent field or consent write | none |

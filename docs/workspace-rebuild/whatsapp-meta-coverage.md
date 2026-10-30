@@ -95,8 +95,8 @@ per-use-case modules + published Flow JSON:
 | Flows doc section | Status | Evidence |
 | --- | --- | --- |
 | Flows overview / use cases | ✅ | many real flows (below) |
-| Get started / first Flow | ✅ | `subscribe.py` + `subscribe-flow.json` |
-| **Flow JSON** (screens/components/layout) | ✅ | `*-flow-v*.json` (submit-request v1/v2/v3, appointment, rx-slot, postpay v1/v2, order-notes, leave-review v1/v2, drop-docs, enterprise-assist, amend-request, track-request, profile) |
+| Get started / first Flow | ✅ | `subscribe_profile.py` + `flows/published/subscribe.json` |
+| **Flow JSON** (screens/components/layout) | ✅ | Seven canonical definitions under `flows/published/`; deprecated versions and design drafts removed 2026-10-30. |
 | **Flows REST API** (create/update/publish/deprecate/clone/migrate) | ✅ | `/flows` ×21; `whatsapp-business-api` Flows CRUD |
 | **Endpoint / data_exchange** (data-channel) | ✅ | `flows/router.py` routes decrypted payloads to modules |
 | Data-exchange encryption (RSA/AES) | ✅ | router decrypts request / encrypts response |

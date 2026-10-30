@@ -10,7 +10,7 @@ Flow, not a marketing subscription, and it never grants consent.
 | Customer-facing name | Subscribe |
 | Meta Flow ID / name | `2413873616105042` / `WD-F001-SUBSCRIBE-PROFILE` (PUBLISHED in Meta, immutable) |
 | WABA | WABA 1 (`2094615664435155`, +91 93309 94400) only. A WABA 2 (+91 99033 00044) customer gets a button to `https://wa.me/919330994400?text=subscribe`, which opens WABA 1 with the keyword typed. (`/r/sub` was a ShortLinksTable recovery row redirecting to google.com; on 2026-10-25 it and `sr`, `ar`, `rx`, `ea`, `lr` were repointed through the shortener's `PUT /links/{code}`.) |
-| Definition | `amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json` (Flow JSON 7.3, data API 3.0) |
+| Definition | `amplify/functions/messaging/whatsapp-business-api/flows/published/subscribe.json` (Flow JSON 7.3, data API 3.0) |
 | Endpoint | `https://wecare.digital/api/wa-business/flow-data` |
 | Handler | `flows/subscribe_profile.py` (the only handler for `subscribe*` tokens) |
 | Contract | `CANONICAL_CONTRACTS['subscribe']` in `lambda_utils/canonical_flows.py`, twin in `src/lib/canonicalFlows.ts` |
@@ -144,7 +144,7 @@ would refuse after the handoff.
 ## Activation runbook
 
 1. Validate locally: `python3 scripts/validate_flow_json.py` and `python3 scripts/check_f001_subscribe.py`.
-2. Confirm the published Meta asset equals `design-drafts/subscribe.json` (`GET /wa-business/flows/assets?flowId=2413873616105042`
+2. Confirm the published Meta asset equals `published/subscribe.json` (`GET /wa-business/flows/assets?flowId=2413873616105042`
    returns Meta's short-lived download link) and Meta validation errors = 0 (`GET /wa-business/flows?flowId=…`).
 3. Deploy `wecare-whatsapp-business-api` and `wecare-inbound-whatsapp` with `scripts/deploy_all_lambdas.py`
    (publishes versions and moves `live`), then `scripts/check_deployed_source.py` for both functions.
