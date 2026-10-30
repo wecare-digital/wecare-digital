@@ -666,7 +666,7 @@ export default function OrdersPage (): React.ReactElement {
         frame="Your"
         words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#a3cd38' } ] }
         sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Everything about your orders, payments and invoices' }
+        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -1272,22 +1272,6 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-live{font-size:14px;color:var(--public-muted)}
 
-          /* THE ONE PERMITTED HIDE MECHANISM ON THIS PAGE, and it appears exactly once.
-             visibility:hidden KEEPS the box, so revealing the hint shifts nothing - which a
-             display:none -> block swap or a conditional render would not. It cannot be an
-             absolutely positioned popover: .ord-tablewrap sets overflow-x:auto, and a container
-             with overflow-x:auto computes overflow-y to auto as well, so anything absolutely
-             positioned inside it is clipped vertically. That is why InfoTooltip renders through
-             a portal - and a portal's content sits outside this return tree, where styled-jsx
-             cannot stamp it. The text here is REDUNDANT (the button's visible word is "Copy" and
-             its accessible name is "Copy order ID <id>"), so nothing is available only on hover
-             and there is nothing for a touch user to miss. */
-          .ord-tip{
-            display:block;visibility:hidden;
-            font-size:14px;font-weight:400;color:var(--public-muted);
-          }
-          .ord-copy:hover ~ .ord-tip,.ord-copy:focus-visible ~ .ord-tip,.ord-tip-on{visibility:visible}
-
           .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
           .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
           .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
@@ -1370,9 +1354,9 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-actions{display:flex;gap:8px;align-items:center}
           .ord-account-action,.ord-copy,.ord-inv{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
-            min-height:44px;padding:0;margin:0;border:1px solid #bbdf77;border-radius:11px;
+            min-height:44px;padding:0;margin:0;border:1px solid var(--public-brand-green);border-radius:11px;
             display:inline-flex;align-items:center;justify-content:center;
-            background:var(--public-lime-tint);color:#496d12;cursor:pointer;
+            background:var(--public-brand-green);color:var(--public-brand-lime);cursor:pointer;
           }
           .ord-copy{margin-inline-start:8px}
           .ord-account-action,.ord-update,.ord-signout{
