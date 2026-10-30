@@ -346,6 +346,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setName( customerName );
             setMobile( customerPhone );
             setContactQuery( customerName );
+            setSelectedCustomerId( '' );
             const refreshed = await load( customerPhone );
             setFilterMobile( customerPhone );
             const publishedFile = ( refreshed || [] ).find( item => item.fileId === published.data.fileId ) || null;
@@ -454,7 +455,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 id="sf-name"
                                 className="sf-input"
                                 value={ name }
-                                onChange={ e => setName( e.target.value ) }
+                                onChange={ e => { setSelectedCustomerId( '' ); setName( e.target.value ); } }
                                 placeholder="Ramesh Kumar"
                                 autoComplete="off"
                                 disabled={ uploading }
@@ -467,7 +468,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 id="sf-mobile"
                                 className="sf-input"
                                 value={ mobile }
-                                onChange={ e => setMobile( e.target.value ) }
+                                onChange={ e => { setSelectedCustomerId( '' ); setMobile( e.target.value ); } }
                                 placeholder="8100640044"
                                 inputMode="tel"
                                 autoComplete="tel"
@@ -530,7 +531,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 <div className="sf-lookup">
                                     <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
                                         placeholder="Customer mobile" inputMode="tel"
-                                        onChange={ event => setFilterMobile( event.target.value ) } />
+                                        onChange={ event => {
+                                        setSelectedCustomerId( '' );
+                                        setContactQuery( '' );
+                                        setFilterMobile( event.target.value );
+                                    } } />
                                     <button type="button" className="sf-cta sf-cta-quiet" onClick={ () => {
                                         setReviewFile( null );
                                         void load( filterMobile || undefined );
@@ -727,6 +732,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                             className="sf-act"
                                                             onClick={ () => {
                                                                 setMode( 'existing' );
+                                                                setSelectedCustomerId( '' );
+                                                                setContactQuery( row.ownerName || '' );
                                                                 setReviewFile( row );
                                                                 document.getElementById( 'sf-journey-preview' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
                                                             } }
