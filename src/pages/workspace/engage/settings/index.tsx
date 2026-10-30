@@ -8,7 +8,7 @@ import { WHATSAPP_PHONES } from '../../../../config/constants';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const SettingsPage: React.FC<PageProps> = ( { embedded } ) => {
     const senders = [
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.primary.name} · ${WHATSAPP_PHONES.primary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.secondary.name} · ${WHATSAPP_PHONES.secondary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
