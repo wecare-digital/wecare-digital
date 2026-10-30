@@ -290,9 +290,9 @@ function announce (): void {
 }
 
 /**
- * Add one product to the website cart. Website purchases are single-unit: adding the same
- * product/variant again is idempotent rather than increasing quantity. Quantity remains an
- * internal checkout field fixed to 1 so downstream catalog/payment contracts stay unchanged.
+ * Select the ONE product for the next website checkout. Re-selecting a product is idempotent,
+ * and choosing another replaces the unpaid browser selection rather than adding a second bag.
+ * Quantity stays fixed to one so existing catalog/payment contracts remain unchanged.
  */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );
@@ -446,7 +446,7 @@ export const contributionOf = ( item: CartItem ): ContributionChoice | null =>
   isContributionItem( item ) ? contributionChoice( item.variantId ) : null;
 
 /**
- * Exactly one contribution line per cart, and choosing an amount SETS it.
+ * Exactly one contribution line per checkout; choosing an amount REPLACES the selection.
  *
  * THE ARGUMENT IS A CHOICE, NOT AN AMOUNT (owner model change, 2026-10-04). It used to take a
  * rupee integer and validate it against ₹10–₹1,00,000 bounds, because the figure became the line's
@@ -671,7 +671,7 @@ export const isServiceItem = ( item: CartItem ): boolean =>
   !!item.productId && SERVICE_PRODUCT_IDS.has( item.productId );
 
 /**
- * SET the one service line (replacing any other service line) and remember its intent id.
+ * SET the one service line (replacing any prior cart line) and remember its intent id.
  *
  * Exactly one service per order (the server refuses two), quantity 1, display name and price from
  * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
