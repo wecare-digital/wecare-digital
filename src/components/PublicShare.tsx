@@ -19,7 +19,7 @@ import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
  * direct WhatsApp link. There is no page-level opt-out for Contribute: this is one common block.
  *
  * Contribute has ONE commerce entry: native WhatsApp checkout. It seeds the contribution in
- * /cart/, then goes through the same WhatsApp-OTP service gate as every other paid entry. The
+ * /checkout/, then goes through the same WhatsApp-OTP service gate as every other paid entry. The
  * pending action pins channel=whatsapp so the cart resumes directly onto Review and Pay instead
  * of asking the customer to choose a second payment rail.
  */
