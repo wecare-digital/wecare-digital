@@ -78,9 +78,8 @@ export interface SettingsGroup {
  * Children are a deep-link / command-palette index, not a second sidebar level.
  * `getAllNavItems()` walks them so canonical sub-modes stay findable by name in Ctrl+K.
  * Commerce and other multi-mode workspaces may therefore keep children even though the
- * sidebar itself stays flat. Vault is intentionally different in milestone 1: it is the
- * only visible Service capability and has no children until Flow-backed service items are
- * deliberately added back. `isNavItemActive` matches on the row's own base path.
+ * sidebar itself stays flat. Service currently exposes only Vault and Contribute as deep links;
+ * Flow-backed service items remain intentionally absent until they are deliberately added back. `isNavItemActive` matches on the row's own base path.
  */
 export const navigationConfig: NavItem[] = [
   {
@@ -126,12 +125,15 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Milestone 1: Vault is the only visible Service capability. Keep the canonical
-    // /workspace/service route so later Flow-backed service items can be added here
-    // deliberately without reviving the old mixed hub.
+    // Milestone 1b: exactly two Service capabilities. Vault remains manual/no-Flow;
+    // Contribute is a separate voluntary payment with no fulfilment Flow.
     path: '/workspace/service',
-    label: 'Vault',
+    label: 'Service',
     icon: 'order',
+    children: [
+      { path: '/workspace/service?view=vault', label: 'Vault' },
+      { path: '/workspace/service?view=contribute', label: 'Contribute' },
+    ],
   },
   {
     path: '/workspace/platform',
