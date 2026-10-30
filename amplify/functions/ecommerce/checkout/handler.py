@@ -2641,6 +2641,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED",
                                    "message": "Your cart is empty."}, origin)
 
+    # Website Pay on WhatsApp uses action=create, not action=prepare.
+    # An altered HTTP cart must not bypass the opt-in one-item rule and mint a
+    # multi-unit native payment. Refuse before service, quote or attempt writes.
+    if short_purchase.enabled() and not short_purchase.one_unit_lines(line_items):
+        return cors_response(409, {
+            "error": "SHORT_CHECKOUT_ONE_ITEM",
+            "message": "Select one product, quantity one, to continue.",
+        }, origin)
+
     # Services use the same pre-payment intent guard on both payment rails. A WhatsApp payment
     # must never be able to create a paid service with no request/target attached.
     service_guard = service_requests.checkout_preflight(
