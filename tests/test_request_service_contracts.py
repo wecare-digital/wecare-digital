@@ -326,3 +326,59 @@ def test_fresh_capture_evidence_finalizes_even_when_existing_order_is_reused():
     assert "outcome.outcome == order_creation.ORDER_CREATED" not in block.split(
         "elif attempt.get('finalizationStage')", 1
     )[0]
+
+
+def test_workspace_vault_hides_legacy_rows_and_moves_them_to_logs():
+    handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+    assert "WORKSPACE_VAULT_RECORD_VERSION = 2" in handler
+    assert '"workspaceRecordVersion": WORKSPACE_VAULT_RECORD_VERSION' in handler
+    assert 'view = str(params.get("view") or "documents")' in handler
+    assert 'if view == "documents":' in handler
+    assert 'item.get("status") == "active"' in handler
+    assert 'int(item.get("workspaceRecordVersion") or 0) >= WORKSPACE_VAULT_RECORD_VERSION' in handler
+    assert 'if view == "logs":' in handler
+    assert '"storageOriginalPresent"' in handler
+    assert "_storage_object_present" in handler
+
+
+def test_workspace_vault_removes_document_type_and_shows_real_uploader():
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    assert "Document type" not in page
+    assert "setDocumentType" not in page
+    assert "type: 'other'" in page
+    assert "'Uploaded by'" in page
+    assert "row.uploadedBy" in page
+    assert "'Tag'" not in page
+
+
+def test_vault_logs_show_storage_truth_and_real_send_actors():
+    logs = (ROOT / "src/components/workspace/service/VaultLogs.tsx").read_text()
+    client = (ROOT / "src/api/client.ts").read_text()
+    handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+
+    assert "listSecureFileLogs" in logs
+    assert "S3 source" in logs
+    assert "S3 delivery" in logs
+    assert "lastPaymentRequestedBy" in logs
+    assert "lastAccessSentBy" in logs
+    assert "view: 'logs'" in client
+
+    for field in (
+        "lastPaymentRequestedBy",
+        "lastPaymentRequestedAt",
+        "lastPaymentRequestOutcome",
+        "lastAccessSentBy",
+        "lastAccessSentAt",
+        "lastAccessSendOutcome",
+    ):
+        assert field in handler
+
+
+def test_service_workspace_keeps_vault_documents_logs_below_vault_only():
+    page = (ROOT / "src/pages/workspace/service/index.tsx").read_text()
+    assert "Documents" in page
+    assert "Logs" in page
+    assert "VaultLogs" in page
+    assert "Request Amendment" not in page
+    assert "Drop Docs" not in page
+    assert "Appointments" not in page
