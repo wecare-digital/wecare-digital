@@ -315,12 +315,14 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
            a selector name terminates it and the parser reports a cascade of JSX errors further
            down the file. Measured here, on the first run of this batch. */
         input,select{
-          min-height:var(--control-h);box-sizing:border-box;
-          border:var(--control-border-w) solid var(--control-border);
-          border-radius:var(--control-radius);
-          padding-block:0;padding-inline:var(--control-px);
-          background-color:var(--control-bg);color:var(--control-fg);
-          font:inherit;font-size:16px;outline:none;
+          min-height:54px;box-sizing:border-box;
+          border:0;border-bottom:1px solid var(--public-hairline,#d9ddd9);
+          border-radius:0;
+          padding-block:0;padding-inline:2px;
+          background:transparent;color:var(--control-fg);
+          font:inherit;font-size:16px;outline:none;box-shadow:none;
+          -webkit-appearance:none;appearance:none;
+          transition:border-color .2s,box-shadow .2s;
         }
         /* The outline KEEPS !important: the :focus rule in form-controls.css is (0,5,1) and
            declares a non-important outline none, and importance is the only axis on which this
@@ -328,11 +330,12 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
            the shared file and the five inputs are outside that selector, so the ring has to be
            declared here for the whole grid or one control in six would ring and five would not. */
         input:focus-visible,select:focus-visible{
-          outline:3px solid var(--accent) !important;outline-offset:2px;
-          border-color:var(--accent);box-shadow:var(--focus-ring);
+          outline:0 !important;
+          border-bottom-color:var(--public-brand-green,var(--accent));
+          box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a);
         }
-        input[aria-invalid='true'],select[aria-invalid='true']{border-color:#8c1d18}
-        .fixed{background:#f6f7f6;color:rgba(0,0,0,.66)}
+        input[aria-invalid='true'],select[aria-invalid='true']{border-bottom-color:#8c1d18}
+        .fixed{background:transparent;color:rgba(0,0,0,.66)}
         .address-help{margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(0,0,0,.66)}
         @media(max-width:767px){
           .address-grid{grid-template-columns:1fr}
