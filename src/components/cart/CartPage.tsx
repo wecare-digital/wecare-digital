@@ -545,12 +545,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( !ready || items.length === 0 ) {
       setQuote( null );
       setQuoteFor( '' );
+      setQuoteLoading( false );
       return () => { live = false; };
     }
     if ( items.some( needsVariantSelection ) ) {
       setQuote( null );
       setQuoteFor( '' );
       setQuoteNotice( 'Choose an option for each product to see the total.' );
+      setQuoteLoading( false );
       return () => { live = false; };
     }
 
@@ -560,6 +562,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuote( null );
       setQuoteFor( '' );
       setQuoteNotice( 'Review the products and quantities in your cart.' );
+      setQuoteLoading( false );
       return () => { live = false; };
     }
     const fingerprint = basketFingerprint( lines );
@@ -1627,15 +1630,19 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [ proceed ] );
 
   useEffect( () => {
-    const pending = takePendingAction();
-    if ( pending?.kind !== 'checkout' || !pending.channel ) return;
-    selectedCheckoutChannelRef.current = pending.channel;
-    void proceed( pending.channel );
-  }, [ proceed ] );
+    // A saved payment-channel choice is not permission to initiate a charge
+    // automatically after OTP. Show the reviewed price and require a fresh click.
+    takePendingAction();
+  }, [] );
 
   const isEmpty = ready && items.length === 0;
-  const singleSelectionRequired = ready && items.length > 0
-    && ( items.length !== 1 || items[ 0 ].quantity !== 1 );
+  const reviewedBasketFingerprint = ( (): string => {
+    try { return basketFingerprint( toLineItems( items ) ); }
+    catch { return ''; }
+  } )();
+  const quoteReady = Boolean( quote && !quoteLoading
+    && quoteFor && quoteFor === reviewedBasketFingerprint
+    && !items.some( needsVariantSelection ) );
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1680,6 +1687,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         compact
       >
         <div className="cart-in">
+          <h1 className="cart-heading">Checkout</h1>
+          <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
           {!ready && <p className="cart-body">Loading your cart…</p>}
 
           {isEmpty && (
@@ -1691,6 +1700,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           {ready && items.length > 0 && (
             <>
+              <h2 className="cart-subheading">Your cart</h2>
               <ul className="cart-list">
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
@@ -1733,6 +1743,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
+                      <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
+                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
+                          disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
+                        <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
+                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
+                          disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
+                      </div>
                       <button
                         className="cart-remove"
                         type="button"
@@ -1751,14 +1768,48 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
-              {/* Only the signed backend quote and its provider presentation know the
-                  exact payable, after any applicable Delight discount, fees, tax or delivery.
-                  The catalogue display string above is never used as checkout money. */}
-              <p className="cart-price-note" role="note">
-                Catalog price shown above. The final amount after applicable discounts,
-                fees and taxes will appear in the secure payment screen or WhatsApp
-                Review and Pay before you confirm.
-              </p>
+              <section className="cart-quote" aria-labelledby="cart-price-heading">
+                <div className="cart-quote-title">
+                  <h2 className="cart-subheading" id="cart-price-heading">Price breakdown</h2>
+                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
+                    onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
+                    Refresh prices
+                  </button>
+                </div>
+                { quoteLoading && <p className="cart-body" role="status">Checking current prices…</p> }
+                { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
+                { quoteReady && quote && (
+                  <>
+                    <div className="cart-table-wrap">
+                      <table className="cart-breakdown-table">
+                        <caption className="cart-visually-hidden">Server-verified cart item prices</caption>
+                        <thead><tr><th scope="col">Item</th><th scope="col">Qty</th><th scope="col">Unit price</th><th scope="col">Amount</th></tr></thead>
+                        <tbody>
+                          { quote.items.map( ( row, index ) => (
+                            <tr key={ `${index}-${row.name}` }>
+                              <th scope="row">{ row.name }</th>
+                              <td data-wc-no-translate="true">{ row.quantity }</td>
+                              <td data-wc-no-translate="true">{ formatPaiseINR( row.unitPricePaise, quote.currency ) }</td>
+                              <td data-wc-no-translate="true">{ formatPaiseINR( row.totalPaise, quote.currency ) }</td>
+                            </tr>
+                          ) ) }
+                        </tbody>
+                      </table>
+                    </div>
+                    <dl className="cart-summary">
+                      <div><dt>Items subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
+                      { quote.charges.supplyGstPaise > 0 && <div><dt>GST on products / services</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
+                      { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel || 'Discount' }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
+                      <div><dt>Delivery</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
+                      <div><dt>Convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
+                      <div><dt>GST on convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
+                      <div className="cart-summary-total"><dt>Final amount to pay</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
+                    </dl>
+                  </>
+                ) }
+                <p className="cart-price-note">The total comes from the live server quotation.
+                  Razorpay must show this same amount before you authorise payment.</p>
+              </section>
 
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
@@ -1852,9 +1903,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   build -- and is shown by `applyOutcome` when the server answers it, which is a
                   press away rather than at render, because nothing local can predict it. */}
 
-              { singleSelectionRequired && (
-                <p className="cart-status" role="status">{ SHORT_COMMERCE_ONE_PRODUCT_MESSAGE }</p>
-              ) }
+
 
               {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
                   which nothing on this page can touch, so words alone would name an action the
@@ -1878,20 +1927,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || singleSelectionRequired }
+                      disabled={ busy || !quoteReady }
                       aria-busy={ busy ? 'true' : undefined }
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
                     </button>
-                    <button
-                      className="cart-auth-action"
-                      type="button"
-                      onClick={ () => { void proceed( 'whatsapp' ); } }
-                      disabled={ busy || singleSelectionRequired }
-                      aria-busy={ busy ? 'true' : undefined }
-                    >
-                      Pay on WhatsApp
-                    </button>
+                    <Link className="cart-auth-action" href="/checkout/whatsapp/">
+                      Checkout with WhatsApp
+                    </Link>
                   </> }
               </div>
             </>
@@ -1907,6 +1950,31 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
+          .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
+          .cart-intro{margin-bottom:24px}
+          .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
+          .cart-qty{display:flex;align-items:center;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--public-heading)}
+          .cart-qty button{width:36px;height:40px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
+          .cart-qty button:disabled{opacity:.4;cursor:default}
+          .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+          .cart-qty span{min-width:26px;text-align:center}
+          .cart-quote{margin-top:26px;padding-top:24px;border-top:1px solid var(--public-hairline)}
+          .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
+          .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
+          .cart-quiet-refresh:disabled{opacity:.5}
+          .cart-table-wrap{overflow-x:auto}
+          .cart-breakdown-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px;line-height:1.5;color:var(--public-text)}
+          .cart-breakdown-table th,.cart-breakdown-table td{padding:9px 8px;border-bottom:1px solid var(--public-hairline)}
+          .cart-breakdown-table thead th{font-size:13px;color:var(--public-brand-green)}
+          .cart-breakdown-table td:not(:first-child){font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+          .cart-breakdown-table th:first-child{min-width:110px;overflow-wrap:anywhere}
+          .cart-summary{display:flex;flex-direction:column;gap:11px;margin:24px 0 0;font-size:15px}
+          .cart-summary>div{display:flex;gap:18px;justify-content:space-between;align-items:baseline}
+          .cart-summary dt{color:var(--public-muted)}
+          .cart-summary dd{margin:0;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--public-heading)}
+          .cart-summary-total{padding-top:14px;border-top:1px solid var(--public-hairline);font-size:19px}
+          .cart-summary-total dt,.cart-summary-total dd{font-weight:700;color:var(--public-brand-green)}
+          .cart-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
           .cart-in{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
