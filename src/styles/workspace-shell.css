@@ -119,6 +119,17 @@
   min-width:0;
   max-width:min(100%,900px);
 }
+
+/* Full-height operational drawers share the visible viewport and safe-area contract.
+   Higher specificity intentionally overrides retained component-local legacy geometry. */
+.workspace-shell .sf-review-drawer,
+.workspace-shell .md-panel{
+  height:100vh!important;
+  height:100dvh!important;
+  max-width:100%;
+  overscroll-behavior:contain;
+  box-sizing:border-box;
+}
 @media(max-width:767px){
   .workspace-shell{--workspace-section-gap:var(--public-mobile-section-gap,64px)}
   .workspace-shell .ps-title,
@@ -138,6 +149,22 @@
   .workspace-shell .workspace-main textarea{font-size:16px!important}
   .workspace-shell .workspace-main .btn,
   .workspace-shell .workspace-main button[role="combobox"]{min-height:auto!important}
+  .workspace-shell .sf-review-drawer{
+    width:min(440px,100%)!important;
+    padding:
+      max(24px,env(safe-area-inset-top,0px))
+      max(24px,env(safe-area-inset-right,0px))
+      max(24px,env(safe-area-inset-bottom,0px))
+      max(24px,env(safe-area-inset-left,0px))!important;
+  }
+  .workspace-shell .md-panel{
+    width:min(760px,100%)!important;
+    padding:
+      max(18px,env(safe-area-inset-top,0px))
+      max(18px,env(safe-area-inset-right,0px))
+      max(18px,env(safe-area-inset-bottom,0px))
+      max(18px,env(safe-area-inset-left,0px))!important;
+  }
 }
 @media(prefers-reduced-motion:reduce){
   .workspace-shell .workspace-main{scroll-behavior:auto!important}
