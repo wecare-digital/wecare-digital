@@ -14,6 +14,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
+import { contactPhoneE164, contactPhoneMatchKey } from '../../../lib/contactPhone';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressComplete, addressPayload, formatAddress,
@@ -338,8 +339,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
 
-  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
 
   // Delete confirmation (uses global useConfirm)
 
@@ -542,15 +541,13 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  const normalizePhoneForMatch = (value: string): string => value.replace(/\D/g, '');
-
+  // Both preflight and 409 fallback use the same E.164 comparison key.
   const findDuplicateContact = (phone: string, email: string, excludeId?: string): api.Contact | null => {
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const wantedPhone = contactPhoneMatchKey(contactPhoneE164(phone, formCountryCode));
     const wantedEmail = email.trim().toLowerCase();
     return contacts.find(c => {
-      if (excludeId && c.contactId === excludeId) return false;
-      const samePhone = !!wantedPhone && normalizePhoneForMatch(c.phone || '') === wantedPhone;
+      if (excludeId && (c.contactId === excludeId || c.id === excludeId)) return false;
+      const samePhone = !!wantedPhone && contactPhoneMatchKey(c.phone || '') === wantedPhone;
       const sameEmail = !!wantedEmail && !!c.email && c.email.trim().toLowerCase() === wantedEmail;
       return samePhone || sameEmail;
     }) || null;
@@ -559,14 +556,14 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const resolveDuplicateContact = async (phone: string, email: string): Promise<api.Contact | null> => {
     const local = findDuplicateContact(phone, email);
     if (local) return local;
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    const wantedPhone = normalizePhoneForMatch(fullPhone);
+    const fullPhone = contactPhoneE164(phone, formCountryCode);
+    const wantedPhone = contactPhoneMatchKey(fullPhone);
     const wantedEmail = email.trim().toLowerCase();
     for (const query of [fullPhone, email].filter(Boolean)) {
       const result = await api.searchContactsResult(query, 20);
       if (!result.ok) continue;
       const exact = result.data.find(contact => {
-        const samePhone = !!wantedPhone && normalizePhoneForMatch(contact.phone || '') === wantedPhone;
+        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
         const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
         return samePhone || sameEmail;
       });
@@ -579,6 +576,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     if (!duplicateContact) return;
     const existing = duplicateContact;
     setShowModal(false);
+    setShowEditModal(false);
+    setEditingContact(null);
     resetForm();
     setDetailContact(existing);
   };
@@ -587,6 +586,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     if (!duplicateContact || duplicateContact.archivedAt) return;
     const customerKey = duplicateContact.contactId || duplicateContact.customerUuid || duplicateContact.id;
     setShowModal(false);
+    setShowEditModal(false);
+    setEditingContact(null);
     resetForm();
     void router.push({ pathname: '/workspace/payments', query: { view: 'collect', customer: customerKey } });
   };
@@ -619,15 +620,10 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     }
   };
 
-  // Duplicate detection
+  // Reuse exactly the same format-insensitive owner lookup as the 409 fallback.
   const checkDuplicate = (phone: string, email: string, excludeId?: string): string | null => {
-    const fullPhone = phone ? (phone.startsWith('+') ? phone : `${formCountryCode}${phone.replace(/^0+/, '')}`) : '';
-    for (const c of contacts) {
-      if (excludeId && c.contactId === excludeId) continue;
-      if (fullPhone && c.phone === fullPhone) return `Phone ${fullPhone} already exists (${c.name || 'unnamed'})`;
-      if (email && c.email && c.email.toLowerCase() === email.toLowerCase()) return `Email ${email} already exists (${c.name || 'unnamed'})`;
-    }
-    return null;
+    const existing = findDuplicateContact(phone, email, excludeId);
+    return existing ? `Customer already exists (${existing.name || existing.phone || 'unnamed'})` : null;
   };
 
   /**
@@ -673,9 +669,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     const cleaned = phone.replace(/[\s\-().]/g, '');
     return /^\+?\d{7,15}$/.test(cleaned);
   };
-  const isValidEmail = (email: string): boolean => {
-    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
-  };
 
   const handleCreate = async () => {
     setFormError('');
@@ -692,7 +685,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       fail('Enter the linked WhatsApp phone number.', 'contact-phone');
       return;
     }
-    if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
+    if (formPhone && !isValidPhone(contactPhoneE164(formPhone, formCountryCode))) {
       fail('Invalid phone number format. Use the country code selector and enter the mobile number.', 'contact-phone'); return;
     }
     const dup = checkDuplicate(formPhone, '');
@@ -710,16 +703,15 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
       fail(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`, `contact-${missingAddress?.key || 'country'}`);
       return;
     }
-    const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
+    const fullPhone = contactPhoneE164(formPhone, formCountryCode);
     setSaving(true);
     try {
       const result = await api.createContactResult({
-        name: formName, phone: fullPhone || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
+        name: formName.trim(), phone: fullPhone || undefined,
+        profileUsername: formProfileUsername.trim() || undefined,
+        companyName: formCompanyName.trim() || undefined,
+        designation: formDesignation.trim() || undefined,
         ...addressFieldsForPayload(),
-        gstin: formGstin || undefined,
-        companyName: formCompanyName || undefined,
-        designation: formDesignation || undefined,
       } as any);
       if (result.ok && result.data) {
         toast.success('Customer created');
@@ -763,6 +755,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const handleEdit = (contact: api.Contact) => {
+    setFormError('');
+    setDuplicateContact(null);
     setEditingContact(contact);
     setFormName(contact.name || '');
     const ph = contact.phone || '';
@@ -828,23 +822,23 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
     if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
     if (!editingContact || !formPhone) { toast.warning('WhatsApp phone is required'); return; }
-    if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
+    if (formPhone && !isValidPhone(contactPhoneE164(formPhone, formCountryCode))) {
       toast.warning('Invalid phone number format'); return;
     }
     const dup = checkDuplicate(formPhone, '', editingContact.contactId);
     if (dup) { toast.warning(dup); return; }
     const missingAddress = ADDRESS_FIELDS.find(spec => spec.required && !String(formAddress[spec.key] || '').trim());
     if (missingAddress || !addressComplete(formAddress)) { toast.warning(`Enter ${missingAddress?.label.toLowerCase() || 'a valid country'}.`); document.getElementById(`contact-${missingAddress?.key || 'country'}`)?.focus(); return; }
-    const fullPhone = formPhone ? (formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`) : '';
+    const fullPhone = contactPhoneE164(formPhone, formCountryCode);
     setSaving(true);
     try {
       const result = await api.updateContact(editingContact.contactId, {
-        name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
+        name: formName.trim(), phone: fullPhone || undefined,
+        // Hidden email and Meta identifiers are preserved by omitting them, not rewriting stale values.
+        profileUsername: formProfileUsername.trim() || undefined,
+        companyName: formCompanyName.trim() || undefined,
+        designation: formDesignation.trim() || undefined,
         ...addressFieldsForPayload(),
-        gstin: formGstin || undefined,
-        companyName: formCompanyName || undefined,
-        designation: formDesignation || undefined,
       } as any);
       if (result) { toast.success('Customer updated'); setShowEditModal(false); setEditingContact(null); resetForm(); await loadContacts(); }
       else toast.error('Failed to update contact');
@@ -1095,35 +1089,14 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
         <div className="contacts-phone-control">
           <div className="contacts-country-code">
-            <input
-              type="text"
-              value={showCountryDropdown ? countrySearch : formCountryCode}
-              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); setFormError(''); }}
-              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
-              onBlur={(e) => {
-                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
-                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
-                setShowCountryDropdown(false);
-              }}
-              placeholder="Code"
-              aria-label="Phone country code"
-              style={{ ...S.input, width: '100%', cursor: 'pointer' }}
-              onFocusCapture={focusStyle}
-              onBlurCapture={blurStyle}
-            />
-            {showCountryDropdown && (
-              <div data-country-dropdown tabIndex={-1} className="contacts-country-dropdown">
-                {COUNTRY_CODES
-                  .filter(cc => cc.code.includes(countrySearch) || cc.country.toLowerCase().includes(countrySearch.toLowerCase()))
-                  .map(cc => (
-                    <div key={cc.code} tabIndex={-1}
-                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); setFormError(''); }}
-                      className="contacts-country-option">
-                      {cc.code} {cc.country}
-                    </div>
-                  ))}
-              </div>
-            )}
+            <select id="contact-country-code" aria-label="WhatsApp country calling code"
+              style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
+              onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); }}
+              onFocus={focusStyle} onBlur={blurStyle}>
+              {COUNTRY_CODES.map(cc => (
+                <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
+              ))}
+            </select>
           </div>
           <input id="contact-phone" style={S.input} value={formPhone}
             onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); }}
