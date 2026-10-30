@@ -144,7 +144,7 @@
   box-sizing:border-box!important;
   border-width:0 0 1px!important;
   border-style:solid!important;
-  border-color:var(--public-hairline,#d9ddd9)!important;
+  border-color:var(--public-hairline,#d9ddd9);
   border-radius:0!important;
   padding-block:0!important;
   padding-inline-start:2px!important;
@@ -155,6 +155,11 @@
   outline:0!important;
   transition:border-color .2s,box-shadow .2s!important;
 }
+.workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"])::placeholder,
+.workspace-shell .workspace-main textarea::placeholder{
+  color:var(--public-muted,#6e7782)!important;
+  opacity:.72;
+}
 .workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
 .workspace-shell .workspace-main textarea:not([data-ui-raw]):not([data-public-ui]):focus,
 .workspace-shell .workspace-main select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):focus,
@@ -163,6 +168,32 @@
   border-bottom-color:var(--public-brand-green,var(--accent))!important;
   box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)!important;
   outline:0!important;
+}
+
+.workspace-shell .workspace-main input[aria-invalid="true"]:not([type="checkbox"]):not([type="radio"]),
+.workspace-shell .workspace-main textarea[aria-invalid="true"],
+.workspace-shell .workspace-main select[aria-invalid="true"],
+.workspace-shell .workspace-main .ui-select-trigger[aria-invalid="true"],
+.workspace-shell .workspace-main button[role="combobox"][aria-invalid="true"]{
+  border-bottom-color:var(--danger,#b42318)!important;
+  box-shadow:0 1px 0 0 var(--danger,#b42318)!important;
+}
+
+.workspace-shell .workspace-main [data-address-preview][aria-readonly="true"]{
+  min-height:54px!important;
+  display:flex!important;
+  align-items:center;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box!important;
+  border:0!important;
+  border-bottom:1px solid var(--public-hairline,#d9ddd9)!important;
+  border-radius:0!important;
+  padding:0 2px!important;
+  background:transparent!important;
+  color:var(--public-muted,var(--text-muted))!important;
+  font-family:var(--font-sans)!important;
+  overflow-wrap:anywhere;
 }
 .workspace-shell .workspace-main textarea:not([data-ui-raw]):not([data-public-ui]){
   min-height:96px!important;
