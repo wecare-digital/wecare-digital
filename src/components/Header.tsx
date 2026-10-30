@@ -271,9 +271,9 @@ const NAV_ICON_PATHS: Record<string, string> = {
   ChatGPT: 'm394-80-70-123H189l-87-154 69-123-69-123 87-154h135l70-123h172l70 123h135l87 154-69 123 69 123-87 154H636L566-80H394Zm243-429h100l54-94-54-94H637l-54 94 54 94ZM430-388h100l54-92-54-92H430l-54 92 54 92Zm0-244h100l54-94-54-94H430l-54 94 54 94ZM224-509h100l54-94-54-94H224l-54 94 54 94Zm0 246h100l54-94-55-94H223l-54 94 55 94Zm206 123h100l54-94-54-94H430l-54 94 54 94Zm207-123h100l54-94-54-94H637l-51 94 51 94Z',
   Claude: 'M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4',
   'App Store': 'M160-615v-60h60v60h-60Zm0 335v-275h60v275h-60Zm292 0H347q-24.75 0-42.37-17.63Q287-315.25 287-340v-280q0-24.75 17.63-42.38Q322.25-680 347-680h105q24.75 0 42.38 17.62Q512-644.75 512-620v280q0 24.75-17.62 42.37Q476.75-280 452-280Zm-105-60h105v-280H347v280Zm228 60v-60h165v-114H635q-24.75 0-42.37-17.63Q575-489.25 575-514v-106q0-24.75 17.63-42.38Q610.25-680 635-680h165v60H635v106h105q24.75 0 42.38 17.62Q800-478.75 800-454v114q0 24.75-17.62 42.37Q764.75-280 740-280H575Z',
-  // Material Symbols Outlined "person_text", FILL 0 / wght 400 / GRAD 0 / opsz 48.
-  // Preserve the supplied SVG path and 48px viewBox; only its color inherits from the row.
-  'Contact us': 'M34,36V33H44v3H34ZM30,25.5v-3H44v3H30ZM26,15V12H44v3H26ZM11.78,22.13Q10.1,20.45 10.1,17.9t1.67-4.23T16,12t4.23,1.67T21.9,17.9t-1.68,4.23T16,23.8t-4.22-1.67ZM4,36V32.7q0-0.95 0.45-1.8t1.2-1.2q2.25-1.6 4.93-2.38T16,26.55t5.4,0.85t4.95,2.3q0.7,0.5 1.18,1.27T28,32.7V36H4Zm7.23-5.65q-2.58,0.8-4.48,2.1V33h18.5V32.45q-1.95-1.3-4.5-2.1T16,29.55t-4.77,0.8ZM18.1,20q0.8-0.8 0.8-2.1t-0.8-2.1T16,15t-2.1,0.8t-0.8,2.1T13.9,20T16,20.8T18.1,20ZM16,17.9ZM16,33Z',
+  // Material Symbols Outlined "location_on", FILL 0 / wght 400 / GRAD 0 / opsz 48.
+  // Exact path from the supplied 48px SVG; menu states still control its color.
+  'Contact us': 'M26.48,22.48Q27.5,21.45 27.5,20t-1.02-2.48T24,16.5t-2.47,1.02T20.5,20t1.03,2.47T24,23.5t2.48-1.03ZM24,40.05Q30.65,34 33.83,29.08T37,20.4q0-5.9-3.77-9.65T24,7t-9.23,3.75T11,20.4q0,3.75 3.25,8.68T24,40.05ZM24,44q-8.05-6.85-12.02-12.73T8,20.4q0-7.5 4.83-11.95T24,4T35.18,8.45T40,20.4q0,5-3.98,10.88T24,44Zm0-24Z',
   Terms: 'M7 3h10v18H7ZM10 8h4m-4 4h4m-4 4h4',
   Privacy: 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
@@ -1243,9 +1243,9 @@ const Header: React.FC = () => {
         .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
         .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
         .nav-row-icon-material{fill:currentColor;stroke:none}
-        /* person_text paints only half its 48px viewBox height. Enlarge its shape
-           without changing the supplied SVG, the 20px layout slot, or other icons. */
-        .nav-item[href="/contact/"] .nav-row-icon-material{transform:scale(1.5);transform-origin:center}
+        /* The location_on pin fills most of its 48px viewBox. A slight optical scale
+           balances it with other 20px menu icons without moving the row label. */
+        .nav-item[href="/contact/"] .nav-row-icon-material{transform:scale(1.15);transform-origin:center}
         .nav-row-material-symbol{
           width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;
           font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
