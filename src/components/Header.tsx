@@ -132,30 +132,6 @@ const COLUMNS: NavColumn[] = [
   {
     sections: [
       {
-        heading: 'Request',
-        links: [
-          { label: 'Orders', href: '/orders/', match: '/orders' },
-          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request' },
-          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
-          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
-          { label: 'Vault', href: '/vault/', match: '/vault' },
-          {
-            label: 'Shipments',
-            searchTerms: [ 'track', 'pickup' ],
-            children: [
-              { label: 'Track', href: '/shipments/track/', match: '/shipments/track', searchTerms: [ 'shipments', 'tracking' ] },
-              { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
-            ],
-          },
-          { label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true },
-          { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
-        ],
-      },
-    ],
-  },
-  {
-    sections: [
-      {
         heading: 'Refer & Earn',
         links: [
           {
@@ -1112,9 +1088,9 @@ const Header: React.FC = () => {
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
            wider than a third and push the others narrow. */
-        .nav-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 20px;align-items:start}
+        .nav-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 20px;align-items:start}
         .nav-col{display:flex;flex-direction:column;gap:10px;min-width:0}
-        .nav-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 20px}
+        .nav-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 20px}
 
         /* 12px/500 muted, matching the language panel's group label. A heading over
            menu items must read as a category and not as a disabled item, which is why
@@ -1274,7 +1250,7 @@ const Header: React.FC = () => {
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
-           the widest label needs ~210px of row, so three columns stop fitting inside
+           the widest label needs ~210px of row, so two columns stop fitting inside
            the 1252px measure once the viewport is under ~820px. */
         @media(max-width:1024px){.nav-cols,.nav-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
         /* NOTE: .hdr-in must stay the first rule inside this media query - Header.test

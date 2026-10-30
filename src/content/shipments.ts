@@ -15,10 +15,10 @@ const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
 ];
 
 /**
- * Shipments is a category-only navigation family.
+ * Shipments are available by direct service link, not via the hidden Request menu.
  *
- * This module defines its Track child. Pickup Request is a separate child at /request-pickup/.
- * There is deliberately no public parent page for this navigation family.
+ * This module defines Track. Pickup Request is a separate page at /request-pickup/.
+ * There is deliberately no public Shipments parent page.
  */
 export const SHIPMENT_TRACK: ProductDef = {
   slug: 'shipments-track',

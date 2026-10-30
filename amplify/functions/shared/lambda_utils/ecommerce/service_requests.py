@@ -432,6 +432,13 @@ def checkout_preflight(line_items: Any, body: Any, *,
         return 409, refusal(rejected.code)
     if line is None:
         return None
+    # The published Pickup Flow still carries a cloned Submit Request completion schema.
+    # Refuse every new checkout rail BEFORE any payment is created. The website's
+    # service selector is not a security boundary; this pure guard is shared by all rails.
+    if line.kind == REQUEST_PICKUP:
+        logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_NOT_PAYABLE,
+                                "serviceCode": REQUEST_PICKUP}))
+        return 409, refusal(SERVICE_NOT_PAYABLE)
     if not SERVICE_PURCHASES_ENABLED:
         logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_UNAVAILABLE,
                                 "catalog": "retired"}))
