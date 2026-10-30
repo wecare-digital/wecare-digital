@@ -117,3 +117,23 @@ def test_customer_create_modal_uses_workspace_card_layout():
     assert ".contacts-workspace-form-v2 .contacts-form-section" in css
     assert "border-radius: 16px" in css
     assert ".contacts-reconciliation-card" in css
+
+
+def test_edit_duplicate_409_displays_canonical_owner_and_does_not_mask_reconciliation():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    start = page.index("const handleUpdate = async")
+    end = page.index("// Archive is a distinct", start)
+    update = page[start:end]
+    assert "if (result.failure.status === 409)" in update
+    assert "result.failure.details?.existingContactId" in update
+    assert "api.getContact(existingId)" in update
+    assert "setDuplicateContact(existing)" in update
+    assert "existing.archivedAt" in update
+    assert "Restore the existing customer instead." in update
+    assert "Open the existing customer instead." in update
+    assert "Administrator reconciliation is required before changing this identity." in update
+    assert ".replace(/^HTTP\\s+\\d+:\\s*/i, '')" in update
+    # The create path still auto-searches unresolved legacy 409s rather than duplicating identity.
+    create = page[page.index("const handleCreate = async"):start]
+    assert "setSearchQuery(fullPhone)" in create
+    assert "setDebouncedSearch(fullPhone)" in create

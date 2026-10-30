@@ -883,9 +883,24 @@ const Customers: React.FC<PageProps> = () => {
           const existingId = result.failure.details?.existingContactId;
           const exact = typeof existingId === 'string' ? await api.getContact(existingId) : null;
           const existing = exact || await resolveDuplicateContact(formPhone, '');
-          if (existing && existing.contactId !== editingContact.contactId) setDuplicateContact(existing);
+          if (existing && existing.contactId !== editingContact.contactId) {
+            setDuplicateContact(existing);
+            const message = existing.archivedAt
+              ? 'That WhatsApp number belongs to an archived customer. Restore the existing customer instead.'
+              : 'That WhatsApp number already belongs to another customer. Open the existing customer instead.';
+            setFormError(message);
+            toast.warning(message);
+            return;
+          }
+          const message =
+            'This WhatsApp number is reserved, but its customer record could not be opened. '
+            + 'Administrator reconciliation is required before changing this identity.';
+          setFormError(message);
+          toast.warning(message);
+          return;
         }
-        const message = result.failure.message || 'Customer update was refused.';
+        const message = (result.failure.message || 'Customer update was refused.')
+          .replace(/^HTTP\s+\d+:\s*/i, '');
         setFormError(message);
         toast.error(message);
       } else {
