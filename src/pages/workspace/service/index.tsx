@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; manageOnly?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const SecureFiles = dynamic(
   () => import( '../../../components/workspace/service/SecureFiles' ),
@@ -25,7 +25,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => (
       noindex
     />
     <Suspense fallback={ <div className="service-loading">Loading Vault…</div> }>
-      <SecureFiles signOut={ signOut } user={ user } embedded manageOnly />
+      <SecureFiles signOut={ signOut } user={ user } embedded />
     </Suspense>
 
     <style jsx>{`
