@@ -27,7 +27,6 @@
  * The settings navigation links to this page from src/config/navigation.ts.
  */
 import React, { useState, useEffect } from 'react';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
@@ -168,17 +167,17 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
 
   if (loading) {
     return (
-      <Layout onSignOut={ signOut } user={ user }>
+      <>
         <SEO title="Internal Agent Settings" description="Configure the internal AI assistant." />
         <div className="inner-page-container" style={ { padding: '24px 20px' } }>
           <p>Loading settings…</p>
         </div>
-      </Layout>
+      </>
     );
   }
 
   return (
-    <Layout onSignOut={ signOut } user={ user }>
+    <>
       <SEO title="Internal Agent Settings" description="Configure the internal AI assistant." />
       <div className="inner-page-container" style={ { maxWidth: 960, margin: '0 auto', padding: '24px 20px' } }>
         <div className="mb-6">
@@ -389,6 +388,6 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
           </button>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
