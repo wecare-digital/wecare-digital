@@ -7,7 +7,6 @@
  */
 export const ALLOWED_CUSTOMER_RETURN_PATHS = [
   '/',
-  '/cart/',
   '/checkout/',
   '/orders/',
   '/blog/',
