@@ -84,6 +84,8 @@ def test_customers_duplicate_fallback_refreshes_and_never_surfaces_raw_http_409(
     assert "const fresh = await api.listContacts()" in source
     assert "setContacts(fresh)" in source
     assert "CONTACT_IDENTITY_RECONCILIATION_REQUIRED" in source
+    assert "customer record could not be opened" in source
+    assert "Administrator reconciliation is required" in source
     assert "Search by number to open it." not in source
     assert "HTTP 409" not in source
 
