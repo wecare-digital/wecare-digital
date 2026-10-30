@@ -475,13 +475,54 @@
    workspace.css (the final workspace layer) so legacy inner-ux rules cannot
    fracture or displace the canonical Payments page.
    ========================================================================== */
+.workspace-shell.payments-public-layout {
+  /* Payments adopts Home's public foundation locally. Other Workspace pages keep the
+     denser application scale and are intentionally unaffected. */
+  --workspace-measure: var(--public-content-max);
+  --workspace-page-x: var(--public-page-gutter);
+  --workspace-page-y: 64px;
+  --workspace-section-gap: var(--public-section-gap);
+}
+.workspace-shell.payments-public-layout .inner-content-container {
+  width: 100% !important;
+  max-width: var(--public-content-max) !important;
+  min-width: 0;
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+}
 .workspace-shell .payments-shell {
   --payments-green: var(--public-brand-green, #1a3a2a);
   --payments-lime: var(--public-brand-lime, #d1f470);
   --payments-hair: var(--public-hairline, #e6e9e5);
   --payments-bg: var(--public-bg, #fff);
   --payments-text: var(--public-text, #111);
-  --payments-muted: #6e7782;
+  --payments-muted: var(--public-muted, #6e7782);
+}
+.workspace-shell.payments-public-layout .payments-shell > .ps-header {
+  padding: var(--workspace-page-y) var(--workspace-page-x) 24px;
+}
+.workspace-shell.payments-public-layout .payments-shell .ps-title {
+  max-width: min(900px, 100%);
+  min-width: 0;
+  color: var(--public-heading);
+  font-size: var(--public-hero-size);
+  font-weight: var(--public-hero-weight);
+  line-height: var(--public-hero-leading);
+  letter-spacing: var(--public-hero-tracking);
+  text-wrap: balance;
+}
+.workspace-shell.payments-public-layout .payments-shell .ps-subtitle {
+  max-width: var(--public-reading-max);
+  margin-top: 24px;
+  color: var(--public-body);
+  font-size: var(--public-body-size);
+  font-weight: var(--public-body-weight);
+  line-height: var(--public-body-leading);
+  letter-spacing: var(--public-body-tracking);
+  text-wrap: balance;
+}
+.workspace-shell.payments-public-layout .payments-shell .ps-tabs-wrapper {
+  margin-bottom: 32px;
 }
 .workspace-shell .payments-shell .ps-content {
   width: 100%;
@@ -496,7 +537,7 @@
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
-  padding: 0 var(--workspace-page-x) 72px !important;
+  padding: 0 var(--workspace-page-x) var(--public-section-gap) !important;
   box-sizing: border-box;
   font-family: var(--font-sans) !important;
 }
@@ -520,16 +561,16 @@
 .workspace-shell .payments-shell .pf-composer-heading h3 {
   margin: 4px 0 8px !important;
   color: var(--payments-green) !important;
-  font-size: clamp(34px, 3.25vw, 50px) !important;
-  line-height: .98 !important;
-  letter-spacing: -.055em !important;
-  font-weight: 760 !important;
+  font-size: var(--public-section-size) !important;
+  line-height: var(--public-section-leading) !important;
+  letter-spacing: var(--public-section-tracking) !important;
+  font-weight: var(--public-section-weight) !important;
 }
 .workspace-shell .payments-shell .pf-composer-heading p,
 .workspace-shell .payments-shell .pf-composer-card-head p,
 .workspace-shell .payments-shell .pf-live-preview-note {
   color: var(--payments-muted) !important;
-  font-size: 14px !important;
+  font-size: var(--public-supporting-size) !important;
   line-height: 1.55 !important;
 }
 .workspace-shell .payments-shell .pf-composer-kicker,
@@ -571,9 +612,10 @@
 .workspace-shell .payments-shell .pf-live-preview-head h4 {
   margin: 4px 0 0;
   color: var(--payments-text);
-  font-size: clamp(24px, 2vw, 31px);
-  line-height: 1.03;
-  letter-spacing: -.04em;
+  font-size: var(--public-card-size);
+  font-weight: var(--public-card-weight);
+  line-height: var(--public-card-leading);
+  letter-spacing: var(--public-card-tracking);
 }
 .workspace-shell .payments-shell .pf-authority-badge,
 .workspace-shell .payments-shell .default-items-head > span {
@@ -688,7 +730,7 @@
 }
 .workspace-shell .payments-shell .default-items {
   width: 100%;
-  padding: 0 var(--workspace-page-x) 72px;
+  padding: 0 var(--workspace-page-x) var(--public-section-gap);
   box-sizing: border-box;
 }
 .workspace-shell .payments-shell .default-items-panel {
@@ -705,15 +747,16 @@
 .workspace-shell .payments-shell .default-items-head h2 {
   margin: 4px 0 8px;
   color: var(--payments-green);
-  font-size: clamp(32px, 3vw, 46px);
-  line-height: 1;
-  letter-spacing: -.05em;
+  font-size: var(--public-section-size);
+  font-weight: var(--public-section-weight);
+  line-height: var(--public-section-leading);
+  letter-spacing: var(--public-section-tracking);
 }
 .workspace-shell .payments-shell .default-items-head p {
-  max-width: 760px;
+  max-width: var(--public-reading-max);
   margin: 0;
   color: var(--payments-muted);
-  font-size: 14px;
+  font-size: var(--public-supporting-size);
   line-height: 1.55;
 }
 .workspace-shell .payments-shell .default-items-table-wrap {
@@ -784,7 +827,7 @@
 .workspace-shell .payments-shell .ledger {
   width: 100%;
   min-width: 0;
-  padding: 0 var(--workspace-page-x) 72px;
+  padding: 0 var(--workspace-page-x) var(--public-section-gap);
   box-sizing: border-box;
 }
 .workspace-shell .payments-shell .ledger .pf-auth-surface {
@@ -1043,12 +1086,95 @@
   }
 }
 
+@media (max-width: 767px) {
+  .workspace-shell.payments-public-layout {
+    --workspace-page-x: var(--public-mobile-page-gutter);
+    --workspace-page-y: var(--public-mobile-hero-top);
+    --workspace-section-gap: var(--public-mobile-section-gap);
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell > .ps-header {
+    padding:
+      var(--workspace-page-y)
+      max(var(--workspace-page-x), env(safe-area-inset-right, 0px))
+      20px
+      max(var(--workspace-page-x), env(safe-area-inset-left, 0px));
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .ps-title {
+    font-size: var(--public-mobile-hero-size);
+    line-height: 1.1;
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .ps-subtitle {
+    max-width: var(--public-copy-max);
+    font-size: var(--public-body-size);
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .ps-tabs-wrapper {
+    margin-bottom: 32px;
+    padding-inline:
+      max(var(--public-mobile-page-gutter), env(safe-area-inset-left, 0px))
+      max(var(--public-mobile-page-gutter), env(safe-area-inset-right, 0px));
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-auth-surface,
+  .workspace-shell.payments-public-layout .payments-shell .default-items,
+  .workspace-shell.payments-public-layout .payments-shell .ledger {
+    padding-left: max(var(--public-mobile-page-gutter), env(safe-area-inset-left, 0px)) !important;
+    padding-right: max(var(--public-mobile-page-gutter), env(safe-area-inset-right, 0px)) !important;
+    padding-bottom: var(--public-mobile-section-gap) !important;
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-create-layout {
+    gap: 32px !important;
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-composer-heading {
+    margin-bottom: 28px;
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-composer-heading h3,
+  .workspace-shell.payments-public-layout .payments-shell .default-items-head h2 {
+    font-size: var(--public-mobile-section-size) !important;
+    line-height: 1.08 !important;
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-live-preview-head h4 {
+    font-size: var(--public-mobile-card-size);
+  }
+
+  .workspace-shell.payments-public-layout .payments-shell .pf-composer-card,
+  .workspace-shell.payments-public-layout .payments-shell .pf-live-preview {
+    margin-bottom: 32px;
+  }
+}
+
+@media (min-width: 280px) and (max-width: 399px) {
+  .workspace-shell.payments-public-layout .payments-shell .ps-title {
+    font-size: clamp(27px, 9.4vw, 32px);
+  }
+  .workspace-shell.payments-public-layout .payments-shell .pf-composer-heading h3,
+  .workspace-shell.payments-public-layout .payments-shell .default-items-head h2 {
+    font-size: 28px !important;
+  }
+}
+
+@media (max-width: 279px) {
+  .workspace-shell.payments-public-layout .payments-shell .ps-title {
+    font-size: 27px;
+  }
+  .workspace-shell.payments-public-layout .payments-shell .pf-composer-heading h3,
+  .workspace-shell.payments-public-layout .payments-shell .default-items-head h2 {
+    font-size: 26px !important;
+  }
+}
+
 @media (max-width: 480px) {
-  /* button.css applies a blanket 44px min-height to every .btn on phones. Payments opts out:
-     compact secondary controls keep their declared component height while primary actions
-     retain their own larger geometry from the existing primary-button rules. */
-  .workspace-shell .payments-shell .btn {
-    min-height: 0;
+  /* Home does not use one visual height for every control. Payments therefore opts out
+     of the Workspace-wide phone floor only for its own compact .btn controls. */
+  .workspace-shell.payments-public-layout .payments-shell .btn {
+    min-height: 0 !important;
   }
 }
 
