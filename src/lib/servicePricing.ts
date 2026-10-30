@@ -199,3 +199,29 @@ export async function fetchServicePrices (): Promise<Record<string, ServicePrice
     return allUnavailable();
   }
 }
+
+
+/**
+ * Live Contribute catalog price from the same anonymous server endpoint as service pricing.
+ * Contribute is deliberately not added to SERVICE_CHOICES: it is a voluntary payment with no
+ * service fulfilment or Meta Flow.
+ */
+export async function fetchContributionPrice (): Promise<ServicePrice> {
+  try
+  {
+    const response = await fetch( SERVICE_PRICES_URL, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    } );
+    if ( !response.ok ) return UNAVAILABLE;
+    const data = ( await response.json().catch( () => null ) ) as
+      { currency?: unknown; prices?: unknown } | null;
+    if ( !data || data.currency !== SERVICES_PRICE_CURRENCY ) return UNAVAILABLE;
+    if ( !data.prices || typeof data.prices !== 'object' ) return UNAVAILABLE;
+    return readPrice( ( data.prices as Record<string, unknown> ).contribute );
+  }
+  catch
+  {
+    return UNAVAILABLE;
+  }
+}
