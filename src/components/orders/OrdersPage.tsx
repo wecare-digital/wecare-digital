@@ -830,6 +830,7 @@ export default function OrdersPage (): React.ReactElement {
                     accessToken={ token }
                     mode={ profileMode }
                     initial={ {
+                      name: profile.name,
                       firstName: profile.firstName,
                       lastName: profile.lastName,
                       companyName: profile.companyName,
