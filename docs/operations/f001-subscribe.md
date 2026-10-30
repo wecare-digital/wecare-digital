@@ -24,14 +24,47 @@ types one exact keyword (default `subscribe`, `signup`, `sign up`, `register`, `
 `/subscribe`; matching is the whole message, case-insensitive), and the inbound Lambda sends a
 native Flow message. No template, no payment, no internal event. The contract rejects any
 registry row that says otherwise, and the generic keyword loop refuses to open F001 under any
-other trigger key. No Meta template opens F001 either: `feedback_survey_form_1`, whose button
-opened it with NAVIGATE (skipping INIT and the session, so the form arrived empty and then
-expired) and whose copy promised notification updates, was deleted on 2026-10-25. Its definition
-is kept in `docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
+other trigger key. The previous generic `feedback_survey_form_1` template was deleted on 2026-10-25 because its
+NAVIGATE button bypassed INIT and had no verified Flow session. Its definition is preserved in
+`docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
+The authenticated Orders-page profile icon is a separate, session-backed website launch,
+described below; it must not bypass INIT when using the data-exchange template.
 
 A staff send is the controlled QA/support door, not a second entry mode: Operator or Admin,
 one customer at a time, recorded with the sender's identity, available before keyword launch
 is switched on. It uses the same published Flow, copy and session rules.
+
+## Authenticated Orders-page profile update
+
+The public `/orders/` page requires a verified customer session before sending. Its profile
+icon calls `POST /customer/profile` with `action: sendProfileUpdate`. The profile Lambda
+passes only the session-owned phone to the internal WhatsApp sender. The sender checks that
+F001 is PUBLISHED, mints a 24-hour one-use F001 session, and sends an approved Utility
+template containing a Flow button. The website shows a brief lime toast only when Meta
+accepts that send; it does **not** claim that the customer saved their profile.
+
+The legacy `service_details` template uses a `NAVIGATE` Flow button. Opening it does not
+trigger INIT and its send-time `flow_action_data` failed to populate saved optional fields
+on an observed handset, despite their presence in ContactsTable. Do not assume this path
+has provided reliable prefill.
+
+Replacement `wecare_profile_update_f001` was submitted to Meta for review on 2026-10-30.
+Its Flow button uses `DATA_EXCHANGE`, not `NAVIGATE`. On tap, Meta sends INIT to
+`/wa-business/flow-data`; `flows/subscribe_profile.py` validates the issued session,
+looks up the latest canonical contact row, and returns all PROFILE and ADDRESS data keys,
+including optional username, company, job title, second address line and locality. The form
+already declares `init-values` for these fields. The template message carries only the
+Flow token; no contact fields travel in the outbound template.
+
+**Activation gate:** keep `service_details` as the default while the replacement is not
+APPROVED. After Meta reports APPROVED, deploy `wecare-whatsapp-business-api` with
+`WA_PROFILE_UPDATE_TEMPLATE=wecare_profile_update_f001` (and persist the setting in the
+Lambda environment manifest). Publish a new version, move its `live` alias, and verify the
+exact `GET /wa-business/flow-data` health path and Meta template ID. Run a controlled handset
+QA: launch the profile icon, tap View Details, require `flow_funnel init_received` and
+`init_success`, verify saved optional fields render, then save/reopen. If activation fails,
+revert `WA_PROFILE_UPDATE_TEMPLATE` to `service_details` until corrected; do not route a
+pending template to production.
 
 ## Launch controls
 
