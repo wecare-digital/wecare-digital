@@ -209,7 +209,7 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { view === 'failed' && (
             <div className="co-actions">
-              <Link className="co-auth-action co-auth-primary" href="/cart/">Retry</Link>
+              <Link className="co-auth-action co-auth-primary" href="/checkout/">Retry</Link>
             </div>
           ) }
 
