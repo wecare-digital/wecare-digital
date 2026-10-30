@@ -131,6 +131,81 @@
   box-sizing:border-box;
 }
 
+/* Canonical Workspace form-block system.
+   Forms may live in many route families, but their visual container contract is one:
+   neutral surface, one hairline boundary, shared radius/padding, no tinted legacy boxes.
+   The selectors intentionally avoid dashboard/data/status cards unless they are explicit
+   form containers or semantic fieldsets. */
+.workspace-shell{
+  --workspace-form-block-radius:16px;
+  --workspace-form-block-padding:24px;
+  --workspace-form-block-gap:20px;
+}
+.workspace-shell .workspace-main fieldset,
+.workspace-shell .workspace-main [class*="form-card"],
+.workspace-shell .workspace-main [class*="form-section"],
+.workspace-shell .workspace-main [class*="-form-panel"],
+.workspace-shell .workspace-main [data-workspace-form-block]{
+  min-width:0;
+  box-sizing:border-box;
+  margin:0;
+  padding:var(--workspace-form-block-padding)!important;
+  border:1px solid var(--public-hairline,#d9ddd9)!important;
+  border-radius:var(--workspace-form-block-radius)!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+.workspace-shell .workspace-main fieldset legend,
+.workspace-shell .workspace-main [class*="form-card"] > :is(h2,h3,h4):first-child,
+.workspace-shell .workspace-main [class*="form-section"] > :is(h2,h3,h4):first-child,
+.workspace-shell .workspace-main [class*="-form-panel"] > :is(h2,h3,h4):first-child,
+.workspace-shell .workspace-main [data-workspace-form-block] > :is(h2,h3,h4):first-child{
+  margin:0 0 6px;
+  padding:0;
+  color:var(--public-text,var(--text));
+  font:700 var(--public-card-size,18px)/1.25 var(--font-sans);
+  letter-spacing:var(--public-card-tracking,-.1px);
+}
+.workspace-shell .workspace-main :is(label,.ui-field-label){
+  color:var(--public-text,var(--text));
+  font-family:var(--font-sans);
+  font-size:14px;
+  font-weight:650;
+  line-height:1.35;
+}
+.workspace-shell .workspace-main :is(.field-hint,.form-hint,.ui-field-help,[class*="-hint"]){
+  color:var(--public-muted,var(--text-muted));
+  font-family:var(--font-sans);
+  font-size:13px;
+  line-height:1.45;
+}
+.workspace-shell .workspace-main :is(.form-grid,[class*="-form-grid"],[class*="form-row"],[class*="-fields"]){
+  min-width:0;
+  gap:var(--workspace-form-block-gap);
+}
+.workspace-shell .workspace-main :is(.form-grid,[class*="-form-grid"]) > *,
+.workspace-shell .workspace-main :is([class*="form-row"],[class*="-fields"]) > *{
+  min-width:0;
+}
+@supports selector(:has(*)){
+  .workspace-shell .workspace-main
+  :is(fieldset,[class*="form-card"],[class*="form-section"],[class*="-form-panel"],[data-workspace-form-block])
+  :has(input,textarea,select,[role="combobox"]){
+    overflow-x:clip;
+  }
+}
+@media(max-width:767px){
+  .workspace-shell{
+    --workspace-form-block-padding:18px;
+    --workspace-form-block-gap:16px;
+  }
+}
+@media(max-width:399px){
+  .workspace-shell{
+    --workspace-form-block-padding:16px;
+  }
+}
+
 /* Workspace forms follow the same visual contract as /auth/: transparent controls with one
    bottom hairline, no pill/card box. This lives in the canonical shell so every current and
    future /workspace/** form inherits it without page-by-page overrides. Rich/native controls
