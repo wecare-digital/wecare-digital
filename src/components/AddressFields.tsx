@@ -238,7 +238,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .span-2{grid-column:1/-1}
         label{
           display:flex;flex-direction:column;gap:7px;min-inline-size:0;
-          color:var(--public-text);font-size:14px;font-weight:600;
+          color:var(--public-text);font-size:var(--public-supporting-size);font-weight:600;
         }
         label>span{min-inline-size:0}
         input{
@@ -265,7 +265,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         }
         .address-grid :global(.address-state .ui-field-label),
         .address-grid :global(.address-country .ui-field-label){
-          margin:0 0 7px;color:var(--public-text);font-size:14px;font-weight:600;line-height:1.4;
+          margin:0 0 7px;color:var(--public-text);font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
         }
         .address-grid :global(.address-state .ui-select-trigger),
         .address-grid :global(.address-country .ui-select-trigger){
