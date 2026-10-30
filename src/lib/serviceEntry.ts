@@ -8,13 +8,13 @@
  * There is no second login surface and no standalone OTP step; `/auth` IS the
  * WhatsApp sign-in.
  *
- * WHY THE DESTINATION IS NORMALLY `/cart/`
+ * WHY THE DESTINATION IS NORMALLY `/checkout/`
  * ----------------------------------------
  * `safeLocalReturnPath` only lets a post-sign-in redirect land on an allowlisted customer path
- * (`/cart/`, `/orders/`, `/blog/`, `/`), and that allowlist is a security control we do NOT
- * loosen. Every paid action in this store is a line on the ONE checkout (`/cart/`) — the four
+ * (`/checkout/`, `/orders/`, `/blog/`, `/`), and that allowlist is a security control we do NOT
+ * loosen. Every paid action in this store is a line on the ONE checkout (`/checkout/`) — the four
  * fixed-price services (O-1/O-2), a contribution, and any product — so the gate's destination is
- * `/cart/`, which is already allowlisted and round-trips through sign-in unchanged. The specific
+ * `/checkout/`, which is already allowlisted and round-trips through sign-in unchanged. The specific
  * action (which service, which product) is carried OUT OF BAND in sessionStorage, the same
  * pattern Phase W used for the WhatsApp basket token, so it survives the sign-in round trip
  * without ever riding the `?return=` query string (which the validator strips).
@@ -25,9 +25,9 @@ import type { NextRouter } from 'next/router';
 import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
-export const CHECKOUT_PATH = '/cart/';
-/** Compatibility URL for old checkout links. It now redirects to /cart/. */
-export const CHECKOUT_METHOD_PATH = '/checkout/';
+export const CHECKOUT_PATH = '/checkout/';
+/** Retained alias; /checkout/ is the one review and payment page. */
+export const CHECKOUT_METHOD_PATH = CHECKOUT_PATH;
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
@@ -76,7 +76,7 @@ export function isSignedIn (): boolean {
 
 /**
  * The gate. Resolve the session, then route:
- *   signed in  → push `destination` (default `/cart/`), the real form/checkout → payment;
+ *   signed in  → push `destination` (default `/checkout/`), the real form/checkout → payment;
  *   signed out → push `/auth?return=<destination>`, the one WhatsApp login,
  *                which returns to `destination` after sign-in to continue.
  *
@@ -106,6 +106,6 @@ export async function goToServiceAction (
   }
   // The ONE login, returning to the SAME destination. encodeURIComponent so the path is a clean
   // single query value; safeLocalReturnPath re-validates it on arrival and only honours an
-  // allowlisted local path, which `/cart/` is.
+  // allowlisted local path, which `/checkout/` is.
   await router.push( `${SIGN_IN_PATH}?return=${encodeURIComponent( destination )}` );
 }
