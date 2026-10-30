@@ -396,35 +396,54 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     </p>
                 </header>
 
-                <section className="sf-journey" aria-label="Vault customer journey">
-                    <div><span>1</span><strong>Vault ready</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
-                    <div><span>2</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'wecare_whatapp_native_pay_template' } · on customer tap</small></div>
-                    <div><span>3</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'wecare_order_status_v3 · processing → completed' }</small></div>
-                    <div><span>4</span><strong>Receipt · Leave Review</strong><small>{ vaultTemplates?.receipt || 'wecare_default_invoice_image_template' }</small></div>
-                    <div><span>5</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'wecare_default_download' } · {'{{1}}'} = Vault file ID</small></div>
-                </section>
-
-                <section className="sf-storage-card" aria-label="Vault private storage">
-                    <div>
-                        <span>Private Vault source</span>
-                        <strong className="sf-mono">
-                            { storage
-                                ? `s3://${ storage.bucket }/${ storage.sourcePrefix }`
-                                : 'Reading private storage location…' }
-                        </strong>
-                    </div>
-                    <div>
-                        <span>Delivery renditions</span>
-                        <strong className="sf-mono">
-                            { storage
-                                ? `s3://${ storage.bucket }/${ storage.deliveryPrefix }`
-                                : '—' }
-                        </strong>
-                    </div>
-                    <p>Vault metadata stays in SecureFilesTable. Raw per-file S3 keys are not exposed to Workspace.</p>
-                </section>
-
-                <section className="sf-panel" aria-labelledby="sf-add">
+                <section className="sf-workbench" aria-label="Vault customer and file workspace">
+                    <div className="sf-compose">
+                        <header className="sf-workbench-heading">
+                            <div>
+                                <h2>Customer &amp; document</h2>
+                                <p>Choose the customer and one file. Review the invoice, file and all WhatsApp steps alongside before any send.</p>
+                            </div>
+                            <span>Prepare</span>
+                        </header>
+                        <div className="sf-customer-picker">
+                            <label className="sf-label" htmlFor="sf-contact-search">Select customer</label>
+                            <input className="sf-input" id="sf-contact-search" type="search"
+                                placeholder="Search contact name or WhatsApp mobile"
+                                value={ contactQuery }
+                                onChange={ event => {
+                                    setSelectedCustomerId( '' );
+                                    setContactQuery( event.target.value );
+                                } }
+                                disabled={ uploading } autoComplete="off" />
+                            { selectedCustomerId ? (
+                                <p className="sf-hint">Customer selected · <button type="button" className="sf-contact-change"
+                                    onClick={ () => { setSelectedCustomerId( '' ); setContactQuery( '' ); } }>Change customer</button></p>
+                            ) : matchingCustomers.length > 0 ? (
+                                <div className="sf-customer-results" role="group" aria-label="Contact search results">
+                                    { matchingCustomers.map( contact => (
+                                        <button type="button" key={ contact.id || contact.contactId }
+                                            onClick={ () => chooseCustomer( contact ) } disabled={ uploading }>
+                                            <strong>{ contact.name || 'Customer' }</strong>
+                                            <small>{ contact.phone }</small>
+                                        </button>
+                                    ) ) }
+                                </div>
+                            ) : <p className="sf-hint">Choose a saved contact or enter the customer details below when uploading.</p> }
+                        </div>
+                        <div className="sf-document-mode" role="group" aria-label="Choose a document source">
+                            <button type="button" className={ mode === 'upload' ? 'active' : '' }
+                                aria-pressed={ mode === 'upload' }
+                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); } }>
+                                Upload new
+                            </button>
+                            <button type="button" className={ mode === 'existing' ? 'active' : '' }
+                                aria-pressed={ mode === 'existing' }
+                                onClick={ () => { setMode( 'existing' ); setFile( null ); } }>
+                                Existing Vault file
+                            </button>
+                        </div>
+                        { mode === 'upload' ? (
+                <section className="sf-upload-area" aria-labelledby="sf-add">
                     <h2 className="sf-h2" id="sf-add">Upload document</h2>
                     <p className="sf-note">
                         The file is saved privately as a Document first, verified in S3, then published to Vault.
@@ -506,6 +525,77 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 : 'One supported path: Documents → private S3 → confirm → Vault.' }
                         </span>
                     </div>
+                </section>
+                        ) : (
+                            <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
+                                <h3 className="sf-h2" id="sf-pick-title">Choose a published file</h3>
+                                <p className="sf-note">Payment and access are always tied to the exact customer-owned file.</p>
+                                <div className="sf-lookup">
+                                    <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
+                                        placeholder="Customer mobile" inputMode="tel"
+                                        onChange={ event => setFilterMobile( event.target.value ) } />
+                                    <button type="button" className="sf-cta sf-cta-quiet" onClick={ () => {
+                                        setReviewFile( null );
+                                        void load( filterMobile || undefined );
+                                    } }>Find</button>
+                                </div>
+                                { loadError && <p role="alert" className="sf-note">{ loadError }</p> }
+                                { loading ? <p className="sf-note"><Spinner /> Loading files…</p> : (
+                                    <div className="sf-file-choices" role="group" aria-label="Current Vault files">
+                                        { files.length === 0 && <p className="sf-note">No published Vault files found. Use Upload new.</p> }
+                                        { files.slice( 0, 12 ).map( item => (
+                                            <button type="button" key={ item.fileId }
+                                                className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
+                                                aria-pressed={ reviewFile?.fileId === item.fileId }
+                                                onClick={ () => setReviewFile( item ) }>
+                                                <span><strong>{ item.displayName }</strong>
+                                                    <small>{ item.ownerName || 'Customer' } · { formatBytes( item.sizeBytes ) }</small></span>
+                                                <span className="sf-choice-status">{ PURCHASE_LABELS[ accessStateOf( item ) ] }</span>
+                                            </button>
+                                        ) ) }
+                                        { files.length > 12 && <p className="sf-hint">Showing up to 12 files. Filter by mobile to narrow your search.</p> }
+                                    </div>
+                                ) }
+                                { reviewFile && (
+                                    <div className="sf-selection-actions">
+                                        <strong>{ reviewFile.displayName }</strong>
+                                        <small>{ reviewFile.accessWindowStatus || PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</small>
+                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
+                                            <button type="button" className="sf-cta"
+                                                onClick={ () => { void handleSendOffer( reviewFile ); } }
+                                                disabled={ !!acting || !vaultBreakdown || vaultPricePaise !== 4900 }>
+                                                { acting ? 'Sending…' : accessStateOf( reviewFile ) === 'EXPIRED' ? 'Send renewal offer' : 'Send Vault-ready offer' }
+                                            </button>
+                                        ) }
+                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'OPEN' || accessStateOf( reviewFile ) === 'READY' ) && (
+                                            <button type="button" className="sf-cta"
+                                                onClick={ () => { void handleSendAccess( reviewFile ); } }
+                                                disabled={ !!acting }>
+                                                { acting ? 'Sending…' : 'Send Access Vault (no charge)' }
+                                            </button>
+                                        ) }
+                                        { accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
+                                            <p role="status" className="sf-hint">Paid access needs reconciliation. Do not request payment again.</p> }
+                                    </div>
+                                ) }
+                            </section>
+                        ) }
+                    </div>
+                    <VaultJourneyPreview
+                        mode={ mode }
+                        customerName={ name }
+                        customerPhone={ mobile }
+                        draftFile={ file }
+                        selectedFile={ reviewFile }
+                        pricePaise={ vaultPricePaise }
+                        breakdown={ vaultBreakdown }
+                        templates={ vaultTemplates }
+                        priceLoading={ vaultPriceLoading }
+                        journey={ journey }
+                        journeyError={ journeyError }
+                        onCopyFileId={ () => { if ( reviewFile ) void handleCopyId( reviewFile ); } }
+                        onStaffDownload={ () => { if ( reviewFile ) void handleStaffDownload( reviewFile ); } }
+                    />
                 </section>
 
                 {/* ── registered files ──────────────────────────────────────────── */ }
@@ -638,9 +728,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         ) }
                                                         <button
                                                             className="sf-act"
-                                                            onClick={ () => setReviewFile( row ) }
+                                                            onClick={ () => {
+                                                                setMode( 'existing' );
+                                                                setReviewFile( row );
+                                                                document.getElementById( 'sf-journey-preview' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+                                                            } }
                                                         >
-                                                            Review &amp; Pay
+                                                            Preview journey
                                                         </button>
                                                         { row.sourceDocumentId && (
                                                             <button
@@ -682,92 +776,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     ) }
                 </section>
             </div>
-
-            { reviewFile && (
-                <div
-                    className="sf-review-backdrop"
-                    role="presentation"
-                    onMouseDown={ event => {
-                        if ( event.currentTarget === event.target ) setReviewFile( null );
-                    } }
-                >
-                    <aside
-                        className="sf-review-drawer"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="sf-review-title"
-                    >
-                        <div className="sf-review-head">
-                            <div>
-                                <p className="sf-review-eyebrow">Customer preview</p>
-                                <h2 id="sf-review-title">Vault ready → Review &amp; Pay</h2>
-                                <p>First: wecare_vault_request_ready · Unlock Vault. After the customer taps: { vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="sf-review-close"
-                                onClick={ () => setReviewFile( null ) }
-                                aria-label="Close Vault journey preview"
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div className="sf-review-item">
-                            <img
-                                src="https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"
-                                alt=""
-                                className="sf-review-thumb"
-                            />
-                            <div className="sf-review-itemcopy">
-                                <strong>Vault</strong>
-                                <span>{ reviewFile.displayName }</span>
-                                <small>{ formatBytes( reviewFile.sizeBytes ) } · Quantity 1</small>
-                            </div>
-                        </div>
-
-                        <div className="sf-review-breakdown">
-                            <div><span>Items</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
-                            <div><span>GST (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.supplyGstPaise )}` : '—' }</strong></div>
-                            <div><span>Delight</span><strong>{ vaultBreakdown ? `−₹${rupeesFromPaise( vaultBreakdown.delightPaise )}` : '—' }</strong></div>
-                            <div><span>Express</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.expressPaise )}` : '—' }</strong></div>
-                            <div><span>Convenience Fee</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceFeePaise )}` : '—' }</strong></div>
-                            <div><span>GST on Convenience Fee (18%)</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.convenienceGstPaise )}` : '—' }</strong></div>
-                            <div className="sf-review-total"><span>Amount Payable</span><strong>{ vaultBreakdown ? `₹${rupeesFromPaise( vaultBreakdown.totalPayablePaise )}` : '—' }</strong></div>
-                        </div>
-
-                        <div className="sf-review-meta">
-                            <div><span>Payment state</span><strong>{ PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</strong></div>
-                            <div><span>Customer</span><strong>{ reviewFile.ownerName || '—' }</strong></div>
-                            <div><span>Mobile</span><strong>{ reviewFile.ownerPhoneMasked || '—' }</strong></div>
-                            <div><span>Access template</span><strong className="sf-mono">{ vaultTemplates?.delivery || 'wecare_default_download' }</strong></div>
-                            <div>
-                                <span>Template variable {'{{1}}'}</span>
-                                <div className="sf-variable-value">
-                                    <strong className="sf-mono">{ reviewFile.fileId }</strong>
-                                    <button
-                                        type="button"
-                                        className="sf-copy-variable"
-                                        onClick={ () => { void handleCopyId( reviewFile ); } }
-                                    >
-                                        Copy {'{{1}}'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <p className="sf-review-note">
-                            { vaultPriceLoading
-                                ? 'Reading the live Vault price from ProductsTable…'
-                                : vaultPricePaise === null
-                                    ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
-                                    : vaultBreakdown === null
-                                        ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'The customer receives Vault ready first. Their Unlock Vault tap starts native Review & Pay. After payment is verified, the receipt and Access Vault link follow. The dynamic URL uses this exact file ID. Staff do not type or override it.' }
-                        </p>
-                    </aside>
-                </div>
-            ) }
 
             <style jsx>{ `
                 .sf-wrap{width:100%;max-width:1180px;padding:24px;box-sizing:border-box}
