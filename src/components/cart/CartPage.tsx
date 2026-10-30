@@ -1691,7 +1691,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   return (
     <>
       <Head>
-        <title>{ buildPageTitle( 'Your cart' ) }</title>
+        <title>{ buildPageTitle( 'Checkout' ) }</title>
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
