@@ -374,6 +374,26 @@ def test_vault_logs_show_storage_truth_and_real_send_actors():
         assert field in handler
 
 
+def test_vault_logs_are_fresh_and_missing_object_probe_permission_is_durable():
+    logs = (ROOT / "src/components/workspace/service/VaultLogs.tsx").read_text()
+    client = (ROOT / "src/api/client.ts").read_text()
+    provisioner = (ROOT / "scripts/provision_secure_files_api.py").read_text()
+
+    assert "window.addEventListener( 'focus', refresh )" in logs
+    assert "document.addEventListener( 'visibilitychange', refresh )" in logs
+    assert "window.removeEventListener( 'focus', refresh )" in logs
+    assert "document.removeEventListener( 'visibilitychange', refresh )" in logs
+
+    secure_listing = client[client.index("export async function listSecureFiles"):
+                            client.index("/** Revoke rather than delete")]
+    assert secure_listing.count("cache: 'no-store'") == 2
+
+    assert '"Sid": "SecureBucketExistenceProbe"' in provisioner
+    assert '"Action": ["s3:ListBucket"]' in provisioner
+    assert '"s3:prefix": [f"{SECURE_PREFIX}*"]' in provisioner
+    assert '"Resource": f"arn:aws:s3:::{BUCKET}"' in provisioner
+
+
 def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_service_buttons():
     page = (ROOT / "src/pages/workspace/service/index.tsx").read_text()
     rendered = page[page.index("  return ("):]
