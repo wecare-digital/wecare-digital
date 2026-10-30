@@ -415,9 +415,23 @@ def _update_business_profile(phone_id: str, body: Dict) -> Dict:
 # ============================================================================
 # FLOWS
 # ============================================================================
+def _is_retained_customer_flow(flow_id: str) -> bool:
+    """Allow only published canonical customer Flow identities in Workspace APIs.
+
+    Provider-deprecated Flow IDs are immutable at Meta. Keep their history in
+    Meta, but never expose them through authenticated operational inventory.
+    """
+    from lambda_utils import canonical_flows
+    return bool(canonical_flows.published_flow_by_id(str(flow_id or '').strip()))
+
+
 def _list_flows(waba_id: str) -> Dict:
     if not waba_id:
         return _resp(400, {'error': 'wabaId required'})
+    # The secondary account has no retained customer Flows. Do not list its
+    # drafts or history as operational capabilities.
+    if str(waba_id) != str(WABA1_ID):
+        return _resp(200, {'flows': []})
     rows, after, seen = [], None, set()
     while True:
         params = {'fields': 'id,name,status,categories,validation_errors', 'limit': 100}
@@ -426,7 +440,10 @@ def _list_flows(waba_id: str) -> Dict:
         result = _graph_api(f'{waba_id}/flows', params=params, waba_id=waba_id)
         if 'error' in result:
             return _resp(400, result)
-        rows.extend(result.get('data') or [])
+        rows.extend(
+            flow for flow in (result.get('data') or [])
+            if isinstance(flow, dict) and _is_retained_customer_flow(flow.get('id'))
+        )
         paging = result.get('paging') or {}
         if not paging.get('next'):
             return _resp(200, {'flows': rows})
@@ -5442,8 +5459,11 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     skipped = 0
     not_registered = 0
     for f in flows:
-        flow_id = f.get('id')
-        if not flow_id:
+        flow_id = str(f.get('id') or '')
+        if not _is_retained_customer_flow(flow_id):
+            # Meta retains deprecated and unknown designs indefinitely. Do not
+            # import them, even if an old registry entry already exists.
+            not_registered += 1
             continue
         try:
             existing = table.get_item(Key={'flowId': flow_id}).get('Item', {})
@@ -7531,8 +7551,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _deprecate_flow(params.get('flowId') or body.get('flowId'),
                                    params.get('wabaId') or body.get('wabaId'))
         elif '/flows/preview' in path:
-            return _get_flow_preview(params.get('flowId') or body.get('flowId'))
+            flow_id = params.get('flowId') or body.get('flowId')
+            if not _is_retained_customer_flow(flow_id):
+                return _resp(404, {'error': 'Not a retained customer Flow'})
+            return _get_flow_preview(flow_id)
         elif '/flows/assets' in path:
+            if not _is_retained_customer_flow(params.get('flowId') or body.get('flowId')):
+                return _resp(404, {'error': 'Not a retained customer Flow'})
             if method == 'POST':
                 return _upload_flow_asset(params.get('flowId') or body.get('flowId') or '', body)
             if method == 'GET':
@@ -7554,7 +7579,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             waba_id = params.get('wabaId') or body.get('wabaId')
             flow_id = params.get('flowId') or body.get('flowId')
             if method == 'GET':
-                return _get_flow(flow_id) if flow_id else _list_flows(waba_id or '')
+                if flow_id:
+                    if not _is_retained_customer_flow(flow_id):
+                        return _resp(404, {'error': 'Not a retained customer Flow'})
+                    return _get_flow(flow_id)
+                return _list_flows(waba_id or '')
             elif method == 'POST':
                 return _create_flow(waba_id or '', body)
             elif method == 'PUT':

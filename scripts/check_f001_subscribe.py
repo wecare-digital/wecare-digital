@@ -1175,6 +1175,45 @@ def _() -> None:
            f'a first-seen deprecated Flow was registered: {body}')
 
 
+@check('E2b provider history never enters operational Flow inventory or registry')
+def _() -> None:
+    FAKE_DB.reset()
+    biz, middleware = M['bizapi'], M['middleware']
+    calls: List[str] = []
+    old_id = '1557815099200456'
+    unknown_id = '9999999999999001'
+
+    def fake_graph(endpoint: str, *a: Any, **k: Any) -> Dict[str, Any]:
+        calls.append(endpoint)
+        return {'data': [
+            {'id': old_id, 'name': 'Old subscribe design', 'status': 'DEPRECATED'},
+            {'id': F001_ID(), 'name': 'WD-F001-SUBSCRIBE-PROFILE', 'status': 'PUBLISHED'},
+            {'id': unknown_id, 'name': 'Unknown draft replacement', 'status': 'PUBLISHED'},
+        ]}
+
+    saved = (biz._graph_api, biz.require_auth, middleware.require_auth)
+    biz._graph_api = fake_graph
+    biz.require_auth = middleware.require_auth = _role_gate
+    try:
+        status, body = _resp(biz._list_flows('2094615664435155'))
+        expect(status == 200 and [f['id'] for f in body['flows']] == [F001_ID()],
+               f'operational inventory leaked historic IDs: {body}')
+        status, body = _resp(biz._list_flows('2513394156072604'))
+        expect(status == 200 and body['flows'] == [], 'secondary design inventory leaked')
+        for uri, method in (('/wa-business/flows', 'GET'), ('/wa-business/flows/preview', 'GET'),
+                            ('/wa-business/flows/assets', 'GET')):
+            event = _staff_event(method, uri, 'Viewer', params={'flowId': old_id})
+            status, body = _resp(biz.handler(event, None))
+            expect(status == 404, f'historical direct Flow lookup exposed: {uri} {status} {body}')
+        status, body = _resp(biz._sync_flows({'wabaId': '2094615664435155'}, {}))
+        expect(status == 200 and body['synced'] == 1 and body['notRegistered'] == 2,
+               f'provider sync admitted unknown designs: {body}')
+        expect(set(registry().items) == {F001_ID()},
+               f'historical design re-created in registry: {list(registry().items)}')
+    finally:
+        biz._graph_api, biz.require_auth, middleware.require_auth = saved
+
+
 @check('E3 launch status explains every control from the server decision')
 def _() -> None:
     FAKE_DB.reset()
