@@ -103,3 +103,58 @@ Before enabling Pickup:
 
 The Meta template state is an observed state as of the audit; do not
 mistake the repo's proposed asset for a live Meta publication.
+
+
+## Pickup release switches (staged, **not enabled**)
+
+The existing Meta Pickup Flow is still reported PUBLISHED at Flow ID
+`2988393421499259`, but its actual old uploaded asset matches SHA-256 prefix
+`b685e0289b0257`. This source tree's **corrected** Pickup JSON has SHA-256
+`9d37ad0dce3cecb09f6788ab54295d954287dad849fd5f2fe220759482c7c6ca`
+(prefix `9d37ad0dce3cecb0`).
+
+The live FlowRegistry row on 2026-10-30 has
+`fulfillmentReadiness=BLOCKED_META_COMPLETION_PAYLOAD_INCOMPLETE`.
+It explicitly says the terminal response still identifies F004 Submit Request
+and omits essential pickup details. **Do not accept a PUBLISHED badge or
+APPROVED template as completion-contract proof.**
+
+Once the **actual published Meta asset** has been independently downloaded,
+validated, and matches the corrected JSON byte for byte, there are **two
+production Lambda gates and one public static-site gate**:
+
+- Commerce and WhatsApp Business sender Lambda environments:
+  `PICKUP_SERVICE_ENABLED=true` AND
+  `PICKUP_PUBLISHED_ASSET_SHA_PREFIX=9d37ad0dce3cecb0`.
+  Both variables must be present on **both** Lambda aliases before a paid
+  Pickup is offered. The shared `pickup_activation.enabled()` helper refuses
+  missing, partial, typo, or stale hashes, so a code deploy alone never
+  enables payments.
+- Amplify frontend build environment:
+  `NEXT_PUBLIC_PICKUP_SERVICE_ENABLED=true` AND
+  `NEXT_PUBLIC_PICKUP_PUBLISHED_ASSET_SHA_PREFIX=9d37ad0dce3cecb0`.
+  The public button stays hidden while either is missing.
+- These environment settings are **manual release attestations**. They do NOT
+  fetch Meta at runtime; setting false evidence is unsafe. Inspect the
+  real Meta JSON through the authenticated admin
+  `GET /wa-business/flows/assets?flowId=2988393421499259` before enabling.
+  The commerce Lambda's IAM role currently lacks FlowRegistryTable GetItem,
+  so no new live registry read was added to the pure checkout preflight.
+
+**Release sequence:** publish the corrected JSON in Meta first; if the
+published asset cannot be updated in place, clone the Flow and republish,
+then rebind the **existing** `pickup_request_flow` template and update the
+canonical Flow ID/registry references. Do not create a duplicate template.
+Run local/CI tests and deploy updated business API + inbound WhatsApp handlers
+to verified `live` aliases. Exercise INIT, owned-order dropdown, NOTE,
+CONFIRMATION and exactly-once Pickup submission against an authorized test
+customer and known paid attempt, including negative ownership and retry tests.
+Verify Meta template APPROVED + DATA_EXCHANGE with the new Flow ID. Only
+then set the Lambda release variables, enable the frontend build flags and
+deploy the website.
+
+**Rollback:** unset `PICKUP_SERVICE_ENABLED` on the commerce Lambda first,
+then the sender, then the two frontend flags. Previously paid attempts must
+still be reconciled/fulfilled; do not cancel or delete existing financial
+records. Under no circumstances backfill `fulfillmentReadiness` to READY
+without a successful live completion and asset verification.

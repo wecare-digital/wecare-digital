@@ -43,6 +43,12 @@ function orderDate ( value: number | string | null ): string {
   } );
 }
 
+// Public static export must not advertise Pickup checkout until its exact
+// Meta asset has passed paid end-to-end QA and BOTH backend release gates are on.
+const PICKUP_CHECKOUT_ACTIVE =
+  process.env.NEXT_PUBLIC_PICKUP_SERVICE_ENABLED === 'true' &&
+  process.env.NEXT_PUBLIC_PICKUP_PUBLISHED_ASSET_SHA_PREFIX === '9d37ad0dce3cecb0';
+
 const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
   const router = useRouter();
   const [ phase, setPhase ] = useState<Phase>( { kind: 'loading' } );
@@ -162,10 +168,10 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
     }
   }, [ phase, busy, sent, signedIn, router, service, chosenOrder ] );
 
-  // The published Pickup Flow has not passed its completion-schema/saver gate.
-  // A visible unavailable state is safer than offering a payment that cannot fulfill.
-  // The backend independently rejects all Pickup checkout rails before charging.
-  if ( service.kind === 'REQUEST_PICKUP' ) {
+  // The public button is only a visibility gate. Commerce independently
+  // rejects unmatched Pickup releases before payment; WhatsApp independently
+  // rejects unmatched Pickup sends after settlement.
+  if ( service.kind === 'REQUEST_PICKUP' && !PICKUP_CHECKOUT_ACTIVE ) {
     return (
       <p role="status" style={ { color: 'var(--public-muted)', marginTop: '12px' } }>
         Pickup checkout is temporarily unavailable while its WhatsApp form is verified.

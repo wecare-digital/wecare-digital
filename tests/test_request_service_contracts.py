@@ -526,23 +526,24 @@ def test_drop_docs_web_snapshot_price_matches_live_product_authority():
     assert "formattedPrice:'₹199.00', price:'199.00'" in product
 
 
-def test_pickup_payment_fails_closed_before_checkout_on_every_rail():
+def test_pickup_payment_requires_matching_meta_asset_release_on_all_rails():
     launcher = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/service_flow_launcher.py").read_text()
     assert '"REQUEST_PICKUP": LaunchSpec(' in launcher
-    assert 'enabled=False, blocked_outcome="PICKUP_FLOW_ASSET_MISMATCH"' in launcher
+    assert 'enabled=pickup_activation.enabled(),' in launcher
+    assert 'blocked_outcome="PICKUP_FLOW_ASSET_MISMATCH"' in launcher
 
     source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/service_requests.py").read_text()
     preflight = source.split("def checkout_preflight(", 1)[1].split(
         "\ndef native_service_line_paise(", 1
     )[0]
-    assert "if line.kind == REQUEST_PICKUP:" in preflight
+    assert "if line.kind == REQUEST_PICKUP and not pickup_activation.enabled():" in preflight
     assert "return 409, refusal(SERVICE_NOT_PAYABLE)" in preflight
-    assert preflight.index("if line.kind == REQUEST_PICKUP:") < preflight.index(
+    assert preflight.index("if line.kind == REQUEST_PICKUP and not pickup_activation.enabled():") < preflight.index(
         "if _single_order_context("
     )
 
     buybox = (ROOT / "src/components/ServiceBuyBox.tsx").read_text()
-    assert "if ( service.kind === 'REQUEST_PICKUP' )" in buybox
+    assert "if ( service.kind === 'REQUEST_PICKUP' && !PICKUP_CHECKOUT_ACTIVE )" in buybox
     assert "Pickup checkout is temporarily unavailable" in buybox
 
 

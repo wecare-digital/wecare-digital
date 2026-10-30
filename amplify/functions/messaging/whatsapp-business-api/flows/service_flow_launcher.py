@@ -8,9 +8,9 @@ Flow session, which is recorded before the message can leave. A webhook replay t
 observes ACCEPTED, refuses an ambiguous SENDING/SEND_UNKNOWN state, or safely retries a known
 SEND_REJECTED outcome with a fresh token.
 
-Request Pickup deliberately remains disabled here. Its current published Flow is a cloned Submit
-Request asset and does not carry the pickup-specific completion schema. Sending it would be worse
-than failing closed because a successful customer completion could be filed as the wrong service.
+Pickup sending is explicitly gated behind a release attestation of the corrected published
+Meta asset. No code deploy alone can activate it: commerce and this sender must both hold
+the correct version-specific environment switches after Meta and handset QA.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 import boto3
+
+from lambda_utils.ecommerce import pickup_activation
 
 from lambda_utils import (
     canonical_flows,
@@ -52,11 +54,13 @@ LAUNCH_SPECS: Mapping[str, LaunchSpec] = {
     "SUBMIT_REQUEST": LaunchSpec("SUBMIT_REQUEST", "submit_request", "srpaid"),
     "REQUEST_AMENDMENT": LaunchSpec("REQUEST_AMENDMENT", "amend_request", "amendpaid"),
     "DROP_DOCS": LaunchSpec("DROP_DOCS", "drop_docs", "drop_docs"),
-    # Registered now so one source explains the intentional refusal. Enable only after the
-    # published Pickup Flow is replaced with the pickup-specific asset and completion saver.
+    # Keep the sender fail-closed unless this Lambda's own environment
+    # attests the exact corrected Meta JSON. A website release alone cannot
+    # trigger sends; paid attempt and verified recipient checks remain below.
     "REQUEST_PICKUP": LaunchSpec(
         "REQUEST_PICKUP", "request_pickup", "request_pickup",
-        enabled=False, blocked_outcome="PICKUP_FLOW_ASSET_MISMATCH",
+        enabled=pickup_activation.enabled(),
+        blocked_outcome="PICKUP_FLOW_ASSET_MISMATCH",
     ),
     "TRACK_SHIPPING": LaunchSpec("TRACK_SHIPPING", "shipments", "shipments"),
 }
