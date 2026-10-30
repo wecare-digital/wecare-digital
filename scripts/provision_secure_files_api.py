@@ -100,6 +100,9 @@ ROUTES = [
     ("POST", "/secure-files/{fileId}/request-payment"),
     ("POST", "/secure-files/{fileId}/send-offer"),
     ("GET", "/secure-files/{fileId}/message-log"),
+    ("GET", "/secure-files/{fileId}/schedules"),
+    ("POST", "/secure-files/{fileId}/schedules"),
+    ("DELETE", "/secure-files/{fileId}/schedules/{scheduleId}"),
     ("POST", "/secure-files/{fileId}/send-access"),
     # customer surface (customer-pool token, checked inside the handler)
     ("GET", "/secure-files/mine"),
@@ -211,6 +214,22 @@ def policy_document() -> dict:
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-"
                     "InvoiceDeliveryLogTable",
                 ],
+            },
+            {
+                "Sid": "VaultScheduledMessages",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem",
+                           "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ScheduledMessagesTable",
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-SecureFilesTable",
+                ],
+            },
+            {
+                "Sid": "ValidateVaultOfferCatalogPrice",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem"],
+                "Resource": f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ProductsTable",
             },
             {
                 "Sid": "ReadVerifiedWhatsAppMessageStatus",
