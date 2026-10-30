@@ -7535,6 +7535,21 @@ export interface SecureFile {
   ownerName?: string;
   ownerPhoneMasked?: string;
   uploadedBy?: string;
+  workspaceRecordVersion?: number;
+  lastPaymentRequestedBy?: string;
+  lastPaymentRequestedAt?: string;
+  lastPaymentRequestOutcome?: string;
+  lastAccessSentBy?: string;
+  lastAccessSentAt?: string;
+  lastAccessSendOutcome?: string;
+}
+
+export interface SecureFileLog extends SecureFile {
+  legacyRecord?: boolean;
+  storageOriginalPresent?: boolean | null;
+  storageDeliveryPresent?: boolean | null;
+  revokedAt?: string;
+  revokedBy?: string;
 }
 
 export type SecureFileAccessState = 'UNPAID' | 'OPEN' | 'READY' | 'EXPIRED' | 'PAID_UNVERIFIED';
@@ -7605,8 +7620,19 @@ export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActio
 export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
   files: SecureFile[]; count: number; truncated?: boolean;
 }>> {
-  const qs = mobile ? `?mobile=${encodeURIComponent( mobile )}` : '';
-  return apiCallResult( `${API_BASE}/secure-files${qs}` );
+  const qs = new URLSearchParams();
+  if ( mobile ) qs.set( 'mobile', mobile );
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiCallResult( `${API_BASE}/secure-files${suffix}` );
+}
+
+/** Historical Vault audit rows. The backend verifies S3 object presence but never exposes keys. */
+export async function listSecureFileLogs ( mobile?: string ): Promise<ApiResult<{
+  logs: SecureFileLog[]; count: number; truncated?: boolean;
+}>> {
+  const qs = new URLSearchParams( { view: 'logs' } );
+  if ( mobile ) qs.set( 'mobile', mobile );
+  return apiCallResult( `${API_BASE}/secure-files?${qs.toString()}` );
 }
 
 /** Revoke rather than delete, so the record of who was charged survives. */
