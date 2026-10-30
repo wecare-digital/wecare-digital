@@ -1349,3 +1349,37 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Collect customer editor is shared across the Create and Customers tabs; keep its message
+   visible above mobile bottom-sheet actions without overflowing the phone viewport. */
+.workspace-shell .payments-shell .pf-customer-editor .pf-modal-error {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #b42318;
+  border-radius: 8px;
+  background: #fff4f2;
+  color: #8a1c12;
+  font-size: var(--public-supporting-size, 16px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .workspace-shell .payments-shell .pf-modal-overlay {
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+  }
+  .workspace-shell .payments-shell .pf-customer-editor {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
