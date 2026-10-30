@@ -1,33 +1,13 @@
 /**
- * Secure Files — upload and register a file to one customer.
+ * Vault operations — staff upload, publish, payment and customer access.
  *
- * One form does three things, because they are one intention: naming a customer,
- * registering a file to them, and creating the login that lets them fetch it.
- * Entering a mobile number here CREATES a Cognito customer if none exists, and that
- * number is the one that receives the WhatsApp OTP - so a typo does not fail loudly,
- * it silently registers the file to someone who will never ask for it. The form says
- * so next to the field.
+ * Vault has one supported intake path: a staff upload is first saved as a private
+ * DocumentTable/S3 document, confirmed from S3, then explicitly published into
+ * SecureFilesTable. The retired /secure-files/upload-init and /confirm routes are not
+ * used here.
  *
- * Upload is three calls, not one: register, PUT to S3, confirm. The confirm step
- * re-checks the object really landed, so an upload that dies half way leaves a
- * `pending` row rather than an `active` file a customer could be charged for and not
- * receive.
- *
- * The S3 key is deliberately absent from this page. Objects are stored as
- * `wecare-digital-<uuid>-<uuid>`, and the readable name lives only in the table, so
- * everything here is keyed on `fileId`. Owner numbers arrive already masked to the
- * last four digits; the full number is never sent to the browser.
- *
- * Design
- * ------
- * Carries the home page's language, matching the customer-facing /files page: the
- * var(--lime) lime with var(--accent) on it, 14px-radius panels with 2px borders, the 52px
- * 50px-radius pill CTA, and the site heading rung
- * clamp(28px,3.2vw,40px)/700/1.08/-1.2px. This is deliberately NOT the other
- * dashboard pages' var(--surface)/var(--border) treatment - the two secure-file
- * screens are a pair and should read as one feature, since an operator moves between
- * this page and the customer's view of the same file. It still sits inside the
- * dashboard Layout, so the shell, nav and auth are unchanged.
+ * The customer-facing /vault/?file=<id> surface owns download/payment presentation.
+ * This component is the staff surface and never exposes raw S3 keys.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -40,8 +20,7 @@ import * as api from '../../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
 import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type ServicePriceBreakdown } from '../../../lib/servicePricing';
-
-const MAX_BYTES = 200 * 1024 * 1024;
+import { resolveWaMime, validateWaMediaSize, WA_ACCEPT_STRING } from '../../../lib/wa-media';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -71,16 +50,15 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; manageOnly?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-export default function SecureFilesPage ( { signOut, user, embedded, manageOnly = false }: PageProps ) {
+export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
 
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
-    const [ displayName, setDisplayName ] = useState( '' );
-    const [ tag, setTag ] = useState( '' );
+    const [ documentType, setDocumentType ] = useState( 'other' );
     const [ file, setFile ] = useState<File | null>( null );
     const [ uploading, setUploading ] = useState( false );
     const [ step, setStep ] = useState( '' );
@@ -124,7 +102,6 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     }, [ fetchInto ] );
 
     useEffect( () => {
-        if ( !manageOnly ) return;
         let cancelled = false;
         setVaultPriceLoading( true );
         void fetchServicePrices().then( prices => {
@@ -136,7 +113,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
             setVaultPriceLoading( false );
         } );
         return () => { cancelled = true; };
-    }, [ manageOnly ] );
+    }, [] );
 
     useEffect( () => {
         if ( !reviewFile ) return;
@@ -233,69 +210,85 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     const resetForm = () => {
         setName( '' );
         setMobile( '' );
-        setDisplayName( '' );
-        setTag( '' );
+        setDocumentType( 'other' );
         setFile( null );
     };
 
     const handleUpload = async () => {
-        if ( !file ) { toast.error( 'Choose a file first' ); return; }
-        if ( !name.trim() ) { toast.error( 'Customer name is required' ); return; }
-        if ( !mobile.trim() ) { toast.error( 'Customer mobile number is required' ); return; }
-        if ( file.size > MAX_BYTES )
+        const customerName = name.trim();
+        const customerPhone = mobile.trim();
+        if ( !file ) { toast.error( 'Choose a document first' ); return; }
+        if ( !customerName ) { toast.error( 'Customer name is required' ); return; }
+        if ( !customerPhone ) { toast.error( 'Customer mobile number is required' ); return; }
+
+        const contentType = resolveWaMime( file );
+        const validation = validateWaMediaSize( file, contentType );
+        if ( !validation.ok )
         {
-            toast.error( `File is larger than ${formatBytes( MAX_BYTES )}` );
+            toast.error( validation.message || 'This file cannot be uploaded to Vault.' );
             return;
         }
 
         setUploading( true );
         try
         {
-            setStep( 'Registering customer and file…' );
-            const contentType = file.type || 'application/octet-stream';
-            const ticket = await api.initSecureUpload( {
-                name: name.trim(),
-                mobile: mobile.trim(),
-                displayName: displayName.trim() || file.name,
-                tag: tag.trim() || undefined,
-                originalFilename: file.name,
-                contentType,
-                sizeBytes: file.size,
+            setStep( 'Creating private document record…' );
+            const ticket = await api.initDocumentUpload( {
+                customerName,
+                customerPhone,
+                type: documentType,
+                fileName: file.name,
+                mimeType: contentType,
+                fileSize: file.size,
+                notes: 'Uploaded from Workspace Vault',
             } );
             if ( !ticket.ok )
             {
-                toast.error( ticket.failure.message || 'Could not register the file' );
+                toast.error( ticket.failure.message || 'Could not start the document upload' );
                 return;
             }
 
-            setStep( 'Uploading…' );
-            const sent = await api.uploadSecureFileBytes( ticket.data.uploadUrl, file, contentType );
-            if ( !sent )
+            setStep( 'Uploading private document…' );
+            const uploaded = await api.uploadDocumentBytes(
+                ticket.data.uploadUrl,
+                file,
+                ticket.data.contentType || contentType,
+            );
+            if ( !uploaded )
             {
-                // The record stays `pending`, so nothing is downloadable or billable.
-                toast.error( 'Upload failed. The file was not stored; try again.' );
+                toast.error( 'File upload failed. The Vault file was not published.' );
                 return;
             }
 
-            setStep( 'Confirming…' );
-            const confirmed = await api.confirmSecureUpload( ticket.data.fileId );
+            setStep( 'Confirming stored bytes…' );
+            const confirmed = await api.confirmDocumentUpload( ticket.data.documentId );
             if ( !confirmed.ok )
             {
-                toast.error( confirmed.failure.message || 'Upload could not be confirmed' );
+                toast.error( confirmed.failure.message || 'The uploaded document could not be confirmed' );
                 return;
             }
 
-            toast.success( `${displayName.trim() || file.name} registered to ${name.trim()}` );
+            setStep( 'Publishing to Vault…' );
+            const published = await api.publishDocumentToVault( confirmed.data.documentId );
+            if ( !published.ok )
+            {
+                toast.warning( 'Document saved privately, but Vault publishing failed. Nothing was charged.' );
+                return;
+            }
+
+            toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
             if ( requestAfterUpload )
             {
                 setStep( 'Sending Review & Pay on WhatsApp…' );
-                reportAction( await api.requestSecureFilePayment( ticket.data.fileId ) );
+                reportAction( await api.requestSecureFilePayment( published.data.fileId ) );
             }
+
             resetForm();
-            load( filterMobile || undefined );
-        } catch ( err: any )
+            await load( customerPhone );
+            setFilterMobile( customerPhone );
+        } catch ( err: unknown )
         {
-            toast.error( err?.message || 'Upload failed' );
+            toast.error( err instanceof Error ? err.message : 'Upload failed' );
         } finally
         {
             setUploading( false );
@@ -328,30 +321,26 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
         <>
             <div className="sf-wrap">
                 <header className="sf-head">
-                    <p className="sf-eyebrow">{ manageOnly ? 'Service · Vault' : 'Secure sharing' }</p>
-                    <h1 className="sf-title">{ manageOnly ? 'Vault' : 'Secure files' }</h1>
+                    <p className="sf-eyebrow">Service · Vault</p>
+                    <h1 className="sf-title">Vault</h1>
                     <p className="sf-lead">
-                        { manageOnly
-                            ? 'Manage customer Vault delivery, payment access and the next WhatsApp action. Files use generated WECARE.DIGITAL references; uploads start in Drop Docs.'
-                            : 'Files registered to one customer, who verifies on WhatsApp before downloading. Stored under an unguessable name and never reachable from a public link.' }
+                        Upload a customer document into the private Documents store, publish it to Vault,
+                        then manage Review &amp; Pay and Access Vault from one place.
                     </p>
                 </header>
 
-                { manageOnly && (
-                    <section className="sf-journey" aria-label="Vault customer journey">
-                        <div><span>1</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
-                        <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join(' → ')}` : 'Shared order-status template' }</small></div>
-                        <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' }</small></div>
-                        <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
-                    </section>
-                ) }
+                <section className="sf-journey" aria-label="Vault customer journey">
+                    <div><span>1</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
+                    <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
+                    <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' }</small></div>
+                    <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
+                </section>
 
-                {/* ── upload + register ─────────────────────────────────────────── */ }
-                { !manageOnly && (
                 <section className="sf-panel" aria-labelledby="sf-add">
-                    <h2 className="sf-h2" id="sf-add">Add a file</h2>
+                    <h2 className="sf-h2" id="sf-add">Upload document</h2>
                     <p className="sf-note">
-                        The customer login is created automatically from the mobile number.
+                        The file is saved privately as a Document first, verified in S3, then published to Vault.
+                        Direct Vault upload is retired.
                     </p>
 
                     <div className="sf-grid">
@@ -363,6 +352,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                 value={ name }
                                 onChange={ e => setName( e.target.value ) }
                                 placeholder="Ramesh Kumar"
+                                autoComplete="off"
                                 disabled={ uploading }
                             />
                         </div>
@@ -376,69 +366,50 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                 onChange={ e => setMobile( e.target.value ) }
                                 placeholder="8100640044"
                                 inputMode="tel"
+                                autoComplete="tel"
                                 disabled={ uploading }
                             />
-                            {/* The consequence of a typo is silent, so say it here. */ }
                             <p className="sf-hint">
-                                This number receives the WhatsApp OTP. A 10-digit Indian
-                                number gets +91 automatically. Check it — the file is
-                                registered to whoever this is.
+                                This verified number owns the Vault file and receives the WhatsApp sign-in/payment messages.
                             </p>
                         </div>
 
                         <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-display">
-                                Vault document name
-                            </label>
-                            <input
-                                id="sf-display"
+                            <label className="sf-label" htmlFor="sf-type">Document type</label>
+                            <select
+                                id="sf-type"
                                 className="sf-input"
-                                value={ displayName }
-                                onChange={ e => setDisplayName( e.target.value ) }
-                                placeholder={ file?.name || 'Trade Licence 2026' }
-                                maxLength={ 60 }
+                                value={ documentType }
+                                onChange={ e => setDocumentType( e.target.value ) }
                                 disabled={ uploading }
-                            />
-                            <p className="sf-hint">
-                                Used in the customer Vault and native payment details. Empty uses the file name.
-                            </p>
+                            >
+                                <option value="other">Other</option>
+                                <option value="id_proof">ID proof</option>
+                                <option value="address_proof">Address proof</option>
+                                <option value="prescription">Prescription</option>
+                                <option value="invoice">Invoice</option>
+                                <option value="photo">Photo</option>
+                            </select>
                         </div>
 
                         <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-tag">
-                                Tag <span className="sf-label-opt">(optional)</span>
-                            </label>
-                            <input
-                                id="sf-tag"
-                                className="sf-input"
-                                value={ tag }
-                                onChange={ e => setTag( e.target.value ) }
-                                placeholder="Passport, Invoice, Mar 2026…"
-                                maxLength={ 60 }
-                                disabled={ uploading }
-                            />
-                            <p className="sf-hint">
-                                An internal label to find this file later. Not shown to the customer.
-                            </p>
-                        </div>
-
-                        <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-file">File</label>
+                            <label className="sf-label" htmlFor="sf-file">Document</label>
                             <input
                                 id="sf-file"
                                 className="sf-input sf-input-file"
                                 type="file"
+                                accept={ WA_ACCEPT_STRING }
                                 onChange={ e => setFile( e.target.files?.[ 0 ] || null ) }
                                 disabled={ uploading }
                             />
-                            { file && (
-                                <p className="sf-hint">
-                                    { formatBytes( file.size ) } · { file.type || 'unknown type' }
-                                </p>
-                            ) }
+                            <p className="sf-hint">
+                                { file
+                                    ? `${ formatBytes( file.size ) } · ${ resolveWaMime( file ) }`
+                                    : 'PDF, Word, Excel, PowerPoint, text, JPEG/PNG, supported audio or video.' }
+                            </p>
                         </div>
 
-                        <div className="sf-field">
+                        <div className="sf-field sf-field-wide">
                             <label className="sf-check" htmlFor="sf-request">
                                 <input
                                     id="sf-request"
@@ -447,32 +418,32 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                     onChange={ e => setRequestAfterUpload( e.target.checked ) }
                                     disabled={ uploading }
                                 />
-                                <span>Send Review &amp; Pay on WhatsApp after upload</span>
+                                <span>Send Review &amp; Pay on WhatsApp after publishing</span>
                             </label>
                             <p className="sf-hint">
-                                The backend sends the approved native payment template with <strong>Review and Pay</strong> for this exact file. Vault has no Flow; Access Vault follows after verified payment.
+                                Turn this off to publish the file without asking the customer to pay yet.
+                                Vault itself has no Meta Flow.
                             </p>
                         </div>
                     </div>
 
                     <div className="sf-actions">
-                        <button className="sf-cta" onClick={ handleUpload } disabled={ uploading }>
-                            { uploading ? 'Working…' : 'Register and upload' }
+                        <button className="sf-cta" type="button" onClick={ () => { void handleUpload(); } } disabled={ uploading }>
+                            { uploading ? 'Working…' : 'Upload & publish' }
                         </button>
                         <span className="sf-aside">
                             { uploading && step
                                 ? step
-                                : 'Price comes from the live catalog. One paid access window allows unlimited downloads while open.' }
+                                : 'One supported path: Documents → private S3 → confirm → Vault.' }
                         </span>
                     </div>
                 </section>
-                ) }
 
                 {/* ── registered files ──────────────────────────────────────────── */ }
                 <section className="sf-panel" aria-labelledby="sf-list">
                     <div className="sf-listhead">
                         <div>
-                            <h2 className="sf-h2" id="sf-list">{ manageOnly ? 'Vault documents' : 'Registered files' }</h2>
+                            <h2 className="sf-h2" id="sf-list">Vault documents</h2>
                             <p className="sf-note">
                                 { loading ? 'Loading…' : `${files.length} file${files.length === 1 ? '' : 's'}` }
                             </p>
@@ -535,9 +506,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                             <tr key={ row.fileId }>
                                                 <td>
                                                     <span className="sf-filename">{ row.displayName }</span>
-                                                    { manageOnly
-                                                        ? <span className="sf-fileorig">{ row.tag || 'Vault document' }</span>
-                                                        : <span className="sf-fileorig">{ row.originalFilename }</span> }
+                                                    <span className="sf-fileorig">{ row.tag || 'Vault document' }</span>
                                                 </td>
                                                 <td>{ row.tag ? <span className="sf-tagpill">{ row.tag }</span> : <span className="sf-muted">—</span> }</td>
                                                 <td>{ row.ownerName || '—' }</td>
@@ -598,15 +567,13 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                                                 { acting === row.fileId ? 'Sending…' : 'Send Access Vault' }
                                                             </button>
                                                         ) }
-                                                        { manageOnly && (
-                                                            <button
-                                                                className="sf-act"
-                                                                onClick={ () => setReviewFile( row ) }
-                                                            >
-                                                                Review &amp; Pay
-                                                            </button>
-                                                        ) }
-                                                        { manageOnly && row.sourceDocumentId && (
+                                                        <button
+                                                            className="sf-act"
+                                                            onClick={ () => setReviewFile( row ) }
+                                                        >
+                                                            Review &amp; Pay
+                                                        </button>
+                                                        { row.sourceDocumentId && (
                                                             <button
                                                                 className="sf-act"
                                                                 onClick={ () => { void handleStaffDownload( row ); } }
@@ -614,14 +581,12 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                                                 Download
                                                             </button>
                                                         ) }
-                                                        { manageOnly && (
-                                                            <button
-                                                                className="sf-act"
-                                                                onClick={ () => handleCustomerVaultLink( row ) }
-                                                            >
-                                                                Customer Vault link
-                                                            </button>
-                                                        ) }
+                                                        <button
+                                                            className="sf-act"
+                                                            onClick={ () => handleCustomerVaultLink( row ) }
+                                                        >
+                                                            Customer Vault link
+                                                        </button>
                                                         <button
                                                             className="sf-act sf-act-quiet"
                                                             onClick={ () => { void handleCopyId( row ); } }
@@ -649,7 +614,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                 </section>
             </div>
 
-            { manageOnly && reviewFile && (
+            { reviewFile && (
                 <div
                     className="sf-review-backdrop"
                     role="presentation"
@@ -723,7 +688,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
             ) }
 
             <style jsx>{ `
-                .sf-wrap{padding:24px;max-width:1100px}
+                .sf-wrap{width:100%;max-width:1180px;padding:24px;box-sizing:border-box}
                 .sf-review-backdrop{
                   position:fixed;inset:0;z-index:var(--z-drawer,1300);
                   background:rgba(15,23,42,.26);display:flex;justify-content:flex-end;
@@ -811,7 +776,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
                   gap:20px;margin:0 0 20px;
                 }
-                .sf-field{min-width:0}
+                .sf-field{min-width:0}\n                .sf-field-wide{grid-column:1/-1}
                 .sf-label{
                   display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;
                   letter-spacing:-.1px;color:var(--accent);
@@ -937,6 +902,43 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                 }
                 .sf-check input{width:20px;height:20px;accent-color:var(--accent);flex:0 0 auto}
 
+                @media(max-width:760px){
+                  .sf-wrap{padding:16px}
+                  .sf-head{margin-bottom:20px}
+                  .sf-lead{font-size:17px}
+                  .sf-panel{padding:18px 16px;border-radius:16px}
+                  .sf-grid{grid-template-columns:1fr;gap:16px}
+                  .sf-actions{align-items:stretch;flex-direction:column}
+                  .sf-cta,.sf-cta-quiet{width:100%}
+                  .sf-listhead{align-items:stretch}
+                  .sf-filter{width:100%;align-items:stretch;flex-direction:column}
+                  .sf-filter .sf-input{width:100%}
+                  .sf-tablewrap{overflow:visible;border:0;background:transparent}
+                  .sf-table,.sf-table tbody{display:block;width:100%}
+                  .sf-table thead{display:none}
+                  .sf-table tbody{display:grid;gap:12px}
+                  .sf-table tr{display:block;border:1px solid rgba(26,58,42,.12);border-radius:14px;background:#fff;overflow:hidden}
+                  .sf-table td{display:grid;grid-template-columns:minmax(96px,34%) minmax(0,1fr);gap:12px;width:100%;box-sizing:border-box;padding:11px 12px;border-bottom:1px solid rgba(26,58,42,.08);overflow-wrap:anywhere}
+                  .sf-table td::before{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(26,58,42,.58)}
+                  .sf-table td:nth-child(1)::before{content:'File'}
+                  .sf-table td:nth-child(2)::before{content:'Tag'}
+                  .sf-table td:nth-child(3)::before{content:'Customer'}
+                  .sf-table td:nth-child(4)::before{content:'Mobile'}
+                  .sf-table td:nth-child(5)::before{content:'Size'}
+                  .sf-table td:nth-child(6)::before{content:'Downloads'}
+                  .sf-table td:nth-child(7)::before{content:'Purchase'}
+                  .sf-table td:nth-child(8)::before{content:'Access'}
+                  .sf-table td:nth-child(9)::before{content:'Status'}
+                  .sf-table td:nth-child(10)::before{content:'Actions'}
+                  .sf-table tr:last-child td:last-child{border-bottom:0}
+                  .sf-rowactions{display:grid;grid-template-columns:1fr;align-items:stretch}
+                  .sf-act,.sf-revoke{width:100%;white-space:normal}
+                  .sf-review-drawer{width:100%;padding:20px 16px max(20px,env(safe-area-inset-bottom));border-left:0}
+                  .sf-review-meta>div{grid-template-columns:1fr;gap:3px}
+                }
+                @media(max-width:380px){
+                  .sf-table td{grid-template-columns:1fr;gap:5px}
+                }
                 @media(prefers-reduced-motion:reduce){
                   .sf-cta,.sf-input,.sf-revoke,.sf-act{transition:none}
                   .sf-cta:hover:not(:disabled){transform:none}
@@ -948,7 +950,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     if ( embedded ) return body;
     return (
         <Layout onSignOut={ signOut } user={ user }>
-            <SEO title={ manageOnly ? 'Vault' : 'Secure Files' } description={ manageOnly ? 'Manage Vault delivery and paid access' : 'Share a file with a verified customer' } />
+            <SEO title="Vault" description="Upload, publish and manage customer Vault access" />
             { body }
         </Layout>
     );
