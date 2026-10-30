@@ -57,7 +57,10 @@ def test_free_text_body_parameter_is_independent_of_file_name():
     assert 'maxLength={ 60 }' in front
     assert 'offerBodyText={ offerBodyText }' in front
     assert 'api.sendSecureFileOffer( target.fileId, variable )' in front
-    assert 'api.sendSecureFileOffer( published.data.fileId, variable! )' in front
+    assert 'api.sendSecureFileOffer( published.data.fileId, variable! )' not in front
+    upload = front.split('const handleUpload = async () => {', 1)[1].split('const handleRevoke', 1)[0]
+    assert 'sendSecureFileOffer' not in upload
+    assert 'Save document to Vault' in front
     assert 'JSON.stringify( { offerBodyText: options.offerBodyText } )' in api
     assert 'send_payload["offerBodyText"] = offer_text' in secure
     assert 'whatsapp_templates.vault_offer_document_name(candidate) != candidate' in secure
