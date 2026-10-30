@@ -19,6 +19,27 @@ on:
       - tests/test_customer_duplicate_resolution.py
       - tests/test_customer_subscribe_form_contract.py
       - .github/workflows/customer-mobile-qa.yml
+  # PR checks validated the four historical failures, but a merge could go
+  # unverified on the production branch. Run the same QA after matching pushes.
+  push:
+    branches: [wecare.digital]
+    paths:
+      - src/pages/workspace/customers/**
+      - src/components/workspace/pay/PayFlow.tsx
+      - src/lib/contactPhone.ts
+      - src/lib/address-format.ts
+      - src/styles/workspace.css
+      - src/styles/inner-ux.css
+      - src/api/client.ts
+      - amplify/functions/core/contacts/handler.py
+      - amplify/functions/payments/invoice-engine/handler.py
+      - tests/test_customer_delete_and_invoice_void.py
+      - tests/customerPhone.test.mjs
+      - tests/test_customer_mobile_interactions.py
+      - tests/test_customer_duplicate_resolution.py
+      - tests/test_customer_subscribe_form_contract.py
+      - .github/workflows/customer-mobile-qa.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
