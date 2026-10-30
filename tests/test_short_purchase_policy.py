@@ -82,5 +82,28 @@ class ShortPurchaseTests(unittest.TestCase):
         self.assertIn("void proceed( pending.channel )", page)
 
 
+    def test_server_refusal_is_explicit_and_truthful(self):
+        page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
+        self.assertIn("| { kind: 'SHORT_CHECKOUT_ONE_ITEM' }", page)
+        self.assertIn("status === 'SHORT_CHECKOUT_ONE_ITEM'", page)
+        self.assertIn("outcome.kind === 'SHORT_CHECKOUT_ONE_ITEM'", page)
+        self.assertIn("Remove extra cart lines to continue. Nothing has been charged.", page)
+        # This is a 409 returned before any payment attempt, not an unknown payment result.
+        self.assertLess(page.index("if ( status === 'SHORT_CHECKOUT_ONE_ITEM' )"),
+                        page.index("return { kind: 'UNRECOGNISED' };"))
+
+    def test_claim_failure_keeps_catalog_snapshot_refusal_distinct(self):
+        page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
+        basket = (ROOT / "src/lib/whatsappBasket.ts").read_text(encoding="utf-8")
+        # Preserve PR #1964's correct fallback; do not blame customers for a stale
+        # website catalogue when they sent a valid one-unit WhatsApp item.
+        self.assertIn("CLAIM_NOT_SHOWN_MESSAGE : null", page)
+        self.assertNotIn("notShortBasket", page)
+        self.assertIn("status === 'BASKET_SHORT_ONLY'", basket)
+        self.assertIn("case 'SHORT_ONLY':", basket)
+        self.assertIn("Nothing has been", (ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py").read_text(encoding="utf-8"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
