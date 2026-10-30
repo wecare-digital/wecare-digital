@@ -130,6 +130,51 @@
   overscroll-behavior:contain;
   box-sizing:border-box;
 }
+
+/* Workspace forms follow the same visual contract as /auth/: transparent controls with one
+   bottom hairline, no pill/card box. This lives in the canonical shell so every current and
+   future /workspace/** form inherits it without page-by-page overrides. Rich/native controls
+   whose geometry is intrinsic are excluded deliberately. */
+.workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+.workspace-shell .workspace-main textarea:not([data-ui-raw]):not([data-public-ui]),
+.workspace-shell .workspace-main select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control),
+.workspace-shell .workspace-main .ui-select-trigger:not([data-ui-raw]):not([data-public-ui]),
+.workspace-shell .workspace-main button[role="combobox"]:not([data-ui-raw]):not([data-public-ui]){
+  min-height:54px!important;
+  box-sizing:border-box!important;
+  border-width:0 0 1px!important;
+  border-style:solid!important;
+  border-color:var(--public-hairline,#d9ddd9)!important;
+  border-radius:0!important;
+  padding-block:0!important;
+  padding-inline-start:2px!important;
+  background-color:transparent!important;
+  box-shadow:none!important;
+  color:var(--public-text,var(--text))!important;
+  font-family:var(--font-sans)!important;
+  outline:0!important;
+  transition:border-color .2s,box-shadow .2s!important;
+}
+.workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+.workspace-shell .workspace-main textarea:not([data-ui-raw]):not([data-public-ui]):focus,
+.workspace-shell .workspace-main select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):focus,
+.workspace-shell .workspace-main .ui-select-trigger:not([data-ui-raw]):not([data-public-ui]):focus,
+.workspace-shell .workspace-main button[role="combobox"]:not([data-ui-raw]):not([data-public-ui]):focus{
+  border-bottom-color:var(--public-brand-green,var(--accent))!important;
+  box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)!important;
+  outline:0!important;
+}
+.workspace-shell .workspace-main textarea:not([data-ui-raw]):not([data-public-ui]){
+  min-height:96px!important;
+  padding-block:12px!important;
+  resize:vertical;
+}
+.workspace-shell .workspace-main select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control),
+.workspace-shell .workspace-main .ui-select-trigger:not([data-ui-raw]):not([data-public-ui]),
+.workspace-shell .workspace-main button[role="combobox"]:not([data-ui-raw]):not([data-public-ui]){
+  padding-inline-end:32px!important;
+}
+
 @media(max-width:767px){
   .workspace-shell{--workspace-section-gap:var(--public-mobile-section-gap,64px)}
   .workspace-shell .ps-title,
