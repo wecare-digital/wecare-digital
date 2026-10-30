@@ -752,14 +752,14 @@ const Customers: React.FC<PageProps> = () => {
               setFormError(message);
               toast.warning(message);
             } else {
-              const fullPhone = contactPhoneE164(formPhone, formCountryCode);
-              setSearchQuery(fullPhone);
-              setDebouncedSearch(fullPhone);
-              setFormError('');
-              setShowModal(false);
-              setShowEditModal(false);
-              resetForm();
-              toast.warning('This WhatsApp number already belongs to an existing customer. Showing the matching customer search.');
+              // A generic 409 from an older runtime with no resolvable customer row is not safe
+              // to describe as an existing customer. The strong identity is reserved, but its
+              // owner cannot be opened, so fail closed and ask for reconciliation.
+              const message =
+                'This WhatsApp number is already reserved, but its customer record could not be opened. '
+                + 'Administrator reconciliation is required before creating another customer.';
+              setFormError(message);
+              toast.warning(message);
             }
           }
         } else {
@@ -882,9 +882,24 @@ const Customers: React.FC<PageProps> = () => {
           const existingId = result.failure.details?.existingContactId;
           const exact = typeof existingId === 'string' ? await api.getContact(existingId) : null;
           const existing = exact || await resolveDuplicateContact(formPhone, '');
-          if (existing && existing.contactId !== editingContact.contactId) setDuplicateContact(existing);
+          if (existing && existing.contactId !== editingContact.contactId) {
+            setDuplicateContact(existing);
+            const message = existing.archivedAt
+              ? 'That WhatsApp number belongs to an archived customer. Restore the existing customer instead.'
+              : 'That WhatsApp number already belongs to another customer. Open the existing customer instead.';
+            setFormError(message);
+            toast.warning(message);
+            return;
+          }
+          const message =
+            'This WhatsApp number is reserved, but its customer record could not be opened. '
+            + 'Administrator reconciliation is required before changing this identity.';
+          setFormError(message);
+          toast.warning(message);
+          return;
         }
-        const message = result.failure.message || 'Customer update was refused.';
+        const message = (result.failure.message || 'Customer update was refused.')
+          .replace(/^HTTP\s+\d+:\s*/i, '');
         setFormError(message);
         toast.error(message);
       } else {
