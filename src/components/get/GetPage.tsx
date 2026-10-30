@@ -437,6 +437,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 mobileFoundation
             >
                 <div className="sf-card">
+                    { stage === 'loading' && (
+                        <div className="sf-loading" role="status" aria-live="polite">
+                            <span className="sf-loading-mark" aria-hidden="true">V</span>
+                            <strong>Opening your Vault…</strong>
+                            <span>Checking your verified customer session.</span>
+                        </div>
+                    ) }
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
@@ -550,9 +557,22 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                    wraps every public route in <Header/> + page + <Footer/>, so claiming the whole
                    viewport pushed the shared footer a full screen down. */
 
-                /* The exact Vault file uses the same 560px public copy measure as the approved
-                   customer file mock; no second auth-style wrapper is introduced here. */
-                .sf-card{width:100%;max-width:560px;margin:0}
+                /* /auth is the one sign-in screen. After it returns here, Vault uses the same
+                   card language: 560px measure, lime top rule, 24px radius and quiet lift. */
+                .sf-card{
+                  width:100%;max-width:560px;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);
+                  border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
+                  border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
+                  box-sizing:border-box;
+                }
+                .sf-loading{display:grid;gap:8px;justify-items:start;color:var(--public-text)}
+                .sf-loading-mark{
+                  display:grid;place-items:center;width:48px;height:48px;margin-bottom:10px;
+                  border-radius:12px;background:var(--public-brand-lime);color:var(--public-brand-green);
+                  font-size:20px;font-weight:800;line-height:1;
+                }
+                .sf-loading strong{font-size:var(--public-card-size);line-height:1.2;color:var(--public-heading)}
+                .sf-loading>span:last-child{font-size:var(--public-supporting-size);line-height:1.45;color:var(--public-muted)}
                 /* The site's section-heading rung, identical to .home-close-title. Now on an <h2>
                    rather than an <h1> (the hero owns the page's one h1); the rule is unchanged
                    because it styles by CLASS, not by tag, so the rung is pixel-identical. */
@@ -624,12 +644,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-quiet:hover{color:var(--public-brand-green);text-decoration:underline}
                 .sf-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
-                /* Left-aligned transactional file block, matching the approved /get/ mock. */
-                .sf-file{
-                  padding:28px 30px;margin:0 0 14px;background:#fff;
-                  border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
-                  border-radius:20px;box-shadow:0 10px 30px rgba(26,58,42,.07);
-                }
+                /* The auth-inspired outer card owns the surface; the exact file is its content,
+                   not a second nested card. */
+                .sf-file{padding:0;margin:0;background:transparent;border:0;border-radius:0;box-shadow:none}
                 .sf-file-head{display:flex;gap:11px;align-items:flex-start}
                 .sf-file-icon{
                   width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
@@ -688,8 +705,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
 
                 @media(max-width:767px){
-                  .sf-file{padding:26px 20px 28px;border-radius:20px}
-                  .sf-file-name{font-size:var(--public-mobile-card-size)}
+                  .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+                  .sf-loading-mark{width:46px;height:46px;border-radius:11px}
+                  .sf-loading strong,.sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
                   }
