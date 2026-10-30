@@ -52,7 +52,10 @@ def test_five_stage_logs_show_timestamps_and_do_not_fake_delivery():
     assert "lastAccessSentAt" in timeline
     assert "Meta accepted" in timeline
     assert "does not mean delivered or read" in timeline
-    assert "No stage-specific timestamp recorded" in timeline
+    assert "log?.evidence.completed?.observedAt" in timeline
+    assert "log?.evidence.processing?.observedAt" in timeline
+    assert "log?.evidence.invoice?.observedAt" in timeline
+    assert "Processing" in timeline and "Completed" in timeline
     assert "readVaultMessageDeliveryLog" in timeline
     assert "providerStatus" in timeline
     assert "READ" in timeline and "DELIVERED" in timeline and "FAILED" in timeline
@@ -77,10 +80,36 @@ def test_message_delivery_status_lookup_is_staff_scoped_and_provider_id_bound():
     assert 'IndexName="whatsappMessageId-index"' in handler
     assert 'Limit=3' in handler
     assert 'row.get("direction")' in handler
-    assert 'otherStages": "ORDER_INVOICE_EVIDENCE_NOT_LINKED"' in handler
+    assert 'otherStages": "NO_GUESSED_WAMIDS_OR_DELIVERY"' in handler
+    assert 'def _verified_vault_payment_evidence(' in handler
+    assert 'entitlement.get("recordType") == "VAULT_ENTITLEMENT"' in handler
+    assert 'grant.get("entitlementId") == entitlement_id' in handler
+    assert 'row.get("referenceId") == ref' in handler
+    assert 'IndexName="paymentReferenceId-index"' in handler
+    assert 'IndexName="referenceId-index"' in handler
+    assert 'ConsistentRead=True' in handler
+    assert 'Limit=30' in handler
+    assert '"Sid": "ReadPaidVaultJourneyLogs"' in provisioner
+    assert '"Sid": "ReadNativeVaultPaymentSendId"' in provisioner
+    assert "nativePay?: VaultMessageDeliveryEvidence" in client
+    assert "processing?: VaultMessageDeliveryEvidence" in client
+    assert "completed?: VaultMessageDeliveryEvidence" in client
+    assert "invoice?: VaultMessageDeliveryEvidence" in client
     assert '("GET", "/secure-files/{fileId}/message-log")' in provisioner
     assert '"Sid": "ReadVerifiedWhatsAppMessageStatus"' in provisioner
     assert '"Action": ["dynamodb:Query"]' in provisioner
     assert "readVaultMessageDeliveryLog" in client
     assert "query(" in handler and "scan(" in handler  # legacy file listings only
     assert "scan(**" not in handler.split('def _message_status_for_verified_send', 1)[1].split('def _admin_message_log', 1)[0]
+
+
+def test_customer_scope_replaces_stale_result_and_send_modal_is_single_flight():
+    ui = source("src/components/workspace/service/SecureFiles.tsx")
+    assert "latestFilesRead = useRef( 0 )" in ui
+    assert "readId !== latestFilesRead.current" in ui
+    assert "clearFileSelection();" in ui
+    assert "setFiles( [] );" in ui
+    assert "sendingAction.current = true" in ui
+    assert "sendingAction.current = false" in ui
+    assert "Review & send Unlock Vault" in ui
+    assert "Save document to Vault" in ui
