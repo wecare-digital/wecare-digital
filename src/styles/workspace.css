@@ -1176,12 +1176,10 @@
 
 /* Customers — make payment-test contact creation obvious and actionable. */
 .workspace-shell .contacts-auth-modal .contacts-form-contact {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  gap: 20px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: #f8faf3;
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .workspace-shell .contacts-auth-modal .contacts-required-note {
   margin-left: 6px;
@@ -1192,8 +1190,33 @@
 .workspace-shell .contacts-auth-modal .contacts-phone-control {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
-  gap: 10px;
-  align-items: end;
+  gap: 0;
+  align-items: stretch;
+  min-height: 56px;
+  border: 0;
+  border-bottom: 1px solid var(--public-hairline, #dfe4df);
+  border-radius: 0;
+  background: transparent;
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control:focus-within {
+  border-bottom-color: var(--public-brand-green, #1a3a2a);
+  box-shadow: 0 1px 0 0 var(--public-brand-lime, #d1f470);
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control select,
+.workspace-shell .contacts-auth-modal .contacts-phone-control input {
+  min-height: 54px !important;
+  border: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control select {
+  padding-inline: 2px 24px !important;
+  color: var(--public-brand-green, #1a3a2a) !important;
+  font-weight: 600;
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control input {
+  padding-inline-start: 14px !important;
 }
 .workspace-shell .contacts-auth-modal .contacts-country-code {
   position: relative;
@@ -1221,9 +1244,6 @@
   line-height: 1.45;
 }
 @media (max-width: 680px) {
-  .workspace-shell .contacts-auth-modal .contacts-form-contact {
-    grid-template-columns: 1fr;
-  }
 }
 
 
