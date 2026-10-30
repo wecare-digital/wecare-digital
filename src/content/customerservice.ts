@@ -4,9 +4,8 @@ import type { ProductDef } from './products';
 /**
  * The five public request pages, as data.
  *
- * These are the request actions that still have explanatory website pages. Leave Review is
- * deliberately not part of this catalogue any more: the public menu opens the canonical
- * WhatsApp short link directly, while the WhatsApp Flow and per-order review action remain.
+ * These are the request actions that still have explanatory website pages. Leave Review is no longer part of this page catalogue. The Request menu section is
+ * intentionally hidden; customer deep links, WhatsApp Flow and per-order review remain.
  *
  * The pages reuse ProductPage and the existing hero/content hierarchy. They make no turnaround,
  * price or outcome guarantees; where a third party controls an outcome, the copy says so.
@@ -107,8 +106,8 @@ export const CUSTOMERSERVICE: ProductDef[] = [
   },
   {
     /*
-     * VAULT IS THE RETURN LEG OF DROP DOCS, and the pair is why it sits directly beneath it in
-     * the menu: one page is for sending paperwork in, this one is for getting it back out.
+     * VAULT IS THE RETURN LEG OF DROP DOCS: one page sends paperwork in and the other
+     * returns a copy. Both service pages stay available by direct link, not via the menu.
      *
      * /vault/ is the public service page and /vault/?file=<fileId> is the only exact-file
      * customer download surface. The approved WhatsApp delivery template lands on that query
@@ -171,9 +170,8 @@ export const CUSTOMERSERVICE: ProductDef[] = [
   },
   {
     /*
-     * REQUEST PICKUP SITS DIRECTLY AFTER VAULT so the data order mirrors the menu, which is the
-     * only reason the position matters: Header.tsx types its rows out by hand, and this file's
-     * order is what config/public-pages.json and the MCP page list read.
+     * REQUEST PICKUP SITS DIRECTLY AFTER VAULT in this service data for continuity. The
+     * public Request menu is intentionally hidden; deep links and the service data remain.
      *
      * IT IS THE THIRD DOOR IN THE SAME PAIR. Drop Docs sends paperwork in, Vault asks for a copy
      * back out, and this one has it collected rather than sent - the same documents, a different
