@@ -418,21 +418,30 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         <>
             <div className="sf-wrap">
                 <header className="sf-head">
-                    <p className="sf-eyebrow">Service · Vault</p>
-                    <h1 className="sf-title">Vault</h1>
-                    <p className="sf-lead">
-                        Upload a customer document privately and publish it to Vault. The manual WhatsApp journey starts with Unlock Vault, then native payment, receipt and access.
-                    </p>
+                    <p className="sf-eyebrow">WORKSPACE / VAULT</p>
+                    <div className="sf-heading-line">
+                        <div>
+                            <h1 className="sf-title">Secure customer delivery</h1>
+                            <p className="sf-lead">One customer. One private file. Review first, then send Unlock Vault when you choose.</p>
+                        </div>
+                        <span className="sf-private-indicator">Private · WhatsApp verified</span>
+                    </div>
+                    <ol className="sf-progress" aria-label="Vault workflow">
+                        <li><span>1</span> Customer</li>
+                        <li><span>2</span> File</li>
+                        <li><span>3</span> WhatsApp preview</li>
+                        <li><span>4</span> Send</li>
+                    </ol>
                 </header>
 
                 <section className="sf-workbench" aria-label="Vault customer and file workspace">
                     <div className="sf-compose">
                         <header className="sf-workbench-heading">
                             <div>
-                                <h2>Customer &amp; document</h2>
-                                <p>Choose the customer and one file. Review the invoice, file and all WhatsApp steps alongside before any send.</p>
+                                <h2>Prepare delivery</h2>
+                                <p>Customer details, file and WhatsApp message in one place.</p>
                             </div>
-                            <span>Prepare</span>
+                            <span>STEP 1–3</span>
                         </header>
                         <div className="sf-customer-picker">
                             <label className="sf-label" htmlFor="sf-contact-search">Select customer</label>
@@ -459,6 +468,21 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 </div>
                             ) : <p className="sf-hint">Choose a saved contact or enter the customer details below when uploading.</p> }
                         </div>
+                        <div className="sf-identity-fields">
+                            <div className="sf-field">
+                                <label className="sf-label" htmlFor="sf-name">Customer name</label>
+                                <input id="sf-name" className="sf-input" value={ name }
+                                    onChange={ event => { setSelectedCustomerId( '' ); setName( event.target.value ); } }
+                                    autoComplete="off" placeholder="Customer full name" disabled={ uploading } />
+                            </div>
+                            <div className="sf-field">
+                                <label className="sf-label" htmlFor="sf-mobile">WhatsApp mobile</label>
+                                <input id="sf-mobile" className="sf-input" value={ mobile }
+                                    onChange={ event => { setSelectedCustomerId( '' ); setMobile( event.target.value ); } }
+                                    autoComplete="tel" inputMode="tel" placeholder="+91…" disabled={ uploading } />
+                            </div>
+                        </div>
+                        <p className="sf-hint sf-ownership-note">This verified mobile number owns the Vault file. The number is never taken from the uploaded filename.</p>
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
                             <button type="button" className={ mode === 'upload' ? 'active' : '' }
                                 aria-pressed={ mode === 'upload' }
@@ -471,27 +495,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 Existing Vault file
                             </button>
                         </div>
-                        <div className="sf-field sf-field-wide sf-offer-variable">
-                            <label className="sf-label" htmlFor="sf-offer-body-text">
-                                WhatsApp Unlock Vault · body {'{{1}}'} <strong>(editable)</strong>
-                            </label>
-                            <textarea
-                                className="sf-input sf-offer-textarea"
-                                id="sf-offer-body-text"
-                                rows={ 2 }
-                                maxLength={ 60 }
-                                placeholder="e.g. Updated October compliance agreement"
-                                value={ offerBodyText }
-                                onChange={ e => setOfferBodyText( e.target.value ) }
-                                disabled={ uploading }
-                                aria-describedby="sf-offer-body-help"
-                            />
-                            <p className="sf-hint" id="sf-offer-body-help">
-                                Free text for the approved WhatsApp message only. The uploaded S3 file is
-                                separately named wecare-digital-&lt;uuid&gt;.&lt;ext&gt;.
-                                <span className="sf-offer-counter">{ offerBodyText.length } / 60</span>
-                            </p>
-                        </div>
                         { mode === 'upload' ? (
                 <section className="sf-upload-area" aria-labelledby="sf-add">
                     <h2 className="sf-h2" id="sf-add">Upload document</h2>
@@ -501,36 +504,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     </p>
 
                     <div className="sf-grid">
-                        <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-name">Customer name</label>
-                            <input
-                                id="sf-name"
-                                className="sf-input"
-                                value={ name }
-                                onChange={ e => { setSelectedCustomerId( '' ); setName( e.target.value ); } }
-                                placeholder="Ramesh Kumar"
-                                autoComplete="off"
-                                disabled={ uploading }
-                            />
-                        </div>
-
-                        <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-mobile">Customer mobile</label>
-                            <input
-                                id="sf-mobile"
-                                className="sf-input"
-                                value={ mobile }
-                                onChange={ e => { setSelectedCustomerId( '' ); setMobile( e.target.value ); } }
-                                placeholder="8100640044"
-                                inputMode="tel"
-                                autoComplete="tel"
-                                disabled={ uploading }
-                            />
-                            <p className="sf-hint">
-                                This verified number owns the Vault file and receives the WhatsApp sign-in/payment messages.
-                            </p>
-                        </div>
-
                         <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-file">Document</label>
                             <input
@@ -548,38 +521,23 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             </p>
                         </div>
 
-                        <div className="sf-field sf-field-wide">
-                            <label className="sf-check" htmlFor="sf-request">
-                                <input
-                                    id="sf-request"
-                                    type="checkbox"
-                                    checked={ sendOfferAfterUpload }
-                                    onChange={ e => setSendOfferAfterUpload( e.target.checked ) }
-                                    disabled={ uploading }
-                                />
-                                <span>Send Vault-ready message on WhatsApp after publishing</span>
-                            </label>
-                            <p className="sf-hint">
-                                Turn this off to publish privately without notifying the customer. With it on, the customer receives Unlock Vault; only their tap starts Review &amp; Pay.
-                            </p>
-                        </div>
                     </div>
 
                     <div className="sf-actions">
                         <button className="sf-cta" type="button" onClick={ () => { void handleUpload(); } } disabled={ uploading }>
-                            { uploading ? 'Working…' : 'Upload & publish' }
+                            { uploading ? 'Saving private file…' : 'Save document to Vault' }
                         </button>
                         <span className="sf-aside">
                             { uploading && step
                                 ? step
-                                : 'One supported path: Documents → private S3 → confirm → Vault.' }
+                                : 'Save only — no WhatsApp message, charge or payment request.' }
                         </span>
                     </div>
                 </section>
                         ) : (
                             <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
                                 <h3 className="sf-h2" id="sf-pick-title">Choose a published file</h3>
-                                <p className="sf-note">Payment and access are always tied to the exact customer-owned file.</p>
+                                <p className="sf-note">Select the exact owner-bound document before preparing a WhatsApp offer.</p>
                                 <div className="sf-lookup">
                                     <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
                                         placeholder="Customer mobile" inputMode="tel"
@@ -614,26 +572,67 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     <div className="sf-selection-actions">
                                         <strong>{ reviewFile.displayName }</strong>
                                         <small>{ reviewFile.accessWindowStatus || PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</small>
-                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
-                                            <button type="button" className="sf-cta"
-                                                onClick={ () => { void handleSendOffer( reviewFile ); } }
-                                                disabled={ !!acting || !vaultBreakdown || vaultPricePaise !== 4900 }>
-                                                { acting ? 'Sending…' : accessStateOf( reviewFile ) === 'EXPIRED' ? 'Send renewal offer' : 'Send Vault-ready offer' }
-                                            </button>
-                                        ) }
-                                        { reviewFile.status === 'active' && ( accessStateOf( reviewFile ) === 'OPEN' || accessStateOf( reviewFile ) === 'READY' ) && (
-                                            <button type="button" className="sf-cta"
-                                                onClick={ () => { void handleSendAccess( reviewFile ); } }
-                                                disabled={ !!acting }>
-                                                { acting ? 'Sending…' : 'Send Access Vault (no charge)' }
-                                            </button>
-                                        ) }
                                         { accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
                                             <p role="status" className="sf-hint">Paid access needs reconciliation. Do not request payment again.</p> }
                                     </div>
                                 ) }
                             </section>
                         ) }
+
+                        <div className="sf-message-composer">
+                            <div className="sf-message-heading">
+                                <strong>Unlock Vault · WhatsApp message</strong>
+                                <span>Approved template · body {'{{1}}'}</span>
+                            </div>
+                            <div className="sf-field sf-field-wide sf-offer-variable">
+                            <label className="sf-label" htmlFor="sf-offer-body-text">
+                                WhatsApp Unlock Vault · body {'{{1}}'} <strong>(editable)</strong>
+                            </label>
+                            <textarea
+                                className="sf-input sf-offer-textarea"
+                                id="sf-offer-body-text"
+                                rows={ 2 }
+                                maxLength={ 60 }
+                                placeholder="e.g. Updated October compliance agreement"
+                                value={ offerBodyText }
+                                onChange={ e => setOfferBodyText( e.target.value ) }
+                                disabled={ uploading }
+                                aria-describedby="sf-offer-body-help"
+                            />
+                            <p className="sf-hint" id="sf-offer-body-help">
+                                Free text for the approved WhatsApp message only. The uploaded S3 file is
+                                separately named wecare-digital-&lt;uuid&gt;.&lt;ext&gt;.
+                                <span className="sf-offer-counter">{ offerBodyText.length } / 60</span>
+                            </p>
+                        </div>
+
+                            <p className="sf-composer-help">The message preview updates instantly. Staff text is independent of the generated <code>wecare-digital-UUID</code> S3 filename.</p>
+                        </div>
+                        <div className="sf-review-actions">
+                            <div className="sf-review-checks" aria-live="polite">
+                                <strong>Ready to send?</strong>
+                                <span>{ reviewFile ? 'File selected' : 'Select a published file' }</span>
+                                <span>{ validOfferBodyText( offerBodyText ) ? 'Message text ready' : 'Enter WhatsApp {{1}} text' }</span>
+                                <span>{ vaultPricePaise === 4900 && !!vaultBreakdown ? 'Live ₹49 base price verified' : 'Waiting for valid live pricing' }</span>
+                            </div>
+                            { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
+                                <button type="button" className="sf-cta sf-send-cta"
+                                    onClick={ () => { void handleSendOffer( reviewFile ); } }
+                                    disabled={ !!acting || confirmingOffer || uploading || !validOfferBodyText( offerBodyText ) || !vaultBreakdown || vaultPricePaise !== 4900 }>
+                                    { acting === reviewFile.fileId ? 'Sending…' : confirmingOffer ? 'Confirming…' : 'Review & send Unlock Vault' }
+                                </button>
+                            ) }
+                            { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'READY' || accessStateOf( reviewFile ) === 'OPEN' ) && (
+                                <button type="button" className="sf-cta sf-send-cta"
+                                    disabled={ !!acting || uploading }
+                                    onClick={ () => { void handleSendAccess( reviewFile ); } }>
+                                    { acting ? 'Sending…' : 'Resend paid access (no charge)' }
+                                </button>
+                            ) }
+                            { lastAcceptedOfferFileId && reviewFile?.fileId === lastAcceptedOfferFileId && (
+                                <p className="sf-send-accepted" role="status">WhatsApp accepted the offer request. Handset delivery is still unconfirmed; check message history before resending.</p>
+                            ) }
+                        </div>
                     </div>
                     <VaultJourneyPreview
                         mode={ mode }
