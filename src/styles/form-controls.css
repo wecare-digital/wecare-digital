@@ -837,6 +837,43 @@ input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)
   text-transform: uppercase;
 }
 
+/* The customer checkout's State/Country lists are PORTALLED to document.body:
+   styling the AddressFields wrapper cannot reach them. Opt in with a panel
+   class so the public brand treatment does not change workspace dropdowns,
+   whose grey active row is deliberately part of the dense app contract. */
+.ui-popover.public-checkout-select {
+  border-top: 3px solid var(--public-brand-lime);
+  background-color: var(--public-bg);
+  color: var(--public-brand-green);
+  font-family: var(--font-sans);
+}
+.ui-popover.public-checkout-select .ui-select-option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--public-supporting-size);
+  font-weight: var(--font-semibold);
+  color: var(--public-brand-green);
+}
+.ui-popover.public-checkout-select .ui-select-option[data-active="true"],
+.ui-popover.public-checkout-select .ui-select-option:hover {
+  background-color: var(--public-lime-tint);
+}
+.ui-popover.public-checkout-select .ui-select-option[aria-selected="true"] {
+  background-color: var(--public-brand-lime);
+  color: var(--public-brand-green);
+  font-weight: var(--font-bold);
+}
+.ui-popover.public-checkout-select .ui-select-option[aria-disabled="true"] {
+  background-color: transparent;
+  color: var(--public-muted);
+  cursor: not-allowed;
+}
+.ui-popover.public-checkout-select .ui-select-group-label {
+  color: var(--public-brand-green);
+  font-size: var(--public-meta-size);
+}
+
 /* The one mirror. background-position-x is not a logical property, so the chevron needs the
    same single override the native select's arrow takes above. [dir="rtl"] rather than
    :dir(rtl) because `dir` is declared on <html> in the exported HTML and rtlcheck.js fails

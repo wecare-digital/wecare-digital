@@ -2649,10 +2649,18 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             cart_profile = native_contact
         else:
             cart_profile = _checkout_profile(identity)
-            if not cart_profile:
+            # The saved, phone-owned row may omit email, but the browser-led
+            # WhatsApp rail still requires a human name. A phone-only OTP
+            # bootstrap is an identity, not a payable customer profile.
+            row = cart_profile or {}
+            full_name = str(
+                row.get("name") or
+                f'{row.get("firstName") or ""} {row.get("lastName") or ""}'
+            ).strip()
+            if not cart_profile or not full_name.strip():
                 return cors_response(409, {
                     "error": "PROFILE_REQUIRED",
-                    "message": "Verify and save your checkout details first.",
+                    "message": "Add your name to continue checkout.",
                 }, origin)
 
         # A contribution or request-service basket has no shipment. Requiring a delivery address

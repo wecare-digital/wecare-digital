@@ -1,5 +1,7 @@
 # Vault commerce, identity, messaging and UI audit — 30 October 2026
 
+> **Release update (30 October 2026, after the original snapshot):** AWS Amplify production #393 passed BUILD, DEPLOY and VERIFY; the three secure-file scheduling routes were present in live API Gateway, and the live AWS configuration showed successful code updates for checkout, service requests, scheduled messages, secure files and WhatsApp business API. This is infrastructure verification, not evidence of a completed customer payment, WhatsApp handset delivery or download. All such end-to-end checks remain subject to an explicitly authorized test identity and test file.
+
 ## Release status (verified against connected GitHub and AWS)
 
 - AWS Amplify **#390**: Build, Deploy, Verify succeeded on 30 October 2026 at 11:14:51 UTC. This is the **website/frontend** release, not a backend-Lambda release.

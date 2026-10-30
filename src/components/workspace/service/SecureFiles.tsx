@@ -344,9 +344,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const handleScheduleAction = async ( target: SecureFile ) => {
         const action = scheduledAction;
         if ( !action || sendingAction.current || schedulingBusy || acting || uploading ) return;
-        if ( target.status !== 'active' || ( action === 'access'
-            ? ![ 'OPEN', 'READY' ].includes( accessStateOf( target ) )
-            : ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+        const currentAccess = accessStateOf( target );
+        const eligible = action === 'access'
+            ? [ 'OPEN', 'READY' ].includes( currentAccess )
+            : [ 'UNPAID', 'EXPIRED' ].includes( currentAccess );
+        if ( target.status !== 'active' || !eligible ) {
             toast.error( 'File status changed. Refresh before scheduling.' );
             return;
         }
