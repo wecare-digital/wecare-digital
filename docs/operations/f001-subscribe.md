@@ -43,28 +43,33 @@ F001 is PUBLISHED, mints a 24-hour one-use F001 session, and sends an approved U
 template containing a Flow button. The website shows a brief lime toast only when Meta
 accepts that send; it does **not** claim that the customer saved their profile.
 
-The legacy `service_details` template uses a `NAVIGATE` Flow button. Opening it does not
-trigger INIT and its send-time `flow_action_data` failed to populate saved optional fields
-on an observed handset, despite their presence in ContactsTable. Do not assume this path
-has provided reliable prefill.
+The existing `service_details` template (Utility, English, image header,
+"View Details" button) was originally approved with a `NAVIGATE` action. The
+`flow_action_data` sent alongside that action has not reliably populated optional
+fields on the handset, even though the customer record contains them. On 2026-10-30
+the owner requested **editing this existing template in place**, not switching to a
+new template. In-place edits require an explicit Meta confirmation and are
+re-submitted for review; the category may change after review.
 
-Replacement `wecare_profile_update_f001` was submitted to Meta for review on 2026-10-30.
-Its Flow button uses `DATA_EXCHANGE`, not `NAVIGATE`. On tap, Meta sends INIT to
-`/wa-business/flow-data`; `flows/subscribe_profile.py` validates the issued session,
-looks up the latest canonical contact row, and returns all PROFILE and ADDRESS data keys,
-including optional username, company, job title, second address line and locality. The form
-already declares `init-values` for these fields. The template message carries only the
-Flow token; no contact fields travel in the outbound template.
+**Meta-only button change:** retain the original template ID and name, image,
+body text, footer, and button label/Flow ID. Change only the FLOW button
+from `NAVIGATE` (screen `PROFILE`) to `DATA_EXCHANGE` (omit
+`navigate_screen`). On tap Meta must call `INIT` on
+`/wa-business/flow-data`; `flows/subscribe_profile.py` validates the session,
+reads the canonical contact and returns PROFILE and ADDRESS values, including
+optional username, organization, job title and address fields. The published Flow
+already has the required `init-values` bindings.
 
-**Activation gate:** keep `service_details` as the default while the replacement is not
-APPROVED. After Meta reports APPROVED, deploy `wecare-whatsapp-business-api` with
-`WA_PROFILE_UPDATE_TEMPLATE=wecare_profile_update_f001` (and persist the setting in the
-Lambda environment manifest). Publish a new version, move its `live` alias, and verify the
-exact `GET /wa-business/flow-data` health path and Meta template ID. Run a controlled handset
-QA: launch the profile icon, tap View Details, require `flow_funnel init_received` and
-`init_success`, verify saved optional fields render, then save/reopen. If activation fails,
-revert `WA_PROFILE_UPDATE_TEMPLATE` to `service_details` until corrected; do not route a
-pending template to production.
+**Activation gate:** inspect `service_details` again in Meta after approval:
+the template must be APPROVED and its FLOW button must use
+`DATA_EXCHANGE`. Review its category; a separate test template was reclassified
+as MARKETING despite using the same body text. Do not route or send a pending
+or rejected template. No Lambda template-name switch is needed. Verify a signed
+`flow_endpoint_signature`, a `flow_funnel init_received` and `init_success`,
+optional-value prefill, and a successful REVIEW save from a controlled handset.
+If it fails, inspect the Data Exchange logs before changing any customer data.
+The website's lime success toast confirms message acceptance, not completion of
+the customer's profile update.
 
 ## Launch controls
 
