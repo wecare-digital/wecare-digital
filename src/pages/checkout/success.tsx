@@ -20,6 +20,14 @@ export default function CheckoutSuccess (): React.ReactElement {
   const [ orderNumber, setOrderNumber ] = useState<string>( '' );
   const [ verified, setVerified ] = useState<boolean>( false );
   const [ checking, setChecking ] = useState<boolean>( true );
+  const [ vaultReturnFile, setVaultReturnFile ] = useState( '' );
+
+  useEffect( () => {
+    try {
+      const file = window.sessionStorage.getItem( 'wecare.vault.websiteCheckoutReturnFile' ) || '';
+      if ( /^[A-Za-z0-9_-]{1,120}$/.test( file ) ) setVaultReturnFile( file );
+    } catch { /* Return link is optional, never authorization. */ }
+  }, [] );
 
   useEffect( () => {
     let stopped = false;
@@ -98,7 +106,13 @@ export default function CheckoutSuccess (): React.ReactElement {
           ) }
 
           <div className="cs-actions">
-            <Link className="cs-auth-action cs-auth-primary" href={ destination }>
+            { verified && vaultReturnFile && (
+              <Link className="cs-auth-action cs-auth-primary"
+                href={ { pathname: '/vault/', query: { file: vaultReturnFile } } }>
+                Return to Vault · Download
+              </Link>
+            ) }
+            <Link className="cs-auth-action" href={ destination }>
               { verified ? 'Order' : 'Orders' }
             </Link>
           </div>
