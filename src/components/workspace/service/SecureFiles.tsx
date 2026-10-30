@@ -21,6 +21,7 @@ import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
 import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type ServicePriceBreakdown } from '../../../lib/servicePricing';
 import { resolveWaMime, validateWaMediaSize, WA_ACCEPT_STRING } from '../../../lib/wa-media';
+import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -77,6 +78,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ vaultBreakdown, setVaultBreakdown ] = useState<ServicePriceBreakdown | null>( null );
     const [ vaultTemplates, setVaultTemplates ] = useState<ServicePaymentTemplates | null>( null );
     const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
+    const [ customers, setCustomers ] = useState<api.Contact[]>( [] );
+    const [ contactQuery, setContactQuery ] = useState( '' );
+    const [ selectedCustomerId, setSelectedCustomerId ] = useState( '' );
+    const [ mode, setMode ] = useState<'upload' | 'existing'>( 'upload' );
+    const [ journey, setJourney ] = useState<VaultRegistryJourney | null>( null );
+    const [ journeyError, setJourneyError ] = useState( '' );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
     const fetchInto = useCallback( async ( mobileFilter?: string ) => {
@@ -87,13 +94,16 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setTruncated( !!result.data.truncated );
             setStorage( result.data.storage || null );
             setLoadError( '' );
+            setLoading( false );
+            return result.data.files || [];
         } else
         {
             // Say why, rather than rendering an empty table that looks like "no files".
             setLoadError( result.failure.message || 'Could not load secure files' );
             setFiles( [] );
+            setLoading( false );
+            return null;
         }
-        setLoading( false );
     }, [] );
 
     /** Reload with the spinner, for buttons and post-upload refresh. */
@@ -101,6 +111,53 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setLoading( true );
         return fetchInto( mobileFilter );
     }, [ fetchInto ] );
+
+    useEffect( () => {
+        let active = true;
+        void api.listContacts().then( result => {
+            if ( active ) setCustomers( result );
+        } ).catch( () => {
+            // Manual customer entry stays available even if the CRM is unavailable.
+        } );
+        return () => { active = false; };
+    }, [] );
+
+    useEffect( () => {
+        let active = true;
+        void api.getSystemConfigResult( 'vault_whatsapp_template_journey_v1' ).then( result => {
+            if ( !active ) return;
+            if ( !result.ok ) {
+                setJourneyError( 'Saved journey registry unavailable; template preview is a reference.' );
+                return;
+            }
+            const parsed = parseVaultJourney( result.data.config );
+            setJourney( parsed );
+            setJourneyError( parsed ? '' : 'Saved journey mapping is missing or incomplete.' );
+        } ).catch( () => {
+            if ( active ) setJourneyError( 'Unable to read the saved Vault journey.' );
+        } );
+        return () => { active = false; };
+    }, [] );
+
+    const matchingCustomers = !selectedCustomerId && contactQuery.trim().length > 1
+        ? customers.filter( customer =>
+            ( customer.name || '' ).toLowerCase().includes( contactQuery.trim().toLowerCase() )
+            || ( customer.phone || '' ).includes( contactQuery.trim() )
+        ).slice( 0, 6 )
+        : [];
+
+    const chooseCustomer = ( contact: api.Contact ) => {
+        if ( !contact.phone ) return;
+        setName( contact.name || '' );
+        setMobile( contact.phone );
+        setContactQuery( contact.name || contact.phone );
+        setSelectedCustomerId( contact.id || contact.contactId );
+        setFilterMobile( contact.phone );
+        setFile( null );
+        setReviewFile( null );
+        setMode( 'existing' );
+        void load( contact.phone );
+    };
 
     useEffect( () => {
         let cancelled = false;
@@ -115,15 +172,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } );
         return () => { cancelled = true; };
     }, [] );
-
-    useEffect( () => {
-        if ( !reviewFile ) return;
-        const onKey = ( event: KeyboardEvent ) => {
-            if ( event.key === 'Escape' ) setReviewFile( null );
-        };
-        window.addEventListener( 'keydown', onKey );
-        return () => window.removeEventListener( 'keydown', onKey );
-    }, [ reviewFile ] );
 
     useEffect( () => {
         // Settled from the promise callback rather than the effect body: `loading`
@@ -157,6 +205,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
     const handleSendOffer = async ( target: SecureFile ) => {
         if ( acting ) return;
+        // Meta's approved offer says ₹49. Block an offer when live pricing disagrees.
+        if ( vaultPricePaise !== 4900 || !vaultBreakdown ) {
+            toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
+            return;
+        }
         setActing( target.fileId );
         try
         {
@@ -282,13 +335,25 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
             if ( sendOfferAfterUpload )
             {
-                setStep( 'Sending Vault-ready message with Unlock Vault…' );
-                reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
+                if ( vaultPricePaise === 4900 && vaultBreakdown )
+                {
+                    setStep( 'Sending Vault-ready message with Unlock Vault…' );
+                    reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
+                } else
+                {
+                    toast.warning( 'Published privately, but the approved ₹49 offer could not be matched to live pricing. No WhatsApp offer was sent.' );
+                }
             }
 
             resetForm();
-            await load( customerPhone );
+            setName( customerName );
+            setMobile( customerPhone );
+            setContactQuery( customerName );
+            const refreshed = await load( customerPhone );
             setFilterMobile( customerPhone );
+            const publishedFile = ( refreshed || [] ).find( item => item.fileId === published.data.fileId ) || null;
+            setReviewFile( publishedFile );
+            setMode( publishedFile ? 'existing' : 'upload' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
