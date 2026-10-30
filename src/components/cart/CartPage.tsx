@@ -92,7 +92,6 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
-import PillButton from '../PillButton';
 import CheckoutProfile from '../CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
@@ -1696,11 +1695,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           {isEmpty && (
             <div className="cart-empty">
               <p className="cart-body">Your cart is empty.</p>
-              {/* ABOVE the "Browse the shop" link, because it explains why the cart the customer
-                  was sent a link to is not here - which has to be read before the suggestion to
-                  go and shop instead makes any sense. */}
               { basketClaimLine }
-              <p className="cart-back"><Link href="/shop/">Browse the shop</Link></p>
             </div>
           )}
 
@@ -1710,11 +1705,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
                     <div className="cart-row-main">
-                      <p className="cart-name">
-                        { item.slug
-                          ? <Link href={ `/shop/${item.slug}/` }>{ item.name }</Link>
-                          : item.name }
-                      </p>
+                      <p className="cart-name">{ item.name }</p>
                       {/* DISPLAY ONLY. This catalogue passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
                       { needsVariantSelection( item ) && (
@@ -1881,58 +1872,28 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   rebuilds the server cart from it. */}
               { cartResetOffered && !railTerminal && (
                 <p className="cart-back">
-                  <button className="cart-remove" type="button" disabled={ busy }
+                  <button className="cart-auth-action" type="button" disabled={ busy }
                           onClick={ startNewCart }>
-                    Start a new cart
+                    New cart
                   </button>
                 </p>
               ) }
 
-              {/* THE SAME TWO-SEGMENT PILL as the sign-in CTA (PillButton), because this button is
-                  the customer login gate: an anonymous shopper who clicks it is sent to
-                  /auth. Never a "pay now" claim. The visible pill reads
-                  "Checkout | Proceed" and its accessible name is now that same visible text,
-                  "Checkout Proceed".
-
-                  IT USED TO PASS ariaLabel="Proceed to checkout", which read better but was a
-                  WCAG 2.5.3 Label in Name failure: the name did not contain the visible text, so
-                  a speech-input user saying "click Checkout" or "click Proceed" hit nothing. The
-                  prop no longer exists - see PillButton's docblock. Visible text is unchanged;
-                  only the accessible name moved. Real type="button" running proceed(), disabled
-                  while busy. */}
-              <div className="cart-pill">
+              <div className="cart-actions">
                 { railTerminal
-                  /* A way off a finished page. A LINK, never a button, with words that cannot
-                     read as "pay again". */
-                  ? <p className="cart-back"><Link href="/orders/">Check your orders</Link></p>
-                  : <PillButton
-                      as="button"
+                  ? <Link className="cart-auth-action cart-auth-primary" href="/orders/">Orders</Link>
+                  : <button
+                      className="cart-auth-action cart-auth-primary"
                       type="button"
-                      label={ profile && !paymentBlocked ? 'Secure checkout' : 'Checkout' }
-                      action={ busy
+                      onClick={ () => { void proceed(); } }
+                      disabled={ busy || railTerminal }
+                      aria-busy={ busy ? 'true' : undefined }
+                    >
+                      { busy
                         ? 'Preparing…'
                         : ( profile ? ( paymentBlocked ? 'Try again' : 'Pay securely' ) : 'Proceed' ) }
-                      onClick={ () => { void proceed(); } }
-                      /* `railTerminal` is kept here even though the branch above makes it
-                         unreachable: belt-and-braces ACROSS THE RENDER BOUNDARY. The two
-                         mechanisms fail independently, and if a later edit reinstates the button
-                         on the latched branch -- the obvious way to "improve" this -- the
-                         disabled term is what keeps it dead. `busy` is left alone: the spinner
-                         means "a request is in flight", and a latched page is not busy, it is
-                         finished. */
-                      /* NO BASKET TERM HERE ANY MORE. `mixedBasket` used to be the third term and
-                         is gone: a mix is payable, so the only things that dim this control are a
-                         request in flight and a finished rail. */
-                      disabled={ busy || railTerminal }
-                      busy={ busy }
-                    /> }
+                    </button> }
               </div>
-
-              <nav className="cart-utility" aria-label="Cart shortcuts">
-                <Link href={ SIGN_IN_PATH }>Sign in</Link>
-                <Link href="/orders/">Your orders</Link>
-                <Link href="/shop/">Keep shopping</Link>
-              </nav>
             </>
           )}
 
@@ -1946,7 +1907,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
-          .cart-in{width:100%;max-width:980px;margin:0}
+          .cart-in{width:min(100%,980px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
@@ -1958,9 +1919,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              neutral card around the basket, matching the Orders table container: white fill,
              1px static hairline, 16px radius, no decorative shadow. */
           .cart-list{
-            list-style:none;margin:0;padding:0 20px;
-            border:1px solid var(--public-hairline);border-radius:16px;background:#fff;
-            overflow:hidden;
+            list-style:none;margin:0;padding:0;
+            border:0;border-block-start:1px solid var(--public-hairline);border-radius:0;background:transparent;
+            overflow:visible;
           }
           /* Rows stay structurally identical; only the visual grouping changes. */
           .cart-row{
@@ -1973,12 +1934,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
              It was 20px/600, a rung that exists nowhere else. */
           .cart-name{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 8px}
-          /* EVERY LINK RULE GOES THROUGH :global(). styled-jsx adds its scoping class only to
-             lowercase DOM tags it can see in this file, never to a capitalised component, so the
-             compiled rule for a next/link child would match nothing. */
-          .cart-name :global(a){color:var(--public-heading);text-decoration:none;text-underline-offset:3px}
-          .cart-name :global(a:hover){color:var(--public-brand-green)}
-          .cart-name :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           /* Price in dark green, never lime: lime means actionable and the page's one lime surface
              is the button below. #1a3a2a on white is about 11:1. Tabular figures so a column of
              prices lines up on the decimal. */
@@ -2042,10 +1997,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent 16px/faded aside copying
              the old .shopd-note. 1px static, per the rule: 1px static, 2px hoverable. */
           .cart-note{
-            margin:28px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;
+            margin:28px 0 0;padding:0;border:0;background:transparent;
             font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:rgba(0,0,0,.898);
+            color:var(--public-muted);
           }
 
           /* NO RED, ON OWNER INSTRUCTION, AND THE PALETTE HAS A BETTER ANSWER ANYWAY.
@@ -2068,37 +2022,33 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           }
           .cart-status-firm{border-inline-start-width:4px;font-weight:700}
 
-          /* THE CHECKOUT/LOGIN CTA IS NOW PillButton, the home-page two-segment pill, so this page
-             no longer carries a .cart-cta rule: the component owns the pill's shape, colours, focus
-             ring, hover lift and reduced-motion handling. It replaced the single lime surface on
-             owner instruction, to make the login gate the dark-green + mint pill. There is 28px of
-             space above it, applied by the pill's own container margin via .cart-pill below. */
-          .cart-pill{margin-top:28px}
-          /* 44px, so the way back off this page is a real target too. */
+          .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
-          .cart-back :global(a){
-            display:inline-flex;align-items:center;min-height:44px;
-            color:var(--public-brand-green);font-weight:700;text-underline-offset:3px;
+          .cart-auth-action{
+            min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
+            background:var(--public-lime-tint);color:var(--public-brand-green);
+            font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+            text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+            touch-action:manipulation;cursor:pointer;
+            transition:background-color .18s,transform .18s,box-shadow .18s;
+            display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
           }
-          .cart-back :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
-          .cart-utility{
-            display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap;
-            margin:20px 0 0;padding:16px 0 0;border-block-start:1px solid #e5e7eb;
-          }
-          .cart-utility :global(a){
-            display:inline-flex;align-items:center;min-height:44px;
-            color:var(--public-brand-green);font-size:16px;font-weight:700;text-underline-offset:3px;
-          }
-          .cart-utility :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
+          .cart-auth-primary{font-weight:700}
+          .cart-auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
+          .cart-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .cart-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
           @media(max-width:767px){
-            .cart-list{padding-inline:16px;border-radius:14px}
+            .cart-in{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
             .cart-row{gap:16px;padding-block:18px}
             .cart-row-main{flex:1 1 100%}
             .cart-row-controls{width:100%;justify-content:space-between}
-            .cart-utility{display:grid;grid-template-columns:1fr}
-            .cart-utility :global(a){width:100%}
+            .cart-actions{display:grid;grid-template-columns:1fr;width:100%}
+            .cart-auth-action{width:100%}
           }
-          /* The CTA's reduced-motion handling moved into PillButton with the button itself. */
+          @media(prefers-reduced-motion:reduce){
+            .cart-auth-action{transition:none}
+            .cart-auth-action:hover{transform:none;box-shadow:none}
+          }
         `}</style>
       </RotatingHero>
     </>
