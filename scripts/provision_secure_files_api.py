@@ -152,6 +152,20 @@ def policy_document() -> dict:
                 "Resource": f"arn:aws:s3:::{BUCKET}/{SECURE_PREFIX}*",
             },
             {
+                "Sid": "SecureBucketExistenceProbe",
+                "Effect": "Allow",
+                # HeadObject returns 403 rather than 404 for an absent key when the
+                # caller cannot ListBucket. Logs need to distinguish Missing from
+                # Unknown, so allow only existence checks under the secure/ prefix.
+                "Action": ["s3:ListBucket"],
+                "Resource": f"arn:aws:s3:::{BUCKET}",
+                "Condition": {
+                    "StringLike": {
+                        "s3:prefix": [f"{SECURE_PREFIX}*"],
+                    },
+                },
+            },
+            {
                 "Sid": "ReadWhatsAppIncomingToPromote",
                 "Effect": "Allow",
                 # READ ONLY, and one prefix. No PutObject here (a Drop Docs document is

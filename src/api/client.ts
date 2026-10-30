@@ -7655,16 +7655,17 @@ export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
   const qs = new URLSearchParams();
   if ( mobile ) qs.set( 'mobile', mobile );
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return apiCallResult( `${API_BASE}/secure-files${suffix}` );
+  return apiCallResult( `${API_BASE}/secure-files${suffix}`, { cache: 'no-store' } );
 }
 
-/** Historical Vault audit rows. The backend verifies S3 object presence but never exposes keys. */
+/** Historical Vault audit rows. The backend verifies S3 object presence but never exposes keys.
+ * Always bypass browser caches: staff use this view to verify deletes/revokes in real time. */
 export async function listSecureFileLogs ( mobile?: string ): Promise<ApiResult<{
   logs: SecureFileLog[]; count: number; truncated?: boolean; storage?: SecureFileStorage;
 }>> {
   const qs = new URLSearchParams( { view: 'logs' } );
   if ( mobile ) qs.set( 'mobile', mobile );
-  return apiCallResult( `${API_BASE}/secure-files?${qs.toString()}` );
+  return apiCallResult( `${API_BASE}/secure-files?${qs.toString()}`, { cache: 'no-store' } );
 }
 
 /** Revoke rather than delete, so the record of who was charged survives. */
