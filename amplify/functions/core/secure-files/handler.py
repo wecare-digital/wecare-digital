@@ -545,6 +545,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["lastAccessSentBy"] = item.get("lastAccessSentBy")
         out["lastAccessSentAt"] = item.get("lastAccessSentAt")
         out["lastAccessSendOutcome"] = item.get("lastAccessSendOutcome")
+        out["lastAccessMessageId"] = item.get("lastAccessMessageId")
     return _decimal_safe(out)
 
 
@@ -1383,6 +1384,62 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "deliveryPrefix": DELIVER_PREFIX,
         },
     }, origin)
+
+
+def _message_status_for_verified_send(wamid: str) -> Dict[str, Any]:
+    """Read webhook-updated delivery evidence for an exact, server-recorded provider ID.
+
+    The MessagesTable whatsappMessageId-index is a point lookup (never a scan).
+    One file's staff audit WAMID is the only lookup input; no arbitrary phone or
+    provider ID supplied by the caller is accepted. Unknown != delivered.
+    """
+    if not isinstance(wamid, str) or not wamid.startswith("wamid.") or len(wamid) > 512:
+        return {"status": "NOT_TRACKED", "observedAt": None}
+    try:
+        rows = _table(os.environ.get(
+            "MESSAGES_TABLE", "stack-wecare-digital-MessagesTable")).query(
+            IndexName="whatsappMessageId-index",
+            KeyConditionExpression="whatsappMessageId = :wamid",
+            ExpressionAttributeValues={":wamid": wamid},
+            Limit=3,
+        ).get("Items") or []
+    except ClientError as exc:
+        logger.warning(json.dumps({"event": "vault_message_status_read_failed",
+                                   "error": exc.response.get("Error", {}).get("Code", "AWS_ERROR")}))
+        return {"status": "UNAVAILABLE", "observedAt": None}
+    acceptable = {"accepted", "sent", "delivered", "read", "failed", "unknown", "pending"}
+    outbound = [row for row in rows
+                if str(row.get("whatsappMessageId") or "") == wamid
+                and str(row.get("direction") or "").lower() == "outbound"]
+    if not outbound:
+        return {"status": "NOT_TRACKED", "observedAt": None}
+    row = max(outbound, key=lambda item: int(item.get("statusUpdatedAt") or item.get("timestamp") or 0))
+    status = str(row.get("status") or "").lower()
+    return {
+        "status": status.upper() if status in acceptable else "UNKNOWN",
+        "observedAt": int(row.get("statusUpdatedAt") or row.get("timestamp") or 0) or None,
+    }
+
+
+def _admin_message_log(file_id: str, origin: str) -> Dict[str, Any]:
+    """Staff-only status view for provider IDs belonging to one bound Vault file.
+
+    Does NOT expose customer phone, file keys, raw WAMIDs, payment details or
+    invite any resend. Stages 2-4 may have their own order/invoice log rows but
+    are never guessed from the file's paid marker.
+    """
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
+                             {"error": refusal}, origin)
+    offer = _message_status_for_verified_send(str(item.get("lastOfferMessageId") or ""))
+    access = _message_status_for_verified_send(str(item.get("lastAccessMessageId") or ""))
+    return _no_store(cors_response(200, {
+        "fileId": file_id,
+        "evidence": {"offer": offer, "access": access},
+        "scope": "file_bound_staff_sends_only",
+        "otherStages": "ORDER_INVOICE_EVIDENCE_NOT_LINKED",
+    }, origin))
 
 
 def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -2826,6 +2883,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _admin_revoke(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "send-offer" and method == "POST":
             return _admin_send_vault_offer(tail[0], event, origin)
+        if len(tail) == 2 and tail[1] == "message-log" and method == "GET":
+            return _admin_message_log(tail[0], origin)
         if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
             return _admin_request_payment(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "send-access" and method == "POST":
