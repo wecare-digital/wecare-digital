@@ -22,5 +22,9 @@
 .note{font-size:11px;line-height:1.5;color:#63766a;margin:5px 0}
 .delivery{font-size:10px;line-height:1.5;color:#6b8071;margin:4px 0 0}
 .template{font-size:10px;color:#5c725f;overflow-wrap:anywhere;display:block;margin-top:6px}
+.refreshGroup{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.refresh{cursor:pointer;color:#25633c;background:#f3f8ef;border:1px solid #d6e5d0;border-radius:7px;padding:5px 8px;font-size:10px;font-weight:800}
+.refresh:disabled{opacity:.55;cursor:wait}
+.refresh:focus-visible{outline:2px solid #23623e;outline-offset:2px}
 .disclaimer{color:#6b706b;font-size:10px;line-height:1.55;margin:10px 0 0;padding-top:10px;border-top:1px solid #e9eee7}
 @media(max-width:600px){.ledger{padding:12px}.head{align-items:flex-start}.gap{white-space:normal}}
