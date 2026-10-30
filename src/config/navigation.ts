@@ -69,22 +69,18 @@ export interface SettingsGroup {
 // THE SIDEBAR — daily streams only
 // ---------------------------------------------------------------------------
 /**
- * FLAT SIDEBAR (workspace redesign). Eight single-level streams, in the order the
- * redesign spec fixes: Messages, Contacts, Commerce, Payments, Service, Links, Tasks,
- * SEO. The sidebar renders ONLY the top level — there is no expand/collapse tree any
- * more — so `Layout.tsx` reads `item.path`, `item.label` and `item.icon` and nothing
- * else from each row.
+ * FLAT SIDEBAR (workspace redesign). The sidebar renders only top-level operating areas;
+ * there is no expand/collapse tree. `Layout.tsx` reads `item.path`, `item.label` and
+ * `item.icon` from each row.
  *
  * WHY `children` STILL EXISTS ON SOME ROWS
  * ----------------------------------------
- * The children are NOT a sidebar tree. They are the deep-link / command-palette index:
- * `getAllNavItems()` walks them so every destination that used to be a sidebar row (and
- * has no other home) stays findable by name in Ctrl+K and keeps resolving to a real
- * page. The dense sections (Service, SEO, Commerce) collapse into one page with in-page
- * tabs, and these child entries are how the palette reaches each tab's canonical path.
- * `isNavItemActive` matches on the row's own base path, so a child never renders a
- * second visible level. BottomNav takes the first four rows (Messages, Contacts,
- * Commerce, Payments) — all thumb-reachable daily streams.
+ * Children are a deep-link / command-palette index, not a second sidebar level.
+ * `getAllNavItems()` walks them so canonical sub-modes stay findable by name in Ctrl+K.
+ * Commerce and other multi-mode workspaces may therefore keep children even though the
+ * sidebar itself stays flat. Vault is intentionally different in milestone 1: it is the
+ * only visible Service capability and has no children until Flow-backed service items are
+ * deliberately added back. `isNavItemActive` matches on the row's own base path.
  */
 export const navigationConfig: NavItem[] = [
   {
