@@ -876,7 +876,7 @@ const SupportWidget: React.FC = () => {
            styled-jsx template literal, and a backtick closes it - which turns the rest of
            the stylesheet into JSX and fails the build with an unrelated-looking
            "Unexpected token" several hundred lines further down. */
-        .wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:inherit}
+        .wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:var(--font-sans)}
         :global([dir='rtl']) .wc-langbar{right:auto;left:max(var(--wc-inset),env(safe-area-inset-left))}
 
         /* THE PILL. One container, two actions, reading as a single object rather than the
@@ -884,7 +884,7 @@ const SupportWidget: React.FC = () => {
            it 52px tall.
            position:relative so the progress sweep below can pin to its bottom edge, and
            overflow:hidden so that sweep is clipped to the pill's rounded shape. */
-        .wc-pill{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:2px;padding:4px;background:#fff;border:1.5px solid #d1f470;border-radius:9999px;box-shadow:0 6px 22px rgba(16,32,24,.14)}
+        .wc-pill{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:2px;padding:4px;background:var(--public-bg);border:1.5px solid var(--public-brand-lime);border-radius:9999px;box-shadow:0 6px 22px rgba(16,32,24,.14)}
         /* Full-strength lime with #1a3a2a type: the palette's own-surface pairing, correct
            here because contacting us is the primary action. Deliberately NOT WhatsApp
            green - that is their brand, not ours, and it was the one off-palette colour on
@@ -911,7 +911,7 @@ const SupportWidget: React.FC = () => {
            state looks like the rest of the system rather than like a new treatment. */
         .wc-wa:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
         .wc-wa svg{width:23px;height:23px;display:block}
-        .wc-sep{width:1px;height:24px;background:#eef0e6;flex:0 0 auto}
+        .wc-sep{width:1px;height:24px;background:var(--public-brand-lime);flex:0 0 auto}
 
         /* THE CHIP IS A BUTTON THAT OPENS THE SEARCH PANEL.
            It was a transparent <select> stretched over the chip, which bought keyboard
@@ -963,9 +963,9 @@ const SupportWidget: React.FC = () => {
            the DOM. Both halves matter: the pill sits at the bottom of the screen so the panel
            has nowhere to go but up, and DOM order is what decides tab order and the order a
            screen reader reads - the trigger should come before the thing it opens. */
-        .wc-panel{order:-1;display:flex;flex-direction:column;width:232px;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
+        .wc-panel{order:-1;display:flex;flex-direction:column;width:232px;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
 
-        .wc-search{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #f1f3ec;background:#fff;transition:border-color .2s}
+        .wc-search{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
@@ -1024,10 +1024,10 @@ const SupportWidget: React.FC = () => {
         .wc-row.is-on{background:#d1f470}
         .wc-row:focus-visible{outline:3px solid #1a3a2a;outline-offset:-3px}
         .wc-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .wc-row-code{flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,.34)}
-        .wc-row.is-on .wc-row-code{color:rgba(26,58,42,.55)}
+        .wc-row-code{flex:0 0 auto;font-size:var(--public-meta-size);font-weight:700;letter-spacing:.03em;color:var(--public-brand-green);opacity:.8}
+        .wc-row.is-on .wc-row-code{color:var(--public-brand-green);opacity:1}
 
-        .wc-empty,.wc-more{margin:0;padding:11px 14px;font-size:14px;font-weight:500;color:rgba(0,0,0,.45);background:#fcfdfa}
+        .wc-empty,.wc-more{margin:0;padding:11px 14px;font-size:var(--public-supporting-size);font-weight:600;color:var(--public-brand-green);background:var(--public-lime-tint)}
         .wc-more{border-top:1px solid #f1f3ec}
 
         /* ===== TRANSLATING =====
