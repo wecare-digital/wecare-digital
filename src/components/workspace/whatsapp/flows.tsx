@@ -1,240 +1,123 @@
 /**
- * WhatsApp Flows Management
- * Create, manage, publish, and deprecate WhatsApp Flows
- * Ref: https://developers.facebook.com/docs/whatsapp/flows/reference/flowsapi/
+ * Operational WhatsApp Flow inventory: seven retained customer Flow IDs only.
+ * Meta's deprecated provider designs are never offered as Workspace actions.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
-import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { WHATSAPP_PHONES } from '../../../config/constants';
-import Select, { type SelectOption } from '../../../components/ui/Select';
 import { publishedFlowById } from '../../../lib/canonicalFlows';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const WABAS = [
-  { id: WHATSAPP_PHONES.primary.wabaId, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
-  { id: WHATSAPP_PHONES.secondary.wabaId, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
-];
-
-const CATEGORIES = ['SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION', 'CONTACT_US', 'CUSTOMER_SUPPORT', 'SURVEY', 'OTHER'];
-
-const CATEGORY_OPTIONS: SelectOption[] = CATEGORIES.map(c => ({ value: c, label: c.replace(/_/g, ' ') }));
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'var(--accent)', PUBLISHED: 'var(--accent)', DEPRECATED: '#9ca3af', BLOCKED: 'var(--accent)', THROTTLED: 'var(--accent)',
-};
+const statusColor = (status: string): string =>
+  status === 'PUBLISHED' ? 'var(--accent)' : status === 'THROTTLED' ? '#92400e' : '#991b1b';
 
 const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => {
   const toast = useToastContext();
-  const confirm = useConfirm();
-  const [selectedWaba, setSelectedWaba] = useState(WABAS[0]);
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newCategory, setNewCategory] = useState('OTHER');
-  const [creating, setCreating] = useState(false);
-  const [selectedFlow, setSelectedFlow] = useState<any>(null);
-  const [flowDetail, setFlowDetail] = useState<any>(null);
-  const [actionLoading, setActionLoading] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showAllMetaFlows, setShowAllMetaFlows] = useState(false);
+  const [flowDetail, setFlowDetail] = useState<any>(null);
 
-  // The operational list is the seven retained, published flows on the primary account.
-  // Meta still retains older DRAFT/DEPRECATED design IDs. Do not delete them or present
-  // them as customer entry points; keep them inspectable in an explicit admin view.
-  const retainedFlows = flows.filter(flow => selectedWaba.id === WABAS[0].id
-    && ['PUBLISHED', 'THROTTLED'].includes(String(flow.status || '').toUpperCase())
-    && !!publishedFlowById(String(flow.id || '')));
-  const visibleFlows = showAllMetaFlows ? flows : retainedFlows;
-  const hiddenFlowCount = flows.length - retainedFlows.length;
-
-  const loadFlows = async (waba: typeof WABAS[0]) => {
+  const loadFlows = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await api.listFlows(waba.id);
-      setFlows(data);
+      const result = await api.listFlows(WHATSAPP_PHONES.primary.wabaId);
+      setFlows(result);
     } catch (e: any) {
-      const msg = e?.message || 'Failed to load flows';
-      setLoadError(msg);
-      toast.error(msg);
+      const message = e?.message || 'Failed to load Meta Flows';
+      setLoadError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  useEffect(() => { loadFlows(selectedWaba); }, [selectedWaba]);
+  useEffect(() => { void loadFlows(); }, []);
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
-    setCreating(true);
+  const syncMeta = async () => {
+    setSyncing(true);
     try {
-      const result = await api.createFlow(selectedWaba.id, newName.trim(), [newCategory]);
-      if (result) { toast.success('Flow created'); setShowCreate(false); setNewName(''); loadFlows(selectedWaba); }
-      else toast.error('Create failed');
-    } catch (e) { toast.error('Create failed'); }
-    setCreating(false);
-  };
-
-  const handlePublish = async (flowId: string) => {
-    setActionLoading(flowId);
-    const ok = await api.publishFlow(flowId);
-    if (ok) { toast.success('Flow published'); loadFlows(selectedWaba); }
-    else toast.error('Publish failed');
-    setActionLoading('');
-  };
-
-  const handleDeprecate = async (flowId: string) => {
-    setActionLoading(flowId);
-    const ok = await api.deprecateFlow(flowId);
-    if (ok) { toast.success('Flow deprecated'); loadFlows(selectedWaba); }
-    else toast.error('Deprecate failed');
-    setActionLoading('');
-  };
-
-  const handleDelete = async (flowId: string) => {
-    if (!(await confirm('Delete this flow?'))) return;
-    setActionLoading(flowId);
-    const ok = await api.deleteFlow(flowId);
-    if (ok) { toast.success('Flow deleted'); loadFlows(selectedWaba); }
-    else toast.error('Delete failed — only DRAFT flows can be deleted');
-    setActionLoading('');
+      const result = await api.syncFlows(WHATSAPP_PHONES.primary.wabaId);
+      if (!result?.success) throw new Error(typeof result?.error === 'string' ? result.error : 'Meta sync was rejected');
+      toast.success(`Synced ${result.synced ?? 0} Flow records from Meta`);
+      await loadFlows();
+    } catch (e: any) {
+      toast.error(e?.message || 'Meta synchronization failed');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const viewDetails = async (flow: any) => {
-    setSelectedFlow(flow);
-    const detail = await api.getFlow(flow.id);
-    setFlowDetail(detail);
+    try {
+      const detail = await api.getFlow(flow.id);
+      setFlowDetail(detail);
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not load Flow details');
+    }
   };
+
+  // Display retained IDs even if Meta reports THROTTLED/BLOCKED: do not hide incidents.
+  const retainedFlows = flows.filter(flow => !!publishedFlowById(String(flow.id || '')));
 
   const content = (
     <>
-      <SEO title="WhatsApp Flows" description="Manage WhatsApp Flows" noindex />
+      <SEO title="WhatsApp Flows" description="Retained WhatsApp Flow status" noindex />
       <div className="inner-page-container" style={{ background: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>WhatsApp Flows</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" onClick={() => {
-              setShowAllMetaFlows(previous => !previous);
-              setShowCreate(false);
-              setSelectedFlow(null);
-              setFlowDetail(null);
-            }} style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 13, cursor: 'pointer', background: '#fff', fontSize: 'var(--text-sm)' }}>
-              {showAllMetaFlows ? 'Show retained live Flows' : `Show all Meta flows (${hiddenFlowCount} hidden)`}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 20 }}>Published customer Flows</h2>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => void loadFlows()} disabled={loading}
+              style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
+              {loading ? 'Refreshing...' : 'Refresh Meta'}
             </button>
-            {showAllMetaFlows && <button type="button" onClick={() => setShowCreate(true)}
-              style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: '1.5px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-              + Create Flow
-            </button>}
+            <button type="button" onClick={() => void syncMeta()} disabled={syncing || loading}
+              style={{ padding: '8px 12px', border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--lime)', color: 'var(--accent)', cursor: 'pointer' }}>
+              {syncing ? 'Syncing...' : 'Sync live Meta status'}
+            </button>
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {WABAS.map(w => (
-            <button key={w.id} onClick={() => { setSelectedWaba(w); setSelectedFlow(null); }}
-              style={{ padding: '8px 16px', borderRadius: 6, border: selectedWaba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedWaba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-              {w.name} ({w.display})
-            </button>
-          ))}
-        </div>
-
-        <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-          {showAllMetaFlows
-            ? `Meta inventory: ${flows.length} records. Draft and retired Flows are history, not customer launch targets.`
-            : `Live inventory: ${visibleFlows.length} retained published Flows. ${hiddenFlowCount} old, draft, retired or non-retained records hidden from this view.`}
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 16 }}>
+          {retainedFlows.length} of 7 retained Flows found on the primary Messaging Account. Legacy Meta designs are not available from Workspace.
         </p>
-
-        {/* Creating additional Flow IDs is kept in the explicit full Meta inventory view. */}
-        {showAllMetaFlows && showCreate && (
-          <div style={{ background: 'var(--bg-secondary)', padding: 20, borderRadius: 8, marginBottom: 20, border: '1px solid var(--border)' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 'var(--text-base)' }}>Create New Flow</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Flow name"
-                style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' }} />
-              <Select ariaLabel="Flow category" value={newCategory} onChange={v => setNewCategory(v)}
-                options={CATEGORY_OPTIONS} />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleCreate} disabled={creating} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-              <button onClick={() => setShowCreate(false)} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {loading ? <p>Loading flows...</p> : loadError ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
-            <p style={{ fontSize: 'var(--text-base)', color: 'var(--accent)' }}>Failed to load flows</p>
-            <p style={{ fontSize: 'var(--text-sm)', marginTop: 8 }}>{loadError}</p>
-            <button onClick={() => loadFlows(selectedWaba)} style={{ marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-              Retry
-            </button>
-          </div>
-        ) : visibleFlows.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
-            <p style={{ fontSize: 'var(--text-base)' }}>{showAllMetaFlows ? 'No Meta flows found on this account' : 'No retained published Flows found on this account'}</p>
-            <p style={{ fontSize: 'var(--text-sm)' }}>{showAllMetaFlows ? 'No Flow records were returned by Meta.' : 'Use Show all Meta flows for diagnostics. Customer-facing launch status must match the current Meta state.'}</p>
-          </div>
+        {loading ? <p>Loading Flows...</p> : loadError ? (
+          <p style={{ color: '#991b1b' }}>{loadError}</p>
+        ) : retainedFlows.length === 0 ? (
+          <p>No retained Flows were returned by Meta. Check live provider status.</p>
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
-            {visibleFlows.map(flow => (
-              <div key={flow.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>{flow.name}</span>
-                    <span style={{ marginLeft: 10, padding: '2px 8px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: STATUS_COLORS[flow.status] || '#666' }}>
-                      {flow.status}
-                    </span>
-                    {flow.categories?.map((c: string) => (
-                      <span key={c} style={{ marginLeft: 6, padding: '2px 6px', borderRadius: 4, fontSize: 'var(--text-xs)', background: '#f3f4f6', color: '#374151' }}>{c.replace(/_/g, ' ')}</span>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => viewDetails(flow)} style={{ padding: '4px 10px', fontSize: 'var(--text-xs)', border: '1px solid #ddd', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>Details</button>
-                    {flow.status === 'DRAFT' && (
-                      <>
-                        <button onClick={() => handlePublish(flow.id)} disabled={actionLoading === flow.id} style={{ padding: '4px 10px', fontSize: 'var(--text-xs)', border: 'none', borderRadius: 4, background: 'var(--lime)', color: 'var(--accent)', cursor: 'pointer' }}>Publish</button>
-                        <button onClick={() => handleDelete(flow.id)} disabled={actionLoading === flow.id} style={{ padding: '4px 10px', fontSize: 'var(--text-xs)', border: 'none', borderRadius: 4, background: 'var(--lime)', color: 'var(--accent)', cursor: 'pointer' }}>Delete</button>
-                      </>
-                    )}
-                    {flow.status === 'PUBLISHED' && (
-                      <button onClick={() => handleDeprecate(flow.id)} disabled={actionLoading === flow.id} style={{ padding: '4px 10px', fontSize: 'var(--text-xs)', border: '1px solid var(--accent)', borderRadius: 4, background: '#fff', color: 'var(--accent)', cursor: 'pointer' }}>Deprecate</button>
-                    )}
-                  </div>
+            {retainedFlows.map(flow => (
+              <div key={flow.id} style={{ padding: 16, border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <strong>{flow.name}</strong>
+                  <span style={{ color: statusColor(String(flow.status || '')) }}>{flow.status}</span>
                 </div>
-                <div style={{ fontSize: 'var(--text-xs)', color: '#666', marginTop: 4 }}>ID: {flow.id}</div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>ID: {flow.id}</div>
+                <button type="button" onClick={() => void viewDetails(flow)}
+                  style={{ marginTop: 10, padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>
+                  Details
+                </button>
               </div>
             ))}
           </div>
         )}
-
-        {/* Flow Detail Panel */}
-        {selectedFlow && flowDetail && (
-          <div style={{ marginTop: 20, background: 'var(--bg-secondary)', padding: 20, borderRadius: 8, border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 'var(--text-base)' }}>Flow Details: {flowDetail.name}</h3>
-              <button onClick={() => { setSelectedFlow(null); setFlowDetail(null); }} style={{ padding: '4px 10px', fontSize: 'var(--text-xs)', border: '1px solid #ddd', borderRadius: 4, background: '#fff', cursor: 'pointer' }}>Close</button>
+        {flowDetail && (
+          <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <h3 style={{ margin: 0 }}>Flow Details: {flowDetail.name}</h3>
+              <button type="button" onClick={() => setFlowDetail(null)}>Close</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, fontSize: 'var(--text-sm)' }}>
-              <div><span style={{ color: '#666' }}>ID:</span> {flowDetail.id}</div>
-              <div><span style={{ color: '#666' }}>Status:</span> {flowDetail.status}</div>
-              <div><span style={{ color: '#666' }}>JSON Version:</span> {flowDetail.json_version || 'N/A'}</div>
-              <div><span style={{ color: '#666' }}>Data API Version:</span> {flowDetail.data_api_version || 'N/A'}</div>
-              <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#666' }}>Endpoint URI:</span> {flowDetail.endpoint_uri || 'Not set'}</div>
-            </div>
-            {flowDetail.validation_errors?.length > 0 && (
-              <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 'var(--text-sm)' }}>
-                <strong style={{ color: 'var(--accent)' }}>Validation Errors:</strong>
-                <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                  {flowDetail.validation_errors.map((e: any, i: number) => <li key={i}>{e.error || JSON.stringify(e)}</li>)}
-                </ul>
-              </div>
-            )}
+            <p>ID: {flowDetail.id} · Meta status: {flowDetail.status}</p>
+            <p>JSON version: {flowDetail.json_version || 'N/A'} · Data API: {flowDetail.data_api_version || 'N/A'}</p>
+            <p>Endpoint: {flowDetail.endpoint_uri || 'Not configured'}</p>
+            {flowDetail.validation_errors?.length > 0 &&
+              <p style={{ color: '#991b1b' }}>Validation errors: {JSON.stringify(flowDetail.validation_errors)}</p>}
           </div>
         )}
       </div>
@@ -242,12 +125,7 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
   );
 
   if (embedded) return content;
-
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      {content}
-    </Layout>
-  );
+  return <Layout user={user} onSignOut={signOut}>{content}</Layout>;
 };
 
 export default FlowsPage;
