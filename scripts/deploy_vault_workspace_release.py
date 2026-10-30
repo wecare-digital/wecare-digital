@@ -41,7 +41,14 @@ def load_packager():
 
 
 # Explicitly allowed for the additional message-spacing rollout only.
-ALLOWED_EXTRA_FUNCTIONS = ("wecare-razorpay-webhook",)
+# Exact additional Vault renewal/scheduling backend functions; never permit an
+# arbitrary Lambda name in the production release script.
+ALLOWED_EXTRA_FUNCTIONS = (
+    "wecare-razorpay-webhook",
+    "wecare-service-requests",
+    "wecare-checkout",
+    "wecare-scheduled-messages",
+)
 
 
 def run(*, dry_run: bool, targets: tuple[str, ...] = RELEASE_ORDER) -> None:
