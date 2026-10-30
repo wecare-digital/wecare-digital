@@ -18,7 +18,7 @@ def test_vault_workspace_has_single_customer_and_file_composer():
     assert "sf-workbench" in page
     assert "sf-document-mode" in page
     assert "VaultJourneyPreview" in page
-    assert "Save document to Vault" in page
+    assert "Save & publish to Vault" in page
     assert "Resend paid access (no charge)" in page
     assert "Review & send Unlock Vault" in page
     assert "sendOfferAfterUpload" not in page
