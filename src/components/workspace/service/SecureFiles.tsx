@@ -51,6 +51,13 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
+/** Meta's approved Vault offer provides one editable, one-line body {{1}} value. */
+function validOfferBodyText ( raw: string ): string | null {
+    const clean = raw.trim();
+    if ( !clean || clean.length > 60 || /[*_~\r\n\t]/u.test( clean ) || /\s{2,}/u.test( clean ) ) return null;
+    return clean;
+}
+
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
@@ -60,6 +67,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
     const [ file, setFile ] = useState<File | null>( null );
+    // This is WhatsApp wecare_vault_request_ready body {{1}}, NOT the S3 filename.
+    const [ offerBodyText, setOfferBodyText ] = useState( '' );
     const [ uploading, setUploading ] = useState( false );
     const [ step, setStep ] = useState( '' );
 
@@ -152,6 +161,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setSelectedCustomerId( contact.id || contact.contactId );
         setFilterMobile( contact.phone );
         setFile( null );
+        setOfferBodyText( '' );
         setReviewFile( null );
         setMode( 'existing' );
         void load( contact.phone );
@@ -200,8 +210,20 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         else toast.error( result.message );
     };
 
+    const prepareOffer = ( target: SecureFile ) => {
+        setMode( 'existing' );
+        setReviewFile( target );
+        setOfferBodyText( target.lastOfferBodyText || '' );
+        document.getElementById( 'sf-offer-body-text' )?.scrollIntoView( { behavior: 'smooth', block: 'center' } );
+    };
+
     const handleSendOffer = async ( target: SecureFile ) => {
         if ( acting ) return;
+        const variable = validOfferBodyText( offerBodyText );
+        if ( !variable ) {
+            toast.error( 'Enter one line of WhatsApp {{1}} text (1–60 characters; no formatting).' );
+            return;
+        }
         // Meta's approved offer says ₹49. Block an offer when live pricing disagrees.
         if ( vaultPricePaise !== 4900 || !vaultBreakdown ) {
             toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
@@ -210,7 +232,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setActing( target.fileId );
         try
         {
-            reportAction( await api.sendSecureFileOffer( target.fileId ) );
+            reportAction( await api.sendSecureFileOffer( target.fileId, variable ) );
             load( filterMobile || undefined );
         } finally
         {
@@ -271,6 +293,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         if ( !file ) { toast.error( 'Choose a document first' ); return; }
         if ( !customerName ) { toast.error( 'Customer name is required' ); return; }
         if ( !customerPhone ) { toast.error( 'Customer mobile number is required' ); return; }
+        const variable = validOfferBodyText( offerBodyText );
+        if ( sendOfferAfterUpload && !variable ) {
+            toast.error( 'Enter WhatsApp body {{1}} text before publishing and sending, or untick Send offer.' );
+            return;
+        }
 
         const contentType = resolveWaMime( file );
         const validation = validateWaMediaSize( file, contentType );
@@ -335,7 +362,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 if ( vaultPricePaise === 4900 && vaultBreakdown )
                 {
                     setStep( 'Sending Vault-ready message with Unlock Vault…' );
-                    reportAction( await api.sendSecureFileOffer( published.data.fileId ) );
+                    reportAction( await api.sendSecureFileOffer( published.data.fileId, variable! ) );
                 } else
                 {
                     toast.warning( 'Published privately, but the approved ₹49 offer could not be matched to live pricing. No WhatsApp offer was sent.' );
@@ -431,14 +458,35 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
                             <button type="button" className={ mode === 'upload' ? 'active' : '' }
                                 aria-pressed={ mode === 'upload' }
-                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); } }>
+                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); setOfferBodyText( '' ); } }>
                                 Upload new
                             </button>
                             <button type="button" className={ mode === 'existing' ? 'active' : '' }
                                 aria-pressed={ mode === 'existing' }
-                                onClick={ () => { setMode( 'existing' ); setFile( null ); } }>
+                                onClick={ () => { setMode( 'existing' ); setFile( null ); setOfferBodyText( '' ); } }>
                                 Existing Vault file
                             </button>
+                        </div>
+                        <div className="sf-field sf-field-wide sf-offer-variable">
+                            <label className="sf-label" htmlFor="sf-offer-body-text">
+                                WhatsApp Unlock Vault · body {'{{1}}'} <strong>(editable)</strong>
+                            </label>
+                            <textarea
+                                className="sf-input sf-offer-textarea"
+                                id="sf-offer-body-text"
+                                rows={ 2 }
+                                maxLength={ 60 }
+                                placeholder="e.g. Updated October compliance agreement"
+                                value={ offerBodyText }
+                                onChange={ e => setOfferBodyText( e.target.value ) }
+                                disabled={ uploading }
+                                aria-describedby="sf-offer-body-help"
+                            />
+                            <p className="sf-hint" id="sf-offer-body-help">
+                                Free text for the approved WhatsApp message only. The uploaded S3 file is
+                                separately named wecare-digital-&lt;uuid&gt;.&lt;ext&gt;.
+                                <span className="sf-offer-counter">{ offerBodyText.length } / 60</span>
+                            </p>
                         </div>
                         { mode === 'upload' ? (
                 <section className="sf-upload-area" aria-labelledby="sf-add">
@@ -486,7 +534,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 className="sf-input sf-input-file"
                                 type="file"
                                 accept={ WA_ACCEPT_STRING }
-                                onChange={ e => setFile( e.target.files?.[ 0 ] || null ) }
+                                onChange={ e => { setFile( e.target.files?.[ 0 ] || null ); setOfferBodyText( '' ); } }
                                 disabled={ uploading }
                             />
                             <p className="sf-hint">
@@ -549,7 +597,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                             <button type="button" key={ item.fileId }
                                                 className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
                                                 aria-pressed={ reviewFile?.fileId === item.fileId }
-                                                onClick={ () => setReviewFile( item ) }>
+                                                onClick={ () => { setReviewFile( item ); setOfferBodyText( item.lastOfferBodyText || '' ); } }>
                                                 <span><strong>{ item.displayName }</strong>
                                                     <small>{ item.ownerName || 'Customer' } · { formatBytes( item.sizeBytes ) }</small></span>
                                                 <span className="sf-choice-status">{ PURCHASE_LABELS[ accessStateOf( item ) ] }</span>
@@ -589,6 +637,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         customerPhone={ mobile }
                         draftFile={ file }
                         selectedFile={ reviewFile }
+                        offerBodyText={ offerBodyText }
                         pricePaise={ vaultPricePaise }
                         breakdown={ vaultBreakdown }
                         templates={ vaultTemplates }
@@ -707,15 +756,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
                                                             <button
                                                                 className="sf-act"
-                                                                onClick={ () => { void handleSendOffer( row ); } }
+                                                                onClick={ () => prepareOffer( row ) }
                                                                 disabled={ !!acting }
-                                                                aria-busy={ acting === row.fileId }
                                                             >
-                                                                { acting === row.fileId
-                                                                    ? 'Sending…'
-                                                                    : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? 'Send renewal Vault offer'
-                                                                        : 'Send Vault-ready offer' }
+                                                                { accessStateOf( row ) === 'EXPIRED'
+                                                                    ? 'Prepare renewal WhatsApp text'
+                                                                    : 'Prepare WhatsApp offer text' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
@@ -735,6 +781,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                                 setSelectedCustomerId( '' );
                                                                 setContactQuery( row.ownerName || '' );
                                                                 setReviewFile( row );
+                                                                setOfferBodyText( row.lastOfferBodyText || '' );
                                                                 document.getElementById( 'sf-journey-preview' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
                                                             } }
                                                         >
@@ -785,6 +832,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box}
 
                 .sf-workbench{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr);align-items:start;gap:18px;margin:0 0 24px}
+                .sf-offer-variable{margin-top:16px}
+                .sf-offer-textarea{box-sizing:border-box;display:block;width:100%;resize:vertical;min-height:64px}
+                .sf-offer-counter{float:right;font-weight:700;color:var(--text-muted)}
                 .sf-compose{min-width:0;background:#fff;border:1px solid var(--border);border-radius:16px;padding:20px}
                 .sf-workbench-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
                 .sf-workbench-heading h2{margin:0 0 6px;font-size:20px;letter-spacing:-.4px;color:var(--text)}
