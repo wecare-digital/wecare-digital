@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # customer-commerce authorization backend, and scripts/probe_url_host_matrix.py
 # owns its live contract. Requiring out/auth/index.html would make every valid
 # static production build fail.
-CUSTOMER_PAGES = ('/cart/', '/checkout/', '/orders/',
+CUSTOMER_PAGES = ('/cart/', '/checkout/', '/checkout/whatsapp/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
@@ -55,7 +55,7 @@ def check_html(path, html):
         if (parsed.hostname in (None, 'wecare.digital')
                 and (parsed.path.startswith('/workspace') or parsed.path.rstrip('/') == '/access')):
             failures.append(f'{path}: public staff link {href}')
-    if '/cart/' not in page.links:
+    if '/checkout/' not in page.links:
         failures.append(f'{path}: Shopping Bag destination missing')
     if not any(urlsplit(href).path == '/r/wa' for href in page.links):
         failures.append(f'{path}: default WhatsApp widget missing')
