@@ -1353,8 +1353,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                             const tip = waErrorTooltip( ( m as any ).errorCode, rawErr ) || 'Send failed';
                                                             return <span className="ui-st ui-st-failed" title={ tip }>failed ⓘ</span>;
                                                         } )() }
-                                                            </span>
-                                                        ) }
                                                     </span>
                                                 </div>
                                             </div>
