@@ -3438,7 +3438,10 @@ def _is_paid_vault_checkout(reference_id: str) -> bool:
         return False
 
 
-_VAULT_STATUS_GAP_SECONDS = 1
+# Vault only: separate processing, completed and the paid receipt. Provider
+# acceptance is not handset delivery; never block a statutory invoice on a
+# missing delivery webhook. The sequential state transition remains authoritative.
+_VAULT_STATUS_GAP_SECONDS = 2
 
 
 def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
