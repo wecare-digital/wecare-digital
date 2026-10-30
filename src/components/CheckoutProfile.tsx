@@ -7,7 +7,7 @@ import AddressFields, {
 
 const PROFILE_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/customer/profile`;
 
-export type CheckoutProfileMode = 'create' | 'address' | 'profile';
+export type CheckoutProfileMode = 'create' | 'address' | 'profile' | 'name' | 'email';
 
 export interface CheckoutProfileValue {
   contactId: string;
@@ -18,16 +18,24 @@ export interface CheckoutProfileValue {
   phone: string;
   addressComplete: boolean;
   address: StoredAddress | null;
+  /** Legacy response members kept for callers outside /cart/ while they migrate to F001. */
+  firstName: string;
+  lastName: string;
+  email: string;
+  emailVerified?: boolean;
 }
 
 interface Props {
   accessToken: string;
   mode?: CheckoutProfileMode;
   initial?: {
-    name: string;
-    username: string;
+    name?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
     companyName: string;
     designation: string;
+    email?: string;
     address: StoredAddress | null;
   };
   onReady: ( profile: CheckoutProfileValue ) => void;
@@ -41,10 +49,13 @@ interface Props {
 const CheckoutProfile: React.FC<Props> = ( {
   accessToken, mode = 'create', initial, onReady,
 } ) => {
-  const [ fullName, setFullName ] = useState( initial?.name || '' );
+  const [ fullName, setFullName ] = useState(
+    initial?.name || [ initial?.firstName, initial?.lastName ].filter( Boolean ).join( ' ' )
+  );
   const [ username, setUsername ] = useState( initial?.username || '' );
   const [ companyName, setCompanyName ] = useState( initial?.companyName || '' );
   const [ designation, setDesignation ] = useState( initial?.designation || '' );
+  const [ email, setEmail ] = useState( initial?.email || '' );
   const [ address, setAddress ] = useState<AddressDraft>(
     () => initial?.address ? draftFromStored( initial.address ) : { ...EMPTY_ADDRESS_DRAFT }
   );
@@ -52,10 +63,12 @@ const CheckoutProfile: React.FC<Props> = ( {
   const [ message, setMessage ] = useState( '' );
   const [ addressField, setAddressField ] = useState( '' );
 
-  const showProfile = mode === 'create' || mode === 'profile';
+  const showProfile = mode === 'create' || mode === 'profile' || mode === 'name';
   const showAddress = mode === 'create' || mode === 'address';
+  const showEmail = mode === 'email';
   const profileValid = !showProfile || fullName.trim().length > 0;
-  const canSave = profileValid && ( !showAddress || addressDraftValid( address ) );
+  const emailValid = !showEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( email.trim() );
+  const canSave = profileValid && emailValid && ( !showAddress || addressDraftValid( address ) );
 
   const saveProfile = async (): Promise<void> => {
     if ( !canSave || saving ) return;
@@ -70,6 +83,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         companyName: companyName.trim(),
         designation: designation.trim(),
       } : {} ),
+      ...( showEmail ? { email: email.trim() } : {} ),
       ...( showAddress ? { address: addressPayload( address ) } : {} ),
     };
 
@@ -109,6 +123,10 @@ const CheckoutProfile: React.FC<Props> = ( {
         address: reply.address && typeof reply.address === 'object'
           ? reply.address as StoredAddress
           : null,
+        firstName: String( reply.firstName || '' ),
+        lastName: String( reply.lastName || '' ),
+        email: String( reply.email || '' ),
+        emailVerified: reply.emailVerified === true,
       } );
       setMessage( 'Details saved.' );
     } catch {
@@ -126,9 +144,11 @@ const CheckoutProfile: React.FC<Props> = ( {
           <h2 id="checkout-profile-title">
             { mode === 'address'
               ? 'Update your delivery address'
-              : mode === 'profile'
-                ? 'Update your profile'
-                : 'Confirm your details' }
+              : mode === 'email'
+                ? 'Change your email'
+                : mode === 'profile' || mode === 'name'
+                  ? 'Update your profile'
+                  : 'Confirm your details' }
           </h2>
         </div>
         <span className="phone-verified">✓ WhatsApp verified</span>
@@ -178,6 +198,23 @@ const CheckoutProfile: React.FC<Props> = ( {
               autoComplete="organization-title"
               maxLength={ 200 }
               placeholder="Job title"
+            />
+          </label>
+        </div>
+      ) }
+
+      { showEmail && (
+        <div className="checkout-profile-grid">
+          <label className="span-2">
+            <span>Email</span>
+            <input
+              type="email"
+              value={ email }
+              onChange={ event => setEmail( event.target.value ) }
+              autoComplete="email"
+              maxLength={ 254 }
+              placeholder="you@example.com"
+              aria-required="true"
             />
           </label>
         </div>
