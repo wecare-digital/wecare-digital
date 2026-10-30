@@ -287,7 +287,7 @@ const fmtTime = ( ts: string | number ) => {
     return d.toLocaleDateString( 'en-IN', { day: '2-digit', month: 'short' } );
 };
 
-const UnifiedInbox: React.FC<PageProps> = ( { user, embedded, channel } ) => {
+const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const toast = useToastContext();
     const [ messages, setMessages ] = useState<api.Message[]>( [] );
     const [ contactNames, setContactNames ] = useState<Record<string, string>>( {} );
