@@ -33,7 +33,7 @@ const FALLBACK = [
   'wecare_default_download',
 ];
 
-function timeLabel ( value?: string | number ): string {
+function timeLabel ( value?: string | number | null ): string {
   if ( value === undefined || value === null || value === '' ) return 'No verified time recorded';
   const asNumber = typeof value === 'number' ? value : Number( value );
   const d = Number.isFinite( asNumber ) && String( value ).trim() !== ''
