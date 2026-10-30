@@ -561,6 +561,20 @@ const Customers: React.FC<PageProps> = () => {
       });
       if (exact) return exact;
     }
+
+    // The modal may have an older local list than the write authority. Refresh once before
+    // declaring a duplicate unresolvable; this covers a customer created in another tab/session
+    // and older Contacts runtimes that return a generic 409 without existingContactId.
+    const fresh = await api.listContacts();
+    if (fresh.length) {
+      setContacts(fresh);
+      const exact = fresh.find(contact => {
+        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
+        const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
+        return samePhone || sameEmail;
+      });
+      if (exact) return exact;
+    }
     return null;
   };
 
@@ -728,9 +742,14 @@ const Customers: React.FC<PageProps> = () => {
             setFormError('');
             toast.warning(existing.archivedAt
               ? 'This WhatsApp customer already exists and is archived. Restore it below.'
-              : 'This WhatsApp customer already exists. Open it or use it for payment below.');
+              : 'This WhatsApp customer already exists. Open the existing customer below.');
           } else {
-            const message = 'This WhatsApp number already belongs to an existing customer. Search by number to open it.';
+            const reconciliationRequired =
+              result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
+              || result.failure.details?.reconciliationRequired === true;
+            const message = reconciliationRequired
+              ? 'This WhatsApp identity is reserved, but its customer record needs administrator reconciliation.'
+              : 'This WhatsApp number is already linked to a customer, but that customer could not be loaded. Refresh Customers and try again.';
             setFormError(message);
             toast.warning(message);
           }
