@@ -1810,7 +1810,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
-          .cart-in{width:min(100%,980px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
+          .cart-in{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
@@ -1828,19 +1828,19 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           }
           /* Rows stay structurally identical; only the visual grouping changes. */
           .cart-row{
-            display:flex;justify-content:space-between;align-items:center;gap:24px;
-            padding-block:20px;border:0;flex-wrap:wrap;
+            display:flex;justify-content:space-between;align-items:center;gap:16px;
+            padding-block:14px;border:0;flex-wrap:nowrap;
           }
           .cart-row-main{min-width:0}
           /* The card-heading rung: 22px/700/lh1.27/-.25px, the same three numbers as .shop-name
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
              It was 20px/600, a rung that exists nowhere else. */
-          .cart-name{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 8px}
+          .cart-name{font-size:var(--public-body-size);font-weight:600;line-height:1.3;letter-spacing:var(--public-body-tracking);margin:0 0 4px;color:var(--public-text)}
           /* Price in dark green, never lime: lime means actionable and the page's one lime surface
              is the button below. #1a3a2a on white is about 11:1. Tabular figures so a column of
              prices lines up on the decimal. */
           .cart-price{
-            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
+            font-size:var(--public-body-size);font-weight:600;line-height:1.3;letter-spacing:var(--public-body-tracking);
             color:var(--public-brand-green);margin:0;font-variant-numeric:tabular-nums;
           }
           /* THE VARIANT CHOOSER, NOW OUR OWN COMBOBOX (batch 2f). What was a .cart-option-label
@@ -1922,11 +1922,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           .cart-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
           @media(max-width:767px){
-            .cart-in{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
-            .cart-row{gap:16px;padding-block:18px}
-            .cart-row-main{flex:1 1 100%}
-            .cart-row-controls{width:100%;justify-content:space-between}
-            .cart-actions{display:grid;grid-template-columns:1fr;width:100%}
+            .cart-in{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}
+            .cart-row{gap:12px;padding-block:12px;align-items:center}
+            .cart-row-main{flex:1 1 auto;min-width:0}
+            .cart-name,.cart-price{font-size:18px}
+            .cart-row-controls{width:auto;flex:0 0 auto;justify-content:flex-end}
+            .cart-remove{width:42px;height:42px;min-height:42px}
+            .cart-actions{display:grid;grid-template-columns:1fr;width:100%;margin-top:22px}
             .cart-auth-action{width:100%}
           }
           @media(prefers-reduced-motion:reduce){
