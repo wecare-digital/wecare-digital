@@ -1128,7 +1128,7 @@ const Customers: React.FC<PageProps> = () => {
       <div className="contacts-form-intro">
         <span className="contacts-form-kicker">Workspace · Customers</span>
         <h3>{_isEdit ? 'Edit customer profile' : 'Create customer profile'}</h3>
-        <p>Canonical customer identity using the same profile and address contract as F001 Subscribe.</p>
+        <p>Customer identity, contact details and address in one place.</p>
       </div>
 
       <section className="contacts-form-section" aria-label="Customer identity">
@@ -1137,7 +1137,7 @@ const Customers: React.FC<PageProps> = () => {
             <strong>Identity</strong>
             <span>WhatsApp-first customer record</span>
           </div>
-          <small>F001</small>
+          <small>Required</small>
         </div>
 
         <div className="contacts-form-stack">
