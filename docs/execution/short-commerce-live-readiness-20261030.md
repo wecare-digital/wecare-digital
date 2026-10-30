@@ -13,7 +13,13 @@ account `775261844268` region `us-east-1`, Meta app
   checkout :live v288, commerce :live v168 and inbound WhatsApp :live v191,
   with SHORT_COMMERCE_PART1_ENABLED absent on all. The reviewed source is
   staged in $LATEST for all three but those mutable versions are not eligible
-  for an immutable live release attestation.
+  for an immutable live release attestation. The last staged packaging was
+  pinned to Git commit `3cd052daeb7e057a529b95feaff4fa5bdac98883`;
+  subsequent main commit `e09d6441d407885c8f303e14413b0d75bd7ff438`
+  includes nine newer commits, among them changes to shared
+  `lambda_utils/ecommerce/service_requests.py` and the new Pickup gate.
+  Rebuild the exact latest approved source tree before publishing any versions;
+  never promote those existing $LATEST ZIPs as if they matched current main.
 - The eight named wecare-payment alarms were OK on the most recent read.
   Alarm state is not proof of provider capture, Meta handset, or invoice parity.
 
