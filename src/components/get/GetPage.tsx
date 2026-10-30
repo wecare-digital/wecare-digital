@@ -583,37 +583,70 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                         ) : (
                                             <>
                                                 { waitingForPayment ? (
-                                                    <p className="sf-payment-note" role="status">
-                                                        { feedback?.message
-                                                            || 'Payment request sent to your registered WhatsApp number. Complete Review and Pay there.' }
-                                                    </p>
+                                                    <div className="sf-pay-waiting">
+                                                        <p className="sf-payment-note" role="status">
+                                                            { feedback?.message
+                                                                || 'Review & Pay was sent to WhatsApp. Complete it or check the status before starting another checkout.' }
+                                                        </p>
+                                                        <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                                            onClick={ () => { void loadFiles(); } }
+                                                            disabled={ working === file.fileId }>Refresh payment status</button>
+                                                    </div>
                                                 ) : (
-                                                    <div className="sf-file-action">
-                                                        <button
-                                                            type="button"
-                                                            className="sf-file-action-button"
-                                                            onClick={ () => { void handleVaultPayment( file ); } }
-                                                            disabled={ working === file.fileId || payablePrice === null }
-                                                            aria-busy={ working === file.fileId }
-                                                        >
-                                                            { working === file.fileId
-                                                                ? 'Sending to WhatsApp…'
-                                                                : payablePrice === null
-                                                                    ? 'Price unavailable'
-                                                                    : state === 'EXPIRED'
-                                                                        ? `Renew for ₹${ rupeesFromPaise( payablePrice ) }`
-                                                                        : `Checkout ₹${ rupeesFromPaise( payablePrice ) }` }
-                                                        </button>
+                                                    <div className="sf-payment-options" role="group" aria-label="Vault payment options">
+                                                        <p className="sf-expired-lead">
+                                                            { state === 'EXPIRED'
+                                                                ? 'Your previous 24-hour access expired. Renew this same document for another 24-hour window.'
+                                                                : 'Choose how to unlock this private file for 24 hours.' }
+                                                        </p>
+                                                        <div className="sf-payment-option sf-payment-option-primary">
+                                                            <strong>Website checkout</strong>
+                                                            <span>Use your cart and secure Razorpay checkout · recommended for quick renewal</span>
+                                                            <button type="button" className="sf-file-action-button"
+                                                                onClick={ () => { void handleWebsiteCheckout( file ); } }
+                                                                disabled={ working === file.fileId || payablePrice === null || vaultLinePrice === null }
+                                                                aria-busy={ working === file.fileId }>
+                                                                { working === file.fileId ? 'Preparing cart…'
+                                                                    : payablePrice === null ? 'Price unavailable'
+                                                                        : state === 'EXPIRED' ? 'Add 24-hour renewal to cart'
+                                                                            : 'Add 24-hour Vault access to cart' }
+                                                            </button>
+                                                        </div>
+                                                        <div className="sf-payment-option">
+                                                            <strong>WhatsApp Review &amp; Pay</strong>
+                                                            <span>Receive the native payment request on your registered WhatsApp number</span>
+                                                            <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                                                onClick={ () => { void handleVaultPayment( file ); } }
+                                                                disabled={ working === file.fileId || payablePrice === null }
+                                                                aria-busy={ working === file.fileId }>
+                                                                { working === file.fileId ? 'Sending to WhatsApp…'
+                                                                    : payablePrice === null ? 'Price unavailable'
+                                                                        : 'Pay on WhatsApp instead' }
+                                                            </button>
+                                                        </div>
+                                                        <p className="sf-payment-total">
+                                                            { payablePrice !== null
+                                                                ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
+                                                                    + '. Final total and tax are calculated at checkout.'
+                                                                : 'The current amount is being verified. No payment can begin until it is available.' }
+                                                        </p>
                                                     </div>
                                                 ) }
                                                 <p className="sf-state-note">
-                                                    { state === 'EXPIRED'
-                                                        ? 'Your 24-hour access has ended. Renew sends Review and Pay to your registered WhatsApp number.'
-                                                        : 'Checkout sends Review and Pay to your registered WhatsApp number.' }
+                                                    Free downloads and access-link resends last only for the active paid 24-hour window.
+                                                    Renewal opens a new paid window on this same secure file—no new upload.
                                                 </p>
                                             </>
                                         ) }
 
+                                        { feedback?.kind === 'status' && !waitingForPayment && (
+                                            <p className="sf-payment-note" role="status">{ feedback.message }</p>
+                                        ) }
+                                        { ( state === 'OPEN' || state === 'READY' ) && (
+                                            <p className="sf-link-help">
+                                                The WhatsApp file link is not a public download. Sign-in, ownership and your active paid window are checked before a short-lived secure URL is issued.
+                                            </p>
+                                        ) }
                                         { feedback?.kind === 'error' && (
                                             <p className="sf-file-error" role="alert">{ feedback.message }</p>
                                         ) }
