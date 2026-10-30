@@ -141,9 +141,16 @@ export default function CheckoutStatus (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero
-        frame="Payment"
-        words={ [ { word: 'status', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        ariaLabel="Payment status"
+        ariaLabel="WECARE.DIGITAL customer"
+        frame="One account."
+        words={ [
+          { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
+        sub="Pick up where you left off."
+        mobileFoundation
+        compact
       >
         <section className="co-card" role="status" aria-live="polite">
           <h2 className="co-title">{ copy.title }</h2>
