@@ -534,7 +534,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 className="sf-input sf-input-file"
                                 type="file"
                                 accept={ WA_ACCEPT_STRING }
-                                onChange={ e => { setFile( e.target.files?.[ 0 ] || null ); setOfferBodyText( '' ); } }
+                                onChange={ e => setFile( e.target.files?.[ 0 ] || null ) }
                                 disabled={ uploading }
                             />
                             <p className="sf-hint">
@@ -716,7 +716,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                             <tr key={ row.fileId }>
                                                 <td>
                                                     <span className="sf-filename">{ row.displayName }</span>
-                                                    <span className="sf-fileorig">{ row.originalFilename || 'Vault document' }</span>
+                                                    <span className="sf-fileorig">System-generated Vault filename</span>
                                                 </td>
                                                 <td>{ row.ownerName || '—' }</td>
                                                 {/* masked at the API; the full number never reaches the browser */ }
