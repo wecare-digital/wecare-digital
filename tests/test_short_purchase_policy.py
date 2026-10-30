@@ -64,7 +64,7 @@ class ShortPurchaseTests(unittest.TestCase):
         """Pay on WhatsApp calls create directly, without website prepare."""
         checkout = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(
             encoding="utf-8")
-        create = checkout.split("def _create(", 1)[1].split("\\ndef ", 1)[0]
+        create = checkout.split("def _create(", 1)[1].split(chr(10) + "def ", 1)[0]
         guard = "short_purchase.enabled() and not short_purchase.one_unit_lines(line_items)"
         self.assertIn(guard, create)
         self.assertIn('"error": "SHORT_CHECKOUT_ONE_ITEM"', create)
