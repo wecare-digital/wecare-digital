@@ -276,6 +276,7 @@ const Customers: React.FC<PageProps> = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
+  const [identityReconciliationRequired, setIdentityReconciliationRequired] = useState(false);
   const [restoringDuplicate, setRestoringDuplicate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const toast = useToastContext();
@@ -482,6 +483,7 @@ const Customers: React.FC<PageProps> = () => {
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
     setDuplicateContact(null);
+    setIdentityReconciliationRequired(false);
   };
 
   // Keyboard shortcuts
@@ -557,20 +559,6 @@ const Customers: React.FC<PageProps> = () => {
       const result = await api.searchContactsResult(query, 20);
       if (!result.ok) continue;
       const exact = result.data.find(contact => {
-        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
-        const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
-        return samePhone || sameEmail;
-      });
-      if (exact) return exact;
-    }
-
-    // The modal may have an older local list than the write authority. Refresh once before
-    // declaring a duplicate unresolvable; this covers a customer created in another tab/session
-    // and older Contacts runtimes that return a generic 409 without existingContactId.
-    const fresh = await api.listContacts();
-    if (fresh.length) {
-      setContacts(fresh);
-      const exact = fresh.find(contact => {
         const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
         const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
         return samePhone || sameEmail;
@@ -684,6 +672,7 @@ const Customers: React.FC<PageProps> = () => {
   const handleCreate = async () => {
     setFormError('');
     setDuplicateContact(null);
+    setIdentityReconciliationRequired(false);
     const fail = ( message: string, fieldId?: string ) => {
       setFormError(message);
       toast.warning(message);
@@ -731,42 +720,54 @@ const Customers: React.FC<PageProps> = () => {
         await loadContacts();
       } else if (!result.ok) {
         if (result.failure.status === 409) {
-          // The Contacts backend is the identity authority. Normal list/search intentionally hides
-          // archived customers, so a duplicate 409 carries the canonical contact id and we fetch
-          // that row directly. Search remains only as a compatibility fallback for older runtime
-          // versions that do not yet return structured duplicate metadata.
-          const rawExistingId = result.failure.details?.existingContactId;
-          const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
-          const exact = existingId ? await api.getContact(existingId) : null;
-          const existing = exact || await resolveDuplicateContact(formPhone, '');
-          setDuplicateContact(existing);
-          if (existing) {
+          // A 409 has two materially different meanings. Do not call an orphaned strong-identity
+          // claim an "existing customer": there may be no customer row to open.
+          const reconciliationRequired =
+            result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
+            || result.failure.details?.reconciliationRequired === true;
+          if (reconciliationRequired) {
+            setDuplicateContact(null);
+                    setIdentityReconciliationRequired(true);
             setFormError('');
-            toast.warning(existing.archivedAt
-              ? 'This WhatsApp customer already exists and is archived. Restore it below.'
-              : 'This WhatsApp customer already exists. Open the existing customer below.');
+            toast.warning(
+              'This WhatsApp identity is reserved, but its customer record is unavailable. '
+              + 'An administrator must reconcile ownership before creating a customer.'
+            );
           } else {
-            const reconciliationRequired =
-              result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
-              || result.failure.details?.reconciliationRequired === true;
-            if (reconciliationRequired) {
-              const message = 'This WhatsApp identity is reserved, but its customer record needs administrator reconciliation.';
-              setFormError(message);
-              toast.warning(message);
+            // Normal duplicate: prefer the canonical id supplied by the backend. Search is only a
+            // compatibility fallback for older deployed runtimes that return a generic 409.
+            const rawExistingId = result.failure.details?.existingContactId;
+            const existingId = typeof rawExistingId === 'string' ? rawExistingId : '';
+            const exact = existingId ? await api.getContact(existingId) : null;
+            const existing = exact || await resolveDuplicateContact(formPhone, '');
+            setDuplicateContact(existing);
+            setIdentityReconciliationRequired(false);
+            if (existing) {
+                        setFormError('');
+              toast.warning(existing.archivedAt
+                ? 'This WhatsApp customer already exists and is archived. Restore it below.'
+                : 'This WhatsApp customer already exists. Open it or use it for payment below.');
             } else {
+              // A stale Contacts runtime may return a generic 409 with no openable owner.
+              // Continue to the real Customers search automatically; do not strand staff
+              // in a modal with an instruction to search manually.
               const fullPhone = contactPhoneE164(formPhone, formCountryCode);
               setSearchQuery(fullPhone);
               setDebouncedSearch(fullPhone);
-              setFormError('');
               setShowModal(false);
               setShowEditModal(false);
               resetForm();
-              toast.warning('This WhatsApp number already belongs to an existing customer. Showing the matching customer search.');
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+              toast.warning(
+                'This WhatsApp number already belongs to an existing customer. Showing the matching customer search. If no record appears, ask an administrator to reconcile the identity.'
+              );
             }
           }
         } else {
-          setFormError(result.failure.message || 'Contact was not created');
-          toast.error(result.failure.message || 'Contact was not created');
+          const message = (result.failure.message || 'Contact was not created')
+            .replace(/^HTTP\s+\d+:\s*/i, '');
+          setFormError(message);
+          toast.error(message);
         }
       } else {
         setFormError('Contact was not created. Check the customer details and try again.');
@@ -1171,97 +1172,132 @@ const Customers: React.FC<PageProps> = () => {
   const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#dfe4df'; e.target.style.boxShadow = 'none'; };
 
   const renderContactForm = (_isEdit: boolean) => (
-  <div className="contacts-modal-body">
-    <div>
-      <label htmlFor="contact-name" style={S.label}>Full name *</label>
-      <input id="contact-name" style={S.input} value={formName}
-        onChange={e => { setFormName(e.target.value); setFormError(''); }}
-        placeholder="Full name" maxLength={200} autoComplete="name"
-        onFocus={focusStyle} onBlur={blurStyle} />
-    </div>
-    <div className="contacts-form-contact">
-      <div>
-        <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
-        <div className="contacts-phone-control">
-          <div className="contacts-country-code">
-            <select id="contact-country-code" aria-label="WhatsApp country calling code"
-              style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
-              onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); }}
-              onFocus={focusStyle} onBlur={blurStyle}>
-              {COUNTRY_CODES.map(cc => (
-                <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
-              ))}
-            </select>
-          </div>
-          <input id="contact-phone" style={S.input} value={formPhone}
-            onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); }}
-            placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
-            onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <p style={S.hint}>Use the WhatsApp number linked to this customer.</p>
+    <div className="contacts-modal-body">
+      <div className="contacts-form-intro">
+        <span className="contacts-form-kicker">Workspace · Customers</span>
+        <h3>{_isEdit ? 'Edit customer profile' : 'Create customer profile'}</h3>
+        <p>Customer identity, contact details and address in one place.</p>
       </div>
-    </div>
-    <div>
-      <label htmlFor="contact-profile-username" style={S.label}>
-        WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-      </label>
-      <input id="contact-profile-username" style={S.input} value={formProfileUsername}
-        onChange={e => setFormProfileUsername(e.target.value)}
-        placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50}
-        onFocus={focusStyle} onBlur={blurStyle} />
-    </div>
-    <div className="contacts-form-grid">
-      <div>
-        <label htmlFor="contact-company-name" style={S.label}>
-          Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-        </label>
-        <input id="contact-company-name" style={S.input} value={formCompanyName}
-          onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200}
-          autoComplete="organization" onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      <div>
-        <label htmlFor="contact-designation" style={S.label}>
-          Job title <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-        </label>
-        <input id="contact-designation" style={S.input} value={formDesignation}
-          onChange={e => setFormDesignation(e.target.value)} placeholder="Optional" maxLength={200}
-          autoComplete="organization-title" onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-    </div>
 
-    <div>
-      <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
-      <div className="contacts-form-grid">
-        {ADDRESS_FIELDS.map(spec => (
-          <div key={spec.key}>
-            <label htmlFor={`contact-${spec.key}`} style={S.label}>
-              {spec.label}{spec.required ? ' *' : ''}
-              {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
-            </label>
-            {spec.key === 'country' ? (
-              <select id={`contact-${spec.key}`} style={S.input} value={formAddress.country}
-                onChange={e => setFormAddress({ ...formAddress, country: e.target.value, countryCode: countryCodeForName(e.target.value) })}
-                onFocus={focusStyle} onBlur={blurStyle}>
-                {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
-              </select>
-            ) : (
-              <input id={`contact-${spec.key}`} style={S.input} value={formAddress[spec.key]}
-                maxLength={spec.maxLength} placeholder={spec.placeholder}
-                autoComplete={spec.key === 'postalCode' ? 'postal-code' : spec.key === 'city' ? 'address-level2' : spec.key === 'state' ? 'address-level1' : spec.key === 'addressLine1' ? 'street-address' : 'off'}
-                onChange={e => { setFormAddress({ ...formAddress, [spec.key]: e.target.value }); setFormError(''); }}
-                onFocus={focusStyle} onBlur={blurStyle} />
-            )}
+      <section className="contacts-form-section" aria-label="Customer identity">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Identity</strong>
+            <span>WhatsApp-first customer record</span>
           </div>
-        ))}
-      </div>
-      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Address preview</p>
-      <div data-address-preview="contact" aria-readonly="true"
-        style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}>
-        {formatAddress(formAddress) || formShippingAddress || '\u2014'}
-      </div>
+          <small>Required</small>
+        </div>
+
+        <div className="contacts-form-stack">
+          <div>
+            <label htmlFor="contact-name" style={S.label}>Full name *</label>
+            <input id="contact-name" style={S.input} value={formName}
+              onChange={e => { setFormName(e.target.value); setFormError(''); }}
+              placeholder="Full name" maxLength={200} autoComplete="name"
+              onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+
+          <div className="contacts-form-contact">
+            <div>
+              <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
+              <div className="contacts-phone-control">
+                <div className="contacts-country-code">
+                  <select id="contact-country-code" aria-label="WhatsApp country calling code"
+                    style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
+                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
+                    onFocus={focusStyle} onBlur={blurStyle}>
+                    {COUNTRY_CODES.map(cc => (
+                      <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
+                    ))}
+                  </select>
+                </div>
+                <input id="contact-phone" style={S.input} value={formPhone}
+                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
+                  placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
+                  onFocus={focusStyle} onBlur={blurStyle} />
+              </div>
+              <p style={S.hint}>Used for WhatsApp service, verification and payment requests. The country code is stored in canonical E.164 form.</p>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="contact-profile-username" style={S.label}>
+              WhatsApp username <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-profile-username" style={S.input} value={formProfileUsername}
+              onChange={e => setFormProfileUsername(e.target.value)}
+              placeholder="WECARE.DIGITAL profile username" maxLength={50}
+              onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+        </div>
+      </section>
+
+      <section className="contacts-form-section" aria-label="Work details">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Work details</strong>
+            <span>Optional organization context</span>
+          </div>
+        </div>
+        <div className="contacts-form-grid">
+          <div>
+            <label htmlFor="contact-company-name" style={S.label}>
+              Organization <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-company-name" style={S.input} value={formCompanyName}
+              onChange={e => setFormCompanyName(e.target.value)} placeholder="Organization" maxLength={200}
+              autoComplete="organization" onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+          <div>
+            <label htmlFor="contact-designation" style={S.label}>
+              Job title <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-designation" style={S.input} value={formDesignation}
+              onChange={e => setFormDesignation(e.target.value)} placeholder="Job title" maxLength={200}
+              autoComplete="organization-title" onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+        </div>
+      </section>
+
+      <section className="contacts-form-section contacts-form-address" aria-label="Customer address">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Address</strong>
+            <span>Service, delivery and account details</span>
+          </div>
+        </div>
+        <div className="contacts-form-grid">
+          {ADDRESS_FIELDS.map(spec => (
+            <div key={spec.key}>
+              <label htmlFor={`contact-${spec.key}`} style={S.label}>
+                {spec.label}{spec.required ? ' *' : ''}
+                {!spec.required && <span className="contacts-optional">Optional</span>}
+              </label>
+              {spec.key === 'country' ? (
+                <select id={`contact-${spec.key}`} style={S.input} value={formAddress.country}
+                  onChange={e => setFormAddress({ ...formAddress, country: e.target.value, countryCode: countryCodeForName(e.target.value) })}
+                  onFocus={focusStyle} onBlur={blurStyle}>
+                  {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
+                </select>
+              ) : (
+                <input id={`contact-${spec.key}`} style={S.input} value={formAddress[spec.key]}
+                  maxLength={spec.maxLength} placeholder={spec.placeholder}
+                  autoComplete={spec.key === 'postalCode' ? 'postal-code' : spec.key === 'city' ? 'address-level2' : spec.key === 'state' ? 'address-level1' : spec.key === 'addressLine1' ? 'street-address' : 'off'}
+                  onChange={e => { setFormAddress({ ...formAddress, [spec.key]: e.target.value }); setFormError(''); }}
+                  onFocus={focusStyle} onBlur={blurStyle} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="contacts-address-preview">
+          <span>Composed address</span>
+          <div data-address-preview="contact" aria-readonly="true">
+            {formatAddress(formAddress) || formShippingAddress || '—'}
+          </div>
+        </div>
+      </section>
     </div>
-  </div>
-);
+  );
 
   const duplicateContactCard = duplicateContact ? (
     <div className="contacts-duplicate-card">
@@ -1283,6 +1319,19 @@ const Customers: React.FC<PageProps> = () => {
         ) : (
           <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
         )}
+      </div>
+    </div>
+  ) : null;
+
+  const identityReconciliationCard = identityReconciliationRequired ? (
+    <div className="contacts-reconciliation-card" role="alert">
+      <div>
+        <span>Identity needs reconciliation</span>
+        <strong>This WhatsApp number is already reserved, but its customer record is unavailable.</strong>
+        <small>
+          A new customer is blocked until an administrator reconciles the existing identity ownership.
+          No duplicate customer was created.
+        </small>
       </div>
     </div>
   ) : null;
@@ -1716,14 +1765,15 @@ const Customers: React.FC<PageProps> = () => {
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
@@ -1735,14 +1785,15 @@ const Customers: React.FC<PageProps> = () => {
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>

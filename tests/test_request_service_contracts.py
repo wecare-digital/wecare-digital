@@ -457,3 +457,21 @@ def test_pickup_payment_fails_closed_before_checkout_on_every_rail():
     buybox = (ROOT / "src/components/ServiceBuyBox.tsx").read_text()
     assert "if ( service.kind === 'REQUEST_PICKUP' )" in buybox
     assert "Pickup checkout is temporarily unavailable" in buybox
+
+
+def test_workspace_vault_exposes_authoritative_private_storage_location():
+    handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+    client = (ROOT / "src/api/client.ts").read_text()
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+
+    assert '"bucket": BUCKET' in handler
+    assert '"sourcePrefix": DROPDOCS_PREFIX' in handler
+    assert '"deliveryPrefix": DELIVER_PREFIX' in handler
+    assert "export interface SecureFileStorage" in client
+    assert "storage?: SecureFileStorage" in client
+
+    assert "Private Vault source" in page
+    assert "Delivery renditions" in page
+    assert "s3://${ storage.bucket }/${ storage.sourcePrefix }" in page
+    assert "s3://${ storage.bucket }/${ storage.deliveryPrefix }" in page
+    assert "Raw per-file S3 keys are not exposed to Workspace." in page

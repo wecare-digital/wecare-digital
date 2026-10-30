@@ -79,18 +79,41 @@ def test_customers_modal_fetches_exact_duplicate_and_restores_archived_before_pa
     assert "if (!duplicateContact || duplicateContact.archivedAt) return;" in source
 
 
-def test_customers_duplicate_fallback_refreshes_and_never_surfaces_raw_http_409():
-    source = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
-    assert "const fresh = await api.listContacts()" in source
-    assert "setContacts(fresh)" in source
-    assert "CONTACT_IDENTITY_RECONCILIATION_REQUIRED" in source
-    assert "Search by number to open it." not in source
-    assert "HTTP 409" not in source
+def test_customer_modal_distinguishes_existing_customer_from_orphaned_identity_claim():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    backend = (ROOT / "amplify/functions/core/contacts/handler.py").read_text()
+
+    assert "CONTACT_IDENTITY_RECONCILIATION_REQUIRED" in backend
+    assert "result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'" in page
+    assert "result.failure.details?.reconciliationRequired === true" in page
+    assert "Identity needs reconciliation" in page
+    assert "No duplicate customer was created." in page
+
+    # A normal duplicate remains actionable rather than surfacing a raw HTTP status.
+    assert "Search by number to open it" not in page
+    assert "Showing the matching customer search." in page
+    assert "setSearchQuery(fullPhone)" in page
+    assert "setDebouncedSearch(fullPhone)" in page
+    assert "searchExistingCustomer" not in page
+    assert ".replace(/^HTTP\\s+\\d+:\\s*/i, '')" in page
 
 
-def test_customer_phone_field_uses_auth_shared_hairline_control():
+def test_customer_create_modal_uses_workspace_card_layout():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
     css = (ROOT / "src/styles/workspace.css").read_text()
-    assert ".contacts-phone-control:focus-within" in css
-    assert "border-bottom: 1px solid var(--public-hairline, #dfe4df)" in css
-    assert ".contacts-phone-control > input" in css
-    assert "input:-webkit-autofill" in css
+
+    assert "contacts-workspace-form-v2" in page
+    assert "contacts-form-section" in page
+    assert "Workspace · Customers" in page
+    assert "Customer identity" in page
+    assert "Work details" in page
+    assert "contacts-address-preview" in page
+    # The operator form must not bring back internal F001 implementation language.
+    form = page[page.index("const renderContactForm"):page.index("const duplicateContactCard")]
+    assert "F001 Subscribe" not in form
+    assert "<small>F001</small>" not in form
+
+    assert "Customers — Workspace-native create/edit surface." in css
+    assert ".contacts-workspace-form-v2 .contacts-form-section" in css
+    assert "border-radius: 16px" in css
+    assert ".contacts-reconciliation-card" in css

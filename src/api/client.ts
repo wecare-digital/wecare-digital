@@ -7578,6 +7578,12 @@ export interface SecureFileLog extends SecureFile {
   revokedBy?: string;
 }
 
+export interface SecureFileStorage {
+  bucket: string;
+  sourcePrefix: string;
+  deliveryPrefix: string;
+}
+
 export type SecureFileAccessState = 'UNPAID' | 'OPEN' | 'READY' | 'EXPIRED' | 'PAID_UNVERIFIED';
 
 /** The answer to a one-shot staff Vault action. `message` is the server's sentence. */
@@ -7644,7 +7650,7 @@ export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActio
  * then publishDocumentToVault after S3 confirmation. */
 /** Admin listing. Pass a mobile number to scope it to one customer via the GSI. */
 export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
-  files: SecureFile[]; count: number; truncated?: boolean;
+  files: SecureFile[]; count: number; truncated?: boolean; storage?: SecureFileStorage;
 }>> {
   const qs = new URLSearchParams();
   if ( mobile ) qs.set( 'mobile', mobile );
@@ -7654,7 +7660,7 @@ export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
 
 /** Historical Vault audit rows. The backend verifies S3 object presence but never exposes keys. */
 export async function listSecureFileLogs ( mobile?: string ): Promise<ApiResult<{
-  logs: SecureFileLog[]; count: number; truncated?: boolean;
+  logs: SecureFileLog[]; count: number; truncated?: boolean; storage?: SecureFileStorage;
 }>> {
   const qs = new URLSearchParams( { view: 'logs' } );
   if ( mobile ) qs.set( 'mobile', mobile );

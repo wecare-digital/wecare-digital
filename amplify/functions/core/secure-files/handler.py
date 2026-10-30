@@ -1346,6 +1346,11 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         return cors_response(200, {
             "logs": logs, "count": len(logs),
             "truncated": truncated or len(collected) > ADMIN_LOG_MAX_ITEMS,
+            "storage": {
+                "bucket": BUCKET,
+                "sourcePrefix": DROPDOCS_PREFIX,
+                "deliveryPrefix": DELIVER_PREFIX,
+            },
         }, origin)
 
     # Documents view: enrich current active files with entitlement/window status.
@@ -1363,7 +1368,16 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         except ClientError:
             entitlement = None
         out.append(_public_file(item, admin=True, entitlement=entitlement, now=now))
-    return cors_response(200, {"files": out, "count": len(out), "truncated": truncated}, origin)
+    return cors_response(200, {
+        "files": out,
+        "count": len(out),
+        "truncated": truncated,
+        "storage": {
+            "bucket": BUCKET,
+            "sourcePrefix": DROPDOCS_PREFIX,
+            "deliveryPrefix": DELIVER_PREFIX,
+        },
+    }, origin)
 
 
 def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
