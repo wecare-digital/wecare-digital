@@ -787,8 +787,11 @@ def run(root: Path) -> int:
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
-        check("HDR", "fixed square payment order thumbnail", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/img/wecare-catalog-icon.png"), header["parameters"][0]["image"])
+        check("HDR", "approved payment IMAGE header and fixed square ORDER_DETAILS thumbnail",
+              header["parameters"][0]["image"]["link"] == template_media.PAYMENT_TEMPLATE_HEADER
+              and action["order"]["items"][0]["image"]["link"] == template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
+              {"header": header["parameters"][0]["image"]["link"],
+               "item": action["order"]["items"][0]["image"]["link"]})
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",
@@ -2249,8 +2252,8 @@ def run(root: Path) -> int:
             "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
             "contacts": [{"wa_id": customer["digits"], "profile": {"name": "Hermetic Buyer"}}],
             "messages": [message]}}]}
-        return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
-                     request_id=str(uuid.uuid4()))
+        return deliver(build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                             request_id=str(uuid.uuid4())))
 
     def sends_of(since: Dict[str, int], template: str) -> List[Dict[str, Any]]:
         return [s["payload"] for s in W.since(since, "meta_sends")
