@@ -898,6 +898,10 @@ const Header: React.FC = () => {
            the bar being anchored to physical sides in a mirrored document. */
         .hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff;
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* Screenshot-matched top hairline. It is painted as an overlay instead of a border so
+           desktop 108px and mobile 96px header geometry stay byte-for-byte unchanged. */
+        .hdr::before{content:'';position:absolute;top:0;inset-inline:0;height:2px;
+          background:#e3e5e3;pointer-events:none}
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
           .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }
