@@ -1063,8 +1063,13 @@ def _extension_for_upload(file_name: str, content_type: str) -> str:
     return by_mime.get(str(content_type or '').lower(), '')
 
 
-def _generated_document_name(original_name: str, content_type: str, ref: str) -> str:
-    return ref + _extension_for_upload(original_name, content_type)
+def _generated_document_name(original_name: str, content_type: str) -> str:
+    """Generate the actual S3 object basename and customer download filename.
+
+    The original filename is used only to validate media type and derive its extension.
+    The independent six-digit documentRef is a staff-facing reference, not a filename.
+    """
+    return 'wecare-digital-' + uuid.uuid4().hex + _extension_for_upload(original_name, content_type)
 
 
 def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
@@ -1161,14 +1166,15 @@ def _init_document_upload(body: Dict) -> Dict:
 
     doc_id = f'WD-DOC-{_gen_id()}'
     document_ref = _public_document_ref()
-    generated_name = _generated_document_name(file_name, content_type, document_ref)
-    # Opaque key: customer names and original filenames never become S3 paths.
-    storage_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + uuid.uuid4().hex
+    generated_name = _generated_document_name(file_name, content_type)
+    # The private S3 object itself is named wecare-digital-<uuid>.<extension>.
+    # Never include the original filename, customer name or documentRef in the key.
+    storage_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + generated_name
     record_body = dict(body)
     record_body['documentRef'] = document_ref
     record_body['fileName'] = generated_name
     item = _document_record(record_body, doc_id=doc_id, storage_key=storage_key, status='pending')
-    item['originalFileName'] = os.path.basename(file_name)
+    item['originalFileName'] = generated_name
     item['fileSize'] = size
     item['mimeType'] = content_type
     dynamodb.Table(DOCUMENTS_TABLE).put_item(Item=item)
@@ -1239,8 +1245,8 @@ def _init_document_reupload(doc_id: str, body: Dict) -> Dict:
         })
 
     new_ref = _public_document_ref()
-    generated_name = _generated_document_name(file_name, content_type, new_ref)
-    replacement_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + uuid.uuid4().hex
+    generated_name = _generated_document_name(file_name, content_type)
+    replacement_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + generated_name
     now = _now()
     table.update_item(
         Key={'documentId': doc_id},
@@ -1254,7 +1260,7 @@ def _init_document_reupload(doc_id: str, body: Dict) -> Dict:
                             'AND attribute_not_exists(vaultFileId)',
         ExpressionAttributeValues={
             ':key': replacement_key, ':name': generated_name,
-            ':original': os.path.basename(file_name), ':mime': content_type,
+            ':original': generated_name, ':mime': content_type,
             ':size': size, ':ref': new_ref, ':now': now,
             ':requested': 'reupload_requested', ':manual': 'manual',
         },
@@ -1321,9 +1327,7 @@ def _confirm_document_reupload(doc_id: str) -> Dict:
                            'message': f'{media_rule[2]} limit is {media_rule[3]} on WhatsApp.'})
     now = _now()
     new_ref = str(item.get('replacementDocumentRef') or _public_document_ref())
-    new_name = str(item.get('replacementFileName')
-                   or _generated_document_name(item.get('replacementOriginalFileName', ''),
-                                               mime_type, new_ref))
+    new_name = str(item.get('replacementFileName') or os.path.basename(storage_key))
     original_name = str(item.get('replacementOriginalFileName') or new_name)
 
     table.update_item(
