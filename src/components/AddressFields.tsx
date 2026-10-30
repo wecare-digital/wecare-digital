@@ -166,6 +166,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         { india ? (
           <Select
             className="address-state"
+            menuClassName="public-checkout-select"
             label="State / region"
             value={ value.state }
             onChange={ next => patch( 'state', next ) }
@@ -211,6 +212,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
         <Select
           className="address-country"
+          menuClassName="public-checkout-select"
           label="Country"
           value={ value.country }
           onChange={ chooseCountry }
