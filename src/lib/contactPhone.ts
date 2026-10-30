@@ -10,7 +10,7 @@
  */
 export function contactPhoneE164 ( raw: string, selectedDialCode: string ): string {
   const value = String( raw || '' ).trim();
-  if ( !value ) return '';
+  if ( !value || !/^\+?[0-9\s().-]+$/.test( value ) ) return '';
   const digits = value.replace( /\D/g, '' );
   if ( value.startsWith( '+' ) ) return digits ? `+${digits}` : '';
   if ( value.startsWith( '00' ) ) return digits.length > 2 ? `+${digits.slice( 2 )}` : '';
