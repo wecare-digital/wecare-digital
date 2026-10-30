@@ -69,6 +69,30 @@ package SHA evidence, and operator's review. This command alone cannot satisfy
 real provider capture/invoice/fulfillment or Meta published Flow QA. Keep issue
 #1973 open until all independently required checks and signoffs are evidenced.
 
+## Credential-free deployment ZIP preflight
+
+Before staging a new immutable receiver release, package the *exact reviewed
+commit* using the same deterministic ZIP assembler as production:
+
+```sh
+uv run --no-project --python 3.12 --with boto3==1.43.116 \
+  python scripts/check_short_commerce_packages.py
+```
+
+This command creates **no** AWS client and makes **no** cloud calls or writes.
+It builds the checkout, commerce and inbound WhatsApp ZIPs twice to prove
+reproducibility, checks the archived bytes against their in-tree handlers,
+required shared one-unit/checkout policy, and the single invoice engine with
+receipt layout and font assets. It validates packaged Python syntax and prints
+each candidate Lambda CodeSha256, package file count, and ZIP size.
+
+The Short Commerce CI now runs the same check, its negative-test suite, and the
+hermetic payment rail on relevant handler, shared-module, invoice and packaging
+changes. A candidate hash is **not** approval to deploy or proof that an AWS
+published version has that hash. Keep the code-build source SHA, review, and
+operator-approved manifest separate; continue requiring protected staging,
+provider parity, Meta QA, and release-owner approval before changing :live.
+
 ## Verified at audit time
 
 - GitHub PRs #1964 and #1965 are merged; branch push CI passed on
@@ -161,40 +185,26 @@ real provider capture/invoice/fulfillment or Meta published Flow QA. Keep issue
 
 ## Read-only live configuration check
 
-From the authorized operations runner with AWS read access:
-
-```sh
-python scripts/check_short_commerce_live.py --region us-east-1 --expect-account 775261844268
-```
-
-This intentionally exits non-zero while a required alias is unflagged.
-It does not query customer records, print secrets, send WhatsApp messages,
-create payment attempts, update Lambda aliases or alter AWS resources.
+Use the **operator-reviewed release manifest** and exact command shown near
+the top of this runbook. Without the manifest, the checker exits non-zero even
+if all three flags are enabled; that is the intended fail-closed behavior.
+The checker never touches customer records, money, messages or AWS state.
 
 ## Release CI baseline note
 
-PR #1968 was merged while the newly introduced CI run
-[41075565699](https://github.com/wecare-digital/wecare-digital/actions/runs/41075565699)
-still failed the **global design-drift gate**. That run verified all Short
-Commerce payment-critical checks: the real cart runtime, TypeScript
-typecheck, seven frontend Python contracts, seven backend policy tests, and
-the hermetic WhatsApp/Razorpay -> order -> invoice workflow.
+The original 2026-10-30 CI run 41075565699 failed on four public
+design-token consumers, although the payment-specific regressions passed.
+Issue #1970 has since been resolved, and merged PR #1978 restored the
+mandatory `scripts/check_design_drift.py --gate`. This is no longer an
+advisory design check. Checkout, hermetic payment, release attestation
+and ZIP packaging tests must all remain blocking in the same workflow.
 
-The last gate found exactly four pre-existing `public_token_not_consumed`
-design-token mismatches in GetPage (two), CartPage (one) and checkout/status
-(one). Their remediation is tracked at
-[issue #1970](https://github.com/wecare-digital/wecare-digital/issues/1970).
-The Short Commerce CI therefore reports the global design census as
-an explicitly labelled **advisory**, while keeping all payment, invoice and
-checkout checks mandatory. The canonical
-`python scripts/check_design_drift.py --gate` is **not** changed and must
-pass in the separate design remediation. Do not describe the four existing
-violations as fixed.
+## Remaining release blockers
 
-## Unverified conditions at this audit
-
-No real-money test of PR #1965 on **live** AWS aliases, no deployed-code SHA
-attestation for the inbound receiver, no production proof of one-SKU
-offline fulfillment/Flow completion, and no reliable confirmation that
-the public website's static release matches this GitHub commit.
-Do not describe Part 1 as fully enabled until those are closed.
+The website static release was verified through AWS Amplify job #400. The
+**backend** one-unit policy remains OFF on all three live aliases. Still
+outstanding are immutable published-version and code-hash attestation, the
+owner-approved staged OFF/ON matrix, capture-to-quote-to-invoice reconciliation
+for website and native WhatsApp, Meta handset and Pickup asset validation,
+and per-SKU Flow/offline fulfillment outcomes. A passing offline package
+preflight does not close any of these operational gates.
