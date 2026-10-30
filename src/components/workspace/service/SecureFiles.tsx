@@ -677,18 +677,22 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
                             <button type="button" className={ mode === 'upload' ? 'active' : '' }
                                 aria-pressed={ mode === 'upload' }
-                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); setOfferBodyText( '' ); } }>
+                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); setOfferBodyText( '' ); setScheduledAction( null ); } }>
                                 Upload new
                             </button>
                             <button type="button" className={ mode === 'existing' ? 'active' : '' }
                                 aria-pressed={ mode === 'existing' }
-                                onClick={ () => { setMode( 'existing' ); setFile( null ); setOfferBodyText( '' ); } }>
-                                Existing Vault file
+                                onClick={ () => {
+                                    setMode( 'existing' ); setFile( null );
+                                    setOfferBodyText( '' ); setScheduledAction( null );
+                                    void load( filterMobile || mobile || undefined );
+                                } }>
+                                Reuse existing Vault file
                             </button>
                         </div>
                         { mode === 'upload' ? (
                 <section className="sf-upload-area" aria-labelledby="sf-add">
-                    <h2 className="sf-h2" id="sf-add">Upload document</h2>
+                    <h2 className="sf-h2" id="sf-add">Step 2 · Upload &amp; publish file</h2>
                     <p className="sf-note">
                         The file is saved privately as a Document first, verified in S3, then published to Vault.
                         Direct Vault upload is retired.
@@ -716,7 +720,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                     <div className="sf-actions">
                         <button className="sf-cta" type="button" onClick={ () => { void handleUpload(); } } disabled={ uploading }>
-                            { uploading ? 'Saving private file…' : 'Save document to Vault' }
+                            { uploading ? 'Saving & publishing…' : 'Save & publish to Vault' }
                         </button>
                         <span className="sf-aside">
                             { uploading && step
@@ -727,8 +731,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 </section>
                         ) : (
                             <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
-                                <h3 className="sf-h2" id="sf-pick-title">Choose a published file</h3>
-                                <p className="sf-note">Select the exact owner-bound document before preparing a WhatsApp offer.</p>
+                                <h3 className="sf-h2" id="sf-pick-title">Reuse a published Vault file</h3>
+                                <p className="sf-note">Reuse a published file for its existing owner—no second S3 upload. The selected file's customer cannot be changed.</p>
                                 <div className="sf-lookup">
                                     <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
                                         placeholder="Customer mobile" inputMode="tel"
@@ -799,30 +803,126 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                             <p className="sf-composer-help">The message preview updates instantly. Staff text is independent of the generated <code>wecare-digital-UUID</code> S3 filename.</p>
                         </div>
-                        <div className="sf-review-actions">
+                        <div className="sf-review-actions" id="sf-action-panel">
                             <div className="sf-review-checks" aria-live="polite">
-                                <strong>Ready to send?</strong>
-                                <span>{ reviewFile ? 'File selected' : 'Select a published file' }</span>
-                                <span>{ validOfferBodyText( offerBodyText ) ? 'Message text ready' : 'Enter WhatsApp {{1}} text' }</span>
-                                <span>{ vaultPricePaise === 4900 && !!vaultBreakdown ? 'Live ₹49 base price verified' : 'Waiting for valid live pricing' }</span>
+                                <strong>Step 4 · Publish, send or schedule</strong>
+                                <span>{ reviewFile && mode === 'existing' ? 'File selected · saved in Vault' : 'Save & publish, then select the file' }</span>
+                                <span>{ validOfferBodyText( offerBodyText ) ? 'WhatsApp text ready' : 'WhatsApp {{1}} text not entered' }</span>
+                                <span>{ vaultPricePaise === 4900 && !!vaultBreakdown ? 'Live ₹49 offer verified' : 'Offer price not verified' }</span>
                             </div>
+                            { mode === 'upload' && (
+                                <div className="sf-action-empty">
+                                    <strong>First, save &amp; publish the selected file above.</strong>
+                                    <p>Publishing never sends WhatsApp. After it is saved, select the published file to unlock Send now, Schedule and Resend.</p>
+                                    <button type="button" className="sf-cta sf-cta-quiet" onClick={ () => {
+                                        setMode( 'existing' );
+                                        void load( filterMobile || mobile || undefined );
+                                    } }>Reuse a file already in Vault</button>
+                                </div>
+                            ) }
+                            { mode === 'existing' && !reviewFile && (
+                                <p className="sf-action-empty">Select one of the existing customer-owned Vault files above to activate Send, Schedule or Resend.</p>
+                            ) }
                             { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
-                                <button type="button" className="sf-cta sf-send-cta"
-                                    onClick={ () => { void handleSendOffer( reviewFile ); } }
-                                    disabled={ !!acting || confirmingOffer || uploading || !validOfferBodyText( offerBodyText ) || !vaultBreakdown || vaultPricePaise !== 4900 }>
-                                    { acting === reviewFile.fileId ? 'Sending…' : confirmingOffer ? 'Confirming…' : 'Review & send Unlock Vault' }
-                                </button>
+                                <div className="sf-delivery-buttons">
+                                    <button type="button" className="sf-cta sf-send-cta"
+                                        onClick={ () => { void handleSendOffer( reviewFile ); } }
+                                        disabled={ !!acting || confirmingOffer || uploading || schedulingBusy || !validOfferBodyText( offerBodyText ) || !vaultBreakdown || vaultPricePaise !== 4900 }>
+                                        { acting === reviewFile.fileId ? 'Sending…' : reviewFile.lastOfferRequestedAt ? 'Resend Unlock Vault' : 'Send Unlock Vault now' }
+                                    </button>
+                                    <button type="button" className="sf-cta sf-cta-quiet"
+                                        onClick={ () => setScheduledAction( 'offer' ) }
+                                        disabled={ !!acting || schedulingBusy || !validOfferBodyText( offerBodyText ) || vaultPricePaise !== 4900 || !vaultBreakdown }>
+                                        Schedule Unlock Vault
+                                    </button>
+                                    <button type="button" className="sf-cta sf-cta-quiet"
+                                        onClick={ () => { void handleSendPayment( reviewFile ); } }
+                                        disabled={ !!acting || schedulingBusy || !vaultBreakdown || vaultPricePaise === null }>
+                                        { reviewFile.lastPaymentRequestedAt ? 'Resend Review & Pay' : 'Send Review & Pay now' }
+                                    </button>
+                                    <button type="button" className="sf-cta sf-cta-quiet"
+                                        onClick={ () => setScheduledAction( 'payment' ) }
+                                        disabled={ !!acting || schedulingBusy || !vaultBreakdown || vaultPricePaise === null }>
+                                        Schedule Review &amp; Pay
+                                    </button>
+                                    <p className="sf-action-warning">
+                                        Payment requests are customer-authorized, not automatic charges. Order-status updates and invoice messages are sent only after verified payment; they cannot be manually scheduled.
+                                    </p>
+                                </div>
                             ) }
                             { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'READY' || accessStateOf( reviewFile ) === 'OPEN' ) && (
-                                <button type="button" className="sf-cta sf-send-cta"
-                                    disabled={ !!acting || uploading }
-                                    onClick={ () => { void handleSendAccess( reviewFile ); } }>
-                                    { acting ? 'Sending…' : 'Resend paid access (no charge)' }
-                                </button>
+                                <div className="sf-delivery-buttons">
+                                    <button type="button" className="sf-cta sf-send-cta"
+                                        disabled={ !!acting || schedulingBusy || uploading }
+                                        onClick={ () => { void handleSendAccess( reviewFile ); } }>
+                                        { acting ? 'Sending…' : 'Resend Access Vault now' }
+                                    </button>
+                                    <button type="button" className="sf-cta sf-cta-quiet"
+                                        disabled={ !!acting || schedulingBusy || uploading }
+                                        onClick={ () => setScheduledAction( 'access' ) }>
+                                        Schedule access resend
+                                    </button>
+                                    <p className="sf-action-warning">
+                                        Paid access must still be active at send time. No new payment is requested.
+                                    </p>
+                                </div>
+                            ) }
+                            { mode === 'existing' && reviewFile?.status === 'active' && accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
+                                <p className="sf-action-warning">Payment requires reconciliation. Sending and scheduling are disabled to prevent a second charge.</p> }
+                            { scheduledAction && reviewFile && (
+                                <div className="sf-schedule-box">
+                                    <h3>Schedule { scheduledAction === 'offer' ? 'Unlock Vault'
+                                        : scheduledAction === 'payment' ? 'Review & Pay' : 'Access Vault resend' }</h3>
+                                    <label className="sf-label" htmlFor="sf-scheduled-at">Send date &amp; time · your device timezone</label>
+                                    <input type="datetime-local" id="sf-scheduled-at" className="sf-input" step={ 60 }
+                                        value={ scheduledAtLocal } onChange={ e => setScheduledAtLocal( e.target.value ) }
+                                        disabled={ schedulingBusy } />
+                                    <p className="sf-hint">Schedule between 10 minutes and 30 days ahead. The sender runs about every 5 minutes. Each action rechecks file ownership, payment state and delivery rules when due.</p>
+                                    <div className="sf-schedule-controls">
+                                        <button type="button" className="sf-cta" disabled={ schedulingBusy || !scheduledAtLocal }
+                                            onClick={ () => { void handleScheduleAction( reviewFile ); } }>
+                                            { schedulingBusy ? 'Scheduling…' : 'Confirm scheduled send' }
+                                        </button>
+                                        <button type="button" className="sf-cta sf-cta-quiet"
+                                            onClick={ () => { setScheduledAction( null ); setScheduledAtLocal( '' ); } }
+                                            disabled={ schedulingBusy }>Close</button>
+                                    </div>
+                                </div>
+                            ) }
+                            { reviewFile && mode === 'existing' && (
+                                <section className="sf-schedules" aria-label="Vault scheduled message history">
+                                    <div className="sf-schedules-heading">
+                                        <h3>Scheduled &amp; recent actions</h3>
+                                        <button type="button" className="sf-act" disabled={ schedulingBusy }
+                                            onClick={ () => { void reloadSchedules( reviewFile.fileId ); } }>Refresh</button>
+                                    </div>
+                                    { scheduleError && <p role="status" className="sf-action-warning">{ scheduleError }</p> }
+                                    { scheduled.length === 0 && !scheduleError &&
+                                        <p className="sf-hint">No scheduled messages for this file.</p> }
+                                    { scheduled.map( record => (
+                                        <div className="sf-schedule-record" key={ record.scheduledId }>
+                                            <div>
+                                                <strong>{ record.action === 'offer' ? 'Unlock Vault'
+                                                    : record.action === 'payment' ? 'Review & Pay'
+                                                        : 'Paid access resend' }</strong>
+                                                <small>{ displayScheduleTime( record.scheduledAt ) } · { record.status === 'DISPATCH_UNKNOWN' ? 'Needs delivery review' : record.status }</small>
+                                            </div>
+                                            { record.status === 'PENDING' && (
+                                                <button type="button" className="sf-act" disabled={ schedulingBusy }
+                                                    onClick={ () => { void handleCancelSchedule( reviewFile, record.scheduledId ); } }>
+                                                    Cancel
+                                                </button>
+                                            ) }
+                                        </div>
+                                    ) ) }
+                                </section>
                             ) }
                             { lastAcceptedOfferFileId && reviewFile?.fileId === lastAcceptedOfferFileId && (
-                                <p className="sf-send-accepted" role="status">WhatsApp accepted the offer request. Handset delivery is still unconfirmed; check message history before resending.</p>
+                                <p className="sf-send-accepted" role="status">Meta accepted the WhatsApp offer request. Handset delivery is not yet confirmed. Check the message logs before resending.</p>
                             ) }
+                            <a href="/workspace/communications?view=manage&section=scheduled" className="sf-other-messages">
+                                Schedule other approved WhatsApp messages in Communications
+                            </a>
                         </div>
                     </div>
                     <VaultJourneyPreview
