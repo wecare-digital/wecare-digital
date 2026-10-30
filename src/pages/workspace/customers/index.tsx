@@ -730,9 +730,14 @@ const Customers: React.FC<PageProps> = () => {
               ? 'This WhatsApp customer already exists and is archived. Restore it below.'
               : 'This WhatsApp customer already exists. Open it or use it for payment below.');
           } else {
-            const message = 'This WhatsApp number already belongs to an existing customer. Search by number to open it.';
-            setFormError(message);
-            toast.warning(message);
+            const fullPhone = contactPhoneE164(formPhone, formCountryCode);
+            setSearchQuery(fullPhone);
+            setDebouncedSearch(fullPhone);
+            setFormError('');
+            setShowModal(false);
+            setShowEditModal(false);
+            resetForm();
+            toast.warning('This WhatsApp number already belongs to an existing customer. Showing the matching customer search.');
           }
         } else {
           setFormError(result.failure.message || 'Contact was not created');
@@ -1097,10 +1102,6 @@ const Customers: React.FC<PageProps> = () => {
   const renderContactForm = (_isEdit: boolean) => (
   <div className="contacts-modal-body">
     <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
-      <p style={S.hint}>The same profile and address fields the customer completes in WhatsApp Subscribe.</p>
-    </div>
-    <div>
       <label htmlFor="contact-name" style={S.label}>Full name *</label>
       <input id="contact-name" style={S.input} value={formName}
         onChange={e => { setFormName(e.target.value); setFormError(''); }}
@@ -1126,7 +1127,7 @@ const Customers: React.FC<PageProps> = () => {
             placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
             onFocus={focusStyle} onBlur={blurStyle} />
         </div>
-        <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp service and payment requests.</p>
+        <p style={S.hint}>Use the WhatsApp number linked to this customer.</p>
       </div>
     </div>
     <div>
@@ -1158,8 +1159,7 @@ const Customers: React.FC<PageProps> = () => {
     </div>
 
     <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>Your address</p>
-      <p style={{ ...S.hint, marginBottom: 10 }}>Used for service, delivery, and account details.</p>
+      <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
       <div className="contacts-form-grid">
         {ADDRESS_FIELDS.map(spec => (
           <div key={spec.key}>
@@ -1183,7 +1183,7 @@ const Customers: React.FC<PageProps> = () => {
           </div>
         ))}
       </div>
-      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
+      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Address preview</p>
       <div data-address-preview="contact" aria-readonly="true"
         style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}>
         {formatAddress(formAddress) || formShippingAddress || '\u2014'}
@@ -1643,7 +1643,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
           <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
@@ -1662,7 +1662,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
           <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
