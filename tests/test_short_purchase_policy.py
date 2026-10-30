@@ -95,7 +95,9 @@ class ShortPurchaseTests(unittest.TestCase):
         self.assertIn("stashPendingAction( { kind: 'checkout', channel: chosenChannel } )", page)
         self.assertIn("stashPendingAction( { kind: 'checkout', channel } )", page)
         self.assertIn("takePendingAction()", page)
-        self.assertIn("void proceed( pending.channel )", page)
+        self.assertIn("selectedCheckoutChannelRef.current = pending.channel", page)
+        self.assertIn("Review your total and select Pay here to continue.", page)
+        self.assertNotIn("void proceed( pending.channel )", page)
 
 
     def test_server_refusal_is_explicit_and_truthful(self):
