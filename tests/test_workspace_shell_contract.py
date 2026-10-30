@@ -183,3 +183,29 @@ def test_workspace_auth_field_states_preserve_validation_and_readonly_parity():
     assert '[data-address-preview][aria-readonly="true"]' in css
     assert 'border-radius:0!important' in css
     assert 'background:transparent!important' in css
+
+
+def test_workspace_form_blocks_share_one_canonical_visual_contract():
+    """All recurring Workspace form containers use the same neutral auth-aligned block system."""
+    css = (ROOT / "src/styles/workspace-shell.css").read_text()
+
+    for token in (
+        "--workspace-form-block-radius:16px",
+        "--workspace-form-block-padding:24px",
+        "--workspace-form-block-gap:20px",
+        '[class*="form-card"]',
+        '[class*="form-section"]',
+        '[class*="-form-panel"]',
+        '[data-workspace-form-block]',
+        "border:1px solid var(--public-hairline",
+        "background:#fff!important",
+        "box-shadow:none!important",
+        ":is(label,.ui-field-label)",
+        ":is(.field-hint,.form-hint,.ui-field-help,[class*="-hint"])",
+        ":is(.form-grid,[class*="-form-grid"],[class*="form-row"],[class*="-fields"])",
+    ):
+        assert token in css
+
+    mobile = css[css.index("@media(max-width:767px)"):]
+    assert "--workspace-form-block-padding:18px" in mobile
+    assert "--workspace-form-block-gap:16px" in mobile
