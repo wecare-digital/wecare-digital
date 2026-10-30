@@ -276,7 +276,6 @@ const Customers: React.FC<PageProps> = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
-  const [duplicateSearchValue, setDuplicateSearchValue] = useState('');
   const [identityReconciliationRequired, setIdentityReconciliationRequired] = useState(false);
   const [restoringDuplicate, setRestoringDuplicate] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -482,7 +481,6 @@ const Customers: React.FC<PageProps> = () => {
     setFormCompanyName(''); setFormDesignation('');
     setFormError('');
     setDuplicateContact(null);
-    setDuplicateSearchValue('');
     setIdentityReconciliationRequired(false);
   };
 
@@ -566,17 +564,6 @@ const Customers: React.FC<PageProps> = () => {
       if (exact) return exact;
     }
     return null;
-  };
-
-  const searchExistingCustomer = () => {
-    const query = duplicateSearchValue || contactPhoneE164(formPhone, formCountryCode);
-    setShowModal(false);
-    setShowEditModal(false);
-    setEditingContact(null);
-    resetForm();
-    setSearchQuery(query);
-    setDebouncedSearch(query);
-    requestAnimationFrame(() => searchInputRef.current?.focus());
   };
 
   const openExistingDuplicate = () => {
@@ -683,7 +670,6 @@ const Customers: React.FC<PageProps> = () => {
   const handleCreate = async () => {
     setFormError('');
     setDuplicateContact(null);
-    setDuplicateSearchValue('');
     setIdentityReconciliationRequired(false);
     const fail = ( message: string, fieldId?: string ) => {
       setFormError(message);
@@ -739,8 +725,7 @@ const Customers: React.FC<PageProps> = () => {
             || result.failure.details?.reconciliationRequired === true;
           if (reconciliationRequired) {
             setDuplicateContact(null);
-            setDuplicateSearchValue('');
-            setIdentityReconciliationRequired(true);
+                    setIdentityReconciliationRequired(true);
             setFormError('');
             toast.warning(
               'This WhatsApp identity is reserved, but its customer record is unavailable. '
@@ -756,17 +741,23 @@ const Customers: React.FC<PageProps> = () => {
             setDuplicateContact(existing);
             setIdentityReconciliationRequired(false);
             if (existing) {
-              setDuplicateSearchValue('');
-              setFormError('');
+                        setFormError('');
               toast.warning(existing.archivedAt
                 ? 'This WhatsApp customer already exists and is archived. Restore it below.'
                 : 'This WhatsApp customer already exists. Open it or use it for payment below.');
             } else {
+              // A stale Contacts runtime may return a generic 409 with no openable owner.
+              // Continue to the real Customers search automatically; do not strand staff
+              // in a modal with an instruction to search manually.
               const fullPhone = contactPhoneE164(formPhone, formCountryCode);
-              setDuplicateSearchValue(fullPhone);
-              setFormError('');
+              setSearchQuery(fullPhone);
+              setDebouncedSearch(fullPhone);
+              setShowModal(false);
+              setShowEditModal(false);
+              resetForm();
+              requestAnimationFrame(() => searchInputRef.current?.focus());
               toast.warning(
-                'This WhatsApp number already belongs to an existing customer. Search by number to open it.'
+                'This WhatsApp number already belongs to an existing customer. Showing the matching customer search. If no record appears, ask an administrator to reconcile the identity.'
               );
             }
           }
@@ -1165,7 +1156,7 @@ const Customers: React.FC<PageProps> = () => {
                 <div className="contacts-country-code">
                   <select id="contact-country-code" aria-label="WhatsApp country calling code"
                     style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
-                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
+                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
                     onFocus={focusStyle} onBlur={blurStyle}>
                     {COUNTRY_CODES.map(cc => (
                       <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
@@ -1173,7 +1164,7 @@ const Customers: React.FC<PageProps> = () => {
                   </select>
                 </div>
                 <input id="contact-phone" style={S.input} value={formPhone}
-                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
+                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setIdentityReconciliationRequired(false); }}
                   placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
                   onFocus={focusStyle} onBlur={blurStyle} />
               </div>
@@ -1280,21 +1271,6 @@ const Customers: React.FC<PageProps> = () => {
         ) : (
           <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
         )}
-      </div>
-    </div>
-  ) : null;
-
-  const duplicateSearchCard = !duplicateContact && duplicateSearchValue ? (
-    <div className="contacts-duplicate-card contacts-duplicate-search" role="status">
-      <div>
-        <span>Existing customer</span>
-        <strong>This WhatsApp number already belongs to an existing customer.</strong>
-        <small>Search by number to open it instead of creating another customer.</small>
-      </div>
-      <div className="contacts-duplicate-actions">
-        <button type="button" onClick={searchExistingCustomer} className="contacts-primary-action">
-          Search customer
-        </button>
       </div>
     </div>
   ) : null;
@@ -1745,7 +1721,6 @@ const Customers: React.FC<PageProps> = () => {
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
-            {duplicateSearchCard}
             {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
@@ -1766,7 +1741,6 @@ const Customers: React.FC<PageProps> = () => {
             {renderContactForm(true)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
-            {duplicateSearchCard}
             {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
