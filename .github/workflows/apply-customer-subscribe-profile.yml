@@ -1,0 +1,124 @@
+name: Apply Subscribe-aligned customer form
+
+on:
+  push:
+    branches:
+      - fix/customer-subscribe-profile-mobile
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/customer-subscribe-profile-mobile
+          fetch-depth: 0
+
+      - name: Copy the reviewed customer implementation onto current WorkspaceShell
+        shell: bash
+        run: |
+          git fetch origin feat/payments-home-mobile-foundation
+          git show origin/feat/payments-home-mobile-foundation:src/pages/workspace/customers/index.tsx > src/pages/workspace/customers/index.tsx
+
+          if grep -q "F001 customer modal mobile containment" src/styles/workspace.css; then
+            echo "Customer modal mobile rules already present"
+          else
+            cat >> src/styles/workspace.css <<'CSS'
+
+          /* F001 customer modal mobile containment. */
+          .workspace-shell .contacts-auth-modal .contacts-form-contact,
+          .workspace-shell .contacts-auth-modal .contacts-form-grid {
+            min-width: 0;
+          }
+          .workspace-shell .contacts-auth-modal input,
+          .workspace-shell .contacts-auth-modal select,
+          .workspace-shell .contacts-auth-modal textarea {
+            font-size: 16px !important;
+          }
+          .workspace-shell .contacts-auth-modal .contacts-modal-actions button {
+            min-height: 0 !important;
+          }
+          @media (max-width: 767px) {
+            .workspace-shell .customer-modal-overlay {
+              align-items: flex-end !important;
+              padding:
+                max(8px, env(safe-area-inset-top, 0px))
+                max(8px, env(safe-area-inset-right, 0px))
+                max(8px, env(safe-area-inset-bottom, 0px))
+                max(8px, env(safe-area-inset-left, 0px)) !important;
+            }
+            .workspace-shell .customer-modal-panel {
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+              border-radius: 18px 18px 0 0 !important;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-form-contact,
+            .workspace-shell .contacts-auth-modal .contacts-form-grid {
+              grid-template-columns: minmax(0, 1fr) !important;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-phone-control {
+              grid-template-columns: minmax(76px, 92px) minmax(0, 1fr) !important;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-modal-head,
+            .workspace-shell .contacts-auth-modal .contacts-modal-body {
+              padding-inline: var(--public-mobile-page-gutter, 16px) !important;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-modal-body {
+              min-width: 0;
+              overflow-y: auto;
+              overscroll-behavior: contain;
+              -webkit-overflow-scrolling: touch;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-modal-actions {
+              position: sticky;
+              bottom: 0;
+              display: grid !important;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+              gap: 10px !important;
+              padding-inline: var(--public-mobile-page-gutter, 16px) !important;
+              padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)) !important;
+              background: #fff;
+            }
+            .workspace-shell .contacts-auth-modal .contacts-duplicate-card {
+              margin-inline: var(--public-mobile-page-gutter, 16px) !important;
+            }
+          }
+          @media (max-width: 399px) {
+            .workspace-shell .contacts-auth-modal .contacts-modal-actions,
+            .workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
+              grid-template-columns: minmax(0, 1fr) !important;
+            }
+          }
+          CSS
+          fi
+
+          rm .github/workflows/apply-customer-subscribe-profile.yml
+
+      - name: Verify customer and Workspace shell contracts
+        shell: bash
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest -q \
+            tests/test_customer_duplicate_resolution.py \
+            tests/test_customer_subscribe_form_contract.py \
+            tests/test_workspace_shell_contract.py
+
+      - name: Verify TypeScript
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck --if-present
+
+      - name: Commit the reviewed changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(customers): align form with Subscribe profile"
+          git push origin HEAD:fix/customer-subscribe-profile-mobile
