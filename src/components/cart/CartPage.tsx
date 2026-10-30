@@ -350,6 +350,7 @@ type Outcome =
   | { kind: 'CONTRIBUTION_NOT_PAYABLE' }
   | { kind: 'SERVICE_REFUSED'; message: string }
   | { kind: 'CART_RESET_REQUIRED' }
+  | { kind: 'SHORT_CHECKOUT_ONE_ITEM' }
   | { kind: 'CART_NOT_PAYABLE' }
   | { kind: 'CART_RECONCILIATION_REQUIRED' }
   | { kind: 'ITEMS_UNAVAILABLE' }
@@ -967,6 +968,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         return { kind: 'SERVICE_REFUSED', message: SERVICE_REFUSAL_MESSAGES[ status ] };
       }
+      // Optional Part 1 server preflight: this 409 is before payment initiation.
+      if ( status === 'SHORT_CHECKOUT_ONE_ITEM' ) return { kind: 'SHORT_CHECKOUT_ONE_ITEM' };
       // The Cart V2 arms, in the vocabulary `_create` already speaks.
       if ( status === 'CART_RESET_REQUIRED' ) return { kind: 'CART_RESET_REQUIRED' };
       if ( status === 'CART_NOT_PAYABLE' ) return { kind: 'CART_NOT_PAYABLE' };
@@ -1141,6 +1144,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( outcome.kind === 'SERVICE_REFUSED' )
     {
       setNotice( { kind: 'error', message: outcome.message } );
+      return;
+    }
+
+    // The backend refused the proposed order shape before creating a PaymentAttempt.
+    // Do not misreport this as an ambiguous or possibly captured payment.
+    if ( outcome.kind === 'SHORT_CHECKOUT_ONE_ITEM' )
+    {
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Choose one product, quantity one. Remove extra cart lines to continue. Nothing has been charged.',
+      } );
       return;
     }
 
