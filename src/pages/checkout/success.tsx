@@ -67,9 +67,6 @@ export default function CheckoutSuccess (): React.ReactElement {
       <RotatingHero
         frame={ heading }
         words={ [ { word: 'your order', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        sub={ verified ? 'Your payment is confirmed and your order is created.' : checking
-          ? 'We are checking your order securely.'
-          : 'We could not confirm this order. If you have paid, do not pay again.' }
         ariaLabel={ heading }
       >
         <section className="cs-card">
@@ -87,6 +84,10 @@ export default function CheckoutSuccess (): React.ReactElement {
               <span className="cs-order-number" data-wc-no-translate="true">{orderNumber}</span>
             </p>
           )}
+
+          { !checking && !verified && (
+            <p className="cs-safety" role="status">Do not pay again.</p>
+          ) }
 
           <div className="cs-actions">
             <Link className="cs-auth-action cs-auth-primary" href={ destination }>
@@ -131,6 +132,8 @@ export default function CheckoutSuccess (): React.ReactElement {
             font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
             color:#1a3a2a;font-variant-numeric:tabular-nums;
           }
+
+          .cs-safety{margin:0;color:var(--public-brand-green);font-size:16px;font-weight:700;line-height:1.5}
 
           .cs-actions{margin-block-start:32px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
           .cs-card :global(.cs-auth-action){display:inline-flex;align-items:center;justify-content:center;min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);font:600 var(--public-cta-font-size)/1.35 var(--font-sans);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;touch-action:manipulation;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s}

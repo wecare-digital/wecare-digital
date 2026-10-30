@@ -53,7 +53,6 @@ export default function CheckoutMethodPage (): React.ReactElement {
       <RotatingHero
         frame="Choose"
         words={ [ { word: 'payment', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        sub="Your cart stays the same. Choose where you want to complete payment."
         ariaLabel="Choose payment method"
       >
         <section className="checkout-method" aria-label="Payment method">
@@ -78,9 +77,6 @@ export default function CheckoutMethodPage (): React.ReactElement {
             </button>
           </div>
 
-          <p className="checkout-method-note">
-            You sign in only once. Both methods use the same cart, customer and final Orders history.
-          </p>
           { error && <p className="checkout-method-error" role="alert">{ error }</p> }
 
           <style jsx>{`
@@ -104,7 +100,6 @@ export default function CheckoutMethodPage (): React.ReactElement {
             .checkout-auth-action:hover{background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
             .checkout-auth-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
             .checkout-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
-            .checkout-method-note{margin:0;color:var(--public-muted);font-size:14px;line-height:1.5}
             .checkout-method-error{margin:0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);font-size:14px;font-weight:600;line-height:1.4}
             @media(max-width:767px){
               .checkout-method{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}

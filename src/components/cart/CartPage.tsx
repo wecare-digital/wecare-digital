@@ -706,7 +706,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( !variantId ) return;
     setItems( setVariant( ref, variantId ) );
     setPaymentBlocked( false );
-    setNotice( { kind: 'quiet', message: 'Product option updated. Continue to secure payment.' } );
+    setNotice( { kind: 'none' } );
   }, [] );
 
   /**
@@ -1375,9 +1375,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     {
       setProfileMode( mode );
       setShowProfile( true );
-      setNotice( { kind: 'quiet', message: mode === 'address'
-        ? 'Add your delivery address to continue.'
-        : 'Confirm your name, email and delivery address before secure payment.' } );
+      setNotice( { kind: 'none' } );
       return;
     }
 
@@ -1601,7 +1599,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       <RotatingHero
         frame="Your"
         words={ [ { word: 'cart', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        sub="Review what you have added before you check out."
         ariaLabel="Your cart"
       >
         <div className="cart-in">
@@ -1730,19 +1727,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     if ( nextStatus === 'ready' )
                     {
                       setShowProfile( false );
-                      setNotice( {
-                        kind: 'quiet',
-                        message: 'Checkout details saved. Continue to secure payment.',
-                      } );
+                      setNotice( { kind: 'none' } );
                     }
                     else
                     {
                       setProfileMode( 'address' );
                       setShowProfile( true );
-                      setNotice( {
-                        kind: 'quiet',
-                        message: 'Add your delivery address to continue.',
-                      } );
+                      setNotice( { kind: 'none' } );
                     }
                   } }
                 />

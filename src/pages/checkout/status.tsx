@@ -37,27 +37,12 @@ function attemptIdFromUrl (): string {
   return String( new URLSearchParams( window.location.search ).get( 'a' ) || '' ).trim();
 }
 
-const COPY: Record<View, { title: string; body: string }> = {
-  confirming: {
-    title: 'Confirming your payment',
-    body: 'We are checking with the payment provider. This page updates on its own.',
-  },
-  paid: {
-    title: 'Payment received',
-    body: 'Your order is confirmed. We will be in touch on WhatsApp.',
-  },
-  finalizing: {
-    title: 'Payment received',
-    body: 'We are creating your order now. Do not pay again.',
-  },
-  failed: {
-    title: "Payment wasn't completed",
-    body: 'No order was created. You can start again whenever you are ready.',
-  },
-  unavailable: {
-    title: 'Nothing to show here',
-    body: 'We could not find a payment to confirm. If you have just paid, check WhatsApp for your confirmation.',
-  },
+const COPY: Record<View, { title: string }> = {
+  confirming: { title: 'Confirming your payment' },
+  paid: { title: 'Payment received' },
+  finalizing: { title: 'Payment received' },
+  failed: { title: "Payment wasn't completed" },
+  unavailable: { title: 'Nothing to show here' },
 };
 
 export default function CheckoutStatus (): React.ReactElement {
@@ -158,7 +143,6 @@ export default function CheckoutStatus (): React.ReactElement {
       <RotatingHero
         frame={ copy.title }
         words={ [ { word: 'your payment', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        sub={ copy.body }
         ariaLabel="Checkout status"
       >
         <section className="co-card" role="status" aria-live="polite">
@@ -188,16 +172,13 @@ export default function CheckoutStatus (): React.ReactElement {
           ) }
 
           { view === 'finalizing' && !stalled && (
-            <p className="co-note">Keep this page open. It usually takes a few seconds.</p>
+            <p className="co-note">Do not pay again.</p>
           ) }
 
           { stalled && ( view === 'confirming' || view === 'finalizing' ) && (
-            <>
-              <p className="co-note">This is taking longer than usual. Your orders page shows the latest status.</p>
-              <div className="co-actions">
-                <Link className="co-auth-action co-auth-primary" href="/orders/">Orders</Link>
-              </div>
-            </>
+            <div className="co-actions">
+              <Link className="co-auth-action co-auth-primary" href="/orders/">Orders</Link>
+            </div>
           ) }
 
           { view === 'failed' && (
