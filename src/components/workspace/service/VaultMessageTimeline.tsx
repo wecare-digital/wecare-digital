@@ -5,7 +5,8 @@
  * sends: customer tap and verified capture are required between stages.
  */
 import React from 'react';
-import type { SecureFile } from '../../../api/client';
+import * as api from '../../../api/client';
+import type { SecureFile, VaultMessageDeliveryLog, VaultMessageDeliveryEvidence } from '../../../api/client';
 import type { VaultRegistryJourney } from './VaultJourneyPreview';
 import styles from './VaultMessageTimeline.module.css';
 
@@ -46,6 +47,21 @@ function timeLabel ( value?: string | number ): string {
   } ) + ' IST';
 }
 
+function providerStatus ( result: VaultMessageDeliveryEvidence | undefined ):
+  { state: VaultMessageStep['state']; label: string; delivery: string } | null {
+  if ( !result || result.status === 'NOT_TRACKED' ) return null;
+  const at = result.observedAt ? timeLabel( result.observedAt ) : 'time unavailable';
+  switch ( result.status ) {
+    case 'READ': return { state: 'accepted', label: 'Read', delivery: 'Read receipt recorded · ' + at };
+    case 'DELIVERED': return { state: 'accepted', label: 'Delivered', delivery: 'Delivered webhook recorded · ' + at };
+    case 'SENT': return { state: 'accepted', label: 'Sent', delivery: 'Sent webhook recorded · ' + at };
+    case 'ACCEPTED': return { state: 'accepted', label: 'Meta accepted', delivery: 'Meta acceptance recorded · ' + at };
+    case 'FAILED': return { state: 'failed', label: 'Delivery failed', delivery: 'Failure webhook recorded · ' + at };
+    case 'UNAVAILABLE': return { state: 'unknown', label: 'Status unavailable', delivery: 'Provider status lookup unavailable; do not retry automatically' };
+    default: return { state: 'unknown', label: 'Needs reconciliation', delivery: 'Provider status has not been confirmed' };
+  }
+}
+
 function outcomeState ( outcome: string, success: string ): VaultMessageStep['state'] {
   if ( outcome === success ) return 'accepted';
   if ( /UNCONFIRMED|UNKNOWN|RECENT|PENDING|SENDING/.test( outcome ) ) return 'unknown';
@@ -63,6 +79,7 @@ function stateText ( state: VaultMessageStep['state'] ): string {
 export function vaultMessageSteps (
   file: SecureFile | null,
   journey: VaultRegistryJourney | null,
+  log?: VaultMessageDeliveryLog | null,
 ): VaultMessageStep[] {
   const paid = file?.vaultPaymentStatus === 'PAID'
     || file?.accessState === 'READY' || file?.accessState === 'OPEN'
@@ -70,9 +87,11 @@ export function vaultMessageSteps (
   const offer = String( file?.lastOfferOutcome || '' );
   const payment = String( file?.lastPaymentRequestOutcome || '' );
   const access = String( file?.lastAccessSendOutcome || '' );
-  const offerState = outcomeState( offer, 'VAULT_OFFER_SENT' );
+  const offerProof = providerStatus( log?.evidence.offer );
+  const accessProof = providerStatus( log?.evidence.access );
+  const offerState = offerProof?.state || outcomeState( offer, 'VAULT_OFFER_SENT' );
   const payState = outcomeState( payment, 'PAYMENT_REQUEST_SENT' );
-  const accessState = outcomeState( access, 'VAULT_LINK_SENT' );
+  const accessState = accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
   const stage = ( i: number, gapDefault: string ) => {
     const record = journey?.steps[ i ];
     return {
@@ -86,8 +105,8 @@ export function vaultMessageSteps (
     {
       index: 1, title: TITLE[ 0 ], ...stage( 0, 'Staff-triggered' ),
       event: 'Staff explicitly confirms send',
-      state: offerState, stateLabel: stateText( offerState ),
-      delivery: 'Handset delivery/read not independently linked',
+      state: offerState, stateLabel: offerProof?.label || stateText( offerState ),
+      delivery: offerProof?.delivery || 'Handset delivery/read not independently linked',
       at: timeLabel( file?.lastOfferRequestedAt ),
       detail: offer
         ? 'Last result: ' + offer + ( file?.lastOfferRequestedBy ? ' · by ' + file.lastOfferRequestedBy : '' )
@@ -122,8 +141,8 @@ export function vaultMessageSteps (
     {
       index: 5, title: TITLE[ 4 ], ...stage( 4, 'After invoice acceptance' ),
       event: 'Paid entitlement + invoice required',
-      state: accessState, stateLabel: access ? stateText( accessState ) : paid ? 'Paid access available' : 'Waiting for paid access',
-      delivery: 'Handset delivery/read not independently linked',
+      state: accessState, stateLabel: accessProof?.label || ( access ? stateText( accessState ) : paid ? 'Paid access available' : 'Waiting for paid access' ),
+      delivery: accessProof?.delivery || 'Handset delivery/read not independently linked',
       at: timeLabel( file?.lastAccessSentAt ),
       detail: access ? 'Last staff resend: ' + access + ( file?.lastAccessSentBy ? ' · by ' + file.lastAccessSentBy : '' )
         : paid ? 'Paid access exists; automatic Access Vault message has no staff-resend audit timestamp here'
@@ -135,12 +154,46 @@ export function vaultMessageSteps (
 export default function VaultMessageTimeline ( {
   file, journey, compact = false,
 }: { file: SecureFile | null; journey: VaultRegistryJourney | null; compact?: boolean } ) {
-  const steps = vaultMessageSteps( file, journey );
+  const [ log, setLog ] = React.useState<VaultMessageDeliveryLog | null>( null );
+  const [ loading, setLoading ] = React.useState( false );
+  const [ logError, setLogError ] = React.useState( '' );
+  const refresh = React.useCallback( async () => {
+    if ( !file?.fileId ) return;
+    setLoading( true );
+    const result = await api.readVaultMessageDeliveryLog( file.fileId );
+    if ( result.ok ) {
+      setLog( result.data );
+      setLogError( '' );
+    } else {
+      setLog( null );
+      setLogError( 'Delivery evidence unavailable. No status has been inferred.' );
+    }
+    setLoading( false );
+  }, [ file?.fileId ] );
+  React.useEffect( () => {
+    // Load on selecting one file; staff can refresh to see webhook updates.
+    let active = true;
+    if ( file?.fileId ) void api.readVaultMessageDeliveryLog( file.fileId ).then( result => {
+      if ( active ) {
+        setLog( result.ok ? result.data : null );
+        setLogError( result.ok ? '' : 'Delivery evidence unavailable.' );
+      }
+    } );
+    return () => { active = false; };
+  }, [ file?.fileId ] );
+  const scopedLog = log?.fileId === file?.fileId ? log : null;
+  const steps = vaultMessageSteps( file, journey, scopedLog );
   return (
     <section className={ styles.ledger } aria-label="Five-stage Vault message status and timing">
       <div className={ styles.legend }>
         <strong>Message order &amp; delivery log</strong>
-        <small>IST · Stored attempts only</small>
+        <span className={ styles.refreshGroup }>
+          <small>IST · Recorded evidence only</small>
+          { file?.fileId && <button type="button" className={ styles.refresh }
+            disabled={ loading } onClick={ () => { void refresh(); } }>
+            { loading ? 'Checking…' : 'Refresh status' }
+          </button> }
+        </span>
       </div>
       <ol className={ styles.timeline }>
         { steps.map( stage => (
@@ -167,6 +220,7 @@ export default function VaultMessageTimeline ( {
           </li>
         ) ) }
       </ol>
+      { logError && <p className={ styles.disclaimer } role="status">{ logError }</p> }
       <p className={ styles.disclaimer }>
         Timing separates send attempts; it does not guarantee device delivery order.
         “Meta accepted” does not mean delivered or read. Unknown sends must be reconciled,
