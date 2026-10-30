@@ -667,6 +667,19 @@ export async function deleteContact ( contactId: string ): Promise<boolean> {
   return data !== null && !data.error;
 }
 
+/**
+ * Operator-requested soft delete. This never asks the disabled hard-delete endpoint to purge
+ * messages or identity claims. Preserve server 403/409 reasons (legal lock, payment linkage,
+ * unknown linkage) so the staff UI never reports a false deletion.
+ */
+export async function softDeleteContactResult (
+  contactId: string,
+): Promise<ApiResult<{ success: boolean; contactId: string; deleteType: 'soft' }>> {
+  return apiCallResult<{ success: boolean; contactId: string; deleteType: 'soft' }>(
+    `${API_BASE}/contacts/${encodeURIComponent(contactId)}`, { method: 'DELETE' },
+  );
+}
+
 export async function archiveContact (
   contactId: string,
   reason: string,
@@ -5257,6 +5270,19 @@ export async function cancelInvoice ( invoiceId: string, reason?: string ): Prom
     method: 'POST',
     body: JSON.stringify( { invoiceId, reason } ),
   } );
+}
+
+/** The staff void action must show the invoice engine's precise money-state refusal. */
+export async function cancelInvoiceResult (
+  invoiceId: string,
+  reason: string,
+): Promise<ApiResult<{ invoiceId: string; status: string }>> {
+  return apiCallResult<{ invoiceId: string; status: string }>(
+    `${INVOICE_BASE}/${encodeURIComponent(invoiceId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify( { invoiceId, reason } ),
+    },
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
