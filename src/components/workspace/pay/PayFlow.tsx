@@ -300,6 +300,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ editCust, setEditCust ] = useState<Partial<Contact> | null>( null );
   const [ custForm, setCustForm ] = useState( EMPTY_FORM );
   const [ custSaving, setCustSaving ] = useState( false );
+  const [ custError, setCustError ] = useState( '' );
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
   const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
@@ -405,6 +406,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
 
   /* Customer handlers */
   const openEditCust = ( c: Contact, focus?: 'phone' | 'address' ) => {
+    setCustError( '' );
     const address = addressFieldsFromContact( c );
     const composed = contactDeliveryAddress( c );
     setEditCust( c );
@@ -421,15 +423,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       }, 0 );
     }
   };
-  const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); };
+  const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); setCustError( '' ); };
   const saveCust = async () => {
     if ( !editCust ) return;
+    if ( !custForm.name.trim() ) { setCustError( 'Enter the full name.' ); return; }
+    if ( !custForm.phone.trim() ) { setCustError( 'Enter the WhatsApp number, including its country code.' ); return; }
+    setCustError( '' );
     setCustSaving( true );
     try
     {
       const composed = formatAddress( custForm );
       const saveData = {
-        name: custForm.name, phone: custForm.phone, email: custForm.email, gstin: custForm.gstin,
+        name: custForm.name.trim(), phone: custForm.phone.trim(),
+        // Hidden email/GSTIN values are retained on the canonical record by omission.
         // The composed string, so the two legacy address strings cannot disagree with the fields.
         // A composition is only written when there is something to compose: an untouched form must
         // not blank a stored address.
@@ -470,11 +476,15 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       if ( editCust.id ) {
         const result = await api.updateContactResult( editCust.id, saveData as any );
         if ( !result.ok ) {
-          showMsg( result.failure.message || 'Customer update was refused.', 'error' );
+          const message = result.failure.message || 'Customer update was refused.';
+          setCustError( message );
+          showMsg( message, 'error' );
           return;
         }
         if ( !result.data ) {
-          showMsg( 'Customer update was accepted, but the refreshed customer record was unavailable. Reload before collecting payment.', 'error' );
+          const message = 'Customer update returned no refreshed record. Reload before collecting payment.';
+          setCustError( message );
+          showMsg( message, 'error' );
           return;
         }
         if ( selCustomer?.id === editCust.id ) setSelCustomer( result.data );
@@ -482,14 +492,16 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       } else {
         const result = await api.createContactResult( saveData as any );
         if ( !result.ok ) {
-          showMsg( result.failure.message || 'Customer creation was refused.', 'error' );
+          const message = result.failure.message || 'Customer creation was refused.';
+          setCustError( message );
+          showMsg( message, 'error' );
           return;
         }
         showMsg( 'Customer created' );
       }
       closeEditCust();
       void loadCustomers();
-    } catch ( e ) { showMsg( 'Save failed', 'error' ); }
+    } catch ( e ) { setCustError( 'Could not save customer. Check your connection and try again.' ); showMsg( 'Save failed', 'error' ); }
     finally { setCustSaving( false ); }
   };
 
@@ -918,6 +930,33 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         <div className="inner-page pf-auth-surface">
           { msg && <div className={ `msg-bar ${msg.type}` } style={ { margin: '0 0 16px' } }>{ msg.text }<button onClick={ () => setMsg( null ) } style={ { background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 } }>{ '\u2715' }</button></div> }
 
+              { editCust && (
+                <div className="pf-modal-overlay" onClick={ closeEditCust }>
+                  <div className="pf-modal-box pf-customer-editor" role="dialog" aria-modal="true" aria-label={ editCust.id ? 'Edit Customer' : 'New Customer' } onClick={ e => e.stopPropagation() }>
+                    <div className="pf-modal-header">
+                      <h3>{ editCust.id ? 'Edit Customer' : 'New Customer' }</h3>
+                      <Button variant="ghost" size="sm" onClick={ closeEditCust }>{ '\u2715' }</Button>
+                    </div>
+                    <div className="form-group"><label htmlFor="pf-cust-name">Full name *</label><input id="pf-cust-name" type="text" value={ custForm.name } onChange={ e => { setCustForm( { ...custForm, name: e.target.value } ); setCustError( '' ); } } placeholder="Enter full name" /></div>
+                    <div className="form-group"><label htmlFor="pf-cust-phone">Linked WhatsApp number *</label><input id="pf-cust-phone" type="tel" value={ custForm.phone } onChange={ e => { setCustForm( { ...custForm, phone: e.target.value } ); setCustError( '' ); } } placeholder="Include country code" /></div>
+                    { /* ONE address input group. The free-text "Delivery Address" textarea that
+                         used to sit here is the read-only composed preview inside this block
+                         now, so the eight fields are the only place an address is typed. */ }
+                    <AddressFieldGroup
+                      idPrefix="pf-cust-addr"
+                      value={ custForm }
+                      onChange={ next => { setCustForm( { ...custForm, ...next } ); setCustError( '' ); } }
+                      fallback={ custForm.shippingAddress }
+                    />
+                    { custError && <div className="pf-modal-error" role="alert">{ custError }</div> }
+                    <div className="pf-modal-actions">
+                      <Button variant="secondary" size="sm" onClick={ closeEditCust }>Cancel</Button>
+                      <Button variant="primary" size="sm" loading={ custSaving } onClick={ saveCust }>Save</Button>
+                    </div>
+                  </div>
+                </div>
+              ) }
+
           {/* CUSTOMERS TAB */ }
           { activeTab === 'customers' && (
             <div className="pf-tab-body">
@@ -948,32 +987,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   </tbody>
                 </table>
               </div>
-              { editCust && (
-                <div className="pf-modal-overlay" onClick={ closeEditCust }>
-                  <div className="pf-modal-box" onClick={ e => e.stopPropagation() }>
-                    <div className="pf-modal-header">
-                      <h3>{ editCust.id ? 'Edit Customer' : 'New Customer' }</h3>
-                      <Button variant="ghost" size="sm" onClick={ closeEditCust }>{ '\u2715' }</Button>
-                    </div>
-                    <div className="form-group"><label>Name</label><input type="text" value={ custForm.name } onChange={ e => setCustForm( { ...custForm, name: e.target.value } ) } placeholder="Enter full name" /></div>
-                    <div className="form-group"><label htmlFor="pf-cust-phone">Phone</label><input id="pf-cust-phone" type="tel" value={ custForm.phone } onChange={ e => setCustForm( { ...custForm, phone: e.target.value } ) } placeholder="Include country code" /></div>
-                    <div className="form-group"><label>Email</label><input type="email" value={ custForm.email } onChange={ e => setCustForm( { ...custForm, email: e.target.value } ) } placeholder="Enter email address" /></div>
-                    { /* ONE address input group. The free-text "Delivery Address" textarea that
-                         used to sit here is the read-only composed preview inside this block
-                         now, so the eight fields are the only place an address is typed. */ }
-                    <AddressFieldGroup
-                      idPrefix="pf-cust-addr"
-                      value={ custForm }
-                      onChange={ next => setCustForm( { ...custForm, ...next } ) }
-                      fallback={ custForm.shippingAddress }
-                    />
-                    <div className="pf-modal-actions">
-                      <Button variant="secondary" size="sm" onClick={ closeEditCust }>Cancel</Button>
-                      <Button variant="primary" size="sm" loading={ custSaving } onClick={ saveCust }>Save</Button>
-                    </div>
-                  </div>
-                </div>
-              ) }
             </div>
           ) }
 
