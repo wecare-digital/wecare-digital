@@ -18,8 +18,11 @@ def test_vault_workspace_has_single_customer_and_file_composer():
     assert "sf-workbench" in page
     assert "sf-document-mode" in page
     assert "VaultJourneyPreview" in page
-    assert "Upload & publish" in page
-    assert "Send Access Vault (no charge)" in page
+    assert "Save document to Vault" in page
+    assert "Resend paid access (no charge)" in page
+    assert "Review & send Unlock Vault" in page
+    assert "confirm( {" in page
+    assert "Send Unlock Vault on WhatsApp?" in page
     assert "sf-review-backdrop" not in page
 
 
@@ -34,6 +37,8 @@ def test_whatsapp_preview_is_read_only_and_uses_backend_authorities():
     assert "Vault link plus an optional WhatsApp document" in preview
     assert "The approved template wording is fixed" in preview
     assert "offerBodyText" in preview
+    assert "<VaultMessageTimeline" in preview
+    assert "<details className={ styles.invoice }" in preview
     assert "https://wecare.digital/vault/?file=" in preview
 
 
