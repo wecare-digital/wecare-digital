@@ -1342,7 +1342,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // next render and the next click.
     let status = profileStatus;
     // An owned phone-only bootstrap needs a name edit, not a new profile form.
-    let mode: CheckoutProfileMode = profile ? ( profile.name ? 'address' : 'name' ) : 'create';
+    let mode: CheckoutProfileMode = profile?.name ? 'address' : profile ? 'name' : 'create';
     if ( status === 'unknown' || status === 'checking' )
     {
       setProfileStatus( 'checking' );
