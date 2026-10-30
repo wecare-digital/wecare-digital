@@ -11,6 +11,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { WHATSAPP_PHONES } from '../../../config/constants';
 import Select, { type SelectOption } from '../../../components/ui/Select';
+import { publishedFlowById } from '../../../lib/canonicalFlows';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -41,6 +42,16 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
   const [flowDetail, setFlowDetail] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAllMetaFlows, setShowAllMetaFlows] = useState(false);
+
+  // The operational list is the seven retained, published flows on the primary account.
+  // Meta still retains older DRAFT/DEPRECATED design IDs. Do not delete them or present
+  // them as customer entry points; keep them inspectable in an explicit admin view.
+  const retainedFlows = flows.filter(flow => selectedWaba.id === WABAS[0].id
+    && ['PUBLISHED', 'THROTTLED'].includes(String(flow.status || '').toUpperCase())
+    && !!publishedFlowById(String(flow.id || '')));
+  const visibleFlows = showAllMetaFlows ? flows : retainedFlows;
+  const hiddenFlowCount = flows.length - retainedFlows.length;
 
   const loadFlows = async (waba: typeof WABAS[0]) => {
     setLoading(true);
@@ -106,9 +117,20 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
       <div className="inner-page-container" style={{ background: '#fff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 20 }}>WhatsApp Flows</h2>
-          <button onClick={() => setShowCreate(true)} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: '1.5px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
-            + Create Flow
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button type="button" onClick={() => {
+              setShowAllMetaFlows(previous => !previous);
+              setShowCreate(false);
+              setSelectedFlow(null);
+              setFlowDetail(null);
+            }} style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 13, cursor: 'pointer', background: '#fff', fontSize: 'var(--text-sm)' }}>
+              {showAllMetaFlows ? 'Show retained live Flows' : `Show all Meta flows (${hiddenFlowCount} hidden)`}
+            </button>
+            {showAllMetaFlows && <button type="button" onClick={() => setShowCreate(true)}
+              style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: '1.5px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
+              + Create Flow
+            </button>}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -120,8 +142,14 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
           ))}
         </div>
 
-        {/* Create Modal */}
-        {showCreate && (
+        <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+          {showAllMetaFlows
+            ? `Meta inventory: ${flows.length} records. Draft and retired Flows are history, not customer launch targets.`
+            : `Live inventory: ${visibleFlows.length} retained published Flows. ${hiddenFlowCount} old, draft, retired or non-retained records hidden from this view.`}
+        </p>
+
+        {/* Creating additional Flow IDs is kept in the explicit full Meta inventory view. */}
+        {showAllMetaFlows && showCreate && (
           <div style={{ background: 'var(--bg-secondary)', padding: 20, borderRadius: 8, marginBottom: 20, border: '1px solid var(--border)' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 'var(--text-base)' }}>Create New Flow</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -147,14 +175,14 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
               Retry
             </button>
           </div>
-        ) : flows.length === 0 ? (
+        ) : visibleFlows.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
-            <p style={{ fontSize: 'var(--text-base)' }}>No flows found for this WABA</p>
-            <p style={{ fontSize: 'var(--text-sm)' }}>Create a flow to build forms, surveys, and step-based experiences</p>
+            <p style={{ fontSize: 'var(--text-base)' }}>{showAllMetaFlows ? 'No Meta flows found on this account' : 'No retained published Flows found on this account'}</p>
+            <p style={{ fontSize: 'var(--text-sm)' }}>{showAllMetaFlows ? 'No Flow records were returned by Meta.' : 'Use Show all Meta flows for diagnostics. Customer-facing launch status must match the current Meta state.'}</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
-            {flows.map(flow => (
+            {visibleFlows.map(flow => (
               <div key={flow.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
