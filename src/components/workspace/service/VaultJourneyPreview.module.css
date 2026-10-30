@@ -1,0 +1,50 @@
+.preview{min-width:0;position:sticky;top:16px;align-self:start;display:grid;gap:16px;padding:20px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 4px 20px rgba(16,37,26,.035)}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.header h2{margin:2px 0 0;font-size:20px;letter-spacing:-.35px;color:var(--text)}
+.kicker{margin:0;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.065em;font-weight:800}
+.tag{white-space:nowrap;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--bg-secondary,#f8faf9);font-size:11px;font-weight:700;color:var(--text-muted)}
+.document{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;border:1px solid var(--border-light,var(--border));background:var(--bg-secondary,#f8faf9)}
+.documentIcon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:10px;background:#f0f8db;font-size:20px}
+.documentCopy{display:grid;gap:3px;min-width:0}
+.documentCopy strong{font-size:13px;overflow-wrap:anywhere;color:var(--text)}
+.documentCopy small{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
+.invoice,.messages,.delivery{min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;padding:14px}
+.invoiceTop,.sectionTitle,.billRow,.billTotal,.messageMeta{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.invoiceTop{align-items:center;gap:10px;font-size:11px}
+.invoiceTop strong{color:var(--text);letter-spacing:-.3px}
+.invoiceTop span{font-weight:700;color:var(--text-muted);font-size:10px}
+.invoice h3,.messages h3,.delivery h3{margin:10px 0 6px;color:var(--text);font-size:15px;line-height:1.3}
+.invoice h3{margin-top:13px}
+.customer{font-size:12px;color:var(--text-muted);margin:0 0 10px;overflow-wrap:anywhere}
+.billRow{padding:8px 0;border-top:1px solid var(--border-light,var(--border));font-size:12px}
+.billRow span{color:var(--text-muted)}
+.billRow strong{color:var(--text);white-space:nowrap}
+.billTotal{padding:12px 10px;margin-top:8px;border-radius:9px;background:rgba(209,244,112,.35);font-size:13px;font-weight:750;color:var(--accent)}
+.billTotal strong{font-size:16px}
+.hint{font-size:11px;line-height:1.45;color:var(--text-muted);margin:9px 0 0}
+.warning{background:#fff8e9;border:1px solid #f0cc84;color:#855814;border-radius:9px;padding:10px;font-size:11px;line-height:1.45;margin:10px 0 0}
+.sectionTitle{align-items:center}
+.sectionTitle h3{margin:0 0 12px}
+.sectionTitle span{font-size:10px;color:var(--text-muted);white-space:nowrap}
+.steps{display:flex;gap:5px;max-width:100%;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.stepButton{flex:1 0 66px;min-height:49px;border:1px solid var(--border);border-radius:9px;background:#fff;font:600 11px/1.2 var(--font-sans);color:var(--text-muted);padding:7px 5px;cursor:pointer;display:grid;justify-items:center;align-content:center;gap:3px}
+.stepButton span{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--bg-secondary,#f8faf9);font-size:10px;font-weight:800}
+.stepButton:hover{background:var(--bg-secondary,#f8faf9)}
+.stepButton:focus-visible,.actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.activeStep{background:#eef9cd;border-color:var(--lime);color:var(--accent);font-weight:800}
+.activeStep span{background:var(--accent);color:#fff}
+.messageMeta{font-size:11px;color:var(--text-muted);padding:4px 0 10px}
+.bubble{display:grid;gap:9px;padding:13px 14px;background:#edf9ef;border:1px solid #d5eedc;border-radius:14px 14px 4px 14px}
+.bubble small{font-size:10px;font-weight:750;color:#365b40;overflow-wrap:anywhere}
+.bubble p{font-size:13px;line-height:1.5;color:#173926;white-space:pre-wrap;margin:0;overflow-wrap:anywhere}
+.bubbleButton{display:block;border-radius:7px;text-align:center;padding:8px 10px;background:#fff;border:1px solid #bed9bf;color:#214b33;font-size:11px;font-weight:750}
+.smallNote{font-size:11px;color:#436449}
+.variables{display:grid;gap:0;margin:12px 0 0}
+.variables>div{display:grid;grid-template-columns:minmax(95px,31%) minmax(0,1fr);align-items:baseline;gap:9px;padding:7px 0;border-top:1px solid var(--border-light,var(--border));font-size:11px}
+.variables dt{color:var(--text-muted)}
+.variables dd{margin:0;font-weight:650;color:var(--text);overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.actions button{min-height:36px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--accent);font:700 12px var(--font-sans);padding:0 10px;cursor:pointer}
+.actions button:disabled{opacity:.5;cursor:default}
+@media(max-width:1080px){.preview{position:static}.steps{justify-content:flex-start}.stepButton{flex:1 0 70px}}
+@media(max-width:600px){.preview{padding:14px}.invoice,.messages,.delivery{padding:12px}.steps{overflow-x:auto}.stepButton{flex:0 0 80px}}
