@@ -65,6 +65,10 @@ def test_website_allows_full_basket_but_native_policy_stays_separate():
 def test_payment_matches_reviewed_quote_before_opening_razorpay():
     assert "parseCheckoutQuote( body )" in PAGE
     assert "options.amountPaise !== expectedTotalPaise" in PAGE
+    # Prior live Lambda falls back to a CREATE for unknown actions. Never post
+    # action:quote before the version-pinned backend is activated.
+    assert "NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED" in PAGE
+    assert "if ( !WEBSITE_FULL_CART_QUOTE_ENABLED )" in PAGE
     assert "return { kind: 'QUOTE_CHANGED' };" in PAGE
     assert "const expectedTotalPaise = quote.charges.totalPaise" in PAGE
     assert "quoteFor !== basketFingerprint( lineItems )" in PAGE
