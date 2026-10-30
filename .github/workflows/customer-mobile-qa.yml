@@ -9,10 +9,15 @@ on:
       - src/lib/contactPhone.ts
       - src/lib/address-format.ts
       - src/styles/workspace.css
+      - src/styles/inner-ux.css
+      - src/api/client.ts
+      - amplify/functions/core/contacts/handler.py
+      - amplify/functions/payments/invoice-engine/handler.py
+      - tests/test_customer_delete_and_invoice_void.py
       - tests/customerPhone.test.mjs
       - tests/test_customer_mobile_interactions.py
       - tests/test_customer_duplicate_resolution.py
-      - tests/test_customer_subscribe_form_contract.py
+      - tests/test_customer_subscribe_form_contract.py tests/test_customer_delete_and_invoice_void.py
       - .github/workflows/customer-mobile-qa.yml
 
 permissions:
