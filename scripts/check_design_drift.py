@@ -178,7 +178,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/orders/OrdersPage.tsx": ("--public-section-size", "--public-body-size"),
     SRC / "components/cart/CartPage.tsx": ("--public-body-size", "--public-card-size", "--public-brand-green"),
     SRC / "pages/checkout/status.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
-    SRC / "pages/checkout/success.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
+    # Legacy success re-exports /checkout/status; audit the actual shared screen once.
     SRC / "components/CheckoutAction.tsx": (
         "--tap-min", "--public-brand-green", "--public-accent-amber", "--public-cta-font-size",
     ),

@@ -1712,6 +1712,15 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
+              {/* Only the signed backend quote and its provider presentation know the
+                  exact payable, after any applicable Delight discount, fees, tax or delivery.
+                  The catalogue display string above is never used as checkout money. */}
+              <p className="cart-price-note" role="note">
+                Catalog price shown above. The final amount after applicable discounts,
+                fees and taxes will appear in the secure payment screen or WhatsApp
+                Review and Pay before you confirm.
+              </p>
+
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
                   the browser.
@@ -1891,6 +1900,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-price{
             font-size:var(--public-body-size);font-weight:600;line-height:1.3;letter-spacing:var(--public-body-tracking);
             color:var(--public-brand-green);margin:0;font-variant-numeric:tabular-nums;
+          }
+          .cart-price-note{
+            margin:0 0 12px;font-size:14px;line-height:1.5;
+            color:var(--public-muted);
           }
           /* THE VARIANT CHOOSER, NOW OUR OWN COMBOBOX (batch 2f). What was a .cart-option-label
              wrapping a .cart-option select is one Select, so .cart-option is the className on

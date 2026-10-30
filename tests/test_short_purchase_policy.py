@@ -1,6 +1,6 @@
 """Offline contract checks for the opt-in Short Commerce server-side guard.
 
-Run: python -m unittest discover -s tests -p test_short_commerce_part1.py
+Run: python -m unittest discover -s tests -p test_short_purchase_policy.py
 No AWS, Razorpay, Meta, or customer access is required.
 """
 import importlib.util
