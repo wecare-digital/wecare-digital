@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { getAllNavItems } from '../config/navigation';
 import * as api from '../api/client';
+import { lockScroll, unlockScroll } from '../lib/scrollLock';
 
 interface SearchResult {
   id: string;
@@ -83,15 +84,19 @@ const SearchModal: React.FC<SearchModalProps> = ( {
   const [ selectedIndex, setSelectedIndex ] = useState( 0 );
   const inputRef = useRef<HTMLInputElement>( null );
 
-  // Focus input when modal opens
+  // Focus input and lock the document while the palette is open. The lock is shared
+  // with the reusable Modal so iOS/Android WebViews do not scroll the page behind it.
   useEffect( () => {
-    if ( isOpen )
-    {
-      setQuery( '' );
-      setSelectedIndex( 0 );
-      setResults( DEFAULT_RESULTS );
-      setTimeout( () => inputRef.current?.focus(), 100 );
-    }
+    if ( !isOpen ) return undefined;
+    lockScroll();
+    setQuery( '' );
+    setSelectedIndex( 0 );
+    setResults( DEFAULT_RESULTS );
+    const timer = window.setTimeout( () => inputRef.current?.focus(), 100 );
+    return () => {
+      window.clearTimeout( timer );
+      unlockScroll();
+    };
   }, [ isOpen ] );
 
   // Universal record search. Navigation matches are immediate; operational records are
@@ -265,7 +270,8 @@ const SearchModal: React.FC<SearchModalProps> = ( {
 
   return (
     <div className="search-overlay" onClick={ onClose }>
-      <div className="search-modal" onClick={ e => e.stopPropagation() }>
+      <div className="search-modal" role="dialog" aria-modal="true" aria-label="Search workspace"
+        onClick={ e => e.stopPropagation() }>
         <div className="search-input-wrapper">
           <span className="search-icon">Search</span>
           {/* Universal search is backed by the operational APIs below; the optional
@@ -355,6 +361,7 @@ const SearchModal: React.FC<SearchModalProps> = ( {
 
         .search-overlay .search-modal{
           width:min(720px,100%);
+          max-height:min(720px,calc(100vh - 120px));
           max-height:min(720px,calc(100dvh - 120px));
           display:flex;
           flex-direction:column;
@@ -537,6 +544,7 @@ const SearchModal: React.FC<SearchModalProps> = ( {
             background:rgba(15,42,29,.12);
           }
           .search-overlay .search-modal{
+            max-height:calc(100vh - 160px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
             max-height:calc(100dvh - 160px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
             border-radius:16px;
           }

@@ -341,6 +341,7 @@
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
   border: 1px solid #e5e7eb;
@@ -486,12 +487,23 @@
 
   .link-modal-overlay {
     align-items: flex-end;
-    padding: 0;
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px));
   }
 
   .link-modal {
     max-width: 100%;
     border-radius: 16px 16px 0 0;
-    max-height: 85vh;
+    max-height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+
+  .link-modal input,
+  .link-modal select,
+  .link-modal textarea {
+    font-size: 16px;
   }
 }

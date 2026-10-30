@@ -5,6 +5,8 @@ APP = ROOT / "src/pages/_app.tsx"
 SHELL = ROOT / "src/components/WorkspaceShell.tsx"
 LAYOUT = ROOT / "src/components/Layout.tsx"
 SHELL_CSS = ROOT / "src/styles/workspace-shell.css"
+SEARCH = ROOT / "src/components/SearchModal.tsx"
+FLEX = ROOT / "src/styles/flex-layout.css"
 
 GLOBAL_CHROME_IMPORTS = (
     "components/Header",
@@ -81,7 +83,8 @@ def test_workspace_shell_uses_home_public_foundation_and_mobile_containment():
     assert "padding-top:108px" in shell
     assert "padding-top:96px" in shell
     assert "100vh" in shell and "100dvh" in shell
-    assert "safe-area-inset-bottom" in shell
+    for inset in ("safe-area-inset-left", "safe-area-inset-right", "safe-area-inset-bottom"):
+        assert inset in shell
     assert "overflow-x:clip" in shell
     assert "@media(max-width:279px)" in shell
     assert "font-size:16px!important" in css
@@ -95,6 +98,23 @@ def test_workspace_tabs_and_wide_data_are_contained_locally():
     assert "overscroll-behavior-inline:contain" in css
     assert '[class$="-table-wrap"]' in css
     assert ".table-container" in css
+    for rail in (".comms-tabs", ".commerce-tabs", ".service-tabs", ".ledger-switch"):
+        assert rail in css
+    assert "scrollbar-width:none" in css
+    assert ".sf-review-drawer" in css and ".md-panel" in css
+    assert "height:100dvh!important" in css
+
+
+def test_workspace_search_and_local_modals_fit_visual_viewport():
+    search = SEARCH.read_text()
+    flex = FLEX.read_text()
+    assert 'role="dialog"' in search
+    assert 'aria-modal="true"' in search
+    assert "lockScroll()" in search and "unlockScroll()" in search
+    assert "100vh" in search and "100dvh" in search
+    assert "safe-area-inset-top" in search and "safe-area-inset-bottom" in search
+    assert "max-height: 90dvh" in flex
+    assert "safe-area-inset-left" in flex and "safe-area-inset-right" in flex
 
 
 def test_protected_head_keeps_viewport_fit_cover():

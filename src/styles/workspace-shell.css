@@ -44,15 +44,42 @@
   line-height:var(--public-hero-leading)!important;
   letter-spacing:var(--public-hero-tracking)!important;
 }
-.workspace-shell .ps-subtitle{
+.workspace-shell .ps-subtitle,
+.workspace-shell .comms-head p:not(.comms-eyebrow),
+.workspace-shell .commerce-head>div>p:last-child,
+.workspace-shell .service-head>div>p:last-child,
+.workspace-shell .workspace-page-head>p:last-child,
+.workspace-shell .tk-sub{
   max-width:var(--public-reading-max,700px);
-  font-size:var(--public-supporting-size)!important;
+  color:var(--public-body,var(--text));
+  font-size:var(--public-body-size,20px)!important;
+  font-weight:var(--public-body-weight,400)!important;
+  line-height:var(--public-body-leading,1.4)!important;
+  letter-spacing:var(--public-body-tracking,-.125px)!important;
 }
+.workspace-shell .comms-tabs,
+.workspace-shell .commerce-tabs,
+.workspace-shell .service-tabs,
+.workspace-shell .ledger-switch{
+  width:100%!important;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-inline:contain;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.workspace-shell .comms-tabs::-webkit-scrollbar,
+.workspace-shell .commerce-tabs::-webkit-scrollbar,
+.workspace-shell .service-tabs::-webkit-scrollbar,
+.workspace-shell .ledger-switch::-webkit-scrollbar{display:none}
 .workspace-shell .workspace-main .ps-tab,
 .workspace-shell .workspace-main .comms-tabs button,
 .workspace-shell .workspace-main .commerce-tabs button,
 .workspace-shell .workspace-main .service-tabs button,
 .workspace-shell .workspace-main .ledger-switch button{
+  flex:0 0 auto;
   min-height:auto!important;
   height:auto!important;
 }
@@ -67,12 +94,22 @@
 }
 .workspace-shell .workspace-main img,
 .workspace-shell .workspace-main video,
-.workspace-shell .workspace-main canvas{max-width:100%;height:auto}
+.workspace-shell .workspace-main canvas,
+.workspace-shell .workspace-main svg,
+.workspace-shell .workspace-main iframe,
+.workspace-shell .workspace-main object,
+.workspace-shell .workspace-main embed{max-width:100%}
+.workspace-shell .workspace-main img,
+.workspace-shell .workspace-main video,
+.workspace-shell .workspace-main canvas{height:auto}
 .workspace-shell .workspace-main .table-container,
-.workspace-shell .workspace-main [class$="-table-wrap"]{
+.workspace-shell .workspace-main [class$="-table-wrap"],
+.workspace-shell .workspace-main [class*="-table-wrap "]{
   max-width:100%;
   min-width:0;
   overflow-x:auto;
+  overscroll-behavior-inline:contain;
+  -webkit-overflow-scrolling:touch;
 }
 
 .workspace-shell .ui-modal-overlay{
@@ -82,14 +119,52 @@
   min-width:0;
   max-width:min(100%,900px);
 }
+
+/* Full-height operational drawers share the visible viewport and safe-area contract.
+   Higher specificity intentionally overrides retained component-local legacy geometry. */
+.workspace-shell .sf-review-drawer,
+.workspace-shell .md-panel{
+  height:100vh!important;
+  height:100dvh!important;
+  max-width:100%;
+  overscroll-behavior:contain;
+  box-sizing:border-box;
+}
 @media(max-width:767px){
   .workspace-shell{--workspace-section-gap:var(--public-mobile-section-gap,64px)}
-  .workspace-shell .ps-title{font-size:var(--public-mobile-hero-size,40px)!important}
+  .workspace-shell .ps-title,
+  .workspace-shell .comms-head h1,
+  .workspace-shell .commerce-head h1,
+  .workspace-shell .service-head h1,
+  .workspace-shell .workspace-page-head h1,
+  .workspace-shell .tk-h1{font-size:var(--public-mobile-hero-size,40px)!important}
+  .workspace-shell .ps-subtitle,
+  .workspace-shell .comms-head p:not(.comms-eyebrow),
+  .workspace-shell .commerce-head>div>p:last-child,
+  .workspace-shell .service-head>div>p:last-child,
+  .workspace-shell .workspace-page-head>p:last-child,
+  .workspace-shell .tk-sub{font-size:var(--public-body-size,20px)!important}
   .workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]),
   .workspace-shell .workspace-main select,
   .workspace-shell .workspace-main textarea{font-size:16px!important}
   .workspace-shell .workspace-main .btn,
   .workspace-shell .workspace-main button[role="combobox"]{min-height:auto!important}
+  .workspace-shell .sf-review-drawer{
+    width:min(440px,100%)!important;
+    padding:
+      max(24px,env(safe-area-inset-top,0px))
+      max(24px,env(safe-area-inset-right,0px))
+      max(24px,env(safe-area-inset-bottom,0px))
+      max(24px,env(safe-area-inset-left,0px))!important;
+  }
+  .workspace-shell .md-panel{
+    width:min(760px,100%)!important;
+    padding:
+      max(18px,env(safe-area-inset-top,0px))
+      max(18px,env(safe-area-inset-right,0px))
+      max(18px,env(safe-area-inset-bottom,0px))
+      max(18px,env(safe-area-inset-left,0px))!important;
+  }
 }
 @media(prefers-reduced-motion:reduce){
   .workspace-shell .workspace-main{scroll-behavior:auto!important}
