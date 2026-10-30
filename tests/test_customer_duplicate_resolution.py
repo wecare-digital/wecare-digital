@@ -77,3 +77,20 @@ def test_customers_modal_fetches_exact_duplicate_and_restores_archived_before_pa
     assert "Restore customer" in source
     assert "api.restoreContact(contactId)" in source
     assert "if (!duplicateContact || duplicateContact.archivedAt) return;" in source
+
+
+def test_customers_duplicate_fallback_refreshes_and_never_surfaces_raw_http_409():
+    source = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    assert "const fresh = await api.listContacts()" in source
+    assert "setContacts(fresh)" in source
+    assert "CONTACT_IDENTITY_RECONCILIATION_REQUIRED" in source
+    assert "Search by number to open it." not in source
+    assert "HTTP 409" not in source
+
+
+def test_customer_phone_field_uses_auth_shared_hairline_control():
+    css = (ROOT / "src/styles/workspace.css").read_text()
+    assert ".contacts-phone-control:focus-within" in css
+    assert "border-bottom: 1px solid var(--public-hairline, #dfe4df)" in css
+    assert ".contacts-phone-control > input" in css
+    assert "input:-webkit-autofill" in css

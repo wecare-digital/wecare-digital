@@ -561,6 +561,19 @@ const Customers: React.FC<PageProps> = () => {
       });
       if (exact) return exact;
     }
+
+    // One refreshed active list may reveal a customer created in another tab/session.
+    // Older deployments can still return a generic 409 without an owner ID.
+    const fresh = await api.listContacts();
+    if (fresh.length) {
+      setContacts(fresh);
+      const exact = fresh.find(contact => {
+        const samePhone = !!wantedPhone && contactPhoneMatchKey(contact.phone || '') === wantedPhone;
+        const sameEmail = !!wantedEmail && !!contact.email && contact.email.trim().toLowerCase() === wantedEmail;
+        return samePhone || sameEmail;
+      });
+      if (exact) return exact;
+    }
     return null;
   };
 
@@ -736,7 +749,7 @@ const Customers: React.FC<PageProps> = () => {
           } else {
             // Older server versions return an undifferentiated 409 with no owner id.
             // Do not advise staff to open a record the authenticated lookup did not find.
-            setFormError('This WhatsApp number is reserved, but no customer could be opened. Ask an administrator to review identity ownership before retrying.');
+            setFormError('This number is reserved but no customer could be opened. Refresh Customers; if it still cannot be found, ask an administrator to review the identity reservation.');
           }
         } else {
           setFormError(result.failure.message || 'Contact was not created');
