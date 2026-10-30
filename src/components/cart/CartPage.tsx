@@ -1597,9 +1597,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           2400ms rotation) - a cart is a task screen, so the house look without indefinite motion
           keeps WCAG 2.2.2. The global action dock is mounted once by _app after route policy. */}
       <RotatingHero
-        frame="Your"
-        words={ [ { word: 'cart', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        ariaLabel="Your cart"
+        frame="Cart"
+        words={ [ { word: 'review', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        ariaLabel="Cart review"
       >
         <div className="cart-in">
           {!ready && <p className="cart-body">Loading your cart…</p>}
