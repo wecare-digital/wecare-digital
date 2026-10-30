@@ -56,7 +56,7 @@ def verify_contents(spec: deploy.Spec, members: dict[str, bytes]) -> None:
         if members[member] != source.read_bytes():
             raise ValueError(f"{spec.name}: ZIP member differs from source: {member}")
 
-    if b"short_purchase" not in members["handler.py"]:
+    if b"short_purchase" not in members.get("handler.py", b""):
         raise ValueError(f"{spec.name}: handler does not reference one-unit policy")
 
     for name, source in members.items():
@@ -100,18 +100,21 @@ def inspect_receivers() -> list[dict]:
             "files": len(members),
             "zip_bytes": len(blob),
         })
-    checkout, commerce = result[:2]
-    if checkout["code_sha256"] != commerce["code_sha256"]:
+    by_name = {row["name"]: row for row in result}
+    if by_name["wecare-checkout"]["code_sha256"] != by_name["wecare-commerce"]["code_sha256"]:
         raise ValueError("checkout and commerce no longer bundle identical payment code")
     return result
 
 
 def local_git_revision() -> str | None:
     """Identify the exact checked-out tree when Git metadata exists."""
-    result = subprocess.run(
-        ["git", "-C", str(deploy.ROOT), "rev-parse", "--verify", "HEAD"],
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(deploy.ROOT), "rev-parse", "--verify", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return None
     value = result.stdout.strip()
     return value if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", value) else None
 
