@@ -454,7 +454,7 @@ def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
     assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
     assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
     assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 2" in delivery
-    assert "Vault ready" in ui
+    assert "Vault-ready" in ui
     assert "validOfferBodyText" in ui
     assert "api.sendSecureFileOffer( target.fileId, variable )" in ui
     assert "Manual Vault stage 1" in template_registry
