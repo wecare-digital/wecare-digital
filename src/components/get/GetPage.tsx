@@ -733,6 +733,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   margin:14px 0 0;max-width:480px;color:var(--public-muted);
                   font-size:var(--public-supporting-size);line-height:1.45;
                 }
+                .sf-payment-options{display:grid;gap:12px;min-width:0}
+                .sf-expired-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
+                .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
+                .sf-payment-option-primary{background:#f6fbf0;border-color:#bedcac}
+                .sf-payment-option strong{font-weight:800;color:var(--public-brand-green);font-size:var(--public-supporting-size)}
+                .sf-payment-option span{font-size:var(--public-supporting-size);color:var(--public-muted);line-height:1.5}
+                .sf-payment-option .sf-file-action-button{justify-content:center;width:100%;text-align:center}
+                .sf-payment-option .sf-secondary-btn,.sf-pay-waiting .sf-secondary-btn{border:1px solid #d0e0c8;background:#fff;color:var(--public-brand-green)}
+                .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-muted);margin:2px 0 0;line-height:1.5}
+                .sf-pay-waiting{display:grid;gap:12px}
+                .sf-link-help{margin:16px 0 0;border-top:1px solid #e9eee5;padding-top:12px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.55}
                 .sf-confirming-note{
                   margin:0;padding:12px 14px;border-inline-start:4px solid var(--public-brand-lime);
                   border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
