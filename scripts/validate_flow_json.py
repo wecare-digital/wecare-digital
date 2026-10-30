@@ -165,9 +165,9 @@ def validate_flow(doc: Dict[str, Any]) -> List[str]:
 
 
 def flow_files(directory: Path = FLOWS_DIR) -> Iterable[Path]:
-    # design-drafts/ holds live definitions too (F001 Subscribe is design-drafts/subscribe.json),
-    # so it is validated alongside the top-level Flow files.
-    return sorted(directory.glob("*.json")) + sorted((directory / "design-drafts").glob("*.json"))
+    # All seven retained, published Meta Flow definitions are grouped in published/.
+    # Obsolete top-level versions and unpublished design-drafts/ were removed.
+    return sorted((directory / "published").glob("*.json"))
 
 
 def main() -> int:

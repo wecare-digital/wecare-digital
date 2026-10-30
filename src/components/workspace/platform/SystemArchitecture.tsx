@@ -521,26 +521,16 @@ const LAMBDA_DETAIL_CATEGORIES = [ 'All', ...Array.from( new Set( LAMBDA_DETAILE
 interface CodeAsset { id: string; category: string; name: string; description: string; path: string; type: string; status?: string; }
 const CODE_ASSETS: CodeAsset[] = [
   // WhatsApp Flows
-  { id: 'flow-sr', category: 'WhatsApp Flows', name: 'WD_SR_PAY — Submit Request', description: 'Multi-screen flow for order service requests with ₹49 payment.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow.json', type: 'Flow JSON', status: 'Published' },
-  { id: 'flow-sub', category: 'WhatsApp Flows', name: 'F001 · Subscribe', description: 'Canonical profile Flow: full name, optional WhatsApp username, organization, job title, then one structured address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json', type: 'Flow JSON', status: 'Published' },
-  // Customer Service Flows (9 WhatsApp Flows triggered from interactive list)
-  { id: 'ss-submit', category: 'Customer Service Flows', name: '📋 Submit Request', description: 'Start a new support request. The Flow is deprecated on Meta; the keyword answers with the website link.', path: `Flow ID: ${canonicalFlowId('submit_request')}`, type: 'WA Flow', status: 'Deprecated' },
-  // Track has no canonical Flow — served by the order tracking API + /orders/.
-  { id: 'ss-track', category: 'Customer Service Flows', name: '🔍 Track Request', description: 'Check the status of an existing request by order ID.', path: 'Served by /wa-business/service/track + /orders/ (no Flow)', type: 'API + Page', status: 'Active' },
-  { id: 'ss-amend', category: 'Customer Service Flows', name: '✏️ Amend Request', description: 'Edit or correct a previously submitted request. No Flow: the keyword answers with the website link.', path: 'https://wecare.digital/request-amendment/', type: 'Website', status: 'No Flow' },
-  { id: 'ss-appt', category: 'Customer Service Flows', name: '📅 Appointment', description: 'Schedule a consultation or service visit.', path: 'Flow ID: 1475722977488573', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-rx', category: 'Customer Service Flows', name: '💊 RX Slot', description: 'Schedule a medical tourism or prescription-related visit.', path: 'Flow ID: 1892784521355352', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-docs', category: 'Customer Service Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request. No Flow: the keyword answers with the website link.', path: 'https://wecare.digital/drop-docs/', type: 'Website', status: 'No Flow' },
-  { id: 'ss-enterprise', category: 'Customer Service Flows', name: '🏢 Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries.', path: 'Flow ID: 2132515287534606', type: 'WA Flow', status: 'Draft' },
-  // REVIEW_FLOW_ID = WD_Leave_Review_v2, PUBLISHED on WABA 1 (verified live 2026-10-08).
-  // The id this replaced was not present on the WABA at all, so the 'Draft' status was
-  // describing a flow that did not exist. Read from src/lib/reviewEntry.ts, never restated.
-  { id: 'ss-review', category: 'Customer Service Flows', name: '⭐ Leave Review', description: 'Share experience and feedback.', path: `Flow ID: ${REVIEW_FLOW_ID}`, type: 'WA Flow', status: 'Published' },
-  // path was '[retired public path]' with status 'Active' until 2026-09-25. The public [retired public path] page was
-  // deleted on owner instruction, so that link 404'd and "Active" was a false claim in
-  // the one table this project treats as its source of truth. The live FAQ surface is the
-  // dashboard route below; the customer-facing answer arrives over WhatsApp, not as a page.
-  { id: 'ss-faq', category: 'Customer Service Flows', name: '❓ FAQ', description: 'View frequently asked questions.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
+  { id: 'flow-sub', category: 'WhatsApp Flows', name: 'F001 · Subscribe / Profile', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/subscribe.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-review', category: 'WhatsApp Flows', name: 'F002 · Leave Review', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/f002-leave-review.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-drop', category: 'WhatsApp Flows', name: 'F003 · Drop Docs', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/f003-drop-docs.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-submit', category: 'WhatsApp Flows', name: 'F004 · Submit Request', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/submit-request.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-amend', category: 'WhatsApp Flows', name: 'Request Amendment', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/request-amendment.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-pickup', category: 'WhatsApp Flows', name: 'Pickup Request', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/request-pickup.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-shipping', category: 'WhatsApp Flows', name: 'F006 · Track Shipment', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/shipments.json', type: 'Flow JSON', status: 'Published' },
+  // Track Request is a service endpoint, not a Meta Flow.
+  { id: 'ss-track', category: 'Customer Service Flows', name: 'Track Request', description: 'Order/request status via service API and /orders/.', path: 'GET /wa-business/service/track/{orderId}', type: 'API', status: 'Active' },
+  { id: 'ss-faq', category: 'Customer Service Flows', name: 'FAQ', description: 'Help from the Workspace FAQ configuration.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
   // Frontend Pages
   { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard, single source of truth.', path: 'src/pages/workspace/settings/platform/system-architecture.tsx', type: 'Page' },
   { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Bookmark signpost to the unified inbox filtered to WhatsApp.', path: 'src/pages/workspace/engage/whatsapp/index.tsx', type: 'Page' },
@@ -619,10 +609,10 @@ const CUSTOMERSERVICE_MENU: CustomerServiceItem[] = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: canonicalFlowId('submit_request')!, keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: canonicalFlowId('track_request') ?? '-', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: canonicalFlowId('amend_request') ?? '-', keywords: 'amend request, amend, change' },
-  { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '1475722977488573', keywords: 'appointment, schedule, meeting' },
-  { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
+  { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '-', keywords: 'appointment, schedule, meeting' },
+  { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '-', keywords: 'rx slot, rx, prescription' },
   { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents for your request', flowId: canonicalFlowId('drop_docs') ?? '-', keywords: 'drop docs, documents, upload' },
-  { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
+  { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '-', keywords: 'enterprise, b2b, corporate' },
   // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound handler,
   // same order, via src/lib/reviewEntry.ts.
   { row: 8, section: 'Feedback', icon: '⭐', title: 'Leave Review', description: 'Share your experience with our service', flowId: REVIEW_FLOW_ID, keywords: REVIEW_ENTRY_KEYWORDS.join(', ') },
