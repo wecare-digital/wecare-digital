@@ -205,6 +205,37 @@ def test_vault_browser_uses_native_whatsapp_and_never_seeds_cart():
     assert "sf-note-bad" not in source
 
 
+def test_vault_uses_one_customer_sign_in_surface_and_auth_card():
+    source = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    assert "/auth?return=" in source
+    assert "requestOtp" not in source
+    assert "submitOtp" not in source
+    assert "Opening your Vault…" in source
+    assert "border-top:4px solid var(--public-brand-lime)" in source
+
+
+def test_workspace_vault_upload_uses_document_intake_not_retired_direct_upload():
+    page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    client = (ROOT / "src/api/client.ts").read_text()
+    for call in (
+        "initDocumentUpload",
+        "uploadDocumentBytes",
+        "confirmDocumentUpload",
+        "publishDocumentToVault",
+    ):
+        assert call in page
+    for retired in (
+        "initSecureUpload",
+        "uploadSecureFileBytes",
+        "confirmSecureUpload",
+    ):
+        assert retired not in page
+        assert f"function {retired}" not in client
+    assert "Direct Vault upload is retired." in page
+    assert "@media(max-width:760px)" in page
+    assert ".sf-field{min-width:0}\\n" not in page
+
+
 def test_customer_vault_payment_reproves_file_and_uses_native_payment_sender():
     source = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
     customer = source[source.index("def _customer_request_payment"):
