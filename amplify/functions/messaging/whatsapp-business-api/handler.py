@@ -7292,18 +7292,23 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
         count('launch_failed', reason=f'session_{type(exc).__name__}')
         return _resp(503, {'error': 'Could not start a profile update session.'})
 
-    # service_details opens PROFILE. Supplying current screen data preserves the same
-    # prefill/revision contract as F001 INIT while the server-issued token remains the
-    # authorization boundary for every save.
-    action = {'flow_token': token}
-    try:
-        if contact_row:
-            action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)
-    except Exception as exc:
-        logger.warning(json.dumps({'event': 'customer_profile_prefill_failed',
-                                   'errorType': type(exc).__name__}))
-
+    # The old service_details template has a NAVIGATE button, so Meta opens PROFILE
+    # without an INIT request. Its flow_action_data was best-effort and could leave
+    # previously saved optional values blank on the handset. The replacement template
+    # has a DATA_EXCHANGE button: Meta calls INIT when tapped, and F001's handler
+    # loads every screen field from the canonical contact, with a verified session.
     template = whatsapp_templates.PROFILE_DETAILS
+    if template.name not in ('service_details', 'wecare_profile_update_f001'):
+        count('launch_blocked', reason='unsupported_profile_template')
+        return _resp(503, {'error': 'Profile update template is unavailable.'})
+    action = {'flow_token': token}
+    if template.name == 'service_details':
+        try:
+            if contact_row:
+                action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)
+        except Exception as exc:
+            logger.warning(json.dumps({'event': 'customer_profile_prefill_failed',
+                                       'errorType': type(exc).__name__}))
     header = template_media.fixed_image_header(template.name)
     components = []
     if header:
