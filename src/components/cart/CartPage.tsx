@@ -102,7 +102,7 @@ import type { CustomerSession } from '../../lib/customerAuth';
 import {
   readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
-  basketFingerprint, cartRequiresDelivery,
+  basketFingerprint, cartRequiresDelivery, SHORT_COMMERCE_ONE_PRODUCT_MESSAGE,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
@@ -125,7 +125,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { CHECKOUT_METHOD_PATH, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -496,7 +496,7 @@ function loadRazorpaySdk (): Promise<boolean> {
 }
 
 interface CartPageProps {
-  /** Preselected rail when the post-cart chooser resumes this reviewed cart. */
+  /** Optional rail retained for legacy sign-in and explicit channel hand-offs. */
   checkoutChannel?: CheckoutChannel;
 }
 
@@ -1261,10 +1261,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [] );
 
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    // The checkout chooser's one-shot action is consumed on arrival. Preserve
-    // that explicit rail when a saved-profile/address editor interrupts checkout.
-    const chosenChannel = channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel;
-    if ( chosenChannel ) selectedCheckoutChannelRef.current = chosenChannel;
+    // Website payment is the ordinary cart action. An explicit WhatsApp choice still uses
+    // the existing native leg, and survives the profile editor / sign-in round trip.
+    const chosenChannel = channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel ?? 'website';
+    selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
@@ -1396,6 +1396,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
+    if ( currentItems.length > 1 || currentItems.some( item => item.quantity !== 1 ) )
+    {
+      setItems( currentItems );
+      setPaymentBlocked( true );
+      setNotice( { kind: 'quiet', message: SHORT_COMMERCE_ONE_PRODUCT_MESSAGE } );
+      return;
+    }
     const unresolved = currentItems.find( needsVariantSelection );
     if ( unresolved )
     {
@@ -1414,14 +1421,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       return;
     }
 
-    // Cart review and identity/profile readiness are complete. Payment rail selection happens
-    // exactly once on /checkout/, never on a product route and never inline in the cart.
-    if ( !chosenChannel )
-    {
-      window.location.assign( CHECKOUT_METHOD_PATH );
-      return;
-    }
-
+    // Payment is initiated from this reviewed one-product cart, without a second chooser page.
+    // The two existing server actions, their idempotency key, and verification remain unchanged.
     setBusy( true );
     try
     {
@@ -1572,6 +1573,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [ proceed ] );
 
   const isEmpty = ready && items.length === 0;
+  const singleSelectionRequired = ready && items.length > 0
+    && ( items.length !== 1 || items[ 0 ].quantity !== 1 );
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1779,6 +1782,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   build -- and is shown by `applyOutcome` when the server answers it, which is a
                   press away rather than at render, because nothing local can predict it. */}
 
+              { singleSelectionRequired && (
+                <p className="cart-status" role="status">{ SHORT_COMMERCE_ONE_PRODUCT_MESSAGE }</p>
+              ) }
+
               {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
                   which nothing on this page can touch, so words alone would name an action the
                   customer cannot perform. This re-posts the SAME prepare with `resetCart: true`
@@ -1796,17 +1803,26 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
               <div className="cart-actions">
                 { railTerminal
                   ? <Link className="cart-auth-action cart-auth-primary" href="/orders/">Orders</Link>
-                  : <button
+                  : <>
+                    <button
                       className="cart-auth-action cart-auth-primary"
                       type="button"
-                      onClick={ () => { void proceed(); } }
-                      disabled={ busy || railTerminal }
+                      onClick={ () => { void proceed( 'website' ); } }
+                      disabled={ busy || singleSelectionRequired }
                       aria-busy={ busy ? 'true' : undefined }
                     >
-                      { busy
-                        ? 'Preparing…'
-                        : ( profile ? ( paymentBlocked ? 'Try again' : profileStatus === 'ready' ? 'Pay securely' : 'Continue checkout' ) : 'Proceed' ) }
-                    </button> }
+                      { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
+                    </button>
+                    <button
+                      className="cart-auth-action"
+                      type="button"
+                      onClick={ () => { void proceed( 'whatsapp' ); } }
+                      disabled={ busy || singleSelectionRequired }
+                      aria-busy={ busy ? 'true' : undefined }
+                    >
+                      Pay on WhatsApp
+                    </button>
+                  </> }
               </div>
             </>
           )}
