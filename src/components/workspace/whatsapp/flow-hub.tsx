@@ -278,8 +278,8 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.8rem' } }>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Flow ID (Meta)</label>
-                  <input value={ regForm.flowId || '' } onChange={ e => setRegForm( { ...regForm, flowId: e.target.value } ) }
-                    placeholder="1484164182716509" style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
+                  <input value={ regForm.flowId || '' } readOnly aria-label="Retained Meta Flow ID" 
+                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem', background: 'var(--bg-secondary)' } } />
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Flow Code</label>
