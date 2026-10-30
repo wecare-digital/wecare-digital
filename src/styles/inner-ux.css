@@ -1474,6 +1474,7 @@
   max-width: 480px;
   width: 100%;
   max-height: 80vh;
+  max-height: 80dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1635,9 +1636,19 @@
 
 /* Mobile responsive */
 @media (max-width: 480px) {
+  .shortcuts-overlay {
+    align-items: flex-end;
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px));
+  }
+
   .shortcuts-modal {
-    max-height: 90vh;
-    border-radius: var(--radius-md);
+    max-height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
 
   .shortcuts-header {

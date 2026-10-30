@@ -13,10 +13,10 @@
  */
 
 .workspace-shell {
-  --workspace-measure: 1360px;
-  --workspace-page-x: 40px;
-  --workspace-page-y: 48px;
-  --workspace-section-gap: 56px;
+  --workspace-measure: var(--public-content-max);
+  --workspace-page-x: var(--public-page-gutter);
+  --workspace-page-y: 64px;
+  --workspace-section-gap: var(--public-section-gap);
   --workspace-panel-radius: 16px;
   --workspace-control-radius: 10px;
 }
@@ -24,8 +24,8 @@
 /* The old inner-content-container was a rounded dashboard card. In the new no-sidebar
    workspace it becomes the page canvas. Individual tables/cards keep their own borders. */
 .workspace-shell .inner-content-container {
-  width: min(100%, 1440px) !important;
-  max-width: 1440px !important;
+  width: 100% !important;
+  max-width: var(--public-content-max) !important;
   margin: 0 auto !important;
   padding: 0 !important;
   border: 0 !important;
@@ -91,18 +91,20 @@
 .workspace-shell .ps-title {
   margin: 0;
   color: var(--text);
-  font-size: clamp(36px, 4.5vw, 52px);
-  font-weight: 780;
-  line-height: 1.02;
-  letter-spacing: -.04em;
+  font-size: var(--public-hero-size);
+  font-weight: var(--public-hero-weight);
+  line-height: var(--public-hero-leading);
+  letter-spacing: var(--public-hero-tracking);
 }
 
 .workspace-shell .ps-subtitle {
   max-width: 760px;
   margin: 12px 0 0;
   color: var(--text-muted);
-  font-size: var(--text-md);
-  line-height: 1.55;
+  font-size: var(--public-body-size);
+  font-weight: var(--public-body-weight);
+  line-height: var(--public-body-leading);
+  letter-spacing: var(--public-body-tracking);
 }
 
 /* Canonical local navigation. The old global button layer applies !important borders,
@@ -139,7 +141,6 @@
 .workspace-shell .workspace-main .commerce-tabs button,
 .workspace-shell .workspace-main .service-tabs button,
 .workspace-shell .workspace-main .ledger-switch button {
-  min-height: var(--tap-min) !important;
   min-width: 0;
   margin: 0 !important;
   padding: 8px 16px !important;
@@ -343,7 +344,7 @@
 @media (max-width: 768px) {
   .workspace-shell {
     --workspace-page-x: var(--public-mobile-page-gutter);
-    --workspace-page-y: 32px;
+    --workspace-page-y: var(--public-mobile-hero-top);
     --workspace-section-gap: var(--public-mobile-section-gap);
   }
 
@@ -380,8 +381,8 @@
   .workspace-shell .service-head h1,
   .workspace-shell .workspace-page-head h1,
   .workspace-shell .tk-h1 {
-    font-size: var(--public-mobile-section-size);
-    line-height: 1.05;
+    font-size: var(--public-mobile-hero-size);
+    line-height: var(--public-mobile-hero-leading);
   }
 
   .workspace-shell .ps-subtitle,
@@ -390,7 +391,7 @@
   .workspace-shell .service-head > div > p:last-child,
   .workspace-shell .workspace-page-head > p:last-child,
   .workspace-shell .tk-sub {
-    font-size: var(--text-base);
+    font-size: var(--public-mobile-form-font-size);
   }
 
   .workspace-shell .ps-tabs,
@@ -425,17 +426,11 @@
     box-sizing: border-box;
   }
 
-  .workspace-shell .workspace-main .btn,
-  .workspace-shell .workspace-main button[role="combobox"] {
-    min-height: var(--tap-min) !important;
-  }
-
   .workspace-shell .workspace-main .ps-tab,
   .workspace-shell .workspace-main .comms-tabs button,
   .workspace-shell .workspace-main .commerce-tabs button,
   .workspace-shell .workspace-main .service-tabs button,
   .workspace-shell .workspace-main .ledger-switch button {
-    min-height: var(--tap-min) !important;
     padding-inline: 14px !important;
   }
 }
@@ -1300,5 +1295,71 @@
   .workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+/* F001 customer modal mobile containment. */
+.workspace-shell .contacts-auth-modal .contacts-form-contact,
+.workspace-shell .contacts-auth-modal .contacts-form-grid {
+  min-width: 0;
+}
+.workspace-shell .contacts-auth-modal input,
+.workspace-shell .contacts-auth-modal select,
+.workspace-shell .contacts-auth-modal textarea {
+  font-size: 16px !important;
+}
+.workspace-shell .contacts-auth-modal .contacts-modal-actions button {
+  min-height: 0 !important;
+}
+@media (max-width: 767px) {
+  .workspace-shell .customer-modal-overlay {
+    align-items: flex-end !important;
+    padding:
+      max(8px, env(safe-area-inset-top, 0px))
+      max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px)) !important;
+  }
+  .workspace-shell .customer-modal-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+    border-radius: 18px 18px 0 0 !important;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-form-contact,
+  .workspace-shell .contacts-auth-modal .contacts-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-phone-control {
+    grid-template-columns: minmax(76px, 92px) minmax(0, 1fr) !important;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-modal-head,
+  .workspace-shell .contacts-auth-modal .contacts-modal-body {
+    padding-inline: var(--public-mobile-page-gutter, 16px) !important;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-modal-body {
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-modal-actions {
+    position: sticky;
+    bottom: 0;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px !important;
+    padding-inline: var(--public-mobile-page-gutter, 16px) !important;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)) !important;
+    background: #fff;
+  }
+  .workspace-shell .contacts-auth-modal .contacts-duplicate-card {
+    margin-inline: var(--public-mobile-page-gutter, 16px) !important;
+  }
+}
+@media (max-width: 399px) {
+  .workspace-shell .contacts-auth-modal .contacts-modal-actions,
+  .workspace-shell .contacts-auth-modal .contacts-duplicate-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }

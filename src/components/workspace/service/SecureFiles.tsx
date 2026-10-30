@@ -694,9 +694,15 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                   background:rgba(15,23,42,.26);display:flex;justify-content:flex-end;
                 }
                 .sf-review-drawer{
-                  width:min(440px,100vw);height:100%;overflow:auto;background:#fff;
-                  padding:24px;box-sizing:border-box;box-shadow:-18px 0 48px rgba(15,23,42,.18);
+                  width:min(440px,100%);height:100vh;height:100dvh;overflow:auto;background:#fff;
+                  padding:
+                    max(24px,env(safe-area-inset-top,0px))
+                    max(24px,env(safe-area-inset-right,0px))
+                    max(24px,env(safe-area-inset-bottom,0px))
+                    max(24px,env(safe-area-inset-left,0px));
+                  box-sizing:border-box;box-shadow:-18px 0 48px rgba(15,23,42,.18);
                   border-left:1px solid rgba(26,58,42,.10);
+                  overscroll-behavior:contain;
                 }
                 .sf-review-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
                 .sf-review-head h2{margin:2px 0 4px;font-size:28px;line-height:1.1;color:var(--accent)}

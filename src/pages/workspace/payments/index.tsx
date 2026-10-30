@@ -10,7 +10,6 @@
  */
 import React from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
@@ -119,7 +118,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut } showBreadcrumbs={ false }>
+    <>
       <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
       <PageShell
         key={ active }
@@ -172,7 +171,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
           </>
         ) }
       </PageShell>
-    </Layout>
+    </>
   );
 };
 
