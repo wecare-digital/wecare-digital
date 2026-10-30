@@ -135,7 +135,7 @@ const AuthPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>Sign in | WECARE.DIGITAL</title>
+        <title>Auth | WECARE.DIGITAL</title>
         <meta name="robots" content="noindex, nofollow, noarchive" />
         <meta name="description" content="Secure WECARE.DIGITAL customer sign in." />
       </Head>
