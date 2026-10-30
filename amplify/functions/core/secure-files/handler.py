@@ -533,6 +533,13 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["ownerPhoneMasked"] = mask_phone(item.get("ownerPhone", ""))
         out["uploadedBy"] = item.get("uploadedBy")
         out["sourceDocumentId"] = item.get("sourceDocumentId")
+        out["workspaceRecordVersion"] = int(item.get("workspaceRecordVersion") or 0)
+        out["lastPaymentRequestedBy"] = item.get("lastPaymentRequestedBy")
+        out["lastPaymentRequestedAt"] = item.get("lastPaymentRequestedAt")
+        out["lastPaymentRequestOutcome"] = item.get("lastPaymentRequestOutcome")
+        out["lastAccessSentBy"] = item.get("lastAccessSentBy")
+        out["lastAccessSentAt"] = item.get("lastAccessSentAt")
+        out["lastAccessSendOutcome"] = item.get("lastAccessSendOutcome")
     return _decimal_safe(out)
 
 
@@ -1200,7 +1207,8 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         "ownerName": name,
         "cognitoUsername": username,
         "displayName": display_name,
-        "tag": str(document.get("documentTypeLabel") or document.get("documentType") or "")[:60],
+        "tag": str(document.get("documentTypeLabel") or "").strip()[:60],
+        "workspaceRecordVersion": WORKSPACE_VAULT_RECORD_VERSION,
         "originalFilename": original_name,
         "contentType": content_type,
         "sizeBytes": size,
@@ -1235,16 +1243,48 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
     }), origin)
 
 
+# Rows created before this marker are retained as audit history but are not shown as current
+# Workspace documents. New publishes carry this version; revoked rows always leave Documents and
+# remain visible from the Logs view.
+WORKSPACE_VAULT_RECORD_VERSION = 2
+
 #: Upper bound on one admin listing. Each read is one DynamoDB page, so the list is complete up
 #: to this many rows and says so (`truncated`) beyond it, instead of an arbitrary first 100.
 ADMIN_LIST_MAX_ITEMS = 1000
 _ADMIN_LIST_MAX_PAGES = 20
+ADMIN_LOG_MAX_ITEMS = 100
+
+
+def _storage_object_present(key: Any) -> Optional[bool]:
+    """Whether a stored Vault object exists in S3, without exposing its key to Workspace.
+
+    None means S3 could not answer reliably; False means the key is absent. Logs use this as the
+    storage truth instead of assuming an old SecureFilesTable row still has bytes behind it.
+    """
+    value = str(key or "").strip()
+    if not value:
+        return False
+    try:
+        _s3_client().head_object(Bucket=BUCKET, Key=value)
+        return True
+    except ClientError as exc:
+        code = str(exc.response.get("Error", {}).get("Code") or "")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return False
+        logger.warning(json.dumps({"event": "vault_log_storage_check_failed",
+                                   "error": code or type(exc).__name__}))
+        return None
+
+
 
 
 def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Every file, or one customer's, depending on ?mobile=. Newest first, bounded."""
+    """Current Workspace documents, or the retained Vault audit log when ?view=logs."""
     params = event.get("queryStringParameters") or {}
     table = _table(FILES_TABLE)
+    view = str(params.get("view") or "documents").strip().lower()
+    if view not in ("documents", "logs"):
+        return cors_response(400, {"error": "Invalid Vault view"}, origin)
 
     mobile = params.get("mobile")
     if mobile:
@@ -1252,7 +1292,6 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             phone = normalise_phone(mobile)
         except ValueError:
             return cors_response(400, {"error": "Invalid mobile number"}, origin)
-        # the GSI is the whole point: one customer's files without a scan
         read = lambda **page: table.query(  # noqa: E731 - one call shape for both readers
             IndexName="owner-created-index",
             KeyConditionExpression="ownerPhone = :p",
@@ -1278,28 +1317,52 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     if start_key or len(collected) > ADMIN_LIST_MAX_ITEMS:
         truncated = True
 
+    if view == "documents":
+        # Production rows that pre-date this contract are history, not live Workspace inventory.
+        # New rows carry the marker below; revocation moves a row out of Documents immediately.
+        collected = [
+            item for item in collected
+            if item.get("status") == "active"
+            and int(item.get("workspaceRecordVersion") or 0) >= WORKSPACE_VAULT_RECORD_VERSION
+        ]
+
     items = sorted(
         collected, key=lambda i: str(i.get("createdAt", "")), reverse=True
-    )[:ADMIN_LIST_MAX_ITEMS]
-    # Enrich only paid files with their durable entitlement, so the window status is accurate
-    # without a read for files that never sold. The pointer (vaultEntitlementId) is stamped on
-    # the file row at payment; a missing/failed read degrades to "Awaiting purchase" rather than
-    # failing the list.
+    )[:(ADMIN_LOG_MAX_ITEMS if view == "logs" else ADMIN_LIST_MAX_ITEMS)]
+
+    if view == "logs":
+        logs = []
+        for item in items:
+            row = _public_file(item, admin=True, entitlement=None, now=int(time.time()))
+            row["legacyRecord"] = int(item.get("workspaceRecordVersion") or 0) < WORKSPACE_VAULT_RECORD_VERSION
+            row["storageOriginalPresent"] = _storage_object_present(item.get("s3Key"))
+            row["storageDeliveryPresent"] = (
+                _storage_object_present(item.get("deliveryKey"))
+                if item.get("deliveryKey") else False
+            )
+            row["revokedAt"] = item.get("revokedAt")
+            row["revokedBy"] = item.get("revokedBy")
+            logs.append(row)
+        return cors_response(200, {
+            "logs": logs, "count": len(logs),
+            "truncated": truncated or len(collected) > ADMIN_LOG_MAX_ITEMS,
+        }, origin)
+
+    # Documents view: enrich current active files with entitlement/window status.
     now = int(time.time())
     grants = _table(GRANTS_TABLE)
     out = []
-    for i in items:
+    for item in items:
         entitlement = None
-        eid = str(i.get("vaultEntitlementId") or "")
+        eid = str(item.get("vaultEntitlementId") or "")
         try:
             if eid:
                 entitlement = grants.get_item(Key={"grantId": eid}).get("Item")
-            elif _paid_marks(i) and i.get("ownerCustomerId"):
-                # A purchase whose pointer write failed still has its deterministic entitlement.
-                entitlement = _entitlement_for_file(str(i["ownerCustomerId"]), str(i["fileId"]))
+            elif _paid_marks(item) and item.get("ownerCustomerId"):
+                entitlement = _entitlement_for_file(str(item["ownerCustomerId"]), str(item["fileId"]))
         except ClientError:
             entitlement = None
-        out.append(_public_file(i, admin=True, entitlement=entitlement, now=now))
+        out.append(_public_file(item, admin=True, entitlement=entitlement, now=now))
     return cors_response(200, {"files": out, "count": len(out), "truncated": truncated}, origin)
 
 
@@ -1453,6 +1516,20 @@ def _start_native_vault_payment(
         answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
 
     outcome = str(answer.get("outcome") or "PAYMENT_REQUEST_UNCONFIRMED")
+    try:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": str(item.get("fileId") or "")},
+            UpdateExpression=("SET lastPaymentRequestedBy=:by, lastPaymentRequestedAt=:at, "
+                              "lastPaymentRequestOutcome=:outcome"),
+            ExpressionAttributeValues={
+                ":by": str(requested_by or "unknown")[:128],
+                ":at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ":outcome": outcome[:80],
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - audit write must not duplicate a money message
+        logger.warning(json.dumps({"event": "vault_payment_actor_audit_failed",
+                                   "error": type(exc).__name__}))
     logger.info(json.dumps({"event": "vault_native_payment_requested",
                             "fileId": str(item.get("fileId") or ""),
                             "outcome": outcome, "renewal": state == "EXPIRED",
@@ -1537,22 +1614,19 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
         requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64])
 
 
-def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
-    """Resend the Access Vault link for a paid file. Never charges and never opens a window."""
+def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Resend Access Vault and persist the authenticated staff actor. Never charges."""
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
     state = _file_access_state(item, int(time.time()))
     if state == "UNPAID":
         return cors_response(409, {"error": "NOT_PAID",
-                                   "message": "This file has not been paid for. Request ₹49 instead."},
+                                   "message": "This file has not been paid for. Request payment instead."},
                              origin)
-    # The link is sent only when it opens the file: an OPEN window, or a paid window not yet
-    # started (READY). Workspace offers it in exactly those states; the server now agrees.
     if state == "EXPIRED":
         return cors_response(409, {"error": "WINDOW_EXPIRED",
-                                   "message": "The paid access window has ended. Send the ₹49 "
-                                              "renewal message instead."}, origin)
+                                   "message": "The paid access window has ended. Send a renewal payment request instead."}, origin)
     if state == "PAID_UNVERIFIED":
         return cors_response(409, {"error": "PAID_UNVERIFIED",
                                    "message": "A payment is recorded for this file but its access "
@@ -1560,12 +1634,29 @@ def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
                              origin)
     from whatsapp_delivery import send_vault_link
 
+    actor = str((event.get("_auth") or {}).get("username", "staff"))[:128]
     ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
-    logger.info(json.dumps({"event": "vault_access_link_resent", "fileId": file_id, "ok": ok}))
+    outcome = "VAULT_LINK_SENT" if ok else "VAULT_LINK_NOT_SENT"
+    try:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": file_id},
+            UpdateExpression=("SET lastAccessSentBy=:by, lastAccessSentAt=:at, "
+                              "lastAccessSendOutcome=:outcome"),
+            ExpressionAttributeValues={
+                ":by": actor,
+                ":at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ":outcome": outcome,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - send result stands even if audit enrichment fails
+        logger.warning(json.dumps({"event": "vault_access_actor_audit_failed",
+                                   "error": type(exc).__name__}))
+    logger.info(json.dumps({"event": "vault_access_link_resent", "fileId": file_id,
+                            "ok": ok, "requestedBy": actor[:32]}))
     if not ok:
-        return cors_response(502, {"error": "VAULT_LINK_NOT_SENT", "outcome": "VAULT_LINK_NOT_SENT",
+        return cors_response(502, {"error": outcome, "outcome": outcome,
                                    "message": "Nothing could be sent: " + detail}, origin)
-    return cors_response(200, {"outcome": "VAULT_LINK_SENT", "fileId": file_id,
+    return cors_response(200, {"outcome": outcome, "fileId": file_id,
                                "accessState": state,
                                "message": "The Access Vault link was sent on WhatsApp."}, origin)
 
@@ -2601,7 +2692,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
             return _admin_request_payment(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "send-access" and method == "POST":
-            return _admin_send_access(tail[0], origin)
+            return _admin_send_access(tail[0], event, origin)
 
         return cors_response(404, {"error": f"Unknown route {path}"}, origin)
 
