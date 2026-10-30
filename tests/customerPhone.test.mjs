@@ -18,6 +18,8 @@ test('missing or empty inputs never invent a phone owner', () => {
   assert.equal(contactPhoneE164('', '+91'), '');
   assert.equal(contactPhoneE164('0', '+91'), '');
   assert.equal(contactPhoneE164('+', '+91'), '');
+  assert.equal(contactPhoneE164('8100abc640044', '+91'), '');
+  assert.equal(contactPhoneE164('+91+8100640044', '+91'), '');
   assert.equal(contactPhoneE164('8100640044', ''), '');
 });
 
