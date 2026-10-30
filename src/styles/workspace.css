@@ -139,7 +139,7 @@
 .workspace-shell .workspace-main .commerce-tabs button,
 .workspace-shell .workspace-main .service-tabs button,
 .workspace-shell .workspace-main .ledger-switch button {
-  min-height: var(--tap-min) !important;
+  min-height: 0 !important;
   min-width: 0;
   margin: 0 !important;
   padding: 8px 16px !important;
@@ -302,7 +302,7 @@
 .workspace-shell .workspace-main .context-actions button,
 .workspace-shell .workspace-main .service-back,
 .workspace-shell .workspace-main .manage-back {
-  min-height: var(--tap-min);
+  min-height: 0;
   padding: 8px 14px !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--workspace-control-radius) !important;
@@ -427,7 +427,7 @@
 
   .workspace-shell .workspace-main .btn,
   .workspace-shell .workspace-main button[role="combobox"] {
-    min-height: var(--tap-min) !important;
+    min-height: 0 !important;
   }
 
   .workspace-shell .workspace-main .ps-tab,
@@ -435,7 +435,7 @@
   .workspace-shell .workspace-main .commerce-tabs button,
   .workspace-shell .workspace-main .service-tabs button,
   .workspace-shell .workspace-main .ledger-switch button {
-    min-height: var(--tap-min) !important;
+    min-height: 0 !important;
     padding-inline: 14px !important;
   }
 }
@@ -1301,4 +1301,23 @@
     display: grid;
     grid-template-columns: 1fr;
   }
+}
+
+
+/* Shared Workspace shell + F001 customer form mobile containment. */
+.workspace-public-shell .contacts-auth-modal .contacts-form-contact,
+.workspace-public-shell .contacts-auth-modal .contacts-form-grid { min-width: 0; }
+.workspace-public-shell .contacts-auth-modal .contacts-modal-actions button { min-height: 0 !important; }
+@media (max-width: 767px) {
+  .workspace-public-shell .contacts-auth-modal .contacts-modal-head,
+  .workspace-public-shell .contacts-auth-modal .contacts-modal-body { padding-inline: 16px !important; }
+  .workspace-public-shell .contacts-auth-modal .contacts-modal-actions {
+    display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:10px!important;padding-inline:16px!important;
+  }
+  .workspace-public-shell .contacts-auth-modal .contacts-duplicate-card { margin-inline:16px!important; }
+}
+@media (max-width: 399px) {
+  .workspace-public-shell .contacts-auth-modal .contacts-modal-actions,
+  .workspace-public-shell .contacts-auth-modal .contacts-duplicate-actions { grid-template-columns:minmax(0,1fr)!important; }
 }

@@ -58,6 +58,7 @@ import { useState, useEffect } from 'react';
    themselves, so whichever route needs Amplify configures it first, and /get does so through
    the client it already imports. */
 const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: false } );
+const WorkspaceLayout = dynamic( () => import( '../components/Layout' ), { ssr: false } );
 /* FloatingAgent is authenticated-only (it calls fetchAuthSession) and renders inside AuthShell,
    which is already client-only, so `ssr: false` changes nothing it renders. Statically imported,
    it kept aws-amplify/auth in the shared bundle of every public page. */
@@ -1173,7 +1174,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
           return (
             <ToastProvider>
               <ConfirmProvider>
-                <Component { ...pageProps } signOut={ () => { signOut?.(); router.push( '/' ); } } user={ user as any } />
+                <WorkspaceLayout user={ user as any } onSignOut={ () => { signOut?.(); void router.push( '/' ); } } showBreadcrumbs={ false }>
+        <Component { ...pageProps } signOut={ () => { signOut?.(); void router.push( '/' ); } } user={ user as any } />
+      </WorkspaceLayout>
                 <FloatingAgent />
                 {/* THE SAME COMBINED WIDGET AS THE PUBLIC PAGES, so contact and
                     language are in one place on every route in the product rather
