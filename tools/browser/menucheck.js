@@ -77,6 +77,24 @@ const fail = ( message ) => { throw new Error( message ); };
       if ( box.x < -1 || box.x + box.width > viewport.width + 1 ) fail( `${viewport.name}: horizontal menu overflow` );
       if ( box.y + box.height > viewport.height + 1 ) fail( `${viewport.name}: menu runs off viewport bottom` );
 
+      // The panel shares the rounded lime top accent used by the public checkout cards.
+      // Check computed styles across desktop/mobile and all three browser engines.
+      const panelStyle = await menu.evaluate( node => {
+        const css = getComputedStyle( node );
+        return {
+          borderTopWidth: css.borderTopWidth,
+          borderTopStyle: css.borderTopStyle,
+          borderTopColor: css.borderTopColor,
+          leftRadius: css.borderTopLeftRadius,
+          rightRadius: css.borderTopRightRadius,
+        };
+      } );
+      if ( panelStyle.borderTopWidth !== '4px' || panelStyle.borderTopStyle !== 'solid'
+        || panelStyle.borderTopColor !== 'rgb(209, 244, 112)'
+        || panelStyle.leftRadius !== '24px' || panelStyle.rightRadius !== '24px' ) {
+        fail( `${viewport.name}: menu lime top accent drifted ${JSON.stringify( panelStyle )}` );
+      }
+
       // Guard the styled-jsx scoping contract with live computed values. This menu once kept
       // correct DOM/ARIA while silently falling back to unrelated global nav styles.
       const home = menu.getByRole( 'link', { name: 'Home', exact: true } );
