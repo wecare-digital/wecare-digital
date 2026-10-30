@@ -87,9 +87,9 @@ def test_customer_modal_phone_uses_one_auth_style_combined_field():
     assert "F001 Subscribe profile" not in form
 
     phone_start = css.index(".workspace-shell .contacts-auth-modal .contacts-phone-control {")
-    phone_css = css[phone_start:phone_start + 2200]
+    phone_css = css[phone_start:phone_start + 2400]
     assert "border-bottom: 1px solid var(--public-hairline" in phone_css
     assert "border-radius: 0" in phone_css
     assert "background: transparent" in phone_css
     assert ".contacts-phone-control:focus-within" in phone_css
-    assert "border-bottom: 0 !important" in phone_css
+    assert "border: 0 !important" in phone_css
