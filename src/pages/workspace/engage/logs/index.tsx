@@ -34,7 +34,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
@@ -493,11 +492,7 @@ const MessageLogsPage: React.FC<PageProps> = ( { signOut, user, embedded, channe
 
   if ( embedded ) return content;
 
-  return (
-    <Layout user={ user } onSignOut={ signOut }>
-      { content }
-    </Layout>
-  );
+  return content;
 };
 
 export default MessageLogsPage;
