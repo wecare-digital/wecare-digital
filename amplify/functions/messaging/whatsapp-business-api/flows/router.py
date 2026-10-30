@@ -206,13 +206,14 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
-    # Leave Review has no handler here (removed 2026-10-25 with flows/leave_review.py). F002
-    # (WD-F002-LEAVE-REVIEW) is endpointless and opens with navigate, so Meta never calls this
-    # endpoint for it; its completion arrives as an nfm_reply that customer_ideas.save_idea saves.
-    # A data_exchange carrying a leave_review token is therefore not genuine, and is refused
-    # without data rather than reaching the order-fetch INIT below.
+    # The existing manual Leave Review template uses DATA_EXCHANGE. Its routed
+    # leave-* token can open only FEEDBACK (no private data is returned); the
+    # signed nfm_reply still belongs to customer_ideas and the actual sender.
+    # Invoice review-* tokens are handled earlier with their order binding.
     if flow_key.startswith('leave'):
-        return {'data': {'error': 'This form is no longer available.'}}
+        if action == 'INIT':
+            return {'screen': 'FEEDBACK', 'data': {}}
+        return {'data': {'error': 'Unsupported review Flow action.'}}
 
     # ── ORDER NOTES FLOW ──
     if flow_key in ('order_note',) or flow_key.startswith('order_n'):
