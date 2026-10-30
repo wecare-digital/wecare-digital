@@ -392,3 +392,41 @@ def test_workspace_vault_shows_download_template_variable_mapping():
     assert "Copy {'{{1}}'}" in page
     assert "handleCopyId( reviewFile )" in page
     assert "Staff do not type or override it." in page
+
+
+def test_request_services_removed_from_public_navigation_but_routes_retained():
+    # Customer-session actions remain available by direct link and authenticated workflows,
+    # but are deliberately absent from both the header graph and its derived menu search.
+    header = (ROOT / "src/components/Header.tsx").read_text()
+    menu = header.split("const COLUMNS: NavColumn[] = [", 1)[1].split(
+        "\nconst flattenMenuLinks", 1
+    )[0]
+    assert "heading: 'Request'" not in menu
+    for path in (
+        "/orders/", "/submit-request/", "/request-amendment/", "/drop-docs/",
+        "/vault/", "/shipments/track/", "/request-pickup/",
+    ):
+        assert f"href: '{path}'" not in menu
+
+    app = (ROOT / "src/pages/_app.tsx").read_text()
+    service_routes = app.split("const CUSTOMER_SERVICE_ROUTES = new Set( [", 1)[1].split(
+        "] );", 1
+    )[0]
+    for path in (
+        "/submit-request", "/request-amendment", "/drop-docs", "/vault",
+        "/request-pickup", "/shipments/track",
+    ):
+        assert f"'{path}'" in service_routes
+    assert "'noindex, nofollow'" in app
+
+
+def test_drop_docs_web_snapshot_price_matches_live_product_authority():
+    # ProductsTable verified on 2026-10-30: variant RDD9P3M7.priceMinor = 19900.
+    shop = (ROOT / "src/content/shopProducts.ts").read_text()
+    snapshot = (ROOT / "src/content/catalogSnapshot.ts").read_text()
+    listing = next(line for line in shop.splitlines() if "sku:'RDD9P3M7'" in line)
+    assert "formattedPrice:'₹199.00'" in listing
+    product = snapshot.split("name:'Request · Drop Docs', slug:'drop-docs',", 1)[1].split(
+        "\n  },", 1
+    )[0]
+    assert "formattedPrice:'₹199.00', price:'199.00'" in product
