@@ -13,7 +13,7 @@ assert spec and spec.loader
 checker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(checker)
 
-ACCOUNT = "775261844268"
+ACCOUNT = "123456789012"
 REGION = "us-east-1"
 HASHES = {
     name: base64.b64encode(bytes([i + 1]) * 32).decode("ascii")
@@ -39,14 +39,22 @@ class FakeSTS:
 
 
 class FakeLambda:
-    def __init__(self, *, wrong_sha=None, missing_flag=None, wrong_alias=None, weighted=None):
+    class exceptions:
+        class ResourceNotFoundException(Exception):
+            pass
+
+    def __init__(self, *, wrong_sha=None, missing_flag=None, wrong_alias=None,
+                 weighted=None, missing_alias=None):
         self.wrong_sha = wrong_sha
         self.missing_flag = missing_flag
         self.wrong_alias = wrong_alias
         self.weighted = weighted
+        self.missing_alias = missing_alias
 
     def get_alias(self, *, FunctionName, Name):
         assert Name == "live"
+        if FunctionName == self.missing_alias:
+            raise self.exceptions.ResourceNotFoundException()
         version = VERSIONS[FunctionName]
         return {
             "FunctionVersion": "1" if FunctionName == self.wrong_alias else version,
@@ -101,7 +109,7 @@ class ReleaseManifestTests(unittest.TestCase):
 
     def test_rejects_other_account_or_missing_receiver(self):
         bad = manifest()
-        bad["account"] = "123456789012"
+        bad["account"] = "210987654321"
         with self.assertRaises(ValueError):
             self.validate(bad)
         bad = manifest()
@@ -152,7 +160,16 @@ class LiveReadinessTests(unittest.TestCase):
             with self.subTest(lam=lam.__dict__):
                 result = self.audit(release=manifest(), lam=lam)
                 self.assertFalse(result["config_ok"])
-                self.assertFalse(result["receivers"][0]["ready"])
+                target = next(row for row in result["receivers"] if row["name"] == name)
+                self.assertFalse(target["ready"])
+
+    def test_missing_live_alias_is_reported_and_fails_closed(self):
+        name = checker.RECEIVERS[-1]
+        result = self.audit(release=manifest(), lam=FakeLambda(missing_alias=name))
+        self.assertFalse(result["config_ok"])
+        target = next(row for row in result["receivers"] if row["name"] == name)
+        self.assertFalse(target["found"])
+        self.assertEqual("live_alias_or_function_missing", target["reason"])
 
     def test_missing_or_alarming_named_payment_alarm_prevents_ready(self):
         alarm = checker.PAYMENT_ALARMS[0]
