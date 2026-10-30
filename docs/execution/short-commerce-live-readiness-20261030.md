@@ -4,6 +4,65 @@ Date: 2026-10-30. Scope: WECARE.DIGITAL, GitHub `wecare.digital`, AWS
 account `775261844268` region `us-east-1`, Meta app
 `2238810740192680`, Wecare.Digital verified business.
 
+## Current release state and strict read-only attestation (updated 2026-10-30)
+
+- The website release is **live**: Amplify production job #400 completed BUILD, DEPLOY and VERIFY.
+  The legacy /checkout/ missing-heading build failure was fixed via merged PR #1979.
+  Public design-token drift is now a mandatory CI gate via merged PR #1978.
+- The backend one-unit contract is **not activated**. AWS readback still shows
+  checkout :live v288, commerce :live v168 and inbound WhatsApp :live v191,
+  with SHORT_COMMERCE_PART1_ENABLED absent on all. The reviewed source is
+  staged in $LATEST for all three but those mutable versions are not eligible
+  for an immutable live release attestation.
+- The eight named wecare-payment alarms were OK on the most recent read.
+  Alarm state is not proof of provider capture, Meta handset, or invoice parity.
+
+The read-only \`scripts/check_short_commerce_live.py\` gate now refuses to mark
+production ready from three flags alone. It requires an independently reviewed,
+**operator-supplied** JSON release manifest naming the exact Git source commit,
+AWS account and region, and immutable published Lambda version + CodeSha256 for
+each of the three receivers. The checker independently reads each \`:live\`
+alias target, rejects weighted/mixed traffic, verifies the actual published
+version and deployed code hash, checks healthy update status and the explicit
+one-unit flag, and requires all eight named payment alarms in OK state. Missing
+manifest, missing alarms, stale aliases, mismatched hashes or absent flags all
+fail closed. No customer records or payments are accessed.
+
+Operator-reviewed manifest shape (placeholder values are **not** valid release
+evidence; do not copy current $LATEST SHAs as if they were approved):
+
+\`\`\`json
+{
+  "schema_version": "short-commerce-release-v1",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "source_commit": "<full 40-character reviewed Git SHA>",
+  "receivers": {
+    "wecare-commerce": {"version": "<published version>", "code_sha256": "<Lambda CodeSha256 base64>"},
+    "wecare-checkout": {"version": "<published version>", "code_sha256": "<Lambda CodeSha256 base64>"},
+    "wecare-inbound-whatsapp": {"version": "<published version>", "code_sha256": "<Lambda CodeSha256 base64>"}
+  }
+}
+\`\`\`
+
+After **release-owner approval, isolated staging with both flag states, Meta
+asset/recipient verification and authorized payment parity checks**, save the
+reviewed manifest outside the source tree and run:
+
+\`\`\`sh
+python scripts/check_short_commerce_live.py \
+  --region us-east-1 \
+  --expect-account 775261844268 \
+  --release-manifest /secure/operator-reviewed-short-commerce-release.json
+\`\`\`
+
+This is a configuration/coded-artifact check only, **not a signature verifier**
+or an approval system. A manifest does not prove that its stated Git source was
+really used to package a ZIP; independently retain the pinned CodeBuild tree,
+package SHA evidence, and operator's review. This command alone cannot satisfy
+real provider capture/invoice/fulfillment or Meta published Flow QA. Keep issue
+#1973 open until all independently required checks and signoffs are evidenced.
+
 ## Verified at audit time
 
 - GitHub PRs #1964 and #1965 are merged; branch push CI passed on
