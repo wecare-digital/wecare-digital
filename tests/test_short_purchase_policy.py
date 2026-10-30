@@ -60,6 +60,20 @@ class ShortPurchaseTests(unittest.TestCase):
         self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]),
             basket([{"quantity": 2}])))
 
+    def test_direct_whatsapp_create_preflights_before_payment(self):
+        """Pay on WhatsApp calls create directly, without website prepare."""
+        checkout = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(
+            encoding="utf-8")
+        create = checkout.split("def _create(", 1)[1].split("\\ndef ", 1)[0]
+        guard = "short_purchase.enabled() and not short_purchase.one_unit_lines(line_items)"
+        self.assertIn(guard, create)
+        self.assertIn('"error": "SHORT_CHECKOUT_ONE_ITEM"', create)
+        self.assertLess(create.index(guard),
+                        create.index("service_guard = service_requests.checkout_preflight"))
+        self.assertLess(create.index(guard), create.index("snapshot = _native_quote"))
+        self.assertLess(create.index(guard),
+                        create.index("attempt_id = payment_attempt.new_payment_attempt_id()"))
+
     def test_website_native_and_claim_preflight_integration(self):
         checkout = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
         inbound = (ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py").read_text(encoding="utf-8")
