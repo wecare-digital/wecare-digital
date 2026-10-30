@@ -692,7 +692,7 @@ export default function OrdersPage (): React.ReactElement {
                   disabled={ profileAction === 'busy' }
                   aria-busy={ profileAction === 'busy' ? 'true' : undefined }
                 >
-                  <OrderActionIcon name="account_circle" />
+                  <OrderActionIcon name="person" />
                 </button>
                 <button
                   type="button"
