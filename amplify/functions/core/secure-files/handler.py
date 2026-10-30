@@ -3034,14 +3034,22 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
     if previous is not None and not isinstance(previous, list):
         return cors_response(409, {"error": "SCHEDULE_INDEX_INVALID"}, origin)
     previous = previous or []
-    if len(previous) >= VAULT_SCHEDULE_MAX_ITEMS:
-        return cors_response(409, {"error": "SCHEDULE_LIMIT",
-            "message": "This file has reached its schedule-history limit."}, origin)
     # Same action cannot have two pending sends to one owner-bound file.
     existing = _read_vault_schedules(item)
     if any(row.get("status") in ("PENDING", "DISPATCHING")
            and row.get("vaultAction") == action for row in existing):
         return cors_response(409, {"error": "SCHEDULE_ALREADY_PENDING"}, origin)
+    # Reused files can be scheduled repeatedly. Keep all pending rows plus the
+    # most recent completed outcomes, retaining the underlying immutable audit
+    # rows in ScheduledMessagesTable without indefinitely growing this file.
+    pending_ids = {str(row["id"]) for row in existing
+                   if row.get("status") in ("PENDING", "DISPATCHING")}
+    if len(pending_ids) >= 10:
+        return cors_response(409, {"error": "TOO_MANY_PENDING_SCHEDULES"}, origin)
+    old_ids = [sid for sid in previous if isinstance(sid, str)]
+    archive_ids = [sid for sid in old_ids if sid not in pending_ids]
+    retained_ids = (archive_ids[-9:] + [sid for sid in old_ids if sid in pending_ids])
+    retained_ids = list(dict.fromkeys(retained_ids))[-(VAULT_SCHEDULE_MAX_ITEMS - 1):]
 
     schedule_id = "vault-" + uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat(timespec="microseconds")
@@ -3063,8 +3071,7 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
     values = {
         ":owner": _ddb_encoded(item["ownerCustomerId"]),
         ":active": _ddb_encoded("active"),
-        ":empty": _ddb_encoded([]),
-        ":new": _ddb_encoded([schedule_id]),
+        ":updated": _ddb_encoded(retained_ids + [schedule_id]),
     }
     if item.get("vaultScheduledActionIds") is not None:
         values[":old"] = _ddb_encoded(previous)
@@ -3084,10 +3091,7 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
                 {"Update": {
                     "TableName": FILES_TABLE,
                     "Key": {"fileId": _ddb_encoded(file_id)},
-                    "UpdateExpression": (
-                        "SET vaultScheduledActionIds = list_append("
-                        "if_not_exists(vaultScheduledActionIds, :empty), :new)"
-                    ),
+                    "UpdateExpression": "SET vaultScheduledActionIds = :updated",
                     "ConditionExpression": (
                         "attribute_exists(fileId) AND #status = :active "
                         "AND ownerCustomerId = :owner AND " + old_condition
