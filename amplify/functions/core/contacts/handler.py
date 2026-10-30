@@ -2150,6 +2150,49 @@ def _duplicate_conflict_payload(
             payload['existingArchived'] = (
                 existing.get(ARCHIVED_AT_ATTRIBUTE) is not None
             )
+    else:
+        # A claimed phone without a usable ContactsTable owner is NOT an existing customer
+        # that staff can select. This is a data-reconciliation failure, not permission to
+        # release the claim or invent a new ID. Return a distinct, PII-safe refusal.
+        #
+        # An inbound, outbound, F001 or registration writer may have claimed an identity
+        # before its conditional contact put, so this check must remain read-only/fail-closed.
+        # The registry may also intentionally retain a deleted customer identity.
+        try:
+            claims_table = dynamodb.Table(identity_claims.TABLE_NAME)
+            contacts_table = dynamodb.Table(CONTACTS_TABLE)
+            for kind, value in (('PHONE', phone), ('EMAIL', email)):
+                if not value:
+                    continue
+                owner_id = identity_claims.owner(claims_table, kind, value)
+                if not owner_id or owner_id == exclude_id:
+                    continue
+                row = contacts_table.get_item(
+                    Key=contact_key.key(owner_id), ConsistentRead=True).get('Item') or {}
+                unusable = (
+                    not row or row.get('deletedAt') is not None
+                    or bool(row.get('isDeleted'))
+                    or str(row.get('mergeState') or '').strip().lower() == MERGE_COMPLETE
+                )
+                if unusable:
+                    payload['errorCode'] = 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
+                    payload['error'] = (
+                        'This identity is reserved but its customer record is unavailable. '
+                        'Ask an administrator to reconcile ownership before creating a customer.'
+                    )
+                    payload['reconciliationRequired'] = True
+                    payload['identityType'] = kind
+                    logger.warning(json.dumps({
+                        'event': 'contact_identity_reconciliation_required',
+                        'identityType': kind,
+                    }))
+                    break
+        except Exception as exc:
+            # No read access is NOT proof that a claim is orphaned. Keep the safe 409.
+            logger.warning(json.dumps({
+                'event': 'contact_identity_reconciliation_check_failed',
+                'error': type(exc).__name__,
+            }))
     return payload
 
 
