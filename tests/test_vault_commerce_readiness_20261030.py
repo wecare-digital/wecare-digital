@@ -5,6 +5,7 @@ No payment, WhatsApp send, DynamoDB write, or customer data is used.
 import ast
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Dict, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKOUT = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
@@ -36,7 +37,7 @@ def _read_checkout_profile(rows):
 
     namespace = {
         "customer_auth": SimpleNamespace(CustomerIdentity=object),
-        "Dict": dict, "Any": object, "Optional": object,
+        "Dict": Dict, "Any": Any, "Optional": Optional,
         "_table": lambda name: Table(),
         "CONTACTS_TABLE": "synthetic-contacts",
         "Key": Key,
