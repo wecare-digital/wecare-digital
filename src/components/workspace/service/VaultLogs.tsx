@@ -2,6 +2,8 @@ import React from 'react';
 import * as api from '../../../api/client';
 import type { SecureFileLog } from '../../../api/client';
 import Spinner from '../../../components/ui/Spinner';
+import VaultMessageTimeline from './VaultMessageTimeline';
+import { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 
 function when ( value?: string ): string {
   if ( !value ) return '—';
@@ -25,6 +27,7 @@ export default function VaultLogs () {
   const [ error, setError ] = React.useState( '' );
   const [ mobile, setMobile ] = React.useState( '' );
   const [ truncated, setTruncated ] = React.useState( false );
+  const [ journey, setJourney ] = React.useState<VaultRegistryJourney | null>( null );
 
   const load = React.useCallback( async ( mobileFilter?: string ) => {
     setLoading( true );
@@ -45,6 +48,14 @@ export default function VaultLogs () {
   React.useEffect( () => { void load(); }, [ load ] );
 
   React.useEffect( () => {
+    let active = true;
+    void api.getSystemConfigResult( 'vault_whatsapp_template_journey_v1' ).then( result => {
+      if ( active && result.ok ) setJourney( parseVaultJourney( result.data.config ) );
+    } ).catch( () => { /* The timeline remains read-only with safe defaults. */ } );
+    return () => { active = false; };
+  }, [] );
+
+  React.useEffect( () => {
     const refresh = () => {
       if ( document.visibilityState === 'visible' ) void load( mobile || undefined );
     };
@@ -63,8 +74,8 @@ export default function VaultLogs () {
           <p className="vl-eyebrow">Vault · Audit</p>
           <h1 id="vault-logs-title">Logs</h1>
           <p>
-            Historical Vault rows stay here instead of appearing as current documents.
-            Storage status is checked against the private S3 object; raw S3 keys never leave the backend.
+            Review Vault file history and the five-message WhatsApp sequence with attempt times.
+            A Meta acceptance is not proof of handset delivery. Missing webhook evidence is marked unverified.
           </p>
         </div>
         <div className="vl-filter">
@@ -108,6 +119,7 @@ export default function VaultLogs () {
                 <th>S3 delivery</th>
                 <th>Record</th>
                 <th>Status</th>
+                <th>WhatsApp message log</th>
               </tr>
             </thead>
             <tbody>
@@ -115,8 +127,8 @@ export default function VaultLogs () {
                 <tr key={ row.fileId }>
                   <td data-label="Created">{ when( row.createdAt ) }</td>
                   <td data-label="File">
-                    <strong>{ row.displayName || row.originalFilename || row.fileId }</strong>
-                    <small>{ row.originalFilename || row.fileId }</small>
+                    <strong>{ row.displayName || row.fileId }</strong>
+                    <small>Private UUID filename · { row.fileId }</small>
                   </td>
                   <td data-label="Customer">
                     <strong>{ row.ownerName || '—' }</strong>
@@ -150,6 +162,12 @@ export default function VaultLogs () {
                     <strong>{ row.status || '—' }</strong>
                     { row.revokedAt && <small>Revoked { when( row.revokedAt ) }{ row.revokedBy ? ` by ${ row.revokedBy }` : '' }</small> }
                   </td>
+                  <td data-label="WhatsApp message log">
+                    <details className="vl-message-details">
+                      <summary>5 stages · timestamps &amp; delivery</summary>
+                      <VaultMessageTimeline file={ row } journey={ journey } />
+                    </details>
+                  </td>
                 </tr>
               ) ) }
             </tbody>
@@ -171,7 +189,11 @@ export default function VaultLogs () {
         .vl-alert,.vl-empty,.vl-loading,.vl-note{padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text-muted)}
         .vl-loading{display:flex;align-items:center;gap:8px}
         .vl-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px;background:#fff}
-        .vl-table{width:100%;border-collapse:collapse;min-width:1180px}
+        .vl-table{width:100%;border-collapse:collapse;min-width:1340px}
+        .vl-message-details{min-width:180px;max-width:350px}
+        .vl-message-details>summary{cursor:pointer;color:var(--accent);font-size:12px;font-weight:800;white-space:nowrap;padding:8px 0}
+        .vl-message-details[open]{min-width:300px;max-width:380px}
+        .vl-message-details>section{margin-top:10px}
         th,td{padding:13px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border);font-size:13px}
         th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);background:#f8faf9}
         tbody tr:last-child td{border-bottom:0}
