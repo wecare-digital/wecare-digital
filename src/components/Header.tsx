@@ -286,6 +286,7 @@ const SECTION_ICON_PATHS: Record<string, string> = {
 // Typed as MaterialSymbol so `tsc` refuses a ligature the subset font in config/materialSymbols.ts
 // does not ship; an unlisted name would render as its literal text instead of an icon.
 const NAV_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
+  'Contact us': 'person_text',
   Gemini: 'diamond',
 };
 const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
