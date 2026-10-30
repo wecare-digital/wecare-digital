@@ -36,8 +36,8 @@ import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } fr
  * A grey placeholder frame is a promise that a picture exists.
  *
  * The route exposes one compact Checkout action. It adds the product's catalogue REFERENCE and
- * quantity to the browser cart, then moves directly to /cart/ for review. WhatsApp vs Here is not
- * offered on this page; that choice appears once, after cart review, on /checkout/.
+ * quantity to the browser cart, then moves directly to /cart/ for review. The payment choices
+ * appear on the reviewed one-product cart, not on an extra /checkout/ page.
  */
 
 interface ShopProductPageProps {

@@ -1,77 +1,77 @@
-"""Offline contract checks for Short Commerce Part 1.
+"""Source-bound acceptance gates for Short Commerce Part 1.
 
-Run: python -m unittest discover -s tests -p test_short_commerce_part1.py
-No AWS, Razorpay, Meta, or customer access is required.
+These inspect only storefront routing/wiring. The separate JavaScript runtime
+test executes the real cart module with an in-memory synthetic browser.
+No payment, provider, customer or AWS calls are made in these tests.
 """
-import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
-import os
-import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/short_purchase.py"
-spec = importlib.util.spec_from_file_location("wecare_short_purchase", SOURCE)
-if spec is None or spec.loader is None:
-    raise RuntimeError("Unable to load Short Commerce policy")
-short_purchase = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(short_purchase)
+CART = (ROOT / "src/lib/cart.ts").read_text(encoding="utf-8")
+PAGE = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
+METHOD = (ROOT / "src/pages/checkout/index.tsx").read_text(encoding="utf-8")
+SERVICE = (ROOT / "src/lib/serviceEntry.ts").read_text(encoding="utf-8")
 
 
-def basket(lines, dropped=0, clamped=0):
-    return SimpleNamespace(lines=lines, dropped=dropped, clamped=clamped)
+def _part(text: str, start: str, end: str) -> str:
+    assert start in text and end in text
+    return text.split(start, 1)[1].split(end, 1)[0]
 
 
-def order(items):
-    return {"order": {"product_items": items}}
+def test_one_single_product_writer_for_shop_contribution_and_service():
+    assert "writeCart( [ selected ] );" in _part(
+        CART, "export function addItem (", "export function availableVariantsForItem")
+    assert "writeCart( [ selected ] );" in _part(
+        CART, "export function setContribution (", "export function mergeClaimedLines")
+    assert "writeCart( [ selected ] );" in _part(
+        CART, "export function setServiceLine (", "export function serviceIntentFor")
+    assert "const quantity = 1;" in _part(
+        CART, "export function mergeClaimedLines (", "export const cartRequiresDelivery"
+    )
 
 
-class ShortPurchaseTests(unittest.TestCase):
-    def test_flag_defaults_off_and_requires_explicit_enable(self):
-        with patch.dict(os.environ, {}, clear=True):
-            self.assertFalse(short_purchase.enabled())
-        with patch.dict(os.environ, {"SHORT_COMMERCE_PART1_ENABLED": "true"}):
-            self.assertTrue(short_purchase.enabled())
-        with patch.dict(os.environ, {"SHORT_COMMERCE_PART1_ENABLED": "false"}):
-            self.assertFalse(short_purchase.enabled())
-
-    def test_exactly_one_integer_unit(self):
-        self.assertTrue(short_purchase.one_unit_lines([{"quantity": 1}]))
-        for lines in ([], [{"quantity": 2}], [{"quantity": 0}], [{"quantity": 1.0}],
-                      [{"quantity": "1"}], [{"quantity": True}], [{"quantity": 1}, {"quantity": 1}],
-                      [{"notQuantity": 1}], [None]):
-            with self.subTest(lines=lines):
-                self.assertFalse(short_purchase.one_unit_lines(lines))
-
-    def test_whatsapp_native_single_item(self):
-        valid = basket([{"productId": "p", "variantId": "v", "quantity": 1}])
-        self.assertTrue(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]), valid))
-        self.assertTrue(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": "1"}]), valid))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 2}]), valid))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": True}]), valid))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 0}]), valid))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1},
-                                                                         {"quantity": 1}]), valid))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]),
-            basket([{"quantity": 1}], dropped=1)))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]),
-            basket([{"quantity": 1}], clamped=1)))
-        self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]),
-            basket([{"quantity": 2}])))
-
-    def test_frontend_has_two_real_channels_and_no_pricing_authority(self):
-        page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
-        cart = (ROOT / "src/lib/cart.ts").read_text(encoding="utf-8")
-        self.assertIn("void proceed( 'website' );", page)
-        self.assertIn("void proceed( 'whatsapp' );", page)
-        self.assertNotIn("window.location.assign( CHECKOUT_METHOD_PATH )", page)
-        self.assertIn("stashPendingAction( { kind: 'checkout', channel: chosenChannel } )", page)
-        self.assertIn("writeCart( [ selected ] );", cart)
-        self.assertIn("if ( items.length > 1 ) return [];", cart)
-        self.assertIn("quantity: 1", cart)
-        self.assertIn("catalogReference:", cart)
+def test_whatsapp_claim_cannot_silently_truncate_two_lines_or_quantity_two():
+    claim = _part(CART, "export function mergeClaimedLines (", "export const cartRequiresDelivery")
+    assert "lines.length !== 1" in claim
+    assert "lines[ 0 ].quantity !== 1" in claim
+    assert claim.index("lines.length !== 1") < claim.index("let merged = 0")
+    assert "return { items: readCart(), merged: 0 }" in claim
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_no_stale_multibag_can_reach_website_price_authority():
+    line = _part(CART, "export function toLineItems (", "/* ── Phase O-1 services:")
+    assert "items.length > 1" in line
+    assert "item.quantity !== 1" in line
+    assert "throw new Error( SHORT_COMMERCE_ONE_PRODUCT_MESSAGE )" in line
+    assert "catalogReference:" in line
+    assert "quantity: 1" in line
+    assert "formattedPrice:" not in line
+    assert "amountPaise" not in line
+
+
+def test_cart_directly_preserves_both_existing_checkout_actions():
+    assert "CHECKOUT_METHOD_PATH" not in PAGE
+    assert "proceed( 'website' )" in PAGE
+    assert "proceed( 'whatsapp' )" in PAGE
+    assert "const chosenChannel = channel ?? selectedCheckoutChannelRef.current" in PAGE
+    assert "?? 'website';" in PAGE
+    assert "action: channel === 'whatsapp' ? 'create' : 'prepare'" in PAGE
+    assert "getCheckoutRequestKey( lineItems )" in PAGE
+    assert "const lineItems = toLineItems( currentItems )" in PAGE
+    assert PAGE.index("currentItems.length > 1") < PAGE.index(
+        "const lineItems = toLineItems( currentItems )")
+    assert "selectedCheckoutChannelRef.current = pending.channel" in PAGE
+    assert "await runCheckout( channel )" in PAGE
+    assert "proceedInFlightRef.current = true" in PAGE
+    assert "CART_RESET_REQUIRED" in PAGE
+
+
+def test_legacy_checkout_url_only_redirects_to_cart_not_payment():
+    assert "router.replace( CHECKOUT_PATH )" in METHOD
+    assert "Continue to cart" in METHOD
+    assert 'noindex,nofollow' in METHOD
+    assert "Pay on WhatsApp" not in METHOD
+    assert "goToServiceAction" not in METHOD
+    assert "checkout.razorpay.com" not in METHOD
+    assert "export const CHECKOUT_PATH = '/cart/';" in SERVICE
+    assert "export const SIGN_IN_PATH = '/auth';" in SERVICE
