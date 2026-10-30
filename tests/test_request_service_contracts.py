@@ -420,7 +420,7 @@ def test_manual_workspace_vault_offer_precedes_customer_payment():
     assert preview.index("name: 'Vault ready'") < preview.index("name: 'Review & Pay'")
     assert preview.index("name: 'Order updates'") < preview.index("name: 'Paid invoice'")
     assert preview.index("name: 'Paid invoice'") < preview.index("name: 'Access Vault'")
-    assert page.count("api.sendSecureFileOffer(") == 2
+    assert page.count("api.sendSecureFileOffer(") == 1
     assert documents.count("api.sendSecureFileOffer(") == 3
     assert "api.requestSecureFilePayment(" not in page
     assert "api.requestSecureFilePayment(" not in documents
@@ -453,7 +453,7 @@ def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
     assert "if action in ('sendPayment', 'sendOffer'):" in catalog
     assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
     assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
-    assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 2" in delivery
+    assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 4" in delivery
     assert "Vault-ready" in ui
     assert "validOfferBodyText" in ui
     assert "api.sendSecureFileOffer( target.fileId, variable )" in ui
