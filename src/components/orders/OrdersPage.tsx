@@ -13,7 +13,7 @@ import { clearSession, getSession, restoreSession } from '../../lib/customerAuth
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import {
-  isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
+  orderNumberFromUrl, stashPendingOrder, takePendingOrder,
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
@@ -49,14 +49,9 @@ import OrderActionIcon from './OrderActionIcon';
  * row at all (finalization stages PURCHASED_SNAPSHOT_MISSING and returns before the order write),
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
  *
- * THE ORDER PAGE IS THIS PAGE WITH `?o=<orderNumber>`. Both purchase channels end there: the
- * website's /checkout/status/ hands off to it once the payment is confirmed, a WhatsApp buyer
- * gets a "View your order" button after the paid invoice, and each history row's panel links to
- * it. OrderDetail renders
- * it, from one session-gated read of one order. It is a client-side view of the same static
- * route, so the export, the canonical and the signed-out first render above are unchanged. A
- * number opened while signed out is kept in sessionStorage (`lib/orderPage`) and reopened once
- * the sign-in returns here, because the return path may carry no query string.
+ * Website and WhatsApp purchase links open THIS orders table. An optional `?o=<orderNumber>`
+ * expands the matching customer-owned row after the history fetch; it never creates a separate
+ * order-detail screen. The number can survive sign-in in sessionStorage when necessary.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -101,9 +96,7 @@ interface OrdersResponse {
 }
 
 /**
- * `focus` is the order page: `/orders/?o=<orderNumber>` for a signed-in customer, rendered by
- * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
- * export still renders `signedOut` first and the indexed page is unchanged.
+ * One orders-table state machine. An optional query number changes only the expanded row.
  */
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
@@ -378,9 +371,6 @@ export default function OrdersPage (): React.ReactElement {
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
     return () => window.clearTimeout( timer );
   }, [ profileAction ] );
-  /** Optional order to expand inside the existing orders table, never a separate page. */
-  const [ focusOrder, setFocusOrder ] = useState( '' );
-
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
@@ -575,7 +565,6 @@ export default function OrdersPage (): React.ReactElement {
         catch { session = null; }
       }
       if ( !live ) return;
-      if ( requested ) setFocusOrder( requested );
       if ( !session )
       {
         if ( requested ) stashPendingOrder( requested );
