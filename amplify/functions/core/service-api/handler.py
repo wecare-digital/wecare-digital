@@ -933,9 +933,9 @@ def _update_document(doc_id: str, body: Dict) -> Dict:
             })
         old_ref = str(current.get('documentRef') or '').strip()
         new_ref = _public_document_ref()
-        current_name = str(current.get('fileName') or current.get('originalFileName') or '')
-        ext = os.path.splitext(current_name)[1].lower()
-        new_name = new_ref + ext
+        # A new staff reference must not rename the private S3 object or the
+        # customer-facing UUID filename. File identity is independent of ticket refs.
+        new_name = str(current.get('fileName') or current.get('originalFileName') or '')
         table.update_item(
             Key={'documentId': doc_id},
             UpdateExpression=('SET documentRef=:ref, fileName=:name, referenceIssuedAt=:now, '
