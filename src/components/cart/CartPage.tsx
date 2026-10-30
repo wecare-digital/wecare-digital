@@ -1,92 +1,12 @@
 import { buildPageTitle } from '../../lib/page-title';
 /**
- * /cart/ - the cart review page and the checkout `create` handoff.
- *
- * WHAT IT DOES. Lists the cart (name + catalogue formattedPrice for DISPLAY only), keeps website
- * product lines single-unit, lets the shopper remove lines, and on "Proceed to checkout" ensures a customer session then
- * POSTs {action:'profile'}, {action:'prepare'} and {action:'verify'} to
- * {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a Authorization: Bearer token from getSession().
- * It does NOT post {action:'create'} and has not for some time; that line said so for long enough
- * to mislead anyone tracing which payment path the storefront uses. Cart purchases are collected
- * HERE, on the website, through Razorpay Standard Checkout — `create` is the in-WhatsApp leg and
- * it refuses a non-catalog session outright. The lineItems carry catalogue references and
- * quantities ONLY (src/lib/cart.ts, toLineItems) - the browser never sends a price.
- *
- * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
- * (customer_auth.require_customer). If getSession() is null the shopper is sent to
- * /auth?return=/cart/ FIRST and returned here afterwards; the cart is in localStorage
- * so it survives the redirect. A signed-in shopper proceeds directly. A test asserts that a null
- * session routes to sign-in and makes NO create call.
- *
- * THE READINESS QUESTION IS ASKED BEFORE ANYTHING IS RENDERED. This page used to decide whether to
- * show the checkout form from `profile`, a piece of state that is null on every arrival - so a
- * customer who had already saved their name, verified email and delivery address was shown the
- * form again, every single visit. It now POSTs {action:'profile'} on mount and again on the click,
- * and renders the form only when the answer says something is missing. A returning customer gets
- * CheckoutIdentityCard - what we already know, with three edit affordances - and no form at all.
- *
- * TWO RULES ABOUT THAT ANSWER, and both are the difference between a sale and a dead end.
- *   1. `proceed` branches on a LOCAL `status`, assigned from `deriveStatus`'s RETURN value, never
- *      on the `profileStatus` state. `setProfileStatus` cannot change the value captured in the
- *      `useCallback` closure, so branching on the state after setting it means the 'ready' arm is
- *      never taken on a first click.
- *   2. 'ready' AND 'unknown' BOTH continue to the prepare POST. `deriveStatus` answers 'unknown'
- *      for a 500, a network failure, a parse failure or a status string this build does not
- *      recognise, and the server's own 409 arms are the authority on readiness - so a transient
- *      index blip costs one wasted prepare call and the customer still pays. A FAILED READINESS
- *      READ MUST NEVER BE THE THING THAT STOPS A PAYABLE CUSTOMER.
- *
- * TRUTHFUL RESPONSE HANDLING - the honesty requirement. The create responses are mapped exactly as
- * checkout/handler.py documents them:
- *   PAYMENT_INITIATION_DISABLED (200) -> INLINE, cart preserved: the server's initiation gate is
- *     off, so it stopped before the payment rail and no charge can have been made. Offers NO
- *     pay-now button. It does NOT hand off to /checkout/status/ - see NOT_PREPARED below for why
- *     that screen cannot carry this claim.
- *   PAYMENT_REQUEST_SENT (200)        -> /checkout/status/?a=<paymentAttemptId> (in-flight view).
- *     RETAINED legacy in-chat response: the server still returns it for the in-WhatsApp flow and
- *     this mapping stays until that path is migrated. See the website contract note below.
- *   payment_unavailable (409)         -> inline: no charge was made.
- *   SEND_FAILED (502)                 -> inline, with a retry: no charge was made.
- *   LINE_ITEMS_REQUIRED (400)         -> empty-cart state.
- *   UNSUPPORTED_CURRENCY / AMOUNT_NOT_SETTLED / CATALOGUE_UNAVAILABLE -> honest error copy.
- *   401                               -> session gone: back to sign-in.
- * There is NEVER a control that claims to take payment while initiation is off.
- *
- * "No charge was made" APPEARS ONLY WHERE THE SERVER HAS SAID SO. Each notice below is reached from
- * a status that means the attempt never got as far as money moving - the initiation gate was off, a
- * readiness block, a message that did not send, a request that was refused or one that never left
- * the browser. It is deliberately absent from the one path that hands off to /checkout/status/,
- * because once an attempt is in flight the browser cannot know whether the money moved, and neither
- * this page nor that one may guess.
- *
- * ADDITIVE WEBSITE RAZORPAY STANDARD CHECKOUT CONTRACT (section 8), replacing PAYMENT_REQUEST_SENT
- * for the website path without removing it for the in-chat path. The backend
- * (lambda_utils/ecommerce/website_checkout.py) returns, behind the SAME initiation gate:
- *   PAYMENT_INITIATION_DISABLED (gate off, the default) -> INLINE, cart preserved, no pay button:
- *     the gate is off, no Razorpay gateway order was created and no charge can have been made.
- *   CHECKOUT_OPTIONS_READY (gate on) -> the browser opens the Razorpay Standard Checkout hosted
- *     modal with ONLY {keyId (public), orderId (server-stored gateway order id), amountPaise
- *     (the FEAT-001 calculator total: collection+fee+GST, never a raw catalogue total), currency,
- *     prefill, paymentAttemptId}. The modal's result is POSTed back to the owned backend
- *     callback, which verifies the signature over the STORED order id and STILL requires an
- *     authoritative Razorpay capture before any paid state.
- *   CHECKOUT_REJECTED -> inline, no charge was made (ownership/snapshot/intent failed).
- *   CHECKOUT_AMBIGUOUS -> hand off to /checkout/status/; the browser must not claim a charge was
- *     or was not made, exactly as the in-flight rule above requires.
- * Cart/resume data is kept until a VERIFIED_PAID finalization. "No charge was made" still appears
- * ONLY where the server has said so (the gate-off, rejected and unavailable paths), never once a
- * gateway order exists.
- *
- * CHROME AND INDEXING. Customer-session route registered in the _app.tsx isPublic chain beside
- * /checkout/status and /checkout/success; noindex; imports no Layout/Header/Footer/SupportWidget.
- * Absent from PUBLIC_PAGE_META, the sitemap and the browser route lists.
- *
- * THE TOP BAND IS SHARED. components/PageTopBand owns the main landmark, the h1, the 108px/96px
- * header clearance, the 1300px measure and the entrance animation, so this page cannot drift from
- * the fifteen routes built on RotatingHero. The band carries no price and no button: §6 of the
- * new-public-page skill puts the action further down, which is where the lime CTA sits.
+ * /checkout/ - the website full-cart review and Razorpay rail.
+ * A read-only server quote displays every line, discount, supply GST, delivery,
+ * convenience fee and fee GST before payment. Neither cart prices nor browser
+ * calculations are sent as money; prepare must match the reviewed server total.
+ * A verified captured attempt is the only successful order transition.
+ * WhatsApp checkout is a separate follow-up route and is not initiated here.
  */
-
 import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -100,14 +20,16 @@ import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
+  readCart, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
-  basketFingerprint, cartRequiresDelivery, SHORT_COMMERCE_ONE_PRODUCT_MESSAGE,
+  basketFingerprint, cartRequiresDelivery,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
 import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
 import type { CartItem, CheckoutLineItem } from '../../lib/cart';
+import { parseCheckoutQuote, type CheckoutQuote } from '../../lib/checkoutQuote';
+import { formatPaiseINR } from '../../lib/money';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
 import {
@@ -199,7 +121,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
-const SIGN_IN_PATH = '/auth?return=/cart/';
+const SIGN_IN_PATH = '/auth?return=/checkout/';
 
 /**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
@@ -504,6 +426,11 @@ interface CartPageProps {
 export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
+  const [ quote, setQuote ] = useState<CheckoutQuote | null>( null );
+  const [ quoteFor, setQuoteFor ] = useState( '' );
+  const [ quoteLoading, setQuoteLoading ] = useState( false );
+  const [ quoteNotice, setQuoteNotice ] = useState( '' );
+  const [ quoteRevision, setQuoteRevision ] = useState( 0 );
   const [ busy, setBusy ] = useState<boolean>( false );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
@@ -695,6 +622,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
   const drop = useCallback( ( ref: string ): void => {
     setItems( removeItem( ref ) );
+    setQuote( null );
+  }, [] );
+
+  const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
+    try {
+      setItems( setQuantity( ref, quantity ) );
+      setQuote( null );
+      setNotice( { kind: 'none' } );
+      setPaymentBlocked( false );
+    } catch {
+      setNotice( { kind: 'quiet', message: 'Choose a quantity from 1 to 99.' } );
+    }
   }, [] );
 
   /*
@@ -710,6 +649,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
     if ( !variantId ) return;
     setItems( setVariant( ref, variantId ) );
+    setQuote( null );
     setPaymentBlocked( false );
     setNotice( { kind: 'none' } );
   }, [] );
