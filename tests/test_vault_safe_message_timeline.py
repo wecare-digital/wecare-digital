@@ -111,5 +111,7 @@ def test_customer_scope_replaces_stale_result_and_send_modal_is_single_flight():
     assert "setFiles( [] );" in ui
     assert "sendingAction.current = true" in ui
     assert "sendingAction.current = false" in ui
-    assert "Review & send Unlock Vault" in ui
+    assert "Send Unlock Vault now" in ui
+    assert "Resend Unlock Vault" in ui
+    assert "Send Unlock Vault on WhatsApp?" in ui
     assert "Save document to Vault" in ui
