@@ -54,8 +54,7 @@ export function parseCheckoutQuote ( body: unknown ): CheckoutQuote | null {
     'discountPaise', 'convenienceFeePaise', 'convenienceGstPaise',
     'totalPaise' ] as const;
   if ( keys.some( key => !wholePaise( c[ key ] ) ) ) return null;
-  const charges = Object.fromEntries( keys.map( key => [ key, c[ key ] ] ) )
-    as unknown as CheckoutQuoteCharges;
+  const charges = Object.fromEntries( keys.map( key => [ key, c[ key ] ] ) ) as unknown as CheckoutQuoteCharges;
   const merchandise = items.reduce( ( sum, item ) => sum + item.totalPaise, 0 );
   if ( !Number.isSafeInteger( merchandise )
       || merchandise !== charges.merchandisePaise
