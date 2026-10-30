@@ -125,7 +125,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -1323,6 +1323,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
+      // The customer chose a payment rail on this page. Preserve it through the existing
+      // WhatsApp OTP return exactly as the legacy /checkout/ chooser already does.
+      if ( chosenChannel ) stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
       return;
     }
