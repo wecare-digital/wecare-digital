@@ -17,11 +17,11 @@ account `775261844268` region `us-east-1`, Meta app
 - The eight named wecare-payment alarms were OK on the most recent read.
   Alarm state is not proof of provider capture, Meta handset, or invoice parity.
 
-The read-only \`scripts/check_short_commerce_live.py\` gate now refuses to mark
+The read-only `scripts/check_short_commerce_live.py` gate now refuses to mark
 production ready from three flags alone. It requires an independently reviewed,
 **operator-supplied** JSON release manifest naming the exact Git source commit,
 AWS account and region, and immutable published Lambda version + CodeSha256 for
-each of the three receivers. The checker independently reads each \`:live\`
+each of the three receivers. The checker independently reads each `:live`
 alias target, rejects weighted/mixed traffic, verifies the actual published
 version and deployed code hash, checks healthy update status and the explicit
 one-unit flag, and requires all eight named payment alarms in OK state. Missing
@@ -31,7 +31,7 @@ fail closed. No customer records or payments are accessed.
 Operator-reviewed manifest shape (placeholder values are **not** valid release
 evidence; do not copy current $LATEST SHAs as if they were approved):
 
-\`\`\`json
+```json
 {
   "schema_version": "short-commerce-release-v1",
   "account": "775261844268",
@@ -43,18 +43,18 @@ evidence; do not copy current $LATEST SHAs as if they were approved):
     "wecare-inbound-whatsapp": {"version": "<published version>", "code_sha256": "<Lambda CodeSha256 base64>"}
   }
 }
-\`\`\`
+```
 
 After **release-owner approval, isolated staging with both flag states, Meta
 asset/recipient verification and authorized payment parity checks**, save the
 reviewed manifest outside the source tree and run:
 
-\`\`\`sh
+```sh
 python scripts/check_short_commerce_live.py \
   --region us-east-1 \
   --expect-account 775261844268 \
   --release-manifest /secure/operator-reviewed-short-commerce-release.json
-\`\`\`
+```
 
 This is a configuration/coded-artifact check only, **not a signature verifier**
 or an approval system. A manifest does not prove that its stated Git source was
