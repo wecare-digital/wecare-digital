@@ -137,3 +137,24 @@ def test_invoice_delete_remains_impossible_and_ui_offers_conditional_void():
     assert "return _resp(410, {" in engine[engine.index("def delete_invoice("):]
     assert "INVOICE_IMMUTABLE" in engine
     assert "INVOICE_CANCEL_MONEY_MOVED" in engine
+
+
+def test_archive_and_delete_share_atomic_mutation_guard():
+    customers = CUSTOMERS.read_text()
+    assert "const customerMutationInFlight = useRef(false)" in customers
+    archive = customers[customers.index("const handleArchive = async"):customers.index("const handleDeleteCustomer = async")]
+    delete = customers[customers.index("const handleDeleteCustomer = async"):customers.index("const handleUnlock = async")]
+    for action in (archive, delete):
+        assert "if (deleting || customerMutationInFlight.current) return;" in action
+        assert "if (!ok || customerMutationInFlight.current) return;" in action
+        assert "customerMutationInFlight.current = true" in action
+        assert "customerMutationInFlight.current = false" in action
+
+
+def test_legacy_success_without_delete_type_refreshes_customer_list():
+    customers = CUSTOMERS.read_text()
+    delete = customers[customers.index("const handleDeleteCustomer = async"):customers.index("const handleUnlock = async")]
+    assert "result.data?.success" in delete
+    assert "result.data.deleteType === 'soft' || result.data.deleteType == null" in delete
+    assert "await loadContacts();" in delete
+    assert "api.softDeleteContactResult(contactId)" in delete
