@@ -149,3 +149,25 @@ def test_workspace_forms_inherit_auth_bottom_hairline_skin():
     assert "box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)!important" in css
     for excluded in ('[type="checkbox"]', '[type="radio"]', '[type="file"]', '[type="range"]', '[type="color"]'):
         assert excluded in css
+
+
+def test_workspace_forms_keep_auth_borderless_field_contract():
+    """Every ordinary Workspace form control inherits the auth-style underline geometry."""
+    css = (ROOT / "src/styles/workspace-shell.css").read_text()
+    required = (
+        'input:not([type="checkbox"]):not([type="radio"])',
+        'textarea:not([data-ui-raw]):not([data-public-ui])',
+        'select:not([data-ui-raw]):not([data-public-ui])',
+        '.ui-select-trigger:not([data-ui-raw]):not([data-public-ui])',
+        'button[role="combobox"]:not([data-ui-raw]):not([data-public-ui])',
+        'border-width:0 0 1px!important',
+        'border-radius:0!important',
+        'background-color:transparent!important',
+        'border-bottom-color:var(--public-brand-green',
+        'box-shadow:0 1px 0 0 var(--public-brand-lime',
+    )
+    for token in required:
+        assert token in css
+    mobile = css[css.index("@media(max-width:767px)"):]
+    assert 'button[role="combobox"]{min-height:auto!important}' not in mobile
+    assert 'font-size:16px!important' in mobile
