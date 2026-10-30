@@ -105,6 +105,7 @@ def test_website_cart_file_binding_current_owner_and_expired_window():
             return {"Item": dict(rows["entitlement"])}
     class CheckoutRejected(Exception):
         def __init__(self, reason):
+            super().__init__(reason)
             self.reason = reason
     service_requests = SimpleNamespace(
         VAULT="VAULT",
