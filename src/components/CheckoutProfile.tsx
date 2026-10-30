@@ -97,13 +97,13 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
     <p className="checkout-profile-status" role="status" aria-live="polite">{ message }</p>
     <div className="checkout-profile-action"><PillButton type="button" onClick={ saveProfile } disabled={ saving || !canSave } action={ saving ? 'Saving…' : mode === 'create' ? 'Save & continue' : 'Save changes' } /></div>
     <style>{`
-      .checkout-profile{padding:24px;border:1px solid #e5e7eb;border-radius:24px;background:#fff;color:#1a1a1a}
+      .checkout-profile{padding:24px 0;border:0;border-radius:0;background:#fff;color:#1a1a1a}
       .checkout-profile-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}
       .checkout-profile-eyebrow{margin:0 0 6px;font-size:14px}.checkout-profile h2{margin:0;font-size:22px}
       .phone-verified{font-size:14px;font-weight:600;color:#1a3a2a}.checkout-profile-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:16px;margin-bottom:20px}
-      .checkout-profile-grid label{display:flex;flex-direction:column;gap:8px;font-size:14px}.checkout-profile-grid input{min-height:52px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:999px;padding:0 16px;background:#fff;color:#1a1a1a;font:inherit;font-size:16px;outline:none}
-      .checkout-profile-grid input:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}.checkout-profile-status{font-size:14px;color:#1a3a2a}.checkout-profile-action{margin-top:16px}
-      @media(max-width:767px){.checkout-profile{padding:18px 14px}.checkout-profile-head{display:block}.phone-verified{display:inline-flex;margin-top:10px}.checkout-profile-grid{grid-template-columns:1fr}}
+      .checkout-profile-grid label{display:flex;flex-direction:column;gap:8px;font-size:14px}.checkout-profile-grid input{min-height:54px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline,#d9ddd9);border-radius:0;padding:0 2px;background:transparent;color:#1a1a1a;font:inherit;font-size:16px;outline:none;box-shadow:none;-webkit-appearance:none;appearance:none;transition:border-color .2s,box-shadow .2s}
+      .checkout-profile-grid input:focus-visible{outline:0;border-bottom-color:var(--public-brand-green,#1a3a2a);box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)}.checkout-profile-status{font-size:14px;color:#1a3a2a}.checkout-profile-action{margin-top:16px}
+      @media(max-width:767px){.checkout-profile{padding:18px 0}.checkout-profile-head{display:block}.phone-verified{display:inline-flex;margin-top:10px}.checkout-profile-grid{grid-template-columns:1fr}.checkout-profile-grid input{min-height:52px;font-size:16px}}
     `}</style>
   </section>;
 };
