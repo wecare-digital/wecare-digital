@@ -590,6 +590,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         const parsed = response.ok ? parseCheckoutQuote( body ) : null;
         if ( !parsed ) {
           const error = String( body.error || '' );
+          if ( error === 'PROFILE_REQUIRED' || error === 'DELIVERY_DETAILS_REQUIRED' ) {
+            // The price cannot be computed for a missing identity/address.
+            // The checkout editor must be usable WITHOUT a payable button.
+            setCheckoutAccessToken( session.accessToken );
+            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : 'create' );
+            setProfileStatus( 'required' );
+            setShowProfile( true );
+          }
           setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Complete your name to review the price.'
             : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm your delivery address to see the final price.'
               : error === 'CART_NOT_PAYABLE' ? 'Review your cart; one of its items cannot be priced.'
@@ -1778,6 +1786,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 </div>
                 { quoteLoading && <p className="cart-body" role="status">Checking current prices…</p> }
                 { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
+                { quoteNotice.startsWith( 'Sign in' ) && (
+                  <Link className="cart-auth-action" href="/auth?return=/checkout/">
+                    Sign in on WhatsApp
+                  </Link>
+                ) }
                 { quoteReady && quote && (
                   <>
                     <div className="cart-table-wrap">
