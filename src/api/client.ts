@@ -7693,10 +7693,19 @@ export async function listSecureFileLogs ( mobile?: string ): Promise<ApiResult<
 export interface VaultMessageDeliveryEvidence {
   status: 'NOT_TRACKED' | 'UNAVAILABLE' | 'ACCEPTED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'UNKNOWN' | 'PENDING';
   observedAt: number | null;
+  /** SEND_LOG means provider acceptance only; MESSAGE_STATUS may include real webhook evidence. */
+  source?: 'SEND_LOG' | 'MESSAGE_STATUS';
 }
 export interface VaultMessageDeliveryLog {
   fileId: string;
-  evidence: { offer: VaultMessageDeliveryEvidence; access: VaultMessageDeliveryEvidence };
+  evidence: {
+    offer: VaultMessageDeliveryEvidence;
+    nativePay?: VaultMessageDeliveryEvidence;
+    processing?: VaultMessageDeliveryEvidence;
+    completed?: VaultMessageDeliveryEvidence;
+    invoice?: VaultMessageDeliveryEvidence;
+    access: VaultMessageDeliveryEvidence;
+  };
   scope: string;
   otherStages: string;
 }
