@@ -37,7 +37,7 @@ type ProfileGroup = { title: string; note: string; rows: [ string, string ][] };
  * The canonical structured address wins; an older address is shown only when no canonical
  * one exists, and is labelled as not yet confirmed by the customer.
  */
-function profileGroups ( contact: api.Contact, fallbackPhone: string ): ProfileGroup[] {
+function profileGroups ( contact: api.Contact, fallbackPhone: string, whatsAppName = '' ): ProfileGroup[] {
     const dash = ( value?: string ) => ( value && value.trim() ) || '—';
     const canonical = contact.checkoutDeliveryAddress ? formatAddress( contact.checkoutDeliveryAddress ) : '';
     const anyAddress = canonical || contactDeliveryAddress( contact );
@@ -49,6 +49,7 @@ function profileGroups ( contact: api.Contact, fallbackPhone: string ): ProfileG
             rows: [
                 [ 'Customer ID', dash( contact.customerDisplayId || contact.customerUuid ) ],
                 [ 'Phone', dash( contact.phone || fallbackPhone ) ],
+                [ 'WhatsApp display name', dash( whatsAppName ) ],
                 [ 'Meta WhatsApp username', contact.username ? `@${contact.username.replace( /^@/, '' )}` : '—' ],
                 [ 'WhatsApp BSUID', contact.bsuid ? `${contact.bsuid.slice( 0, 8 )}…` : '—' ],
             ],
@@ -112,8 +113,8 @@ const GatedMedia: React.FC<{ messageId?: string; url: string; kind: 'image' | 'v
     };
 
 const WABAS = [
-    { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
-    { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
+    { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display, metaPhoneId: WHATSAPP_PHONES.primary.metaPhoneId },
+    { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display, metaPhoneId: WHATSAPP_PHONES.secondary.metaPhoneId },
 ];
 
 // The media picker's accept list: every WhatsApp-supported MIME from WA_ACCEPT_STRING
@@ -176,6 +177,30 @@ const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
 const WABA_OPTIONS: SelectOption[] = WABAS.map(
     w => ( { value: w.id, label: `${ w.name } (${ w.display })` } )
 );
+// Filter by the receiving WABA independently of the outbound Send from chooser.
+// Both accounts are visible by default. Older rows can use a Meta id or phone.
+const WABA_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'ALL', label: 'Both WhatsApp accounts' },
+    ...WABAS.map( w => ( { value: w.id, label: `${ w.name } (${ w.display })` } ) ),
+];
+
+const messageWabaId = ( m: api.Message ): string => {
+    if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
+    const id = m.awsPhoneNumberId || '';
+    const stored = WABAS.find( w => w.id === id || w.metaPhoneId === id );
+    if ( stored ) return stored.id;
+    const receivingDigits = ( m.receivingPhone || '' ).replace( /\D/g, '' );
+    return WABAS.find( w => receivingDigits && w.display.replace( /\D/g, '' ) === receivingDigits )?.id || '';
+};
+const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
+
+// Show a provider-supplied name only when it is not the read API's phone fallback.
+const realWhatsAppName = ( m: api.Message ): string => {
+    if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
+    const name = ( m.senderName || '' ).trim();
+    if ( !name || name.toLowerCase() === 'unknown' || /^[+\d\s()-]+$/.test( name ) ) return '';
+    return name;
+};
 const SMS_TYPE_OPTIONS: SelectOption[] = [
     { value: 'TRANSACTIONAL', label: 'Transactional' },
     { value: 'PROMOTIONAL', label: 'Promotional' },
@@ -270,6 +295,7 @@ interface Conversation {
     contactId: string;
     name: string;
     channels: Set<string>;
+    wabas: Set<string>;
     lastContent: string;
     // Carried so the preview can call prettyMsg instead of keeping a second copy of
     // its logic — a duplicate is how the unsupported label stayed wrong in one place.
@@ -300,6 +326,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const presetChannel = ( channel || '' ).toLowerCase();
     const [ channelFilter, setChannelFilter ] = useState<string>(
         presetChannel && presetChannel in CHANNEL ? presetChannel : 'ALL' );
+    const [ wabaFilter, setWabaFilter ] = useState<string>( 'ALL' );
     const [ search, setSearch ] = useState( '' );
     const [ loading, setLoading ] = useState( true );
     const [ replyText, setReplyText ] = useState( '' );
@@ -399,7 +426,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             const names: Record<string, string> = {};
             const dir: Record<string, api.Contact> = {};
             contacts.forEach( c => {
-                names[ c.contactId ] = c.name || c.phone || c.email || c.contactId;
+                names[ c.contactId ] = c.name || c.email || '';
                 dir[ c.contactId ] = c;
             } );
             setContactNames( names );
@@ -538,6 +565,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             const ch = ( m.channel || 'whatsapp' ).toLowerCase();
             if ( channelFilter !== 'ALL' && ch !== channelFilter ) continue;
+            const waba = messageWabaId( m );
+            if ( wabaFilter !== 'ALL' && waba !== wabaFilter ) continue;
             const cid = m.contactId || m.senderPhone || m.receivingPhone || 'unknown';
             const ts = new Date( m.timestamp ).getTime() || 0;
             const existing = map.get( cid );
@@ -545,8 +574,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 map.set( cid, {
                     contactId: cid,
-                    name: contactNames[ cid ] || m.senderName || m.senderPhone || m.receivingPhone || cid,
+                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone || m.receivingPhone || cid,
                     channels: new Set( [ ch ] ),
+                    wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
                     lastType: m.messageType || '',
                     lastTs: ts,
@@ -555,6 +585,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             } else
             {
                 existing.channels.add( ch );
+                if ( waba ) existing.wabas.add( waba );
+                if ( !contactNames[ cid ] && realWhatsAppName( m ) ) existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
                 {
                     existing.lastTs = ts;
@@ -571,7 +603,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             list = list.filter( c => c.name.toLowerCase().includes( q ) || c.lastContent.toLowerCase().includes( q ) );
         }
         return list.sort( ( a, b ) => b.lastTs - a.lastTs );
-    }, [ messages, contactNames, channelFilter, search ] );
+    }, [ messages, contactNames, channelFilter, wabaFilter, search ] );
 
     // Thread for the selected conversation (chronological).
     const thread = useMemo( () => {
@@ -579,11 +611,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => channelFilter === 'ALL' || ( m.channel || 'whatsapp' ).toLowerCase() === channelFilter )
+            .filter( m => wabaFilter === 'ALL' || messageWabaId( m ) === wabaFilter )
             .sort( ( a, b ) => ( new Date( a.timestamp ).getTime() || 0 ) - ( new Date( b.timestamp ).getTime() || 0 ) );
-    }, [ messages, selected, channelFilter ] );
+    }, [ messages, selected, channelFilter, wabaFilter ] );
 
     const selectedConv = conversations.find( c => c.contactId === selected );
     const selectedContact = selected ? contactDir[ selected ] : undefined;
+    const whatsAppName = [ ...thread ].reverse().map( realWhatsAppName ).find( Boolean ) || '';
     const replyChannel = thread.length ? ( thread[ thread.length - 1 ].channel || 'whatsapp' ).toLowerCase() : 'whatsapp';
 
     // Derive the reply target (recipient phone, WABA, contactId) from the thread.
