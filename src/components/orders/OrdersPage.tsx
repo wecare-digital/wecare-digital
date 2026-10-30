@@ -716,7 +716,7 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { signedIn && (
+          { token && ( view === 'ready' || view === 'empty' || view === 'focus' ) && (
             <div className="ord-account-bar" aria-label="Account actions">
               <div className="ord-account-actions">
                 <button
@@ -779,24 +779,9 @@ export default function OrdersPage (): React.ReactElement {
           ) }
 
           { signedIn && (
-            // The two-column shell. One column by default and 340px + minmax(0,1fr) from
-            // 1024px up, collapsing back to one while the profile editor is open - see the
-            // .ord-shell-editing note in the stylesheet. DOM order equals visual order at
-            // every width, so there is no `order:` property and no reading-order divergence.
             <div className="ord-shell">
-              { /* LEFT: the profile panel. It adds NO heading of its own - the rendered h2
-                   list must stay exactly ['What we have on file', 'Your requests', 'Order history'] (the
-                   middle one is RequestsPanel's, Phase O-1), so the
-                   panel is named by aria-label and the only heading in it is the one
-                   CheckoutIdentityCard already owns.
-
-                   Exactly three edit affordances, and the PHONE IS NOT ONE OF THEM. That is
-                   structural rather than a convention this page keeps: CheckoutIdentityCard
-                   declares no onEditPhone prop and CheckoutProfileMode has no 'phone'
-                   member. The phone IS the WhatsApp-OTP identity and the card's
-                   "✓ verified" badge is unconditional because of it, so a self-service
-                   phone edit would let a signed-in session rewrite the credential it was
-                   issued against - and would make that badge a false claim. */ }
+              { /* Read-only customer context. Profile changes are initiated through the
+                   WhatsApp F001 action above, so Orders keeps one profile-edit path. */ }
               <aside className="ord-panel" aria-label="Your details">
                 { profile
                   ? (
@@ -846,6 +831,8 @@ export default function OrdersPage (): React.ReactElement {
                       <a className="ord-link" href="/cart/">cart</a>.
                     </p>
                   ) }
+              </aside>
+
               { /* RIGHT: the order history. The list and the empty state are alternatives and
                    never render together. */ }
               <div className="ord-main">
