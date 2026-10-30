@@ -2652,9 +2652,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             # The saved, phone-owned row may omit email, but the browser-led
             # WhatsApp rail still requires a human name. A phone-only OTP
             # bootstrap is an identity, not a payable customer profile.
-            full_name = (str((cart_profile or {}).get("name") or "").strip()
-                         or f'{(cart_profile or {}).get("firstName") or ""} '
-                            f'{(cart_profile or {}).get("lastName") or ""}'.strip())
+            row = cart_profile or {}
+            full_name = str(
+                row.get("name") or
+                f'{row.get("firstName") or ""} {row.get("lastName") or ""}'
+            ).strip()
             if not cart_profile or not full_name.strip():
                 return cors_response(409, {
                     "error": "PROFILE_REQUIRED",
