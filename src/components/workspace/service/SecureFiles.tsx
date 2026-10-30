@@ -776,7 +776,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
                   gap:20px;margin:0 0 20px;
                 }
-                .sf-field{min-width:0}\n                .sf-field-wide{grid-column:1/-1}
+                .sf-field{min-width:0}
+                .sf-field-wide{grid-column:1/-1}
                 .sf-label{
                   display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;
                   letter-spacing:-.1px;color:var(--accent);
