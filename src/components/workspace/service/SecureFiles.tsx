@@ -901,7 +901,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                   .sf-cta,.sf-cta-quiet{width:100%}
                   .sf-listhead{align-items:stretch}
                   .sf-filter{width:100%;align-items:stretch;flex-direction:column}
-                  .sf-filter .sf-input{width:100%}
+                  .sf-filter .sf-input{width:100%;font-size:16px}
+                  .sf-input{font-size:16px}
                   .sf-tablewrap{overflow:visible;border:0;background:transparent}
                   .sf-table,.sf-table tbody{display:block;width:100%}
                   .sf-table thead{display:none}
