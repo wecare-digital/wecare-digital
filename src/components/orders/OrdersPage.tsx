@@ -1348,64 +1348,146 @@ export default function OrdersPage (): React.ReactElement {
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
 
-          /* Compact order ledger: information stays in the table, actions become lime icons. */
-          .ord-page{gap:18px}
+          /* The homepage is the source of truth: Inter, white, forest green and lime.
+             This is a data-dense view, so use its supporting/data/meta type tokens rather
+             than creating a second, hard-coded typography scale. */
+          .ord-page{
+            gap:18px;background:var(--public-bg);color:var(--public-body);
+            font-family:var(--font-sans);
+          }
           .ord-shell,.ord-main{gap:12px}
           .ord-account-bar{align-items:flex-end;align-self:flex-end;gap:6px}
           .ord-account-actions{display:flex;gap:8px;align-items:center}
-          .ord-account-action,.ord-copy,.ord-inv{
+
+          /* Icon-only actions: actual 44px hit areas, but NO chips, squares, grey fills
+             or button borders. The SVG uses lime with a forest-green keyline, because
+             raw brand lime alone is only 1.24:1 against white. */
+          .ord-account-action,.ord-copy,.ord-inv,
+          .ord-update,.ord-signout{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
-            min-height:44px;padding:0;margin:0;border:1px solid var(--public-brand-green);border-radius:11px;
-            display:inline-flex;align-items:center;justify-content:center;
-            background:var(--public-brand-green);color:var(--public-brand-lime);cursor:pointer;
+            min-height:44px;display:inline-flex;align-items:center;justify-content:center;
+            padding:0;margin:0;border:0;border-radius:0;
+            background:transparent;color:var(--public-brand-lime);
+            font:inherit;cursor:pointer;
+            transition:opacity .15s ease,transform .15s ease;
           }
           .ord-copy{margin-inline-start:8px}
-          .ord-account-action,.ord-update,.ord-signout{
-            background:var(--public-brand-green);border-color:var(--public-brand-green);
-            color:var(--public-brand-lime);
-          }
-          .ord-account-action:hover:not(:disabled){
-            background:#28533a;color:var(--public-brand-lime);
-            transform:none;box-shadow:none;
-          }
+          .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
-            background:#e5f7c8;color:#274b07;
+            background:transparent;color:var(--public-brand-lime);
+            border:0;box-shadow:none;transform:scale(1.06);opacity:.82;
           }
+          .ord-account-action:focus-visible,
+          .ord-copy:focus-visible,.ord-inv:focus-visible{
+            background:transparent;outline:2px solid var(--public-brand-green);
+            outline-offset:1px;
+          }
+          .ord-account-action:disabled,.ord-copy:disabled,.ord-inv:disabled{
+            opacity:.45;cursor:default;
+          }
+
+          /* Pure white surfaces; no grey table-header background or tinted row fill.
+             A slim lime rule carries the same brand accent as Home. */
           .ord-list{
-            padding:0;gap:0;border:1px solid var(--public-hairline);
+            padding:0;gap:0;border:1px solid var(--public-brand-lime);
             border-block-start:2px solid var(--public-brand-lime);
-            border-radius:16px;box-shadow:none;background:#fff;
+            border-radius:16px;background:var(--public-bg);box-shadow:none;
           }
           .ord-list-head{padding:14px 18px}
-          .ord-list .ord-h2{font-size:20px;line-height:1.3}
-          .ord-table{min-inline-size:580px}
-          .ord-tablewrap{border-block-start:0;overflow-x:auto}
-          .ord-th{padding:10px 12px;background:#f7f9f3}
-          .ord-td{padding:7px 12px;vertical-align:middle;font-size:14px}
-          .ord-ordbtn{text-decoration:none;min-height:44px}
-          .ord-ordno{font-size:14px;font-weight:700}
-          .ord-amount{font-size:14px}
-          .ord-status{
-            display:inline-flex;flex-direction:row;align-items:center;padding:6px 9px;
-            border:1px solid #cbdca7;border-radius:20px;
-            line-height:1.2;background:var(--public-lime-tint);
+          .ord-list .ord-h2{
+            font-family:var(--font-sans);font-size:var(--public-card-size);
+            font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
+            letter-spacing:var(--public-card-tracking);color:var(--public-heading);
           }
-          .ord-status-firm{border-inline-start-width:1px}
+          .ord-table{
+            min-inline-size:600px;background:transparent;
+            font-family:var(--font-sans);color:var(--public-body);
+          }
+          .ord-tablewrap{
+            border-block-start:0;overflow-x:auto;background:transparent;
+          }
+          .ord-th{
+            padding:10px 12px;background:transparent;
+            border-block-end:2px solid var(--public-brand-lime);
+            color:var(--public-brand-green);
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            font-weight:700;
+          }
+          .ord-td{
+            padding:7px 12px;vertical-align:middle;
+            font-family:var(--font-sans);font-size:var(--public-supporting-size);
+            line-height:1.4;color:var(--public-body);
+          }
+          .ord-ordbtn{
+            min-height:44px;border:0;background:transparent;text-decoration:none;
+            font-family:var(--font-sans);color:var(--public-heading);
+          }
+          .ord-ordno{
+            font-size:var(--public-supporting-size);font-weight:700;
+            color:var(--public-heading);
+          }
+          .ord-amount{
+            font-size:var(--public-data-size);font-weight:700;
+            color:var(--public-heading);
+          }
+          .ord-tr,.ord-tr-open{background:transparent}
+          .ord-tr:hover,.ord-tr-open:hover{
+            background:transparent;box-shadow:inset 0 -2px 0 var(--public-brand-lime);
+          }
+          .ord-detailcell{
+            padding:12px 16px;background:transparent;
+          }
+
+          /* Payment state stays readable as text, with one lime marker instead of
+             tinted/grey pills. The firm state remains a weight step. */
+          .ord-status,.ord-status-firm{
+            display:inline-flex;flex-direction:row;align-items:center;gap:8px;
+            padding:0;border:0;background:transparent;
+            color:var(--public-brand-green);line-height:1.35;
+          }
+          .ord-status::before{
+            content:'';display:inline-block;flex:none;inline-size:8px;block-size:8px;
+            border-radius:50%;background:var(--public-brand-lime);
+            box-shadow:0 0 0 1px var(--public-brand-green);
+          }
           .ord-status-label,.ord-status-firm .ord-status-label{
-            font-size:13px;font-weight:650;white-space:nowrap;
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            font-weight:600;white-space:nowrap;
           }
+          .ord-status-firm .ord-status-label{font-weight:700}
           .ord-invoice-cell{white-space:nowrap}
-          .ord-unavailable{font-size:20px;color:var(--public-muted)}
-          .ord-feedback,.ord-invnote{font-size:12px;color:var(--public-brand-green)}
+          .ord-unavailable{
+            font-size:var(--public-card-size);color:var(--public-brand-green);
+          }
+          .ord-feedback,.ord-invnote{
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            color:var(--public-brand-green);
+          }
           .ord-feedback{display:inline-block;margin-inline-start:6px}
-          .ord-detailcell{padding:12px 16px}
-          .ord-detail-inline{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px}
-          .ord-compact-facts{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0}
+          .ord-detail-inline{
+            display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;
+          }
+          .ord-compact-facts{
+            display:flex;flex-wrap:wrap;gap:8px 20px;margin:0;
+          }
           .ord-compact-facts>div{display:flex;align-items:baseline;gap:6px}
-          .ord-compact-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
-          .ord-compact-facts dd{margin:0;font-size:13px;overflow-wrap:anywhere}
+          .ord-compact-facts dt{
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            font-weight:700;color:var(--public-brand-green);
+          }
+          .ord-compact-facts dd{
+            margin:0;font-family:var(--font-sans);font-size:var(--public-meta-size);
+            color:var(--public-body);overflow-wrap:anywhere;
+          }
           .ord-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-          .ord-view{font-size:14px;min-height:40px;padding:0 14px}
+          .ord-view{
+            min-height:44px;padding:0 12px;border:0;background:transparent;
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            color:var(--public-brand-green);
+            text-decoration:underline;text-decoration-color:var(--public-brand-lime);
+            text-underline-offset:4px;
+          }
+          .ord-view:hover{background:transparent;text-decoration-thickness:2px}
           .ord-pager{margin:0;padding:10px 18px}
           .ord-live:empty{display:none}
           .ord-live:not(:empty){padding:8px 18px}
