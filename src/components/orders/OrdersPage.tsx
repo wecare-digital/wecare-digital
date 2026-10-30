@@ -4,8 +4,6 @@ import PageMeta from '../PageMeta';
 import Breadcrumbs from '../Breadcrumbs';
 import RotatingHero from '../RotatingHero';
 import PillButton from '../PillButton';
-import { maskPhone } from '../CheckoutIdentityCard';
-import { type StoredAddress } from '../AddressFields';
 // The MODULE is the mockable seam, and the boolean is read as a property access INSIDE the
 // render body - never captured in a module-scope const. An ESM const cannot be spied and
 // vi.stubEnv runs strictly after module evaluation, which is exactly why API_BASE below is not
@@ -18,6 +16,7 @@ import {
   isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
+import OrderActionIcon from './OrderActionIcon';
 import OrderDetail from './OrderDetail';
 
 /**
@@ -97,29 +96,9 @@ interface OrderRow {
   customerDisplayId: string;
 }
 
-interface ProfilePayload {
-  name: string;
-  firstName: string;
-  lastName: string;
-  companyName: string;
-  designation: string;
-  email: string;
-  emailVerified: boolean;
-  phone: string;
-  addressComplete: boolean;
-  address: StoredAddress | null;
-}
-
-/**
- * `profile` is OPTIONAL on purpose, and the difference matters. It is PRESENT ONLY on a
- * first-page request: a response that carried a cursor OMITS the key entirely. So `undefined`
- * means "not answered on this request" and `null` means "no contact row, or a degraded read".
- * Treating `undefined` as `null` would blank the card the customer is looking at on page two.
- */
 interface OrdersResponse {
   orders?: OrderRow[];
   cursor?: string;
-  profile?: ProfilePayload | null;
 }
 
 /**
@@ -388,7 +367,6 @@ export default function OrdersPage (): React.ReactElement {
   const [ token, setToken ] = useState( '' );
   const [ orders, setOrders ] = useState<OrderRow[]>( [] );
   const [ cursor, setCursor ] = useState( '' );
-  const [ profile, setProfile ] = useState<ProfilePayload | null>( null );
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
   const [ moreFailed, setMoreFailed ] = useState( false );
@@ -531,7 +509,6 @@ export default function OrdersPage (): React.ReactElement {
     setToken( '' );
     setOrders( [] );
     setCursor( '' );
-    setProfile( null );
     window.location.replace( '/auth?return=/orders/' );
   };
 
@@ -569,9 +546,6 @@ export default function OrdersPage (): React.ReactElement {
     const rows = data.orders || [];
     setOrders( rows );
     setCursor( String( data.cursor || '' ) );
-    // A first page always answers `profile`, so reading it unconditionally here is correct.
-    // `?? null` and not `|| null`: the key is present, and `null` is a meaningful value.
-    if ( 'profile' in data ) setProfile( data.profile ?? null );
     setView( rows.length === 0 ? 'empty' : 'ready' );
   };
 
@@ -675,9 +649,6 @@ export default function OrdersPage (): React.ReactElement {
     // a cursor whenever a query stops at Limit, so a customer with exactly 20 orders gets one.
     // There is no "no more orders" message, because there is nothing to tell them.
     setCursor( String( outcome.data.cursor || '' ) );
-    // A cursored response OMITS `profile`. Touching the card on a key that is not there would
-    // blank an identity the customer is looking at.
-    if ( 'profile' in outcome.data ) setProfile( outcome.data.profile ?? null );
   };
 
   const signedIn = view === 'ready' || view === 'empty';
@@ -686,24 +657,16 @@ export default function OrdersPage (): React.ReactElement {
     <>
       <PageMeta
         title="Your orders"
-        description="Sign in on WhatsApp to see what you have bought from WECARE.DIGITAL, each order's payment status, and the details we have on file."
+        description="Your orders, payment status and invoices in one place."
         path="/orders/"
       />
       { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
            canonical, title and description stay the history's. Only the visible band changes. */ }
       <RotatingHero
-        frame={ focusOrder ? 'Your' : 'Everything about your' }
-        words={ focusOrder
-          ? [ { word: 'order', tint: '#e0f7c8', dot: '#3da35a' } ]
-          : [
-              { word: 'orders', tint: '#fef3c7', dot: '#f0a818' },
-              { word: 'payments', tint: '#ede9fe', dot: '#9849e8' },
-              { word: 'invoices', tint: '#fee2e2', dot: '#dc2626' },
-            ] }
-        sub={ focusOrder
-          ? 'What you bought, where it ships, and where it is now.'
-          : 'Your purchases, payments and receipts — in one quiet place.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Everything about your orders, payments and invoices' }
+        frame="Your"
+        words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#a3cd38' } ] }
+        sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
+        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -722,18 +685,22 @@ export default function OrdersPage (): React.ReactElement {
                 <button
                   type="button"
                   className="ord-account-action ord-update"
+                  aria-label="Update profile on WhatsApp"
+                  title="Update profile on WhatsApp"
                   onClick={ sendProfileUpdate }
                   disabled={ profileAction === 'busy' }
                   aria-busy={ profileAction === 'busy' ? 'true' : undefined }
                 >
-                  Update profile on WhatsApp
+                  <OrderActionIcon name="account_circle" />
                 </button>
                 <button
                   type="button"
                   className="ord-account-action ord-signout"
+                  aria-label="Sign out"
+                  title="Sign out"
                   onClick={ signOut }
                 >
-                  Sign out
+                  <OrderActionIcon name="logout" />
                 </button>
               </div>
               { profileAction === 'sent' && (
@@ -780,58 +747,8 @@ export default function OrdersPage (): React.ReactElement {
 
           { signedIn && (
             <div className="ord-shell">
-              { /* Read-only customer context. Profile changes are initiated through the
-                   WhatsApp F001 action above, so Orders keeps one profile-edit path. */ }
-              <aside className="ord-panel" aria-label="Your details">
-                { profile
-                  ? (
-                    <section className="ord-summary" aria-labelledby="ord-summary-title">
-                      <div className="ord-summary-head">
-                        <div>
-                          <p className="ord-eyebrow">Your details</p>
-                          <h2 className="ord-h2" id="ord-summary-title">What we use for your orders</h2>
-                        </div>
-                      </div>
-                      <dl className="ord-summary-rows">
-                        <div>
-                          <dt>Name</dt>
-                          <dd>{ profile.name || 'Not provided' }</dd>
-                        </div>
-                        <div>
-                          <dt>WhatsApp</dt>
-                          <dd>
-                            <span data-wc-no-translate>{ maskPhone( profile.phone ) }</span>
-                            <span className="ord-verified">verified</span>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Deliver to</dt>
-                          <dd>
-                            <span>{ profile.addressComplete && profile.address
-                              ? profile.address.fullAddress
-                              : 'No address on file' }</span>
-                          </dd>
-                        </div>
-                      </dl>
-                      { orders[ 0 ]?.customerDisplayId && (
-                        <details className="ord-support">
-                          <summary>Support details</summary>
-                          <p>
-                            Customer ID{ ' ' }
-                            <strong data-wc-no-translate>{ orders[ 0 ].customerDisplayId }</strong>
-                          </p>
-                        </details>
-                      ) }
-                    </section>
-                  )
-                  : (
-                    <p className="ord-p ord-nodetails">
-                      We do not have your details yet. You can add them in your{ ' ' }
-                      { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
-                      <a className="ord-link" href="/cart/">cart</a>.
-                    </p>
-                  ) }
-              </aside>
+              { /* Account/address details are intentionally hidden in this overview.
+                   The existing profile action remains available above; stored data is untouched. */ }
 
               { /* RIGHT: the order history. The list and the empty state are alternatives and
                    never render together. */ }
@@ -839,7 +756,7 @@ export default function OrdersPage (): React.ReactElement {
           { orders.length > 0 && (
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
-                <h2 className="ord-h2" id="ord-history">Order history</h2>
+                <h2 className="ord-h2" id="ord-history">Orders</h2>
               </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
@@ -1004,46 +921,18 @@ export default function OrdersPage (): React.ReactElement {
                                     type="button"
                                     className="ord-copy"
                                     aria-label={ `Copy order ID ${ copyValue }` }
+                                    title={ copiedKey === rowId ? 'Copied' : 'Copy order ID' }
                                     onClick={ () => copyId( rowId, copyValue, index ) }
                                   >
-                                    Copy
+                                    <OrderActionIcon name="copy_all" />
                                   </button>
-                                  <span
-                                    className={ copiedKey === rowId || copyFailedKey === rowId
-                                      ? 'ord-tip ord-tip-on'
-                                      : 'ord-tip' }
-                                    aria-hidden="true"
-                                  >
-                                    { copiedKey === rowId
-                                      ? 'Copied'
-                                      : copyFailedKey === rowId
-                                        ? 'Press your copy key'
-                                        : 'Copy order ID' }
-                                  </span>
+                                  { ( copiedKey === rowId || copyFailedKey === rowId ) && (
+                                    <span className="ord-feedback" role="status">
+                                      { copiedKey === rowId ? 'Copied' : 'Press your copy key' }
+                                    </span>
+                                  ) }
                                 </>
                               ) }
-                              { /* On the row rather than in the panel: WhatsApp sends this as
-                                   `Ref:`, and an operator reading a support ticket should see it
-                                   without expanding anything. */ }
-                              <span className="ord-ref" data-wc-no-translate>
-                                Ref { order.referenceId }
-                              </span>
-                              { /* WHERE the order came from, as TEXT and not a colour: a tag
-                                   distinguished only by hue fails for anyone who cannot see the
-                                   difference, and this page has no legend to look it up in. In
-                                   the existing Order # cell rather than a sixth column, because
-                                   the five-column header equality and colSpan={5} below are
-                                   load-bearing and a column would be a restructure.
-
-                                   Left TRANSLATABLE on purpose: "Website" is prose, and a reader
-                                   on a translated page is better served by their own word for
-                                   it. Nothing branches on the rendered string. */ }
-                              <span className="ord-src">{ sourceLabel }</span>
-                              { /* The Date column's understudy. ALWAYS in the DOM and revealed
-                                   by one media query - no JS width branch, no matchMedia, no
-                                   resize listener - so the rendered tree is identical at every
-                                   width, which is also what makes the fold assertable in jsdom
-                                   where there is no viewport. */ }
                               <span className="ord-subdate">{ date }</span>
                             </th>
                             { /* Deliberately TRANSLATABLE: a localised month name is an
@@ -1064,52 +953,42 @@ export default function OrdersPage (): React.ReactElement {
                                 className={ STATUS_FIRM.has( order.status )
                                   ? 'ord-status ord-status-firm'
                                   : 'ord-status' }
+                                title={ note || undefined }
+                                aria-label={ note ? `${ label }. ${ note }` : label }
                               >
                                 <span className="ord-status-label">{ label }</span>
-                                { note && <span className="ord-status-note">{ note }</span> }
                               </span>
                             </td>
-                            <td className="ord-td">
+                            <td className="ord-td ord-invoice-cell">
                               { invoiceCell === 'absent' || invoiceCell === 'none'
-                                // Terminal, and the row does not re-ask: for some paid orders
-                                // "no invoice" is permanent rather than transient. Visible,
-                                // translatable words rather than a dash plus hidden text -
-                                // this page has no visually-hidden utility available, because
-                                // both height:1px and overflow:hidden are forbidden here.
-                                ? 'No invoice yet'
+                                || invoiceCell === 'ineligible'
+                                ? (
+                                  <span className="ord-unavailable"
+                                    title="Invoice not available yet"
+                                    aria-label="Invoice not available yet">—</span>
+                                )
                                 : (
                                   <>
                                     <button
                                       type="button"
                                       className="ord-inv"
-                                      disabled={ invoiceCell === 'ineligible'
-                                        || invoiceCell === 'busy' }
+                                      disabled={ invoiceCell === 'busy' }
                                       aria-busy={ invoiceCell === 'busy' ? true : undefined }
+                                      aria-label={ invoiceCell === 'busy'
+                                        ? 'Preparing invoice'
+                                        : invoiceCell === 'failed'
+                                          ? 'Try invoice download again'
+                                          : 'Download invoice' }
+                                      title={ invoiceCell === 'failed' ? 'Try again' : 'Download invoice' }
                                       onClick={ () => downloadInvoice( order ) }
                                     >
-                                      { invoiceCell === 'busy'
-                                        ? 'Preparing…'
-                                        : invoiceCell === 'failed'
-                                          ? 'Try again'
-                                          : 'Download invoice' }
+                                      <OrderActionIcon name="download" />
                                     </button>
                                     { invoiceCell === 'failed' && (
-                                      <span className="ord-invnote">
-                                        Could not fetch the invoice
-                                      </span>
+                                      <span className="ord-invnote">Download failed</span>
                                     ) }
-                                    { /* THE LABEL STAYS "Download invoice" HERE. A failed row
-                                         attempted and did not get an invoice, so "Try again"
-                                         names what it is being asked to do. A rate-limited row
-                                         was not refused the invoice at all - it was refused the
-                                         CADENCE - so the action is unchanged and the message,
-                                         not the label, carries the new information.
-                                         Relabelling it would invite the immediate second click
-                                         the limiter just declined. */ }
                                     { invoiceCell === 'rate' && (
-                                      <span className="ord-invnote">
-                                        Too many requests. Wait a moment.
-                                      </span>
+                                      <span className="ord-invnote">Wait before retrying</span>
                                     ) }
                                   </>
                                 ) }
@@ -1122,97 +1001,35 @@ export default function OrdersPage (): React.ReactElement {
                             <tr className="ord-detailrow ord-tr-open">
                               <td className="ord-detailcell" colSpan={ 5 }>
                                 <div id={ detailId }>
-                                  { /* The retained definition-list treatment, which is why the
-                                       .ord-facts rules survive the card list being deleted. */ }
-                                  <dl className="ord-facts">
-                                    <dt>Order number</dt>
-                                    <dd>
-                                      { order.orderNumber
-                                        ? <span data-wc-no-translate>{ order.orderNumber }</span>
-                                        : 'Not assigned' }
-                                    </dd>
-                                    <dt>Reference</dt>
-                                    <dd>
-                                      { order.referenceId
-                                        ? <span data-wc-no-translate>{ order.referenceId }</span>
-                                        : 'Not available' }
-                                    </dd>
-                                    { /* The public customer id, beside the other two identifiers
-                                         and treated exactly like them: `data-wc-no-translate`,
-                                         because a translator rewriting a uuid would produce an
-                                         id that matches nothing, and an explicit sentence rather
-                                         than a blank when there is none — the same honest
-                                         'Not assigned' the order number uses, since an absent id
-                                         is a real state and not a loading one. The rung renders
-                                         unconditionally so the panel's row count is stable. */ }
-                                    <dt>Customer ID</dt>
-                                    <dd>
-                                      { order.customerDisplayId
-                                        ? <span data-wc-no-translate>{ order.customerDisplayId }</span>
-                                        : 'Not assigned' }
-                                    </dd>
-                                    <dt>Placed</dt>
-                                    <dd>{ dateTimeLabel( order.createdAt ) }</dd>
-                                    { /* THE SAME LOCAL as the row tag, not a second reading of
-                                         order.channel - one value, so the panel cannot say
-                                         "Website" while the row says "WhatsApp". */ }
-                                    <dt>Ordered on</dt>
-                                    <dd>{ sourceLabel }</dd>
-                                    <dt>Amount</dt>
-                                    { /* THE SAME RENDERED STRING as the Amount cell, not
-                                         recomputed - one formatter, one value. */ }
-                                    <dd>
-                                      { amount
-                                        ? <span data-wc-no-translate>{ amount }</span>
-                                        : 'Amount unavailable' }
-                                    </dd>
-                                    <dt>Status</dt>
-                                    <dd>{ note ? `${ label } — ${ note }` : label }</dd>
-                                    <dt>Items</dt>
-                                    { /* The items still cannot ride THIS wire (the history reads a
-                                         GSI whose projection carries no lines), so the slot links
-                                         the order page, which reads the one order and shows its
-                                         lines, delivery address and fulfilment status. A plain
-                                         anchor, not next/link: `/orders/?o=` is this same page, and
-                                         only a full load re-runs the mount effect that opens it.
-                                         The sentence stays for a row with no usable number. */ }
-                                    <dd>
-                                      { isPublicOrderNumber( order.orderNumber )
-                                        ? (
-                                          <a
-                                            className="ord-view"
-                                            href={ orderPagePath( order.orderNumber ) }
-                                            aria-label={ `View items and delivery for order ${ order.orderNumber }` }
-                                          >
-                                            View items and delivery
-                                          </a>
-                                        )
-                                        : 'Item details are not available for this order.' }
-                                    </dd>
-                                    { !!panelInvoice && (
-                                      <>
-                                        <dt>Invoice</dt>
-                                        <dd>{ panelInvoice }</dd>
-                                      </>
-                                    ) }
-                                    { !!reviewHref && (
-                                      <>
-                                        <dt>Review</dt>
-                                        { /* The shared lime pill, unchanged - no new component
-                                             and no new tokens. NO `ariaLabel`: that prop does
-                                             not exist on PillButton, by design, so the visible
-                                             text IS the accessible name and the two cannot
-                                             drift out of WCAG 2.5.3 compliance. */ }
-                                        <dd>
-                                          <PillButton
-                                            as="a"
-                                            href={ reviewHref }
-                                            action="Leave a review"
-                                          />
-                                        </dd>
-                                      </>
-                                    ) }
-                                  </dl>
+                                  <div className="ord-detail-inline">
+                                    <dl className="ord-compact-facts">
+                                      <div>
+                                        <dt>Ref</dt>
+                                        <dd data-wc-no-translate>{ order.referenceId || '—' }</dd>
+                                      </div>
+                                      <div>
+                                        <dt>Placed</dt>
+                                        <dd>{ dateTimeLabel( order.createdAt ) || '—' }</dd>
+                                      </div>
+                                      <div>
+                                        <dt>Via</dt>
+                                        <dd>{ sourceLabel }</dd>
+                                      </div>
+                                    </dl>
+                                    <div className="ord-detail-actions">
+                                      { isPublicOrderNumber( order.orderNumber ) && (
+                                        <a className="ord-view"
+                                          href={ orderPagePath( order.orderNumber ) }
+                                          aria-label={ `View details for order ${ order.orderNumber }` }>
+                                          View order
+                                        </a>
+                                      ) }
+                                      { !!reviewHref && (
+                                        <PillButton as="a" href={ reviewHref } action="Review" />
+                                      ) }
+                                    </div>
+                                    { !!panelInvoice && <p className="ord-invnote">{ panelInvoice }</p> }
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -1236,18 +1053,9 @@ export default function OrdersPage (): React.ReactElement {
               ) }
 
               { !!cursor && (
-                <div className="ord-pager" aria-label="Order history position">
-                  <div className="ord-pager-copy">
-                    <strong>Recent orders</strong>
-                    <span>Older orders available</span>
-                  </div>
-                  <div className="ord-pager-rail" aria-hidden="true"><span /></div>
-                  <button
-                    type="button"
-                    className="ord-quiet"
-                    onClick={ loadMore }
-                    disabled={ loadingMore }
-                  >
+                <div className="ord-pager">
+                  <button type="button" className="ord-quiet"
+                    onClick={ loadMore } disabled={ loadingMore }>
                     { loadingMore ? 'Loading…' : 'Older orders' }
                   </button>
                 </div>
@@ -1464,22 +1272,6 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-live{font-size:14px;color:var(--public-muted)}
 
-          /* THE ONE PERMITTED HIDE MECHANISM ON THIS PAGE, and it appears exactly once.
-             visibility:hidden KEEPS the box, so revealing the hint shifts nothing - which a
-             display:none -> block swap or a conditional render would not. It cannot be an
-             absolutely positioned popover: .ord-tablewrap sets overflow-x:auto, and a container
-             with overflow-x:auto computes overflow-y to auto as well, so anything absolutely
-             positioned inside it is clipped vertically. That is why InfoTooltip renders through
-             a portal - and a portal's content sits outside this return tree, where styled-jsx
-             cannot stamp it. The text here is REDUNDANT (the button's visible word is "Copy" and
-             its accessible name is "Copy order ID <id>"), so nothing is available only on hover
-             and there is nothing for a touch user to miss. */
-          .ord-tip{
-            display:block;visibility:hidden;
-            font-size:14px;font-weight:400;color:var(--public-muted);
-          }
-          .ord-copy:hover ~ .ord-tip,.ord-copy:focus-visible ~ .ord-tip,.ord-tip-on{visibility:visible}
-
           .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
           .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
           .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
@@ -1554,28 +1346,91 @@ export default function OrdersPage (): React.ReactElement {
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
+
+          /* Compact order ledger: information stays in the table, actions become lime icons. */
+          .ord-page{gap:18px}
+          .ord-shell,.ord-main{gap:12px}
+          .ord-account-bar{align-items:flex-end;align-self:flex-end;gap:6px}
+          .ord-account-actions{display:flex;gap:8px;align-items:center}
+          .ord-account-action,.ord-copy,.ord-inv{
+            box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
+            min-height:44px;padding:0;margin:0;border:1px solid var(--public-brand-green);border-radius:11px;
+            display:inline-flex;align-items:center;justify-content:center;
+            background:var(--public-brand-green);color:var(--public-brand-lime);cursor:pointer;
+          }
+          .ord-copy{margin-inline-start:8px}
+          .ord-account-action,.ord-update,.ord-signout{
+            background:var(--public-brand-green);border-color:var(--public-brand-green);
+            color:var(--public-brand-lime);
+          }
+          .ord-account-action:hover:not(:disabled){
+            background:#28533a;color:var(--public-brand-lime);
+            transform:none;box-shadow:none;
+          }
+          .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
+            background:#e5f7c8;color:#274b07;
+          }
+          .ord-list{
+            padding:0;gap:0;border:1px solid var(--public-hairline);
+            border-block-start:2px solid var(--public-brand-lime);
+            border-radius:16px;box-shadow:none;background:#fff;
+          }
+          .ord-list-head{padding:14px 18px}
+          .ord-list .ord-h2{font-size:20px;line-height:1.3}
+          .ord-table{min-inline-size:580px}
+          .ord-tablewrap{border-block-start:0;overflow-x:auto}
+          .ord-th{padding:10px 12px;background:#f7f9f3}
+          .ord-td{padding:7px 12px;vertical-align:middle;font-size:14px}
+          .ord-ordbtn{text-decoration:none;min-height:44px}
+          .ord-ordno{font-size:14px;font-weight:700}
+          .ord-amount{font-size:14px}
+          .ord-status{
+            display:inline-flex;flex-direction:row;align-items:center;padding:6px 9px;
+            border:1px solid #cbdca7;border-radius:20px;
+            line-height:1.2;background:var(--public-lime-tint);
+          }
+          .ord-status-firm{border-inline-start-width:1px}
+          .ord-status-label,.ord-status-firm .ord-status-label{
+            font-size:13px;font-weight:650;white-space:nowrap;
+          }
+          .ord-invoice-cell{white-space:nowrap}
+          .ord-unavailable{font-size:20px;color:var(--public-muted)}
+          .ord-feedback,.ord-invnote{font-size:12px;color:var(--public-brand-green)}
+          .ord-feedback{display:inline-block;margin-inline-start:6px}
+          .ord-detailcell{padding:12px 16px}
+          .ord-detail-inline{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px}
+          .ord-compact-facts{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0}
+          .ord-compact-facts>div{display:flex;align-items:baseline;gap:6px}
+          .ord-compact-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
+          .ord-compact-facts dd{margin:0;font-size:13px;overflow-wrap:anywhere}
+          .ord-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+          .ord-view{font-size:14px;min-height:40px;padding:0 14px}
+          .ord-pager{margin:0;padding:10px 18px}
+          .ord-live:empty{display:none}
+          .ord-live:not(:empty){padding:8px 18px}
+
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
           @media(min-width:1024px){
-            .ord-shell{grid-template-columns:minmax(0,1fr);gap:40px}
+            .ord-shell{grid-template-columns:minmax(0,1fr);gap:12px}
           }
 
           @media(max-width:767px){
-            .ord-page{gap:var(--public-mobile-section-gap)}
-            .ord-shell{gap:32px}
+            .ord-page{gap:16px}
+            .ord-shell{gap:12px}
             .ord-p,.ord-aside{font-size:18px}
-            .ord-list{padding:24px 20px;border-radius:20px}
+            .ord-list{padding:0;border-radius:14px}
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
-            .ord-account-actions{display:grid;grid-template-columns:1fr;width:100%}
-            .ord-account-action{width:100%}
+            .ord-account-actions{display:flex;width:auto}
+            .ord-account-action{width:44px}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
             .ord-verified{margin-inline-start:6px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
             .ord-col-date{display:none}
             .ord-subdate{display:block}
-            .ord-table th:nth-child(5),.ord-table td:nth-child(5){display:none}
+            .ord-table{min-inline-size:480px}
             .ord-th,.ord-td{padding:12px 8px}
             .ord-th:first-child,.ord-td:first-child{padding-inline-start:10px}
-            .ord-tablewrap{overflow-x:hidden;border-inline:0;border-radius:0}
+            .ord-tablewrap{overflow-x:auto;border-inline:0;border-radius:0}
             .ord-pager-copy{font-size:13px}
           }
 
