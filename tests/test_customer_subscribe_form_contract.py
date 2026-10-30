@@ -20,7 +20,7 @@ def test_staff_customer_form_matches_subscribe_profile_fields():
         "WhatsApp username",
         "Organization",
         "Job title",
-        "Your address",
+        "Address",
     ):
         assert label in form
 
@@ -57,6 +57,9 @@ def test_duplicate_whatsapp_customer_becomes_an_actionable_existing_record():
     assert "Restore customer" in source
     assert "HTTP 409" not in source
     assert "This WhatsApp customer already exists" in source
+    assert "Search by number to open it" not in source
+    assert "setSearchQuery(fullPhone)" in source
+    assert "setShowModal(false)" in source
 
 
 def test_create_form_does_not_submit_a_new_email_identity():
@@ -68,3 +71,25 @@ def test_create_form_does_not_submit_a_new_email_identity():
     assert "email: formEmail" not in create
     assert "Enter the linked WhatsApp phone number" in create
     assert "Enter the full name" in create
+
+
+def test_customer_modal_phone_uses_one_auth_style_combined_field():
+    source = _customer_source()
+    css = (ROOT / "src/styles/workspace.css").read_text()
+
+    form_start = source.index("const renderContactForm")
+    form_end = source.index("const duplicateContactCard", form_start)
+    form = source[form_start:form_end]
+
+    assert 'className="contacts-phone-control"' in form
+    assert 'id="contact-country-code"' in form
+    assert 'id="contact-phone"' in form
+    assert "F001 Subscribe profile" not in form
+
+    phone_start = css.index(".workspace-shell .contacts-auth-modal .contacts-phone-control {")
+    phone_css = css[phone_start:phone_start + 2400]
+    assert "border-bottom: 1px solid var(--public-hairline" in phone_css
+    assert "border-radius: 0" in phone_css
+    assert "background: transparent" in phone_css
+    assert ".contacts-phone-control:focus-within" in phone_css
+    assert "border: 0 !important" in phone_css

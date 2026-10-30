@@ -171,3 +171,15 @@ def test_workspace_forms_keep_auth_borderless_field_contract():
     mobile = css[css.index("@media(max-width:767px)"):]
     assert 'button[role="combobox"]{min-height:auto!important}' not in mobile
     assert 'font-size:16px!important' in mobile
+
+
+def test_workspace_auth_field_states_preserve_validation_and_readonly_parity():
+    """Auth-style geometry must not erase error states or render readonly previews as cards."""
+    css = (ROOT / "src/styles/workspace-shell.css").read_text()
+    assert 'border-color:var(--public-hairline,#d9ddd9);' in css
+    assert 'border-color:var(--public-hairline,#d9ddd9)!important;' not in css
+    assert 'input[aria-invalid="true"]' in css
+    assert 'border-bottom-color:var(--danger,#b42318)!important' in css
+    assert '[data-address-preview][aria-readonly="true"]' in css
+    assert 'border-radius:0!important' in css
+    assert 'background:transparent!important' in css
