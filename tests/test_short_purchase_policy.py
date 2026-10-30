@@ -60,6 +60,22 @@ class ShortPurchaseTests(unittest.TestCase):
         self.assertFalse(short_purchase.whatsapp_order_is_one_unit(order([{"quantity": 1}]),
             basket([{"quantity": 2}])))
 
+    def test_direct_whatsapp_create_guard_precedes_any_payment_write(self):
+        # The browser sends action=create for Pay on WhatsApp; this route
+        # bypasses _website_prepare and must be independently guarded.
+        checkout = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(
+            encoding="utf-8")
+        self.assertIn('return _create(identity, body, origin)', checkout)
+        create = checkout.split("def _create(", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn(
+            "short_purchase.enabled() and not short_purchase.one_unit_lines(line_items)",
+            create)
+        self.assertIn('"error": "SHORT_CHECKOUT_ONE_ITEM"', create)
+        guard = create.index("short_purchase.enabled()")
+        self.assertLess(guard, create.index("service_guard = service_requests.checkout_preflight"))
+        self.assertLess(guard, create.index("snapshot = _native_quote"))
+        self.assertLess(guard, create.index("attempt_id = payment_attempt.new_payment_attempt_id()"))
+
     def test_website_native_and_claim_preflight_integration(self):
         checkout = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
         inbound = (ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py").read_text(encoding="utf-8")
