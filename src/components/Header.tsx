@@ -271,7 +271,9 @@ const NAV_ICON_PATHS: Record<string, string> = {
   ChatGPT: 'm394-80-70-123H189l-87-154 69-123-69-123 87-154h135l70-123h172l70 123h135l87 154-69 123 69 123-87 154H636L566-80H394Zm243-429h100l54-94-54-94H637l-54 94 54 94ZM430-388h100l54-92-54-92H430l-54 92 54 92Zm0-244h100l54-94-54-94H430l-54 94 54 94ZM224-509h100l54-94-54-94H224l-54 94 54 94Zm0 246h100l54-94-55-94H223l-54 94 55 94Zm206 123h100l54-94-54-94H430l-54 94 54 94Zm207-123h100l54-94-54-94H637l-51 94 51 94Z',
   Claude: 'M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4',
   'App Store': 'M160-615v-60h60v60h-60Zm0 335v-275h60v275h-60Zm292 0H347q-24.75 0-42.37-17.63Q287-315.25 287-340v-280q0-24.75 17.63-42.38Q322.25-680 347-680h105q24.75 0 42.38 17.62Q512-644.75 512-620v280q0 24.75-17.62 42.37Q476.75-280 452-280Zm-105-60h105v-280H347v280Zm228 60v-60h165v-114H635q-24.75 0-42.37-17.63Q575-489.25 575-514v-106q0-24.75 17.63-42.38Q610.25-680 635-680h165v60H635v106h105q24.75 0 42.38 17.62Q800-478.75 800-454v114q0 24.75-17.62 42.37Q764.75-280 740-280H575Z',
-  'Contact us': 'M3 6h18v12H3Zm0 1 9 6 9-6',
+  // Material Symbols Outlined "person", FILL 0 / wght 400 / GRAD 0 / opsz 48.
+  // Preserve the supplied SVG path and 48px viewBox; only its color inherits from the row.
+  'Contact us': 'M18.6,21.85q-2.1-2.1-2.1-5.4t2.1-5.4T24,8.95t5.4,2.1t2.1,5.4t-2.1,5.4T24,23.95t-5.4-2.1ZM8,40V35.3q0-1.9 0.95-3.25T11.4,30q3.35-1.5 6.42-2.25T24,27t6.15,0.77T36.55,30q1.55,0.7 2.5,2.05T40,35.3V40H8Zm3-3H37V35.3q0-0.8-0.48-1.52T35.35,32.7q-3.2-1.55-5.85-2.13T24,30t-5.55,0.57T12.6,32.7q-0.7,0.35-1.15,1.07T11,35.3V37ZM27.23,19.67q1.27-1.27 1.27-3.22t-1.27-3.22T24,11.95t-3.22,1.28T19.5,16.45t1.28,3.22T24,20.95t3.23-1.28ZM24,16.45ZM24,37Z',
   Terms: 'M7 3h10v18H7ZM10 8h4m-4 4h4m-4 4h4',
   Privacy: 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
@@ -286,7 +288,6 @@ const SECTION_ICON_PATHS: Record<string, string> = {
 // Typed as MaterialSymbol so `tsc` refuses a ligature the subset font in config/materialSymbols.ts
 // does not ship; an unlisted name would render as its literal text instead of an icon.
 const NAV_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
-  'Contact us': 'person_text',
   Gemini: 'diamond',
 };
 const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
@@ -305,6 +306,12 @@ const MATERIAL_NAV_ICON_LABELS = new Set( [
   'ChatGPT',
   'App Store',
 ] );
+// The Contact us SVG uses the source artwork's 48px coordinates (not the 960px material paths).
+// Both source types are filled silhouettes; all other row icons stay stroked.
+const FILLED_NAV_ICON_LABELS = new Set( [ ...MATERIAL_NAV_ICON_LABELS, 'Contact us' ] );
+const navIconViewBox = ( label: string ) => label === 'Contact us'
+  ? '0 0 48 48'
+  : MATERIAL_NAV_ICON_LABELS.has( label ) ? '0 -960 960 960' : '0 0 24 24';
 const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn' ] );
 const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
 const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
@@ -661,15 +668,15 @@ const Header: React.FC = () => {
                     >
                       { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
                         <span
-                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          className="nav-row-material-symbol"
                           aria-hidden="true"
                         >
                           { NAV_MATERIAL_SYMBOLS[ link.label ] }
                         </span>
                       ) : (
                         <svg
-                          className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                          viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                          className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                          viewBox={ navIconViewBox( link.label ) }
                           aria-hidden="true"
                           focusable="false"
                         >
@@ -759,15 +766,15 @@ const Header: React.FC = () => {
                               >
                                 { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
                                   <span
-                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          className="nav-row-material-symbol"
                           aria-hidden="true"
                         >
                                     { NAV_MATERIAL_SYMBOLS[ link.label ] }
                                   </span>
                                 ) : (
                                   <svg
-                                    className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                                    viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                    className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                    viewBox={ navIconViewBox( link.label ) }
                                     aria-hidden="true"
                                     focusable="false"
                                   >
@@ -785,15 +792,15 @@ const Header: React.FC = () => {
                               <span className="nav-item nav-family-label">
                                 { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
                                   <span
-                          className={ `nav-row-material-symbol ${NAV_MATERIAL_SYMBOLS[ link.label ] === 'person_text' ? 'nav-row-material-symbol-contact' : ''}`.trim() }
+                          className="nav-row-material-symbol"
                           aria-hidden="true"
                         >
                                     { NAV_MATERIAL_SYMBOLS[ link.label ] }
                                   </span>
                                 ) : (
                                   <svg
-                                    className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                                    viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                    className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                    viewBox={ navIconViewBox( link.label ) }
                                     aria-hidden="true"
                                     focusable="false"
                                   >
@@ -1241,12 +1248,6 @@ const Header: React.FC = () => {
           font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
           letter-spacing:normal;text-transform:none;white-space:nowrap;
           font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
-        }
-        /* person_text has more internal whitespace than the other menu glyphs, so it needs a
-           slightly larger optical box to read at the same apparent size as the 20px SVG icons. */
-        .nav-row-material-symbol-contact{
-          width:22px;height:22px;flex-basis:22px;font-size:25px;
-          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 48;
         }
         .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
         .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}

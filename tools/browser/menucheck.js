@@ -95,6 +95,35 @@ const fail = ( message ) => { throw new Error( message ); };
         fail( `${viewport.name}: menu lime top accent drifted ${JSON.stringify( panelStyle )}` );
       }
 
+      // Contact us uses the owner-supplied Material Symbols Outlined "person" SVG, not
+      // the Rounded person_text font ligature. Verify both the normal and search views.
+      const checkContactIcon = async ( state ) => {
+        const contact = menu.getByRole( 'link', { name: 'Contact us', exact: true } );
+        if ( await contact.count() !== 1 || await contact.getAttribute( 'href' ) !== '/contact/' ) {
+          fail( `${viewport.name} (${state}): Contact us link missing or changed` );
+        }
+        const icon = contact.locator( 'svg.nav-row-icon-material' );
+        if ( await icon.count() !== 1 ) fail( `${viewport.name} (${state}): Contact us SVG missing` );
+        const artwork = await icon.evaluate( node => {
+          const css = getComputedStyle( node );
+          return {
+            viewBox: node.getAttribute( 'viewBox' ),
+            path: node.querySelector( 'path' )?.getAttribute( 'd' ) || '',
+            fill: css.fill,
+            stroke: css.stroke,
+            ariaHidden: node.getAttribute( 'aria-hidden' ),
+          };
+        } );
+        if ( artwork.viewBox !== '0 0 48 48'
+          || !artwork.path.startsWith( 'M18.6,21.85q-2.1-2.1' )
+          || !artwork.path.endsWith( 'M24,16.45ZM24,37Z' )
+          || artwork.fill !== 'rgb(26, 58, 42)' || artwork.stroke !== 'none'
+          || artwork.ariaHidden !== 'true' ) {
+          fail( `${viewport.name} (${state}): Contact us person icon drifted ${JSON.stringify( artwork )}` );
+        }
+      };
+      await checkContactIcon( 'menu' );
+
       // Guard the styled-jsx scoping contract with live computed values. This menu once kept
       // correct DOM/ARIA while silently falling back to unrelated global nav styles.
       const home = menu.getByRole( 'link', { name: 'Home', exact: true } );
@@ -210,6 +239,9 @@ const fail = ( message ) => { throw new Error( message ); };
       for ( const label of [ 'Visa', 'Trip', 'Activities' ] ) {
         if ( await page.getByRole( 'link', { name: label } ).count() !== 1 ) fail( `${viewport.name}: missing search result ${label}` );
       }
+
+      await search.fill( 'contact us' );
+      await checkContactIcon( 'search' );
 
       await search.fill( '' );
       const googlePlay = page.getByRole( 'link', { name: 'Google Play' } );
