@@ -4417,3 +4417,15 @@ html {
     flex: 1 1 100%;
   }
 }
+
+/* A numbered GST invoice cannot be deleted. Keep that explanation visible even when
+   the conditional Void button is absent for paid/captured invoices. */
+.workspace-shell .payments-shell .pf-invoice-retention-note {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0 0;
+  color: var(--public-muted, #6e7782);
+  font: 400 var(--public-supporting-size, 14px)/1.5 var(--font-sans, sans-serif);
+  overflow-wrap: anywhere;
+}
