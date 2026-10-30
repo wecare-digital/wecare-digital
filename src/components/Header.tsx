@@ -1243,6 +1243,9 @@ const Header: React.FC = () => {
         .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
         .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
         .nav-row-icon-material{fill:currentColor;stroke:none}
+        /* person_text paints only half its 48px viewBox height. Enlarge its shape
+           without changing the supplied SVG, the 20px layout slot, or other icons. */
+        .nav-item[href="/contact/"] .nav-row-icon-material{transform:scale(1.5);transform-origin:center}
         .nav-row-material-symbol{
           width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;
           font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
