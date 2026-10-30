@@ -8,7 +8,7 @@
  * There is no second login surface and no standalone OTP step; `/auth` IS the
  * WhatsApp sign-in.
  *
- * WHY THE DESTINATION IS NORMALLY `/cart/`
+ * WHY THE DESTINATION IS NORMALLY `/checkout/`
  * ----------------------------------------
  * `safeLocalReturnPath` only lets a post-sign-in redirect land on an allowlisted customer path
  * (`/cart/`, `/orders/`, `/blog/`, `/`), and that allowlist is a security control we do NOT
@@ -25,8 +25,8 @@ import type { NextRouter } from 'next/router';
 import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
-export const CHECKOUT_PATH = '/cart/';
-/** Compatibility URL for old checkout links. It now redirects to /cart/. */
+export const CHECKOUT_PATH = '/checkout/';
+/** The canonical website checkout route, retained as an exported alias. */
 export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
