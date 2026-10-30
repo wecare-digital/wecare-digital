@@ -332,7 +332,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 <section className="sf-journey" aria-label="Vault customer journey">
                     <div><span>1</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
                     <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
-                    <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' }</small></div>
+                    <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' } · {'{{1}}'} = Vault file ID</small></div>
                     <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
                 </section>
 
@@ -653,7 +653,20 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             <div><span>Payment state</span><strong>{ PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</strong></div>
                             <div><span>Customer</span><strong>{ reviewFile.ownerName || '—' }</strong></div>
                             <div><span>Mobile</span><strong>{ reviewFile.ownerPhoneMasked || '—' }</strong></div>
-                            <div><span>Vault file ID</span><strong className="sf-mono">{ reviewFile.fileId }</strong></div>
+                            <div><span>Access template</span><strong className="sf-mono">{ vaultTemplates?.delivery || 'wecare_default_download' }</strong></div>
+                            <div>
+                                <span>Template variable {'{{1}}'}</span>
+                                <div className="sf-variable-value">
+                                    <strong className="sf-mono">{ reviewFile.fileId }</strong>
+                                    <button
+                                        type="button"
+                                        className="sf-copy-variable"
+                                        onClick={ () => { void handleCopyId( reviewFile ); } }
+                                    >
+                                        Copy {'{{1}}'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <p className="sf-review-note">
@@ -663,7 +676,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
                                     : vaultBreakdown === null
                                         ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'Preview only. Values come from the same server pricing policy used by WhatsApp Review & Pay: Delight is automatic, Express is ₹25, Convenience Fee is 2.5%, and GST is 18% of the Convenience Fee. Sending or charging happens only from the normal Vault action.' }
+                                        : 'Review & Pay is sent first. After payment, Access Vault uses wecare_default_download; its URL variable {{1}} is filled automatically from this exact Vault file ID. Staff do not type or override it.' }
                         </p>
                     </aside>
                 </div>
@@ -711,6 +724,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-review-meta>div{display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:var(--text-sm)}
                 .sf-review-meta span{color:var(--text-muted)}
                 .sf-review-meta strong{overflow-wrap:anywhere}
+                .sf-variable-value{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+                .sf-copy-variable{
+                  flex:0 0 auto;min-height:32px;padding:0 10px;border:1px solid var(--border);
+                  border-radius:8px;background:#fff;color:var(--accent);font:700 12px/1 var(--font-sans);
+                  cursor:pointer;
+                }
+                .sf-copy-variable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
                 .sf-review-note{
                   margin:20px 0 0;padding:12px 14px;border-radius:12px;background:#f8faf9;
                   color:var(--text-muted);font-size:var(--text-sm);line-height:1.5;
