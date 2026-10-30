@@ -39,14 +39,15 @@ def test_common_launcher_is_after_payment_and_exactly_once():
     assert 'action_data = {"parent_order": order_number, "manual_order_number": ""}' in source
 
 
-def test_pickup_stays_fail_closed_until_its_asset_is_pickup_specific():
+def test_pickup_sender_requires_exact_published_asset_attestation():
     source = (
         ROOT
         / "amplify/functions/messaging/whatsapp-business-api/flows/service_flow_launcher.py"
     ).read_text()
     assert '"REQUEST_PICKUP": LaunchSpec(' in source
-    assert 'enabled=False' in source
+    assert 'enabled=pickup_activation.enabled()' in source
     assert 'blocked_outcome="PICKUP_FLOW_ASSET_MISMATCH"' in source
+    assert 'from lambda_utils.ecommerce import pickup_activation' in source
 
 
 def test_drop_docs_readiness_uses_current_approved_template():
