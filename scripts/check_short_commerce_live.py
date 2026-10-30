@@ -72,13 +72,18 @@ def live_snapshot(session, *, region: str, release_manifest: dict | None = None)
 
     receivers = []
     for name in RECEIVERS:
-        alias = functions.get_alias(FunctionName=name, Name="live")
-        response = functions.get_function_configuration(FunctionName=name, Qualifier="live")
+        try:
+            alias = functions.get_alias(FunctionName=name, Name="live")
+            response = functions.get_function_configuration(FunctionName=name, Qualifier="live")
+        except functions.exceptions.ResourceNotFoundException:
+            receivers.append({"name": name, "found": False, "flag": False,
+                              "ready": False, "reason": "live_alias_or_function_missing"})
+            continue
         expected = (release_manifest or {}).get("receivers", {}).get(name)
         alias_version = str(alias.get("FunctionVersion", ""))
         deployed_version = str(response.get("Version", ""))
         weighted = bool(alias.get("RoutingConfig", {}).get("AdditionalVersionWeights", {}))
-        alias_ok = (alias_version.isdecimal() and alias_version == deployed_version and not weighted)
+        alias_ok = (bool(re.fullmatch(r"[1-9][0-9]*", alias_version)) and alias_version == deployed_version and not weighted)
         value = response.get("Environment", {}).get("Variables", {}).get(FLAG, "")
         flag = str(value).strip().lower() in ("true", "1", "yes", "on")
         version_ok = bool(expected and expected["version"] == deployed_version)
