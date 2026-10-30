@@ -81,7 +81,7 @@ const broadcastSafeTemplate = ( t: api.WhatsAppTemplate ): boolean => {
     } );
 };
 
-const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const BroadcastPage: React.FC<PageProps> = ( { embedded } ) => {
     const toast = useToastContext();
     const [ channel, setChannel ] = useState<Channel>( 'sms' );
     const [ contacts, setContacts ] = useState<api.Contact[]>( [] );
