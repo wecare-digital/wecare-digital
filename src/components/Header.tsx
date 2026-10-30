@@ -972,8 +972,8 @@ const Header: React.FC = () => {
            the control reads as a button before it is touched; the fill is unchanged at 1.08:1,
            which is deliberate - this is chrome beside a wordmark, not a call to action.
 
-           NOTHING ABOUT THE PANEL CHANGES. Its radius, fill and shadow are untouched: the owner's
-           instruction was the icon only. */
+           This icon-only iteration did not change the panel. The separate lime top border
+           and rounded corners requested later live on .nav-menu below. */
         /* ROUND TWO: LIME FILL WITH A DARK EDGE, not a solid dark-green block.
            The inversion above was correct about the measurement and wrong about the mass. The
            owner's words on the shipped result were "on select too much green": filling all
@@ -1107,7 +1107,9 @@ const Header: React.FC = () => {
            NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
            single backtick closes it - turning the rest of the stylesheet into JSX and failing
            the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        /* Match the public checkout/auth card's rounded lime top accent without changing
+           the menu's existing fill, shadow, positioning or scroll behavior. */
+        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of
