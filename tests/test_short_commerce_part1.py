@@ -112,7 +112,7 @@ def test_checkout_quote_is_server_owned_and_complete():
     assert "const line = ( amount: number ) => formatPaiseINR( amount, 'INR' );" in QUOTE_COMPONENT
     assert '"quote"' in CHECKOUT_BACKEND
     preview = CHECKOUT_BACKEND.split('def _website_quote_preview(', 1)[1].split(
-        '\\ndef _reserve_website_attempt(', 1)[0]
+        'def _reserve_website_attempt(', 1)[0]
     assert 'short_purchase.one_unit_lines(line_items)' in preview
     assert '_website_snapshot(identity, line_items' in preview
     assert '_website_invoice_lines(snapshot)' in preview
