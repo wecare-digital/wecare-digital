@@ -11,6 +11,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import Select, { type SelectOption } from '../../../components/ui/Select';
+import { publishedFlowById } from '../../../lib/canonicalFlows';
 
 /** The only public route for approved catalog artwork (see amplify/functions/ecommerce/catalog-media). */
 const CATALOG_MEDIA_EXAMPLE = 'https://wecare.digital/api/catalog-media/<name>-4096.png';
@@ -314,6 +315,12 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
     const [ creating, setCreating ] = useState( false );
     const [ flows, setFlows ] = useState<any[]>( [] );
     const [ loading, setLoading ] = useState( false );
+    const [ showAllMetaFlows, setShowAllMetaFlows ] = useState( false );
+    // Keep past Meta designs for audit without treating them as live customer Flows.
+    const retainedFlows = flows.filter( f => acct.key === 'waba1'
+        && [ 'PUBLISHED', 'THROTTLED' ].includes( String( f.status || '' ).toUpperCase() )
+        && !!publishedFlowById( String( f.id || '' ) ) );
+    const visibleFlows = showAllMetaFlows ? flows : retainedFlows;
 
     const load = useCallback( async () => {
         setLoading( true );
@@ -351,7 +358,18 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
     return (
         <div>
             <div style={ S.card }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>New flow</h3>
+                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Published customer Flows</h3>
+                <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 12px' } }>
+                    {showAllMetaFlows
+                        ? `Showing all ${flows.length} Meta records. Drafts and deprecated Flows are retained for audit, not customer entry.`
+                        : `Showing ${retainedFlows.length} published retained Flows. ${flows.length - retainedFlows.length} old or non-live records hidden.`}
+                </p>
+                <Button variant="secondary" size="sm" onClick={ () => setShowAllMetaFlows( previous => !previous ) }>
+                    { showAllMetaFlows ? 'Show retained live Flows' : 'Show all Meta flows' }
+                </Button>
+            </div>
+            { showAllMetaFlows && <div style={ S.card }>
+                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>New flow (admin)</h3>
                 <div style={ S.grid }>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Flow name *</label><input style={ S.input } value={ name } onChange={ e => setName( e.target.value ) } placeholder="03.WD_POSTPAY_REQUEST" /></div>
                     <div><label style={ S.label }>Category</label>
@@ -361,20 +379,20 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
                 </div>
                 <Button variant="primary" onClick={ handleCreate } loading={ creating }>Create flow</Button>
                 <p style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 8 } }>
-                    Creates a DRAFT flow on { acct.label }. Add screens/JSON in the Flow Builder, then publish it here or in Flow Hub.
+                    Creates a DRAFT design on { acct.label }. Existing live Flows are reused, not recreated.
                 </p>
-            </div>
+            </div> }
 
             <div style={ S.card }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Flows { loading ? '' : `(${flows.length})` }</h3>
+                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Flows { loading ? '' : `(${visibleFlows.length})` }</h3>
                     <Button variant="secondary" size="sm" onClick={ load } loading={ loading }>Refresh</Button>
                 </div>
                 <div className="table-container">
                     <table className="inner-table" style={ { width: '100%' } }>
                         <thead><tr><th style={ { textAlign: 'left' } }>Name</th><th style={ { textAlign: 'left' } }>Status</th><th style={ { textAlign: 'left' } }>ID</th><th></th></tr></thead>
                         <tbody>
-                            { flows.map( ( f: any ) => (
+                            { visibleFlows.map( ( f: any ) => (
                                 <tr key={ f.id }>
                                     <td>{ f.name }</td>
                                     <td><span style={ statusPill( f.status ) }>{ f.status }</span></td>
