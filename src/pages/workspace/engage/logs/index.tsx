@@ -131,7 +131,7 @@ const chBadge = ( c: string ) =>
 const stBadge = ( s: string ) =>
   STATUS_BADGES[ s ] || { bg: 'var(--bg-secondary)', color: 'rgba(0,0,0,.54)', label: s || 'unknown' };
 
-const MessageLogsPage: React.FC<PageProps> = ( { signOut, user, embedded, channel } ) => {
+const MessageLogsPage: React.FC<PageProps> = ( { embedded, channel } ) => {
   const router = useRouter();
   const [ logs, setLogs ] = useState<MessageLog[]>( [] );
   const [ loading, setLoading ] = useState( true );
