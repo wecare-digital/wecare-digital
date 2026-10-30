@@ -778,68 +778,42 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             </div>
 
             <style jsx>{ `
-                .sf-wrap{width:100%;max-width:1180px;padding:24px;box-sizing:border-box}
-                .sf-review-backdrop{
-                  position:fixed;inset:0;z-index:var(--z-drawer,1300);
-                  background:rgba(15,23,42,.26);display:flex;justify-content:flex-end;
-                }
-                .sf-review-drawer{
-                  width:min(440px,100%);height:100vh;height:100dvh;overflow:auto;background:#fff;
-                  padding:
-                    max(24px,env(safe-area-inset-top,0px))
-                    max(24px,env(safe-area-inset-right,0px))
-                    max(24px,env(safe-area-inset-bottom,0px))
-                    max(24px,env(safe-area-inset-left,0px));
-                  box-sizing:border-box;box-shadow:-18px 0 48px rgba(15,23,42,.18);
-                  border-left:1px solid rgba(26,58,42,.10);
-                  overscroll-behavior:contain;
-                }
-                .sf-review-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
-                .sf-review-head h2{margin:2px 0 4px;font-size:28px;line-height:1.1;color:var(--accent)}
-                .sf-review-head p{margin:0;color:var(--text-muted);font-size:var(--text-sm)}
-                .sf-review-eyebrow{text-transform:uppercase;letter-spacing:.08em;font-weight:700!important;font-size:var(--text-xs)!important;color:var(--accent)!important}
-                .sf-review-close{
-                  width:38px;height:38px;border:0;border-radius:10px;background:var(--lime-tint,#f4fbdc);
-                  color:var(--accent);font-size:26px;line-height:1;cursor:pointer;
-                }
-                .sf-review-item{
-                  display:flex;gap:14px;align-items:center;padding:14px;border-radius:14px;
-                  background:rgba(209,244,112,.20);border:1px solid rgba(26,58,42,.08);
-                }
-                .sf-review-thumb{width:58px;height:58px;object-fit:cover;border-radius:12px;background:#fff}
-                .sf-review-itemcopy{display:grid;gap:4px;min-width:0}
-                .sf-review-itemcopy strong{font-size:17px;color:var(--accent)}
-                .sf-review-itemcopy span{font-size:var(--text-sm);overflow-wrap:anywhere}
-                .sf-review-itemcopy small{color:var(--text-muted)}
-                .sf-review-breakdown{display:grid;gap:0;margin:22px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-                .sf-review-breakdown>div{display:flex;justify-content:space-between;gap:16px;padding:11px 0;font-size:var(--text-sm)}
-                .sf-review-breakdown>div+div{border-top:1px solid rgba(26,58,42,.07)}
-                .sf-review-total{font-size:17px!important;color:var(--accent)}
-                .sf-review-meta{display:grid;gap:10px}
-                .sf-review-meta>div{display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:var(--text-sm)}
-                .sf-review-meta span{color:var(--text-muted)}
-                .sf-review-meta strong{overflow-wrap:anywhere}
-                .sf-variable-value{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
-                .sf-copy-variable{
-                  flex:0 0 auto;min-height:32px;padding:0 10px;border:1px solid var(--border);
-                  border-radius:8px;background:#fff;color:var(--accent);font:700 12px/1 var(--font-sans);
-                  cursor:pointer;
-                }
-                .sf-copy-variable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-                .sf-review-note{
-                  margin:20px 0 0;padding:12px 14px;border-radius:12px;background:#f8faf9;
-                  color:var(--text-muted);font-size:var(--text-sm);line-height:1.5;
-                }
+                .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box}
 
-                .sf-storage-card{
-                  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
-                  margin:0 0 20px;padding:14px 16px;border:1px solid rgba(26,58,42,.12);
-                  border-radius:14px;background:#f8faf3;
-                }
-                .sf-storage-card>div{min-width:0}
-                .sf-storage-card span{display:block;margin-bottom:4px;color:rgba(26,58,42,.62);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
-                .sf-storage-card strong{display:block;color:var(--accent);font-size:13px;overflow-wrap:anywhere}
-                .sf-storage-card p{grid-column:1/-1;margin:2px 0 0;color:var(--text-muted);font-size:12px;line-height:1.45}
+                .sf-workbench{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr);align-items:start;gap:18px;margin:0 0 24px}
+                .sf-compose{min-width:0;background:#fff;border:1px solid var(--border);border-radius:16px;padding:20px}
+                .sf-workbench-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+                .sf-workbench-heading h2{margin:0 0 6px;font-size:20px;letter-spacing:-.4px;color:var(--text)}
+                .sf-workbench-heading p{margin:0;color:var(--text-muted);line-height:1.45;font-size:13px}
+                .sf-workbench-heading>span{font-size:11px;font-weight:800;color:var(--text-muted)}
+                .sf-customer-picker{margin:18px 0 0}
+                .sf-customer-results{display:grid;max-height:210px;overflow:auto;border:1px solid var(--border);border-radius:11px;margin-top:9px}
+                .sf-customer-results button{display:flex;gap:10px;justify-content:space-between;align-items:center;min-height:41px;text-align:left;border:0;border-top:1px solid var(--border-light,var(--border));background:#fff;padding:8px 11px;cursor:pointer;color:var(--text)}
+                .sf-customer-results button:first-child{border-top:0}
+                .sf-customer-results button:hover{background:var(--bg-secondary,#f8faf9)}
+                .sf-customer-results button strong{font-size:13px}
+                .sf-customer-results button small{color:var(--text-muted);font-size:12px}
+                .sf-contact-change{border:0;background:transparent;padding:2px 0;color:var(--accent);text-decoration:underline;font:700 12px var(--font-sans);cursor:pointer}
+                .sf-document-mode{display:flex;gap:6px;background:var(--bg-secondary,#f8faf9);border:1px solid var(--border);border-radius:12px;padding:5px;margin:20px 0 0}
+                .sf-document-mode button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font:700 13px var(--font-sans);color:var(--text-muted);cursor:pointer}
+                .sf-document-mode button.active{background:#fff;color:var(--accent);box-shadow:0 1px 6px rgba(26,58,42,.12)}
+                .sf-upload-area,.sf-existing-picker{padding:20px 0 0}
+                .sf-upload-area .sf-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+                .sf-upload-area .sf-note,.sf-existing-picker .sf-note{font-size:13px;line-height:1.5}
+                .sf-lookup{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:0 0 12px}
+                .sf-lookup .sf-cta{font-size:13px;min-height:46px;padding:0 16px}
+                .sf-file-choices{display:grid;gap:7px;max-height:360px;overflow:auto}
+                .sf-file-choices>button{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;text-align:left;padding:12px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);cursor:pointer}
+                .sf-file-choices>button.selected{border-color:var(--lime);background:rgba(209,244,112,.25)}
+                .sf-file-choices>button strong{display:block;font-size:13px;overflow-wrap:anywhere}
+                .sf-file-choices>button small{display:block;margin-top:4px;color:var(--text-muted);font-size:11px}
+                .sf-choice-status{font-size:11px;max-width:110px;text-align:right;color:var(--text-muted)}
+                .sf-selection-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-top:14px;margin-top:15px;border-top:1px solid var(--border)}
+                .sf-selection-actions>strong{font-size:13px;overflow-wrap:anywhere}
+                .sf-selection-actions>small{color:var(--text-muted);font-size:12px}
+                .sf-selection-actions .sf-cta{font-size:13px;min-height:44px;padding:0 16px}
+                @media(max-width:1080px){.sf-workbench{grid-template-columns:minmax(0,1fr)}}
+                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
@@ -873,9 +847,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                 /* Same panel treatment as .home-close-panel and the /files page. */
                 .sf-panel{
-                  padding:clamp(24px,3vw,40px);margin:0 0 24px;
-                  border:2px solid var(--lime);border-radius:14px;
-                  background:rgba(209,244,112,.22);
+                  padding:clamp(18px,2vw,28px);margin:0 0 24px;
+                  border:1px solid var(--border);border-radius:14px;background:#fff;
                 }
                 .sf-h2{
                   margin:0 0 6px;font-size:22px;font-weight:700;
