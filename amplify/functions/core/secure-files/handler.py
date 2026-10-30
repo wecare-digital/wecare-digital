@@ -60,6 +60,8 @@ import os
 import secrets as pysecrets
 import time
 import uuid
+from datetime import datetime, timezone, timedelta
+from boto3.dynamodb.types import TypeSerializer
 from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 
@@ -2892,7 +2894,348 @@ def _path_parts(event: Dict[str, Any]) -> Tuple[str, list]:
     return raw, [p for p in raw.split("/") if p]
 
 
+# ── operator-approved Vault scheduled actions; never generic template sends ─────
+
+VAULT_SCHEDULE_TABLE = os.environ.get(
+    "SCHEDULED_TABLE", "stack-wecare-digital-ScheduledMessagesTable")
+VAULT_SCHEDULE_KIND = "VAULT_ACTION_V1"
+VAULT_SCHEDULE_ACTIONS = {"offer", "payment", "access"}
+VAULT_SCHEDULE_MAX_ITEMS = 20
+_DDB_SERIALIZER = TypeSerializer()
+
+
+def _ddb_encoded(value: Any) -> Dict[str, Any]:
+    return _DDB_SERIALIZER.serialize(value)
+
+
+def _schedule_time(raw: Any) -> str:
+    """Canonical UTC ISO time; 10-minute preflight and 30-day max."""
+    if not isinstance(raw, str) or len(raw) > 48:
+        raise ValueError("Scheduled time must be an ISO date with timezone")
+    try:
+        moment = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("Invalid scheduled time") from None
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("Scheduled time requires a timezone")
+    moment = moment.astimezone(timezone.utc)
+    now = datetime.now(timezone.utc)
+    if not now + timedelta(minutes=10) <= moment <= now + timedelta(days=30):
+        raise ValueError("Choose a time at least 10 minutes ahead and within 30 days")
+    return moment.isoformat(timespec="microseconds")
+
+
+def _vault_offer_catalog_price_valid() -> bool:
+    """Match the approved ₹49 template to the *live* ProductsTable variant.
+
+    The customer checkout still owns pricing. This only refuses an advertising
+    mismatch and NEVER supplies an amount to checkout.
+    """
+    from lambda_utils.ecommerce import service_pricing_native, service_requests
+    sku = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+    table = _table(os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable"))
+    for product_id in service_requests.SERVICE_PRODUCT_IDS:
+        row = table.get_item(Key={"id": product_id}, ConsistentRead=True).get("Item") or {}
+        if row.get("status") != "active":
+            continue
+        for variant in row.get("variants") or []:
+            if str(variant.get("sku") or variant.get("id") or "") == sku:
+                price = service_pricing_native._variant_paise({
+                    "priceMinor": variant.get("priceMinor"),
+                    "currency": row.get("currency", "INR"),
+                    "status": variant.get("status", "active"),
+                })
+                return price == 4900
+    return False
+
+
+def _vault_schedule_public(row: Dict[str, Any]) -> Dict[str, Any]:
+    """No private owner, raw phone, provider IDs or storage keys."""
+    return {
+        "scheduledId": str(row.get("id") or ""),
+        "fileId": str(row.get("fileId") or ""),
+        "action": str(row.get("vaultAction") or ""),
+        "offerBodyText": str(row.get("offerBodyText") or ""),
+        "scheduledAt": str(row.get("scheduledAt") or ""),
+        "status": str(row.get("status") or ""),
+        "createdAt": str(row.get("createdAt") or ""),
+        "sentAt": str(row.get("sentAt") or ""),
+        "updatedAt": str(row.get("updatedAt") or ""),
+        "errorMessage": str(row.get("errorMessage") or "")[:80],
+    }
+
+
+def _read_vault_schedules(item: Dict[str, Any]) -> list:
+    ids = item.get("vaultScheduledActionIds") or []
+    if not isinstance(ids, list):
+        return []
+    result = []
+    table = _table(VAULT_SCHEDULE_TABLE)
+    for schedule_id in ids[-VAULT_SCHEDULE_MAX_ITEMS:]:
+        if not isinstance(schedule_id, str) or not schedule_id.startswith("vault-"):
+            continue
+        row = table.get_item(Key={"id": schedule_id}, ConsistentRead=True).get("Item") or {}
+        if (row.get("kind") != VAULT_SCHEDULE_KIND
+                or row.get("fileId") != item["fileId"]
+                or row.get("ownerCustomerId") != item["ownerCustomerId"]):
+            continue
+        result.append(row)
+    return sorted(result, key=lambda row: str(row.get("scheduledAt") or ""), reverse=True)
+
+
+def _admin_list_vault_schedules(file_id: str, origin: str) -> Dict[str, Any]:
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
+                             {"error": refusal}, origin)
+    return _no_store(cors_response(200, {
+        "schedules": [_vault_schedule_public(row) for row in _read_vault_schedules(item)],
+    }, origin))
+
+
+def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    body = json.loads(event.get("body") or "{}")
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_SCHEDULE"}, origin)
+    action = body.get("action")
+    if action not in VAULT_SCHEDULE_ACTIONS:
+        return cors_response(400, {"error": "ACTION_NOT_SCHEDULABLE"}, origin)
+    try:
+        when = _schedule_time(body.get("scheduledAt"))
+    except ValueError as error:
+        return cors_response(400, {"error": "INVALID_TIME", "message": str(error)}, origin)
+    text = ""
+    if action == "offer":
+        text = body.get("offerBodyText")
+        if (not isinstance(text, str) or not text or len(text) > 60
+                or whatsapp_templates.vault_offer_document_name(text) != text):
+            return cors_response(400, {
+                "error": "INVALID_OFFER_VARIABLE",
+                "message": "Enter a single line of 1–60 characters for WhatsApp {{1}}.",
+            }, origin)
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
+                             {"error": refusal}, origin)
+    state = _file_access_state(item, int(time.time()))
+    if action in ("offer", "payment") and state not in ("UNPAID", "EXPIRED"):
+        return cors_response(409, {"error": "NO_PAYMENT_REQUEST_NEEDED"}, origin)
+    if action == "access" and state not in ("OPEN", "READY"):
+        return cors_response(409, {"error": "PAID_ACCESS_REQUIRED"}, origin)
+    if action == "offer":
+        try:
+            if not _vault_offer_catalog_price_valid():
+                return cors_response(409, {"error": "OFFER_PRICE_CHANGED",
+                    "message": "The approved ₹49 offer no longer matches the catalogue."}, origin)
+        except Exception:
+            return cors_response(503, {"error": "PRICE_CHECK_UNAVAILABLE"}, origin)
+
+    previous = item.get("vaultScheduledActionIds")
+    if previous is not None and not isinstance(previous, list):
+        return cors_response(409, {"error": "SCHEDULE_INDEX_INVALID"}, origin)
+    previous = previous or []
+    if len(previous) >= VAULT_SCHEDULE_MAX_ITEMS:
+        return cors_response(409, {"error": "SCHEDULE_LIMIT",
+            "message": "This file has reached its schedule-history limit."}, origin)
+    # Same action cannot have two pending sends to one owner-bound file.
+    existing = _read_vault_schedules(item)
+    if any(row.get("status") in ("PENDING", "DISPATCHING")
+           and row.get("vaultAction") == action for row in existing):
+        return cors_response(409, {"error": "SCHEDULE_ALREADY_PENDING"}, origin)
+
+    schedule_id = "vault-" + uuid.uuid4().hex
+    now = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    actor = str((event.get("_auth") or {}).get("username") or "staff")[:64]
+    row = {
+        "id": schedule_id, "scheduledId": schedule_id,
+        "kind": VAULT_SCHEDULE_KIND, "vaultAction": action,
+        "fileId": file_id, "ownerCustomerId": str(item["ownerCustomerId"]),
+        "scheduledAt": when, "status": "PENDING", "createdAt": now,
+        "updatedAt": now, "createdBy": actor,
+        # The schedule contains neither the phone nor the private file key.
+        "templateName": {
+            "offer": "wecare_vault_request_ready",
+            "payment": "wecare_whatapp_native_pay_template",
+            "access": "wecare_default_download",
+        }[action],
+        "offerBodyText": text,
+    }
+    values = {
+        ":owner": _ddb_encoded(item["ownerCustomerId"]),
+        ":active": _ddb_encoded("active"),
+        ":empty": _ddb_encoded([]),
+        ":new": _ddb_encoded([schedule_id]),
+    }
+    if item.get("vaultScheduledActionIds") is not None:
+        values[":old"] = _ddb_encoded(previous)
+        old_condition = "vaultScheduledActionIds = :old"
+    else:
+        old_condition = "attribute_not_exists(vaultScheduledActionIds)"
+    # One transaction: no orphan schedule can dispatch without its owning file
+    # recording the ID. The snapshot condition prevents concurrent duplicates.
+    try:
+        boto3.client("dynamodb", region_name=REGION).transact_write_items(
+            TransactItems=[
+                {"Put": {
+                    "TableName": VAULT_SCHEDULE_TABLE,
+                    "Item": {k: _ddb_encoded(v) for k, v in row.items()},
+                    "ConditionExpression": "attribute_not_exists(id)",
+                }},
+                {"Update": {
+                    "TableName": FILES_TABLE,
+                    "Key": {"fileId": _ddb_encoded(file_id)},
+                    "UpdateExpression": (
+                        "SET vaultScheduledActionIds = list_append("
+                        "if_not_exists(vaultScheduledActionIds, :empty), :new)"
+                    ),
+                    "ConditionExpression": (
+                        "attribute_exists(fileId) AND #status = :active "
+                        "AND ownerCustomerId = :owner AND " + old_condition
+                    ),
+                    "ExpressionAttributeNames": {"#status": "status"},
+                    "ExpressionAttributeValues": values,
+                }},
+            ],
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "TransactionCanceledException":
+            return cors_response(409, {"error": "SCHEDULE_CHANGED",
+                "message": "Schedule selection changed. Refresh before retrying."}, origin)
+        raise
+    return _no_store(cors_response(201, {
+        "schedule": _vault_schedule_public(row),
+        "message": "Scheduled for reviewable, one-time delivery; no message sent yet.",
+    }, origin))
+
+
+def _admin_cancel_vault_schedule(file_id: str, schedule_id: str, origin: str) -> Dict[str, Any]:
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
+                             {"error": refusal}, origin)
+    if schedule_id not in (item.get("vaultScheduledActionIds") or []):
+        return cors_response(404, {"error": "UNKNOWN_SCHEDULE"}, origin)
+    row = _table(VAULT_SCHEDULE_TABLE).get_item(
+        Key={"id": schedule_id}, ConsistentRead=True).get("Item") or {}
+    if (row.get("kind") != VAULT_SCHEDULE_KIND
+            or row.get("fileId") != file_id
+            or row.get("ownerCustomerId") != item["ownerCustomerId"]):
+        return cors_response(404, {"error": "UNKNOWN_SCHEDULE"}, origin)
+    try:
+        _table(VAULT_SCHEDULE_TABLE).update_item(
+            Key={"id": schedule_id},
+            UpdateExpression="SET #status=:cancelled, updatedAt=:now",
+            ConditionExpression="#status=:pending AND fileId=:file AND ownerCustomerId=:owner",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":cancelled": "CANCELLED", ":pending": "PENDING",
+                ":now": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+                ":file": file_id, ":owner": item["ownerCustomerId"],
+            },
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return cors_response(409, {"error": "ALREADY_PROCESSING",
+                "message": "This scheduled send is already claimed or cancelled."}, origin)
+        raise
+    return _no_store(cors_response(200, {
+        "scheduledId": schedule_id, "status": "CANCELLED",
+    }, origin))
+
+
+def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Only the cron worker can supply the one-use DB dispatch token.
+
+    No auth bypass through API Gateway: this branch is internal-only and the
+    token must equal the currently claimed ScheduledMessagesTable row. A
+    conditional update consumes it BEFORE any message could be sent.
+    """
+    schedule_id = str(event.get("scheduleId") or "")
+    token = str(event.get("dispatchToken") or "")
+    if (not schedule_id.startswith("vault-") or len(schedule_id) != 38
+            or len(token) < 20 or len(token) > 128):
+        return {"result": "FAILED", "reason": "INVALID_DISPATCH"}
+    table = _table(VAULT_SCHEDULE_TABLE)
+    row = table.get_item(Key={"id": schedule_id}, ConsistentRead=True).get("Item") or {}
+    now = datetime.now(timezone.utc)
+    if (row.get("kind") != VAULT_SCHEDULE_KIND or row.get("status") != "DISPATCHING"
+            or str(row.get("dispatchToken") or "") != token
+            or row.get("vaultAction") not in VAULT_SCHEDULE_ACTIONS
+            or not row.get("fileId") or not row.get("ownerCustomerId")):
+        return {"result": "FAILED", "reason": "CLAIM_MISMATCH"}
+    try:
+        due = datetime.fromisoformat(str(row["scheduledAt"]).replace("Z", "+00:00"))
+        if due.tzinfo is None or not due <= now <= due + timedelta(minutes=90):
+            return {"result": "FAILED", "reason": "STALE_OR_FUTURE_SCHEDULE"}
+    except (TypeError, ValueError):
+        return {"result": "FAILED", "reason": "INVALID_DUE_TIME"}
+    file_id = str(row["fileId"])
+    file_row, refusal = _owned_file_for_admin(file_id)
+    if refusal or str(file_row.get("ownerCustomerId") or "") != str(row["ownerCustomerId"]):
+        return {"result": "FAILED", "reason": "OWNER_OR_FILE_CHANGED"}
+    action = row["vaultAction"]
+    state = _file_access_state(file_row, int(time.time()))
+    if action in ("offer", "payment") and state not in ("UNPAID", "EXPIRED"):
+        return {"result": "FAILED", "reason": "ALREADY_PAID_OR_UNAVAILABLE"}
+    if action == "access" and state not in ("OPEN", "READY"):
+        return {"result": "FAILED", "reason": "ACCESS_WINDOW_NOT_ACTIVE"}
+    if action == "offer":
+        try:
+            if not _vault_offer_catalog_price_valid():
+                return {"result": "FAILED", "reason": "OFFER_PRICE_CHANGED"}
+        except Exception:
+            return {"result": "DISPATCH_UNKNOWN", "reason": "PRICE_CHECK_UNAVAILABLE"}
+    try:
+        # One-time claim prevents replay even if the worker transport is retried.
+        table.update_item(
+            Key={"id": schedule_id},
+            UpdateExpression="SET vaultExecutedAt=:now",
+            ConditionExpression=(
+                "#status=:dispatching AND dispatchToken=:token "
+                "AND attribute_not_exists(vaultExecutedAt)"
+            ),
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":now": now.isoformat(timespec="microseconds"),
+                ":dispatching": "DISPATCHING", ":token": token,
+            },
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return {"result": "FAILED", "reason": "ALREADY_DISPATCHED"}
+        return {"result": "DISPATCH_UNKNOWN", "reason": "CLAIM_UNAVAILABLE"}
+
+    actor = "scheduled:" + str(row.get("createdBy") or "staff")[:54]
+    internal_event = {"_auth": {"username": actor}}
+    if action == "offer":
+        internal_event["body"] = json.dumps({"offerBodyText": row.get("offerBodyText") or ""})
+        answer = _admin_send_vault_offer(file_id, internal_event, "")
+    elif action == "payment":
+        answer = _admin_request_payment(file_id, internal_event, "")
+    else:
+        answer = _admin_send_access(file_id, internal_event, "")
+
+    code = answer.get("statusCode")
+    try:
+        payload = json.loads(answer.get("body") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    outcome = str(payload.get("outcome") or "")
+    accepted = {"offer": "VAULT_OFFER_SENT", "payment": "PAYMENT_REQUEST_SENT",
+                "access": "VAULT_LINK_SENT"}[action]
+    if code == 200 and outcome == accepted:
+        return {"result": "SENT", "reason": ""}
+    if isinstance(code, int) and 400 <= code < 500 and code != 408:
+        return {"result": "FAILED", "reason": outcome[:70] or "ACTION_REFUSED"}
+    # A 202 or provider/server error may follow a real send. Never auto-retry.
+    return {"result": "DISPATCH_UNKNOWN", "reason": "SEND_UNCONFIRMED"}
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    if (event.get("internalAction") == "dispatchScheduledVaultAction"
+            and not event.get("requestContext")):
+        return _dispatch_vault_scheduled_action(event)
+
     # Internal async dispatch from the Razorpay webhook. Deliberately checked before
     # anything else and keyed on a field API Gateway cannot produce, so no HTTP caller
     # can reach it: an event arriving through the API always carries a requestContext,
@@ -3042,6 +3385,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
         if len(tail) == 2 and tail[1] == "revoke" and method == "POST":
             return _admin_revoke(tail[0], event, origin)
+        if len(tail) == 2 and tail[1] == "schedules":
+            if method == "GET":
+                return _admin_list_vault_schedules(tail[0], origin)
+            if method == "POST":
+                return _admin_create_vault_schedule(tail[0], event, origin)
+        if len(tail) == 3 and tail[1] == "schedules" and method == "DELETE":
+            return _admin_cancel_vault_schedule(tail[0], tail[2], origin)
         if len(tail) == 2 and tail[1] == "send-offer" and method == "POST":
             return _admin_send_vault_offer(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "message-log" and method == "GET":
