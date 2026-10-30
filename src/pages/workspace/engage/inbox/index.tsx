@@ -461,6 +461,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         if ( presetChannel || !router.isReady ) return;
         const q = String( router.query.channel || '' ).toLowerCase();
         setChannelFilter( q && q in CHANNEL ? q : 'ALL' );
+        setWabaFilter( 'ALL' );
     }, [ router.isReady, router.query.channel, presetChannel ] );
 
     useEffect( () => {
@@ -586,7 +587,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 existing.channels.add( ch );
                 if ( waba ) existing.wabas.add( waba );
-                if ( !contactNames[ cid ] && realWhatsAppName( m ) ) existing.name = realWhatsAppName( m );
+                if ( !contactNames[ cid ] && /^[+\d\s()-]+$/.test( existing.name ) && realWhatsAppName( m ) )
+                    existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
                 {
                     existing.lastTs = ts;
@@ -1803,8 +1805,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-conv-time { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-conv-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px; }
         .ui-conv-preview { font-size: var(--text-xs); color: ${colors.textSecondary}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ui-badges { display: flex; gap: 4px; flex-shrink: 0; }
+        .ui-badges { display: flex; gap: 4px; flex-shrink: 1; flex-wrap: wrap; }
         .ui-badge { font-size: var(--text-xs); font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
+        .ui-waba-badge { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-muted); }
         .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; }
         .ui-thread-head { padding: 12px 16px; border-bottom: 1px solid ${colors.border}; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .ui-back { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
