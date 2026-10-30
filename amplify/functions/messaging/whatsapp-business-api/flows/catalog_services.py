@@ -184,7 +184,13 @@ def handle(event, client):
     now = int(time.time())
     action = event.get('action', 'start')
 
-    if action == 'sendOffer':\n        return _send_offer(event, client, db, keys, contacts, now)\n    if action == 'sendPayment':\n        # Direct native payment remains for authenticated customer entry points. Staff Vault\n        # requests use sendOffer so Unlock Vault is the stage-1 gate.\n        return _send_native_payment(event, client, db, keys, contacts, now)\n    # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
+    if action == 'sendOffer':
+        return _send_offer(event, client, db, keys, contacts, now)
+    if action == 'sendPayment':
+        # Direct native payment remains for authenticated customer entry points. Staff Vault
+        # requests use sendOffer so Unlock Vault is the stage-1 gate.
+        return _send_native_payment(event, client, db, keys, contacts, now)
+    # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
     # customer action without its contact used to reach `get_item` with an empty key and crash.
     if action not in ('start', 'select', 'unlock'):
         return {'outcome': 'CATALOG_ACTION_UNAVAILABLE'}
