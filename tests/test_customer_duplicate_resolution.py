@@ -94,3 +94,21 @@ def test_customer_phone_field_uses_auth_shared_hairline_control():
     assert "border-bottom: 1px solid var(--public-hairline, #dfe4df)" in css
     assert ".contacts-phone-control > input" in css
     assert "input:-webkit-autofill" in css
+
+
+def test_customer_create_modal_uses_workspace_card_layout():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    css = (ROOT / "src/styles/workspace.css").read_text()
+
+    assert "contacts-workspace-form-v2" in page
+    assert "Workspace · Customers" in page
+    assert "contacts-form-section" in page
+    assert "WhatsApp-first customer record" in page
+    assert "Work details" in page
+    assert "contacts-address-preview" in page
+    assert "width: 760" in page
+
+    assert "Customers — Workspace-native create/edit surface." in css
+    assert ".contacts-workspace-form-v2 .contacts-form-section" in css
+    assert ".contacts-workspace-form-v2 input" in css
+    assert "border-radius: 12px !important" in css
