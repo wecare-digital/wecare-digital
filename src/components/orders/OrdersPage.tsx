@@ -371,6 +371,9 @@ export default function OrdersPage (): React.ReactElement {
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
     return () => window.clearTimeout( timer );
   }, [ profileAction ] );
+  /** Selected order awaiting first-page visibility, never a separate route or view. */
+  const [ requestedOrder, setRequestedOrder ] = useState( '' );
+
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
@@ -565,6 +568,7 @@ export default function OrdersPage (): React.ReactElement {
         catch { session = null; }
       }
       if ( !live ) return;
+      if ( requested ) setRequestedOrder( requested );
       if ( !session )
       {
         if ( requested ) stashPendingOrder( requested );
@@ -589,7 +593,10 @@ export default function OrdersPage (): React.ReactElement {
       if ( outcome.kind === 'ok' ) {
         applyFirstPage( outcome.data );
         const selected = ( outcome.data.orders || [] ).find( row => row.orderNumber === requested );
-        if ( selected ) setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+        if ( selected ) {
+          setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+          setRequestedOrder( '' );
+        }
       }
       else if ( outcome.kind === 'expired' ) expire();
       else applyFailure( outcome.kind );
@@ -606,20 +613,29 @@ export default function OrdersPage (): React.ReactElement {
    * reached the end of a page".
    */
   useEffect( () => {
-    if ( view !== 'empty' || rechecked || !token ) return undefined;
+    const pendingSelection = !!requestedOrder && view === 'ready'
+      && !orders.some( order => order.orderNumber === requestedOrder );
+    if ( ( view !== 'empty' && !pendingSelection ) || rechecked || !token ) return undefined;
     let live = true;
     const timer = window.setTimeout( () => {
       ( async () => {
         const outcome = await fetchOrders( token, '' );
         if ( !live ) return;
         setRechecked( true );
-        if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
+        if ( outcome.kind === 'ok' ) {
+          applyFirstPage( outcome.data );
+          const selected = ( outcome.data.orders || [] ).find( row => row.orderNumber === requestedOrder );
+          if ( selected ) {
+            setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+            setRequestedOrder( '' );
+          }
+        }
         else if ( outcome.kind === 'expired' ) expire();
         else applyFailure( outcome.kind );
       } )();
     }, RECHECK_DELAY_MS );
     return () => { live = false; window.clearTimeout( timer ); };
-  }, [ view, rechecked, token ] );
+  }, [ view, rechecked, token, requestedOrder, orders ] );
 
   const loadMore = async () => {
     if ( !token || !cursor || loadingMore ) return;
@@ -638,6 +654,11 @@ export default function OrdersPage (): React.ReactElement {
     }
     const rows = outcome.data.orders || [];
     setOrders( prev => [ ...prev, ...rows ] );
+    const selected = rows.find( row => row.orderNumber === requestedOrder );
+    if ( selected ) {
+      setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+      setRequestedOrder( '' );
+    }
     // An empty cursored page appends nothing and drops the button, silently: DynamoDB hands out
     // a cursor whenever a query stops at Limit, so a customer with exactly 20 orders gets one.
     // There is no "no more orders" message, because there is nothing to tell them.
@@ -757,6 +778,13 @@ export default function OrdersPage (): React.ReactElement {
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
                 <h2 className="ord-h2" id="ord-history">Orders</h2>
+                { requestedOrder && (
+                  <p className="ord-p" role="status">
+                    { rechecked
+                      ? 'The selected order is not in your recent history. Check older orders or contact us.'
+                      : 'Checking for your recently paid order…' }
+                  </p>
+                ) }
               </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
