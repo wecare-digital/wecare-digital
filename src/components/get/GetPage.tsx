@@ -25,12 +25,12 @@
  * exact fileId to secure-files under the customer session. The backend re-proves ownership and
  * entitlement state, then hands the file to the existing native WhatsApp Review and Pay rail.
  * ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF and Meta ORDER_DETAILS are server-owned.
- * There is no website cart and Vault has no Meta Flow. After authoritative capture the durable
- * entitlement changes this same card to confirming/download state.
+ * The customer can use owner-bound WEBSITE cart checkout or WhatsApp-native Review & Pay.
+ * The same verified payment entitlement changes this exact file card to Download.
  *
  * Paying and renewing
  * -------------------
- * Each file carries `accessState`. UNPAID and EXPIRED can request native WhatsApp payment;
+ * Each file carries `accessState`. UNPAID and EXPIRED can choose website or WhatsApp payment;
  * OPEN/READY never charge again, and PAID_UNVERIFIED only reconciles. After a payment request is
  * sent, this page stays on /vault/?file=<id>, refreshes on focus and polls until the server-owned
  * state changes.
@@ -319,8 +319,14 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 feedback( 'error', 'The secure file link is invalid. Please try downloading again.' );
                 return;
             }
-            if ( destination.protocol !== 'https:'
-                || destination.hostname !== 'wecare-digital-get.s3.us-east-1.amazonaws.com' ) {
+            // SigV4 in us-east-1 legitimately uses either regional or legacy
+            // virtual-hosted S3 endpoint. Allow only these exact bucket hostnames.
+            const approvedS3Hosts = new Set( [
+                'wecare-digital-get.s3.us-east-1.amazonaws.com',
+                'wecare-digital-get.s3.amazonaws.com',
+            ] );
+            if ( destination.protocol !== 'https:' || destination.port || destination.username
+                || destination.password || !approvedS3Hosts.has( destination.hostname ) ) {
                 feedback( 'error', 'The file was not hosted at the expected secure location. Please contact support.' );
                 return;
             }
