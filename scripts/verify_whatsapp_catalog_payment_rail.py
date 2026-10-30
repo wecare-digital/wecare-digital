@@ -500,6 +500,8 @@ def _outbound_body(call: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── the run ───────────────────────────────────────────────────────────────────────────────────
 def run(root: Path) -> int:
+    # Same production handlers; short-only test uses hermetic provider seams.
+    short_mode = os.environ.get("SHORT_COMMERCE_PART1_ENABLED") == "true"
     functions = root / "amplify" / "functions"
     sys.path[:0] = [str(functions / "shared"),
                     str(functions / "messaging" / "inbound-whatsapp-handler"),
@@ -685,8 +687,11 @@ def run(root: Path) -> int:
     alice = shop.customer(1)
     mark = W.mark()
     wamid = "wamid.HERMETIC.ALICE.1"
-    items = [{"product_retailer_id": tee, "quantity": 2, "item_price": 499, "currency": "USD"},
-             {"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"}]
+    expected_quantity = 1 if short_mode else 3
+    items = ([{"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"}]
+             if short_mode else
+             [{"product_retailer_id": tee, "quantity": 2, "item_price": 499, "currency": "USD"},
+              {"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"}])
     deliver(order_event(build, alice["digits"], wamid, items))
     calls = W.since(mark, "invocations")
     asked_after = [i for i, c in enumerate(calls) if c["function"] == "wecare-outbound-whatsapp"]
@@ -725,7 +730,7 @@ def run(root: Path) -> int:
               and payload.get("sourceMessageId") == wamid,
               {k: payload.get(k) for k in ("deliveryConfirmed", "deliveryRecipient", "sourceMessageId")})
         check("R10", "lines = exact ProductsTable identity + integer quantity",
-              payload["lines"] == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 3}], payload["lines"])
+              payload["lines"] == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": expected_quantity}], payload["lines"])
         check("R16", "prepareNativeCart sent the WABA1 sender id", payload["phoneNumberId"] == PHONE_ID_1)
         cfg = prepares[0]["config"]
         check("IDEM", "inbound->checkout invoke has SDK retries disabled and a read timeout above checkout's 60 s",
@@ -760,9 +765,9 @@ def run(root: Path) -> int:
               settings[0]["payment_gateway"]["razorpay"]["notes"]["referenceId"] == ref["referenceId"] == action["reference_id"])
         unit = action["order"]["items"][0]
         check("R1", "item priced from ProductsTable (59900 paise), not Meta item_price (499)",
-              unit["amount"]["value"] == 59900 and unit["quantity"] == 3, unit)
+              unit["amount"]["value"] == 59900 and unit["quantity"] == expected_quantity, unit)
         check("R2", "settlement currency INR despite inbound USD", action["currency"] == "INR" and attempt["currency"] == "INR")
-        subtotal = 59900 * 3
+        subtotal = 59900 * expected_quantity
         collection = subtotal - default_coupon.delight_paise(subtotal)
         expected_total = checkout_pricing.compute_quote(collection, currency="INR").total_payable_paise
         check("R1", "total = ProductsTable price x qty, Delight, 2.5% fee + 18% fee GST",
@@ -774,7 +779,7 @@ def run(root: Path) -> int:
         check("INV", "the attempt records the invoice lines it was quoted (name, quantity, unit paise)",
               (attempt.get("invoiceLines") or {}).get("lines") == [
                   {"productId": shop.tee, "variantId": "TEE-M", "name": "Hermetic Tee",
-                   "quantity": 3, "unitPricePaise": 59900}],
+                   "quantity": expected_quantity, "unitPricePaise": 59900}],
               (attempt.get("invoiceLines") or {}).get("lines"))
         check("PHY", "physical goods carry a complete shipping address",
               action["type"] == "physical-goods" and action["shipping_info"]["addresses"][0]["in_pin_code"] == "700001")
@@ -830,6 +835,75 @@ def run(root: Path) -> int:
           len(replies) == 1 and "Nothing has been charged" in str(replies[0].get("content")),
           [r.get("content") or r.get("interactiveType") for r in replies])
 
+
+    # Exercise the signed-off native and website preflight boundaries with the
+    # flag ON. These are full production handlers against moto, not string tests.
+    # The request must be refused BEFORE any provider attempt or payment message.
+    if short_mode:
+        short_buyer = shop.customer(39)
+        for label, lines in (
+                ("two_units", [{"product_retailer_id": tee, "quantity": 2}]),
+                ("two_products", [{"product_retailer_id": tee, "quantity": 1},
+                                  {"product_retailer_id": kit, "quantity": 1}])):
+            before = W.mark()
+            deliver(order_event(build, short_buyer["digits"], "wamid.HERMETIC.SHORT." + label, lines))
+            calls = W.since(before, "invocations")
+            replies = [_outbound_body(c) for c in calls if c["function"] == "wecare-outbound-whatsapp"]
+            check("SHORT", "native Meta " + label + ": rejects full cart before payment",
+                  len(replies) == 1 and "Short checkout accepts one item" in
+                  str(replies[0].get("content")) and not _checkout_invokes(calls)
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  [str(reply.get("content", ""))[:75] for reply in replies])
+
+        from lambda_utils import customer_auth as _short_auth
+        who = _short_auth.CustomerIdentity(
+            customer_id=short_buyer["sub"], subject=short_buyer["sub"],
+            phone=short_buyer["phone"])
+        # The native CREATE rail still enforces one-unit policy. The full
+        # website basket has different, server-authoritative quantity rules.
+        for label, lines in (
+                ("two_units", [{"quantity": 2}]),
+                ("two_lines", [{"quantity": 1}, {"quantity": 1}])):
+            before = W.mark()
+            native = checkout._create(
+                who, {"action": "create", "requestKey": "short-denial",
+                      "lineItems": lines}, "https://wecare.digital")
+            body = json.loads(native.get("body") or "{}")
+            check("SHORT", "native create " + label + ": refuses before payment",
+                  native.get("statusCode") == 409
+                  and body.get("error") == "SHORT_CHECKOUT_ONE_ITEM"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  {"status": native.get("statusCode"), "error": body.get("error")})
+
+            # A deliberately invalid browser payload must still fail BEFORE a
+            # payment attempt, but must not inherit the native one-item refusal.
+            before = W.mark()
+            website = checkout._website_prepare(
+                who, {"action": "prepare", "requestKey": "short-website",
+                      "lineItems": lines}, "https://wecare.digital")
+            web_body = json.loads(website.get("body") or "{}")
+            check("SHORT", "website " + label + ": not native one-unit gated",
+                  web_body.get("error") != "SHORT_CHECKOUT_ONE_ITEM"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  {"status": website.get("statusCode"), "error": web_body.get("error")})
+
+        for label, lines in (
+                ("two_units", [{"productId": shop.kit, "variantId": "KIT1", "quantity": 2}]),
+                ("two_lines", [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1},
+                               {"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}])):
+            before = W.mark()
+            reply = checkout.handler({
+                "internalAction": "prepareNativeCart", "lines": lines,
+                "contactId": short_buyer["contactId"], "senderPhone": short_buyer["digits"],
+                "phoneNumberId": PHONE_ID_1}, FakeContext("wecare-checkout"))
+            check("SHORT", "internal native " + label + ": refuses before attempt",
+                  reply.get("outcome") == "NATIVE_CART_SHORT_ONLY"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")), reply)
+
     # ── 3. Meta redelivers the same webhook ────────────────────────────────────────────────────
     print("\n== 3. duplicate webhook delivery (same wamid)")
     mark = W.mark()
@@ -870,12 +944,12 @@ def run(root: Path) -> int:
     cara = shop.customer(3)
     mark = W.mark()
     W.faults[cart_function] = ["refused_before_run"]
-    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.1", [{"product_retailer_id": kit, "quantity": 2}]))
+    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.1", [{"product_retailer_id": kit, "quantity": 1 if short_mode else 2}]))
     check("R8", "a refused checkout invoke reserved nothing", len(_attempts_for(cara["sub"])) == 0
           and not _pay_sends(W.since(mark, "meta_sends")))
     index = _table("CommerceKeys").get_item(Key={"orderId": "WABASKETMSG#wamid.HERMETIC.CARA.1"}).get("Item")
     check("R8", "its dedupe index was rolled back", index is None)
-    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.2", [{"product_retailer_id": kit, "quantity": 2}]))
+    deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.2", [{"product_retailer_id": kit, "quantity": 1 if short_mode else 2}]))
     confirm_prefilled(cara, "wamid.HERMETIC.CARA.ADDR1")
     check("R8", "the customer's retry produced exactly ONE attempt and ONE payment template",
           len(_attempts_for(cara["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1)
@@ -952,7 +1026,8 @@ def run(root: Path) -> int:
     hank = shop.customer(8)
     refused("archived ProductsTable item", hank, [{"productId": shop.retired, "variantId": "OLD", "quantity": 1}],
             "AMOUNT_NOT_SETTLED")
-    refused("non-integer quantity", hank, [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1.5}], "NATIVE_CART_EMPTY")
+    refused("non-integer quantity", hank, [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1.5}],
+            "NATIVE_CART_SHORT_ONLY" if short_mode else "NATIVE_CART_EMPTY")
     refused("WABA2 sender", hank, [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1}],
             "PAYMENT_SENDER_NOT_PERMITTED", phone_id=PHONE_ID_2)
     W.payment_configurations = [dict(LIVE_PAYMENT_CONFIGURATIONS[1], provider_mid="acc_SOMEONEELSE")]
@@ -1260,7 +1335,7 @@ def run(root: Path) -> int:
                   invoice.get("customerPhone") == alice["phone"] and invoice.get("paidByPhone") == payer_phone,
                   {k: invoice.get(k) for k in ("customerPhone", "paidByPhone")})
             check("INV", "invoice itemises the cart (product name, quantity) instead of one 'Payment' line",
-                  [(r["name"], int(r["quantity"])) for r in rows] == [("Hermetic Tee", 3)],
+                  [(r["name"], int(r["quantity"])) for r in rows] == [("Hermetic Tee", expected_quantity)],
                   [(r.get("name"), r.get("quantity")) for r in rows])
             check("INV", "line amounts are taxable values that sum to the subtotal",
                   sum(paise(r["amount"]) * int(r["quantity"]) for r in rows) == subtotal_p,
@@ -1538,12 +1613,12 @@ def run(root: Path) -> int:
               and "no-store" in json.dumps(page.get("headers") or {}).lower(),
               (page.get("statusCode"), page_body.get("status")))
         check("PAGE", "...with the lines the buyer reviewed (name, quantity, integer paise)",
-              view.get("items") == [{"name": "Hermetic Tee", "quantity": 3, "unitPricePaise": 59900,
-                                     "totalPaise": 179700}], view.get("items"))
+              view.get("items") == [{"name": "Hermetic Tee", "quantity": expected_quantity, "unitPricePaise": 59900,
+                                     "totalPaise": 59900 * expected_quantity}], view.get("items"))
         charges = view.get("charges") or {}
         check("PAGE", "...a breakdown that closes to the amount paid, with Delight named",
               charges.get("totalPaise") == amount == view.get("amountPaise")
-              and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
+              and charges.get("merchandisePaise") == 59900 * expected_quantity and charges.get("discountPaise", 0) > 0
               and charges.get("discountLabel") == "Delight", charges)
         # Payment and fulfilment are separate. Capture starts the internal fulfilment state at
         # processing; the customer order page reads that same OrderTable value.
@@ -2042,8 +2117,9 @@ def run(root: Path) -> int:
     lena = shop.customer(12)
     for label, lines_in, expected in (
             ("a Vault line mixed with goods", [service_line(service_requests.VAULT), {"product_retailer_id": tee, "quantity": 1}],
-             "ordered on its own"),
-            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)], "ordered on its own"),
+             "Short checkout accepts one item" if short_mode else "ordered on its own"),
+            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)],
+             "Short checkout accepts one item" if short_mode else "ordered on its own"),
             ("Submit Request (not sold on WhatsApp)", [service_line(service_requests.SUBMIT_REQUEST)],
              "cannot be bought from the WhatsApp catalog")):
         mark = W.mark()
@@ -2500,7 +2576,11 @@ def main() -> int:
     parser.add_argument("--root", default=str(Path(__file__).resolve().parents[1]),
                         help="repository tree to verify (default: this checkout)")
     parser.add_argument("--json", dest="json_out", help="also write the check results here")
+    parser.add_argument("--short-only", action="store_true",
+                        help="exercise hermetic payment rail with the one-unit policy enabled")
     args = parser.parse_args()
+    # Only the test process; no Lambda configuration or AWS account changes.
+    os.environ["SHORT_COMMERCE_PART1_ENABLED"] = "true" if args.short_only else "false"
     root = Path(args.root).resolve()
     print(f"verifying the WhatsApp payment rail in {root}")
     with mock_aws():
