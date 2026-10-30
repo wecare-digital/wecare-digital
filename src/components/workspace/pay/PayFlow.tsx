@@ -757,12 +757,37 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     } catch ( e ) { showMsg( 'Send failed', 'error' ); }
     setActionLoading( '' );
   };
+  // Every issued invoice retains its GST number. There is no safe hard-delete pathway.
+  // Void is conditional on the current unpaid money state, enforced again by invoice-engine.
   const doCancelInvoice = async ( inv: Invoice ) => {
-    if ( !canCancelInvoice( inv ) ) return;
-    if ( !( await confirm( 'Cancel this unpaid invoice? Its number and history will be retained. Messages already sent to WhatsApp are not retracted.' ) ) ) return;
+    if ( !canCancelInvoice( inv ) ) {
+      showMsg( 'Only an eligible unpaid invoice can be voided. Use refund/credit-note review for paid records.', 'error' );
+      return;
+    }
+    const ok = await confirm( {
+      title: 'Void this unpaid invoice?',
+      message: 'The invoice number, line items, payment/delivery evidence and GST history will be kept. WhatsApp messages already sent cannot be recalled. Paid invoices cannot be voided.',
+      confirmText: 'Void invoice',
+      danger: true,
+    } );
+    if ( !ok ) return;
     setActionLoading( 'cancel' );
-    try { const r = await api.cancelInvoice( inv.invoiceId ); if ( r ) { showMsg( 'Invoice cancelled' ); setSelInvoice( null ); loadInvoices(); } else showMsg( 'Cancel failed', 'error' ); } catch ( e ) { showMsg( 'Cancel failed', 'error' ); }
-    setActionLoading( '' );
+    try {
+      const result = await api.cancelInvoiceResult( inv.invoiceId, 'Voided from Workspace Payments after staff confirmation' );
+      if ( result.ok && result.data?.status === 'cancelled' ) {
+        showMsg( 'Invoice voided; its GST number and history are retained.' );
+        setSelInvoice( null );
+        loadInvoices();
+      } else if ( !result.ok ) {
+        showMsg( result.failure.message || 'Invoice void was refused.', 'error' );
+      } else {
+        showMsg( 'Void not confirmed. Refresh the invoice status before retrying.', 'error' );
+      }
+    } catch {
+      showMsg( 'Void request failed. Check the invoice before retrying.', 'error' );
+    } finally {
+      setActionLoading( '' );
+    }
   };
   const doGenerateImage = async ( inv: Invoice ) => {
     setActionLoading( 'img' );
@@ -1264,7 +1289,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                 <div style={ { flex: 1 } } />
                 <Button variant="secondary" size="sm" icon="refresh" loading={ invLoading } onClick={ loadInvoices }>Refresh</Button>
               </div>
-              <p>Cancelled invoices remain available in Cancelled or All; invoice numbers are retained.</p>
+              <p>Invoices cannot be permanently deleted once numbered. Use <strong>Void invoice</strong> for eligible unpaid invoices; paid invoices require refund or credit-note review. Voided invoices remain in Cancelled or All with their GST numbers and history.</p>
               <div className="stats-grid" style={ { marginBottom: 16 } }>
                 <div className="stat-card accent"><div className="pf-stat-value">{ invStats.total }</div><div className="pf-stat-label">Total</div></div>
                 <div className="stat-card"><div className="pf-stat-value">{ invStats.paid }</div><div className="pf-stat-label">Paid</div></div>
@@ -1287,7 +1312,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                             <td><span className={ `status-badge ${badgeClass( inv )}` }>{ inv.status }</span></td>
                             <td><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 'var(--text-xs)', fontWeight: 500, background: 'var(--bg-secondary)', color: 'var(--accent)' } }>{ inv.entryPoint || 'manual' }</span></td>
                             <td>{ fmtDate( inv.createdAt ) }</td>
-                            <td onClick={ e => e.stopPropagation() }>{ canCancelInvoice( inv ) && <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( inv ) }>Cancel Invoice</Button> }</td>
+                            <td onClick={ e => e.stopPropagation() }>{ canCancelInvoice( inv ) && <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( inv ) }>Void invoice</Button> }</td>
                           </tr>
                         ) ) }
                       </tbody>
@@ -1412,8 +1437,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         </>
                       ) }
                       { canCancelInvoice( selInvoice ) && (
-                        <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( selInvoice ) }>Cancel Invoice</Button>
+                        <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( selInvoice ) }>Void invoice</Button>
                       ) }
+                      <p className="pf-invoice-retention-note">Delete is unavailable for issued GST invoices. Unpaid invoices can be voided with history retained; paid invoices require financial adjustment.</p>
                     </div>
                     { deliveryLogs.length > 0 && (
                       <div className="pf-section-divider">
