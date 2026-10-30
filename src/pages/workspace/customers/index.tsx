@@ -662,6 +662,9 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     const cleaned = phone.replace(/[\s\-().]/g, '');
     return /^\+?\d{7,15}$/.test(cleaned);
   };
+  // Email is intentionally absent from the F001 form, but still editable in the legacy table.
+  const isValidEmail = (email: string): boolean =>
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 
   const handleCreate = async () => {
     setFormError('');
