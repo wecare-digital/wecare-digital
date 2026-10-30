@@ -84,6 +84,7 @@ import '../styles/button.css';
    no-sidebar shell can override dashboard-era framing and broad button rules in one place.
    It is scoped under .workspace-shell and therefore cannot affect public routes. */
 import '../styles/workspace.css';
+import '../styles/workspace-shell.css';
 /* LAST, and that is the whole mechanism. form-controls.css is the one shared skin for the
    native controls, and it has to arrive after every rule in the 85-rule-set inventory above -
    including Layout.css's own @import of tokens.css and workspace.css - or a per-page select rule
@@ -97,6 +98,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PublicShare from '../components/PublicShare';
+import WorkspaceShell from '../components/WorkspaceShell';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
@@ -1170,10 +1172,22 @@ export default function App ( { Component, pageProps }: AppProps ) {
           {
             ( window as any ).FB.AppEvents.logEvent( 'CompletedRegistration' );
           }
+          const handleSignOut = () => { signOut?.(); void router.push( '/' ); };
+          const routedPage = (
+            <Component { ...pageProps } signOut={ handleSignOut } user={ user as any } />
+          );
+          const authenticatedPage = router.pathname.startsWith( '/workspace' )
+            ? (
+              <WorkspaceShell user={ user as any } onSignOut={ handleSignOut }>
+                { routedPage }
+              </WorkspaceShell>
+            )
+            : routedPage;
+
           return (
             <ToastProvider>
               <ConfirmProvider>
-                <Component { ...pageProps } signOut={ () => { signOut?.(); router.push( '/' ); } } user={ user as any } />
+                { authenticatedPage }
                 <FloatingAgent />
                 {/* THE SAME COMBINED WIDGET AS THE PUBLIC PAGES, so contact and
                     language are in one place on every route in the product rather

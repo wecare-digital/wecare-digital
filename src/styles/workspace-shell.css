@@ -1,0 +1,96 @@
+.workspace-shell{
+  --workspace-measure:var(--public-content-max,1300px);
+  --workspace-page-x:0px;
+  --workspace-page-y:0px;
+  --workspace-section-gap:var(--public-section-gap,96px);
+}
+.workspace-shell .inner-content-container{
+  width:100%!important;
+  max-width:var(--public-content-max,1300px)!important;
+  min-width:0;
+  margin:0 auto!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+}
+.workspace-shell .inner-content-container>.page-shell,
+.workspace-shell .inner-content-container>.inner-page-container,
+.workspace-shell .inner-content-container>.comms-page,
+.workspace-shell .inner-content-container>.commerce-page,
+.workspace-shell .inner-content-container>.service-page,
+.workspace-shell .inner-content-container>.tk-page{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  padding-inline:0!important;
+  box-sizing:border-box;
+}
+.workspace-shell .inner-content-container>.page-shell>.ps-header{padding:0 0 18px!important}
+.workspace-shell .ps-tabs-wrapper{
+  padding-inline:0!important;
+  overflow-x:auto;
+  overflow-y:hidden;
+  max-width:100%;
+  overscroll-behavior-inline:contain;
+}
+.workspace-shell .ps-title,
+.workspace-shell .comms-head h1,
+.workspace-shell .commerce-head h1,
+.workspace-shell .service-head h1,
+.workspace-shell .workspace-page-head h1,
+.workspace-shell .tk-h1{
+  font-size:var(--public-hero-size)!important;
+  font-weight:var(--public-hero-weight)!important;
+  line-height:var(--public-hero-leading)!important;
+  letter-spacing:var(--public-hero-tracking)!important;
+}
+.workspace-shell .ps-subtitle{
+  max-width:var(--public-reading-max,700px);
+  font-size:var(--public-supporting-size)!important;
+}
+.workspace-shell .workspace-main .ps-tab,
+.workspace-shell .workspace-main .comms-tabs button,
+.workspace-shell .workspace-main .commerce-tabs button,
+.workspace-shell .workspace-main .service-tabs button,
+.workspace-shell .workspace-main .ledger-switch button{
+  min-height:auto!important;
+  height:auto!important;
+}
+.workspace-shell .workspace-main .ps-content,
+.workspace-shell .workspace-main .ps-content>*,
+.workspace-shell .workspace-main section,
+.workspace-shell .workspace-main article,
+.workspace-shell .workspace-main form{
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+.workspace-shell .workspace-main img,
+.workspace-shell .workspace-main video,
+.workspace-shell .workspace-main canvas{max-width:100%;height:auto}
+.workspace-shell .workspace-main .table-container,
+.workspace-shell .workspace-main [class$="-table-wrap"]{
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+}
+
+.workspace-shell .ui-modal-overlay{
+  z-index:1400!important;
+}
+.workspace-shell .ui-modal-panel{
+  min-width:0;
+  max-width:min(100%,900px);
+}
+@media(max-width:767px){
+  .workspace-shell{--workspace-section-gap:var(--public-mobile-section-gap,64px)}
+  .workspace-shell .ps-title{font-size:var(--public-mobile-hero-size,40px)!important}
+  .workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]),
+  .workspace-shell .workspace-main select,
+  .workspace-shell .workspace-main textarea{font-size:16px!important}
+  .workspace-shell .workspace-main .btn,
+  .workspace-shell .workspace-main button[role="combobox"]{min-height:auto!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .workspace-shell .workspace-main{scroll-behavior:auto!important}
+}

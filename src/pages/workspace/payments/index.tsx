@@ -10,7 +10,6 @@
  */
 import React from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
@@ -119,60 +118,60 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout onSignOut={ signOut } user={ user } showBreadcrumbs={ false } shellClassName="payments-public-layout">
+    <>
       <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
-            <PageShell
-              key={ active }
-              className="payments-shell"
-              title="Payments"
-              subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
-              tabs={ TABS }
-              activeTab={ active }
-              defaultTab={ active }
-              onTabChange={ next => {
-                const view = mode( next );
+      <PageShell
+        key={ active }
+        className="payments-shell"
+        title="Payments"
+        subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
+        tabs={ TABS }
+        activeTab={ active }
+        defaultTab={ active }
+        onTabChange={ next => {
+          const view = mode( next );
+          void router.push( {
+            pathname: '/workspace/payments',
+            query: view === 'ledger'
+              ? { view: 'ledger', ledger: 'invoices' }
+              : view === 'defaults'
+                ? { view: 'defaults' }
+                : { view: 'collect' },
+          } );
+        } }
+      >
+        { ( tab ) => (
+          <>
+            { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
+            { tab === 'defaults' && (
+              <DefaultInvoiceItems onUse={ choice => {
                 void router.push( {
                   pathname: '/workspace/payments',
-                  query: view === 'ledger'
-                    ? { view: 'ledger', ledger: 'invoices' }
-                    : view === 'defaults'
-                      ? { view: 'defaults' }
-                      : { view: 'collect' },
+                  query: { view: 'collect', preset: choice.slug },
                 } );
-              } }
-            >
-              { ( tab ) => (
-                <>
-                  { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
-                  { tab === 'defaults' && (
-                    <DefaultInvoiceItems onUse={ choice => {
-                      void router.push( {
-                        pathname: '/workspace/payments',
-                        query: { view: 'collect', preset: choice.slug },
-                      } );
-                    } } />
-                  ) }
-                  { tab === 'ledger' && (
-                    <section className="ledger" aria-label="Payment ledger">
-                      <div className="ledger-switch" role="group" aria-label="Ledger view">
-                        <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
-                          aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
-                          Invoices
-                        </button>
-                        <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
-                          aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
-                          Activity
-                        </button>
-                      </div>
-                      { ledgerView === 'invoices'
-                        ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
-                        : <PaymentsActivity /> }
-                    </section>
-                  ) }
-                </>
-              ) }
-            </PageShell>
-    </Layout>
+              } } />
+            ) }
+            { tab === 'ledger' && (
+              <section className="ledger" aria-label="Payment ledger">
+                <div className="ledger-switch" role="group" aria-label="Ledger view">
+                  <button type="button" className={ ledgerView === 'invoices' ? 'active' : '' }
+                    aria-pressed={ ledgerView === 'invoices' } onClick={ () => goLedger( 'invoices' ) }>
+                    Invoices
+                  </button>
+                  <button type="button" className={ ledgerView === 'activity' ? 'active' : '' }
+                    aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
+                    Activity
+                  </button>
+                </div>
+                { ledgerView === 'invoices'
+                  ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
+                  : <PaymentsActivity /> }
+              </section>
+            ) }
+          </>
+        ) }
+      </PageShell>
+    </>
   );
 };
 
