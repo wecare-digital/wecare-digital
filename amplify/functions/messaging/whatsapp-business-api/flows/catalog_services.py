@@ -443,7 +443,19 @@ def _offer_send_outcome(response):
     return 'VAULT_OFFER_UNCONFIRMED', 'HTTP %d' % code
 
 
-def _offer_message_id(response):\n    \"\"\"Provider WAMID returned by outbound for an accepted offer, or empty.\"\"\"\n    if not isinstance(response, dict):\n        return ''\n    try:\n        body = json.loads(response.get('body') or '{}')\n    except (TypeError, ValueError):\n        body = {}\n    if not isinstance(body, dict):\n        return ''\n    return str(body.get('whatsappMessageId') or body.get('messageId') or '')[:160]\n\ndef _send_offer(event, client, db, keys, contacts, now):
+def _offer_message_id(response):
+    # Provider WAMID returned by outbound for an accepted offer, or empty.
+    if not isinstance(response, dict):
+        return ''
+    try:
+        body = json.loads(response.get('body') or '{}')
+    except (TypeError, ValueError):
+        body = {}
+    if not isinstance(body, dict):
+        return ''
+    return str(body.get('whatsappMessageId') or body.get('messageId') or '')[:160]
+
+def _send_offer(event, client, db, keys, contacts, now):
     """Staff asked for ₹49 for one file: send the Vault offer (wecare_vault_request_ready). Never charges.
 
     The offer names the document and carries an opaque token in its "Unlock Vault" quick reply.
@@ -487,7 +499,8 @@ def _offer_message_id(response):\n    \"\"\"Provider WAMID returned by outbound 
     offer = {'orderId': OFFER_PREFIX + token, 'kind': 'VAULT_OFFER', 'fileId': file_id,
              'ownerCustomerId': owner, 'phone': phone, 'contactId': contact_id,
              'createdAt': now, 'expiresAt': now + OFFER_TTL_SECONDS, 'fileState': state,
-             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64],\n             'offerTemplate': whatsapp_templates.VAULT_OFFER.name}
+             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
+             'offerTemplate': whatsapp_templates.VAULT_OFFER.name}
     keys.put_item(Item=offer, ConditionExpression='attribute_not_exists(orderId)')
     # No contact id is fine: outbound resolves or creates the contact from the number.
     recipient = {'contactId': contact_id, 'phone': phone,
@@ -498,9 +511,15 @@ def _offer_message_id(response):\n    \"\"\"Provider WAMID returned by outbound 
     except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
         response = None
     outcome, detail = _offer_send_outcome(response)
-    keys.update_item(Key={'orderId': offer['orderId']}, UpdateExpression='SET #s=:s, sendDetail=:d',
+    message_id = _offer_message_id(response)
+    update = 'SET #s=:s, sendDetail=:d'
+    values = {':s': outcome, ':d': detail}
+    if message_id:
+        update += ', offerMessageId=:mid'
+        values[':mid'] = message_id
+    keys.update_item(Key={'orderId': offer['orderId']}, UpdateExpression=update,
                      ExpressionAttributeNames={'#s': 'status'},
-                     ExpressionAttributeValues={':s': outcome, ':d': detail})
+                     ExpressionAttributeValues=values)
     if outcome == 'VAULT_OFFER_NOT_SENT':
         # Nothing reached the customer, so staff may try again straight away.
         try:
@@ -510,9 +529,12 @@ def _offer_message_id(response):\n    \"\"\"Provider WAMID returned by outbound 
                              ExpressionAttributeValues={':now': now})
         except Exception:  # noqa: BLE001 - a newer offer owns the guard now
             pass
-    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED',\n            'detail': detail, 'messageId': message_id}
+    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED',
+            'detail': detail, 'messageId': message_id}
 
-\n\ndef _send_native_payment(event, client, db, keys, contacts, now):
+
+
+def _send_native_payment(event, client, db, keys, contacts, now):
     """Staff -> native Review & Pay for exactly one Vault file.
 
     The file row is already server-bound to one permanent customer at publish time. For a direct
