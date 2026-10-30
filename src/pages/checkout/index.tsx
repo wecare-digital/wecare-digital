@@ -92,7 +92,7 @@ export default function CheckoutMethodPage (): React.ReactElement {
               padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);
               border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
               border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
-              box-sizing:border-box;
+              box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans);
             }
             .checkout-method-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
             .checkout-auth-action{
@@ -109,7 +109,7 @@ export default function CheckoutMethodPage (): React.ReactElement {
             .checkout-auth-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
             .checkout-method-error{margin:0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);font-size:14px;font-weight:600;line-height:1.4}
             @media(max-width:767px){
-              .checkout-method{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+              .checkout-method{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}
               .checkout-method-actions{display:grid;grid-template-columns:1fr;width:100%}
               .checkout-auth-action{width:100%}
             }
