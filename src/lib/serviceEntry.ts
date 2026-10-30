@@ -26,7 +26,7 @@ import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/cart/';
-/** Payment-method chooser shown only after cart review. */
+/** Legacy deep-link payment-method chooser. Short Commerce chooses on /cart/ directly. */
 export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
