@@ -84,6 +84,7 @@ import '../styles/button.css';
    no-sidebar shell can override dashboard-era framing and broad button rules in one place.
    It is scoped under .workspace-shell and therefore cannot affect public routes. */
 import '../styles/workspace.css';
+import '../styles/workspace-shell.css';
 /* LAST, and that is the whole mechanism. form-controls.css is the one shared skin for the
    native controls, and it has to arrive after every rule in the 85-rule-set inventory above -
    including Layout.css's own @import of tokens.css and workspace.css - or a per-page select rule
