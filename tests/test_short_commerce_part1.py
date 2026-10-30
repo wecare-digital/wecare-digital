@@ -66,6 +66,7 @@ class ShortPurchaseTests(unittest.TestCase):
         self.assertIn("void proceed( 'website' );", page)
         self.assertIn("void proceed( 'whatsapp' );", page)
         self.assertNotIn("window.location.assign( CHECKOUT_METHOD_PATH )", page)
+        self.assertIn("stashPendingAction( { kind: 'checkout', channel: chosenChannel } )", page)
         self.assertIn("writeCart( [ selected ] );", cart)
         self.assertIn("if ( items.length > 1 ) return [];", cart)
         self.assertIn("quantity: 1", cart)
