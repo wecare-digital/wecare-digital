@@ -611,10 +611,12 @@ def _unowned(item: Dict[str, Any]) -> bool:
 
 
 def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
-    """Return a verified profile only for an exact permanent customer owner.
+    """Return a verified profile only for the permanent customer owner.
 
-    Phone matching locates candidates; ownerless contacts require staff reconciliation.
-    The authenticated WhatsApp session is the primary identity; email is contact data.
+    WhatsApp OTP plus the stored Cognito owner, not an optional email address,
+    establishes checkout identity. Do not turn a valid phone-owned profile into
+    PROFILE_REQUIRED just because the customer never supplied an email.
+    Ownerless and foreign-owner contacts remain unavailable.
     """
     try:
         response = _table(CONTACTS_TABLE).query(
@@ -630,8 +632,6 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
         if item.get("deletedAt") is not None:
             continue
         if not identity.customer_id or item.get("checkoutCustomerId") != identity.customer_id:
-            continue
-        if not str(item.get("email") or "").strip():
             continue
         return item
     return None
@@ -1779,7 +1779,16 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     if not profile:
         return cors_response(409, {
             "error": "PROFILE_REQUIRED",
-            "message": "Verify your email and save your checkout details first.",
+            "message": "Sign in with your verified WhatsApp number and save your name first.",
+        }, origin)
+    # The minimal phone-only contact created during OTP bootstrap is an identity,
+    # not a completed checkout profile. Digital-service checkouts need a name,
+    # even when no shipping address or email is required.
+    if not str(profile.get("name") or
+               f'{profile.get("firstName") or ""} {profile.get("lastName") or ""}').strip():
+        return cors_response(409, {
+            "error": "PROFILE_REQUIRED",
+            "message": "Add your name to continue checkout.",
         }, origin)
 
     # THE DELIVERY ADDRESS, enforced HERE for a basket that ships. The browser's readiness probe
