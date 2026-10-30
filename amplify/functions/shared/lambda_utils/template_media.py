@@ -21,12 +21,10 @@ DEFAULT_ORDER_ITEM_THUMBNAIL = (
 # Legacy name kept for packaged callers while they converge on the explicit constant above.
 ORDER_ITEM_IMAGE = DEFAULT_ORDER_ITEM_THUMBNAIL
 
-# The currently approved native-payment template still declares an IMAGE header at Meta.
-# Keep its send-time media separate from the item-thumbnail contract; removing that header
-# requires editing the approved Meta template first.
-PAYMENT_TEMPLATE_HEADER = (
-    "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/wecare-catalog-icon.png"
-)
+# The approved native-payment template still declares an IMAGE header at Meta.
+# Use the shared default header; item thumbnails are supplied separately in
+# ORDER_DETAILS item parameters. Do not replace the header with the item thumbnail.
+PAYMENT_TEMPLATE_HEADER = SHARED_TEMPLATE_HEADER
 
 DEFAULT_HEADER_IMAGE = SHARED_TEMPLATE_HEADER
 ORDER_CATALOG_HEADER = PAYMENT_TEMPLATE_HEADER
