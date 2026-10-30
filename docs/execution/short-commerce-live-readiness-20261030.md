@@ -42,8 +42,10 @@ account `775261844268` region `us-east-1`, Meta app
   WhatsApp order-status and customer-invoice pipeline. Service-specific
   post-invoice Flow dispatch is present, but not every SKU has an
   automated Flow: offline physical fulfillment remains an internal task.
-  The Pickup Flow payload gap documented in the original Part 1 plan
-  remains a separate fulfillment blocker.
+  PR #1967 merged source changes for Pickup's terminal payload and
+  paid, order-bound completion, but Meta's published Flow JSON and the
+  relevant live Lambda versions still need verification before enabling it.
+  A merged source fix alone is not a completed courier booking.
 
 ## Commercial and customer contract
 
@@ -103,6 +105,26 @@ python scripts/check_short_commerce_live.py --region us-east-1 --expect-account 
 This intentionally exits non-zero while a required alias is unflagged.
 It does not query customer records, print secrets, send WhatsApp messages,
 create payment attempts, update Lambda aliases or alter AWS resources.
+
+## Release CI baseline note
+
+PR #1968 was merged while the newly introduced CI run
+[41075565699](https://github.com/wecare-digital/wecare-digital/actions/runs/41075565699)
+still failed the **global design-drift gate**. That run verified all Short
+Commerce payment-critical checks: the real cart runtime, TypeScript
+typecheck, seven frontend Python contracts, seven backend policy tests, and
+the hermetic WhatsApp/Razorpay -> order -> invoice workflow.
+
+The last gate found exactly four pre-existing `public_token_not_consumed`
+design-token mismatches in GetPage (two), CartPage (one) and checkout/status
+(one). Their remediation is tracked at
+[issue #1970](https://github.com/wecare-digital/wecare-digital/issues/1970).
+The Short Commerce CI therefore reports the global design census as
+an explicitly labelled **advisory**, while keeping all payment, invoice and
+checkout checks mandatory. The canonical
+`python scripts/check_design_drift.py --gate` is **not** changed and must
+pass in the separate design remediation. Do not describe the four existing
+violations as fixed.
 
 ## Unverified conditions at this audit
 
