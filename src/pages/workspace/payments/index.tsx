@@ -209,15 +209,20 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             min-height:100dvh;
             background:var(--public-bg,#fff);
             color:var(--public-text,#111);
+            font-family:var(--font-sans);
           }
           .payments-public-main{
             width:100%;
             max-width:none;
+            min-width:0;
             min-height:calc(100vh - 108px);
             min-height:calc(100dvh - 108px);
             margin:0;
             padding:108px 0 0;
-            overflow:visible;
+            box-sizing:border-box;
+            overflow-x:hidden;
+            overflow-x:clip;
+            overflow-y:visible;
             background:#fff;
           }
           .payments-public-actions{
@@ -228,17 +233,23 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             gap:8px;
           }
           .payments-public-actions button{
-            padding:9px 14px;
-            border:1px solid var(--public-hairline,#e5e7eb);
-            border-radius:12px;
-            background:#fff;
+            padding:8px 12px;
+            border:0;
+            border-radius:10px;
+            background:var(--public-lime-tint,#f8faf3);
             color:var(--public-brand-green,#1a3a2a);
-            font:700 13px/1.2 var(--font-sans);
+            font:600 var(--public-supporting-size,16px)/1.3 var(--font-sans);
+            text-decoration:underline;
+            text-decoration-thickness:1.5px;
+            text-underline-offset:4px;
             cursor:pointer;
+            transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
           }
           .payments-public-actions button:hover{
-            border-color:var(--public-brand-lime,#d1f470);
-            background:#f8faf3;
+            background:var(--public-brand-lime,#d1f470);
+            transform:translateY(-1px);
+            box-shadow:var(--public-lift-shadow);
+            text-decoration-color:transparent;
           }
           .payments-public-actions button:focus-visible{
             outline:2px solid var(--public-brand-green,#1a3a2a);
@@ -269,7 +280,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             }
             .payments-public-actions button{width:100%}
             .payments-public-action-tail{
-              padding-inline:16px;
+              padding-inline:var(--public-mobile-page-gutter);
               padding-bottom:40px;
             }
           }
