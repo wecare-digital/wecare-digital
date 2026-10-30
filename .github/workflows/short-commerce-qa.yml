@@ -111,3 +111,12 @@ jobs:
           --with boto3==1.43.116
           --with 'moto[dynamodb,cognitoidp]==5.2.4'
           python scripts/verify_whatsapp_catalog_payment_rail.py
+      # The feature-ON contract must also pass: one SKU/one unit through the
+      # exact native + web payment capture/invoice path, with negative multi-cart
+      # requests refused before a PaymentAttempt or Meta payment template.
+      - name: Opt-in one-unit hermetic payment and refusal E2E
+        run: >
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with 'moto[dynamodb,cognitoidp]==5.2.4'
+          python scripts/verify_whatsapp_catalog_payment_rail.py --short-only
