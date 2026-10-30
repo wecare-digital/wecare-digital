@@ -101,7 +101,18 @@ export function vaultMessageSteps (
   const processingProof = providerStatus( log?.evidence.processing );
   const completedProof = providerStatus( log?.evidence.completed );
   const invoiceProof = providerStatus( log?.evidence.invoice );
+  // Automatic paid delivery and staff-requested resends are different sends.
+  // Display both independently; neither status proves the other was delivered.
+  const automaticAccessProof = providerStatus( log?.evidence.autoAccess );
   const accessProof = providerStatus( log?.evidence.access );
+  const accessEvents = [
+    { label: 'Automatic access', data: log?.evidence.autoAccess, proof: automaticAccessProof },
+    { label: 'Staff resend', data: log?.evidence.access, proof: accessProof },
+  ].map( entry => ({
+    label: entry.label,
+    status: entry.proof?.label || 'Not verified',
+    timestamp: timeLabel( entry.data?.observedAt || undefined ),
+  }) );
   const orderEvents = [
     { label: 'Processing', data: log?.evidence.processing, proof: processingProof },
     { label: 'Completed', data: log?.evidence.completed, proof: completedProof },
@@ -112,7 +123,7 @@ export function vaultMessageSteps (
   }) );
   const offerState = offerProof?.state || outcomeState( offer, 'VAULT_OFFER_SENT' );
   const payState = outcomeState( payment, 'PAYMENT_REQUEST_SENT' );
-  const accessState = accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
+  const accessState = automaticAccessProof?.state || accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
   const stage = ( i: number, gapDefault: string ) => {
     const record = journey?.steps[ i ];
     return {
@@ -167,12 +178,17 @@ export function vaultMessageSteps (
     {
       index: 5, title: TITLE[ 4 ], ...stage( 4, 'After invoice acceptance' ),
       event: 'Paid entitlement + invoice required',
-      state: accessState, stateLabel: accessProof?.label || ( access ? stateText( accessState ) : paid ? 'Paid access available' : 'Waiting for paid access' ),
-      delivery: accessProof?.delivery || 'Handset delivery/read not independently linked',
-      at: timeLabel( file?.lastAccessSentAt ),
+      state: accessState,
+      stateLabel: automaticAccessProof
+        ? 'Auto access · ' + automaticAccessProof.label
+        : accessProof ? 'Staff resend · ' + accessProof.label
+          : access ? stateText( accessState ) : paid ? 'Paid access · delivery unverified' : 'Waiting for paid access',
+      delivery: automaticAccessProof?.delivery || accessProof?.delivery || 'Handset delivery/read not independently linked',
+      at: timeLabel( log?.evidence.autoAccess?.observedAt || file?.lastAccessSentAt ),
       detail: access ? 'Last staff resend: ' + access + ( file?.lastAccessSentBy ? ' · by ' + file.lastAccessSentBy : '' )
-        : paid ? 'Paid access exists; automatic Access Vault message has no staff-resend audit timestamp here'
+        : paid ? 'Paid entitlement exists; automatic and manual send events are tracked separately'
           : 'No authorized Access Vault send yet',
+      subEvents: accessEvents,
     },
   ];
 }
