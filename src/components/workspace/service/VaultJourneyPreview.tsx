@@ -129,6 +129,7 @@ export default function VaultJourneyPreview ( props: Props ) {
   const draftFile = props.mode === 'upload' ? props.draftFile : null;
   const fileName = currentFile?.displayName || draftFile?.name || 'Choose a document';
   const fileType = currentFile?.contentType || draftFile?.type || 'Type confirmed after upload';
+  const isPdf = fileType === 'application/pdf';
   const fileBytes = currentFile?.sizeBytes || draftFile?.size;
   const fileId = currentFile?.fileId || '';
   const owner = currentFile?.ownerName || props.customerName || 'Choose a customer';
@@ -262,9 +263,11 @@ export default function VaultJourneyPreview ( props: Props ) {
         <h3>What the customer gets</h3>
         <dl className={ styles.variables }>
           <div><dt>Original file</dt><dd>{ fileName }</dd></div>
-          <div><dt>Customer transport</dt><dd>Exact-file Vault link, not a public S3 key or file attachment</dd></div>
+          <div><dt>Customer transport</dt><dd>Exact-file Vault link; never a raw private S3 key</dd></div>
           <div><dt>Access</dt><dd>One paid 24-hour window; renewal required after expiry</dd></div>
-          <div><dt>Media variants</dt><dd>PDF, image, office files and other supported types use the same secure Vault link</dd></div>
+          <div><dt>Media variants</dt><dd>{ isPdf
+            ? 'PDF: Vault link plus an optional WhatsApp document when a delivery copy exists and the customer messaged within 24 hours. Attachment filename: ' + ( currentFile?.originalFilename || draftFile?.name || 'system fallback' )
+            : 'Images, office files and other supported types: the approved secure Vault link.' }</dd></div>
           <div><dt>Invoice header</dt><dd>Dynamic PNG generated only after payment</dd></div>
         </dl>
         { currentFile && (
