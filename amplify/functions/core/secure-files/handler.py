@@ -1419,6 +1419,129 @@ def _message_status_for_verified_send(wamid: str) -> Dict[str, Any]:
     }
 
 
+def _logged_send_evidence(wamid: str, sent_at: Any) -> Dict[str, Any]:
+    """Safe status/time projection from an already server-bound send audit row.
+
+    A delivery-log WAMID is proof of provider submission, never handset
+    delivery. Only a monotonic webhook-updated message row may say READ or
+    DELIVERED. Never return phone, invoice, payment, raw WAMID or S3 data.
+    """
+    try:
+        at = int(sent_at or 0)
+    except (TypeError, ValueError):
+        at = 0
+    at = at if 0 < at < 5000000000 else None
+    if not isinstance(wamid, str) or not wamid.startswith("wamid.") or len(wamid) > 512:
+        return {"status": "NOT_TRACKED", "observedAt": at}
+    proof = _message_status_for_verified_send(wamid)
+    if proof["status"] == "NOT_TRACKED":
+        return {"status": "ACCEPTED", "observedAt": at, "source": "SEND_LOG"}
+    if proof["status"] == "UNAVAILABLE":
+        return {"status": "UNAVAILABLE", "observedAt": at}
+    return {
+        "status": proof["status"],
+        "observedAt": proof.get("observedAt") or at,
+        "source": "MESSAGE_STATUS",
+    }
+
+
+def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Bounded joins through a paid entitlement to the latest paid invoice.
+
+    The file's server-written owner, immutable entitlement and paid grant must
+    ALL match. No joins by phone/name/amount, scans, external requests or sends.
+    Invoices are resolved by the exact payment reference on the verified grant.
+    Missing/ambiguous audit evidence stays NOT_TRACKED, never guessed.
+    """
+    none = {"status": "NOT_TRACKED", "observedAt": None}
+    result = {"nativePay": none, "processing": none,
+              "completed": none, "invoice": none}
+    entitlement_id = str(item.get("vaultEntitlementId") or "")
+    if not entitlement_id or not item.get("ownerCustomerId") or not item.get("ownerPhone"):
+        return result
+    grants = _table(GRANTS_TABLE)
+    entitlement = grants.get_item(
+        Key={"grantId": entitlement_id}, ConsistentRead=True).get("Item") or {}
+    if not (entitlement.get("recordType") == "VAULT_ENTITLEMENT"
+            and entitlement.get("entitlementState") == "ACTIVE"
+            and entitlement.get("customerId") == item["ownerCustomerId"]
+            and entitlement.get("ownerPhone") == item["ownerPhone"]
+            and entitlement.get("fileId") == item["fileId"]):
+        return result
+    grant_id = str(entitlement.get("lastGrantId")
+                   or entitlement.get("sourceGrantId") or "")
+    grant = grants.get_item(
+        Key={"grantId": grant_id}, ConsistentRead=True).get("Item") if grant_id else {}
+    if not grant or not (grant.get("paid") is True
+                         and grant.get("customerId") == item["ownerCustomerId"]
+                         and grant.get("ownerPhone") == item["ownerPhone"]
+                         and grant.get("fileId") == item["fileId"]
+                         and grant.get("entitlementId") == entitlement_id):
+        return result
+    ref = str(grant.get("reference") or "")
+    if not ref or len(ref) > 160:
+        return result
+    # The outbound payment template is bound by the same server-owned reference.
+    outbound = _table(os.environ.get(
+        "WA_OUTBOUND_TABLE", "stack-wecare-digital-WhatsAppOutboundTable"))
+    payment_rows = outbound.query(
+        IndexName="paymentReferenceId-index",
+        KeyConditionExpression="paymentReferenceId = :ref",
+        ExpressionAttributeValues={":ref": ref},
+        Limit=15,
+    ).get("Items") or []
+    native = [row for row in payment_rows
+              if row.get("paymentReferenceId") == ref
+              and str(row.get("direction") or "").lower() == "outbound"
+              and str(row.get("messageType") or "").lower() in ("template", "payment")
+              and str(row.get("whatsappMessageId") or "").startswith("wamid.")]
+    if native:
+        chosen = min(native, key=lambda row: int(row.get("createdAt") or 0))
+        result["nativePay"] = _logged_send_evidence(
+            str(chosen.get("whatsappMessageId") or ""),
+            chosen.get("createdAt"))
+    # The reference join is exact and bounded; two invoices are ambiguous evidence.
+    invoices = _table(os.environ.get(
+        "INVOICES_TABLE", "stack-wecare-digital-InvoicesTable")).query(
+        IndexName="referenceId-index",
+        KeyConditionExpression="referenceId = :ref",
+        ExpressionAttributeValues={":ref": ref},
+        Limit=2,
+    ).get("Items") or []
+    paid = [row for row in invoices
+            if row.get("referenceId") == ref
+            and str(row.get("paymentStatus") or "").lower() == "paid"
+            and row.get("invoiceId")]
+    if len(invoices) != 1 or len(paid) != 1:
+        return result
+    invoice_id = str(paid[0]["invoiceId"])
+    logs = _table(os.environ.get(
+        "INVOICE_DELIVERY_TABLE", "stack-wecare-digital-InvoiceDeliveryLogTable")).query(
+        KeyConditionExpression="invoiceId = :id",
+        ExpressionAttributeValues={":id": invoice_id},
+        ScanIndexForward=False, Limit=30,
+        ConsistentRead=True,
+    ).get("Items") or []
+    for row in logs:
+        channel = str(row.get("channel") or "").lower()
+        status = str(row.get("status") or "").lower()
+        if channel == "whatsapp_order_status":
+            key = status if status in ("processing", "completed") else ""
+        elif channel == "whatsapp":
+            key = "invoice"
+        else:
+            continue
+        if key and result[key]["status"] == "NOT_TRACKED":
+            evidence = _logged_send_evidence(
+                str(row.get("waMessageId") or ""), row.get("timestamp"))
+            # An invoice log can contain a definite provider refusal as well.
+            if evidence["status"] == "NOT_TRACKED" and status in ("failed", "rejected"):
+                evidence = {"status": "FAILED", "observedAt": int(row.get("timestamp") or 0),
+                            "source": "SEND_LOG"}
+            result[key] = evidence
+    return result
+
+
 def _admin_message_log(file_id: str, origin: str) -> Dict[str, Any]:
     """Staff-only status view for provider IDs belonging to one bound Vault file.
 
@@ -1435,11 +1558,19 @@ def _admin_message_log(file_id: str, origin: str) -> Dict[str, Any]:
         return _no_store(cors_response(404, {"error": "UNKNOWN_FILE"}, origin))
     offer = _message_status_for_verified_send(str(item.get("lastOfferMessageId") or ""))
     access = _message_status_for_verified_send(str(item.get("lastAccessMessageId") or ""))
+    try:
+        paid_evidence = _verified_vault_payment_evidence(item)
+        scope = "file_bound_verified_paid_reference"
+    except ClientError as exc:
+        logger.warning(json.dumps({"event": "vault_paid_message_audit_unavailable",
+                                   "error": exc.response.get("Error", {}).get("Code", "AWS_ERROR")}))
+        paid_evidence = {}
+        scope = "file_bound_only_paid_audit_unavailable"
     return _no_store(cors_response(200, {
         "fileId": file_id,
-        "evidence": {"offer": offer, "access": access},
-        "scope": "file_bound_staff_sends_only",
-        "otherStages": "ORDER_INVOICE_EVIDENCE_NOT_LINKED",
+        "evidence": {"offer": offer, **paid_evidence, "access": access},
+        "scope": scope,
+        "otherStages": "NO_GUESSED_WAMIDS_OR_DELIVERY",
     }, origin))
 
 
