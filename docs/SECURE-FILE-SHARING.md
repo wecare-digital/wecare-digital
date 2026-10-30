@@ -238,8 +238,14 @@ The offer sender records Meta's `whatsappMessageId` when available, together wit
 per-file resend guard and an offer token; a 2xx send indicates provider acceptance, **not**
 handset delivery. Status-webhook WAMIDs must be used for delivered/read confirmation.
 Customer tap and verified capture are ordering gates; arbitrary sleep intervals cannot
-replace either event. The existing post-capture order status / receipt / paid-Vault
-dispatches retain their individual idempotency claims.
+replace either event. For a verified native Vault purchase only, the processing and completed
+order-status sends have a **1-second gap** after provider acceptance, and completed and the
+invoice have another 1-second gap. After the accepted invoice, the paid Vault fulfilment waits
+**2 seconds** before sending the Access Vault link. These are bounded UI-spacing delays, NOT
+a guarantee of handset order: strict delivered/read sequencing requires consuming `messages`
+webhook statuses for every stage's `whatsappMessageId` with a durable per-customer outbox.
+The existing post-capture order-status, receipt and paid-Vault dispatches retain their
+individual idempotency claims.
 
 The browser never submits a trusted amount, SKU, customer id or payment state. For an EXPIRED file,
 business-api reads the durable entitlement and allows a renewal only when every paid window has
