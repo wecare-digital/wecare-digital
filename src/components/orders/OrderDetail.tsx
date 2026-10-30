@@ -408,7 +408,7 @@ export default function OrderDetail (
                     } else {
                       setInvoiceState( result === 'ok' ? 'idle' : result );
                     }
-                  } );
+                  } ).catch( () => setInvoiceState( 'failed' ) );
                 } }>
                 { invoiceState === 'busy' ? 'Preparing invoice…' : 'Download GST invoice' }
               </button>
