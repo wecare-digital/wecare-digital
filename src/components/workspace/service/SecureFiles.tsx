@@ -591,6 +591,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </div>
                         <span className="sf-private-indicator">Private · Customer-bound</span>
                     </div>
+                    <nav className="sf-top-links" aria-label="Vault action shortcuts">
+                        <a href="#sf-add" onClick={ () => setMode( 'upload' ) }>Where to publish a file</a>
+                        <a href="#sf-action-panel" onClick={ () => setMode( 'existing' ) }>Send · Resend · Schedule</a>
+                    </nav>
                     <ol className="sf-progress" aria-label="Vault workflow">
                         <li><span>1</span> Customer</li>
                         <li><span>2</span> File</li>
@@ -1140,7 +1144,31 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-message-heading span{font-weight:700;font-size:11px;color:#59745c}
                 .sf-composer-help{font-size:11px;line-height:1.5;color:var(--text-muted);margin:8px 0 0}
                 .sf-composer-help code{font-size:11px}
-                .sf-review-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:grid;gap:12px}
+                .sf-delivery-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+                .sf-delivery-buttons .sf-cta{min-height:45px;padding:10px 12px;font-size:12px;white-space:normal;line-height:1.4}
+                .sf-delivery-buttons .sf-send-cta{grid-column:1 / -1;min-height:49px;font-size:14px!important}
+                .sf-action-empty{padding:14px;background:#f6faf3;border:1px dashed #c6dfc1;border-radius:11px;color:#48624c;font-size:13px;line-height:1.5}
+                .sf-action-empty strong{font-weight:750;color:#234a2f}
+                .sf-action-empty p{margin:6px 0 12px}
+                .sf-action-warning{grid-column:1 / -1;margin:0;color:#66766a;font-size:11px;line-height:1.45}
+                .sf-schedule-box{padding:16px;border:1px solid #c9dcbf;border-radius:13px;background:#f8fcf5;display:grid;gap:10px}
+                .sf-schedule-box h3{margin:0;font-size:15px;color:#214b2b}
+                .sf-schedule-box .sf-input{max-width:330px}
+                .sf-schedule-controls{display:flex;gap:8px;flex-wrap:wrap}
+                .sf-schedule-controls .sf-cta{min-height:43px;font-size:13px;padding:9px 15px}
+                .sf-schedules{padding:12px 14px;border-radius:11px;border:1px solid #e1e9dd;background:#fff}
+                .sf-schedules-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+                .sf-schedules-heading h3{font-size:13px;margin:0;font-weight:750;color:#284b32}
+                .sf-schedule-record{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid #e8efe5;padding:10px 0}
+                .sf-schedule-record:first-of-type{margin-top:8px}
+                .sf-schedule-record strong{display:block;font-size:12px;color:#243c2c}
+                .sf-schedule-record small{display:block;font-size:11px;color:#61746a;line-height:1.6}
+                .sf-other-messages{display:inline-flex;color:var(--accent);font-size:12px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
+                .sf-top-links{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 18px}
+                .sf-top-links a{font-size:12px;font-weight:750;padding:7px 13px;border:1px solid #d7e6d3;background:#f8faf5;color:#245334;border-radius:999px;text-decoration:none}
+                .sf-top-links a:hover{background:#ecf7e0}
+                .sf-top-links a:focus-visible{outline:2px solid #356e38;outline-offset:2px}
+                                .sf-review-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:grid;gap:12px}
                 .sf-review-checks{display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:var(--text-muted)}
                 .sf-review-checks strong{width:100%;font-size:13px;color:var(--text)}
                 .sf-review-checks span{font-size:11px;padding:5px 8px;border-radius:7px;background:#f4f6f4;border:1px solid #e3e7e1}
@@ -1182,7 +1210,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-selection-actions>small{color:var(--text-muted);font-size:12px}
                 .sf-selection-actions .sf-cta{font-size:13px;min-height:44px;padding:0 16px}
                 @media(max-width:1080px){.sf-workbench{grid-template-columns:minmax(0,1fr)}}
-                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid,.sf-identity-fields{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}.sf-progress{gap:5px}.sf-progress li{font-size:10px;padding:5px 7px}.sf-private-indicator{margin-top:4px}}
+                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid,.sf-identity-fields,.sf-delivery-buttons{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}.sf-progress{gap:5px}.sf-progress li{font-size:10px;padding:5px 7px}.sf-private-indicator{margin-top:4px}}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
