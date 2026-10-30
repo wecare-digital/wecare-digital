@@ -40,7 +40,11 @@ def load_packager():
     return module
 
 
-def run(*, dry_run: bool) -> None:
+# Explicitly allowed for the additional message-spacing rollout only.
+ALLOWED_EXTRA_FUNCTIONS = ("wecare-razorpay-webhook",)
+
+
+def run(*, dry_run: bool, targets: tuple[str, ...] = RELEASE_ORDER) -> None:
     source_commit = os.environ.get("SOURCE_COMMIT", "")
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
         raise ValueError("SOURCE_COMMIT must pin an exact forty-character commit SHA")
@@ -49,7 +53,7 @@ def run(*, dry_run: bool) -> None:
     client = boto3.client("lambda", region_name=REGION)
     specs = {entry.name: entry for entry in packager.SPECS}
     plans = []
-    for name in RELEASE_ORDER:
+    for name in targets:
         if name not in specs:
             raise RuntimeError(f"Missing packager spec for {name}")
         package, _ = packager.build_zip(specs[name])
@@ -145,9 +149,15 @@ def run(*, dry_run: bool) -> None:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--functions", default="",
+                   help="Comma-separated subset: explicit Vault functions only")
     args = p.parse_args()
     try:
-        run(dry_run=args.dry_run)
+        permitted = set(RELEASE_ORDER) | set(ALLOWED_EXTRA_FUNCTIONS)
+        chosen = tuple(n.strip() for n in args.functions.split(",") if n.strip()) if args.functions else RELEASE_ORDER
+        if not chosen or len(chosen) != len(set(chosen)) or any(n not in permitted for n in chosen):
+            raise ValueError("Invalid, duplicate or non-Vault release function")
+        run(dry_run=args.dry_run, targets=chosen)
         return 0
     except Exception as exc:
         print(json.dumps({"phase": "failed", "errorType": type(exc).__name__, "message": str(exc)[:350]}),
