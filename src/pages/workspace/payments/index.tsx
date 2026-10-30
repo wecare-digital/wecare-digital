@@ -10,9 +10,7 @@
  */
 import React from 'react';
 import { useRouter } from 'next/router';
-import Header from '../../../components/Header';
-import Footer from '../../../components/Footer';
-import PublicShare from '../../../components/PublicShare';
+import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
@@ -121,22 +119,8 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <>
+    <Layout onSignOut={ signOut } user={ user } showBreadcrumbs={ false } shellClassName="payments-public-layout">
       <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
-      { /*
-          Payments is a deliberate authenticated exception to the normal Workspace chrome.
-          The owner asked for the same public shell as /auth: the real Header/navigation,
-          Stay connected dock and Footer. We therefore do NOT render Layout here; two fixed
-          headers would collide. The structural .layout/.workspace-shell classes are retained
-          so existing payment styling and SupportWidget's authenticated translation boundary
-          still work. The operational surface stays data-wc-no-translate so customer names,
-          numbers, addresses and invoice details are never machine-translated.
-        */ }
-      <div className="layout workspace-shell payments-public-layout">
-        <Header />
-
-        <main id="main-content" className="main-content workspace-main payments-public-main" data-wc-no-translate="true">
-          <div className="inner-content-container">
             <PageShell
               key={ active }
               className="payments-shell"
@@ -194,37 +178,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
                 </>
               ) }
             </PageShell>
-          </div>
-        </main>
-
-        <div className="payments-public-action-tail">
-          <PublicShare />
-        </div>
-        <Footer />
-
         <style jsx>{`
-          .payments-public-layout{
-            display:block;
-            min-height:100vh;
-            min-height:100dvh;
-            background:var(--public-bg,#fff);
-            color:var(--public-text,#111);
-            font-family:var(--font-sans);
-          }
-          .payments-public-main{
-            width:100%;
-            max-width:none;
-            min-width:0;
-            min-height:calc(100vh - 108px);
-            min-height:calc(100dvh - 108px);
-            margin:0;
-            padding:108px 0 0;
-            box-sizing:border-box;
-            overflow-x:hidden;
-            overflow-x:clip;
-            overflow-y:visible;
-            background:#fff;
-          }
           .payments-public-actions{
             display:flex;
             align-items:center;
@@ -255,46 +209,19 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             outline:2px solid var(--public-brand-green,#1a3a2a);
             outline-offset:2px;
           }
-          .payments-public-action-tail{
-            width:100%;
-            max-width:var(--public-content-max);
-            min-width:0;
-            margin:0 auto;
-            padding:8px var(--public-page-gutter) 48px;
-            overflow-x:hidden;
-            overflow-x:clip;
-            box-sizing:border-box;
-            font-family:var(--font-sans);
-            color:var(--public-text);
-          }
           @media(max-width:767px){
-            .payments-public-main{
-              min-height:calc(100vh - 96px);
-              min-height:calc(100dvh - 96px);
-              padding-top:96px;
-            }
             .payments-public-actions{
               width:100%;
               display:grid;
               grid-template-columns:1fr 1fr;
             }
             .payments-public-actions button{width:100%}
-            .payments-public-action-tail{
-              padding-inline:var(--public-mobile-page-gutter);
-              padding-bottom:40px;
-            }
           }
           @media(max-width:480px){
             .payments-public-actions{grid-template-columns:1fr}
           }
         `}</style>
-      </div>
-      { /*
-          SupportWidget is intentionally not mounted here. _app.tsx already mounts the one
-          authenticated WhatsApp + language widget after this page, and its contentRoot()
-          resolves to the .layout above. Duplicating it would create two fixed support pills.
-        */ }
-    </>
+    </Layout>
   );
 };
 
