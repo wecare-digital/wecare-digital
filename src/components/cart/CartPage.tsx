@@ -536,6 +536,77 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     return () => { live = false; };
   }, [] );
 
+  // A read-only ProductsTable quote is mandatory before the website can start
+  // Razorpay. Profile, delivery or cart edits trigger an independent fresh quote.
+  // No payment attempt or provider order is created by this effect.
+  useEffect( () => {
+    let live = true;
+    if ( !ready || items.length === 0 ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      return () => { live = false; };
+    }
+    if ( items.some( needsVariantSelection ) ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteNotice( 'Choose an option for each product to see the total.' );
+      return () => { live = false; };
+    }
+
+    let lines: CheckoutLineItem[];
+    try { lines = toLineItems( items ); }
+    catch {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteNotice( 'Review the products and quantities in your cart.' );
+      return () => { live = false; };
+    }
+    const fingerprint = basketFingerprint( lines );
+    setQuote( null );
+    setQuoteFor( '' );
+    setQuoteLoading( true );
+    setQuoteNotice( '' );
+    void ( async () => {
+      try {
+        const session = getSession() || await restoreSession();
+        if ( !session ) {
+          if ( live ) setQuoteNotice( 'Sign in to review the final price before paying.' );
+          return;
+        }
+        const serviceIntent = serviceIntentFor( lines );
+        const response = await fetch( PREPARE_CHECKOUT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json',
+            Authorization: `Bearer ${ session.accessToken }` },
+          body: JSON.stringify( { action: 'quote', lineItems: lines,
+            ...( serviceIntent ? { serviceIntentId: serviceIntent } : {} ) } ),
+        } );
+        const body = await response.json().catch( () => ( {} ) ) as Record<string, unknown>;
+        if ( !live ) return;
+        const parsed = response.ok ? parseCheckoutQuote( body ) : null;
+        if ( !parsed ) {
+          const error = String( body.error || '' );
+          setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Complete your name to review the price.'
+            : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm your delivery address to see the final price.'
+              : error === 'CART_NOT_PAYABLE' ? 'Review your cart; one of its items cannot be priced.'
+                : response.status === 401 ? 'Sign in again to review the price.'
+                  : 'A verified price breakdown is not available yet. Payment is disabled.' );
+          return;
+        }
+        // A stale response must never price a different basket selected meanwhile.
+        if ( basketFingerprint( toLineItems( readCart() ) ) !== fingerprint ) return;
+        setQuote( parsed );
+        setQuoteFor( fingerprint );
+        setQuoteNotice( '' );
+      } catch {
+        if ( live ) setQuoteNotice( 'The price service is unavailable. Payment is disabled.' );
+      } finally {
+        if ( live ) setQuoteLoading( false );
+      }
+    } )();
+    return () => { live = false; };
+  }, [ items, ready, profile, profileStatus, quoteRevision ] );
+
   /**
    * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
    *
