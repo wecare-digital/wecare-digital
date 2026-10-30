@@ -1,6 +1,6 @@
 import { buildPageTitle } from '../../lib/page-title';
 /**
- * /cart/ - the cart review page and the checkout `create` handoff.
+ * /checkout/ - the only cart review page and the checkout payment handoff.
  *
  * WHAT IT DOES. Lists the cart (name + catalogue formattedPrice for DISPLAY only), keeps website
  * product lines single-unit, lets the shopper remove lines, and on "Proceed to checkout" ensures a customer session then
@@ -14,7 +14,7 @@ import { buildPageTitle } from '../../lib/page-title';
  *
  * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
  * (customer_auth.require_customer). If getSession() is null the shopper is sent to
- * /auth?return=/cart/ FIRST and returned here afterwards; the cart is in localStorage
+ * /auth?return=/checkout/ FIRST and returned here afterwards; the cart is in localStorage
  * so it survives the redirect. A signed-in shopper proceeds directly. A test asserts that a null
  * session routes to sign-in and makes NO create call.
  *
@@ -625,7 +625,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    * than an edge. The `return` value is validated by `safeLocalReturnPath`
    * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
    * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
-   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
+   * comes back as a bare `/checkout/` and the token is gone. That refusal is the control against a
    * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
    * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
    * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
@@ -662,7 +662,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const session = getSession();
     if ( !session )
     {
-      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
+      // The sign-in flow returns to a BARE `/checkout/` -- the allowlist strips the query -- so the
       // token has to be stashed here or it is lost. See the docblock above.
       rememberBasketToken( token );
       window.location.assign( `/auth?return=${ encodeURIComponent(
@@ -1343,7 +1343,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
-      // Remember the chosen rail across WhatsApp OTP. /auth returns to /cart/,
+      // Remember the chosen rail across WhatsApp OTP. /auth returns to /checkout/,
       // whose one-shot pending checkout resumes this exact channel after sign-in.
       stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
