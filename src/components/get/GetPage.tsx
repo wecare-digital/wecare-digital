@@ -697,7 +697,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   border-radius:12px;background:var(--public-brand-lime);color:var(--public-brand-green);
                   font-size:20px;font-weight:800;line-height:1;
                 }
-                .sf-loading strong{font-size:var(--public-card-size);line-height:1.2;color:var(--public-heading)}
+                .sf-loading strong{font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
                 .sf-loading>span:last-child{font-size:var(--public-supporting-size);line-height:1.45;color:var(--public-muted)}
                 .sf-form{display:block}
 
@@ -769,13 +769,14 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
 
                 .sf-empty{
-                  font-size:var(--public-supporting-size);line-height:1.5;color:var(--public-muted);margin:0;
+                  font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
                 }
 
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
                   .sf-loading-mark{width:46px;height:46px;border-radius:11px}
-                  .sf-loading strong,.sf-file-name{font-size:var(--public-mobile-card-size)}
+                  .sf-loading strong{font-size:var(--public-mobile-section-size)}
+                  .sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
                   }
