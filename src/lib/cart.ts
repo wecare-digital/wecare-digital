@@ -50,6 +50,10 @@ const CART_KEY = 'wecare.cart.v1';
  */
 export const CART_CHANGED_EVENT = 'wecare:cart-changed';
 
+/** Part 1 storefront checkout: one catalogue selection, one unit, no invisible basket truncation. */
+export const SHORT_COMMERCE_ONE_PRODUCT_MESSAGE =
+  'Buy one product at a time (quantity 1). Remove extra cart lines to continue.';
+
 export interface CartItem {
   productId?: string;
   variantId?: string;
@@ -290,9 +294,9 @@ function announce (): void {
 }
 
 /**
- * Add one product to the website cart. Website purchases are single-unit: adding the same
- * product/variant again is idempotent rather than increasing quantity. Quantity remains an
- * internal checkout field fixed to 1 so downstream catalog/payment contracts stay unchanged.
+ * Select the one storefront product for checkout. Re-selecting it is idempotent; choosing a
+ * different product or variant replaces the earlier UNPAID browser selection. Quantity remains
+ * fixed to 1 and the payment, order and invoice contracts are not changed.
  */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );
@@ -301,24 +305,21 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
   const ref = String( product.id || product.slug || '' ) + ( variantId ? `:${variantId}` : '' );
   if ( !ref ) return readCart();
   void qty;
-  const items = readCart();
-  const existing = items.find( item => item.ref === ref );
-  if ( !existing )
-  {
-    items.push( {
-      productId: product.id,
-      ...( variantId ? { variantId } : {} ),
-      ref,
-      slug: String( product.slug || '' ),
-      name: product.variants && product.variants.length > 1
-        ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
-        : String( product.name || '' ),
-      formattedPrice: String( product.formattedPrice || '' ),
-      quantity: 1,
-    } );
-  }
-  writeCart( items );
-  return items;
+  const existing = readCart().find( item => item.ref === ref );
+  const selected: CartItem = existing ? { ...existing, quantity: 1 } : {
+    productId: product.id,
+    ...( variantId ? { variantId } : {} ),
+    ref,
+    slug: String( product.slug || '' ),
+    name: product.variants && product.variants.length > 1
+      ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
+      : String( product.name || '' ),
+    formattedPrice: String( product.formattedPrice || '' ),
+    quantity: 1,
+  };
+  // A new selection replaces the prior UNPAID website selection. No multi-bag checkout.
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
@@ -448,7 +449,7 @@ export const contributionOf = ( item: CartItem ): ContributionChoice | null =>
   isContributionItem( item ) ? contributionChoice( item.variantId ) : null;
 
 /**
- * Exactly one contribution line per cart, and choosing an amount SETS it.
+ * A contribution is the one selected cart line; choosing an amount SETS it.
  *
  * THE ARGUMENT IS A CHOICE, NOT AN AMOUNT (owner model change, 2026-10-04). It used to take a
  * rupee integer and validate it against ₹10–₹1,00,000 bounds, because the figure became the line's
@@ -468,8 +469,7 @@ export function setContribution ( variantId: string ): CartItem[] {
   const choice = contributionChoice( variantId );
   if ( !choice ) return readCart();
   const ref = `${CONTRIBUTION_PRODUCT_ID}:${choice.variantId}`;
-  const items = readCart().filter( item => !isContributionItem( item ) );
-  items.push( {
+  const selected: CartItem = {
     productId: CONTRIBUTION_PRODUCT_ID,
     variantId: choice.variantId,
     // The shape `addItem` builds, so `removeItem` and the `key` prop work unchanged.
@@ -485,13 +485,13 @@ export function setContribution ( variantId: string ): CartItem[] {
     // this had to be blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.
     formattedPrice: `\u20B9${ choice.rupees }.00`,
     quantity: 1,
-  } );
-  writeCart( items );
-  return items;
+  };
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
- * Merge the lines a WhatsApp hand-off claim returned into the cart the customer pays from.
+ * Accept exactly one unit from a WhatsApp hand-off claim into the storefront cart.
  *
  * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the customer's SERVER-side cart, but
  * the cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
@@ -499,9 +499,10 @@ export function setContribution ( variantId: string ): CartItem[] {
  * customer saw no new items, and the next checkout reconciled the claimed lines straight back OUT
  * of the server-side cart, because the checkout makes that cart match the REQUEST.
  *
- * IT ADDS NO SECOND STORAGE PATH. Every write goes through `addItem` or `setContribution`, which
- * both end at `writeCart` - the one writer - so a claimed line is indistinguishable from a line
- * added on /shop/ and announces the same `CART_CHANGED_EVENT` for the header badge.
+ * IT ADDS NO SECOND STORAGE PATH. A single eligible claimed line goes through `addItem` or
+ * `setContribution`, which both use the same `writeCart` and `CART_CHANGED_EVENT`. Multi-line
+ * or multi-unit claims are NOT partly merged: the caller displays its existing refusal message,
+ * preserving the ability to reconcile the original WhatsApp basket without undercharging.
  *
  * A LINE THIS BUILD CANNOT PLACE IS SKIPPED, NOT GUESSED AT, and the count says so. A claimed
  * product can be absent from `SHOP_PRODUCTS` (added to ProductsTable since the committed snapshot
@@ -516,6 +517,13 @@ export function setContribution ( variantId: string ): CartItem[] {
  * already chosen an amount here, which is the basket the server refuses as two contributions.
  */
 export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[]; merged: number } {
+  // A WhatsApp hand-off may contain a legacy multi-line or multi-quantity basket.
+  // Never silently discard paid intent or choose an arbitrary line for checkout.
+  if ( !Array.isArray( lines ) || lines.length !== 1 ||
+       !Number.isInteger( lines[ 0 ].quantity ) || lines[ 0 ].quantity !== 1 )
+  {
+    return { items: readCart(), merged: 0 };
+  }
   let merged = 0;
   for ( const line of lines || [] )
   {
@@ -636,6 +644,12 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
  * server reads the authoritative total from ProductsTable, not from this.
  */
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
+  // Defense in depth for legacy/crafted carts; no request may silently drop a second line
+  // or turn a stored quantity > 1 into a charged single unit.
+  if ( items.length > 1 || items.some( item => item.quantity !== 1 ) )
+  {
+    throw new Error( SHORT_COMMERCE_ONE_PRODUCT_MESSAGE );
+  }
   return items
     .filter( item => item.ref && item.quantity > 0 )
     .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: 1 } ) );
@@ -663,7 +677,7 @@ export const isServiceItem = ( item: CartItem ): boolean =>
   !!item.productId && SERVICE_PRODUCT_IDS.has( item.productId );
 
 /**
- * SET the one service line (replacing any other service line) and remember its intent id.
+ * SET the single selected service line (replacing any unpaid cart line) and remember its intent id.
  *
  * Exactly one service per order (the server refuses two), quantity 1, display name and price from
  * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
@@ -679,8 +693,7 @@ export function setServiceLine (
   // and inventing one here would put a number on a cart row that the checkout had never priced. A
   // row with no usable amount is therefore not written at all.
   if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
-  const items = readCart().filter( item => !isServiceItem( item ) );
-  items.push( {
+  const selected: CartItem = {
     productId: choice.productId,
     variantId: choice.variantId,
     ref: `${ choice.productId }:${ choice.variantId }`,
@@ -692,14 +705,14 @@ export function setServiceLine (
     formattedPrice: `\u20B9${ Math.trunc( linePaise / 100 ) }`
       + `.${ String( linePaise % 100 ).padStart( 2, '0' ) }`,
     quantity: 1,
-  } );
+  };
   if ( hasWindow() )
   {
     window.localStorage.setItem(
       SERVICE_INTENT_KEY, JSON.stringify( { variantId: choice.variantId, intentId } ) );
   }
-  writeCart( items );
-  return items;
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
