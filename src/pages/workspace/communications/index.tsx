@@ -39,7 +39,6 @@ const AnalyticsPanel = lazyTab<PageProps>( () => import( '../../../components/wo
 const UsagePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Cost' ) );
 const SearchPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Search' ) );
 const LogsPanel = lazyTab<PageProps>( () => import( '../engage/logs' ) );
-const MetaAgentPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/MetaAgent' ) );
 const DocsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
 const LinksPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Links' ) );
 
