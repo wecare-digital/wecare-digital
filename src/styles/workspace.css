@@ -1190,23 +1190,63 @@
   font-weight: 600;
 }
 .workspace-shell .contacts-auth-modal .contacts-phone-control {
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
-  gap: 10px;
-  align-items: end;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  gap: 0;
+  border: 0;
+  border-bottom: 1px solid var(--public-hairline, #dfe4df);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control:focus-within {
+  border-bottom-color: var(--public-brand-green, #1a3a2a);
+  box-shadow: 0 1px 0 0 var(--public-brand-lime, #d1f470);
 }
 .workspace-shell .contacts-auth-modal .contacts-country-code {
   position: relative;
+  display: flex;
+  flex: 0 0 96px;
   min-width: 0;
+}
+.workspace-shell .contacts-auth-modal .contacts-country-code select,
+.workspace-shell .contacts-auth-modal .contacts-phone-control > input {
+  min-height: 52px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .workspace-shell .contacts-auth-modal .contacts-country-code select {
   display: block;
   width: 100%;
   min-width: 0;
+  padding-inline-start: 2px !important;
   font-size: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+.workspace-shell .contacts-auth-modal .contacts-phone-control > input {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-inline-start: 12px !important;
+}
+.workspace-shell .contacts-auth-modal .contacts-country-code select:focus,
+.workspace-shell .contacts-auth-modal .contacts-phone-control > input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.workspace-shell .contacts-auth-modal input:-webkit-autofill,
+.workspace-shell .contacts-auth-modal input:-webkit-autofill:hover,
+.workspace-shell .contacts-auth-modal input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111 !important;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+  caret-color: #111;
 }
 
 .workspace-shell .contacts-auth-modal .contacts-modal-error {
@@ -1316,8 +1356,8 @@
   .workspace-shell .contacts-auth-modal .contacts-form-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
-  .workspace-shell .contacts-auth-modal .contacts-phone-control {
-    grid-template-columns: minmax(76px, 92px) minmax(0, 1fr) !important;
+  .workspace-shell .contacts-auth-modal .contacts-country-code {
+    flex: 0 0 88px;
   }
   .workspace-shell .contacts-auth-modal .contacts-modal-head,
   .workspace-shell .contacts-auth-modal .contacts-modal-body {
@@ -1440,14 +1480,16 @@
   padding: 0 !important;
   background: transparent !important;
 }
+/* Keep the Workspace card structure, but use the shared auth underline for its fields. */
 .workspace-shell .contacts-workspace-form-v2 input,
 .workspace-shell .contacts-workspace-form-v2 select,
 .workspace-shell .contacts-workspace-form-v2 textarea {
   min-height: 48px !important;
-  padding: 10px 12px !important;
-  border: 1px solid rgba(26,58,42,.14) !important;
-  border-radius: 12px !important;
-  background: #fff !important;
+  padding: 10px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--public-hairline, #dfe4df) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
   color: #111 !important;
 }
@@ -1455,11 +1497,17 @@
 .workspace-shell .contacts-workspace-form-v2 select:focus,
 .workspace-shell .contacts-workspace-form-v2 textarea:focus {
   outline: none !important;
-  border-color: #1a3a2a !important;
-  box-shadow: 0 0 0 3px rgba(209,244,112,.32) !important;
+  border-bottom-color: var(--public-brand-green, #1a3a2a) !important;
+  box-shadow: 0 1px 0 0 var(--public-brand-lime, #d1f470) !important;
+}
+.workspace-shell .contacts-workspace-form-v2 .contacts-country-code select,
+.workspace-shell .contacts-workspace-form-v2 .contacts-phone-control > input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .workspace-shell .contacts-workspace-form-v2 .contacts-country-code select {
-  padding-inline: 10px !important;
+  padding-inline-start: 2px !important;
 }
 .workspace-shell .contacts-workspace-form-v2 .contacts-optional {
   margin-left: 5px;
