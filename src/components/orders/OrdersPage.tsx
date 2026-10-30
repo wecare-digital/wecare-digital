@@ -665,7 +665,7 @@ export default function OrdersPage (): React.ReactElement {
       <RotatingHero
         compact
         frame="Your"
-        words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#a3cd38' } ] }
+        words={ [ { word: focusOrder ? 'order' : 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
         sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
         ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
       >
