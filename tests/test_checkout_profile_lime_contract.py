@@ -30,7 +30,8 @@ def test_customer_profile_read_uses_owned_phone_not_optional_email():
 def test_checkout_method_survives_intervening_profile_editor():
     cart = (ROOT / "src/components/cart/CartPage.tsx").read_text()
     assert "channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel" in cart
-    assert "profile ? ( profile.name ? 'address' : 'name' ) : 'create'" in cart
+    # Owned phone-only profiles need a name-only editor, never a new account form.
+    assert "profile?.name ? 'address' : profile ? 'name' : 'create'" in cart
     assert 'emptyAddressLabel="Not saved yet"' in cart
     assert 'showAddress={ cartRequiresDelivery() }' in cart
     assert 'profileStatus === \'ready\' || profileStatus === \'required\'' in cart
