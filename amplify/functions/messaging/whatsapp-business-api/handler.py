@@ -434,7 +434,7 @@ def _list_flows(waba_id: str) -> Dict:
         return _resp(200, {'flows': []})
     rows, after, seen = [], None, set()
     while True:
-        params = {'fields': 'id,name,status,categories,validation_errors', 'limit': 100}
+        params = {'fields': 'id,name,status,categories,validation_errors,health_status,json_version,data_api_version', 'limit': 100}
         if after:
             params['after'] = after
         result = _graph_api(f'{waba_id}/flows', params=params, waba_id=waba_id)
@@ -455,7 +455,7 @@ def _list_flows(waba_id: str) -> Dict:
 def _get_flow(flow_id: str) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
-    result = _graph_api(flow_id, params={'fields': 'id,name,status,categories,validation_errors,json_version,data_api_version,endpoint_uri,preview,application'})
+    result = _graph_api(flow_id, params={'fields': 'id,name,status,categories,validation_errors,health_status,json_version,data_api_version,endpoint_uri,preview,application'})
     if 'error' in result:
         return _resp(400, result)
     return _resp(200, {'flow': result})
