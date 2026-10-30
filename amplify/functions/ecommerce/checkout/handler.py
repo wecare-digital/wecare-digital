@@ -1698,6 +1698,56 @@ def _record_cross_rail_pointer(snapshot, *, customer_id: str, attempt_id: str,
                                    "error": type(error).__name__}))
 
 
+def _verify_vault_website_renewal(identity: customer_auth.CustomerIdentity,
+                                  body: Dict[str, Any], line_items: Any) -> None:
+    """Refuse a second charge if a Vault file was paid after its cart intent was minted.
+
+    The website cart retains the immutable INTENT# file binding. This check reads
+    owner, file and entitlement at prepare time, immediately before any gateway
+    order can be minted. Never use a browser-supplied fileId, phone, price or grant.
+    Other products and services are unaffected.
+    """
+    line = service_requests.service_line(line_items)
+    if not line or line.kind != service_requests.VAULT:
+        return
+    iid = body.get("serviceIntentId")
+    if not isinstance(iid, str) or not service_requests.INTENT_ID_RE.fullmatch(iid):
+        raise website_checkout.CheckoutRejected("VAULT_FILE_BINDING_REQUIRED")
+    intent = _table("stack-wecare-digital-ServiceRequestsTable").get_item(
+        Key={"requestId": "INTENT#" + iid}, ConsistentRead=True).get("Item") or {}
+    file_id = str(intent.get("vaultFileId") or "")
+    if (not file_id or intent.get("kind") != service_requests.VAULT
+            or intent.get("ownerCustomerId") != identity.customer_id
+            or intent.get("status") != "OPEN"
+            or intent.get("variantId") != line.variant_id
+            or intent.get("targetRequestId") != "FILE#" + file_id):
+        raise website_checkout.CheckoutRejected("VAULT_FILE_BINDING_INVALID")
+    file_row = _table("stack-wecare-digital-SecureFilesTable").get_item(
+        Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+    if (file_row.get("status") != "active"
+            or file_row.get("ownerCustomerId") != identity.customer_id
+            or file_row.get("ownerPhone") != intent.get("vaultOwnerPhone")):
+        raise website_checkout.CheckoutRejected("VAULT_FILE_UNAVAILABLE")
+    from lambda_utils.ecommerce import vault_window
+    entitlement = _table("stack-wecare-digital-DownloadGrantsTable").get_item(
+        Key={"grantId": "vault-entitlement#" + identity.customer_id + "#" + file_id},
+        ConsistentRead=True,
+    ).get("Item") or {}
+    if entitlement:
+        if (entitlement.get("recordType") != "VAULT_ENTITLEMENT"
+                or entitlement.get("entitlementState") != "ACTIVE"
+                or entitlement.get("customerId") != identity.customer_id
+                or entitlement.get("fileId") != file_id
+                or entitlement.get("ownerPhone") != file_row.get("ownerPhone")):
+            raise website_checkout.CheckoutRejected("VAULT_ENTITLEMENT_UNVERIFIED")
+        if vault_window.access_state(entitlement, int(time.time())) != "EXPIRED":
+            raise website_checkout.CheckoutRejected("VAULT_ACCESS_ACTIVE")
+    elif (file_row.get("vaultPaymentStatus") == "PAID"
+          or file_row.get("vaultEntitlementId")
+          or file_row.get("vaultAccessGrantId")):
+        raise website_checkout.CheckoutRejected("VAULT_ENTITLEMENT_UNVERIFIED")
+
+
 def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                      origin: str) -> Dict[str, Any]:
     line_items = body.get("lineItems")
@@ -1711,6 +1761,19 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     refusal = service_requests.checkout_preflight(line_items, body)
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
+    # A Vault intent may have been minted while expired, then paid through WhatsApp
+    # before this website checkout. Recheck the file's *current* paid window here.
+    try:
+        _verify_vault_website_renewal(identity, body, line_items)
+    except website_checkout.CheckoutRejected as rejected:
+        return cors_response(409, {
+            "status": website_checkout.CHECKOUT_REJECTED,
+            "reason": rejected.reason,
+        }, origin)
+    except Exception as error:
+        logger.warning(json.dumps({"event": "vault_website_preflight_unavailable",
+                                   "error": type(error).__name__}))
+        return cors_response(503, {"error": "VAULT_VERIFICATION_UNAVAILABLE"}, origin)
 
     profile = _checkout_profile(identity)
     if not profile:
