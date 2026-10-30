@@ -1984,6 +1984,9 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
                                    "message": "A payment is recorded for this file but its access "
                                               "could not be read. Reconcile it; nothing was sent."},
                              origin)
+    # Do not send a download link for a missing private S3 object.
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     from whatsapp_delivery import send_vault_link
 
     actor = str((event.get("_auth") or {}).get("username", "staff"))[:128]
@@ -2011,9 +2014,35 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
     if not ok:
         return cors_response(502, {"error": outcome, "outcome": outcome,
                                    "message": "Nothing could be sent: " + detail}, origin)
+
+    # If a paid window was READY (e.g. automatic delivery was missed), the first
+    # accepted Access Vault message must start the SAME 24-hour clock. A free
+    # staff resend may never hold a READY entitlement open indefinitely.
+    # When OPEN, this function NEVER opens another window or extends the end.
+    if state == "READY":
+        try:
+            entitlement = _entitlement_for_file(str(item["ownerCustomerId"]), file_id)
+            if (not entitlement
+                    or entitlement.get("ownerPhone") != item.get("ownerPhone")
+                    or vault_window.access_state(entitlement, int(time.time())) not in ("READY", "OPEN")):
+                raise ValueError("Paid window could not be verified")
+            refreshed = _open_access_window(entitlement)
+            if not vault_window.window_open(refreshed, int(time.time())):
+                raise ValueError("Paid window did not open")
+            state = "OPEN"
+        except Exception as error:
+            # Meta may already have accepted the link. Never call send again.
+            logger.warning(json.dumps({"event": "vault_resend_window_unconfirmed",
+                                       "error": type(error).__name__,
+                                       "fileId": file_id}))
+            return cors_response(202, {
+                "error": "VAULT_LINK_ACCEPTED_WINDOW_UNVERIFIED",
+                "outcome": "VAULT_LINK_ACCEPTED_WINDOW_UNVERIFIED",
+                "message": "WhatsApp accepted the link, but the 24-hour window needs reconciliation. Do not resend automatically.",
+            }, origin)
     return cors_response(200, {"outcome": outcome, "fileId": file_id,
                                "accessState": state,
-                               "message": "The Access Vault link was sent on WhatsApp."}, origin)
+                               "message": "The Access Vault link was accepted by WhatsApp. Delivery is not yet verified."}, origin)
 
 
 # ── durable paid entitlement + renewable transport sessions ──────────────────
