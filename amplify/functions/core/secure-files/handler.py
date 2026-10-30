@@ -1427,6 +1427,14 @@ BUSINESS_API_FUNCTION = os.environ.get(
 #: callers. The sender is the existing WhatsApp ORDER_DETAILS / Review and Pay rail; this Lambda
 #: never builds a payment payload, never trusts a browser amount and never opens the website cart.
 _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
+    "VAULT_OFFER_SENT": (
+        200, "Vault request sent. The customer must tap Unlock Vault before Review and Pay is sent."),
+    "VAULT_OFFER_RECENT": (
+        202, "A Vault request was sent recently. Ask the customer to use that Unlock Vault message."),
+    "VAULT_OFFER_UNCONFIRMED": (
+        202, "The Vault request may have been sent. Check WhatsApp before trying again."),
+    "VAULT_OFFER_NOT_SENT": (
+        502, "The Vault request was not sent. Nothing was charged."),
     "PAYMENT_REQUEST_SENT": (
         200, "Payment request sent to the registered WhatsApp number. Complete Review and Pay there."),
     "PAYMENT_REQUEST_UNCONFIRMED": (
@@ -1498,6 +1506,7 @@ def _file_access_state(item: Dict[str, Any], now: int) -> str:
 
 def _start_native_vault_payment(
     item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
+    action: str = "sendPayment",
 ) -> Dict[str, Any]:
     """Ask the existing native WhatsApp rail for ONE exact-file Review and Pay.
 
@@ -1512,7 +1521,7 @@ def _start_native_vault_payment(
             FunctionName=BUSINESS_API_FUNCTION,
             InvocationType="RequestResponse",
             Payload=json.dumps({
-                "internalAction": "catalogService", "action": "sendPayment",
+                "internalAction": "catalogService", "action": action,
                 "fileId": str(item["fileId"]),
                 "ownerCustomerId": str(item["ownerCustomerId"]),
                 "ownerPhone": str(item["ownerPhone"]),
@@ -1592,11 +1601,12 @@ def _customer_request_payment(
 
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Staff-triggered native Review and Pay for one owner-bound Vault file.
+    """Staff-triggered ordered Vault journey for one owner-bound file.
 
-    This uses the same exact-file native WhatsApp payment rail as the customer Vault CTA. The
-    legacy sendOffer business-api action remains only as a rolling-deploy alias; no new
-    request-ready/Unlock Vault message is created here.
+    Staff sends the approved request-ready template first. Only the customer's signed
+    QUICK_REPLY "Unlock Vault" tap can advance the exact file to native Review and Pay.
+    The customer Vault CTA may still start Review and Pay directly after authenticated ownership
+    proof, but staff never skips the request-ready stage.
     """
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
@@ -1625,7 +1635,8 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
         }, origin)
     return _start_native_vault_payment(
         item, state, origin,
-        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64])
+        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
+        action="sendOffer")
 
 
 def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
