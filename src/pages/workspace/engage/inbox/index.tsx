@@ -1954,7 +1954,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, embedded, channel } ) => {
         </>
     );
 
-    if ( embedded ) return content;
     return content;
 };
 
