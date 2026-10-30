@@ -111,3 +111,13 @@ jobs:
           --with boto3==1.43.116
           --with 'moto[dynamodb,cognitoidp]==5.2.4'
           python scripts/verify_whatsapp_catalog_payment_rail.py
+      # The enabled contract changes the legitimate checkout fixture to one
+      # product/one unit and requires whole-basket refusal before payment.
+      # Keep BOTH modes blocking: OFF preserves the frozen previous rail.
+      - name: Short Commerce ON: one-unit captured payment and multibasket refusals
+        run: >
+          SHORT_COMMERCE_PART1_ENABLED=true
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with 'moto[dynamodb,cognitoidp]==5.2.4'
+          python scripts/verify_whatsapp_catalog_payment_rail.py
