@@ -30,6 +30,10 @@ const fakeWindow = {
 };
 const cart = loadModule( 'src/lib/cart.ts', fakeWindow );
 const { parseCheckoutQuote } = loadModule( 'src/lib/checkoutQuote.ts', fakeWindow );
+const { isSignedInvoiceUrl } = loadModule( 'src/lib/customerInvoice.ts', fakeWindow );
+assert.equal( isSignedInvoiceUrl( 'https://s3.amazonaws.com/invoice?X-Amz-Signature=abc' ), true );
+assert.equal( isSignedInvoiceUrl( 'javascript:alert(1)//Expires=123' ), false );
+assert.equal( isSignedInvoiceUrl( 'http://s3.amazonaws.com/invoice?Signature=abc' ), false );
 
 const kiosk = {
   id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', slug: 'kiosk',
