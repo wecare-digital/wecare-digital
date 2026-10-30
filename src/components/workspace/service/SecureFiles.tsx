@@ -698,7 +698,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
                                     : vaultBreakdown === null
                                         ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'The customer receives Vault ready first. Their Unlock Vault tap starts native Review & Pay. Once payment is verified, the receipt and Access Vault link use this exact file ID. Staff cannot override the URL.' }
+                                        : 'The customer receives Vault ready first. Their Unlock Vault tap starts native Review & Pay. After payment is verified, the receipt and Access Vault link follow. The dynamic URL uses this exact file ID. Staff do not type or override it.' }
                         </p>
                     </aside>
                 </div>
