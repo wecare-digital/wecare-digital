@@ -1,6 +1,7 @@
 /**
- * Catalog & Flow Builder — add products to a Meta WhatsApp catalog and create
- * WhatsApp Flows from one place. Styled with the app "subscribe" theme
+ * Catalog & Flow Builder — add products and inspect retained customer
+ * WhatsApp Flows. Historical Meta designs are not accessible here.
+ * Styled with the app "subscribe" theme
  * (forest-green var(--accent) / lime var(--lime), mirrors forms/customerservice.tsx).
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,20 +27,14 @@ const ACCOUNTS = [
     { key: 'waba2', label: 'WABA 2 · Manish Agarwal', wabaId: '2513394156072604', catalogId: '1457045652952851' },
 ];
 
-const FLOW_CATEGORIES = [ 'SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION',
-    'CONTACT_US', 'CUSTOMER_SUPPORT', 'SURVEY', 'OTHER' ];
-
 /** The index is the state, so the value is the index as a string. */
 const ACCOUNT_OPTIONS: SelectOption[] = ACCOUNTS.map( ( a, i ) => ( { value: String( i ), label: a.label } ) );
-const FLOW_CATEGORY_OPTIONS: SelectOption[] = FLOW_CATEGORIES.map( c => ( { value: c, label: c } ) );
 /* Layout only, and `inline-block` is not cosmetics: the native control was inline-level, and
    the "catalog … · waba …" caption sits BESIDE it. .ui-field is display:block, so without this
    the caption drops to its own line. */
 const ACCOUNT_SELECT_STYLE: React.CSSProperties = {
     display: 'inline-block', width: 360, maxWidth: '100%', marginBottom: 0, verticalAlign: 'middle',
 };
-/** The marginBottom `S.input` carried, so the grid rows keep their rhythm. */
-const FIELD_SELECT_STYLE: React.CSSProperties = { marginBottom: 12 };
 
 const S = {
     tab: ( active: boolean ): React.CSSProperties => ( {
@@ -63,9 +58,9 @@ export default function CatalogBuilderPage ( { signOut, user, embedded }: PagePr
     const body = (
             <div className="inner-page" style={ { padding: '20px 24px', maxWidth: 1100 } }>
                 <div style={ { marginBottom: 16 } }>
-                    <h2 style={ { margin: 0, fontSize: 20, color: 'var(--accent)' } }>Catalog &amp; Flow Builder</h2>
+                    <h2 style={ { margin: 0, fontSize: 20, color: 'var(--accent)' } }>Catalog &amp; Published Flows</h2>
                     <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                        Add products to your WhatsApp catalog and create Flows — one place, secure server-side calls.
+                        Add products to your WhatsApp catalog and inspect the retained published Flows.
                     </p>
                 </div>
 
@@ -81,7 +76,7 @@ export default function CatalogBuilderPage ( { signOut, user, embedded }: PagePr
 
                 <div style={ { borderBottom: '1px solid var(--border)', marginBottom: 16, display: 'flex', gap: 4 } }>
                     <button style={ S.tab( tab === 'product' ) } onClick={ () => setTab( 'product' ) }>Add Product</button>
-                    <button style={ S.tab( tab === 'flow' ) } onClick={ () => setTab( 'flow' ) }>Create Flow</button>
+                    <button style={ S.tab( tab === 'flow' ) } onClick={ () => setTab( 'flow' ) }>Published Flows</button>
                 </div>
 
                 { tab === 'product' && <ProductTab acct={ acct } toast={ toast } confirm={ confirm } /> }
@@ -92,7 +87,7 @@ export default function CatalogBuilderPage ( { signOut, user, embedded }: PagePr
     if ( embedded ) return body;
     return (
         <Layout user={ user } onSignOut={ signOut }>
-            <SEO title="Catalog & Flow Builder" description="Add catalog products and create WhatsApp Flows" />
+            <SEO title="Catalog & Flow Builder" description="Catalog products and retained WhatsApp Flows" />
             { body }
         </Layout>
     );
@@ -308,98 +303,46 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
     );
 }
 
-// ─────────────────────────────── Create Flow ───────────────────────────────
+// ─────────────────────────────── Retained Flows ───────────────────────────────
 function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: any } ) {
-    const [ name, setName ] = useState( '' );
-    const [ category, setCategory ] = useState( 'OTHER' );
-    const [ creating, setCreating ] = useState( false );
     const [ flows, setFlows ] = useState<any[]>( [] );
     const [ loading, setLoading ] = useState( false );
-    const [ showAllMetaFlows, setShowAllMetaFlows ] = useState( false );
-    // Keep past Meta designs for audit without treating them as live customer Flows.
     const retainedFlows = flows.filter( f => acct.key === 'waba1'
-        && [ 'PUBLISHED', 'THROTTLED' ].includes( String( f.status || '' ).toUpperCase() )
         && !!publishedFlowById( String( f.id || '' ) ) );
-    const visibleFlows = showAllMetaFlows ? flows : retainedFlows;
 
     const load = useCallback( async () => {
         setLoading( true );
         try { setFlows( await api.listFlows( acct.wabaId ) ); }
-        catch { toast.error( 'Failed to load flows' ); }
+        catch { toast.error( 'Failed to load Meta Flows' ); }
         finally { setLoading( false ); }
     }, [ acct.wabaId, toast ] );
 
-    useEffect( () => { load(); }, [ load ] );
-
-    const handleCreate = async () => {
-        if ( !name.trim() ) { toast.error( 'Flow name is required' ); return; }
-        setCreating( true );
-        try
-        {
-            const flow = await api.createFlow( acct.wabaId, name.trim(), [ category ] );
-            if ( flow?.id ) { toast.success( `Flow created (${flow.id}) — add screens in Flow Builder, then publish` ); setName( '' ); load(); }
-            else toast.error( 'Create failed' );
-        } catch ( e: any ) { toast.error( e?.message || 'Create failed' ); }
-        finally { setCreating( false ); }
-    };
-
-    const handlePublish = async ( flowId: string ) => {
-        const ok = await api.publishFlow( flowId );
-        if ( ok ) { toast.success( 'Flow published' ); load(); }
-        else toast.error( 'Publish failed (flow must have valid screens)' );
-    };
-
-    const statusPill = ( s: string ) => {
-        if ( s === 'PUBLISHED' ) return S.pill( 'var(--lime)', 'var(--accent)' );
-        if ( s === 'DRAFT' ) return S.pill( '#fef3c7', '#92400e' );
-        return S.pill( '#f3f4f6', 'var(--text-muted)' );
-    };
+    useEffect( () => { void load(); }, [ load ] );
 
     return (
         <div>
             <div style={ S.card }>
                 <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Published customer Flows</h3>
-                <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 12px' } }>
-                    {showAllMetaFlows
-                        ? `Showing all ${flows.length} Meta records. Drafts and deprecated Flows are retained for audit, not customer entry.`
-                        : `Showing ${retainedFlows.length} published retained Flows. ${flows.length - retainedFlows.length} old or non-live records hidden.`}
+                <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: 0 } }>
+                    {retainedFlows.length} retained Flows. Historical Meta designs and new-Flow creation are not available in Workspace.
                 </p>
-                <Button variant="secondary" size="sm" onClick={ () => setShowAllMetaFlows( previous => !previous ) }>
-                    { showAllMetaFlows ? 'Show retained live Flows' : 'Show all Meta flows' }
-                </Button>
             </div>
-            { showAllMetaFlows && <div style={ S.card }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>New flow (admin)</h3>
-                <div style={ S.grid }>
-                    <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Flow name *</label><input style={ S.input } value={ name } onChange={ e => setName( e.target.value ) } placeholder="03.WD_POSTPAY_REQUEST" /></div>
-                    <div><label style={ S.label }>Category</label>
-                        <Select ariaLabel="Flow category" value={ category } onChange={ v => setCategory( v ) }
-                            options={ FLOW_CATEGORY_OPTIONS } style={ FIELD_SELECT_STYLE } />
-                    </div>
-                </div>
-                <Button variant="primary" onClick={ handleCreate } loading={ creating }>Create flow</Button>
-                <p style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 8 } }>
-                    Creates a DRAFT design on { acct.label }. Existing live Flows are reused, not recreated.
-                </p>
-            </div> }
-
             <div style={ S.card }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Flows { loading ? '' : `(${visibleFlows.length})` }</h3>
+                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Flows { loading ? '' : `(${retainedFlows.length})` }</h3>
                     <Button variant="secondary" size="sm" onClick={ load } loading={ loading }>Refresh</Button>
                 </div>
                 <div className="table-container">
                     <table className="inner-table" style={ { width: '100%' } }>
-                        <thead><tr><th style={ { textAlign: 'left' } }>Name</th><th style={ { textAlign: 'left' } }>Status</th><th style={ { textAlign: 'left' } }>ID</th><th></th></tr></thead>
+                        <thead><tr><th style={ { textAlign: 'left' } }>Name</th><th style={ { textAlign: 'left' } }>Meta status</th><th style={ { textAlign: 'left' } }>ID</th></tr></thead>
                         <tbody>
-                            { visibleFlows.map( ( f: any ) => (
+                            {retainedFlows.map( ( f: any ) => (
                                 <tr key={ f.id }>
                                     <td>{ f.name }</td>
-                                    <td><span style={ statusPill( f.status ) }>{ f.status }</span></td>
+                                    <td><span style={ S.pill( f.status === 'PUBLISHED' ? 'var(--lime)' : '#fef3c7', 'var(--accent)' ) }>{ f.status }</span></td>
                                     <td style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ f.id }</td>
-                                    <td>{ f.status === 'DRAFT' && <Button variant="secondary" size="sm" onClick={ () => handlePublish( f.id ) }>Publish</Button> }</td>
                                 </tr>
-                            ) ) }
+                            ) )}
                         </tbody>
                     </table>
                 </div>
