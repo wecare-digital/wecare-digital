@@ -1,110 +1,337 @@
 import React, { useState } from 'react';
-import PillButton from './PillButton';
-import AddressFields, { AddressDraft, EMPTY_ADDRESS_DRAFT, StoredAddress, addressDraftValid, addressPayload, draftFromStored } from './AddressFields';
+
+import AddressFields, {
+  AddressDraft, EMPTY_ADDRESS_DRAFT, StoredAddress,
+  addressDraftValid, addressPayload, draftFromStored,
+} from './AddressFields';
 
 const PROFILE_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/customer/profile`;
-export type CheckoutProfileMode = 'create' | 'address' | 'email' | 'name';
+
+export type CheckoutProfileMode = 'create' | 'address' | 'profile' | 'name' | 'email';
+
 export interface CheckoutProfileValue {
   contactId: string;
   name: string;
-  firstName: string;
-  lastName: string;
+  username: string;
   companyName: string;
   designation: string;
-  email: string;
   phone: string;
-  emailVerified?: boolean;
   addressComplete: boolean;
   address: StoredAddress | null;
+  /** Legacy response members kept for callers outside /cart/ while they migrate to F001. */
+  firstName: string;
+  lastName: string;
+  email: string;
+  emailVerified?: boolean;
 }
+
 interface Props {
   accessToken: string;
   mode?: CheckoutProfileMode;
-  initial?: { firstName: string; lastName: string; companyName: string; designation: string; email: string; address: StoredAddress | null };
+  initial?: {
+    name?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    companyName: string;
+    designation: string;
+    email?: string;
+    address: StoredAddress | null;
+  };
   onReady: ( profile: CheckoutProfileValue ) => void;
 }
 
-/** The signed-in WhatsApp number owns the profile. Email is contact information. */
-const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initial, onReady } ) => {
-  const [ firstName, setFirstName ] = useState( initial?.firstName || '' );
-  const [ lastName, setLastName ] = useState( initial?.lastName || '' );
+/**
+ * Website checkout uses the same customer-declared profile fields as F001 Subscribe.
+ * The authenticated WhatsApp session owns the phone identity, so the number is never editable
+ * here. Email is deliberately not part of this checkout profile surface.
+ */
+const CheckoutProfile: React.FC<Props> = ( {
+  accessToken, mode = 'create', initial, onReady,
+} ) => {
+  const [ fullName, setFullName ] = useState(
+    initial?.name || [ initial?.firstName, initial?.lastName ].filter( Boolean ).join( ' ' )
+  );
+  const [ username, setUsername ] = useState( initial?.username || '' );
   const [ companyName, setCompanyName ] = useState( initial?.companyName || '' );
   const [ designation, setDesignation ] = useState( initial?.designation || '' );
   const [ email, setEmail ] = useState( initial?.email || '' );
-  const [ address, setAddress ] = useState<AddressDraft>( () => initial?.address ? draftFromStored( initial.address ) : { ...EMPTY_ADDRESS_DRAFT } );
+  const [ address, setAddress ] = useState<AddressDraft>(
+    () => initial?.address ? draftFromStored( initial.address ) : { ...EMPTY_ADDRESS_DRAFT }
+  );
   const [ saving, setSaving ] = useState( false );
   const [ message, setMessage ] = useState( '' );
   const [ addressField, setAddressField ] = useState( '' );
-  const showNames = mode === 'create' || mode === 'name';
-  const showEmail = mode === 'create' || mode === 'email';
-  const showAddress = mode === 'create' || mode === 'address';
-  const namesValid = !!firstName.trim() && !!lastName.trim();
-  const businessProfileValid = !!companyName.trim() && !!designation.trim();
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( email.trim() );
-  const canSave = ( !showNames || ( namesValid && businessProfileValid ) ) && ( !showEmail || emailValid ) && ( !showAddress || addressDraftValid( address ) );
 
-  const saveProfile = async () => {
+  const showProfile = mode === 'create' || mode === 'profile' || mode === 'name';
+  const showAddress = mode === 'create' || mode === 'address';
+  const showEmail = mode === 'email';
+  const profileValid = !showProfile || fullName.trim().length > 0;
+  const emailValid = !showEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( email.trim() );
+  const canSave = profileValid && emailValid && ( !showAddress || addressDraftValid( address ) );
+
+  const saveProfile = async (): Promise<void> => {
     if ( !canSave || saving ) return;
-    setSaving( true ); setMessage( '' ); setAddressField( '' );
+    setSaving( true );
+    setMessage( '' );
+    setAddressField( '' );
+
     const body = {
-      ...( showNames ? {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+      ...( showProfile ? {
+        fullName: fullName.trim(),
+        username: username.trim(),
         companyName: companyName.trim(),
         designation: designation.trim(),
       } : {} ),
       ...( showEmail ? { email: email.trim() } : {} ),
       ...( showAddress ? { address: addressPayload( address ) } : {} ),
     };
+
     try {
       const response = await fetch( PROFILE_URL, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${ accessToken }` },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${ accessToken }`,
+        },
         body: JSON.stringify( body ),
       } );
       const reply = await response.json().catch( () => ( {} ) );
       if ( !response.ok || reply.status !== 'PROFILE_READY' ) {
-        if ( reply.error === 'CONTACT_IDENTITY_CONFLICT' ) setMessage( 'We could not link these details to your account automatically. Please contact us and we will complete this for you.' );
-        else if ( reply.error === 'INVALID_ADDRESS' ) { setAddressField( String( reply.field || '' ) ); setMessage( 'Please check your delivery address.' ); }
-        else if ( reply.error === 'INVALID_EMAIL' ) setMessage( 'Enter a valid email address.' );
-        else setMessage( 'We could not save your details. Please try again.' );
+        if ( reply.error === 'CONTACT_IDENTITY_CONFLICT' ) {
+          setMessage( 'We could not link these details to your signed-in WhatsApp account.' );
+        } else if ( reply.error === 'INVALID_ADDRESS' ) {
+          setAddressField( String( reply.field || '' ) );
+          setMessage( 'Please check your delivery address.' );
+        } else if ( reply.error === 'NAME_REQUIRED' ) {
+          setMessage( 'Enter your full name.' );
+        } else {
+          setMessage( 'We could not save your details. Please try again.' );
+        }
         return;
       }
+
       onReady( {
-        contactId: String( reply.contactId || '' ), name: String( reply.name || '' ),
-        firstName: String( reply.firstName || '' ), lastName: String( reply.lastName || '' ),
-        companyName: String( reply.companyName || '' ), designation: String( reply.designation || '' ),
-        email: String( reply.email || '' ), phone: String( reply.phone || '' ),
+        contactId: String( reply.contactId || '' ),
+        name: String( reply.name || '' ),
+        username: String( reply.username || '' ),
+        companyName: String( reply.companyName || '' ),
+        designation: String( reply.designation || '' ),
+        phone: String( reply.phone || '' ),
+        addressComplete: Boolean( reply.addressComplete ),
+        address: reply.address && typeof reply.address === 'object'
+          ? reply.address as StoredAddress
+          : null,
+        firstName: String( reply.firstName || '' ),
+        lastName: String( reply.lastName || '' ),
+        email: String( reply.email || '' ),
         emailVerified: reply.emailVerified === true,
-        addressComplete: Boolean( reply.addressComplete ), address: reply.address && typeof reply.address === 'object' ? reply.address as StoredAddress : null,
       } );
       setMessage( 'Details saved.' );
     } catch {
       setMessage( 'We could not reach the server. Please try again.' );
-    } finally { setSaving( false ); }
+    } finally {
+      setSaving( false );
+    }
   };
-  return <section className="checkout-profile" aria-labelledby="checkout-profile-title">
-    <div className="checkout-profile-head"><div><p className="checkout-profile-eyebrow">Checkout details</p>
-      <h2 id="checkout-profile-title">{ mode === 'name' ? 'Update your name' : mode === 'address' ? 'Update your delivery address' : mode === 'email' ? 'Change your email' : 'Confirm your details' }</h2>
-    </div><span className="phone-verified">✓ WhatsApp verified by sign-in</span></div>
-    <div className="checkout-profile-grid">
-      { showNames && <><label><span>First name</span><input value={ firstName } onChange={ e => setFirstName( e.target.value ) } autoComplete="given-name" maxLength={ 100 } placeholder="First name" /></label>
-        <label><span>Last name</span><input value={ lastName } onChange={ e => setLastName( e.target.value ) } autoComplete="family-name" maxLength={ 100 } placeholder="Last name" /></label>
-        <label><span>Organisation</span><input value={ companyName } onChange={ e => setCompanyName( e.target.value ) } autoComplete="organization" maxLength={ 200 } placeholder="Organisation" /></label>
-        <label><span>Role / designation</span><input value={ designation } onChange={ e => setDesignation( e.target.value ) } autoComplete="organization-title" maxLength={ 200 } placeholder="Role or designation" /></label></> }
-      { showEmail && <label><span>Email</span><input type="email" value={ email } onChange={ e => setEmail( e.target.value ) } autoComplete="email" placeholder="you@example.com" /></label> }
-    </div>
-    { showAddress && <AddressFields value={ address } onChange={ setAddress } disabled={ saving } invalidField={ addressField } /> }
-    <p className="checkout-profile-status" role="status" aria-live="polite">{ message }</p>
-    <div className="checkout-profile-action"><PillButton type="button" onClick={ saveProfile } disabled={ saving || !canSave } action={ saving ? 'Saving…' : mode === 'create' ? 'Save & continue' : 'Save changes' } /></div>
-    <style>{`
-      .checkout-profile{padding:24px 0;border:0;border-radius:0;background:#fff;color:#1a1a1a}
-      .checkout-profile-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}
-      .checkout-profile-eyebrow{margin:0 0 6px;font-size:14px}.checkout-profile h2{margin:0;font-size:22px}
-      .phone-verified{font-size:14px;font-weight:600;color:#1a3a2a}.checkout-profile-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:16px;margin-bottom:20px}
-      .checkout-profile-grid label{display:flex;flex-direction:column;gap:8px;font-size:14px}.checkout-profile-grid input{min-height:54px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline,#d9ddd9);border-radius:0;padding:0 2px;background:transparent;color:#1a1a1a;font:inherit;font-size:16px;outline:none;box-shadow:none;-webkit-appearance:none;appearance:none;transition:border-color .2s,box-shadow .2s}
-      .checkout-profile-grid input:focus-visible{outline:0;border-bottom-color:var(--public-brand-green,#1a3a2a);box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)}.checkout-profile-status{font-size:14px;color:#1a3a2a}.checkout-profile-action{margin-top:16px}
-      @media(max-width:767px){.checkout-profile{padding:18px 0}.checkout-profile-head{display:block}.phone-verified{display:inline-flex;margin-top:10px}.checkout-profile-grid{grid-template-columns:1fr}.checkout-profile-grid input{min-height:52px;font-size:16px}}
-    `}</style>
-  </section>;
+
+  return (
+    <section className="checkout-profile" aria-labelledby="checkout-profile-title">
+      <div className="checkout-profile-head">
+        <div>
+          <p className="checkout-profile-eyebrow">Checkout details</p>
+          <h2 id="checkout-profile-title">
+            { mode === 'address'
+              ? 'Update your delivery address'
+              : mode === 'email'
+                ? 'Change your email'
+                : mode === 'profile' || mode === 'name'
+                  ? 'Update your profile'
+                  : 'Confirm your details' }
+          </h2>
+        </div>
+        <span className="phone-verified">✓ WhatsApp verified</span>
+      </div>
+
+      { showProfile && (
+        <div className="checkout-profile-grid">
+          <label className="span-2">
+            <span>Full name</span>
+            <input
+              value={ fullName }
+              onChange={ event => setFullName( event.target.value ) }
+              autoComplete="name"
+              maxLength={ 200 }
+              placeholder="Full name"
+              aria-required="true"
+            />
+          </label>
+
+          <label>
+            <span>WhatsApp username <em>Optional</em></span>
+            <input
+              value={ username }
+              onChange={ event => setUsername( event.target.value ) }
+              autoComplete="off"
+              maxLength={ 50 }
+              placeholder="WhatsApp username"
+            />
+          </label>
+
+          <label>
+            <span>Organisation <em>Optional</em></span>
+            <input
+              value={ companyName }
+              onChange={ event => setCompanyName( event.target.value ) }
+              autoComplete="organization"
+              maxLength={ 200 }
+              placeholder="Organisation"
+            />
+          </label>
+
+          <label>
+            <span>Job title <em>Optional</em></span>
+            <input
+              value={ designation }
+              onChange={ event => setDesignation( event.target.value ) }
+              autoComplete="organization-title"
+              maxLength={ 200 }
+              placeholder="Job title"
+            />
+          </label>
+        </div>
+      ) }
+
+      { showEmail && (
+        <div className="checkout-profile-grid">
+          <label className="span-2">
+            <span>Email</span>
+            <input
+              type="email"
+              value={ email }
+              onChange={ event => setEmail( event.target.value ) }
+              autoComplete="email"
+              maxLength={ 254 }
+              placeholder="you@example.com"
+              aria-required="true"
+            />
+          </label>
+        </div>
+      ) }
+
+      { showAddress && (
+        <AddressFields
+          value={ address }
+          onChange={ setAddress }
+          disabled={ saving }
+          invalidField={ addressField }
+        />
+      ) }
+
+      { message && (
+        <p className="checkout-profile-status" role="status" aria-live="polite">{ message }</p>
+      ) }
+
+      <div className="checkout-profile-actions">
+        <button
+          className="checkout-profile-action checkout-profile-primary"
+          type="button"
+          onClick={ () => { void saveProfile(); } }
+          disabled={ saving || !canSave }
+          aria-busy={ saving ? 'true' : undefined }
+        >
+          { saving ? 'Saving…' : mode === 'create' ? 'Save & continue' : 'Save changes' }
+        </button>
+      </div>
+
+      <style>{`
+        .checkout-profile{
+          margin:28px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
+          border-radius:0;background:transparent;color:var(--public-text);font-family:var(--font-sans);
+        }
+        .checkout-profile-head{
+          display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:24px;
+        }
+        .checkout-profile-eyebrow{
+          margin:0 0 6px;color:var(--public-brand-green);font-size:12px;font-weight:700;
+          letter-spacing:.08em;text-transform:uppercase;
+        }
+        .checkout-profile h2{
+          margin:0;color:var(--public-text);font-size:var(--public-card-size);
+          font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
+          letter-spacing:var(--public-card-tracking);
+        }
+        .phone-verified{
+          display:inline-flex;align-items:center;white-space:nowrap;color:var(--public-brand-green);
+          font-size:14px;font-weight:600;line-height:1.4;
+        }
+        .checkout-profile-grid{
+          display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;margin:0 0 24px;
+        }
+        .checkout-profile-grid .span-2{grid-column:1/-1}
+        .checkout-profile-grid label{
+          display:flex;flex-direction:column;gap:7px;min-width:0;color:var(--public-text);
+          font-size:14px;font-weight:600;
+        }
+        .checkout-profile-grid label>span{min-width:0}
+        .checkout-profile-grid em{
+          margin-inline-start:6px;color:var(--public-muted);font-style:normal;font-weight:400;
+        }
+        .checkout-profile-grid input{
+          min-width:0;width:100%;min-height:54px;padding:0 2px;box-sizing:border-box;
+          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;
+          background:transparent;color:var(--public-text);
+          font:var(--public-body-weight) 16px/1.2 var(--font-sans);
+          box-shadow:none;outline:0;-webkit-appearance:none;appearance:none;
+          transition:border-color .2s,box-shadow .2s;
+        }
+        .checkout-profile-grid input::placeholder{color:rgba(0,0,0,.42)}
+        .checkout-profile-grid input:focus{
+          border-bottom-color:var(--public-brand-green);
+          box-shadow:0 1px 0 0 var(--public-brand-lime);
+        }
+        .checkout-profile-status{
+          margin:16px 0 0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);
+          border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);
+          font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
+        }
+        .checkout-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
+        .checkout-profile-action{
+          min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
+          background:var(--public-lime-tint);color:var(--public-brand-green);
+          font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+          touch-action:manipulation;cursor:pointer;
+          transition:background-color .18s,transform .18s,box-shadow .18s;
+        }
+        .checkout-profile-action:hover:not(:disabled){
+          background:var(--public-brand-lime);transform:translateY(-1px);
+          box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
+        }
+        .checkout-profile-action:focus-visible{
+          outline:3px solid var(--public-brand-green);outline-offset:3px;
+        }
+        .checkout-profile-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+        .checkout-profile-primary{font-weight:700}
+        @media(max-width:767px){
+          .checkout-profile{padding-top:22px}
+          .checkout-profile-head{display:block;margin-bottom:22px}
+          .phone-verified{margin-top:10px}
+          .checkout-profile-grid{grid-template-columns:1fr;gap:18px}
+          .checkout-profile-grid .span-2{grid-column:auto}
+          .checkout-profile h2{font-size:var(--public-mobile-card-size)}
+          .checkout-profile-grid input{min-height:52px;font-size:16px}
+          .checkout-profile-actions{display:grid;grid-template-columns:1fr;width:100%}
+          .checkout-profile-action{width:100%;font-size:var(--public-mobile-cta-font-size)}
+        }
+        @media(prefers-reduced-motion:reduce){
+          .checkout-profile-action{transition:none}
+          .checkout-profile-action:hover:not(:disabled){transform:none;box-shadow:none}
+        }
+      `}</style>
+    </section>
+  );
 };
+
 export default CheckoutProfile;

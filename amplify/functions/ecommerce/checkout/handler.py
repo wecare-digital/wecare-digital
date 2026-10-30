@@ -685,12 +685,16 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
         logger.info(json.dumps({"event": "checkout_stored_delivery_unusable"}))
     first = str(row.get("firstName") or "").strip()
     last = str(row.get("lastName") or "").strip()
+    name = str(row.get("name") or f"{first} {last}").strip()
     company = str(row.get("companyName") or "").strip()
     designation = str(row.get("designation") or "").strip()
     return _hardened(cors_response(200, {
         "status": "PROFILE_READY",
         "contactId": contact_key.resolve(row),
-        "name": str(row.get("name") or f"{first} {last}").strip(),
+        "name": name,
+        "username": str(row.get("profileUsername") or "").strip(),
+        # Legacy fields stay in the reply while older clients drain; the current cart uses the
+        # canonical F001 name and no longer asks for email.
         "firstName": first,
         "lastName": last,
         "companyName": company,
@@ -702,7 +706,10 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
         # spelling after an edit.
         "phone": str(row.get("phone") or identity.phone),
         "emailVerified": bool(row.get("emailVerifiedAt")),
-        "profileComplete": bool(first and last and company and designation),
+        # F001 requires the customer name; organisation, job title and username are optional.
+        # Delivery readiness is kept separate below so a saved profile with no address still
+        # opens the address editor instead of being treated as payable.
+        "profileComplete": bool(name),
         "addressComplete": address is not None,
         "address": address,             # null when absent
     }, origin))

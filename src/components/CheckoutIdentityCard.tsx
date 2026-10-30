@@ -2,69 +2,15 @@ import React from 'react';
 
 import { StoredAddress } from './AddressFields';
 
-/**
- * THE RETURNING CUSTOMER SEES WHAT IS ON FILE, AND WHAT IS VERIFIED, BEFORE THEY PAY.
- *
- * Four rows - Name, Email, Phone, Deliver - plus three edit affordances. Rendered on /cart once
- * the readiness question has answered PROFILE_READY, in place of the form a first-time customer
- * gets. A returning customer should not be asked for details they already gave us.
- *
- * THE DELIVER LINE IS `address.fullAddress`, RENDERED VERBATIM. THIS IS THE LOAD-BEARING RULE.
- * ------------------------------------------------------------------------------------------
- * `fullAddress` is derived SERVER-SIDE by `identity.address.full_address`, and that same string
- * is what reaches the order and the invoice. Composing this line here from the six form fields would be
- * a SECOND rendering of the address, with its own separator and ordering choices, that can drift
- * from the server one - and then the card would be reassuring the customer about a string nobody
- * downstream uses. So this component does no composition at all. It is also why the stored
- * `fullAddress` ends with the country: the server appends it.
- * `src/test/CheckoutIdentityCard.test.tsx` pins this with a fixture whose components would
- * compose a DIFFERENT line, so a re-composition fails the build rather than shipping quietly.
- *
- * WHAT IS VERIFIED IS STATED INLINE RATHER THAN IMPLIED
- * -----------------------------------------------------
- *   - the PHONE carries "verified", which is always true because it IS the session - there is no
- *     path to this card without having signed in on that number. The badge deliberately does NOT
- *     name the mechanism: how we proved it is our business, not the customer's, and the owner
- *     asked for plain customer copy here rather than an internal-sounding label;
- *   - the EMAIL carries "verified", because a one-time code proved it before it was stored;
- *   - the ADDRESS carries NO badge. Nobody verified it. A tick there would be a claim we cannot
- *     support, and the customer is the only authority on where they live.
- *
- * THERE IS NO EDIT AFFORDANCE FOR THE PHONE, DELIBERATELY. It is the identity the contact row is
- * keyed on; changing it is a different account, not an edit. Offering the control and then
- * refusing would be worse than not offering it.
- *
- * THE CARD STAYS WHILE THE EDITOR IS OPEN, WITH ITS BUTTONS DISABLED. Staying means the customer
- * can see what they are changing FROM. Disabling means a second affordance cannot swap the mode
- * out from under a half-typed edit.
- */
-
 export interface CheckoutIdentity {
   name: string;
-  email: string;
+  username?: string;
+  companyName?: string;
+  designation?: string;
   phone: string;
   address: StoredAddress | null;
-  /**
-   * Whether anyone actually proved this email address. OPTIONAL, and an omitted value keeps the
-   * badge - which is what makes /cart/ byte-identical, because /cart/ passes nothing.
-   *
-   * The badge is the one thing on this card that is a CLAIM rather than a value, so a consumer
-   * whose own predicate does not prove the email must be able to suppress it. /cart/ can leave
-   * this alone because `checkout/handler.py:355-357` refuses a contact row that lacks
-   * `emailVerifiedAt` or lacks a non-empty email before this card can mount at all. /orders/'s
-   * server-side predicate deliberately drops BOTH of those checks - it answers "is this the
-   * caller's contact row", not "is this email proven" - so without this member the card would
-   * put "✓ verified" beside an email nothing verified.
-   */
-  emailVerified?: boolean;
 }
 
-/**
- * The phone as the design mock shows it - `+91 81006 ·····`. The customer knows their own
- * number, and a checkout page is routinely read over someone's shoulder, so the last digits are
- * not needed on screen to confirm which account this is. Degrades to the raw value for anything
- * too short to mask meaningfully rather than inventing digits.
- */
 export function maskPhone ( phone: string ): string {
   const raw = String( phone || '' );
   const digits = raw.replace( /\D/g, '' );
@@ -78,84 +24,68 @@ export function maskPhone ( phone: string ): string {
 
 interface Props {
   identity: CheckoutIdentity;
-  /** True while a CheckoutProfile editor is mounted below this card. */
   editorOpen?: boolean;
-  /**
-   * The small uppercase line above the heading. Defaults to the checkout wording, so /cart/
-   * passes nothing and renders exactly as before. /orders/ passes "Your details", because
-   * "Checkout details / Ready to pay" above a customer's name on a page about orders they have
-   * already paid for is wrong on its face.
-   */
   eyebrow?: string;
-  /** The card's own h2. Defaults to the checkout wording, for the same reason as `eyebrow`. */
   title?: string;
-  /**
-   * What the Deliver row says when there is no address on file. Defaults to '' - which is what
-   * the row has always rendered - so /cart/ is byte-identical. Without this prop the copy "No
-   * address on file" could not appear anywhere, which is the state /orders/ has to describe.
-   */
   emptyAddressLabel?: string;
-  onEditName: () => void;
-  onChangeEmail: () => void;
+  onEditProfile: () => void;
   onEditAddress: () => void;
 }
 
 const CheckoutIdentityCard: React.FC<Props> = ( {
   identity, editorOpen, eyebrow, title, emptyAddressLabel,
-  onEditName, onChangeEmail, onEditAddress,
+  onEditProfile, onEditAddress,
 } ) => {
   const locked = !!editorOpen;
 
-  /*
-   * The four rows are written out inline. styled-jsx only stamps its scoping class onto JSX in
-   * the same return tree as the <style jsx> block below, so a row helper would render with
-   * unhashed class names and lose every rule - the failure PillButton and RotatingHero both
-   * record. Do not refactor these into a map.
-   */
   return (
     <section className="identity-card" aria-labelledby="identity-card-title">
       <div className="identity-head">
-        <p className="identity-eyebrow">{ eyebrow || 'Checkout details' }</p>
-        <h2 id="identity-card-title">{ title || 'Ready to pay' }</h2>
+        <div>
+          <p className="identity-eyebrow">{ eyebrow || 'Checkout details' }</p>
+          <h2 id="identity-card-title">{ title || 'Ready to pay' }</h2>
+        </div>
+        <button type="button" onClick={ onEditProfile } disabled={ locked }>Edit profile</button>
       </div>
 
       <dl className="identity-rows">
         <div className="identity-row">
           <dt>Name</dt>
-          <dd>
-            <span className="identity-value">{ identity.name }</span>
-          </dd>
-          <button type="button" onClick={ onEditName } disabled={ locked }>Edit name</button>
+          <dd><span className="identity-value">{ identity.name }</span></dd>
         </div>
 
-        <div className="identity-row">
-          <dt>Email</dt>
-          <dd>
-            <span className="identity-value">{ identity.email }</span>
-            { /* Show historical email evidence only when the API explicitly supplies it. */ }
-            { identity.emailVerified === true && <span className="identity-badge">✓ verified</span> }
-          </dd>
-          <button type="button" onClick={ onChangeEmail } disabled={ locked }>Change email</button>
-        </div>
+        { identity.username && (
+          <div className="identity-row">
+            <dt>WhatsApp username</dt>
+            <dd><span className="identity-value">{ identity.username }</span></dd>
+          </div>
+        ) }
+
+        { identity.companyName && (
+          <div className="identity-row">
+            <dt>Organisation</dt>
+            <dd><span className="identity-value">{ identity.companyName }</span></dd>
+          </div>
+        ) }
+
+        { identity.designation && (
+          <div className="identity-row">
+            <dt>Job title</dt>
+            <dd><span className="identity-value">{ identity.designation }</span></dd>
+          </div>
+        ) }
 
         <div className="identity-row">
-          <dt>Phone</dt>
+          <dt>WhatsApp</dt>
           <dd>
             <span className="identity-value">{ maskPhone( identity.phone ) }</span>
-            { /* UNCONDITIONAL, deliberately. There is no path to this card without a session on
-                 this number, so every consumer's own authentication is the proof - there is
-                 nothing for a consumer to disagree with and therefore no prop to gate it on. */ }
             <span className="identity-badge">✓ verified</span>
           </dd>
         </div>
 
-        <div className="identity-row">
+        <div className="identity-row identity-address-row">
           <dt>Deliver</dt>
           <dd>
-            { /* VERBATIM. No composition from the components - see the docblock. The empty case
-                 still renders a STORED string or nothing at all, never a composed one: the
-                 fallback is a caller-supplied label, which is prose about the absence rather
-                 than a second rendering of an address. */ }
             <span className="identity-value">
               { identity.address ? identity.address.fullAddress : ( emptyAddressLabel || '' ) }
             </span>
@@ -166,36 +96,59 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
 
       <style jsx>{`
         .identity-card{
-          margin:28px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;
+          margin:28px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
+          border-radius:0;background:transparent;color:var(--public-text);
         }
-        .identity-head{margin-bottom:16px}
+        .identity-head{
+          display:flex;align-items:start;justify-content:space-between;gap:16px;margin-bottom:20px;
+        }
         .identity-eyebrow{
-          margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;
-          text-transform:uppercase;color:#1a3a2a;
+          margin:0 0 6px;color:var(--public-brand-green);font-size:12px;font-weight:700;
+          letter-spacing:.08em;text-transform:uppercase;
         }
-        h2{margin:0;font-size:22px;line-height:1.25;letter-spacing:-.25px;color:#1a1a1a}
-        .identity-rows{margin:0;display:grid;gap:12px}
+        h2{
+          margin:0;color:var(--public-text);font-size:var(--public-card-size);
+          font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
+          letter-spacing:var(--public-card-tracking);
+        }
+        .identity-rows{margin:0;display:grid;gap:0}
         .identity-row{
-          display:grid;grid-template-columns:88px 1fr auto;gap:12px;align-items:baseline;
+          display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:16px;
+          align-items:center;padding:13px 0;border-bottom:1px solid var(--public-hairline);
         }
-        dt{font-size:12px;font-weight:700;color:#1a3a2a}
+        .identity-address-row{grid-template-columns:minmax(120px,170px) minmax(0,1fr) auto}
+        dt{color:var(--public-brand-green);font-size:14px;font-weight:700}
         dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-inline-size:0}
-        .identity-value{font-size:16px;line-height:1.5;color:#1a1a1a;overflow-wrap:anywhere}
+        .identity-value{
+          color:var(--public-text);font-size:16px;line-height:1.5;overflow-wrap:anywhere;
+        }
         .identity-badge{
-          padding:4px 10px;border-radius:999px;background:#d1f470;color:#1a3a2a;
-          font-size:12px;font-weight:700;white-space:nowrap;
+          color:var(--public-brand-green);font-size:12px;font-weight:700;white-space:nowrap;
         }
         button{
-          min-height:34px;padding:0 14px;border:1px solid #1a3a2a;border-radius:999px;
-          background:#fff;color:#1a3a2a;font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+          min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
+          background:var(--public-lime-tint);color:var(--public-brand-green);
+          font:600 var(--public-cta-font-size)/1.35 var(--font-sans);
+          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:4px;
+          touch-action:manipulation;cursor:pointer;
+          transition:background-color .18s,transform .18s,box-shadow .18s;
         }
-        button:hover:not(:disabled){background:#d1f470}
-        button:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-        button:disabled{opacity:.55;cursor:default}
+        button:hover:not(:disabled){
+          background:var(--public-brand-lime);transform:translateY(-1px);
+          box-shadow:var(--public-lift-shadow);text-decoration-color:transparent;
+        }
+        button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+        button:disabled{opacity:.6;cursor:default;transform:none;box-shadow:none}
         @media(max-width:767px){
-          .identity-card{padding:18px 14px}
-          .identity-row{grid-template-columns:1fr;gap:4px}
-          button{justify-self:start;margin-top:4px}
+          .identity-head{display:grid;grid-template-columns:1fr}
+          .identity-head button{justify-self:start}
+          h2{font-size:var(--public-mobile-card-size)}
+          .identity-row,.identity-address-row{grid-template-columns:1fr;gap:4px;padding:14px 0}
+          .identity-address-row button{justify-self:start;margin-top:6px}
+        }
+        @media(prefers-reduced-motion:reduce){
+          button{transition:none}
+          button:hover:not(:disabled){transform:none;box-shadow:none}
         }
       `}</style>
     </section>

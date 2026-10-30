@@ -614,6 +614,7 @@ def _stored_email(row: Optional[Dict[str, Any]]) -> Optional[str]:
 
 
 def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name: Optional[str],
+                   profile_username: Optional[str], profile_username_supplied: bool,
                    company_name: Optional[str], designation: Optional[str],
                    phone: str, email: Optional[str], address: Optional[Dict[str, Any]],
                    proof_validated: bool, tags: Optional[list], tags_if_absent: bool = False,
@@ -639,9 +640,17 @@ def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name:
     values: Dict[str, Any] = {":phone": phone, ":now": now}
 
     if name is not None:
-        assignments += ["#name=:name", "firstName=:first", "lastName=:last"]
+        assignments.append("#name=:name")
         names["#name"] = "name"
-        values.update({":name": name, ":first": first_name, ":last": last_name})
+        values[":name"] = name
+        # Legacy callers may still send split names; the F001-aligned checkout sends fullName
+        # and therefore updates only the canonical name field.
+        if first_name is not None and last_name is not None:
+            assignments += ["firstName=:first", "lastName=:last"]
+            values.update({":first": first_name, ":last": last_name})
+    if profile_username_supplied:
+        assignments.append("profileUsername=:profile_username")
+        values[":profile_username"] = profile_username or ""
     if company_name is not None:
         assignments.append("companyName=:company")
         values[":company"] = company_name
@@ -682,7 +691,10 @@ def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name:
 
 
 def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None,
+                    full_name: Optional[str] = None,
                     first_name: Optional[str] = None, last_name: Optional[str] = None,
+                    profile_username: Optional[str] = None,
+                    profile_username_supplied: bool = False,
                     company_name: Optional[str] = None, designation: Optional[str] = None,
                     address: Optional[Dict[str, Any]] = None,
                     proof_validated: bool = False) -> Dict[str, Any]:
@@ -704,8 +716,10 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         raise ValueError("CONTACT_IDENTITY_CONFLICT")
 
     now = int(time.time())
-    # The name trio is recomputed and written only when BOTH parts were supplied.
-    name = f"{first_name} {last_name}".strip() if (first_name and last_name) else None
+    # F001 and checkout use one Full name. Split first/last remains accepted for legacy callers.
+    name = (full_name if full_name is not None
+            else (f"{first_name} {last_name}".strip()
+                  if (first_name and last_name) else None))
     existing = phone_match or email_match
     table = _table(CONTACTS_TABLE)
 
@@ -723,6 +737,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
         expression, names, values = _set_fragments(
             name=name, first_name=first_name, last_name=last_name,
+            profile_username=profile_username,
+            profile_username_supplied=profile_username_supplied,
             company_name=company_name, designation=designation, phone=phone,
             email=email, address=address, proof_validated=proof_validated,
             tags=_merge_tags(existing.get("tags")), tags_if_absent=False,
@@ -768,6 +784,7 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         "name": name or "",
         "firstName": first_name or "",
         "lastName": last_name or "",
+        "profileUsername": profile_username or "",
         "companyName": company_name or "",
         "designation": designation or "",
         "phone": phone,
@@ -810,6 +827,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         # `tags=if_not_exists(...)` plus `checkoutCustomerId`.
         expression, names, values = _set_fragments(
             name=name, first_name=first_name, last_name=last_name,
+            profile_username=profile_username,
+            profile_username_supplied=profile_username_supplied,
             company_name=company_name, designation=designation, phone=phone,
             email=email, address=address, proof_validated=proof_validated,
             tags=[CUSTOMER_TAG], tags_if_absent=True,
@@ -854,7 +873,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _no_store(cors_response(400, {"error": "INVALID_SESSION_PHONE"}, origin))
         return _send_profile_update(phone, origin)
 
-    allowed = {"firstName", "lastName", "companyName", "designation", "email", "emailProof", "address"}
+    allowed = {
+        "fullName", "username", "firstName", "lastName",
+        "companyName", "designation", "email", "emailProof", "address",
+    }
     if set(body) - allowed:
         return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
 
@@ -907,22 +929,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     bootstrap_only = creating and not body
 
     # (5) Presence-driven validation, driven by that row.
+    full_name = (
+        sanitize_html(body.get("fullName"), max_length=200).strip()
+        if "fullName" in body else None
+    )
     first_name = sanitize_html(body.get("firstName"), max_length=100).strip()
     last_name = sanitize_html(body.get("lastName"), max_length=100).strip()
-    if creating and not bootstrap_only:
+
+    if "fullName" in body:
+        if not full_name:
+            return _no_store(cors_response(400, {"error": "NAME_REQUIRED"}, origin))
+    elif creating and not bootstrap_only:
+        # Backward-compatible legacy create contract.
         if not first_name or not last_name:
             return _no_store(cors_response(400, {"error": "NAME_REQUIRED"}, origin))
     elif bool(first_name) != bool(last_name):
-        # Half a name is a mistake, not an edit: `name` is recomputed from both parts.
         return _no_store(cors_response(400, {"error": "NAME_REQUIRED"}, origin))
 
-    company_name = sanitize_html(body.get("companyName"), max_length=200).strip()
-    designation = sanitize_html(body.get("designation"), max_length=200).strip()
-    # Completeness is enforced by the customer-facing form and the checkout readiness gate.
-    # Keep this identity/claim writer tolerant of legacy/internal partial rows so profile edits
-    # cannot change security outcomes or make historical contacts unreadable.
-    if bool(company_name) != bool(designation):
-        return _no_store(cors_response(400, {"error": "BUSINESS_PROFILE_REQUIRED"}, origin))
+    profile_username_supplied = "username" in body
+    profile_username = (
+        sanitize_html(body.get("username"), max_length=50).strip()
+        if profile_username_supplied else None
+    )
+    # F001 makes organisation and job title independently optional. Presence matters so an
+    # existing optional value can be cleared by sending an empty string.
+    company_name = (
+        sanitize_html(body.get("companyName"), max_length=200).strip()
+        if "companyName" in body else None
+    )
+    designation = (
+        sanitize_html(body.get("designation"), max_length=200).strip()
+        if "designation" in body else None
+    )
 
     email = None
     if _present(body.get("email")):
@@ -930,8 +968,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             email = identity.normalize_email(body.get("email"))
         except identity.InvalidEmailAddress:
             return _no_store(cors_response(400, {"error": "INVALID_EMAIL"}, origin))
-    elif creating and not bootstrap_only:
-        return _no_store(cors_response(400, {"error": "INVALID_EMAIL"}, origin))
 
     if creating and not bootstrap_only and address is None:
         return _no_store(cors_response(
@@ -947,10 +983,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             customer_id=identity_session.customer_id,
             phone=phone,
             email=email,
-            first_name=first_name,
-            last_name=last_name,
-            company_name=company_name or None,
-            designation=designation or None,
+            full_name=full_name,
+            first_name=first_name or None,
+            last_name=last_name or None,
+            profile_username=profile_username,
+            profile_username_supplied=profile_username_supplied,
+            company_name=company_name,
+            designation=designation,
             address=address,
             proof_validated=False,
         )
@@ -982,12 +1021,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if email != _stored_email(owned):
             merged.pop("emailVerifiedAt", None)
         merged["email"] = email
-    if first_name and last_name:
+    if full_name is not None:
+        merged["name"] = full_name
+    elif first_name and last_name:
         merged["firstName"] = first_name
         merged["lastName"] = last_name
         merged["name"] = f"{first_name} {last_name}".strip()
-    if company_name and designation:
+    if profile_username_supplied:
+        merged["profileUsername"] = profile_username or ""
+    if company_name is not None:
         merged["companyName"] = company_name
+    if designation is not None:
         merged["designation"] = designation
 
     merged_first = str(merged.get("firstName") or "")
@@ -1000,6 +1044,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                  or f"{merged_first} {merged_last}".strip()),
         "firstName": merged_first,
         "lastName": merged_last,
+        "username": str(merged.get("profileUsername") or ""),
         "companyName": str(merged.get("companyName") or ""),
         "designation": str(merged.get("designation") or ""),
         "email": str(merged.get("email") or ""),

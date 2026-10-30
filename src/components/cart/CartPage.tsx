@@ -103,7 +103,7 @@ import {
   readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
+  serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
 import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
@@ -115,7 +115,6 @@ import {
   CLAIM_NOT_SHOWN_MESSAGE,
 } from '../../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
-import { symbol } from '../../config/materialSymbols';
 import { colors } from '../../lib/design-tokens';
 /**
  * THE OPAQUE SQUARE MARK, and it has to be that one. Razorpay composites this logo onto its own
@@ -239,13 +238,14 @@ type ProfileReply = {
   status?: string;
   contactId?: string;
   name?: string;
+  username?: string;
   firstName?: string;
   lastName?: string;
+  email?: string;
+  emailVerified?: boolean;
   companyName?: string;
   designation?: string;
-  email?: string;
   phone?: string;
-  emailVerified?: boolean;
   profileComplete?: boolean;
   addressComplete?: boolean;
   address?: StoredAddress | null;
@@ -278,12 +278,13 @@ function profileFrom ( reply: ProfileReply ): CheckoutProfileValue | null {
   return {
     contactId: String( reply.contactId || '' ),
     name: String( reply.name || '' ),
+    username: String( reply.username || '' ),
     firstName: String( reply.firstName || '' ),
     lastName: String( reply.lastName || '' ),
-    companyName: String( reply.companyName || '' ),
-    designation: String( reply.designation || '' ),
     email: String( reply.email || '' ),
     emailVerified: reply.emailVerified === true,
+    companyName: String( reply.companyName || '' ),
+    designation: String( reply.designation || '' ),
     phone: String( reply.phone || '' ),
     addressComplete: Boolean( reply.addressComplete ),
     address: reply.address || null,
@@ -492,54 +493,6 @@ function loadRazorpaySdk (): Promise<boolean> {
     script.onerror = () => resolve( false );
     document.head.appendChild( script );
   } );
-}
-
-/**
- * The discount panel is deliberately a STATEMENT, not a control.
- *
- * Do not add a coupon/gift-card field or an Apply button: there is no coupon or gift-card system.
- * The one discount is Delight, a fixed owner policy the invoice engine applies on the server so
- * the reviewed amount and the Razorpay amount are the same number the browser never computes.
- */
-
-function RedemptionPanel (): React.ReactElement {
-  // THE ONE, ALWAYS-ON DISCOUNT. Delight is not a code the customer types and not a staff-set
-  // promo: it is a fixed owner policy applied SERVER-SIDE at checkout on every order. There is no
-  // coupon or gift-card entry point any more, so this panel states the discount rather than
-  // offering a field. The exact rupee saving is decided by the server when it prices the order
-  // (the browser never computes a payable), so the pill names the discount without quoting a
-  // figure the cart cannot authoritatively know. Rendered as an ACTIVE lime-green state, not the
-  // old amber "temporarily unavailable" placeholder.
-  return (
-    <section className="cart-redeem" aria-label="Discounts">
-      <div className="cart-capability cart-capability-delight">
-        <span className="cart-capability-icon" aria-hidden="true">{ symbol( 'redeem' ) }</span>
-        <div>
-          <strong>Delight</strong>
-          <p>Delight discount is applied automatically at checkout.</p>
-        </div>
-      </div>
-      <style jsx>{`
-        .cart-redeem{
-          display:grid;grid-template-columns:minmax(0,1fr);gap:12px;
-          margin:28px 0 0;padding:20px 0 0;border-block-start:1px solid #e5e7eb;
-        }
-        .cart-capability{
-          display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:start;
-          min-height:96px;padding:18px;border:1px solid #bbf7d0;border-radius:16px;box-sizing:border-box;
-        }
-        .cart-capability-delight{background:#ecfdf3}
-        .cart-capability-icon{
-          width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;
-          border-radius:12px;background:#84cc16;color:#14311c;
-          font-family:'Material Symbols Rounded';font-size:23px;
-          font-variation-settings:'FILL' 1,'wght' 600,'GRAD' 0,'opsz' 24;
-        }
-        .cart-capability strong{display:block;color:#14311c;font-size:16px;line-height:1.3}
-        .cart-capability p{margin:5px 0 0;color:rgba(20,49,28,.78);font-size:14px;line-height:1.45}
-      `}</style>
-    </section>
-  );
 }
 
 interface CartPageProps {
@@ -1382,7 +1335,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // can branch on its RETURNED value; `setProfileStatus` is still called, as a cache for the
     // next render and the next click.
     let status = profileStatus;
-    let mode: CheckoutProfileMode = profile?.email ? 'address' : 'create';
+    let mode: CheckoutProfileMode = profile?.name ? 'address' : 'create';
     if ( status === 'unknown' || status === 'checking' )
     {
       setProfileStatus( 'checking' );
@@ -1407,10 +1360,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // A missing ADDRESS blocks only a basket that needs delivery; a missing IDENTITY blocks every
     // basket, and `mode === 'create'` is exactly "there is no identity yet".
     //
-    // `mode`, NOT `profile?.email`: `profile` is a `useState` value captured in this closure and
+    // `mode`, NOT profile state: `profile` is a `useState` value captured in this closure and
     // `setProfile(...)` does not change it for the remainder of this invocation, and `profileFrom`
     // returns null for anything that is not PROFILE_READY. On a FIRST click `status` starts
-    // 'unknown' and `profile` is still undefined, so `!profile?.email` would be true and a
+    // 'unknown' and `profile` is still undefined, so a stale profile read would be true and a
     // contribution-only cart belonging to a fully provisioned customer would open the address
     // editor anyway -- failing on the first click and working on the second. `mode` carries no
     // stale read: it is reassigned from the reply inside the branch above.
@@ -1731,7 +1684,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   recorded amount differ from the amount contributed, so the server suppresses
                   Delight on a contribution and this panel is hidden to match. A render-time read of
                   `items` is correct here. */}
-              { !items.some( item => isContributionItem( item ) || SERVICE_PRODUCT_IDS.has( item.productId || '' ) ) && <RedemptionPanel /> }
 
               {/* THE RETURNING CUSTOMER SEES WHAT WE ALREADY KNOW, not a form. Rendered only on
                   'ready', which means profile complete AND an address on file, so the Deliver row
@@ -1741,8 +1693,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 <CheckoutIdentityCard
                   identity={ profile }
                   editorOpen={ showProfile }
-                  onEditName={ () => { setProfileMode( 'name' ); setShowProfile( true ); } }
-                  onChangeEmail={ () => { setProfileMode( 'email' ); setShowProfile( true ); } }
+                  onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
                   onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
                 />
               ) }
@@ -1756,11 +1707,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   accessToken={ checkoutAccessToken }
                   mode={ profileMode }
                   initial={ {
-                    firstName: profile?.firstName || '',
-                    lastName: profile?.lastName || '',
+                    name: profile?.name || '',
+                    username: profile?.username || '',
                     companyName: profile?.companyName || '',
                     designation: profile?.designation || '',
-                    email: profile?.email || '',
                     address: profile?.address || null,
                   } }
                   onReady={ next => {
@@ -1772,7 +1722,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     const nextStatus = deriveStatus(
                       'PROFILE_READY',
                       next.addressComplete,
-                      Boolean( next.firstName && next.lastName && next.companyName && next.designation ),
+                      Boolean( next.name ),
                     );
                     setProfile( next );
                     justSavedRef.current = true;
@@ -1934,13 +1884,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
           }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
-          /* A contribution is single-use with one fixed amount, so the amount is static text now,
-             not a dropdown. Styled to read as the committed figure beside its label. */
-          .cart-amount-static{
-            display:inline-flex;align-items:center;min-height:var(--control-h);
-            font-family:inherit;font-size:16px;font-weight:700;color:var(--public-brand-green);
-            font-variant-numeric:tabular-nums;
-          }
           /* Icon-only remove (trash), 44px target. Was an underlined "Remove" text link; now a
              quiet icon button that darkens on hover. The SVG inherits currentColor. */
           .cart-remove{
