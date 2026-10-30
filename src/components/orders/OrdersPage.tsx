@@ -1359,31 +1359,32 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-bar{align-items:flex-end;align-self:flex-end;gap:6px}
           .ord-account-actions{display:flex;gap:8px;align-items:center}
 
-          /* Icon-only actions: actual 44px hit areas, but NO chips, squares, grey fills
-             or button borders. The SVG uses lime with a forest-green keyline, because
-             raw brand lime alone is only 1.24:1 against white. */
+          /* Match HeaderCart's lime + forest-green pairing, but show the lime surface
+             at rest on Orders as requested. Keep 44px targets and a 10px radius,
+             with no grey fills or icon badges. */
           .ord-account-action,.ord-copy,.ord-inv,
           .ord-update,.ord-signout{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
             min-height:44px;display:inline-flex;align-items:center;justify-content:center;
-            padding:0;margin:0;border:0;border-radius:0;
-            background:transparent;color:var(--public-brand-lime);
+            padding:0;margin:0;border:0;border-radius:10px;
+            background:var(--public-brand-lime);color:var(--public-brand-green);
             font:inherit;cursor:pointer;
-            transition:opacity .15s ease,transform .15s ease;
+            transition:background-color .18s ease,box-shadow .18s ease;
           }
           .ord-copy{margin-inline-start:8px}
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
-            background:transparent;color:var(--public-brand-lime);
-            border:0;box-shadow:none;transform:scale(1.06);opacity:.82;
+            background:var(--lime-hover);color:var(--public-brand-green);
+            border:0;box-shadow:inset 0 0 0 1px var(--public-brand-green);
+            transform:none;opacity:1;
           }
           .ord-account-action:focus-visible,
           .ord-copy:focus-visible,.ord-inv:focus-visible{
-            background:transparent;outline:2px solid var(--public-brand-green);
-            outline-offset:1px;
+            background:var(--public-brand-lime);outline:2px solid var(--public-brand-green);
+            outline-offset:2px;
           }
           .ord-account-action:disabled,.ord-copy:disabled,.ord-inv:disabled{
-            opacity:.45;cursor:default;
+            opacity:.55;cursor:default;
           }
 
           /* Pure white surfaces; no grey table-header background or tinted row fill.
@@ -1407,8 +1408,8 @@ export default function OrdersPage (): React.ReactElement {
             border-block-start:0;overflow-x:auto;background:transparent;
           }
           .ord-th{
-            padding:10px 12px;background:transparent;
-            border-block-end:2px solid var(--public-brand-lime);
+            padding:10px 12px;background:var(--public-brand-lime);
+            border-block-end:2px solid var(--public-brand-green);
             color:var(--public-brand-green);
             font-family:var(--font-sans);font-size:var(--public-meta-size);
             font-weight:700;
