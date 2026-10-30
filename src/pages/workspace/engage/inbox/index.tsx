@@ -1226,9 +1226,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     </div>
                                 ) }
                                 { selectedContact && (
-                                    <div aria-label="Customer profile" style={ { margin: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: 'var(--bg-secondary)' } }>
-                                        <div style={ { padding: '8px 10px', fontWeight: 700, borderBottom: '1px solid var(--border)' } }>WECARE.DIGITAL customer profile</div>
-                                        <div style={ { overflowX: 'auto' } }>
+                                    <details className="ui-customer-profile" aria-label="Customer profile">
+                                        <summary className="ui-customer-profile-heading">WECARE.DIGITAL customer profile</summary>
+                                        <div className="ui-customer-profile-scroll">
                                             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
                                                 { profileGroups( selectedContact, replyTarget.phone, whatsAppName ).map( group => (
                                                     <tbody key={ group.title }>
@@ -1246,7 +1246,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 ) ) }
                                             </table>
                                         </div>
-                                    </div>
+                                    </details>
                                 ) }
                                 <div className="ui-thread-body" ref={ threadBodyRef }>
                                     { thread.length > visibleCount && (
@@ -1302,19 +1302,36 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                         return <ContactCardBubble contacts={ cards } fallbackLabel="Contact card" />;
                                                     } )() }
                                                     { ( m.messageType || '' ).toLowerCase() === 'flow_response' && (
-                                                        <div className="ui-flow-response" style={ { width: '100%', minWidth: 0, maxWidth: 560, overflowWrap: 'anywhere' } }>
-                                                            <div style={ { fontWeight: 700, marginBottom: 6 } }>
-                                                                { flowResponseTitle( m ) } · Flow response
-                                                            </div>
-                                                            <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
+                                                        <div className="ui-flow-response">
+                                                            <details className="ui-flow-details">
+                                                                <summary className="ui-flow-summary">
+                                                                    <strong>{ flowResponseTitle( m ) } · Flow response</strong>
+                                                                    <span className="ui-flow-count">
+                                                                        { m.flowAnswers?.length || 0 } answers
+                                                                        { m.flowAttachments?.length ? ` · ${m.flowAttachments.length} attachments` : '' }
+                                                                    </span>
+                                                                </summary>
+                                                                <div className="ui-flow-data">
+                                                                    <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
+                                                                </div>
+                                                            </details>
                                                         </div>
                                                     ) }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
                                                         && ( m.messageType || '' ).toLowerCase() !== 'flow_response' && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
-                                                        <span
-                                                            className="ui-msg-text"
-                                                            style={ revoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
-                                                        >{ prettyMsg( m.content, m.messageType ) }</span>
+                                                        ( () => {
+                                                            const value = prettyMsg( m.content, m.messageType );
+                                                            const revokedStyle = revoked ? { textDecoration: 'line-through' as const, opacity: 0.55 } : undefined;
+                                                            if ( value.length <= 900 ) return <span className="ui-msg-text" style={ revokedStyle }>{ value }</span>;
+                                                            return <details className="ui-long-message">
+                                                                <summary>
+                                                                    <span className="ui-long-preview" style={ revokedStyle }>{ value.slice( 0, 300 ).trimEnd() }…</span>
+                                                                    <span className="ui-long-more">Show full message</span>
+                                                                    <span className="ui-long-less">Hide full message</span>
+                                                                </summary>
+                                                                <span className="ui-msg-text" style={ revokedStyle }>{ value }</span>
+                                                            </details>;
+                                                        } )()
                                                     ) }
                                                     { ( ( m.messageType || '' ).toLowerCase() === 'unsupported' || ( m.content || '' ).toLowerCase().startsWith( '[unsupported: ' ) ) && (
                                                         <span className="ui-msg-meta">Meta did not include readable message content; this is not an inbox loading error.</span>
@@ -1398,7 +1415,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                             } }
                                                             title="Create an invoice and send the approved Review and Pay template"
                                                         >
-                                                            Commerce / Request payment
+                                                            Request payment
                                                         </button>
                                                     ) }
                                                 </div>
@@ -1706,11 +1723,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             ) }
 
             <style jsx>{ `
-        .ui-wrap { padding: 12px 18px; max-width: 1360px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        .ui-toolbar { display: flex; gap: 12px; margin: 10px 0; flex-shrink: 0; }
+        .ui-wrap { padding: 10px 12px; max-width: 1360px; margin: 0 auto; width: 100%; box-sizing: border-box; container-type: inline-size; container-name: inbox; }
+        .ui-toolbar { display: flex; gap: 8px; margin: 6px 0 8px; flex-shrink: 0; }
         .ui-search { flex: 1; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); }
         .ui-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); background: #fff; }
-        .ui-panes { display: grid; grid-template-columns: 340px 1fr; gap: 16px; height: calc(100dvh - 168px); min-height: 460px; overflow: hidden; }
+        .ui-panes { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 10px; height: calc(100dvh - 160px); min-height: 0; overflow: hidden; }
         .ui-list { border: 1px solid ${colors.border}; border-radius: 12px; overflow-y: auto; background: #fff; min-height: 0; }
         .ui-conv { display: block; width: 100%; text-align: left; padding: 12px 14px; border: none; border-bottom: 1px solid ${colors.borderLight}; background: #fff; cursor: pointer; }
         .ui-conv:hover { background: ${colors.bgHover}; }
@@ -1723,12 +1740,12 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-badges { display: flex; gap: 4px; flex-shrink: 1; flex-wrap: wrap; }
         .ui-badge { font-size: var(--text-xs); font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
         .ui-waba-badge { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-muted); }
-        .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; }
-        .ui-thread-head { padding: 12px 16px; border-bottom: 1px solid ${colors.border}; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; min-width: 0; }
+        .ui-thread-head { padding: 8px 10px; border-bottom: 1px solid ${colors.border}; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .ui-back { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
         .ui-thread-name { font-weight: 700; font-size: var(--text-md); color: ${colors.text}; }
         .ui-avatar { width: 38px; height: 38px; border-radius: 50%; background: ${colors.primary}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-sm); font-weight: 700; flex-shrink: 0; }
-        .ui-thread-id { display: flex; flex-direction: column; min-width: 0; }
+        .ui-thread-id { display: flex; flex: 1 1 170px; flex-direction: column; min-width: 0; }
         .ui-thread-sub { font-size: var(--text-xs); color: ${colors.textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ui-id-chip { display: inline-block; margin-left: 6px; font-size: var(--text-xs); font-weight: 600; color: ${colors.primary}; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 1px 7px; cursor: help; }
         .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; cursor: pointer; flex-shrink: 0; }
@@ -1759,12 +1776,31 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-note-input { flex: 1; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-sm); }
         .ui-note-btn { min-height:44px; padding: 8px 14px; background: ${colors.primary}; color: #fff; border: none; border-radius: 8px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-note-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ui-thread-body { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: ${colors.bgSecondary}; min-height: 200px; }
+        .ui-thread-body { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: ${colors.bgSecondary}; min-height: 0; }
         .ui-msg { display: flex; }
         .ui-msg.out { justify-content: flex-end; }
-        .ui-msg-bubble { max-width: 70%; background: #fff; border: 1px solid ${colors.border}; border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+        .ui-msg-bubble { max-width: min(90%, 760px); min-width: 0; box-sizing: border-box; background: #fff; border: 1px solid ${colors.border}; border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
         .ui-msg.out .ui-msg-bubble { background: ${colors.lime}; border-color: ${colors.lime}; }
         .ui-msg-text { font-size: var(--text-md); color: ${colors.text}; white-space: pre-wrap; word-break: break-word; }
+        /* Keep customer data accessible without stealing the viewport on every thread open. */
+        .ui-customer-profile { flex: 0 0 auto; margin: 5px 10px; border: 1px solid ${colors.border}; border-radius: 8px; background: ${colors.bgSecondary}; overflow: hidden; }
+        .ui-customer-profile-heading { padding: 7px 10px; font-size: var(--text-xs); font-weight: 700; color: ${colors.primary}; cursor: pointer; }
+        .ui-customer-profile-heading:focus-visible, .ui-flow-summary:focus-visible, .ui-long-message > summary:focus-visible { outline: 2px solid ${colors.primary}; outline-offset: -2px; }
+        .ui-customer-profile-scroll { overflow: auto; max-height: min(25dvh, 230px); border-top: 1px solid ${colors.borderLight}; }
+        .ui-flow-response { width: 100%; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+        .ui-flow-details { min-width: 0; }
+        .ui-flow-summary { padding: 3px 0; cursor: pointer; font-size: var(--text-sm); line-height: 1.5; }
+        .ui-flow-summary strong { font-weight: 700; }
+        .ui-flow-count { display: block; color: ${colors.textMuted}; font-size: var(--text-xs); font-weight: 400; }
+        .ui-flow-data { max-width: 100%; overflow-x: auto; padding-top: 6px; }
+        .ui-long-message { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+        .ui-long-message > summary { padding: 2px 0; cursor: pointer; list-style: none; }
+        .ui-long-message > summary::-webkit-details-marker { display: none; }
+        .ui-long-preview { display: block; font-size: var(--text-md); color: ${colors.text}; white-space: pre-wrap; }
+        .ui-long-more, .ui-long-less { display: block; margin-top: 5px; font-size: var(--text-xs); color: ${colors.primary}; font-weight: 700; text-decoration: underline; }
+        .ui-long-less, .ui-long-message[open] .ui-long-preview, .ui-long-message[open] .ui-long-more { display: none; }
+        .ui-long-message[open] .ui-long-less { display: block; }
+        .ui-long-message > .ui-msg-text { display: block; padding-top: 4px; }
         .ui-msg-img { max-width: 220px; max-height: 220px; border-radius: 8px; object-fit: cover; }
         .ui-msg-doc { font-size: var(--text-sm); color: ${colors.primary}; text-decoration: none; font-weight: 600; }
         .ui-msg-transcript { font-size: var(--text-xs); color: ${colors.textSecondary}; font-style: italic; border-left: 2px solid ${colors.border}; padding-left: 6px; }
@@ -1788,7 +1824,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-replying { display: flex; align-items: center; justify-content: space-between; background: ${colors.bgSecondary}; border-left: 3px solid ${colors.primary}; border-radius: 6px; padding: 6px 10px; }
         .ui-replying-text { font-size: var(--text-xs); color: ${colors.textSecondary}; }
         .ui-replying-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; font-size: var(--text-xs); }
-        .ui-wa-bar { display: flex; align-items: center; gap: 8px; }
+        .ui-wa-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .ui-wa-from { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-wa-waba { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); background: #fff; }
         .ui-email-subject { flex: 1; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
@@ -1857,7 +1893,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-react-pop { position: absolute; bottom: 130%; right: 0; display: flex; gap: 2px; background: #fff; border: 1px solid ${colors.border}; border-radius: 9999px; padding: 4px 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); z-index: 20; }
         .ui-react-em { background: none; border: none; cursor: pointer; font-size: var(--text-base); padding: 2px; line-height: 1; }
         .ui-react-em:hover { transform: scale(1.25); }
-        .ui-reply { padding: 10px 14px; border-top: 1px solid ${colors.border}; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+        .ui-reply { padding: 8px 10px; border-top: 1px solid ${colors.border}; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
         .ui-reply-input { width: 100%; resize: vertical; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); font-family: inherit; }
         .ui-reply-input:focus { outline: none; border-color: ${colors.primary}; box-shadow: ${shadow.focus}; }
         .ui-reply-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -1895,7 +1931,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
           .ui-panes.has-selection .ui-list { display: none; }
           .ui-panes.has-selection .ui-thread { display: flex; }
           .ui-back { display: inline-flex; }
-          .ui-msg-bubble { max-width: 85%; }
+          .ui-msg-bubble { max-width: 96%; }
           .ui-meta-bar { gap: 6px; padding-inline:12px; }
           .ui-meta-assignee, .ui-meta-tags { width: auto; flex: 1 1 120px; min-width: 0; }
           .ui-thread-head{padding:8px 10px}
@@ -1905,13 +1941,22 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
           .ui-pay-row{flex-wrap:wrap}
           .ui-pay-row > *{min-width:0}
         }
+        /* Embedded workspaces can be narrow despite a wide browser viewport. */
+        @container inbox (max-width: 860px) {
+          .ui-panes { grid-template-columns: minmax(0, 1fr); }
+          .ui-panes .ui-thread { display: none; }
+          .ui-panes .ui-list { display: block; }
+          .ui-panes.has-selection .ui-list { display: none; }
+          .ui-panes.has-selection .ui-thread { display: flex; }
+          .ui-back { display: inline-flex; }
+        }
         @media(max-width:340px){
           .ui-wrap{padding-inline:8px}
           .ui-toolbar{gap:8px}
           .ui-search{flex-basis:100%}
           .ui-thread-head{gap:6px}
           .ui-avatar{width:34px;height:34px}
-          .ui-msg-bubble{max-width:92%}
+          .ui-msg-bubble{max-width:98%}
         }
       ` }</style>
         </>
