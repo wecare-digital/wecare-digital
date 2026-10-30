@@ -1133,102 +1133,132 @@ const Customers: React.FC<PageProps> = () => {
   const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderBottomColor = '#dfe4df'; e.target.style.boxShadow = 'none'; };
 
   const renderContactForm = (_isEdit: boolean) => (
-  <div className="contacts-modal-body">
-    <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
-      <p style={S.hint}>The same profile and address fields the customer completes in WhatsApp Subscribe.</p>
-    </div>
-    <div>
-      <label htmlFor="contact-name" style={S.label}>Full name *</label>
-      <input id="contact-name" style={S.input} value={formName}
-        onChange={e => { setFormName(e.target.value); setFormError(''); }}
-        placeholder="Full name" maxLength={200} autoComplete="name"
-        onFocus={focusStyle} onBlur={blurStyle} />
-    </div>
-    <div className="contacts-form-contact">
-      <div>
-        <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
-        <div className="contacts-phone-control">
-          <div className="contacts-country-code">
-            <select id="contact-country-code" aria-label="WhatsApp country calling code"
-              style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
-              onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
-              onFocus={focusStyle} onBlur={blurStyle}>
-              {COUNTRY_CODES.map(cc => (
-                <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
-              ))}
-            </select>
-          </div>
-          <input id="contact-phone" style={S.input} value={formPhone}
-            onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
-            placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
-            onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp service and payment requests.</p>
+    <div className="contacts-modal-body">
+      <div className="contacts-form-intro">
+        <span className="contacts-form-kicker">Workspace · Customers</span>
+        <h3>{_isEdit ? 'Edit customer profile' : 'Create customer profile'}</h3>
+        <p>Canonical customer identity using the same profile and address contract as F001 Subscribe.</p>
       </div>
-    </div>
-    <div>
-      <label htmlFor="contact-profile-username" style={S.label}>
-        WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-      </label>
-      <input id="contact-profile-username" style={S.input} value={formProfileUsername}
-        onChange={e => setFormProfileUsername(e.target.value)}
-        placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50}
-        onFocus={focusStyle} onBlur={blurStyle} />
-    </div>
-    <div className="contacts-form-grid">
-      <div>
-        <label htmlFor="contact-company-name" style={S.label}>
-          Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-        </label>
-        <input id="contact-company-name" style={S.input} value={formCompanyName}
-          onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200}
-          autoComplete="organization" onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      <div>
-        <label htmlFor="contact-designation" style={S.label}>
-          Job title <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span>
-        </label>
-        <input id="contact-designation" style={S.input} value={formDesignation}
-          onChange={e => setFormDesignation(e.target.value)} placeholder="Optional" maxLength={200}
-          autoComplete="organization-title" onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-    </div>
 
-    <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>Your address</p>
-      <p style={{ ...S.hint, marginBottom: 10 }}>Used for service, delivery, and account details.</p>
-      <div className="contacts-form-grid">
-        {ADDRESS_FIELDS.map(spec => (
-          <div key={spec.key}>
-            <label htmlFor={`contact-${spec.key}`} style={S.label}>
-              {spec.label}{spec.required ? ' *' : ''}
-              {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
-            </label>
-            {spec.key === 'country' ? (
-              <select id={`contact-${spec.key}`} style={S.input} value={formAddress.country}
-                onChange={e => setFormAddress({ ...formAddress, country: e.target.value, countryCode: countryCodeForName(e.target.value) })}
-                onFocus={focusStyle} onBlur={blurStyle}>
-                {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
-              </select>
-            ) : (
-              <input id={`contact-${spec.key}`} style={S.input} value={formAddress[spec.key]}
-                maxLength={spec.maxLength} placeholder={spec.placeholder}
-                autoComplete={spec.key === 'postalCode' ? 'postal-code' : spec.key === 'city' ? 'address-level2' : spec.key === 'state' ? 'address-level1' : spec.key === 'addressLine1' ? 'street-address' : 'off'}
-                onChange={e => { setFormAddress({ ...formAddress, [spec.key]: e.target.value }); setFormError(''); }}
-                onFocus={focusStyle} onBlur={blurStyle} />
-            )}
+      <section className="contacts-form-section" aria-label="Customer identity">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Identity</strong>
+            <span>WhatsApp-first customer record</span>
           </div>
-        ))}
-      </div>
-      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
-      <div data-address-preview="contact" aria-readonly="true"
-        style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}>
-        {formatAddress(formAddress) || formShippingAddress || '\u2014'}
-      </div>
+          <small>F001</small>
+        </div>
+
+        <div className="contacts-form-stack">
+          <div>
+            <label htmlFor="contact-name" style={S.label}>Full name *</label>
+            <input id="contact-name" style={S.input} value={formName}
+              onChange={e => { setFormName(e.target.value); setFormError(''); }}
+              placeholder="Full name" maxLength={200} autoComplete="name"
+              onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+
+          <div className="contacts-form-contact">
+            <div>
+              <label htmlFor="contact-phone" style={S.label}>Linked WhatsApp number *</label>
+              <div className="contacts-phone-control">
+                <div className="contacts-country-code">
+                  <select id="contact-country-code" aria-label="WhatsApp country calling code"
+                    style={{ ...S.input, cursor: 'pointer' }} value={formCountryCode}
+                    onChange={e => { setFormCountryCode(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
+                    onFocus={focusStyle} onBlur={blurStyle}>
+                    {COUNTRY_CODES.map(cc => (
+                      <option key={cc.code} value={cc.code}>{cc.code} — {cc.country}</option>
+                    ))}
+                  </select>
+                </div>
+                <input id="contact-phone" style={S.input} value={formPhone}
+                  onChange={e => { setFormPhone(e.target.value); setFormError(''); setDuplicateContact(null); setDuplicateSearchValue(''); setIdentityReconciliationRequired(false); }}
+                  placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
+                  onFocus={focusStyle} onBlur={blurStyle} />
+              </div>
+              <p style={S.hint}>Used for WhatsApp service, verification and payment requests. The country code is stored in canonical E.164 form.</p>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="contact-profile-username" style={S.label}>
+              WhatsApp username <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-profile-username" style={S.input} value={formProfileUsername}
+              onChange={e => setFormProfileUsername(e.target.value)}
+              placeholder="WECARE.DIGITAL profile username" maxLength={50}
+              onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+        </div>
+      </section>
+
+      <section className="contacts-form-section" aria-label="Work details">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Work details</strong>
+            <span>Optional organization context</span>
+          </div>
+        </div>
+        <div className="contacts-form-grid">
+          <div>
+            <label htmlFor="contact-company-name" style={S.label}>
+              Organization <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-company-name" style={S.input} value={formCompanyName}
+              onChange={e => setFormCompanyName(e.target.value)} placeholder="Organization" maxLength={200}
+              autoComplete="organization" onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+          <div>
+            <label htmlFor="contact-designation" style={S.label}>
+              Job title <span className="contacts-optional">Optional</span>
+            </label>
+            <input id="contact-designation" style={S.input} value={formDesignation}
+              onChange={e => setFormDesignation(e.target.value)} placeholder="Job title" maxLength={200}
+              autoComplete="organization-title" onFocus={focusStyle} onBlur={blurStyle} />
+          </div>
+        </div>
+      </section>
+
+      <section className="contacts-form-section contacts-form-address" aria-label="Customer address">
+        <div className="contacts-section-head">
+          <div>
+            <strong>Address</strong>
+            <span>Service, delivery and account details</span>
+          </div>
+        </div>
+        <div className="contacts-form-grid">
+          {ADDRESS_FIELDS.map(spec => (
+            <div key={spec.key}>
+              <label htmlFor={`contact-${spec.key}`} style={S.label}>
+                {spec.label}{spec.required ? ' *' : ''}
+                {!spec.required && <span className="contacts-optional">Optional</span>}
+              </label>
+              {spec.key === 'country' ? (
+                <select id={`contact-${spec.key}`} style={S.input} value={formAddress.country}
+                  onChange={e => setFormAddress({ ...formAddress, country: e.target.value, countryCode: countryCodeForName(e.target.value) })}
+                  onFocus={focusStyle} onBlur={blurStyle}>
+                  {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
+                </select>
+              ) : (
+                <input id={`contact-${spec.key}`} style={S.input} value={formAddress[spec.key]}
+                  maxLength={spec.maxLength} placeholder={spec.placeholder}
+                  autoComplete={spec.key === 'postalCode' ? 'postal-code' : spec.key === 'city' ? 'address-level2' : spec.key === 'state' ? 'address-level1' : spec.key === 'addressLine1' ? 'street-address' : 'off'}
+                  onChange={e => { setFormAddress({ ...formAddress, [spec.key]: e.target.value }); setFormError(''); }}
+                  onFocus={focusStyle} onBlur={blurStyle} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="contacts-address-preview">
+          <span>Composed address</span>
+          <div data-address-preview="contact" aria-readonly="true">
+            {formatAddress(formAddress) || formShippingAddress || '—'}
+          </div>
+        </div>
+      </section>
     </div>
-  </div>
-);
+  );
 
   const duplicateContactCard = duplicateContact ? (
     <div className="contacts-duplicate-card">
@@ -1250,6 +1280,34 @@ const Customers: React.FC<PageProps> = () => {
         ) : (
           <button type="button" onClick={useExistingForPayment} className="contacts-primary-action">Use for payment</button>
         )}
+      </div>
+    </div>
+  ) : null;
+
+  const duplicateSearchCard = !duplicateContact && duplicateSearchValue ? (
+    <div className="contacts-duplicate-card contacts-duplicate-search" role="status">
+      <div>
+        <span>Existing customer</span>
+        <strong>This WhatsApp number already belongs to an existing customer.</strong>
+        <small>Search by number to open it instead of creating another customer.</small>
+      </div>
+      <div className="contacts-duplicate-actions">
+        <button type="button" onClick={searchExistingCustomer} className="contacts-primary-action">
+          Search customer
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const identityReconciliationCard = identityReconciliationRequired ? (
+    <div className="contacts-reconciliation-card" role="alert">
+      <div>
+        <span>Identity needs reconciliation</span>
+        <strong>This WhatsApp number is already reserved, but its customer record is unavailable.</strong>
+        <small>
+          A new customer is blocked until an administrator reconciles the existing identity ownership.
+          No duplicate customer was created.
+        </small>
       </div>
     </div>
   ) : null;
@@ -1679,7 +1737,7 @@ const Customers: React.FC<PageProps> = () => {
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1687,6 +1745,8 @@ const Customers: React.FC<PageProps> = () => {
             {renderContactForm(false)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {duplicateSearchCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
@@ -1698,7 +1758,7 @@ const Customers: React.FC<PageProps> = () => {
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
-          <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div className="customer-modal-panel contacts-auth-modal contacts-workspace-form-v2" style={{ width: 760, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1706,6 +1766,8 @@ const Customers: React.FC<PageProps> = () => {
             {renderContactForm(true)}
             {formError && <div className="contacts-modal-error" role="alert">{formError}</div>}
             {duplicateContactCard}
+            {duplicateSearchCard}
+            {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
               <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>
