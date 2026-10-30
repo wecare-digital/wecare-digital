@@ -114,7 +114,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
   return (
     <fieldset className="address-fields" disabled={ disabled }>
-      <legend>Delivery address</legend>
+      <legend className="sr-only">Delivery address</legend>
 
       <div className="address-grid">
         <label className="span-2">
@@ -124,32 +124,29 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             onChange={ event => patch( 'addressLine1', event.target.value ) }
             autoComplete="address-line1"
             maxLength={ 200 }
-            placeholder="Street address"
             aria-required="true"
             aria-invalid={ invalidField === 'addressLine1' ? 'true' : undefined }
           />
         </label>
 
         <label className="span-2">
-          <span>Apartment / suite / unit <em>Optional</em></span>
+          <span>Apartment / suite / unit</span>
           <input
             value={ value.addressLine2 }
             onChange={ event => patch( 'addressLine2', event.target.value ) }
             autoComplete="address-line2"
             maxLength={ 200 }
-            placeholder="Optional"
             aria-invalid={ invalidField === 'addressLine2' ? 'true' : undefined }
           />
         </label>
 
         <label className="span-2">
-          <span>Landmark / neighborhood <em>Optional</em></span>
+          <span>Landmark / neighborhood</span>
           <input
             value={ value.locality }
             onChange={ event => patch( 'locality', event.target.value ) }
             autoComplete="address-level3"
             maxLength={ 100 }
-            placeholder="Optional"
             aria-invalid={ invalidField === 'locality' ? 'true' : undefined }
           />
         </label>
@@ -161,7 +158,6 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             onChange={ event => patch( 'city', event.target.value ) }
             autoComplete="address-level2"
             maxLength={ 100 }
-            placeholder="City"
             aria-required="true"
             aria-invalid={ invalidField === 'city' ? 'true' : undefined }
           />
@@ -188,7 +184,6 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
               onChange={ event => patch( 'state', event.target.value ) }
               autoComplete="address-level1"
               maxLength={ 100 }
-              placeholder="State / region"
               aria-required="true"
               aria-invalid={ invalidField === 'state' ? 'true' : undefined }
             />
@@ -208,7 +203,6 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             autoComplete="postal-code"
             inputMode={ india ? 'numeric' : 'text' }
             maxLength={ india ? 6 : 100 }
-            placeholder="Postal code"
             aria-required="true"
             aria-invalid={ pinBad || invalidField === 'postalCode' ? 'true' : undefined }
             aria-describedby={ pinBad ? 'address-postal-help' : undefined }
@@ -234,12 +228,11 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
       <style jsx>{`
         .address-fields{
-          margin:24px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
-          min-inline-size:0;
+          margin:24px 0 0;padding:0;border:0;min-inline-size:0;
         }
-        legend{
-          padding:0;margin:0 0 18px;color:var(--public-brand-green);
-          font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+        .sr-only{
+          position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+          clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .address-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;align-items:start}
         .span-2{grid-column:1/-1}
@@ -248,14 +241,11 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           color:var(--public-text);font-size:14px;font-weight:600;
         }
         label>span{min-inline-size:0}
-        label em{
-          margin-inline-start:6px;color:var(--public-muted);font-style:normal;font-weight:400;
-        }
         input{
           min-inline-size:0;width:100%;min-height:54px;padding:0 2px;box-sizing:border-box;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;
           background:transparent;color:var(--public-text);
-          font:var(--public-body-weight) 16px/1.2 var(--font-sans);
+          font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);
           box-shadow:none;outline:0;-webkit-appearance:none;appearance:none;
           transition:border-color .2s,box-shadow .2s;
         }
@@ -283,7 +273,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           border:0 !important;border-bottom:1px solid var(--public-hairline) !important;
           border-radius:0 !important;background:transparent !important;color:var(--public-text) !important;
           box-shadow:none !important;outline:0 !important;
-          font:var(--public-body-weight) 16px/1.2 var(--font-sans) !important;
+          font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans) !important;
           transition:border-color .2s,box-shadow .2s !important;
         }
         .address-grid :global(.address-state .ui-select-trigger:hover),
