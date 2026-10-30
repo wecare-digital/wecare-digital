@@ -7539,13 +7539,6 @@ export interface SecureFile {
 
 export type SecureFileAccessState = 'UNPAID' | 'OPEN' | 'READY' | 'EXPIRED' | 'PAID_UNVERIFIED';
 
-export interface SecureUploadTicket {
-  fileId: string;
-  uploadUrl: string;
-  expiresInSeconds: number;
-  contentType: string;
-}
-
 /** The answer to a one-shot staff Vault action. `message` is the server's sentence. */
 export interface SecureFileActionResult {
   ok: boolean;
@@ -7606,64 +7599,8 @@ export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActio
   return secureFileAction( fileId, 'send-access' );
 }
 
-/**
- * Step 1 of an admin upload: register the customer and the file, and get a
- * presigned PUT back.
- *
- * This is also what creates the Cognito customer, so the mobile number given here
- * is the number that will receive the WhatsApp OTP. Get it wrong and the customer
- * cannot reach the file.
- */
-export async function initSecureUpload ( input: {
-  name: string;
-  mobile: string;
-  displayName?: string;
-  tag?: string;
-  originalFilename: string;
-  contentType: string;
-  sizeBytes: number;
-} ): Promise<ApiResult<SecureUploadTicket>> {
-  return apiCallResult<SecureUploadTicket>( `${API_BASE}/secure-files/upload-init`, {
-    method: 'POST',
-    body: JSON.stringify( input ),
-  } );
-}
-
-/**
- * Step 2: PUT the bytes straight to S3.
- *
- * Deliberately a bare `fetch`, not `authFetch` — the presigned URL carries its own
- * SigV4 signature, and adding our Cognito Authorization header would make S3
- * reject the request as having two conflicting auth mechanisms.
- */
-export async function uploadSecureFileBytes (
-  uploadUrl: string,
-  file: File,
-  contentType: string,
-): Promise<boolean> {
-  const response = await fetch( uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  } );
-  return response.ok;
-}
-
-/**
- * Step 3: flip the record from pending to active.
- *
- * Separate from step 1 on purpose: the backend re-heads the object before
- * activating, so a browser upload that died half way leaves a pending record the
- * customer can never be charged for rather than a broken active one.
- */
-export async function confirmSecureUpload ( fileId: string ): Promise<ApiResult<{
-  fileId: string; status: string; sizeBytes: number;
-}>> {
-  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/confirm`, {
-    method: 'POST',
-  } );
-}
-
+/** Direct Vault upload is retired. Staff uploads use the Documents intake helpers below,
+ * then publishDocumentToVault after S3 confirmation. */
 /** Admin listing. Pass a mobile number to scope it to one customer via the GSI. */
 export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
   files: SecureFile[]; count: number; truncated?: boolean;
