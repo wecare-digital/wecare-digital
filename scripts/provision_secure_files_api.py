@@ -188,6 +188,20 @@ def policy_document() -> dict:
                 ],
             },
             {
+                "Sid": "ReadPaidVaultJourneyLogs",
+                "Effect": "Allow",
+                # Read-only GSI/PK queries bound to a verified paid entitlement.
+                "Action": ["dynamodb:Query"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-"
+                    "WhatsAppOutboundTable/index/paymentReferenceId-index",
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-"
+                    "InvoicesTable/index/referenceId-index",
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-"
+                    "InvoiceDeliveryLogTable",
+                ],
+            },
+            {
                 "Sid": "ReadVerifiedWhatsAppMessageStatus",
                 "Effect": "Allow",
                 # ONLY status lookups by server-recorded provider message IDs;
