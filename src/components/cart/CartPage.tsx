@@ -591,11 +591,15 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // ASK THE READINESS QUESTION ONCE, ON ARRIVAL, so a returning customer is shown what we
     // already know instead of a form they filled in weeks ago. A FAILURE BLOCKS NOTHING AND SAYS
     // NOTHING: the status stays 'unknown' and `proceed` re-derives the truth on the click.
-    const session = getSession();
-    if ( !session ) return;
-    setCheckoutAccessToken( session.accessToken );
     let live = true;
     void ( async () => {
+      // A returning OTP-verified customer may have only a persisted session.
+      // Restore it before deciding the profile is absent on first cart load.
+      let session;
+      try { session = getSession() || await restoreSession(); }
+      catch { return; }
+      if ( !live || !session ) return;
+      setCheckoutAccessToken( session.accessToken );
       const reply = await loadProfileStatus( session.accessToken );
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
@@ -1371,7 +1375,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // The server remains the authority. If this guesses wrong and lets a physical basket through,
     // `prepare` answers 409 DELIVERY_DETAILS_REQUIRED and the arm below opens the editor.
     const needsDelivery = cartRequiresDelivery();
-    if ( status === 'required' && ( needsDelivery || mode === 'create' ) )
+    if ( status === 'required' && ( needsDelivery || mode === 'create' || mode === 'name' ) )
     {
       setProfileMode( mode );
       setShowProfile( true );
@@ -1693,9 +1697,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   'ready', which means profile complete AND an address on file, so the Deliver row
                   can never be empty. The card STAYS while an editor is open beneath it - with its
                   three buttons disabled - so the customer can see what they are changing from. */}
-              { profileStatus === 'ready' && profile && (
+              { profile && ( profileStatus === 'ready' || ( !cartRequiresDelivery() && Boolean( profile.name ) ) ) && (
                 <CheckoutIdentityCard
                   identity={ profile }
+                  showAddress={ cartRequiresDelivery() }
                   editorOpen={ showProfile }
                   onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
                   onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
@@ -1731,14 +1736,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     setProfile( next );
                     justSavedRef.current = true;
                     setProfileStatus( nextStatus );
-                    if ( nextStatus === 'ready' )
+                    // Digital-only carts need a name and a verified phone, not
+                    // a shipping address. Do not keep reopening an unnecessary
+                    // address editor after a successful name-only save.
+                    if ( nextStatus === 'ready' || ( next.name.trim() && !cartRequiresDelivery() ) )
                     {
                       setShowProfile( false );
                       setNotice( { kind: 'none' } );
                     }
                     else
                     {
-                      setProfileMode( 'address' );
+                      setProfileMode( next.name.trim() ? 'address' : 'name' );
                       setShowProfile( true );
                       setNotice( { kind: 'none' } );
                     }
