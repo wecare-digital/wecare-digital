@@ -83,15 +83,16 @@ def test_website_profile_template_uses_data_exchange_for_optional_prefill():
     f001 = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/subscribe_profile.py").read_text()
     flow_path = ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/published/subscribe.json"
 
-    assert 'os.environ.get("WA_PROFILE_UPDATE_TEMPLATE", "service_details")' in templates
-    assert '"wecare_profile_update_f001": SHARED_TEMPLATE_HEADER' in media
-    # Only the legacy NAVIGATE button gets ad-hoc screen values. For the DATA_EXCHANGE
-    # template the button carries a server-issued token, and INIT owns the prefill.
+    # The original Meta template is edited in place, never swapped to a new name.
+    # Meta's button action must be verified independently after its review.
+    assert 'PROFILE_DETAILS = Template(name="service_details"' in templates
+    assert '"service_details": SHARED_TEMPLATE_HEADER' in media
+    assert '"wecare_profile_update_f001": SHARED_TEMPLATE_HEADER' not in media
+    assert "WA_PROFILE_UPDATE_TEMPLATE" not in templates
     send = sender.split("def _customer_profile_update_template(", 1)[1].split("\ndef handler(", 1)[0]
-    assert "if template.name == 'service_details':" in send
     assert "action = {'flow_token': token}" in send
     assert "action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)" in send
-    assert "if template.name not in ('service_details', 'wecare_profile_update_f001')" in send
+    assert "template = whatsapp_templates.PROFILE_DETAILS" in send
     assert "return handle_init(payload, flow_token, request_id)" in f001
     assert "values = _screen_values(row, session.phone)" in f001
 
