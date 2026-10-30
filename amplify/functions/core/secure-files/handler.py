@@ -1484,15 +1484,26 @@ def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     # The outbound payment template is bound by the same server-owned reference.
     outbound = _table(os.environ.get(
         "WA_OUTBOUND_TABLE", "stack-wecare-digital-WhatsAppOutboundTable"))
-    payment_rows = outbound.query(
+    payment_projections = outbound.query(
         IndexName="paymentReferenceId-index",
         KeyConditionExpression="paymentReferenceId = :ref",
         ExpressionAttributeValues={":ref": ref},
         Limit=15,
     ).get("Items") or []
+    # This GSI is INCLUDE, not ALL: it projects the primary id and sender IDs
+    # but NOT WAMID, createdAt or message type. Read each exact projected PK,
+    # keeping the lookup bounded and refusing unmatched references.
+    payment_rows = []
+    for projection in payment_projections:
+        row_id = str(projection.get("id") or "")
+        if not row_id or len(row_id) > 160:
+            continue
+        row = outbound.get_item(
+            Key={"id": row_id}, ConsistentRead=True).get("Item") or {}
+        if row.get("paymentReferenceId") == ref:
+            payment_rows.append(row)
     native = [row for row in payment_rows
-              if row.get("paymentReferenceId") == ref
-              and str(row.get("direction") or "").lower() == "outbound"
+              if str(row.get("direction") or "").lower() == "outbound"
               and str(row.get("messageType") or "").lower() in ("template", "payment")
               and str(row.get("whatsappMessageId") or "").startswith("wamid.")]
     if native:
