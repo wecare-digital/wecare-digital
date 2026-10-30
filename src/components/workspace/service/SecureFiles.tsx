@@ -635,14 +635,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-review-head">
                             <div>
                                 <p className="sf-review-eyebrow">Customer preview</p>
-                                <h2 id="sf-review-title">Review &amp; Pay</h2>
-                                <p>{ vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
+                                <h2 id="sf-review-title">Vault ready → Review &amp; Pay</h2>
+                                <p>First: wecare_vault_request_ready · Unlock Vault. After the customer taps: { vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
                             </div>
                             <button
                                 type="button"
                                 className="sf-review-close"
                                 onClick={ () => setReviewFile( null ) }
-                                aria-label="Close Review and Pay preview"
+                                aria-label="Close Vault journey preview"
                             >
                                 ×
                             </button>

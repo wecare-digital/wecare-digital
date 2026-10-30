@@ -29,8 +29,8 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
-    VAULT_OFFER    wecare_vault_request_ready             LEGACY compatibility only for already-sent
-                                                          QUICK_REPLY "Unlock Vault" messages
+    VAULT_OFFER    wecare_vault_request_ready             Manual Vault stage 1: IMAGE header and
+                                                          bound QUICK_REPLY "Unlock Vault"
     SUBMIT_REQUEST_FLOW     submit_request_flow           UTILITY, IMAGE header, FLOW button index 0
     REQUEST_AMENDMENT_FLOW request_amendment_flow          UTILITY, IMAGE header, FLOW button index 0
     DROP_DOCS_FLOW          _dropdoc_flow                  UTILITY, IMAGE header, FLOW button index 0

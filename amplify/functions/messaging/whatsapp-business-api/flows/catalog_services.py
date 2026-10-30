@@ -87,9 +87,10 @@ def _send_access(client, row, file_id):
 
 
 def readiness(graph):
-    """Live Meta readback of the two templates a Vault purchase needs. Reads only."""
+    """Live Meta readback of the approved Vault-ready, payment and delivery templates."""
     templates = {}
-    for name, ident in {'wecare_whatapp_native_pay_template': '2714938845570815',
+    for name, ident in {'wecare_vault_request_ready': '29124703577146420',
+                        'wecare_whatapp_native_pay_template': '2714938845570815',
                         'wecare_default_download': '1410998911012572',
                         '_dropdoc_flow': '1041974032198332'}.items():
         info = graph(ident, params={'fields': 'id,name,status,language,components'})
@@ -504,14 +505,19 @@ def _send_offer(event, client, db, keys, contacts, now):
     offer = {'orderId': OFFER_PREFIX + token, 'kind': 'VAULT_OFFER', 'fileId': file_id,
              'ownerCustomerId': owner, 'phone': phone, 'contactId': contact_id,
              'createdAt': now, 'expiresAt': now + OFFER_TTL_SECONDS, 'fileState': state,
-             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64]}
+             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
+             'offerTemplate': whatsapp_templates.VAULT_OFFER.name}
     keys.put_item(Item=offer, ConditionExpression='attribute_not_exists(orderId)')
     # No contact id is fine: outbound resolves or creates the contact from the number.
     recipient = {'contactId': contact_id, 'phone': phone,
                  'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1}
     try:
-        response = _send(client, recipient, **whatsapp_templates.vault_offer_send_fields(
-            file.get('displayName') or file.get('originalFilename'), token))
+        response = _send(
+            client, recipient,
+            idempotencyKey='vault-offer:' + token,
+            **whatsapp_templates.vault_offer_send_fields(
+                file.get('displayName') or file.get('originalFilename'), token),
+        )
     except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
         response = None
     outcome, detail = _offer_send_outcome(response)

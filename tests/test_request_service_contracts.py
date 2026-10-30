@@ -435,6 +435,27 @@ def test_manual_workspace_vault_offer_precedes_customer_payment():
     assert "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png" in media
 
 
+def test_vault_offer_preflight_uses_approved_template_and_idempotent_send():
+    catalog = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py").read_text()
+    outbound = (ROOT / "amplify/functions/messaging/outbound-whatsapp/handler.py").read_text()
+    delivery = (ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py").read_text()
+    ui = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
+    template_registry = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
+
+    assert "'wecare_vault_request_ready': '29124703577146420'" in catalog
+    assert "idempotencyKey='vault-offer:' + token" in catalog
+    assert "'offerTemplate': whatsapp_templates.VAULT_OFFER.name" in catalog
+    assert "if not _offer_whatsapp_message_id(response):" in catalog
+    assert "whatsappMessageId=:wamid" in catalog
+    assert "if action == 'sendVaultOffer':" in catalog
+    assert "if action in ('sendPayment', 'sendOffer'):" in catalog
+    assert "_claim_keyed_outbound_send(message_id, request_id)" in outbound
+    assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in delivery
+    assert "_POST_RECEIPT_ACCESS_GAP_SECONDS = 2" in delivery
+    assert "Vault ready → Review &amp; Pay" in ui
+    assert "Manual Vault stage 1" in template_registry
+
+
 def test_workspace_vault_shows_download_template_variable_mapping():
     page = (ROOT / "src/components/workspace/service/SecureFiles.tsx").read_text()
     assert "wecare_default_download" in page
