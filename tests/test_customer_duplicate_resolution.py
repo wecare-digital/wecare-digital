@@ -108,6 +108,10 @@ def test_customer_create_modal_uses_workspace_card_layout():
     assert "Customer identity" in page
     assert "Work details" in page
     assert "contacts-address-preview" in page
+    # The operator form must not bring back internal F001 implementation language.
+    form = page[page.index("const renderContactForm"):page.index("const duplicateContactCard")]
+    assert "F001 Subscribe" not in form
+    assert "<small>F001</small>" not in form
 
     assert "Customers — Workspace-native create/edit surface." in css
     assert ".contacts-workspace-form-v2 .contacts-form-section" in css
