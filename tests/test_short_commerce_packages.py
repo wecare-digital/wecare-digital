@@ -49,9 +49,15 @@ class PackagePreflightTests(unittest.TestCase):
 
     def test_invalid_packaged_python_is_rejected(self):
         members = dict(self.members)
-        members["lambda_utils/ecommerce/short_purchase.py"] = b"def broken(\n"
-        with self.assertRaises(ValueError):
+        members["lambda_utils/syntax_regression.py"] = b"def broken(\n"
+        with self.assertRaisesRegex(ValueError, "invalid packaged Python"):
             checker.verify_contents(self.checkout, members)
+
+    def test_checkout_commerce_identity_does_not_depend_on_iteration_order(self):
+        with patch.object(checker, "RECEIVERS", tuple(reversed(checker.RECEIVERS))):
+            rows = checker.inspect_receivers()
+        self.assertEqual("wecare-inbound-whatsapp", rows[0]["name"])
+        self.assertEqual({r["name"] for r in rows}, set(checker.RECEIVERS))
 
     def test_zip_member_map_is_verified(self):
         members = dict(self.members)
@@ -61,11 +67,11 @@ class PackagePreflightTests(unittest.TestCase):
 
     def test_nondeterministic_second_build_fails(self):
         original = checker.deploy.build_zip
-        calls = [0]
+        calls_by_name = {}
         def changed_second(spec):
             blob, members = original(spec)
-            calls[0] += 1
-            if calls[0] == 2:
+            calls_by_name[spec.name] = calls_by_name.get(spec.name, 0) + 1
+            if spec.name == "wecare-checkout" and calls_by_name[spec.name] == 2:
                 return blob + b"x", members
             return blob, members
         with patch.object(checker.deploy, "build_zip", side_effect=changed_second):
