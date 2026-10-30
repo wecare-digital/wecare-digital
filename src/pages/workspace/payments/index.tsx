@@ -129,12 +129,6 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
               tabs={ TABS }
               activeTab={ active }
               defaultTab={ active }
-              actions={
-                <div className="payments-public-actions">
-                  <button type="button" onClick={ () => void router.push( '/workspace/' ) }>Workspace</button>
-                  { signOut && <button type="button" onClick={ signOut }>Sign out</button> }
-                </div>
-              }
               onTabChange={ next => {
                 const view = mode( next );
                 void router.push( {
@@ -178,49 +172,6 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
                 </>
               ) }
             </PageShell>
-        <style jsx>{`
-          .payments-public-actions{
-            display:flex;
-            align-items:center;
-            justify-content:flex-end;
-            flex-wrap:wrap;
-            gap:8px;
-          }
-          .payments-public-actions button{
-            padding:8px 12px;
-            border:0;
-            border-radius:10px;
-            background:var(--public-lime-tint,#f8faf3);
-            color:var(--public-brand-green,#1a3a2a);
-            font:600 var(--public-supporting-size,16px)/1.3 var(--font-sans);
-            text-decoration:underline;
-            text-decoration-thickness:1.5px;
-            text-underline-offset:4px;
-            cursor:pointer;
-            transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
-          }
-          .payments-public-actions button:hover{
-            background:var(--public-brand-lime,#d1f470);
-            transform:translateY(-1px);
-            box-shadow:var(--public-lift-shadow);
-            text-decoration-color:transparent;
-          }
-          .payments-public-actions button:focus-visible{
-            outline:2px solid var(--public-brand-green,#1a3a2a);
-            outline-offset:2px;
-          }
-          @media(max-width:767px){
-            .payments-public-actions{
-              width:100%;
-              display:grid;
-              grid-template-columns:1fr 1fr;
-            }
-            .payments-public-actions button{width:100%}
-          }
-          @media(max-width:480px){
-            .payments-public-actions{grid-template-columns:1fr}
-          }
-        `}</style>
     </Layout>
   );
 };
