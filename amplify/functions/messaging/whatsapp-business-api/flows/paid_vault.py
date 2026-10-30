@@ -50,6 +50,7 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
             return False
         raise
     status = 'SEND_UNKNOWN'
+    message_id = ''
     try:
         response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse', Payload=json.dumps({'body': json.dumps(body)}).encode())
@@ -58,16 +59,27 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
         if not response.get('FunctionError'):
             if 200 <= code < 300:
                 status = 'ACCEPTED'
+                try:
+                    inner = json.loads(answer.get('body') or '{}')
+                except (TypeError, ValueError):
+                    inner = {}
+                if isinstance(inner, dict):
+                    message_id = str(inner.get('whatsappMessageId') or inner.get('messageId') or '')[:160]
             elif code in (400, 401, 403, 404, 413, 415, 422):
                 status = 'SEND_REJECTED'
     except Exception:
         # Failure may occur after Meta accepted the message. Never blindly retry it.
         pass
+    update = 'SET ' + key + '=:s, ' + retry_key + '=:retry'
+    values = {':s': status, ':retry': now + 30, ':sending': 'SENDING',
+              ':count': previous + 1}
+    if message_id:
+        update += ', ' + key + 'MessageId=:mid'
+        values[':mid'] = message_id
     requests.update_item(Key=record_key,
-        UpdateExpression='SET ' + key + '=:s, ' + retry_key + '=:retry',
+        UpdateExpression=update,
         ConditionExpression=key + '=:sending AND ' + attempts_key + '=:count',
-        ExpressionAttributeValues={':s': status, ':retry': now + 30,
-                                   ':sending': 'SENDING', ':count': previous + 1})
+        ExpressionAttributeValues=values)
     return status == 'ACCEPTED'
 
 
