@@ -134,3 +134,18 @@ def test_protected_head_keeps_viewport_fit_cover():
     app = APP.read_text()
     protected = app[app.index("// Protected pages"):]
     assert "viewport-fit=cover" in protected
+
+
+def test_workspace_forms_inherit_auth_bottom_hairline_skin():
+    css = SHELL_CSS.read_text()
+    assert "Workspace forms follow the same visual contract as /auth/" in css
+    assert 'input:not([type="checkbox"])' in css
+    assert ".workspace-main textarea" in css
+    assert ".workspace-main select" in css
+    assert 'button[role="combobox"]' in css
+    assert "border-width:0 0 1px!important" in css
+    assert "border-radius:0!important" in css
+    assert "background-color:transparent!important" in css
+    assert "box-shadow:0 1px 0 0 var(--public-brand-lime,#b7ef5a)!important" in css
+    for excluded in ('[type="checkbox"]', '[type="radio"]', '[type="file"]', '[type="range"]', '[type="color"]'):
+        assert excluded in css
