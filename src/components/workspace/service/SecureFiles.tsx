@@ -1127,26 +1127,26 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             </div>
 
             <style jsx>{ `
-                .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box}
+                .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box;font-family:var(--font-sans);font-size:var(--public-supporting-size);color:var(--public-text)}
 
                 .sf-heading-line{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
-                .sf-private-indicator{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid #d5e6d0;border-radius:999px;background:#f4faee;font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
+                .sf-private-indicator{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--public-brand-lime);border-radius:999px;background:var(--public-lime-tint);font-size:var(--public-meta-size);font-weight:700;color:var(--public-brand-green);white-space:nowrap}
                 .sf-private-indicator:before{content:'';width:7px;height:7px;border-radius:50%;background:#5eaf73}
                 .sf-progress{display:flex;flex-wrap:wrap;list-style:none;padding:0;margin:20px 0 0;gap:9px}
-                .sf-progress li{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:#f7f9f7;border:1px solid var(--border);border-radius:999px;color:#56705a;font-size:12px;font-weight:700}
+                .sf-progress li{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:var(--public-lime-tint);border:1px solid var(--public-hairline);border-radius:999px;color:var(--public-brand-green);font-size:var(--public-meta-size);font-weight:700}
                 .sf-progress li span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e8f3dd;font-size:11px;color:var(--accent)}
                 .sf-progress li:first-child{background:#ecf8d8;border-color:#c7e59c;color:var(--accent)}
                 .sf-identity-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:15px}
                 .sf-ownership-note{margin:7px 0 0}
                 .sf-message-composer{margin-top:20px;padding:16px;border-radius:13px;background:#f7faf5;border:1px solid #d8e7d5}
                 .sf-message-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-                .sf-message-heading strong{color:var(--accent);font-size:14px}
+                .sf-message-heading strong{color:var(--public-brand-green);font-size:var(--public-supporting-size)}
                 .sf-message-heading span{font-weight:700;font-size:11px;color:#59745c}
-                .sf-composer-help{font-size:11px;line-height:1.5;color:var(--text-muted);margin:8px 0 0}
+                .sf-composer-help{font-size:var(--public-meta-size);line-height:1.5;color:var(--public-muted);margin:8px 0 0}
                 .sf-composer-help code{font-size:11px}
                 .sf-delivery-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-                .sf-delivery-buttons .sf-cta{min-height:45px;padding:10px 12px;font-size:12px;white-space:normal;line-height:1.4}
-                .sf-delivery-buttons .sf-send-cta{grid-column:1 / -1;min-height:49px;font-size:14px!important}
+                .sf-delivery-buttons .sf-cta{min-height:48px;padding:10px 12px;font-family:var(--font-sans);font-size:var(--public-supporting-size);white-space:normal;line-height:1.4}
+                .sf-delivery-buttons .sf-send-cta{grid-column:1 / -1;min-height:52px;font-size:var(--public-cta-font-size)!important}
                 .sf-action-empty{padding:14px;background:#f6faf3;border:1px dashed #c6dfc1;border-radius:11px;color:#48624c;font-size:13px;line-height:1.5}
                 .sf-action-empty strong{font-weight:750;color:#234a2f}
                 .sf-action-empty p{margin:6px 0 12px}
@@ -1180,20 +1180,20 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-offer-counter{float:right;font-weight:700;color:var(--text-muted)}
                 .sf-compose{min-width:0;background:#fff;border:1px solid var(--border);border-radius:16px;padding:20px}
                 .sf-workbench-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-                .sf-workbench-heading h2{margin:0 0 6px;font-size:20px;letter-spacing:-.4px;color:var(--text)}
-                .sf-workbench-heading p{margin:0;color:var(--text-muted);line-height:1.45;font-size:13px}
+                .sf-workbench-heading h2{margin:0 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
+                .sf-workbench-heading p{margin:0;color:var(--public-muted);line-height:1.45;font-size:var(--public-supporting-size)}
                 .sf-workbench-heading>span{font-size:11px;font-weight:800;color:var(--text-muted)}
                 .sf-customer-picker{margin:18px 0 0}
                 .sf-customer-results{display:grid;max-height:210px;overflow:auto;border:1px solid var(--border);border-radius:11px;margin-top:9px}
-                .sf-customer-results button{display:flex;gap:10px;justify-content:space-between;align-items:center;min-height:41px;text-align:left;border:0;border-top:1px solid var(--border-light,var(--border));background:#fff;padding:8px 11px;cursor:pointer;color:var(--text)}
+                .sf-customer-results button{display:flex;gap:10px;justify-content:space-between;align-items:center;min-height:48px;text-align:left;border:0;border-top:1px solid var(--public-hairline);background:var(--public-bg);padding:10px 12px;cursor:pointer;color:var(--public-text);font-family:var(--font-sans)}
                 .sf-customer-results button:first-child{border-top:0}
-                .sf-customer-results button:hover{background:var(--bg-secondary,#f8faf9)}
-                .sf-customer-results button strong{font-size:13px}
-                .sf-customer-results button small{color:var(--text-muted);font-size:12px}
+                .sf-customer-results button:hover,.sf-customer-results button:focus-visible{background:var(--public-lime-tint);outline-color:var(--public-brand-green)}
+                .sf-customer-results button strong{font-size:var(--public-supporting-size)}
+                .sf-customer-results button small{color:var(--public-muted);font-size:var(--public-meta-size)}
                 .sf-contact-change{border:0;background:transparent;padding:2px 0;color:var(--accent);text-decoration:underline;font:700 12px var(--font-sans);cursor:pointer}
-                .sf-document-mode{display:flex;gap:6px;background:var(--bg-secondary,#f8faf9);border:1px solid var(--border);border-radius:12px;padding:5px;margin:20px 0 0}
-                .sf-document-mode button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font:700 13px var(--font-sans);color:var(--text-muted);cursor:pointer}
-                .sf-document-mode button.active{background:#fff;color:var(--accent);box-shadow:0 1px 6px rgba(26,58,42,.12)}
+                .sf-document-mode{display:flex;gap:6px;background:var(--public-lime-tint);border:1px solid var(--public-brand-lime);border-radius:12px;padding:5px;margin:20px 0 0}
+                .sf-document-mode button{flex:1;min-height:48px;border:0;border-radius:8px;background:transparent;font:700 var(--public-supporting-size)/1.35 var(--font-sans);color:var(--public-brand-green);cursor:pointer}
+                .sf-document-mode button.active,.sf-document-mode button:hover{background:var(--public-brand-lime);color:var(--public-brand-green);box-shadow:0 1px 6px rgba(26,58,42,.12)}
                 .sf-upload-area,.sf-existing-picker{padding:20px 0 0}
                 .sf-upload-area .sf-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
                 .sf-upload-area .sf-note,.sf-existing-picker .sf-note{font-size:13px;line-height:1.5}
@@ -1201,9 +1201,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-lookup .sf-cta{font-size:13px;min-height:46px;padding:0 16px}
                 .sf-file-choices{display:grid;gap:7px;max-height:360px;overflow:auto}
                 .sf-file-choices>button{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;text-align:left;padding:12px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);cursor:pointer}
-                .sf-file-choices>button.selected{border-color:var(--lime);background:rgba(209,244,112,.25)}
-                .sf-file-choices>button strong{display:block;font-size:13px;overflow-wrap:anywhere}
-                .sf-file-choices>button small{display:block;margin-top:4px;color:var(--text-muted);font-size:11px}
+                .sf-file-choices>button.selected,.sf-file-choices>button:hover{border-color:var(--public-brand-lime);background:var(--public-lime-tint)}
+                .sf-file-choices>button strong{display:block;font-size:var(--public-supporting-size);overflow-wrap:anywhere}
+                .sf-file-choices>button small{display:block;margin-top:4px;color:var(--public-muted);font-size:var(--public-meta-size)}
                 .sf-choice-status{font-size:11px;max-width:110px;text-align:right;color:var(--text-muted)}
                 .sf-selection-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-top:14px;margin-top:15px;border-top:1px solid var(--border)}
                 .sf-selection-actions>strong{font-size:13px;overflow-wrap:anywhere}
@@ -1261,17 +1261,17 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-field{min-width:0}
                 .sf-field-wide{grid-column:1/-1}
                 .sf-label{
-                  display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;
-                  letter-spacing:-.1px;color:var(--accent);
+                  display:block;margin:0 0 8px;font-size:var(--public-supporting-size);font-weight:650;
+                  letter-spacing:-.1px;color:var(--public-brand-green);
                 }
                 /* 16px minimum: smaller makes iOS Safari zoom the viewport on focus. */
                 .sf-input{
                   width:100%;box-sizing:border-box;min-height:48px;padding:0 14px;
-                  font-size:var(--text-base);color:rgba(0,0,0,.95);background:#fff;
+                  font-family:var(--font-sans);font-size:var(--public-supporting-size);color:var(--public-text);background:var(--public-bg);
                   border:2px solid rgba(26,58,42,.18);border-radius:12px;
                   transition:border-color .2s;
                 }
-                .sf-input:focus{outline:none;border-color:var(--accent)}
+                .sf-input:focus{outline:none;border-color:var(--public-brand-lime);box-shadow:0 0 0 2px var(--public-lime-tint)}
                 .sf-input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
                 .sf-input:disabled{opacity:.6}
                 .sf-input-file{padding:11px 12px;min-height:48px}

@@ -215,6 +215,7 @@ SERVICE_NOT_OFFERED = "SERVICE_NOT_OFFERED"
 SERVICE_UNKNOWN_CHOICE = "SERVICE_UNKNOWN_CHOICE"
 SERVICE_INVALID_QUANTITY = "SERVICE_INVALID_QUANTITY"
 SERVICE_ONE_PER_ORDER = "SERVICE_ONE_PER_ORDER"
+SERVICE_SEPARATE_CHECKOUT = "SERVICE_SEPARATE_CHECKOUT"
 SERVICE_INTENT_REQUIRED = "SERVICE_INTENT_REQUIRED"
 SERVICE_ORIGINAL_ORDER_REQUIRED = "SERVICE_ORIGINAL_ORDER_REQUIRED"
 SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
@@ -238,6 +239,8 @@ SERVICE_MESSAGES: Mapping[str, str] = MappingProxyType({
                               "Nothing has been charged.",
     SERVICE_ONE_PER_ORDER: "Only one service can be paid for in an order. Remove the extra one. "
                            "Nothing has been charged.",
+    SERVICE_SEPARATE_CHECKOUT: "Vault and Drop Docs need a separate cart checkout. "
+                               "Remove other cart items or buy them first. Nothing has been charged.",
     SERVICE_INTENT_REQUIRED: "Start this service from its own page, then check out. "
                              "Nothing has been charged.",
     SERVICE_ORIGINAL_ORDER_REQUIRED: "Choose the original order this request is for. "
@@ -432,6 +435,13 @@ def checkout_preflight(line_items: Any, body: Any, *,
         return 409, refusal(rejected.code)
     if line is None:
         return None
+    # The explicit supply-GST / Express calculation for Vault and Drop Docs
+    # currently applies to the whole basket. Refuse extra items BEFORE any
+    # order is created so a digital-file renewal cannot reprice merchandise.
+    if line.kind in (VAULT, DROP_DOCS) and len(line_items) != 1:
+        logger.info(json.dumps({"event": "service_refused",
+                                "reason": SERVICE_SEPARATE_CHECKOUT}))
+        return 409, refusal(SERVICE_SEPARATE_CHECKOUT)
     # The published Pickup Flow still carries a cloned Submit Request completion schema.
     # Refuse every new checkout rail BEFORE any payment is created. The website's
     # service selector is not a security boundary; this pure guard is shared by all rails.

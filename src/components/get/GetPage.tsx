@@ -46,7 +46,7 @@ import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
 import { restoreSession, clearSession, getSession } from '../../lib/customerAuth';
 import { serviceByKind } from '../../config/services';
 import { postRequestIntent } from '../../lib/serviceRequests';
-import { setServiceLine, serviceIntentFor, toLineItems } from '../../lib/cart';
+import { setServiceLine, serviceIntentFor, toLineItems, readCart, isServiceItem } from '../../lib/cart';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -345,9 +345,20 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         const state = accessStateOf( file );
         if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
         const service = serviceByKind( 'VAULT' );
-        if ( !service || !vaultLinePrice || payablePrice === null ) {
+        if ( !service || !vaultLinePrice ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
                 kind: 'error', message: 'The current Vault price is unavailable. Nothing has been charged.',
+            } } ) );
+            return;
+        }
+        // The Vault/Drop Docs pricing contract is for a single service line.
+        // Do not silently replace a customer's shopping basket, and never
+        // apply the file-service GST/handling quote to unrelated merchandise.
+        if ( readCart().some( item => !isServiceItem( item )
+            || item.productId !== service.productId || item.variantId !== service.variantId ) ) {
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                kind: 'error',
+                message: 'Other items are already in your cart. Complete or remove those items before adding Vault access. Your shopping cart has not been changed.',
             } } ) );
             return;
         }
@@ -406,17 +417,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const handleVaultPayment = async ( file: SecureFile ) => {
         const state = accessStateOf( file );
         if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
-        if ( payablePrice === null ) {
-            setFileFeedback( current => ( {
-                ...current,
-                [ file.fileId ]: {
-                    kind: 'error',
-                    message: 'The live Vault price could not be confirmed. Nothing has been charged. Please refresh and try again.',
-                },
-            } ) );
-            return;
-        }
-
+        // This is only a display price preview. The native WhatsApp payment
+        // rail re-prices on the server and shows the approved total before the
+        // customer authorises anything. A failed preview must not disable it.
         setWorking( file.fileId );
         setFileFeedback( current => {
             const next = { ...current };
@@ -436,7 +439,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     ...current,
                     [ file.fileId ]: {
                         kind: 'error',
-                        message: 'We could not prepare your verified WhatsApp identity. Nothing has been charged. Please try again.',
+                        message: identityReady.failure.code === 'CONTACT_IDENTITY_CONFLICT'
+                            ? 'Your WhatsApp number is linked to conflicting customer records. Contact support to reconcile your account. Nothing has been charged.'
+                            : 'We could not prepare your verified WhatsApp identity. Nothing has been charged. Please try again.',
                     },
                 } ) );
                 return;
@@ -610,7 +615,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             <span>Use your cart and secure Razorpay checkout · recommended for quick renewal</span>
                                                             <button type="button" className="sf-file-action-button"
                                                                 onClick={ () => { void handleWebsiteCheckout( file ); } }
-                                                                disabled={ working === file.fileId || payablePrice === null || vaultLinePrice === null }
+                                                                disabled={ working === file.fileId || vaultLinePrice === null }
                                                                 aria-busy={ working === file.fileId }>
                                                                 { working === file.fileId ? 'Preparing cart…'
                                                                     : payablePrice === null ? 'Price unavailable'
@@ -620,14 +625,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         </div>
                                                         <div className="sf-payment-option">
                                                             <strong>WhatsApp Review &amp; Pay</strong>
-                                                            <span>Receive the native payment request on your registered WhatsApp number</span>
+                                                            <span>Receive the server-priced Review &amp; Pay request on your registered WhatsApp number. Check the amount before approving.</span>
                                                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                                 onClick={ () => { void handleVaultPayment( file ); } }
-                                                                disabled={ working === file.fileId || payablePrice === null }
+                                                                disabled={ working === file.fileId }
                                                                 aria-busy={ working === file.fileId }>
                                                                 { working === file.fileId ? 'Sending to WhatsApp…'
-                                                                    : payablePrice === null ? 'Price unavailable'
-                                                                        : 'Pay on WhatsApp instead' }
+                                                                    : 'Pay on WhatsApp instead' }
                                                             </button>
                                                         </div>
                                                         <p className="sf-payment-total">

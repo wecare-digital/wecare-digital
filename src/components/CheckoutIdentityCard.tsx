@@ -26,12 +26,13 @@ interface Props {
   identity: CheckoutIdentity;
   editorOpen?: boolean;
   emptyAddressLabel?: string;
+  showAddress?: boolean;
   onEditProfile: () => void;
   onEditAddress: () => void;
 }
 
 const CheckoutIdentityCard: React.FC<Props> = ( {
-  identity, editorOpen, emptyAddressLabel, onEditProfile, onEditAddress,
+  identity, editorOpen, emptyAddressLabel, showAddress = true, onEditProfile, onEditAddress,
 } ) => {
   const locked = !!editorOpen;
 
@@ -73,7 +74,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dd><span className="identity-value">{ maskPhone( identity.phone ) }</span></dd>
         </div>
 
-        <div className="identity-row identity-address-row">
+        { showAddress && <div className="identity-row identity-address-row">
           <dt>Deliver</dt>
           <dd>
             <span className="identity-value">
@@ -81,7 +82,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
             </span>
           </dd>
           <button type="button" onClick={ onEditAddress } disabled={ locked }>Edit address</button>
-        </div>
+        </div> }
       </dl>
 
       <style jsx>{`
