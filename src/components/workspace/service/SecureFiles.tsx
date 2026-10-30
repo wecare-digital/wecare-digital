@@ -834,7 +834,28 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             <style jsx>{ `
                 .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box}
 
-                .sf-workbench{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(360px,.94fr);align-items:start;gap:18px;margin:0 0 24px}
+                .sf-heading-line{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+                .sf-private-indicator{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid #d5e6d0;border-radius:999px;background:#f4faee;font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
+                .sf-private-indicator:before{content:'';width:7px;height:7px;border-radius:50%;background:#5eaf73}
+                .sf-progress{display:flex;flex-wrap:wrap;list-style:none;padding:0;margin:20px 0 0;gap:9px}
+                .sf-progress li{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;background:#f7f9f7;border:1px solid var(--border);border-radius:999px;color:#56705a;font-size:12px;font-weight:700}
+                .sf-progress li span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e8f3dd;font-size:11px;color:var(--accent)}
+                .sf-progress li:first-child{background:#ecf8d8;border-color:#c7e59c;color:var(--accent)}
+                .sf-identity-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:15px}
+                .sf-ownership-note{margin:7px 0 0}
+                .sf-message-composer{margin-top:20px;padding:16px;border-radius:13px;background:#f7faf5;border:1px solid #d8e7d5}
+                .sf-message-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+                .sf-message-heading strong{color:var(--accent);font-size:14px}
+                .sf-message-heading span{font-weight:700;font-size:11px;color:#59745c}
+                .sf-composer-help{font-size:11px;line-height:1.5;color:var(--text-muted);margin:8px 0 0}
+                .sf-composer-help code{font-size:11px}
+                .sf-review-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:grid;gap:12px}
+                .sf-review-checks{display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:var(--text-muted)}
+                .sf-review-checks strong{width:100%;font-size:13px;color:var(--text)}
+                .sf-review-checks span{font-size:11px;padding:5px 8px;border-radius:7px;background:#f4f6f4;border:1px solid #e3e7e1}
+                .sf-send-cta{justify-self:stretch;width:100%;font-size:15px!important}
+                .sf-send-accepted{margin:0;padding:11px;border-radius:10px;background:#f1f8eb;color:var(--accent);font-size:12px;line-height:1.45}
+                .sf-workbench{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(350px,.97fr);align-items:start;gap:18px;margin:0 0 24px}
                 .sf-offer-variable{margin-top:16px}
                 .sf-offer-textarea{box-sizing:border-box;display:block;width:100%;resize:vertical;min-height:64px}
                 .sf-offer-counter{float:right;font-weight:700;color:var(--text-muted)}
@@ -870,7 +891,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-selection-actions>small{color:var(--text-muted);font-size:12px}
                 .sf-selection-actions .sf-cta{font-size:13px;min-height:44px;padding:0 16px}
                 @media(max-width:1080px){.sf-workbench{grid-template-columns:minmax(0,1fr)}}
-                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}}
+                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid,.sf-identity-fields{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}.sf-progress{gap:5px}.sf-progress li{font-size:10px;padding:5px 7px}.sf-private-indicator{margin-top:4px}}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
@@ -898,7 +919,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 }
                 /* The one body level. */
                 .sf-lead{
-                  margin:0;max-width:62ch;font-size:20px;font-weight:400;line-height:1.4;
+                  margin:0;max-width:78ch;font-size:15px;font-weight:400;line-height:1.4;
                   letter-spacing:-.125px;color:rgba(0,0,0,.898);
                 }
 
