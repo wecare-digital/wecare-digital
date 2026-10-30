@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CART = (ROOT / "src/lib/cart.ts").read_text(encoding="utf-8")
 PAGE = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
 METHOD = (ROOT / "src/pages/checkout/index.tsx").read_text(encoding="utf-8")
+LEGACY_SUCCESS = (ROOT / "src/pages/checkout/success.tsx").read_text(encoding="utf-8")
+STATUS_PAGE = (ROOT / "src/pages/checkout/status.tsx").read_text(encoding="utf-8")
 SERVICE = (ROOT / "src/lib/serviceEntry.ts").read_text(encoding="utf-8")
 
 
@@ -75,3 +77,25 @@ def test_legacy_checkout_url_only_redirects_to_cart_not_payment():
     assert "checkout.razorpay.com" not in METHOD
     assert "export const CHECKOUT_PATH = '/cart/';" in SERVICE
     assert "export const SIGN_IN_PATH = '/auth';" in SERVICE
+
+def test_legacy_success_uses_the_one_verified_payment_status_screen():
+    # No independent client-side "payment successful" logic survives on a legacy route.
+    assert "export { default } from './status';" in LEGACY_SUCCESS
+    assert "STATUS_URL" not in LEGACY_SUCCESS
+    assert "isPaid( status )" in STATUS_PAGE
+    assert "isRetryable( status )" in STATUS_PAGE
+    assert "isInFlight( status )" in STATUS_PAGE
+    assert "settlePaidCheckout( attemptId )" in STATUS_PAGE
+    assert "view === 'paid'" in STATUS_PAGE
+    assert "view === 'failed'" in STATUS_PAGE
+    assert "Do not pay again." in STATUS_PAGE
+
+
+def test_display_catalogue_price_never_replaces_authoritative_payable():
+    page = PAGE
+    assert "Catalog price shown above." in page
+    assert "The final amount after applicable discounts," in page
+    assert "WhatsApp" in page and "Review and Pay" in page
+    assert "options.amountPaise" in page
+    assert "amount: options.amountPaise" in page
+    assert "action: channel === 'whatsapp' ? 'create' : 'prepare'" in page
