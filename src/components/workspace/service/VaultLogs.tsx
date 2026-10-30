@@ -44,6 +44,18 @@ export default function VaultLogs () {
 
   React.useEffect( () => { void load(); }, [ load ] );
 
+  React.useEffect( () => {
+    const refresh = () => {
+      if ( document.visibilityState === 'visible' ) void load( mobile || undefined );
+    };
+    window.addEventListener( 'focus', refresh );
+    document.addEventListener( 'visibilitychange', refresh );
+    return () => {
+      window.removeEventListener( 'focus', refresh );
+      document.removeEventListener( 'visibilitychange', refresh );
+    };
+  }, [ load, mobile ] );
+
   return (
     <section className="vl-wrap" aria-labelledby="vault-logs-title">
       <div className="vl-head">
