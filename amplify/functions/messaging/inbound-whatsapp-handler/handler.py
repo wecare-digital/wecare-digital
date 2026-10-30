@@ -54,7 +54,7 @@ from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
 # tested without a client, and this handler stays wiring. See `_handle_cart_order`.
-from lambda_utils.ecommerce import whatsapp_basket
+from lambda_utils.ecommerce import whatsapp_basket, short_purchase
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
 from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
 from lambda_utils.system_events import record_system_event
@@ -196,6 +196,8 @@ CART_REPLY_ALREADY_REQUESTED = ('We have already sent you a payment request for 
                                 'Please use that message to pay. Nothing new has been charged.')
 CART_REPLY_PARTIAL = ('Some items in this cart cannot be ordered on WhatsApp. Nothing has been '
                       'charged. Please remove them and send your cart again.')
+CART_REPLY_SHORT_ONLY = ('Short checkout accepts one item with quantity one. Nothing has been '
+                         'charged. Choose one product in the catalog and send it again.')
 CART_REPLY_ITEMS_UNAVAILABLE = ('Items in this cart are no longer available. Nothing has been '
                                 'charged. Please open the catalog again and send a new cart.')
 CART_REPLY_SERVICE = ('This service cannot be bought from the WhatsApp catalog yet. Nothing has '
@@ -7265,6 +7267,15 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                 _reply_cart_refused('items_unavailable', contact_id, phone_number_id, request_id)
             return
 
+        # Part 1: Meta may display multi-product/multi-quantity catalog carts. Refuse the
+        # whole unsupported selection instead of trimming to one item and charging another.
+        # This guard is OFF until the owner approves the payment-rail rollout.
+        if short_purchase.enabled() and not short_purchase.whatsapp_order_is_one_unit(message, basket):
+            logger.info(json.dumps({'event': 'cart_order_short_only_refused',
+                                    **basket.log_fields(), 'requestId': request_id}))
+            _reply_cart_refused('short_only', contact_id, phone_number_id, request_id)
+            return
+
         if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
             from lambda_utils.ecommerce.catalog_service_checkout import (service_from_lines,
                                                                          service_refusal)
@@ -7372,6 +7383,11 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
     NO client price, NO float, NO self-minted browser-style reference, NO 2%/18% constant. All of
     those lived in the deleted sender's own arithmetic; this function performs none.
     """
+    # An address submission can resume a cart created before rollout. Refuse old multi-unit
+    # pending carts BEFORE allocating any dedupe index, payment reference or attempt.
+    if short_purchase.enabled() and not short_purchase.one_unit_lines(basket.lines):
+        _reply_cart_refused('short_only', contact_id, phone_number_id, request_id)
+        return
     keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
     now = int(time.time())
 
@@ -7570,6 +7586,7 @@ def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, reques
         else:
             text = {'already_requested': CART_REPLY_ALREADY_REQUESTED,
                     'partial': CART_REPLY_PARTIAL,
+                    'short_only': CART_REPLY_SHORT_ONLY,
                     'items_unavailable': CART_REPLY_ITEMS_UNAVAILABLE}.get(kind, CART_REPLY_TRY_LATER)
             _send_ai_auto_reply(contact_id, text, phone_number_id, request_id)
         logger.info(json.dumps({'event': 'cart_order_refusal_replied', 'kind': kind,

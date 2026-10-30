@@ -44,6 +44,7 @@ export type ClaimOutcome =
   | { kind: 'CLAIMED'; mergedLines: number; lines: ClaimedLine[] }
   | { kind: 'CART_IN_USE'; handoffLines: number }
   | { kind: 'RETRY' }
+  | { kind: 'SHORT_ONLY' }
   | { kind: 'REFUSED' }
   | { kind: 'LOST' };
 
@@ -222,6 +223,7 @@ export async function claimBasket ( accessToken: string, token: string,
       return { kind: 'CART_IN_USE', handoffLines: Number( data.handoffLines || 0 ) };
     }
     if ( status === 'CART_RECONCILIATION_REQUIRED' ) return { kind: 'RETRY' };
+    if ( status === 'BASKET_SHORT_ONLY' ) return { kind: 'SHORT_ONLY' };
     if ( status === 'BASKET_UNAVAILABLE' ) return { kind: 'REFUSED' };
     // An unrecognised answer is not a refusal and not a success. Saying "lost" is the honest
     // reading of a reply this build does not understand.
@@ -271,6 +273,9 @@ export function claimMessage ( outcome: ClaimOutcome ): string | null {
         + 'link again.';
     case 'RETRY':
       return 'Your cart is being updated. Please try again shortly.';
+    case 'SHORT_ONLY':
+      return 'Short checkout supports one item with quantity one. Please send a single product '
+        + 'from the WhatsApp catalog again.';
     case 'REFUSED':
       return 'This cart link is no longer available. Send your cart again on WhatsApp to get a '
         + 'fresh link.';

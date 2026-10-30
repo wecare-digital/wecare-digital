@@ -125,7 +125,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -350,6 +350,7 @@ type Outcome =
   | { kind: 'CONTRIBUTION_NOT_PAYABLE' }
   | { kind: 'SERVICE_REFUSED'; message: string }
   | { kind: 'CART_RESET_REQUIRED' }
+  | { kind: 'SHORT_CHECKOUT_ONE_ITEM' }
   | { kind: 'CART_NOT_PAYABLE' }
   | { kind: 'CART_RECONCILIATION_REQUIRED' }
   | { kind: 'ITEMS_UNAVAILABLE' }
@@ -967,6 +968,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         return { kind: 'SERVICE_REFUSED', message: SERVICE_REFUSAL_MESSAGES[ status ] };
       }
+      // Optional Part 1 server preflight: this 409 is before payment initiation.
+      if ( status === 'SHORT_CHECKOUT_ONE_ITEM' ) return { kind: 'SHORT_CHECKOUT_ONE_ITEM' };
       // The Cart V2 arms, in the vocabulary `_create` already speaks.
       if ( status === 'CART_RESET_REQUIRED' ) return { kind: 'CART_RESET_REQUIRED' };
       if ( status === 'CART_NOT_PAYABLE' ) return { kind: 'CART_NOT_PAYABLE' };
@@ -1044,6 +1047,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     if ( outcome.kind === 'UNAUTHORIZED' )
     {
+      // A customer who chose native WhatsApp must not silently switch to website
+      // payment after their session expires. Keep the explicit choice out of the URL.
+      const channel = selectedCheckoutChannelRef.current;
+      if ( channel ) stashPendingAction( { kind: 'checkout', channel } );
       window.location.assign( SIGN_IN_PATH );
       return;
     }
@@ -1137,6 +1144,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( outcome.kind === 'SERVICE_REFUSED' )
     {
       setNotice( { kind: 'error', message: outcome.message } );
+      return;
+    }
+
+    // The backend refused the proposed order shape before creating a PaymentAttempt.
+    // Do not misreport this as an ambiguous or possibly captured payment.
+    if ( outcome.kind === 'SHORT_CHECKOUT_ONE_ITEM' )
+    {
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Choose one product, quantity one. Remove extra cart lines to continue. Nothing has been charged.',
+      } );
       return;
     }
 
@@ -1322,6 +1341,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
+      // Remember the chosen rail across WhatsApp OTP. /auth returns to /cart/,
+      // whose one-shot pending checkout resumes this exact channel after sign-in.
+      stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
       return;
     }
