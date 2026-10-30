@@ -873,21 +873,6 @@ def run(root: Path) -> int:
               {"http": quoted.get("statusCode"), "status": quote_body.get("status"),
                "items": len(quote.get("items") or []),
                "totalPaise": terms.get("totalPaise")})
-        if quote_good:
-            website_prepared = checkout._website_prepare(
-                website_who, {"action": "prepare", "lineItems": website_lines,
-                              "requestKey": "website-full-cart-test-key"},
-                "https://wecare.digital")
-            prepared_body = json.loads(website_prepared.get("body") or "{}")
-            opts = prepared_body.get("options") or {}
-            check("WEB", "multi-item Razorpay amount exactly matches reviewed quote",
-                  website_prepared.get("statusCode") == 200
-                  and prepared_body.get("status") == "CHECKOUT_OPTIONS_READY"
-                  and opts.get("amountPaise") == terms.get("totalPaise"),
-                  {"http": website_prepared.get("statusCode"),
-                   "status": prepared_body.get("status"),
-                   "quotePaise": terms.get("totalPaise"),
-                   "preparedPaise": opts.get("amountPaise")})
 
         short_buyer = shop.customer(39)
         for label, lines in (
@@ -1723,6 +1708,43 @@ def run(root: Path) -> int:
     checkout.razorpay_orders.create_order = fake_create_order
     checkout.razorpay_orders.find_order_by_receipt = lambda receipt: None
     try:
+        # A sandboxed Razorpay provider is now installed, so a full two-product
+        # website basket must prepare with EXACTLY the previously reviewed quote.
+        multi_customer = shop.customer(63)
+        multi_who = _customer_auth.CustomerIdentity(
+            customer_id=multi_customer["sub"], subject=multi_customer["sub"],
+            phone=multi_customer["phone"])
+        multi_lines = [
+            {"catalogReference": {"catalogItemId": shop.tee,
+                                  "options": {"variantId": "TEE-M"}}, "quantity": 2},
+            {"catalogReference": {"catalogItemId": shop.kit,
+                                  "options": {"variantId": "KIT1"}}, "quantity": 1},
+        ]
+        before_multi = len(created_orders)
+        preview_response = checkout._website_quote(
+            multi_who, {"action": "quote", "lineItems": multi_lines},
+            "https://wecare.digital")
+        preview = json.loads(preview_response.get("body") or "{}")
+        check("WEB", "full-cart quote returns two lines without reserving payment",
+              preview_response.get("statusCode") == 200
+              and len((preview.get("quote") or {}).get("items") or []) == 2
+              and len(created_orders) == before_multi
+              and not _attempts_for(multi_customer["sub"]),
+              {"status": preview.get("status"), "orders": len(created_orders)})
+        prepared_response = checkout._website_prepare(
+            multi_who, {"action": "prepare", "lineItems": multi_lines,
+                        "requestKey": "hermetic-web-multi"},
+            "https://wecare.digital")
+        prepared = json.loads(prepared_response.get("body") or "{}")
+        amount = (prepared.get("options") or {}).get("amountPaise")
+        quoted_amount = ((preview.get("quote") or {}).get("charges") or {}).get("totalPaise")
+        check("WEB", "two-product Razorpay amount equals exact read-only quote",
+              prepared_response.get("statusCode") == 200
+              and prepared.get("status") == "CHECKOUT_OPTIONS_READY"
+              and amount == quoted_amount
+              and len(created_orders) == before_multi + 1,
+              {"status": prepared.get("status"), "quote": quoted_amount, "provider": amount})
+
         web_basket = [{"catalogReference": {"catalogItemId": shop.kit, "options": {"variantId": "KIT1"}},
                        "quantity": 1}]
 
