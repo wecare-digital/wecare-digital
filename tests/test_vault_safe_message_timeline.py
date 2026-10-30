@@ -114,4 +114,4 @@ def test_customer_scope_replaces_stale_result_and_send_modal_is_single_flight():
     assert "Send Unlock Vault now" in ui
     assert "Resend Unlock Vault" in ui
     assert "Send Unlock Vault on WhatsApp?" in ui
-    assert "Save document to Vault" in ui
+    assert "Save & publish to Vault" in ui
