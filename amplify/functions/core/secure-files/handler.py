@@ -2482,18 +2482,32 @@ def _redeem_after_reconcile(
         return _not_registered(origin)
     # A reconcile means a fresh payment just confirmed, so this opens its window — the same
     # delivery-starts-the-clock rule as the main redeem path, and the same paid-window rule.
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     now = int(time.time())
     if not vault_window.window_open(entitlement, now):
         entitlement = _open_access_window(entitlement, now)
     if not vault_window.window_open(entitlement, now):
         return _window_closed(entitlement, origin)
-    if not _vault_file_storage_ready(item):
-        return _vault_storage_unavailable(origin)
-    payload = _issue_download_session(entitlement, item)
+    # Revalidate expiry after S3 HEAD/entitlement writes; no URL past window end.
+    if vault_window.window_ends_at(entitlement) <= int(time.time()):
+        return _window_closed(entitlement, origin)
+    try:
+        payload = _issue_download_session(entitlement, item)
+    except ValueError:
+        return _window_closed(entitlement, origin)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
     payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
     return cors_response(200, payload, origin)
+
+
+def _safe_download_filename(item: Dict[str, Any]) -> str:
+    system_name = _system_name_for_file(item)
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "-", os.path.basename(system_name))[:180]
+    if not safe.startswith("wecare-digital-") or safe in ("wecare-digital-",):
+        safe = "wecare-digital-" + uuid.uuid4().hex + _safe_extension(system_name)
+    return safe
 
 
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
@@ -2506,8 +2520,10 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
         Params={
             "Bucket": BUCKET,
             "Key": item["s3Key"],
+            # Keep content-disposition strictly ASCII, even for a legacy row with
+            # arbitrary displayName. New names remain exactly wecare-digital-UUID.ext.
             "ResponseContentDisposition": (
-                f'attachment; filename="{_system_name_for_file(item)}"'
+                f'attachment; filename="{_safe_download_filename(item)}"'
             ),
         },
         ExpiresIn=int(ttl or DOWNLOAD_URL_TTL),
@@ -2646,6 +2662,10 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     # the window (delivery is when the clock starts, per the owner rule); redeems inside the
     # window are free; once it closes, access needs a fresh ₹49 (feat-006 renewal), so we refuse
     # here rather than hand out transport the customer has not paid for.
+    # Storage must exist BEFORE we open a paid window, otherwise a missing object
+    # consumes an entire 24-hour purchase on a failed download.
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     now = int(time.time())
     if vault_window.window_open(entitlement, now):
         pass  # inside an open window — free re-download
@@ -2655,9 +2675,13 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     if not vault_window.window_open(entitlement, now):
         return _window_closed(entitlement, origin)
 
-    if not _vault_file_storage_ready(item):
-        return _vault_storage_unavailable(origin)
-    payload = _issue_download_session(entitlement, item)
+    # Revalidate expiry after S3 HEAD/entitlement writes; no URL past window end.
+    if vault_window.window_ends_at(entitlement) <= int(time.time()):
+        return _window_closed(entitlement, origin)
+    try:
+        payload = _issue_download_session(entitlement, item)
+    except ValueError:
+        return _window_closed(entitlement, origin)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
     payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
