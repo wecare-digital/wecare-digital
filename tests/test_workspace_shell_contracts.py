@@ -28,7 +28,7 @@ def test_layout_is_the_one_workspace_chrome_owner():
     assert "BottomNav" not in source
     assert 'data-wc-no-translate="true"' in source
     assert "WorkspaceShellContext" in source
-    assert "if ( nested ) return" in source
+    assert "return nested ? <>{ props.children }</> : <WorkspaceShell { ...props } />;" in source
 
 
 def test_workspace_routes_and_nested_components_do_not_import_shared_chrome():
