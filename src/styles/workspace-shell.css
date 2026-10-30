@@ -74,6 +74,14 @@
   min-width:0;
   overflow-x:auto;
 }
+
+.workspace-shell .ui-modal-overlay{
+  z-index:1400!important;
+}
+.workspace-shell .ui-modal-panel{
+  min-width:0;
+  max-width:min(100%,900px);
+}
 @media(max-width:767px){
   .workspace-shell{--workspace-section-gap:var(--public-mobile-section-gap,64px)}
   .workspace-shell .ps-title{font-size:var(--public-mobile-hero-size,40px)!important}
