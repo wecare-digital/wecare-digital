@@ -25,26 +25,19 @@ export function maskPhone ( phone: string ): string {
 interface Props {
   identity: CheckoutIdentity;
   editorOpen?: boolean;
-  eyebrow?: string;
-  title?: string;
   emptyAddressLabel?: string;
   onEditProfile: () => void;
   onEditAddress: () => void;
 }
 
 const CheckoutIdentityCard: React.FC<Props> = ( {
-  identity, editorOpen, eyebrow, title, emptyAddressLabel,
-  onEditProfile, onEditAddress,
+  identity, editorOpen, emptyAddressLabel, onEditProfile, onEditAddress,
 } ) => {
   const locked = !!editorOpen;
 
   return (
-    <section className="identity-card" aria-labelledby="identity-card-title">
+    <section className="identity-card" aria-label="Checkout details">
       <div className="identity-head">
-        <div>
-          <p className="identity-eyebrow">{ eyebrow || 'Checkout details' }</p>
-          <h2 id="identity-card-title">{ title || 'Ready to pay' }</h2>
-        </div>
         <button type="button" onClick={ onEditProfile } disabled={ locked }>Edit profile</button>
       </div>
 
@@ -77,10 +70,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
 
         <div className="identity-row">
           <dt>WhatsApp</dt>
-          <dd>
-            <span className="identity-value">{ maskPhone( identity.phone ) }</span>
-            <span className="identity-badge">✓ verified</span>
-          </dd>
+          <dd><span className="identity-value">{ maskPhone( identity.phone ) }</span></dd>
         </div>
 
         <div className="identity-row identity-address-row">
@@ -96,21 +86,9 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
 
       <style jsx>{`
         .identity-card{
-          margin:28px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
-          border-radius:0;background:transparent;color:var(--public-text);
+          margin:24px 0 0;padding:0;border:0;border-radius:0;background:transparent;color:var(--public-text);
         }
-        .identity-head{
-          display:flex;align-items:start;justify-content:space-between;gap:16px;margin-bottom:20px;
-        }
-        .identity-eyebrow{
-          margin:0 0 6px;color:var(--public-brand-green);font-size:12px;font-weight:700;
-          letter-spacing:.08em;text-transform:uppercase;
-        }
-        h2{
-          margin:0;color:var(--public-text);font-size:var(--public-card-size);
-          font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
-          letter-spacing:var(--public-card-tracking);
-        }
+        .identity-head{display:flex;align-items:center;justify-content:flex-start;margin-bottom:12px}
         .identity-rows{margin:0;display:grid;gap:0}
         .identity-row{
           display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:16px;
@@ -121,9 +99,6 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
         dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-inline-size:0}
         .identity-value{
           color:var(--public-text);font-size:16px;line-height:1.5;overflow-wrap:anywhere;
-        }
-        .identity-badge{
-          color:var(--public-brand-green);font-size:12px;font-weight:700;white-space:nowrap;
         }
         button{
           min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;
@@ -140,9 +115,6 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
         button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         button:disabled{opacity:.6;cursor:default;transform:none;box-shadow:none}
         @media(max-width:767px){
-          .identity-head{display:grid;grid-template-columns:1fr}
-          .identity-head button{justify-self:start}
-          h2{font-size:var(--public-mobile-card-size)}
           .identity-row,.identity-address-row{grid-template-columns:1fr;gap:4px;padding:14px 0}
           .identity-address-row button{justify-self:start;margin-top:6px}
         }
