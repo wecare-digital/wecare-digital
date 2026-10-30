@@ -17,7 +17,6 @@ import {
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
-import OrderDetail from './OrderDetail';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -106,7 +105,7 @@ interface OrdersResponse {
  * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
  * export still renders `signedOut` first and the indexed page is unchanged.
  */
-type View = 'loading' | 'ready' | 'empty' | 'error' | 'focus';
+type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
 type Outcome =
@@ -379,11 +378,7 @@ export default function OrdersPage (): React.ReactElement {
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
     return () => window.clearTimeout( timer );
   }, [ profileAction ] );
-  /**
-   * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
-   * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
-   * so the server-rendered shell and the first client paint agree.
-   */
+  /** Optional order to expand inside the existing orders table, never a separate page. */
   const [ focusOrder, setFocusOrder ] = useState( '' );
 
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
@@ -596,16 +591,17 @@ export default function OrdersPage (): React.ReactElement {
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
 
-      if ( requested )
-      {
-        // OrderDetail owns the one read; the history is not fetched for this visit.
-        setView( 'focus' );
-        return;
-      }
+      // Always show the existing orders table. A direct link merely opens the
+      // selected row beneath its public order number; it does not replace the
+      // table with a second detail view.
       setView( 'loading' );
       const outcome = await fetchOrders( session.accessToken, '' );
       if ( !live ) return;
-      if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
+      if ( outcome.kind === 'ok' ) {
+        applyFirstPage( outcome.data );
+        const selected = ( outcome.data.orders || [] ).find( row => row.orderNumber === requested );
+        if ( selected ) setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+      }
       else if ( outcome.kind === 'expired' ) expire();
       else applyFailure( outcome.kind );
     } )();
@@ -668,14 +664,13 @@ export default function OrdersPage (): React.ReactElement {
         description="Your orders, payment status and invoices in one place."
         path="/orders/"
       />
-      { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
-           canonical, title and description stay the history's. Only the visible band changes. */ }
+      { /* One orders table. ?o= selects a row without creating another page. */ }
       <RotatingHero
         compact
         frame="Your"
-        words={ [ { word: focusOrder ? 'order' : 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
-        sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
+        words={ [ { word: 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
+        sub="Purchases, payments and invoices."
+        ariaLabel="Your orders"
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -688,7 +683,7 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { token && ( view === 'ready' || view === 'empty' || view === 'focus' ) && (
+          { token && ( view === 'ready' || view === 'empty' ) && (
             <div className="ord-account-bar" aria-label="Account actions">
               <div className="ord-account-actions">
                 <button
@@ -732,10 +727,6 @@ export default function OrdersPage (): React.ReactElement {
                 </div>
               ) }
             </div>
-          ) }
-
-          { view === 'focus' && focusOrder && token && (
-            <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
           ) }
 
           { view === 'error' && (
@@ -1024,10 +1015,6 @@ export default function OrdersPage (): React.ReactElement {
                                   <div className="ord-detail-inline">
                                     <dl className="ord-compact-facts">
                                       <div>
-                                        <dt>Ref</dt>
-                                        <dd data-wc-no-translate>{ order.referenceId || '—' }</dd>
-                                      </div>
-                                      <div>
                                         <dt>Placed</dt>
                                         <dd>{ dateTimeLabel( order.createdAt ) || '—' }</dd>
                                       </div>
@@ -1037,13 +1024,6 @@ export default function OrdersPage (): React.ReactElement {
                                       </div>
                                     </dl>
                                     <div className="ord-detail-actions">
-                                      { isPublicOrderNumber( order.orderNumber ) && (
-                                        <a className="ord-view"
-                                          href={ orderPagePath( order.orderNumber ) }
-                                          aria-label={ `View details for order ${ order.orderNumber }` }>
-                                          View order
-                                        </a>
-                                      ) }
                                       { !!reviewHref && (
                                         <PillButton as="a" href={ reviewHref } action="Review" />
                                       ) }
