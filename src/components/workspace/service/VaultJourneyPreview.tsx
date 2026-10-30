@@ -14,6 +14,7 @@ import {
   type ServicePriceBreakdown,
 } from '../../../lib/servicePricing';
 import styles from './VaultJourneyPreview.module.css';
+import VaultMessageTimeline from './VaultMessageTimeline';
 
 export interface VaultRegistryStep {
   step: number;
@@ -159,10 +160,10 @@ export default function VaultJourneyPreview ( props: Props ) {
     <aside className={ styles.preview } id="sf-journey-preview" aria-label="Vault invoice and WhatsApp preview">
       <header className={ styles.header }>
         <div>
-          <p className={ styles.kicker }>Live invoice + delivery review</p>
-          <h2>Customer preview</h2>
+          <p className={ styles.kicker }>LIVE CUSTOMER PREVIEW</p>
+          <h2>WhatsApp + Vault</h2>
         </div>
-        <span className={ styles.tag }>Read-only</span>
+        <span className={ styles.tag }>Preview only</span>
       </header>
 
       <div className={ styles.document }>
@@ -170,38 +171,14 @@ export default function VaultJourneyPreview ( props: Props ) {
         <div className={ styles.documentCopy }>
           <strong>{ fileName }</strong>
           <small>{ fileSize( fileBytes ) } · { fileType }</small>
-          <small>{ fileId ? 'Published Vault file' : 'File ID assigned after publishing' }</small>
+          <small>{ fileId ? 'Private file · published' : 'UUID assigned securely after saving' }</small>
         </div>
       </div>
 
-      <section className={ styles.invoice } aria-label="Invoice preview">
-        <div className={ styles.invoiceTop }>
-          <strong>WECARE.DIGITAL</strong>
-          <span>PREVIEW · NOT ISSUED</span>
-        </div>
-        <h3>Vault access invoice</h3>
-        <p className={ styles.customer }>{ owner } · { mobile }</p>
-        <div className={ styles.billRow }><span>Vault · one file / one access window</span><strong>{ currency( props.pricePaise ) }</strong></div>
-        <div className={ styles.billRow }><span>GST on supply</span><strong>{ currency( props.breakdown?.supplyGstPaise ) }</strong></div>
-        <div className={ styles.billRow }><span>Delight</span><strong>{ props.breakdown ? '−' + currency( props.breakdown.delightPaise ) : '—' }</strong></div>
-        <div className={ styles.billRow }><span>Express</span><strong>{ currency( props.breakdown?.expressPaise ) }</strong></div>
-        <div className={ styles.billRow }><span>Convenience fee</span><strong>{ currency( props.breakdown?.convenienceFeePaise ) }</strong></div>
-        <div className={ styles.billRow }><span>GST on fee</span><strong>{ currency( props.breakdown?.convenienceGstPaise ) }</strong></div>
-        <div className={ styles.billTotal }><span>Final payable preview</span><strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong></div>
-        <p className={ styles.hint }>
-          { props.priceLoading
-            ? 'Reading server pricing…'
-            : !props.breakdown
-              ? 'Live price breakdown unavailable. Do not request payment until it recovers.'
-              : 'Prices are server-provided. The actual invoice image is created after verified capture.' }
-        </p>
-        { priceMismatch && <p className={ styles.warning }>Approved offer copy still says ₹49; catalogue base price differs. Align the approved template before sending.</p> }
-      </section>
-
       <section className={ styles.messages } aria-label="WhatsApp journey preview">
         <div className={ styles.sectionTitle }>
-          <h3>WhatsApp message preview</h3>
-          <span>WABA1 · payment-enabled</span>
+          <h3>Approved WhatsApp templates</h3>
+          <span>WABA1 · no message sent by preview</span>
         </div>
         <div className={ styles.steps } role="group" aria-label="Choose a WhatsApp message step">
           { stages.map( item => (
@@ -227,6 +204,8 @@ export default function VaultJourneyPreview ( props: Props ) {
           { activeStage === 5 && <span className={ styles.bubbleButton }>Access Vault · URL</span> }
         </div>
 
+        <details className={ styles.technical }>
+          <summary className={ styles.disclosureTitle }>Template variables and technical send gates</summary>
         <dl className={ styles.variables }>
           <div><dt>Meta template</dt><dd>{ registryStep?.templateId || 'Registry read pending' }</dd></div>
           <div><dt>Send gate</dt><dd>{ registryStep?.trigger || 'See approved server workflow' }</dd></div>
@@ -262,10 +241,45 @@ export default function VaultJourneyPreview ( props: Props ) {
             </>
           ) }
         </dl>
+        </details>
         <p className={ styles.hint }>The approved template wording is fixed. Only its {'{{1}}'} body value is editable in the customer card. The S3 filename, invoice, token and URL remain server-generated.</p>
       </section>
 
-      <section className={ styles.delivery } aria-label="What will be delivered">
+      <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
+
+      <details className={ styles.invoice } aria-label="Invoice breakdown preview">
+        <summary className={ styles.disclosureTitle }>
+          <span>Estimated invoice &amp; pricing</span>
+          <strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong>
+        </summary>
+        <div className={ styles.invoiceTop }>
+          <strong>WECARE.DIGITAL</strong>
+          <span>PREVIEW · NOT ISSUED</span>
+        </div>
+        <h3>Vault access invoice</h3>
+        <p className={ styles.customer }>{ owner } · { mobile }</p>
+        <div className={ styles.billRow }><span>Vault · one file / one access window</span><strong>{ currency( props.pricePaise ) }</strong></div>
+        <div className={ styles.billRow }><span>GST on supply</span><strong>{ currency( props.breakdown?.supplyGstPaise ) }</strong></div>
+        <div className={ styles.billRow }><span>Delight</span><strong>{ props.breakdown ? '−' + currency( props.breakdown.delightPaise ) : '—' }</strong></div>
+        <div className={ styles.billRow }><span>Express</span><strong>{ currency( props.breakdown?.expressPaise ) }</strong></div>
+        <div className={ styles.billRow }><span>Convenience fee</span><strong>{ currency( props.breakdown?.convenienceFeePaise ) }</strong></div>
+        <div className={ styles.billRow }><span>GST on fee</span><strong>{ currency( props.breakdown?.convenienceGstPaise ) }</strong></div>
+        <div className={ styles.billTotal }><span>Final payable preview</span><strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong></div>
+        <p className={ styles.hint }>
+          { props.priceLoading
+            ? 'Reading server pricing…'
+            : !props.breakdown
+              ? 'Live price breakdown unavailable. Do not request payment until it recovers.'
+              : 'Prices are server-provided. The actual invoice image is created after verified capture.' }
+        </p>
+        { priceMismatch && <p className={ styles.warning }>Approved offer copy still says ₹49; catalogue base price differs. Align the approved template before sending.</p> }
+      </details>
+
+      <details className={ styles.delivery } aria-label="File and delivery details">
+        <summary className={ styles.disclosureTitle }>
+          <span>File, access and technical details</span>
+          <small>Expand</small>
+        </summary>
         <h3>What the customer gets</h3>
         <dl className={ styles.variables }>
           <div><dt>Generated stored filename</dt><dd>{ fileName }</dd></div>
@@ -287,7 +301,8 @@ export default function VaultJourneyPreview ( props: Props ) {
             ? 'Journey order loaded from the saved DynamoDB registry. No Meta Flow is created by this preview.'
             : ( props.journeyError || 'Loading saved Vault journey mapping…' ) }
         </p>
-      </section>
+      </details>
+
     </aside>
   );
 }
