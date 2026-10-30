@@ -49,3 +49,15 @@ def test_support_language_dropdown_and_checkout_type_use_home_tokens():
     assert "font-size:var(--public-supporting-size)" in address
     assert "font-size:var(--public-supporting-size)" in profile
     assert "font-size:var(--public-data-size)" in identity
+
+
+def test_customer_checkout_dropdown_menu_is_branded_not_workspace_grey():
+    select = (ROOT / "src/components/ui/Select.tsx").read_text()
+    address = (ROOT / "src/components/AddressFields.tsx").read_text()
+    css = (ROOT / "src/styles/form-controls.css").read_text()
+
+    assert "menuClassName?: string;" in select
+    assert "className={ menuClassName }" in select
+    assert address.count('menuClassName="public-checkout-select"') == 2
+    assert ".ui-popover.public-checkout-select .ui-select-option[aria-selected=" in css
+    assert "background-color: var(--public-brand-lime);" in css
