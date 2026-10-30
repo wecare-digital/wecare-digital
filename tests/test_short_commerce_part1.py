@@ -71,6 +71,9 @@ def test_cart_directly_preserves_both_existing_checkout_actions():
 def test_legacy_checkout_url_only_redirects_to_cart_not_payment():
     assert "router.replace( CHECKOUT_PATH )" in METHOD
     assert "Continue to cart" in METHOD
+    # The JS redirect is progressive enhancement: the statically exported fallback
+    # must retain a visible page title for the audited release and assistive tech.
+    assert "<h1>Checkout continues in your cart</h1>" in METHOD
     assert 'noindex,nofollow' in METHOD
     assert "Pay on WhatsApp" not in METHOD
     assert "goToServiceAction" not in METHOD

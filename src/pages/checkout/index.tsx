@@ -27,7 +27,8 @@ export default function CheckoutMethodPage (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <main className="checkout-return">
-        <p>Checkout continues in your cart.</p>
+        <h1>Checkout continues in your cart</h1>
+        <p>Review your selected product and choose website or WhatsApp payment there.</p>
         <Link href={ CHECKOUT_PATH }>Continue to cart</Link>
         <style jsx>{`
           .checkout-return{
@@ -36,7 +37,8 @@ export default function CheckoutMethodPage (): React.ReactElement {
             color:var(--public-text);font-family:var(--font-sans);
             text-align:center;
           }
-          .checkout-return p{margin:0;font-size:18px}
+          .checkout-return h1{margin:0;font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
+          .checkout-return p{margin:0;font-size:var(--public-body-size);line-height:var(--public-body-leading)}
         `}</style>
       </main>
     </>
