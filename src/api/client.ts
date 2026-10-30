@@ -7604,7 +7604,7 @@ export interface SecureFileActionResult {
  * hides a first one that worked), so an unanswered request is reported as "check the chat".
  */
 async function secureFileAction (
-  fileId: string, action: 'request-payment' | 'send-access',
+  fileId: string, action: 'send-offer' | 'request-payment' | 'send-access',
 ): Promise<SecureFileActionResult> {
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
@@ -7636,7 +7636,13 @@ async function secureFileAction (
   }
 }
 
-/** Ask the file's owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link). */
+/** Start the manual Vault journey with the approved IMAGE + Unlock Vault quick reply.
+ * The customer tap (not the staff upload) initiates native Review and Pay. */
+export function sendSecureFileOffer ( fileId: string ): Promise<SecureFileActionResult> {
+  return secureFileAction( fileId, 'send-offer' );
+}
+
+/** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
 export function requestSecureFilePayment ( fileId: string ): Promise<SecureFileActionResult> {
   return secureFileAction( fileId, 'request-payment' );
 }
