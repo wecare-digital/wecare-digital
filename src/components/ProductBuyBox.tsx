@@ -12,7 +12,7 @@ import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } fr
  * THE PRODUCT CHECKOUT ACTION.
  *
  * Product routes expose one compact Checkout action only. It adds the authoritative catalogue
- * identity to the browser cart and moves to /cart/. The customer reviews one selected product
+ * identity to the browser cart and moves to /checkout/. The customer reviews one selected product
  * and chooses Pay here or Pay on WhatsApp directly in that cart, without another chooser page.
  *
  * No sign-in happens on the product route and no display price is sent to checkout. The server
