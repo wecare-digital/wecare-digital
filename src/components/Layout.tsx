@@ -50,10 +50,9 @@ const PersonGlyph = () => (
   </svg>
 );
 
-const Layout: React.FC<LayoutProps> = ( {
+const WorkspaceShell: React.FC<LayoutProps> = ( {
   children, user, onSignOut, showBreadcrumbs = true, shellClassName = '',
 } ) => {
-  const nested = useContext( WorkspaceShellContext );
   const router = useRouter();
   const { isPartner, loading: roleLoading } = useUserRole();
   const [ searchOpen, setSearchOpen ] = useState( false );
@@ -74,12 +73,6 @@ const Layout: React.FC<LayoutProps> = ( {
     { key: 'k', ctrl: true, action: () => setSearchOpen( true ), description: 'Open search' },
     { key: '/', action: () => setSearchOpen( true ), description: 'Open search' },
   ] );
-
-  /*
-   * Nested compatibility rule: retained operational components may still import Layout.
-   * Once an ancestor owns the shell, the nested call contributes content only.
-   */
-  if ( nested ) return <>{ children }</>;
 
   const isHome = router.pathname === '/workspace';
   const loginId = user?.signInDetails?.loginId || user?.email || '';
@@ -386,6 +379,11 @@ const Layout: React.FC<LayoutProps> = ( {
       </div>
     </WorkspaceShellContext.Provider>
   );
+};
+
+const Layout: React.FC<LayoutProps> = props => {
+  const nested = useContext( WorkspaceShellContext );
+  return nested ? <>{ props.children }</> : <WorkspaceShell { ...props } />;
 };
 
 export default Layout;
