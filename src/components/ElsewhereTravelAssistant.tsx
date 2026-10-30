@@ -483,7 +483,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         // eslint-disable-next-line @next/next/no-html-link-for-pages
                         <a
                           className="eta-action eta-demo-checkout"
-                          href="/cart/"
+                          href="/checkout/"
                           aria-label={ `Checkout ${result.title}` }
                         >
                           <span className="eta-material eta-checkout-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
