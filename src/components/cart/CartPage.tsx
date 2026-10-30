@@ -89,12 +89,13 @@ import { buildPageTitle } from '../../lib/page-title';
 
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
 import CheckoutProfile from '../CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
+import CheckoutPriceBreakdown from './CheckoutPriceBreakdown';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
@@ -125,7 +126,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { CHECKOUT_PATH, stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -199,7 +200,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
-const SIGN_IN_PATH = '/auth?return=/cart/';
+const SIGN_IN_PATH = `/auth?return=${encodeURIComponent(CHECKOUT_PATH)}`;
 
 /**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
@@ -508,6 +509,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
+  const [ quotedFingerprint, setQuotedFingerprint ] = useState<string>( '' );
   const [ profile, setProfile ] = useState<CheckoutProfileValue | null>( null );
   const [ profileStatus, setProfileStatus ] = useState<ProfileStatus>( 'unknown' );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'create' );
@@ -1597,6 +1599,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const isEmpty = ready && items.length === 0;
   const singleSelectionRequired = ready && items.length > 0
     && ( items.length !== 1 || items[ 0 ].quantity !== 1 );
+  // A quote is bound to this exact one-product selection. A variant change
+  // invalidates the button immediately, even before the new quote fetch completes.
+  const quoteLineItems = useMemo( () => {
+    if ( items.length !== 1 || items[ 0 ].quantity !== 1 || needsVariantSelection( items[ 0 ] ) ) return [];
+    try { return toLineItems( items ); } catch { return []; }
+  }, [ items ] );
+  const quoteFingerprint = quoteLineItems.length === 1 ? basketFingerprint( quoteLineItems ) : '';
+  const websiteQuoteReady = !!quoteFingerprint && quoteFingerprint === quotedFingerprint;
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1620,7 +1630,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   return (
     <>
       <Head>
-        <title>{ buildPageTitle( 'Your cart' ) }</title>
+        <title>{ buildPageTitle( 'Checkout' ) }</title>
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
@@ -1712,14 +1722,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
-              {/* Only the signed backend quote and its provider presentation know the
-                  exact payable, after any applicable Delight discount, fees, tax or delivery.
-                  The catalogue display string above is never used as checkout money. */}
-              <p className="cart-price-note" role="note">
-                Catalog price shown above. The final amount after applicable discounts,
-                fees and taxes will appear in the secure payment screen or WhatsApp
-                Review and Pay before you confirm.
-              </p>
+              { quoteLineItems.length === 1 && (
+                <CheckoutPriceBreakdown
+                  accessToken={ checkoutAccessToken }
+                  lineItems={ quoteLineItems }
+                  onQuoteReady={ setQuotedFingerprint }
+                />
+              ) }
 
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
@@ -1839,7 +1848,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || singleSelectionRequired }
+                      disabled={ busy || singleSelectionRequired || ( !!checkoutAccessToken && !websiteQuoteReady ) }
                       aria-busy={ busy ? 'true' : undefined }
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
