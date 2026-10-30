@@ -58,6 +58,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
+// The old production checkout Lambda treats unknown actions as CREATE. Until
+// version-pinned backend deployment proves it understands action:quote, do not
+// send a quote request at all. This switch is compile-time, default OFF.
+const WEBSITE_FULL_CART_QUOTE_ENABLED =
+  process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED === 'true';
 
 /**
  * Every hand-off to /checkout/status/. The attempt is recorded first, so that screen empties this
@@ -542,6 +547,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   // No payment attempt or provider order is created by this effect.
   useEffect( () => {
     let live = true;
+    if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteLoading( false );
+      setQuoteNotice( 'Secure full-cart checkout is being prepared. Payment is not available yet.' );
+      return () => { live = false; };
+    }
     if ( !ready || items.length === 0 ) {
       setQuote( null );
       setQuoteFor( '' );
@@ -1322,6 +1334,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
     // Website payment is the ordinary cart action. An explicit WhatsApp choice still uses
     // the existing native leg, and survives the profile editor / sign-in round trip.
+    if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
+      setNotice( { kind: 'quiet', message:
+        'Secure checkout is being prepared. No payment has been started.' } );
+      return;
+    }
     // Website checkout is the only payment rail on this page. WhatsApp has its
     // own route, where no payment is started until that separate project ships.
     const chosenChannel: CheckoutChannel = 'website';
@@ -1648,7 +1665,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     try { return basketFingerprint( toLineItems( items ) ); }
     catch { return ''; }
   } )();
-  const quoteReady = Boolean( quote && !quoteLoading
+  const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
     && quoteFor && quoteFor === reviewedBasketFingerprint
     && !items.some( needsVariantSelection ) );
 
