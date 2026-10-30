@@ -262,7 +262,7 @@ export default function VaultJourneyPreview ( props: Props ) {
             </>
           ) }
         </dl>
-        <p className={ styles.hint }>The approved template wording is fixed. Only its {{1}} body value is editable in the customer card. The S3 filename, invoice, token and URL remain server-generated.</p>
+        <p className={ styles.hint }>The approved template wording is fixed. Only its {'{{1}}'} body value is editable in the customer card. The S3 filename, invoice, token and URL remain server-generated.</p>
       </section>
 
       <section className={ styles.delivery } aria-label="What will be delivered">
