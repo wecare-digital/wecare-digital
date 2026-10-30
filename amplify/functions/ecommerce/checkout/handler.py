@@ -88,8 +88,8 @@ from lambda_utils import (contact_key, contact_store, customer_auth, customer_se
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     india_address, order_channel, order_creation, order_delivery, order_keys, payment_address,
-    payment_attempt, purchase_intent, wa_order_status, wa_payment_request, website_checkout,
-    whatsapp_basket)
+    payment_attempt, purchase_intent, short_purchase, wa_order_status, wa_payment_request,
+    website_checkout, whatsapp_basket)
 # AWS-native supply engine; ProductsTable is the only pricing authority. These compute the
 # collection total, and the payment, order and invoice paths downstream consume the frozen
 # snapshot they produce. Imported at module load (cheap, pure) so a missing module fails the
@@ -1395,6 +1395,13 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
     items = whatsapp_basket.catalog_items(row)
     if not items:
         return cors_response(404, _BASKET_REFUSED, origin)
+    # An old WhatsApp multi-product hand-off remains unclaimed. Reject before ensure(), so
+    # it neither mutates the saved cart nor spends a one-use token without a payable item.
+    if short_purchase.enabled() and not short_purchase.one_unit_lines(items):
+        return cors_response(200, {
+            "status": "BASKET_SHORT_ONLY",
+            "message": "Select one product with quantity one in WhatsApp, then send it again.",
+        }, origin)
 
     carts = customer_cart.CustomerCart(_keys_table(), _native_cart_adapter(identity.customer_id))
     try:
@@ -1754,6 +1761,13 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     request_key = str(body.get("requestKey") or "").strip()
     if not isinstance(line_items, list) or not line_items:
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED"}, origin)
+    # Product/variant count is verified before any profile, price, cart or attempt write.
+    # The launch flag is intentionally OFF until the frozen payment rail's RFC is signed off.
+    if short_purchase.enabled() and not short_purchase.one_unit_lines(line_items):
+        return cors_response(409, {
+            "error": "SHORT_CHECKOUT_ONE_ITEM",
+            "message": "Select one product, quantity one, to continue.",
+        }, origin)
     if not request_key or len(request_key) > 80:
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any pricing or
@@ -3651,6 +3665,9 @@ def _native_cart(event: Dict[str, Any], origin: str):
     lines_in = event.get('lines')
     if not isinstance(lines_in, list) or not lines_in:
         return {'outcome': 'NATIVE_CART_EMPTY'}
+    # Fail closed before the live slot, quote, PaymentAttempt and native message send.
+    if short_purchase.enabled() and not short_purchase.one_unit_lines(lines_in):
+        return {'outcome': 'NATIVE_CART_SHORT_ONLY'}
     line_items = []
     for line in lines_in:
         if not isinstance(line, dict):
