@@ -162,6 +162,18 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
     }
   }, [ phase, busy, sent, signedIn, router, service, chosenOrder ] );
 
+  // The published Pickup Flow has not passed its completion-schema/saver gate.
+  // A visible unavailable state is safer than offering a payment that cannot fulfill.
+  // The backend independently rejects all Pickup checkout rails before charging.
+  if ( service.kind === 'REQUEST_PICKUP' ) {
+    return (
+      <p role="status" style={ { color: 'var(--public-muted)', marginTop: '12px' } }>
+        Pickup checkout is temporarily unavailable while its WhatsApp form is verified.
+        No payment can be requested for this service.
+      </p>
+    );
+  }
+
   if ( phase.kind === 'loading' || phase.kind === 'unavailable' ) return null;
 
   const noOrders = orders !== null && orders.length === 0;
