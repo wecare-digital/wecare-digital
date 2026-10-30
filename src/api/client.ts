@@ -7704,6 +7704,9 @@ export interface VaultMessageDeliveryLog {
     processing?: VaultMessageDeliveryEvidence;
     completed?: VaultMessageDeliveryEvidence;
     invoice?: VaultMessageDeliveryEvidence;
+    /** Automatic Access Vault template, bound to the verified paid service request. */
+    autoAccess?: VaultMessageDeliveryEvidence;
+    /** Separate explicit staff resends, if any. */
     access: VaultMessageDeliveryEvidence;
   };
   scope: string;
