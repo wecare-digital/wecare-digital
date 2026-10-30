@@ -93,6 +93,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ mode, setMode ] = useState<'upload' | 'existing'>( 'upload' );
     const [ journey, setJourney ] = useState<VaultRegistryJourney | null>( null );
     const [ journeyError, setJourneyError ] = useState( '' );
+    const [ scheduledAction, setScheduledAction ] = useState<api.VaultScheduleAction | null>( null );
+    const [ scheduledAtLocal, setScheduledAtLocal ] = useState( '' );
+    const [ scheduled, setScheduled ] = useState<api.VaultScheduledAction[]>( [] );
+    const [ schedulingBusy, setSchedulingBusy ] = useState( false );
+    const [ scheduleError, setScheduleError ] = useState( '' );
     // An older all-files request must not overwrite a newly selected customer's files.
     const latestFilesRead = useRef( 0 );
     // Prevent double-clicks during the confirmation modal and network send.
@@ -103,6 +108,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setFiles( [] );
         setReviewFile( null );
         setLastAcceptedOfferFileId( '' );
+        setScheduledAction( null );
+        setScheduled( [] );
+        setScheduleError( '' );
         setTruncated( false );
         setLoadError( '' );
         setLoading( false );
@@ -163,6 +171,38 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } );
         return () => { active = false; };
     }, [] );
+
+    useEffect( () => {
+        let active = true;
+        const fileId = reviewFile?.fileId;
+        setScheduled( [] );
+        setScheduleError( '' );
+        if ( fileId ) {
+            void api.listVaultSchedules( fileId ).then( result => {
+                if ( !active ) return;
+                if ( result.ok ) setScheduled( result.data.schedules || [] );
+                else setScheduleError( result.failure.message || 'Schedules unavailable' );
+            } );
+        }
+        return () => { active = false; };
+    }, [ reviewFile?.fileId ] );
+
+    const reloadSchedules = async ( fileId: string ) => {
+        const result = await api.listVaultSchedules( fileId );
+        if ( result.ok ) {
+            setScheduled( result.data.schedules || [] );
+            setScheduleError( '' );
+        } else {
+            setScheduleError( result.failure.message || 'Schedules unavailable' );
+        }
+    };
+
+    const displayScheduleTime = ( iso: string ) => {
+        const parsed = new Date( iso );
+        return Number.isNaN( parsed.getTime() ) ? 'Invalid time' : parsed.toLocaleString( 'en-IN', {
+            timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short',
+        } ) + ' IST';
+    };
 
     const matchingCustomers = !reviewFile && !selectedCustomerId && contactQuery.trim().length > 1
         ? customers.filter( customer =>
@@ -267,6 +307,108 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } finally {
             setActing( '' );
             sendingAction.current = false;
+        }
+    };
+
+    const handleSendPayment = async ( target: SecureFile ) => {
+        if ( sendingAction.current || acting || uploading || schedulingBusy ) return;
+        if ( target.status !== 'active' || ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+            toast.error( 'This file does not need a new payment request.' );
+            return;
+        }
+        if ( vaultPricePaise === null || !vaultBreakdown ) {
+            toast.error( 'Live service price is unavailable. No payment request was sent.' );
+            return;
+        }
+        sendingAction.current = true;
+        let approved = false;
+        try {
+            approved = await confirm( {
+                title: 'Send Review & Pay now?',
+                message: `Send a native WhatsApp payment request for ${ target.displayName } to the existing verified owner? This does not charge automatically. The customer must approve payment.`,
+                confirmText: 'Send payment request',
+            } );
+            if ( !approved ) return;
+            setActing( target.fileId );
+            const result = await api.requestSecureFilePayment( target.fileId );
+            reportAction( result );
+            void load( filterMobile || undefined );
+        } catch {
+            toast.error( 'Payment send could not be confirmed. Check the chat before retrying.' );
+        } finally {
+            setActing( '' );
+            sendingAction.current = false;
+        }
+    };
+
+    const handleScheduleAction = async ( target: SecureFile ) => {
+        const action = scheduledAction;
+        if ( !action || sendingAction.current || schedulingBusy || acting || uploading ) return;
+        if ( target.status !== 'active' || ( action === 'access'
+            ? ![ 'OPEN', 'READY' ].includes( accessStateOf( target ) )
+            : ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+            toast.error( 'File status changed. Refresh before scheduling.' );
+            return;
+        }
+        const when = new Date( scheduledAtLocal );
+        const delta = when.getTime() - Date.now();
+        if ( !scheduledAtLocal || Number.isNaN( when.getTime() )
+            || delta < 10 * 60 * 1000 || delta > 30 * 24 * 60 * 60 * 1000 ) {
+            toast.error( 'Choose a time 10 minutes to 30 days from now.' );
+            return;
+        }
+        const variable = action === 'offer' ? validOfferBodyText( offerBodyText ) : null;
+        if ( action === 'offer' && ( !variable || vaultPricePaise !== 4900 || !vaultBreakdown ) ) {
+            toast.error( 'Enter valid WhatsApp {{1}} text and verify the live ₹49 offer first.' );
+            return;
+        }
+        sendingAction.current = true;
+        setSchedulingBusy( true );
+        try {
+            const actionName = action === 'offer' ? 'Unlock Vault offer'
+                : action === 'payment' ? 'native Review & Pay request'
+                    : 'paid Access Vault resend';
+            const approved = await confirm( {
+                title: `Schedule ${actionName}?`,
+                message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\nTime: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
+                confirmText: 'Confirm schedule',
+            } );
+            if ( !approved ) return;
+            const result = await api.scheduleVaultAction(
+                target.fileId, action, when.toISOString(), variable || undefined,
+            );
+            if ( !result.ok ) {
+                toast.error( result.failure.message || 'Schedule was not accepted' );
+                return;
+            }
+            toast.success( 'Scheduled. No message was sent yet.' );
+            setScheduledAction( null );
+            setScheduledAtLocal( '' );
+            await reloadSchedules( target.fileId );
+        } catch {
+            toast.warning( 'Schedule confirmation was not received. Check the schedule list before retrying.' );
+        } finally {
+            sendingAction.current = false;
+            setSchedulingBusy( false );
+        }
+    };
+
+    const handleCancelSchedule = async ( target: SecureFile, scheduleId: string ) => {
+        if ( sendingAction.current || schedulingBusy || acting ) return;
+        const approved = await confirm( {
+            title: 'Cancel scheduled message?',
+            message: 'Only pending sends can be cancelled. An already claimed send may be in progress.',
+            confirmText: 'Cancel schedule',
+        } );
+        if ( !approved ) return;
+        setSchedulingBusy( true );
+        try {
+            const result = await api.cancelVaultScheduledAction( target.fileId, scheduleId );
+            if ( result.ok ) toast.success( 'Scheduled message cancelled.' );
+            else toast.error( result.failure.message || 'Could not cancel this schedule.' );
+            await reloadSchedules( target.fileId );
+        } finally {
+            setSchedulingBusy( false );
         }
     };
 
