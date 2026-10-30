@@ -130,24 +130,12 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Service is one workspace. Requests are the operational queue; customer-facing
-    // submit/track/amend steps and service tools are contextual deep-links, not primary tabs.
+    // Milestone 1: Vault is the only visible Service capability. Keep the canonical
+    // /workspace/service route so later Flow-backed service items can be added here
+    // deliberately without reviving the old mixed hub.
     path: '/workspace/service',
-    label: 'Service',
+    label: 'Vault',
     icon: 'order',
-    children: [
-      { path: '/workspace/service?view=requests', label: 'Requests' },
-      { path: '/workspace/service?view=requests&action=submit', label: 'Submit Request' },
-      { path: '/workspace/service?view=requests&action=track', label: 'Track Request' },
-      { path: '/workspace/service?view=requests&action=amend', label: 'Amend Request' },
-      { path: '/workspace/service?view=appointments', label: 'Appointments' },
-      { path: '/workspace/service?view=appointments&action=sehat-appointments', label: 'Sehat Appointments' },
-      { path: '/workspace/service?view=documents', label: 'Drop Docs' },
-      { path: '/workspace/service?view=vault', label: 'Vault' },
-      { path: '/workspace/service?view=requests&action=enterprise', label: 'Enterprise Cases' },
-      { path: '/workspace/service?view=requests&action=reviews', label: 'Reviews' },
-      { path: '/workspace/service?view=requests&action=faq', label: 'FAQ' },
-    ],
   },
   {
     path: '/workspace/platform',
@@ -385,14 +373,9 @@ export const moduleHomes: ModuleHome[] = [
     note: 'Collect and Ledger are the two primary money modes; invoices, payment state and evidence live inside Ledger.',
   },
   {
-    id: 'service-operations', label: 'Service', path: '/workspace/service',
-    innerPages: [
-      '/workspace/service?view=requests',
-      '/workspace/service?view=appointments',
-      '/workspace/service?view=documents',
-      '/workspace/service?view=vault',
-    ],
-    note: 'Requests, Appointments, Drop Docs and Vault are the primary service modes; the remaining capabilities open contextually.',
+    id: 'service-operations', label: 'Vault', path: '/workspace/service',
+    innerPages: [],
+    note: 'Vault is the only active Workspace service surface in milestone 1; it remains manual and has no customer Meta Flow.',
   },
   {
     id: 'platform-operations', label: 'Platform', path: '/workspace/platform',
