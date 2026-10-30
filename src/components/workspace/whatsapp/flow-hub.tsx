@@ -22,7 +22,7 @@ const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'canc
 const FLOW_TYPE_OPTIONS: SelectOption[] = FLOW_TYPES.map( t => ( { value: t, label: t } ) );
 const ENTRY_MODE_OPTIONS: SelectOption[] = ENTRY_MODES.map( value => ( {
   value,
-  label: value === 'keyword_interactive' ? 'Keyword → native Flow' : value === 'payment_template' ? 'Payment → approved template' : value === 'internal_event' ? 'Internal event' : value === 'manual' ? 'Manual staff send' : 'No customer entry',
+  label: value === 'keyword_interactive' ? 'Keyword → native Flow' : value === 'payment_template' ? 'Payment → approved template' : value === 'internal_event' ? 'Internal event' : value === 'manual' ? 'Manual staff send' : 'Template or service route (no keyword)',
 } ) );
 const REGISTRY_STATUS_OPTIONS: SelectOption[] = [
   { value: 'DRAFT', label: 'DRAFT' },
@@ -58,6 +58,11 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   // Registry state
   const [ registry, setRegistry ] = useState<api.FlowRegistryItem[]>( [] );
   const [ registryLoading, setRegistryLoading ] = useState( false );
+  const [ showAllRegistryRows, setShowAllRegistryRows ] = useState( false );
+  // Operational view is the published capability set. Keep older registry states
+  // inspectable without deleting or misrepresenting historic submissions.
+  const publishedRegistry = registry.filter( f => f.status === 'PUBLISHED' );
+  const visibleRegistry = showAllRegistryRows ? registry : publishedRegistry;
 
   // Submissions state
   const [ submissions, setSubmissions ] = useState<api.FlowSubmissionItem[]>( [] );
@@ -246,23 +251,33 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'registry' && (
         <div>
           <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' } }>
-            <span style={ { fontSize: '0.85rem', color: 'var(--text-muted)' } }>{ registry.length } flows registered</span>
+            <span style={ { fontSize: '0.85rem', color: 'var(--text-muted)' } }>
+              { visibleRegistry.length } { showAllRegistryRows ? 'flows in registry' : 'published Flows' }
+              { !showAllRegistryRows && registry.length > visibleRegistry.length
+                ? ` · ${registry.length - visibleRegistry.length} older/non-live entries hidden` : '' }
+            </span>
             <div style={ { display: 'flex', gap: '0.5rem' } }>
+              <button type="button" onClick={ () => {
+                setShowAllRegistryRows( previous => !previous );
+                setShowRegForm( false );
+              } } style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
+                { showAllRegistryRows ? 'Show published Flows' : 'Show all registry entries' }
+              </button>
               <button onClick={ loadRegistry } disabled={ registryLoading }
                 style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
                 { registryLoading ? 'Loading...' : 'Refresh' }
               </button>
-              <button onClick={ () => {
+              { showAllRegistryRows && <button onClick={ () => {
                 if ( !showRegForm ) setRegForm( { ...NEW_REGISTRY_ROW } );
                 setShowRegForm( !showRegForm );
               } }
                 style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', background: '#0f2a1d', color: '#fff' } }>
                 + Register Flow
-              </button>
+              </button> }
             </div>
           </div>
 
-          { showRegForm && (
+          { showAllRegistryRows && showRegForm && (
             <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' } }>
               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.8rem' } }>
                 <div>
@@ -366,7 +381,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                   </tr>
                 </thead>
                 <tbody>
-                  { registry.map( f => (
+                  { visibleRegistry.map( f => (
                     <tr key={ f.flowId } style={ { borderBottom: '1px solid var(--border)' } }>
                       <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600 } }>{ f.flowCode }</td>
                       <td style={ { padding: '8px 12px' } }>{ f.flowName }</td>
@@ -383,11 +398,11 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                         { f.metaStatus ? <StatusBadge status={ f.metaStatus } /> : <span style={ { color: 'var(--text-muted)' } }>Not synced</span> }
                       </td>
                       <td style={ { padding: '8px 12px' } }>
-                        <div style={ { fontWeight: 600 } }>{ f.entryMode || 'none' }</div>
+                        <div style={ { fontWeight: 600 } }>{ f.entryMode === 'none' ? 'Template / service route' : f.entryMode || 'none' }</div>
                         { f.entryTemplateName && <div style={ { color: 'var(--text-muted)', fontSize: '0.7rem' } }>{ f.entryTemplateName }</div> }
                       </td>
                       <td style={ { padding: '8px 12px' } }>
-                        { f.requiresPayment ? formatPaise( f.paymentAmount || 0 ) : '—' }
+                        { f.requiresPayment ? ( f.paymentAmount ? formatPaise( f.paymentAmount ) : 'Catalog-priced' ) : '—' }
                       </td>
                       <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)' } }>{ f.flowId }</td>
                       <td style={ { padding: '8px 12px', fontSize: '0.7rem', color: 'var(--text-muted)' } }>
@@ -406,9 +421,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
             </div>
           ) }
 
-          { !registryLoading && registry.length === 0 && (
+          { !registryLoading && visibleRegistry.length === 0 && (
             <div style={ { textAlign: 'center', padding: '3rem', color: '#9ca3af' } }>
-              No flows registered yet. Click &quot;Register Flow&quot; to add your first flow.
+              {showAllRegistryRows ? 'No flows registered yet.' : 'No published flows in the registry. Use Show all registry entries to inspect drafts.'}
             </div>
           ) }
         </div>
