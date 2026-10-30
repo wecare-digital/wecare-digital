@@ -21,6 +21,7 @@ export interface VaultMessageStep {
   delivery: string;
   at: string;
   detail: string;
+  subEvents?: { label: string; status: string; timestamp: string }[];
 }
 
 const TITLE = [ 'Unlock Vault offer', 'Review & Pay', 'Order updates ×2', 'Paid invoice', 'Access Vault' ];
@@ -55,8 +56,16 @@ function providerStatus ( result: VaultMessageDeliveryEvidence | undefined ):
     case 'READ': return { state: 'accepted', label: 'Read', delivery: 'Read receipt recorded · ' + at };
     case 'DELIVERED': return { state: 'accepted', label: 'Delivered', delivery: 'Delivered webhook recorded · ' + at };
     case 'SENT': return { state: 'accepted', label: 'Sent', delivery: 'Sent webhook recorded · ' + at };
-    case 'ACCEPTED': return { state: 'accepted', label: 'Meta accepted', delivery: 'Meta acceptance recorded · ' + at };
-    case 'FAILED': return { state: 'failed', label: 'Delivery failed', delivery: 'Failure webhook recorded · ' + at };
+    case 'ACCEPTED': return {
+      state: 'accepted', label: 'Meta accepted',
+      delivery: ( result.source === 'SEND_LOG' ? 'Provider acceptance in send log · ' : 'Meta acceptance recorded · ' )
+        + at + ' · handset not verified',
+    };
+    case 'FAILED': return {
+      state: 'failed',
+      label: result.source === 'SEND_LOG' ? 'Send refused' : 'Delivery failed',
+      delivery: ( result.source === 'SEND_LOG' ? 'Sender refusal recorded · ' : 'Failure webhook recorded · ' ) + at,
+    };
     case 'UNAVAILABLE': return { state: 'unknown', label: 'Status unavailable', delivery: 'Provider status lookup unavailable; do not retry automatically' };
     default: return { state: 'unknown', label: 'Needs reconciliation', delivery: 'Provider status has not been confirmed' };
   }
@@ -88,7 +97,19 @@ export function vaultMessageSteps (
   const payment = String( file?.lastPaymentRequestOutcome || '' );
   const access = String( file?.lastAccessSendOutcome || '' );
   const offerProof = providerStatus( log?.evidence.offer );
+  const nativePayProof = providerStatus( log?.evidence.nativePay );
+  const processingProof = providerStatus( log?.evidence.processing );
+  const completedProof = providerStatus( log?.evidence.completed );
+  const invoiceProof = providerStatus( log?.evidence.invoice );
   const accessProof = providerStatus( log?.evidence.access );
+  const orderEvents = [
+    { label: 'Processing', data: log?.evidence.processing, proof: processingProof },
+    { label: 'Completed', data: log?.evidence.completed, proof: completedProof },
+  ].map( entry => ({
+    label: entry.label,
+    status: entry.proof?.label || 'Not verified',
+    timestamp: timeLabel( entry.data?.observedAt || undefined ),
+  }) );
   const offerState = offerProof?.state || outcomeState( offer, 'VAULT_OFFER_SENT' );
   const payState = outcomeState( payment, 'PAYMENT_REQUEST_SENT' );
   const accessState = accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
@@ -115,28 +136,33 @@ export function vaultMessageSteps (
     {
       index: 2, title: TITLE[ 1 ], ...stage( 1, 'Customer-triggered' ),
       event: 'Only after customer taps Unlock Vault',
-      state: paid ? 'accepted' : payState,
-      stateLabel: paid ? 'Payment captured' : payState === 'waiting' ? 'Customer action required' : stateText( payState ),
-      delivery: 'Native payment message delivery not linked to this file audit',
-      at: timeLabel( file?.lastPaymentRequestedAt ),
-      detail: paid ? 'Payment evidence recorded; this does not prove WhatsApp delivery'
+      state: nativePayProof?.state || ( paid ? 'accepted' : payState ),
+      stateLabel: nativePayProof?.label || ( paid ? 'Payment captured · WA unverified' : payState === 'waiting' ? 'Customer action required' : stateText( payState ) ),
+      delivery: nativePayProof?.delivery || 'Native payment message delivery not linked to this file audit',
+      at: timeLabel( log?.evidence.nativePay?.observedAt || file?.lastPaymentRequestedAt ),
+      detail: paid ? 'Payment evidence recorded; this does not itself prove WhatsApp delivery'
         : payment ? 'Staff request outcome: ' + payment : 'Customer-triggered checkout is not a scheduled blast',
     },
     {
       index: 3, title: TITLE[ 2 ], ...stage( 2, 'After verified capture' ),
       event: 'Processing → completed (two separate messages)',
-      state: 'waiting', stateLabel: paid ? 'Delivery status not linked' : 'Waiting for captured payment',
-      delivery: 'No per-update sent/delivered/read evidence in this file view',
-      at: 'No stage-specific timestamp recorded',
-      detail: 'Order status is advanced only after provider acceptance of the prior transition. Full evidence lives in the order and invoice audit.',
+      state: completedProof?.state || processingProof?.state || 'waiting',
+      stateLabel: completedProof ? 'Completed · ' + completedProof.label
+        : processingProof ? 'Processing · ' + processingProof.label
+          : paid ? 'Order updates not verified' : 'Waiting for captured payment',
+      delivery: completedProof?.delivery || processingProof?.delivery || 'No verified order-update webhook linked to this paid file',
+      at: timeLabel( log?.evidence.completed?.observedAt || log?.evidence.processing?.observedAt ),
+      detail: 'Payment captured → processing → completed; each send has its own provider message ID.',
+      subEvents: orderEvents,
     },
     {
       index: 4, title: TITLE[ 3 ], ...stage( 3, 'After order update' ),
       event: 'Verified paid invoice image',
-      state: 'waiting', stateLabel: paid ? 'Invoice delivery not linked' : 'Waiting for paid invoice',
-      delivery: 'Invoice WhatsApp status is not a property of the Vault file',
-      at: 'No stage-specific timestamp recorded',
-      detail: 'A paid entitlement does not prove that an invoice message reached the handset.',
+      state: invoiceProof?.state || 'waiting',
+      stateLabel: invoiceProof?.label || ( paid ? 'Invoice delivery not verified' : 'Waiting for paid invoice' ),
+      delivery: invoiceProof?.delivery || 'No confirmed invoice send status linked to this paid file',
+      at: timeLabel( log?.evidence.invoice?.observedAt ),
+      detail: 'The invoice image is sent after payment confirmation. A paid entitlement alone never proves handset receipt.',
     },
     {
       index: 5, title: TITLE[ 4 ], ...stage( 4, 'After invoice acceptance' ),
@@ -211,6 +237,13 @@ export default function VaultMessageTimeline ( {
               { !compact && (
                 <>
                   <p className={ styles.trigger }>{ stage.event }</p>
+                  { stage.subEvents && <div className={ styles.subEvents } aria-label="Order update individual message statuses">
+                    { stage.subEvents.map( event => <div key={ event.label }>
+                      <strong>{ event.label }</strong>
+                      <span>{ event.status }</span>
+                      <time>{ event.timestamp }</time>
+                    </div> ) }
+                  </div> }
                   <p className={ styles.note }>{ stage.detail }</p>
                   <p className={ styles.delivery }>{ stage.delivery }</p>
                   <code className={ styles.template }>{ stage.template }</code>
