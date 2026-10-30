@@ -68,7 +68,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
     const [ storage, setStorage ] = useState<api.SecureFileStorage | null>( null );
-    // On by default: an unpaid document is only useful once its owner receives native Review & Pay.
+    // On by default: an unpaid document is useful once its owner receives the Vault request-ready message.
     const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
@@ -282,7 +282,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.success( `${ published.data.displayName || ticket.data.fileName } published to Vault` );
             if ( requestAfterUpload )
             {
-                setStep( 'Sending Review & Pay on WhatsApp…' );
+                setStep( 'Sending Vault request on WhatsApp…' );
                 reportAction( await api.requestSecureFilePayment( published.data.fileId ) );
             }
 
@@ -333,10 +333,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 </header>
 
                 <section className="sf-journey" aria-label="Vault customer journey">
-                    <div><span>1</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
-                    <div><span>2</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
-                    <div><span>3</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' } · {'{{1}}'} = Vault file ID</small></div>
-                    <div><span>4</span><strong>Receipt</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
+                    <div><span>1</span><strong>Vault request</strong><small>wecare_vault_request_ready · Unlock Vault</small></div>
+                    <div><span>2</span><strong>Review &amp; Pay</strong><small>{ vaultTemplates?.nativePay || 'Native payment template' }</small></div>
+                    <div><span>3</span><strong>Order status</strong><small>{ vaultTemplates ? `${vaultTemplates.orderStatus} · ${vaultTemplates.orderStatusStates.join( ' → ' )}` : 'Shared order-status template' }</small></div>
+                    <div><span>4</span><strong>Receipt · Leave Review</strong><small>{ vaultTemplates?.receipt || 'Shared invoice template' }</small></div>
+                    <div><span>5</span><strong>Access Vault</strong><small>{ vaultTemplates?.delivery || 'Vault delivery template' } · {'{{1}}'} = Vault file ID</small></div>
                 </section>
 
                 <section className="sf-storage-card" aria-label="Vault private storage">
@@ -558,8 +559,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                                 { acting === row.fileId
                                                                     ? 'Sending…'
                                                                     : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? 'Send renewal payment'
-                                                                        : 'Send Review & Pay' }
+                                                                        ? 'Send renewal request'
+                                                                        : 'Send Vault request' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
@@ -636,14 +637,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-review-head">
                             <div>
                                 <p className="sf-review-eyebrow">Customer preview</p>
-                                <h2 id="sf-review-title">Review &amp; Pay</h2>
-                                <p>{ vaultTemplates?.nativePay || 'Native Review & Pay' } · exact file · live catalog price</p>
+                                <h2 id="sf-review-title">Vault request</h2>
+                                <p>wecare_vault_request_ready · Unlock Vault → { vaultTemplates?.nativePay || 'Native Review & Pay' }</p>
                             </div>
                             <button
                                 type="button"
                                 className="sf-review-close"
                                 onClick={ () => setReviewFile( null ) }
-                                aria-label="Close Review and Pay preview"
+                                aria-label="Close Vault request preview"
                             >
                                 ×
                             </button>
@@ -699,7 +700,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
                                     : vaultBreakdown === null
                                         ? 'Live payment breakdown is unavailable. Do not send a payment request until pricing recovers.'
-                                        : 'Review & Pay is sent first. After payment, Access Vault uses wecare_default_download; its URL variable {{1}} is filled automatically from this exact Vault file ID. Staff do not type or override it.' }
+                                        : 'Stage 1 sends wecare_vault_request_ready. The customer taps Unlock Vault to receive Review & Pay. After verified payment: processing → completed → invoice with Leave Review → Access Vault. The final URL variable {{1}} is filled automatically from this exact Vault file ID.' }
                         </p>
                     </aside>
                 </div>
