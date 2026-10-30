@@ -346,7 +346,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         if ( !action || sendingAction.current || schedulingBusy || acting || uploading ) return;
         if ( target.status !== 'active' || ( action === 'access'
             ? ![ 'OPEN', 'READY' ].includes( accessStateOf( target ) )
-            : ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+            : ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) ) {
             toast.error( 'File status changed. Refresh before scheduling.' );
             return;
         }
