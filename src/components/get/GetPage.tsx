@@ -43,7 +43,10 @@ import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../api/client';
 import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
-import { restoreSession, clearSession } from '../../lib/customerAuth';
+import { restoreSession, clearSession, getSession } from '../../lib/customerAuth';
+import { serviceByKind } from '../../config/services';
+import { postRequestIntent } from '../../lib/serviceRequests';
+import { setServiceLine, serviceIntentFor, toLineItems } from '../../lib/cart';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -88,6 +91,7 @@ const GET_WORDS: CycleWord[] = [
 ];
 
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
+export const VAULT_WEBSITE_RETURN_FILE_KEY = 'wecare.vault.websiteCheckoutReturnFile';
 const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 
 type Stage = 'loading' | 'files';
@@ -107,6 +111,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     // Display-only preview from the ProductsTable-backed pricing endpoint. The native payment
     // backend re-prices independently before it creates any payment attempt.
     const [ payablePrice, setPayablePrice ] = useState<number | null>( null );
+    const [ vaultLinePrice, setVaultLinePrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
     const [ paymentWaiting, setPaymentWaiting ] = useState<Record<string, boolean>>( {} );
     const [ fileFeedback, setFileFeedback ] = useState<Record<string, FileFeedback>>( {} );
@@ -163,6 +168,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     ? vault.breakdown.totalPayablePaise
                     : null
             );
+            setVaultLinePrice( vault?.available && vault.breakdown ? vault.paise : null );
         } );
         return () => { active = false; };
     }, [] );
@@ -310,6 +316,68 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             feedback( 'error', err?.message || 'Could not prepare the download.' );
         } finally
         {
+            setWorking( '' );
+        }
+    };
+
+    const handleWebsiteCheckout = async ( file: SecureFile ) => {
+        const state = accessStateOf( file );
+        if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
+        const service = serviceByKind( 'VAULT' );
+        if ( !service || !vaultLinePrice || payablePrice === null ) {
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                kind: 'error', message: 'The current Vault price is unavailable. Nothing has been charged.',
+            } } ) );
+            return;
+        }
+        setWorking( file.fileId );
+        try {
+            const session = getSession() || await restoreSession();
+            if ( !session ) {
+                redirectToAuth();
+                return;
+            }
+            // Bind exactly THIS owner-verified Vault file to a pre-payment service
+            // intent. The checkout verifies the same entitlement again before Razorpay.
+            const response = await postRequestIntent(
+                session.accessToken, 'VAULT', undefined, file.fileId,
+            );
+            if ( response.kind === 'expired' ) {
+                clearSession();
+                redirectToAuth();
+                return;
+            }
+            if ( response.kind !== 'ok' || response.intent.variantId !== service.variantId ) {
+                const message = response.kind === 'refused'
+                    ? response.message
+                    : response.kind === 'rate'
+                        ? 'Too many attempts. Try again shortly.'
+                        : 'We could not verify this file for website payment. Nothing has been charged.';
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', message } } ) );
+                if ( response.kind === 'refused' ) void loadFiles();
+                return;
+            }
+            const cart = setServiceLine( service.variantId, response.intent.intentId, vaultLinePrice );
+            const lineItems = toLineItems( cart );
+            const bound = serviceIntentFor( lineItems ) === response.intent.intentId
+                && cart.some( item => item.productId === service.productId && item.variantId === service.variantId );
+            if ( !bound ) {
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                    kind: 'error',
+                    message: 'Your cart could not preserve the verified Vault file selection. No payment was started.',
+                } } ) );
+                return;
+            }
+            // Same-tab, non-authoritative link for the success/status screen to offer.
+            // File access still requires authenticated exact-file authorization.
+            window.sessionStorage.setItem( VAULT_WEBSITE_RETURN_FILE_KEY, file.fileId );
+            window.location.assign( '/cart/' );
+        } catch {
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                kind: 'error',
+                message: 'Website checkout could not be prepared. Nothing has been charged. Try again.',
+            } } ) );
+        } finally {
             setWorking( '' );
         }
     };
