@@ -366,6 +366,8 @@ const Customers: React.FC<PageProps> = () => {
 
   // Fix #7: Deleting state to prevent double-click on delete modal
   const [deleting, setDeleting] = useState(false);
+  // Synchronous guard: state alone is not an atomic lock across confirmation dialogs.
+  const customerMutationInFlight = useRef(false);
 
   // Fix #12 (R2): Track Escape to prevent onBlur from committing after cancel
   const inlineEditCancelled = useRef(false);
@@ -900,6 +902,7 @@ const Customers: React.FC<PageProps> = () => {
   // Archive is a distinct non-destructive state. It hides the canonical customer from daily
   // queues while preserving the identity row and every linked order/invoice/payment/consent record.
   const handleArchive = async (contactId: string, contactName?: string) => {
+    if (deleting || customerMutationInFlight.current) return;
     const current = contacts.find(c => c.contactId === contactId);
     if (current?.locked) { toast.warning('This contact is protected. An administrator must unlock it before archiving.'); return; }
     const ok = await confirm({
@@ -907,7 +910,8 @@ const Customers: React.FC<PageProps> = () => {
       message: `Archive ${contactName ? `"${contactName}"` : 'this contact'}? It will be hidden from the contacts list. The record, its messages and any payment links are kept, and an admin can restore it.`,
       confirmText: 'Archive',
     });
-    if (!ok) return;
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
     setDeleting(true);
     try {
       const result = await api.archiveContact(contactId, 'Archived from Customers workspace after operator review');
@@ -918,7 +922,51 @@ const Customers: React.FC<PageProps> = () => {
       }
       else toast.error('Failed to archive contact');
     } catch { toast.error('Failed to archive contact'); }
-    finally { setDeleting(false); }
+    finally { customerMutationInFlight.current = false; setDeleting(false); }
+  };
+
+  // Staff Delete is only a guarded soft-delete. It never purges messages or releases a
+  // phone reservation, so it cannot be used as a workaround for an orphaned-identity 409.
+  const handleDeleteCustomer = async (contactId: string, contactName?: string) => {
+    if (deleting || customerMutationInFlight.current) return;
+    const current = contacts.find(c => c.contactId === contactId);
+    if (current?.locked) {
+      toast.warning('This customer is protected by a retention lock; ask an administrator to review it.');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Delete customer from Workspace?',
+      message: `Delete ${contactName ? `"${contactName}"` : 'this customer'} from active customer records? This is a soft delete, NOT a permanent purge. The phone stays reserved and cannot be reused to create a new customer. Invoice, payment, order and audit history are never erased by this action. Choose Archive if you may need to restore the record.`,
+      confirmText: 'Delete customer',
+      danger: true,
+    });
+    if (!ok || customerMutationInFlight.current) return;
+    customerMutationInFlight.current = true;
+    setDeleting(true);
+    try {
+      const result = await api.softDeleteContactResult(contactId);
+      if (result.ok && result.data?.success && (result.data.deleteType === 'soft' || result.data.deleteType == null)) {
+        toast.success('Customer removed from the active list; their phone remains reserved.');
+        setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
+        if (detailContact?.contactId === contactId) setDetailContact(null);
+        await loadContacts();
+      } else if (!result.ok) {
+        const refusal = (result.failure.code || result.failure.message || '').toUpperCase();
+        const message = refusal.includes('CONTACT_LOCKED')
+          ? 'Delete refused: this customer is protected for legal retention.'
+          : refusal.includes('CONTACT_HAS_PAYMENTS') || refusal.includes('PAYMENT_LINKAGE_UNKNOWN')
+            ? 'Delete refused: linked payment/order history exists or could not be verified. Archive instead if permitted.'
+            : result.failure.message || 'Delete was refused by the server.';
+        toast.error(message);
+      } else {
+        toast.error('Delete was not confirmed by the server. Refresh before trying again.');
+      }
+    } catch {
+      toast.error('Delete request failed. Customer was not confirmed deleted.');
+    } finally {
+      customerMutationInFlight.current = false;
+      setDeleting(false);
+    }
   };
 
   const handleUnlock = async (contactId: string) => {
@@ -1497,8 +1545,9 @@ const Customers: React.FC<PageProps> = () => {
                         )}
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                            <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
-                            <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
+                            <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
+                            <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
+                            <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
                           </div>
                         </td>
                       </tr>
@@ -1547,8 +1596,9 @@ const Customers: React.FC<PageProps> = () => {
                         {c.email && <div className="contact-card-email">{c.email}</div>}
                       </div>
                       <div className="contact-card-actions" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
-                        <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
+                        <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
+                        <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
+                        <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
                       </div>
                     </div>
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
@@ -1632,10 +1682,12 @@ const Customers: React.FC<PageProps> = () => {
                   </div>
                 )}
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Archive</button>
+                <div className="contacts-detail-actions">
+                  <button type="button" onClick={() => { handleEdit(detailContact); setDetailContact(null); }} className="contacts-primary-action">Edit</button>
+                  <button type="button" onClick={() => void handleArchive(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-secondary-action">Archive</button>
+                  <button type="button" onClick={() => void handleDeleteCustomer(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-danger-action">Delete customer</button>
                 </div>
+                <p className="contacts-retention-note">Archive can be restored. Delete is a guarded soft delete: the phone remains reserved and financial records stay intact. Protected customers cannot be deleted.</p>
 
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />
