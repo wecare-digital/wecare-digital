@@ -30,6 +30,7 @@ export const SERVICE_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
   SERVICE_UNKNOWN_CHOICE: 'Choose a WECARE.DIGITAL service. Nothing has been charged.',
   SERVICE_INVALID_QUANTITY: 'A service is bought one at a time. Set its quantity to 1. Nothing has been charged.',
   SERVICE_ONE_PER_ORDER: 'Only one service can be paid for in an order. Remove the extra one. Nothing has been charged.',
+  SERVICE_SEPARATE_CHECKOUT: 'Vault and Drop Docs need a separate cart checkout. Remove other cart items or buy them first. Nothing has been charged.',
   SERVICE_INTENT_REQUIRED: 'Start this service from its own page, then check out. Nothing has been charged.',
   SERVICE_ORIGINAL_ORDER_REQUIRED: 'Choose the original order this request is for. Nothing has been charged.',
   SERVICE_UNAVAILABLE: 'Services cannot be paid for right now. Nothing has been charged.',
