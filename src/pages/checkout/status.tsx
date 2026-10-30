@@ -141,11 +141,19 @@ export default function CheckoutStatus (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero
-        frame={ copy.title }
-        words={ [ { word: 'your payment', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        ariaLabel="Checkout status"
+        ariaLabel="WECARE.DIGITAL customer"
+        frame="One account."
+        words={ [
+          { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
+        sub="Pick up where you left off."
+        mobileFoundation
+        compact
       >
         <section className="co-card" role="status" aria-live="polite">
+          <h2 className="co-title">{ copy.title }</h2>
           { view === 'paid'
             ? <div className="co-mark co-mark-paid" aria-hidden="true"><i className="co-tick" /></div>
             : <div className={ `co-mark co-mark-${ view }` } aria-hidden="true" /> }
@@ -195,7 +203,8 @@ export default function CheckoutStatus (): React.ReactElement {
         </section>
 
         <style jsx>{`
-          .co-card{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
+          .co-card{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
+          .co-title{margin:0 0 24px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
           .co-mark{inline-size:56px;block-size:56px;margin-block-end:24px;border-radius:50%}
           .co-mark-confirming,.co-mark-finalizing{border:3px solid rgba(0,0,0,.12);border-block-start-color:#3da35a;animation:co-spin 900ms linear infinite}
           .co-mark-paid{background:#3da35a;display:flex;align-items:center;justify-content:center}
@@ -212,7 +221,7 @@ export default function CheckoutStatus (): React.ReactElement {
           .co-card :global(.co-auth-action:hover){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
           .co-card :global(.co-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
           @keyframes co-spin{to{transform:rotate(360deg)}}
-          @media(max-width:767px){.co-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}.co-actions{display:grid;grid-template-columns:1fr;width:100%}.co-card :global(.co-auth-action){width:100%}}
+          @media(max-width:767px){.co-card{width:100%;padding:24px 18px max(24px,env(safe-area-inset-bottom));border-radius:20px}.co-title{margin-bottom:18px;font-size:var(--public-mobile-card-size)}.co-mark{inline-size:48px;block-size:48px;margin-block-end:18px}.co-actions{display:grid;grid-template-columns:1fr;width:100%;margin-block-start:22px}.co-card :global(.co-auth-action){width:100%}}
           @media(prefers-reduced-motion:reduce){.co-mark-confirming,.co-mark-finalizing{animation:none}.co-card :global(.co-auth-action){transition:none}.co-card :global(.co-auth-action:hover){transform:none;box-shadow:none}}
         `}</style>
       </RotatingHero>

@@ -65,11 +65,19 @@ export default function CheckoutSuccess (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero
-        frame={ heading }
-        words={ [ { word: 'your order', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        ariaLabel={ heading }
+        ariaLabel="WECARE.DIGITAL customer"
+        frame="One account."
+        words={ [
+          { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
+        ] }
+        sub="Pick up where you left off."
+        mobileFoundation
+        compact
       >
-        <section className="cs-card">
+        <section className="cs-card" aria-live="polite">
+          <h2 className="cs-title">{ heading }</h2>
           {/* THE TICK IS DRAWN FROM BORDERS, NOT TYPED. The old mark was the literal character ✓
               inside a filled disc, so its shape and weight varied by platform font - the same
               reason the header's chevron is two borders. A tick is an ORIENTATION rather than a
@@ -101,6 +109,7 @@ export default function CheckoutSuccess (): React.ReactElement {
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
           .cs-card{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box}
+          .cs-title{margin:0 0 24px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
 
           /* The disc is the palette's grassy green #3da35a, not a non-palette green - that value appears
              nowhere in the home design. 56px matches the status screen's mark, so the two
@@ -140,7 +149,7 @@ export default function CheckoutSuccess (): React.ReactElement {
           .cs-card :global(.cs-auth-primary){font-weight:700}
           .cs-card :global(.cs-auth-action:hover){background:var(--public-brand-lime);transform:translateY(-1px);box-shadow:var(--public-lift-shadow);text-decoration-color:transparent}
           .cs-card :global(.cs-auth-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
-          @media(max-width:767px){.cs-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}.cs-actions{display:grid;grid-template-columns:1fr;width:100%}.cs-card :global(.cs-auth-action){width:100%}}
+          @media(max-width:767px){.cs-card{width:100%;padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}.cs-title{font-size:var(--public-mobile-card-size)}.cs-actions{display:grid;grid-template-columns:1fr;width:100%}.cs-card :global(.cs-auth-action){width:100%}}
           @media(prefers-reduced-motion:reduce){.cs-card :global(.cs-auth-action){transition:none}.cs-card :global(.cs-auth-action:hover){transform:none;box-shadow:none}}
         `}</style>
       </RotatingHero>
