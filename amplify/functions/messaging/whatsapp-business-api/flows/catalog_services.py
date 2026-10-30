@@ -487,9 +487,10 @@ def _send_offer(event, client, db, keys, contacts, now):
         return {'outcome': 'CONTACT_AMBIGUOUS'}
     try:
         keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
-                         UpdateExpression='SET lastOfferAt=:now',
-                         ConditionExpression='attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent',
-                         ExpressionAttributeValues={':now': now,
+                         UpdateExpression='SET lastOfferAt=:now, lastOfferState=:state',
+                         ConditionExpression=('attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent '
+                                              'OR lastOfferState <> :state'),
+                         ExpressionAttributeValues={':now': now, ':state': state,
                                                     ':recent': now - OFFER_RESEND_GUARD_SECONDS})
     except Exception as error:
         if _conditional_failed(error):
