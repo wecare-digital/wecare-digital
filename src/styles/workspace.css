@@ -1199,30 +1199,16 @@
   position: relative;
   min-width: 0;
 }
-.workspace-shell .contacts-auth-modal .contacts-country-dropdown {
-  position: absolute;
-  z-index: 1400;
-  top: calc(100% + 6px);
-  left: 0;
-  width: 240px;
-  max-width: calc(100vw - 64px);
-  max-height: 220px;
-  overflow-y: auto;
-  border: 1px solid var(--public-hairline, #e6e9e5);
-  border-top: 4px solid var(--public-brand-lime, #d1f470);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 16px 38px rgba(26,58,42,.14);
-}
-.workspace-shell .contacts-auth-modal .contacts-country-option {
-  padding: 10px 12px;
-  color: #1a3a2a;
-  font-size: 12px;
+.workspace-shell .contacts-auth-modal .contacts-country-code select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
-.workspace-shell .contacts-auth-modal .contacts-country-option:hover {
-  background: #f8faf3;
-}
+
 .workspace-shell .contacts-auth-modal .contacts-modal-error {
   flex: 0 0 auto;
   margin: 0 24px 4px;
