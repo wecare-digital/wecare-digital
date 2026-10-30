@@ -29,6 +29,7 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
+    PDF_DOWNLOAD   wecare_pdf_direct_download             DOCUMENT header, FLOW button index 0; manual only
     VAULT_OFFER    wecare_vault_request_ready             Manual Vault stage 1: IMAGE header and
                                                           bound QUICK_REPLY "Unlock Vault"
     SUBMIT_REQUEST_FLOW     submit_request_flow           UTILITY, IMAGE header, FLOW button index 0
@@ -110,6 +111,8 @@ DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTI
                     header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
                         header="location", automated=False)
+PDF_DOWNLOAD = Template(name="wecare_pdf_direct_download", language="en", category="UTILITY",
+                        header="document", buttons=("flow",), automated=False)
 PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
                            header="image", buttons=("flow",))
 #: Manual staff Vault publication sends this approved, document-bound IMAGE quick-reply first.
@@ -137,10 +140,32 @@ SERVICE_FLOW_TEMPLATES: Mapping[str, Template] = {
 }
 
 ALL: Tuple[Template, ...] = (
-    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PROFILE_DETAILS, VAULT_OFFER,
+    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PDF_DOWNLOAD, PROFILE_DETAILS, VAULT_OFFER,
     SUBMIT_REQUEST_FLOW, REQUEST_AMENDMENT_FLOW, DROP_DOCS_FLOW, REQUEST_PICKUP_FLOW,
     TRACK_SHIPPING_FLOW,
 )
+
+#: Meta-approved WABA1 / en template-version IDs, verified 2026-10-30. These
+#: are lookup/audit metadata: senders must use the template name and required
+#: components; a stored ID is not proof that Meta still permits sending.
+APPROVED_TEMPLATE_IDS: Mapping[str, str] = {
+    "track_ship_flow": "1107523855531222",
+    "pickup_request_flow": "1449099850671553",
+    "_dropdoc_flow": "1041974032198332",
+    "request_amendment_flow": "4034771700165582",
+    "submit_request_flow": "30181571061431980",
+    "service_details": "2419125382263851",
+    "wecare_pdf_direct_download": "1428669922724280",
+    "wecare_location_share_pin": "1628859001974131",
+    "wecare_default_download": "1410998911012572",
+    "wecare_whatapp_native_pay_template": "2714938845570815",
+    "wecare_leave_review": "1801972550682516",
+    "wecare_default_invoice_image_template": "1782246473079550",
+    "wecare_order_status_v3": "1754227779211208",
+    "wecare_vault_request_ready": "29124703577146420",
+    "wecare_otp": "1292079089453029",
+}
+
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
@@ -236,9 +261,9 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
 
 
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "PROFILE_DETAILS", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
+           "LOCATION_PIN", "PDF_DOWNLOAD", "PROFILE_DETAILS", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
            "DROP_DOCS_FLOW", "REQUEST_PICKUP_FLOW", "TRACK_SHIPPING_FLOW",
-           "SERVICE_FLOW_TEMPLATES", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name",
+           "SERVICE_FLOW_TEMPLATES", "ALL", "APPROVED_TEMPLATE_IDS", "POST_PAYMENT_FORBIDDEN", "by_name",
            "service_flow_template", "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX",
            "download_send_fields", "service_flow_send_fields", "drop_docs_flow_send_fields",
            "vault_offer_document_name", "vault_offer_send_fields"]
