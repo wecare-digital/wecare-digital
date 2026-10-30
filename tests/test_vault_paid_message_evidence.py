@@ -31,6 +31,7 @@ def engine(tables):
     namespace = {
         "Any": Any, "Dict": Dict, "os": os,
         "GRANTS_TABLE": "stack-wecare-digital-DownloadGrantsTable",
+        "SERVICE_REQUESTS_TABLE": "stack-wecare-digital-ServiceRequestsTable",
         "_table": lambda name: tables[name],
         "_message_status_for_verified_send": lambda wamid: {
             "status": "DELIVERED" if wamid == "wamid.processing" else "READ",
