@@ -28,6 +28,7 @@ export default function VaultLogs () {
   const [ mobile, setMobile ] = React.useState( '' );
   const [ truncated, setTruncated ] = React.useState( false );
   const [ journey, setJourney ] = React.useState<VaultRegistryJourney | null>( null );
+  const [ expandedFileId, setExpandedFileId ] = React.useState( '' );
 
   const load = React.useCallback( async ( mobileFilter?: string ) => {
     setLoading( true );
@@ -163,9 +164,12 @@ export default function VaultLogs () {
                     { row.revokedAt && <small>Revoked { when( row.revokedAt ) }{ row.revokedBy ? ` by ${ row.revokedBy }` : '' }</small> }
                   </td>
                   <td data-label="WhatsApp message log">
-                    <details className="vl-message-details">
-                      <summary>5 stages · timestamps &amp; delivery</summary>
-                      <VaultMessageTimeline file={ row } journey={ journey } />
+                    <details className="vl-message-details" open={ expandedFileId === row.fileId }>
+                      <summary onClick={ event => {
+                        event.preventDefault();
+                        setExpandedFileId( current => current === row.fileId ? '' : row.fileId );
+                      } }>5 stages · timestamps &amp; delivery</summary>
+                      { expandedFileId === row.fileId && <VaultMessageTimeline file={ row } journey={ journey } /> }
                     </details>
                   </td>
                 </tr>
