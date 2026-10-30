@@ -30,7 +30,6 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import Select, { type SelectOption } from '../../../components/ui/Select';
@@ -60,7 +59,7 @@ const STATUS_PAINT: Record<Status, { bg: string; fg: string }> = {
 
 const UNASSIGNED = '__unassigned__';
 
-const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
+const TasksPage: React.FC<PageProps> = () => {
   const toast = useToastContext();
   const [ rows, setRows ] = useState<api.ConversationMeta[]>( [] );
   const [ names, setNames ] = useState<Record<string, string>>( {} );
@@ -153,7 +152,7 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
     : '—';
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO
         title="Tasks"
         description="The team work queue: conversations by status and assignee."
@@ -463,7 +462,7 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
           }
         `}</style>
       </div>
-    </Layout>
+    </>
   );
 };
 

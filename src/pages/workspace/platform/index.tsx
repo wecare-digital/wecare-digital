@@ -15,7 +15,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 
@@ -79,10 +78,10 @@ const PlatformHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     if ( embedded ) return content;
     return (
-        <Layout user={ user } onSignOut={ signOut }>
+        <>
             <SEO title="Platform | WECARE.DIGITAL" description="Infrastructure, integrations and diagnostics" noindex={ true } />
             { content }
-        </Layout>
+        </>
     );
 };
 

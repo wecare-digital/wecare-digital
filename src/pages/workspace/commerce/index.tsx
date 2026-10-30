@@ -10,7 +10,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -47,7 +46,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO title="Commerce" description="Orders and catalog operations." noindex />
       <div className="commerce-page">
         <header className="commerce-head">
@@ -91,7 +90,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user } ) => {
         }
         @media(forced-colors:active){.commerce-tabs{border-color:CanvasText}}
       `}</style>
-    </Layout>
+    </>
   );
 };
 

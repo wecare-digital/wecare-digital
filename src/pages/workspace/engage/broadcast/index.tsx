@@ -6,7 +6,6 @@
  * → send with live progress. Uses each channel's existing send API.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
 import { useToastContext } from '../../../../contexts/ToastContext';
@@ -82,7 +81,7 @@ const broadcastSafeTemplate = ( t: api.WhatsAppTemplate ): boolean => {
     } );
 };
 
-const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const BroadcastPage: React.FC<PageProps> = ( { embedded } ) => {
     const toast = useToastContext();
     const [ channel, setChannel ] = useState<Channel>( 'sms' );
     const [ contacts, setContacts ] = useState<api.Contact[]>( [] );
@@ -275,10 +274,10 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     if ( embedded ) return content_;
     return (
-        <Layout user={ user } onSignOut={ signOut }>
+        <>
             <SEO title="Broadcast | WECARE.DIGITAL" description="Unified cross-channel broadcast" noindex={ true } />
             { content_ }
-        </Layout>
+        </>
     );
 };
 

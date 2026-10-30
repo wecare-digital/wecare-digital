@@ -6,7 +6,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { SkeletonTable } from '../../../components/Skeleton';
 import CustomerManageData from '../../../components/workspace/customers/ManageData';
@@ -265,7 +264,7 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
   );
 };
 
-const Customers: React.FC<PageProps> = ({ signOut, user }) => {
+const Customers: React.FC<PageProps> = () => {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1197,7 +1196,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 );
 
   return (
-    <Layout onSignOut={signOut} user={user}>
+    <>
       <SEO title="Customers" description="Canonical customer identity, address and activity." noindex />
       <div className="inner-page-container contacts-auth-surface">
         <header className="workspace-page-head">
@@ -1730,7 +1729,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           })}
         </div>
       )}
-    </Layout>
+    </>
   );
 };
 

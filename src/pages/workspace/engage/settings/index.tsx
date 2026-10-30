@@ -1,7 +1,6 @@
 /** Channel Settings — sender identities and per-channel configuration. */
 import React from 'react';
 import Link from 'next/link';
-import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
 import { colors } from '../../../../lib/design-tokens';
@@ -9,7 +8,7 @@ import { WHATSAPP_PHONES } from '../../../../config/constants';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const SettingsPage: React.FC<PageProps> = ( { embedded } ) => {
     const senders = [
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.primary.name} · ${WHATSAPP_PHONES.primary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.secondary.name} · ${WHATSAPP_PHONES.secondary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
@@ -71,10 +70,10 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     if ( embedded ) return content;
     return (
-        <Layout user={ user } onSignOut={ signOut }>
+        <>
             <SEO title="Channel Settings | WECARE.DIGITAL" description="Unified channel settings & consent" noindex={ true } />
             { content }
-        </Layout>
+        </>
     );
 };
 

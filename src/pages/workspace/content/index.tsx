@@ -10,7 +10,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import ShortLinks from '../../../components/workspace/content/ShortLinks';
@@ -58,7 +57,7 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO
         title="Content"
         description="Blog, AWS-native SEO and short links."
@@ -149,7 +148,7 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
         }
         @media(forced-colors:active){.content-context,.content-subtabs{border-color:CanvasText}}
       `}</style>
-    </Layout>
+    </>
   );
 };
 

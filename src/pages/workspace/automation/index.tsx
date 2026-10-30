@@ -8,7 +8,6 @@ import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 
@@ -49,7 +48,7 @@ const AutomationWorkspace: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   return (
-    <Layout user={ user } onSignOut={ signOut }>
+    <>
       <SEO
         title="Automation & AI"
         description="Staff agent, automation rules, schedules and knowledge sources."
@@ -107,7 +106,7 @@ const AutomationWorkspace: React.FC<PageProps> = ( { signOut, user } ) => {
         }
         @media(forced-colors:active){.automation-context{border-color:CanvasText}}
       `}</style>
-    </Layout>
+    </>
   );
 };
 

@@ -10,7 +10,6 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import Layout from '../../components/Layout';
 import SEO from '../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; }
@@ -46,8 +45,8 @@ const Arrow = () => (
   </svg>
 );
 
-const WorkspacePage: React.FC<PageProps> = ( { signOut, user } ) => (
-  <Layout user={ user } onSignOut={ signOut } showBreadcrumbs={ false }>
+const WorkspacePage: React.FC<PageProps> = () => (
+  <>
     <SEO title="Workspace" description="WECARE.DIGITAL operational workspace." noindex />
 
     <div className="workspace-home">
@@ -454,7 +453,7 @@ const WorkspacePage: React.FC<PageProps> = ( { signOut, user } ) => (
         }
       }
     `}</style>
-  </Layout>
+  </>
 );
 
 export default WorkspacePage;

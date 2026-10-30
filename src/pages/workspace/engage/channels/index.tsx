@@ -11,7 +11,6 @@
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import PageShell, { ShellTab } from '../../../../components/PageShell';
 
@@ -74,10 +73,10 @@ const ChannelsHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     if ( embedded ) return content;
     return (
-        <Layout user={ user } onSignOut={ signOut }>
+        <>
             <SEO title="Channels | WECARE.DIGITAL" description="SMS, RCS, Voice, Email and Push in one place" noindex={ true } />
             { content }
-        </Layout>
+        </>
     );
 };
 
