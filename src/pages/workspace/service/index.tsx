@@ -102,13 +102,21 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
       <style jsx>{`
         .service-switch{
           display:inline-flex;
+          max-width:100%;
+          min-width:0;
           gap:6px;
           padding:5px;
           margin:0 0 22px;
           border:1px solid var(--border);
           border-radius:999px;
           background:var(--surface);
+          overflow-x:auto;
+          overflow-y:hidden;
+          overscroll-behavior-inline:contain;
+          -webkit-overflow-scrolling:touch;
+          scrollbar-width:none;
         }
+        .service-switch::-webkit-scrollbar{display:none}
         .service-switch button{
           min-height:38px;
           padding:0 16px;
@@ -129,13 +137,21 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         }
         .vault-switch{
           display:inline-flex;
+          max-width:100%;
+          min-width:0;
           gap:4px;
           padding:4px;
           margin:-8px 0 22px;
           border:1px solid var(--border);
           border-radius:10px;
           background:#fff;
+          overflow-x:auto;
+          overflow-y:hidden;
+          overscroll-behavior-inline:contain;
+          -webkit-overflow-scrolling:touch;
+          scrollbar-width:none;
         }
+        .vault-switch::-webkit-scrollbar{display:none}
         .vault-switch button{
           min-height:36px;
           padding:0 14px;
@@ -155,9 +171,14 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
           outline-offset:2px;
         }
         .service-loading{
+          min-width:0;
           padding:48px;
           text-align:center;
           color:var(--text-muted);
+        }
+        @media(max-width:399px){
+          .service-switch button{padding-inline:12px}
+          .vault-switch button{padding-inline:11px}
         }
       `}</style>
     </Layout>

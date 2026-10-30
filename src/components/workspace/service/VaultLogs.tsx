@@ -146,7 +146,7 @@ export default function VaultLogs () {
       ) }
 
       <style jsx>{`
-        .vl-wrap{padding:4px 0 40px}
+        .vl-wrap{min-width:0;max-width:100%;padding:4px 0 40px;overflow-x:hidden;overflow-x:clip}
         .vl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:0 0 20px}
         .vl-eyebrow{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
         h1{margin:0;font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px;color:var(--text)}
@@ -172,6 +172,9 @@ export default function VaultLogs () {
         @media(max-width:800px){
           .vl-head{align-items:stretch;flex-direction:column}
           .vl-filter{min-width:0}
+          .vl-filter>div{min-width:0;align-items:stretch}
+          .vl-filter input{font-size:16px;min-width:0}
+          .vl-filter button{flex:0 0 auto}
           .vl-table-wrap{overflow:visible;border:0;background:transparent}
           .vl-table,.vl-table tbody{display:block;min-width:0;width:100%}
           .vl-table thead{display:none}
@@ -179,6 +182,11 @@ export default function VaultLogs () {
           .vl-table tr{display:block;border:1px solid var(--border);border-radius:14px;background:#fff;overflow:hidden}
           .vl-table td{display:grid;grid-template-columns:minmax(110px,34%) minmax(0,1fr);gap:12px;width:100%;box-sizing:border-box}
           .vl-table td::before{content:attr(data-label);font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text-muted)}
+        }
+        @media(max-width:399px){
+          .vl-filter>div{flex-direction:column}
+          .vl-filter button{width:100%}
+          .vl-table td{grid-template-columns:1fr;gap:5px;overflow-wrap:anywhere}
         }
       `}</style>
     </section>
