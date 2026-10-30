@@ -85,6 +85,8 @@ interface Props {
   customerPhone: string;
   draftFile: File | null;
   selectedFile: SecureFile | null;
+  /** Staff typed {{1}} in the approved Vault-ready offer; unrelated to file identity. */
+  offerBodyText: string;
   pricePaise: number | null;
   breakdown: ServicePriceBreakdown | null;
   templates: ServicePaymentTemplates | null;
@@ -113,9 +115,9 @@ function fileSize ( bytes: number | undefined ): string {
   return ( bytes / 1048576 ).toFixed( 1 ) + ' MB';
 }
 
-function stageBody ( step: number, fileName: string ): string {
+function stageBody ( step: number, offerBodyText: string ): string {
   switch ( step ) {
-    case 1: return '📄 Your requested *' + fileName + '* is available in your Vault. Amount due for this request: *₹49*.';
+    case 1: return '📄 Your requested *' + ( offerBodyText || '{{1}}' ) + '* is available in your Vault. Amount due for this request: *₹49*.';
     case 2: return '💳 Your order is ready for payment. Tap Review and Pay to complete it securely.';
     case 3: return '📦 Your order status has been updated.';
     case 4: return '✅ Payment received. Your transaction has been confirmed.';
@@ -127,7 +129,11 @@ export default function VaultJourneyPreview ( props: Props ) {
   const [ activeStage, setActiveStage ] = React.useState( 1 );
   const currentFile = props.mode === 'existing' ? props.selectedFile : null;
   const draftFile = props.mode === 'upload' ? props.draftFile : null;
-  const fileName = currentFile?.displayName || draftFile?.name || 'Choose a document';
+  const extension = draftFile?.name.match( /\.[a-zA-Z0-9]{1,10}$/ )?.[ 0 ]?.toLowerCase() || '';
+  // The backend assigns the UUID when upload begins; never preview original upload names.
+  const fileName = currentFile?.displayName
+    || ( draftFile ? 'wecare-digital-<uuid>' + extension : 'Choose a document' );
+  const offerBodyText = props.offerBodyText.trim();
   const fileType = currentFile?.contentType || draftFile?.type || 'Type confirmed after upload';
   const isPdf = fileType === 'application/pdf';
   const fileBytes = currentFile?.sizeBytes || draftFile?.size;
@@ -213,7 +219,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         </div>
         <div className={ styles.bubble }>
           <small>{ templateName }</small>
-          <p>{ stageBody( activeStage, fileName ) }</p>
+          <p>{ stageBody( activeStage, offerBodyText ) }</p>
           { activeStage === 1 && <span className={ styles.bubbleButton }>Unlock Vault</span> }
           { activeStage === 2 && <span className={ styles.bubbleButton }>Review and Pay · ORDER_DETAILS</span> }
           { activeStage === 3 && <span className={ styles.smallNote }>Two separate updates: processing → completed</span> }
@@ -227,7 +233,7 @@ export default function VaultJourneyPreview ( props: Props ) {
           <div><dt>Spacing</dt><dd>{ registryStep ? String( registryStep.defaultDelaySeconds ) + 's (not delivery ordering)' : '—' }</dd></div>
           { activeStage === 1 && (
             <>
-              <div><dt>Body {'{{1}}'}</dt><dd>{ fileName }</dd></div>
+              <div><dt>Body {'{{1}}'}</dt><dd>{ offerBodyText || 'Enter free text in the left-side WhatsApp field' }</dd></div>
               <div><dt>Quick reply</dt><dd>Server-generated signed offer token; not editable</dd></div>
               <div><dt>Header</dt><dd>Fixed WhatsApp header image</dd></div>
             </>
@@ -256,17 +262,17 @@ export default function VaultJourneyPreview ( props: Props ) {
             </>
           ) }
         </dl>
-        <p className={ styles.hint }>Template bodies are read-only reference previews, not editable messages. Actual media, prices, IDs, and sends come from the backend and Meta.</p>
+        <p className={ styles.hint }>The approved template wording is fixed. Only its {{1}} body value is editable in the customer card. The S3 filename, invoice, token and URL remain server-generated.</p>
       </section>
 
       <section className={ styles.delivery } aria-label="What will be delivered">
         <h3>What the customer gets</h3>
         <dl className={ styles.variables }>
-          <div><dt>Original file</dt><dd>{ fileName }</dd></div>
+          <div><dt>Generated stored filename</dt><dd>{ fileName }</dd></div>
           <div><dt>Customer transport</dt><dd>Exact-file Vault link; never a raw private S3 key</dd></div>
           <div><dt>Access</dt><dd>One paid 24-hour window; renewal required after expiry</dd></div>
           <div><dt>Media variants</dt><dd>{ isPdf
-            ? 'PDF: Vault link plus an optional WhatsApp document when a delivery copy exists and the customer messaged within 24 hours. Attachment filename: ' + ( currentFile?.originalFilename || draftFile?.name || 'system fallback' )
+            ? 'PDF: Vault link plus an optional WhatsApp document when a delivery copy exists and the customer messaged within 24 hours. Attachment filename: ' + fileName
             : 'Images, office files and other supported types: the approved secure Vault link.' }</dd></div>
           <div><dt>Invoice header</dt><dd>Dynamic PNG generated only after payment</dd></div>
         </dl>
