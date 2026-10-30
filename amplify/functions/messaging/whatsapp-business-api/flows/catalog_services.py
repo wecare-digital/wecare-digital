@@ -435,7 +435,9 @@ def _offer_send_outcome(response):
     if 200 <= code < 300:
         if body.get('status') == 'dry_run' or body.get('mode') == 'DRY_RUN':
             return 'VAULT_OFFER_NOT_SENT', 'the sender is in dry-run mode'
-        return 'VAULT_OFFER_SENT', 'sent'
+        if not _offer_whatsapp_message_id(response):
+            return 'VAULT_OFFER_UNCONFIRMED', 'provider message ID missing'
+        return 'VAULT_OFFER_SENT', 'accepted by Meta; handset delivery pending'
     reason = str(body.get('error') or body.get('message') or '')[:120]
     if 400 <= code < 500:
         # Refused before or by Meta: nothing reached the customer.
