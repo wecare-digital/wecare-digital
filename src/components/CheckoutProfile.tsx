@@ -128,7 +128,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         email: String( reply.email || '' ),
         emailVerified: reply.emailVerified === true,
       } );
-      setMessage( 'Details saved.' );
+      setMessage( '' );
     } catch {
       setMessage( 'We could not reach the server. Please try again.' );
     } finally {
@@ -137,18 +137,7 @@ const CheckoutProfile: React.FC<Props> = ( {
   };
 
   return (
-    <section className="checkout-profile" aria-labelledby="checkout-profile-title">
-      <div className="checkout-profile-head">
-        <h2 id="checkout-profile-title">
-          { mode === 'address'
-            ? 'Update your delivery address'
-            : mode === 'email'
-              ? 'Change your email'
-              : mode === 'profile' || mode === 'name'
-                ? 'Update your profile'
-                : 'Confirm your details' }
-        </h2>
-      </div>
+    <section className="checkout-profile" aria-label="Checkout details">
 
       { showProfile && (
         <div className="checkout-profile-grid">
@@ -159,41 +148,37 @@ const CheckoutProfile: React.FC<Props> = ( {
               onChange={ event => setFullName( event.target.value ) }
               autoComplete="name"
               maxLength={ 200 }
-              placeholder="Full name"
               aria-required="true"
             />
           </label>
 
           <label>
-            <span>WhatsApp username <em>Optional</em></span>
+            <span>WhatsApp username</span>
             <input
               value={ username }
               onChange={ event => setUsername( event.target.value ) }
               autoComplete="off"
               maxLength={ 50 }
-              placeholder="WhatsApp username"
             />
           </label>
 
           <label>
-            <span>Organisation <em>Optional</em></span>
+            <span>Organisation</span>
             <input
               value={ companyName }
               onChange={ event => setCompanyName( event.target.value ) }
               autoComplete="organization"
               maxLength={ 200 }
-              placeholder="Organisation"
             />
           </label>
 
           <label>
-            <span>Job title <em>Optional</em></span>
+            <span>Job title</span>
             <input
               value={ designation }
               onChange={ event => setDesignation( event.target.value ) }
               autoComplete="organization-title"
               maxLength={ 200 }
-              placeholder="Job title"
             />
           </label>
         </div>
@@ -209,7 +194,6 @@ const CheckoutProfile: React.FC<Props> = ( {
               onChange={ event => setEmail( event.target.value ) }
               autoComplete="email"
               maxLength={ 254 }
-              placeholder="you@example.com"
               aria-required="true"
             />
           </label>
@@ -243,14 +227,8 @@ const CheckoutProfile: React.FC<Props> = ( {
 
       <style>{`
         .checkout-profile{
-          margin:28px 0 0;padding:24px 0 0;border:0;border-top:1px solid var(--public-hairline);
-          border-radius:0;background:transparent;color:var(--public-text);font-family:var(--font-sans);
-        }
-        .checkout-profile-head{display:flex;align-items:start;margin-bottom:24px}
-        .checkout-profile h2{
-          margin:0;color:var(--public-text);font-size:var(--public-card-size);
-          font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
-          letter-spacing:var(--public-card-tracking);
+          margin:24px 0 0;padding:0;border:0;border-radius:0;
+          background:transparent;color:var(--public-text);font-family:var(--font-sans);
         }
         .checkout-profile-grid{
           display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;margin:0 0 24px;
@@ -261,14 +239,11 @@ const CheckoutProfile: React.FC<Props> = ( {
           font-size:14px;font-weight:600;
         }
         .checkout-profile-grid label>span{min-width:0}
-        .checkout-profile-grid em{
-          margin-inline-start:6px;color:var(--public-muted);font-style:normal;font-weight:400;
-        }
         .checkout-profile-grid input{
           min-width:0;width:100%;min-height:54px;padding:0 2px;box-sizing:border-box;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;
           background:transparent;color:var(--public-text);
-          font:var(--public-body-weight) 16px/1.2 var(--font-sans);
+          font:var(--public-body-weight) var(--public-body-size)/1.2 var(--font-sans);
           box-shadow:none;outline:0;-webkit-appearance:none;appearance:none;
           transition:border-color .2s,box-shadow .2s;
         }
@@ -301,11 +276,8 @@ const CheckoutProfile: React.FC<Props> = ( {
         .checkout-profile-action:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
         .checkout-profile-primary{font-weight:700}
         @media(max-width:767px){
-          .checkout-profile{padding-top:22px}
-          .checkout-profile-head{display:block;margin-bottom:22px}
           .checkout-profile-grid{grid-template-columns:1fr;gap:18px}
           .checkout-profile-grid .span-2{grid-column:auto}
-          .checkout-profile h2{font-size:var(--public-mobile-card-size)}
           .checkout-profile-grid input{min-height:52px;font-size:16px}
           .checkout-profile-actions{display:grid;grid-template-columns:1fr;width:100%}
           .checkout-profile-action{width:100%;font-size:var(--public-mobile-cta-font-size)}
