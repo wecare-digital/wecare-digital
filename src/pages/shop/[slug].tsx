@@ -85,7 +85,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           } );
         }
       }
-      await router.push( '/cart/' );
+      await router.push( '/checkout/' );
     } finally {
       setBusy( false );
     }
