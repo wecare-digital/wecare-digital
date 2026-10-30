@@ -129,10 +129,18 @@ def expected_role_policy(acct: str | None = None) -> dict:
 def expected_vault_file_policy(acct: str | None = None) -> dict:
     """Separate additive policy, matching the deployed vault-file-selection policy."""
     acct = acct or account_id()
-    return {"Version": "2012-10-17", "Statement": [{
-        "Sid": "BindSelectedVaultFile", "Effect": "Allow",
-        "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
-        "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-SecureFilesTable"]}]}
+    return {"Version": "2012-10-17", "Statement": [
+        {
+            "Sid": "BindSelectedVaultFile", "Effect": "Allow",
+            "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+            "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-SecureFilesTable"],
+        },
+        {
+            "Sid": "VerifySameFilePaidEntitlementForRenewal", "Effect": "Allow",
+            "Action": ["dynamodb:GetItem"],
+            "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-DownloadGrantsTable"],
+        },
+    ]}
 
 
 def expected_managed_policies() -> list:
