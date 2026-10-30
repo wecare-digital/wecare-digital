@@ -23,8 +23,12 @@ CANONICAL_FLOWS = {
     # DEPRECATED on Meta (live read 2026-10-25): it cannot be sent, so `published_flow` no longer
     # offers it. The id stays as the identity of past paid submissions; paid requests start on
     # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).
-    # F004 Submit Request replacement, published on Meta 2026-10-29. The Flow is\n    # endpointless-style at completion; inbound nfm_reply persistence owns the business row.\n    'submit_request': ('993516553092471', 'PUBLISHED', 'WD-F004-Submit-Request'),
-    # F005 Request Amendment replacement, published on Meta 2026-10-29. Like F004 Submit\n    # Request, completion is persisted from inbound nfm_reply rather than data_exchange.\n    'amend_request':  ('2408621596338289', 'PUBLISHED', 'WD-F004-Request-Amendment'),
+    # F004 Submit Request replacement, published on Meta 2026-10-29. The Flow is
+    # endpointless-style at completion; inbound nfm_reply persistence owns the business row.
+    'submit_request': ('993516553092471', 'PUBLISHED', 'WD-F004-Submit-Request'),
+    # F005 Request Amendment replacement, published on Meta 2026-10-29. Like F004 Submit
+    # Request, completion is persisted from inbound nfm_reply rather than data_exchange.
+    'amend_request':  ('2408621596338289', 'PUBLISHED', 'WD-F004-Request-Amendment'),
     # Request Pickup published on Meta 2026-10-29. Completion payload is still guarded
     # separately because the published asset retained the cloned Submit Request marker.
     'request_pickup': ('2988393421499259', 'PUBLISHED', 'WD-F005-Pick-Up-Request'),
