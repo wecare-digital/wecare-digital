@@ -5,11 +5,6 @@ import Breadcrumbs from '../Breadcrumbs';
 import RotatingHero from '../RotatingHero';
 import PillButton from '../PillButton';
 import { maskPhone } from '../CheckoutIdentityCard';
-import RequestsPanel from './RequestsPanel';
-import CheckoutProfile, {
-  type CheckoutProfileMode,
-  type CheckoutProfileValue,
-} from '../CheckoutProfile';
 import { type StoredAddress } from '../AddressFields';
 // The MODULE is the mockable seam, and the boolean is read as a property access INSIDE the
 // render body - never captured in a module-scope const. An ESM const cannot be spied and
@@ -140,6 +135,8 @@ type Outcome =
   | { kind: 'expired' }
   | { kind: 'rate' }
   | { kind: 'unavailable' };
+
+type LinkOutcome = 'ok' | 'expired' | 'ignored';
 
 /**
  * The §3.6 map, keyed on the CANONICAL word and nothing else, now shared with the order page
@@ -334,6 +331,30 @@ function selectText ( el: HTMLElement | null ) {
   }
 }
 
+async function ensureCustomerLink ( token: string ): Promise<LinkOutcome> {
+  try
+  {
+    const response = await fetch( PROFILE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${ token }`,
+      },
+      // Empty body is the existing authenticated profile bootstrap. It claims an
+      // evidence-backed WhatsApp-first contact and promotes NEEDS_CUSTOMER_LINK orders.
+      body: JSON.stringify( {} ),
+    } );
+    if ( response.status === 401 ) return 'expired';
+    return response.ok ? 'ok' : 'ignored';
+  }
+  catch
+  {
+    // Order history is still readable if profile linking is temporarily unavailable.
+    return 'ignored';
+  }
+}
+
 async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
   try
   {
@@ -371,8 +392,6 @@ export default function OrdersPage (): React.ReactElement {
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
   const [ moreFailed, setMoreFailed ] = useState( false );
-  const [ showProfile, setShowProfile ] = useState( false );
-  const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'name' );
   const [ profileAction, setProfileAction ] = useState<'idle' | 'busy' | 'sent' | 'failed'>( 'idle' );
   /**
    * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
@@ -587,6 +606,14 @@ export default function OrdersPage (): React.ReactElement {
         return;
       }
       setToken( session.accessToken );
+
+      // A customer can already have a paid WhatsApp order before this browser session owns the
+      // WhatsApp-first contact row. Re-run the evidence-checked bootstrap on every Orders visit:
+      // it is idempotent, and it promotes any NEEDS_CUSTOMER_LINK order to this Cognito subject.
+      const linkOutcome = await ensureCustomerLink( session.accessToken );
+      if ( !live ) return;
+      if ( linkOutcome === 'expired' ) { expire(); return; }
+
       if ( requested )
       {
         // OrderDetail owns the one read; the history is not fetched for this visit.
@@ -653,37 +680,6 @@ export default function OrdersPage (): React.ReactElement {
     if ( 'profile' in outcome.data ) setProfile( outcome.data.profile ?? null );
   };
 
-  /**
-   * THE FLAG COMES FROM THE MODE THAT COMPLETED, NEVER FROM `saved`.
-   *
-   * CheckoutProfileValue has NO `emailVerified` member (CheckoutProfile.tsx:39-48). Spreading
-   * `saved` into the card's `identity` therefore leaves it `undefined`, `undefined !== false` is
-   * true, and the "✓ verified" badge returns over an email nothing verified - on a page whose
-   * server-side predicate deliberately does not prove the email at all.
-   *
-   * The asymmetry is load-bearing rather than tidy: mode 'email' completes only after a fresh
-   * code bound to the NEW address, so it should flip the flag true; 'name' and 'address' post
-   * with no code at all and must leave it exactly as it was. The mode is read from page state,
-   * which is where the affordance put it, rather than inferred from the saved value.
-   */
-  const applyProfile = ( saved: CheckoutProfileValue, mode: CheckoutProfileMode ) => {
-    setProfile( prev => ( prev && {
-      ...prev,
-      name: saved.name,
-      firstName: saved.firstName,
-      lastName: saved.lastName,
-      email: saved.email,
-      address: saved.address,
-      addressComplete: saved.addressComplete,
-      emailVerified: saved.emailVerified ?? ( mode === 'email' ? false : ( prev?.emailVerified ?? false ) ),
-    } ) );
-  };
-
-  const openEditor = ( mode: CheckoutProfileMode ) => {
-    setProfileMode( mode );
-    setShowProfile( true );
-  };
-
   const signedIn = view === 'ready' || view === 'empty';
 
   return (
@@ -702,13 +698,12 @@ export default function OrdersPage (): React.ReactElement {
           : [
               { word: 'orders', tint: '#fef3c7', dot: '#f0a818' },
               { word: 'payments', tint: '#ede9fe', dot: '#9849e8' },
-              { word: 'requests', tint: '#e0f7c8', dot: '#3da35a' },
               { word: 'invoices', tint: '#fee2e2', dot: '#dc2626' },
             ] }
         sub={ focusOrder
           ? 'What you bought, where it ships, and where it is now.'
-          : 'Your purchases, payments, requests and receipts — in one quiet place.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Everything about your orders, payments, requests and invoices' }
+          : 'Your purchases, payments and receipts — in one quiet place.' }
+        ariaLabel={ focusOrder ? 'Your order' : 'Everything about your orders, payments and invoices' }
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -720,6 +715,38 @@ export default function OrdersPage (): React.ReactElement {
               "nothing conversion-shaped in the band" rule. No page-level JSON-LD - _app.tsx owns
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
+
+          { token && ( view === 'ready' || view === 'empty' || view === 'focus' ) && (
+            <div className="ord-account-bar" aria-label="Account actions">
+              <div className="ord-account-actions">
+                <button
+                  type="button"
+                  className="ord-account-action ord-update"
+                  onClick={ sendProfileUpdate }
+                  disabled={ profileAction === 'busy' }
+                  aria-busy={ profileAction === 'busy' ? 'true' : undefined }
+                >
+                  Update profile on WhatsApp
+                </button>
+                <button
+                  type="button"
+                  className="ord-account-action ord-signout"
+                  onClick={ signOut }
+                >
+                  Sign out
+                </button>
+              </div>
+              { profileAction === 'sent' && (
+                <p className="ord-account-status" role="status">Profile update sent on WhatsApp.</p>
+              ) }
+              { profileAction === 'failed' && (
+                <p className="ord-account-status ord-account-status-error" role="status">
+                  Could not send the profile update. Try again.
+                </p>
+              ) }
+            </div>
+          ) }
+
           { view === 'focus' && focusOrder && token && (
             <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
           ) }
@@ -752,24 +779,9 @@ export default function OrdersPage (): React.ReactElement {
           ) }
 
           { signedIn && (
-            // The two-column shell. One column by default and 340px + minmax(0,1fr) from
-            // 1024px up, collapsing back to one while the profile editor is open - see the
-            // .ord-shell-editing note in the stylesheet. DOM order equals visual order at
-            // every width, so there is no `order:` property and no reading-order divergence.
-            <div className={ showProfile ? 'ord-shell ord-shell-editing' : 'ord-shell' }>
-              { /* LEFT: the profile panel. It adds NO heading of its own - the rendered h2
-                   list must stay exactly ['What we have on file', 'Your requests', 'Order history'] (the
-                   middle one is RequestsPanel's, Phase O-1), so the
-                   panel is named by aria-label and the only heading in it is the one
-                   CheckoutIdentityCard already owns.
-
-                   Exactly three edit affordances, and the PHONE IS NOT ONE OF THEM. That is
-                   structural rather than a convention this page keeps: CheckoutIdentityCard
-                   declares no onEditPhone prop and CheckoutProfileMode has no 'phone'
-                   member. The phone IS the WhatsApp-OTP identity and the card's
-                   "✓ verified" badge is unconditional because of it, so a self-service
-                   phone edit would let a signed-in session rewrite the credential it was
-                   issued against - and would make that badge a false claim. */ }
+            <div className="ord-shell">
+              { /* Read-only customer context. Profile changes are initiated through the
+                   WhatsApp F001 action above, so Orders keeps one profile-edit path. */ }
               <aside className="ord-panel" aria-label="Your details">
                 { profile
                   ? (
@@ -779,9 +791,6 @@ export default function OrdersPage (): React.ReactElement {
                           <p className="ord-eyebrow">Your details</p>
                           <h2 className="ord-h2" id="ord-summary-title">What we use for your orders</h2>
                         </div>
-                        <button type="button" className="ord-text-action" onClick={ () => openEditor( 'name' ) }>
-                          Edit profile
-                        </button>
                       </div>
                       <dl className="ord-summary-rows">
                         <div>
@@ -801,9 +810,6 @@ export default function OrdersPage (): React.ReactElement {
                             <span>{ profile.addressComplete && profile.address
                               ? profile.address.fullAddress
                               : 'No address on file' }</span>
-                            <button type="button" className="ord-inline-edit" onClick={ () => openEditor( 'address' ) }>
-                              Edit address
-                            </button>
                           </dd>
                         </div>
                       </dl>
@@ -825,36 +831,6 @@ export default function OrdersPage (): React.ReactElement {
                       <a className="ord-link" href="/cart/">cart</a>.
                     </p>
                   ) }
-                { showProfile && profile && (
-                  <CheckoutProfile
-                    accessToken={ token }
-                    mode={ profileMode }
-                    initial={ {
-                      name: profile.name,
-                      firstName: profile.firstName,
-                      lastName: profile.lastName,
-                      companyName: profile.companyName,
-                      designation: profile.designation,
-                      email: profile.email,
-                      address: profile.address,
-                    } }
-                    onReady={ saved => {
-                      applyProfile( saved, profileMode );
-                      setShowProfile( false );
-                    } }
-                  />
-                ) }
-                { /* Requests stay available, but secondary to the purchase history. */ }
-                <details className="ord-requests">
-                  <summary>Requests</summary>
-                  <RequestsPanel
-                    accessToken={ token }
-                    paidReferenceIds={ orders
-                      .filter( order => INVOICE_ELIGIBLE.has( order.status ) && order.referenceId )
-                      .map( order => order.referenceId ) }
-                    onExpired={ expire }
-                  />
-                </details>
               </aside>
 
               { /* RIGHT: the order history. The list and the empty state are alternatives and
@@ -864,32 +840,6 @@ export default function OrdersPage (): React.ReactElement {
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
                 <h2 className="ord-h2" id="ord-history">Order history</h2>
-                <div className="ord-account-actions" aria-label="Account actions">
-                  <button
-                    type="button"
-                    className="ord-account-action ord-update"
-                    onClick={ sendProfileUpdate }
-                    disabled={ profileAction === 'busy' }
-                    aria-busy={ profileAction === 'busy' ? 'true' : undefined }
-                  >
-                    Update
-                  </button>
-                  <button
-                    type="button"
-                    className="ord-account-action ord-signout"
-                    onClick={ signOut }
-                  >
-                    Signout
-                  </button>
-                </div>
-                { profileAction === 'sent' && (
-                  <p className="ord-account-status" role="status">Profile update sent on WhatsApp.</p>
-                ) }
-                { profileAction === 'failed' && (
-                  <p className="ord-account-status ord-account-status-error" role="status">
-                    Could not send the profile update. Try again.
-                  </p>
-                ) }
               </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
@@ -1365,7 +1315,7 @@ export default function OrdersPage (): React.ReactElement {
           /* Mobile-first: one column, panel above orders, which is both the DOM order and the
              layout this page already had. The 1024px override lives with every other media
              query at the foot of this stylesheet, after the defaults it overrides. */
-          .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:56px}
+          .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
           /* min-inline-size:0 for the same reason as minmax(0,...): a flex/grid item defaults to
              min-content and refuses to shrink. No position:sticky - the panel is short, and
              sticky interacts badly with overflow ancestors. */
@@ -1374,20 +1324,16 @@ export default function OrdersPage (): React.ReactElement {
              card rather than floating controls beside the history table. */
           .ord-panel{align-self:stretch;padding:0;border:0;background:transparent}
           .ord-summary{max-width:960px}
-          .ord-summary-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px}
+          .ord-summary-head{display:flex;align-items:flex-end;gap:20px;margin-bottom:18px}
           .ord-eyebrow{margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green)}
           .ord-summary-rows{margin:0;border-top:1px solid var(--public-hairline)}
           .ord-summary-rows>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;padding:16px 0;border-bottom:1px solid var(--public-hairline)}
           .ord-summary-rows dt{font-size:13px;font-weight:700;color:var(--public-brand-green)}
           .ord-summary-rows dd{margin:0;font-size:17px;line-height:1.45;color:#1a1a1a}
           .ord-verified{display:inline-flex;margin-inline-start:8px;padding:3px 8px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:12px;font-weight:700}
-          .ord-text-action,.ord-inline-edit{min-height:44px;padding:0;border:0;background:none;color:var(--public-brand-green);font:inherit;font-size:15px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
-          .ord-inline-edit{min-height:0;margin-inline-start:12px;font-size:14px}
           .ord-support{margin-top:12px}
-          .ord-support summary,.ord-requests>summary{display:inline-flex;align-items:center;min-height:44px;padding:0;color:var(--public-brand-green);font-size:16px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+          .ord-support summary{display:inline-flex;align-items:center;min-height:44px;padding:0;color:var(--public-brand-green);font-size:16px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
           .ord-support p{margin:4px 0 0;padding:10px 0 10px 12px;border-inline-start:3px solid var(--public-brand-lime);font-size:15px;color:var(--public-muted)}
-          .ord-requests{max-width:960px;border-top:1px solid var(--public-hairline);padding-top:4px}
-          .ord-requests[open]>summary{margin-bottom:8px}
           .ord-pager{width:100%;margin-top:4px}
           .ord-pager-copy{display:flex;justify-content:space-between;gap:16px;margin-bottom:8px;font-size:14px;color:var(--public-muted)}
           .ord-pager-copy strong{color:var(--public-brand-green)}
@@ -1589,6 +1535,7 @@ export default function OrdersPage (): React.ReactElement {
             box-shadow:0 14px 38px rgba(26,58,42,.08);
           }
           .ord-list-head{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+          .ord-account-bar{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
           .ord-account-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
           .ord-account-action{
             display:inline-flex;align-items:center;justify-content:center;min-height:44px;
@@ -1609,17 +1556,18 @@ export default function OrdersPage (): React.ReactElement {
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
           @media(min-width:1024px){
-            .ord-shell,.ord-shell-editing{grid-template-columns:minmax(0,1fr);gap:56px}
+            .ord-shell{grid-template-columns:minmax(0,1fr);gap:40px}
           }
 
           @media(max-width:767px){
             .ord-page{gap:var(--public-mobile-section-gap)}
-            .ord-shell,.ord-shell-editing{gap:40px}
+            .ord-shell{gap:32px}
             .ord-p,.ord-aside{font-size:18px}
             .ord-list{padding:24px 20px;border-radius:20px}
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
+            .ord-account-actions{display:grid;grid-template-columns:1fr;width:100%}
+            .ord-account-action{width:100%}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
-            .ord-inline-edit{display:block;margin:5px 0 0}
             .ord-verified{margin-inline-start:6px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
             .ord-col-date{display:none}
