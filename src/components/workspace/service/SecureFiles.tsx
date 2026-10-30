@@ -445,7 +445,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             <h1 className="sf-title">Secure customer delivery</h1>
                             <p className="sf-lead">One customer. One private file. Review first, then send Unlock Vault when you choose.</p>
                         </div>
-                        <span className="sf-private-indicator">Private · WhatsApp verified</span>
+                        <span className="sf-private-indicator">Private · Customer-bound</span>
                     </div>
                     <ol className="sf-progress" aria-label="Vault workflow">
                         <li><span>1</span> Customer</li>
