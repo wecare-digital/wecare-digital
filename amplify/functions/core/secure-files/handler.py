@@ -1428,10 +1428,13 @@ def _admin_message_log(file_id: str, origin: str) -> Dict[str, Any]:
     invite any resend. Stages 2-4 may have their own order/invoice log rows but
     are never guessed from the file's paid marker.
     """
-    item, refusal = _owned_file_for_admin(file_id)
-    if refusal:
-        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
-                             {"error": refusal}, origin)
+    # Unlike a send, historical audits must remain accessible for revoked rows.
+    # The admin route has already passed require_auth(Operator), and accepts
+    # only the file ID, never customer-provided phone or provider IDs.
+    item = _table(FILES_TABLE).get_item(
+        Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+    if not item:
+        return _no_store(cors_response(404, {"error": "UNKNOWN_FILE"}, origin))
     offer = _message_status_for_verified_send(str(item.get("lastOfferMessageId") or ""))
     access = _message_status_for_verified_send(str(item.get("lastAccessMessageId") or ""))
     return _no_store(cors_response(200, {
