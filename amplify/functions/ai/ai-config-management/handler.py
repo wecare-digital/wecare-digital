@@ -97,6 +97,12 @@ SETTINGS_CONFIG_KEYS = frozenset({
     'flow_triggers_config', 'subscribe_messages_config',
 })
 
+# Vault journey rows document existing approved send metadata. Workspace may
+# preview them but must never modify them through the generic settings editor.
+READONLY_REFERENCE_CONFIG_KEYS = frozenset({
+    'vault_whatsapp_template_journey_v1',
+})
+
 
 def _required_write_role(method: str, path: str) -> str:
     """'' for a read; otherwise the least staff role that may make this change.
@@ -208,7 +214,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # External AI config (WhatsApp auto-reply) and the Workspace settings rows by ?key=
             elif '/ai/config' in path:
                 cfg_key = query_params.get('key', 'ai_config')
-                if cfg_key not in SETTINGS_CONFIG_KEYS:
+                if cfg_key not in SETTINGS_CONFIG_KEYS | READONLY_REFERENCE_CONFIG_KEYS:
                     return _error_response(400, 'Unknown settings key')
                 return _get_config(request_id, config_key=cfg_key)
             elif '/ai/prompts' in path:
