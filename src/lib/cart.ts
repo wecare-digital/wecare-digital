@@ -300,25 +300,23 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
   if ( variantId && !product.variants?.some( variant => variant.id === variantId && variant.inStock ) ) throw new Error( 'Choose an available option.' );
   const ref = String( product.id || product.slug || '' ) + ( variantId ? `:${variantId}` : '' );
   if ( !ref ) return readCart();
+  // Part 1: a purchase is one catalogue line, quantity one. Re-selecting the same product is
+  // idempotent; choosing another REPLACES the unpaid browser selection. No monetary figure is
+  // carried into checkout, and the server still re-prices the current catalogue reference.
   void qty;
-  const items = readCart();
-  const existing = items.find( item => item.ref === ref );
-  if ( !existing )
-  {
-    items.push( {
-      productId: product.id,
-      ...( variantId ? { variantId } : {} ),
-      ref,
-      slug: String( product.slug || '' ),
-      name: product.variants && product.variants.length > 1
-        ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
-        : String( product.name || '' ),
-      formattedPrice: String( product.formattedPrice || '' ),
-      quantity: 1,
-    } );
-  }
-  writeCart( items );
-  return items;
+  const selected: CartItem = {
+    productId: product.id,
+    ...( variantId ? { variantId } : {} ),
+    ref,
+    slug: String( product.slug || '' ),
+    name: product.variants && product.variants.length > 1
+      ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
+      : String( product.name || '' ),
+    formattedPrice: String( product.formattedPrice || '' ),
+    quantity: 1,
+  };
+  writeCart( [ selected ] );
+  return [ selected ];
 }
 
 /**
@@ -468,7 +466,7 @@ export function setContribution ( variantId: string ): CartItem[] {
   const choice = contributionChoice( variantId );
   if ( !choice ) return readCart();
   const ref = `${CONTRIBUTION_PRODUCT_ID}:${choice.variantId}`;
-  const items = readCart().filter( item => !isContributionItem( item ) );
+  const items: CartItem[] = [];
   items.push( {
     productId: CONTRIBUTION_PRODUCT_ID,
     variantId: choice.variantId,
@@ -516,6 +514,13 @@ export function setContribution ( variantId: string ): CartItem[] {
  * already chosen an amount here, which is the basket the server refuses as two contributions.
  */
 export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[]; merged: number } {
+  // A multi-item or multi-unit WhatsApp hand-off must never silently become a different
+  // purchase. Preserve the existing unpaid selection and expose the standard claim refusal.
+  if ( !Array.isArray( lines ) || lines.length !== 1
+    || lines.some( line => Number( line.quantity ) !== 1 ) )
+  {
+    return { items: readCart(), merged: 0 };
+  }
   let merged = 0;
   for ( const line of lines || [] )
   {
@@ -636,6 +641,9 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
  * server reads the authoritative total from ProductsTable, not from this.
  */
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
+  // Legacy multi-line carts may still be in localStorage. Never silently charge for just one:
+  // the review page asks the customer to remove extra lines before either payment rail runs.
+  if ( items.length > 1 ) return [];
   return items
     .filter( item => item.ref && item.quantity > 0 )
     .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: 1 } ) );
@@ -679,7 +687,7 @@ export function setServiceLine (
   // and inventing one here would put a number on a cart row that the checkout had never priced. A
   // row with no usable amount is therefore not written at all.
   if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
-  const items = readCart().filter( item => !isServiceItem( item ) );
+  const items: CartItem[] = [];
   items.push( {
     productId: choice.productId,
     variantId: choice.variantId,
