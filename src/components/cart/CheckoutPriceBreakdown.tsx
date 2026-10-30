@@ -15,6 +15,7 @@ interface Quote {
   discountLabel: string;
   deliveryPaise: number;
   requiresDelivery: boolean;
+  deliveryLabel: string;
   convenienceFeePaise: number;
   convenienceGstPaise: number;
   totalPayablePaise: number;
@@ -35,6 +36,7 @@ function validQuote ( value: unknown ): value is Quote {
   if ( !value || typeof value !== 'object' ) return false;
   const q = value as Partial<Quote>;
   if ( q.currency !== 'INR' || typeof q.requiresDelivery !== 'boolean' ) return false;
+  if ( typeof q.deliveryLabel !== 'string' || q.deliveryLabel.length > 40 ) return false;
   if ( !COMPONENTS.every( key => Number.isSafeInteger( q[ key ] ) && Number( q[ key ] ) >= 0 ) ) return false;
   return q.subtotalPaise! + q.supplyGstPaise! + q.deliveryPaise! - q.discountPaise!
     + q.convenienceFeePaise! + q.convenienceGstPaise! === q.totalPayablePaise!;
@@ -126,7 +128,7 @@ export default function CheckoutPriceBreakdown (
                     </dd></div>
                   ) }
                   { state.quote.deliveryPaise > 0 && !state.quote.requiresDelivery && (
-                    <div><dt>Service delivery</dt><dd data-wc-no-translate>{ line( state.quote.deliveryPaise ) }</dd></div>
+                    <div><dt>{ state.quote.deliveryLabel }</dt><dd data-wc-no-translate>{ line( state.quote.deliveryPaise ) }</dd></div>
                   ) }
                   { state.quote.convenienceFeePaise > 0 && (
                     <div><dt>Convenience fee</dt><dd data-wc-no-translate>{ line( state.quote.convenienceFeePaise ) }</dd></div>
