@@ -7575,6 +7575,7 @@ export interface SecureFile {
   lastAccessSentBy?: string;
   lastAccessSentAt?: string;
   lastAccessSendOutcome?: string;
+  lastAccessMessageId?: string;
 }
 
 export interface SecureFileLog extends SecureFile {
@@ -7687,6 +7688,24 @@ export async function listSecureFileLogs ( mobile?: string ): Promise<ApiResult<
   const qs = new URLSearchParams( { view: 'logs' } );
   if ( mobile ) qs.set( 'mobile', mobile );
   return apiCallResult( `${API_BASE}/secure-files?${qs.toString()}`, { cache: 'no-store' } );
+}
+
+/** File-bound webhook evidence. Only confirmed provider IDs recorded on this file
+ * may be looked up; unrelated order/invoice WAMIDs are never guessed. */
+export interface VaultMessageDeliveryEvidence {
+  status: 'NOT_TRACKED' | 'UNAVAILABLE' | 'ACCEPTED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'UNKNOWN' | 'PENDING';
+  observedAt: number | null;
+}
+export interface VaultMessageDeliveryLog {
+  fileId: string;
+  evidence: { offer: VaultMessageDeliveryEvidence; access: VaultMessageDeliveryEvidence };
+  scope: string;
+  otherStages: string;
+}
+export function readVaultMessageDeliveryLog ( fileId: string ): Promise<ApiResult<VaultMessageDeliveryLog>> {
+  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/message-log`, {
+    cache: 'no-store',
+  } );
 }
 
 /** Revoke rather than delete, so the record of who was charged survives. */
