@@ -77,3 +77,37 @@ def test_customers_modal_fetches_exact_duplicate_and_restores_archived_before_pa
     assert "Restore customer" in source
     assert "api.restoreContact(contactId)" in source
     assert "if (!duplicateContact || duplicateContact.archivedAt) return;" in source
+
+
+def test_customer_modal_distinguishes_existing_customer_from_orphaned_identity_claim():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    backend = (ROOT / "amplify/functions/core/contacts/handler.py").read_text()
+
+    assert "CONTACT_IDENTITY_RECONCILIATION_REQUIRED" in backend
+    assert "result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'" in page
+    assert "result.failure.details?.reconciliationRequired === true" in page
+    assert "Identity needs reconciliation" in page
+    assert "No duplicate customer was created." in page
+
+    # A normal duplicate remains actionable rather than surfacing a raw HTTP status.
+    assert "This WhatsApp number already belongs to an existing customer. Search by number to open it." in page
+    assert "Search customer" in page
+    assert "searchExistingCustomer" in page
+    assert ".replace(/^HTTP\\s+\\d+:\\s*/i, '')" in page
+
+
+def test_customer_create_modal_uses_workspace_card_layout():
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text()
+    css = (ROOT / "src/styles/workspace.css").read_text()
+
+    assert "contacts-workspace-form-v2" in page
+    assert "contacts-form-section" in page
+    assert "Workspace · Customers" in page
+    assert "Customer identity" in page
+    assert "Work details" in page
+    assert "contacts-address-preview" in page
+
+    assert "Customers — Workspace-native create/edit surface." in css
+    assert ".contacts-workspace-form-v2 .contacts-form-section" in css
+    assert "border-radius: 16px" in css
+    assert ".contacts-reconciliation-card" in css
