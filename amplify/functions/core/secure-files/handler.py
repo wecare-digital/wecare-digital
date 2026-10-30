@@ -538,14 +538,12 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["lastOfferRequestedBy"] = item.get("lastOfferRequestedBy")
         out["lastOfferRequestedAt"] = item.get("lastOfferRequestedAt")
         out["lastOfferOutcome"] = item.get("lastOfferOutcome")
-        out["lastOfferMessageId"] = item.get("lastOfferMessageId")
         out["lastPaymentRequestedBy"] = item.get("lastPaymentRequestedBy")
         out["lastPaymentRequestedAt"] = item.get("lastPaymentRequestedAt")
         out["lastPaymentRequestOutcome"] = item.get("lastPaymentRequestOutcome")
         out["lastAccessSentBy"] = item.get("lastAccessSentBy")
         out["lastAccessSentAt"] = item.get("lastAccessSentAt")
         out["lastAccessSendOutcome"] = item.get("lastAccessSendOutcome")
-        out["lastAccessMessageId"] = item.get("lastAccessMessageId")
     return _decimal_safe(out)
 
 
