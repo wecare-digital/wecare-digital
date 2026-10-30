@@ -1322,7 +1322,7 @@ def run(root: Path) -> int:
                   invoice.get("customerPhone") == alice["phone"] and invoice.get("paidByPhone") == payer_phone,
                   {k: invoice.get(k) for k in ("customerPhone", "paidByPhone")})
             check("INV", "invoice itemises the cart (product name, quantity) instead of one 'Payment' line",
-                  [(r["name"], int(r["quantity"])) for r in rows] == [("Hermetic Tee", 3)],
+                  [(r["name"], int(r["quantity"])) for r in rows] == [("Hermetic Tee", expected_quantity)],
                   [(r.get("name"), r.get("quantity")) for r in rows])
             check("INV", "line amounts are taxable values that sum to the subtotal",
                   sum(paise(r["amount"]) * int(r["quantity"]) for r in rows) == subtotal_p,
@@ -1600,12 +1600,12 @@ def run(root: Path) -> int:
               and "no-store" in json.dumps(page.get("headers") or {}).lower(),
               (page.get("statusCode"), page_body.get("status")))
         check("PAGE", "...with the lines the buyer reviewed (name, quantity, integer paise)",
-              view.get("items") == [{"name": "Hermetic Tee", "quantity": 3, "unitPricePaise": 59900,
-                                     "totalPaise": 179700}], view.get("items"))
+              view.get("items") == [{"name": "Hermetic Tee", "quantity": expected_quantity, "unitPricePaise": 59900,
+                                     "totalPaise": 59900 * expected_quantity}], view.get("items"))
         charges = view.get("charges") or {}
         check("PAGE", "...a breakdown that closes to the amount paid, with Delight named",
               charges.get("totalPaise") == amount == view.get("amountPaise")
-              and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
+              and charges.get("merchandisePaise") == 59900 * expected_quantity and charges.get("discountPaise", 0) > 0
               and charges.get("discountLabel") == "Delight", charges)
         # Payment and fulfilment are separate. Capture starts the internal fulfilment state at
         # processing; the customer order page reads that same OrderTable value.
