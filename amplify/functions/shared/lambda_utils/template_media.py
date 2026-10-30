@@ -35,7 +35,6 @@ FIXED_IMAGE_HEADERS = {
     "wecare_leave_review": SHARED_TEMPLATE_HEADER,
     "wecare_default_download": SHARED_TEMPLATE_HEADER,
     "service_details": SHARED_TEMPLATE_HEADER,
-    "wecare_profile_update_f001": SHARED_TEMPLATE_HEADER,
     "wecare_vault_request_ready": SHARED_TEMPLATE_HEADER,
 }
 
