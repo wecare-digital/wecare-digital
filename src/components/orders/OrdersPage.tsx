@@ -663,6 +663,7 @@ export default function OrdersPage (): React.ReactElement {
       { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
            canonical, title and description stay the history's. Only the visible band changes. */ }
       <RotatingHero
+        compact
         frame="Your"
         words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#a3cd38' } ] }
         sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
