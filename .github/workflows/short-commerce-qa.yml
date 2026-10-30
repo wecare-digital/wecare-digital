@@ -5,6 +5,9 @@ on:
     branches: [wecare.digital]
     paths:
       - 'src/components/cart/**'
+      - 'src/components/get/**'
+      - 'src/styles/tokens.css'
+      - 'scripts/check_design_drift.py'
       - 'src/lib/cart.ts'
       - 'src/lib/whatsappBasket.ts'
       - 'src/pages/checkout/**'
@@ -22,6 +25,9 @@ on:
     branches: [wecare.digital]
     paths:
       - 'src/components/cart/**'
+      - 'src/components/get/**'
+      - 'src/styles/tokens.css'
+      - 'scripts/check_design_drift.py'
       - 'src/lib/cart.ts'
       - 'src/lib/whatsappBasket.ts'
       - 'src/pages/checkout/**'
@@ -59,12 +65,11 @@ jobs:
       - run: python -m pip install --quiet pytest
       - run: python -m pytest -q tests/test_short_commerce_part1.py
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
-      # Global public-design census has four known pre-existing violations tracked in
-      # https://github.com/wecare-digital/wecare-digital/issues/1970
-      # Continue reporting every finding, but keep checkout/payment safety tests mandatory.
-      # The full --gate remains the acceptance criterion for the separate design fix.
-      - name: Public design drift census (baseline advisory, issue 1970)
-        run: python scripts/check_design_drift.py
+      # The four legacy token gaps were corrected on the default branch (issue #1970).
+      # Keep the canonical contract strict: design regressions now fail this job,
+      # alongside the required checkout, payment, and invoice safety checks.
+      - name: Public design drift gate
+        run: python scripts/check_design_drift.py --gate
 
   hermetic-payment-rail:
     runs-on: ubuntu-latest
