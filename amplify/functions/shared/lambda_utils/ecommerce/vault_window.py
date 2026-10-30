@@ -96,12 +96,15 @@ def unused_paid_windows(entitlement: Optional[Dict[str, Any]]) -> int:
 
 def window_open(entitlement: Optional[Dict[str, Any]], now: int,
                 grace: Optional[int] = None) -> bool:
-    """True when `now` is at/within the entitlement's current access window (plus grace)."""
+    """True strictly before entitlement expiry (optional explicit grace only)."""
     ends = window_ends_at(entitlement)
     if ends <= 0:
         return False
-    g = window_grace_seconds() if grace is None else max(0, int(grace))
-    return int(now) <= ends + g
+    # A new download or resend must never extend the purchased 24-hour window.
+    # An already-issued S3 GET can finish within its separately bounded URL TTL.
+    # A historical config grace is opt-in only, never the authorization default.
+    g = 0 if grace is None else max(0, int(grace))
+    return int(now) < ends + g
 
 
 def seconds_remaining(entitlement: Optional[Dict[str, Any]], now: int) -> int:
