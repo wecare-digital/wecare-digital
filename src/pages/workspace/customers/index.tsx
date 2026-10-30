@@ -562,8 +562,9 @@ const Customers: React.FC<PageProps> = () => {
       if (exact) return exact;
     }
 
-    // One refreshed active list may reveal a customer created in another tab/session.
-    // Older deployments can still return a generic 409 without an owner ID.
+    // The modal may have an older local list than the write authority. Refresh once before
+    // declaring a duplicate unresolvable; this covers a customer created in another tab/session
+    // and older Contacts runtimes that return a generic 409 without existingContactId.
     const fresh = await api.listContacts();
     if (fresh.length) {
       setContacts(fresh);
@@ -727,11 +728,7 @@ const Customers: React.FC<PageProps> = () => {
         resetForm();
         await loadContacts();
       } else if (!result.ok) {
-        if (result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED') {
-          // An identity reservation has no usable customer row; no record can be opened.
-          setDuplicateContact(null);
-          setFormError('This WhatsApp number is reserved, but its customer record is unavailable. Ask an administrator to reconcile identity ownership before creating a customer. Deleting another contact will not release the number.');
-        } else if (result.failure.status === 409) {
+        if (result.failure.status === 409) {
           // The Contacts backend is the identity authority. Normal list/search intentionally hides
           // archived customers, so a duplicate 409 carries the canonical contact id and we fetch
           // that row directly. Search remains only as a compatibility fallback for older runtime
@@ -745,11 +742,25 @@ const Customers: React.FC<PageProps> = () => {
             setFormError('');
             toast.warning(existing.archivedAt
               ? 'This WhatsApp customer already exists and is archived. Restore it below.'
-              : 'This WhatsApp customer already exists. Open it or use it for payment below.');
+              : 'This WhatsApp customer already exists. Open the existing customer below.');
           } else {
-            // Older server versions return an undifferentiated 409 with no owner id.
-            // Do not advise staff to open a record the authenticated lookup did not find.
-            setFormError('This number is reserved but no customer could be opened. Refresh Customers; if it still cannot be found, ask an administrator to review the identity reservation.');
+            const reconciliationRequired =
+              result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
+              || result.failure.details?.reconciliationRequired === true;
+            if (reconciliationRequired) {
+              const message = 'This WhatsApp identity is reserved, but its customer record needs administrator reconciliation.';
+              setFormError(message);
+              toast.warning(message);
+            } else {
+              const fullPhone = contactPhoneE164(formPhone, formCountryCode);
+              setSearchQuery(fullPhone);
+              setDebouncedSearch(fullPhone);
+              setFormError('');
+              setShowModal(false);
+              setShowEditModal(false);
+              resetForm();
+              toast.warning('This WhatsApp number already belongs to an existing customer. Showing the matching customer search.');
+            }
           }
         } else {
           setFormError(result.failure.message || 'Contact was not created');
@@ -1156,10 +1167,6 @@ const Customers: React.FC<PageProps> = () => {
   const renderContactForm = (_isEdit: boolean) => (
   <div className="contacts-modal-body">
     <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
-      <p style={S.hint}>The same profile and address fields the customer completes in WhatsApp Subscribe.</p>
-    </div>
-    <div>
       <label htmlFor="contact-name" style={S.label}>Full name *</label>
       <input id="contact-name" style={S.input} value={formName}
         onChange={e => { setFormName(e.target.value); setFormError(''); }}
@@ -1185,7 +1192,7 @@ const Customers: React.FC<PageProps> = () => {
             placeholder="Mobile number" maxLength={20} inputMode="tel" autoComplete="tel"
             onFocus={focusStyle} onBlur={blurStyle} />
         </div>
-        <p style={S.hint}>Country code is added automatically. This number is used for WhatsApp service and payment requests.</p>
+        <p style={S.hint}>Use the WhatsApp number linked to this customer.</p>
       </div>
     </div>
     <div>
@@ -1217,8 +1224,7 @@ const Customers: React.FC<PageProps> = () => {
     </div>
 
     <div>
-      <p style={{ ...S.label, marginBottom: 2 }}>Your address</p>
-      <p style={{ ...S.hint, marginBottom: 10 }}>Used for service, delivery, and account details.</p>
+      <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
       <div className="contacts-form-grid">
         {ADDRESS_FIELDS.map(spec => (
           <div key={spec.key}>
@@ -1242,7 +1248,7 @@ const Customers: React.FC<PageProps> = () => {
           </div>
         ))}
       </div>
-      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
+      <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Address preview</p>
       <div data-address-preview="contact" aria-readonly="true"
         style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}>
         {formatAddress(formAddress) || formShippingAddress || '\u2014'}
@@ -1706,7 +1712,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => setShowModal(false)}>
           <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
@@ -1725,7 +1731,7 @@ const Customers: React.FC<PageProps> = () => {
         <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(11,21,16,0.48)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
           <div className="customer-modal-panel contacts-auth-modal" style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="contacts-modal-head">
-              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
