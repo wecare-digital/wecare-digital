@@ -534,6 +534,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["uploadedBy"] = item.get("uploadedBy")
         out["sourceDocumentId"] = item.get("sourceDocumentId")
         out["workspaceRecordVersion"] = int(item.get("workspaceRecordVersion") or 0)
+        out["lastOfferBodyText"] = item.get("lastOfferBodyText")
         out["lastPaymentRequestedBy"] = item.get("lastPaymentRequestedBy")
         out["lastPaymentRequestedAt"] = item.get("lastPaymentRequestedAt")
         out["lastPaymentRequestOutcome"] = item.get("lastPaymentRequestOutcome")
@@ -1620,6 +1621,21 @@ def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) ->
     that creates the normal one-file native Review and Pay request. Keep the customer
     request-payment route intact for direct authenticated checkout.
     """
+    body = json.loads(event.get("body") or "{}")
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "OFFER_BODY_REQUIRED"}, origin)
+    # Only the approved template body {{1}} may be edited; never accept caller
+    # overrides of the file, price, customer, media or signed Unlock Vault token.
+    offer_text = None
+    if "offerBodyText" in body:
+        candidate = body["offerBodyText"]
+        if (not isinstance(candidate, str) or not candidate or len(candidate) > 60
+                or whatsapp_templates.vault_offer_document_name(candidate) != candidate):
+            return cors_response(400, {
+                "error": "VAULT_OFFER_TEXT_INVALID",
+                "message": "Enter one line of 1-60 characters for WhatsApp {{1}}; no markup.",
+            }, origin)
+        offer_text = candidate
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
@@ -1634,17 +1650,20 @@ def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) ->
         return cors_response(409, {"error": "VAULT_FILE_UNAVAILABLE"}, origin)
     # Read identity and file attributes from SecureFilesTable, not from the staff request body.
     actor = str((event.get("_auth") or {}).get("username") or "staff")[:64]
+    send_payload = {
+        "internalAction": "catalogService", "action": "sendVaultOffer",
+        "fileId": str(item["fileId"]),
+        "ownerCustomerId": str(item["ownerCustomerId"]),
+        "ownerPhone": str(item["ownerPhone"]),
+        "requestedBy": actor,
+    }
+    if offer_text is not None:
+        send_payload["offerBodyText"] = offer_text
     try:
         response = _lambda_client().invoke(
             FunctionName=BUSINESS_API_FUNCTION,
             InvocationType="RequestResponse",
-            Payload=json.dumps({
-                "internalAction": "catalogService", "action": "sendVaultOffer",
-                "fileId": str(item["fileId"]),
-                "ownerCustomerId": str(item["ownerCustomerId"]),
-                "ownerPhone": str(item["ownerPhone"]),
-                "requestedBy": actor,
-            }).encode("utf-8"),
+            Payload=json.dumps(send_payload).encode("utf-8"),
         )
         answer = json.loads(response["Payload"].read() or b"{}")
         if response.get("FunctionError") or not isinstance(answer, dict):
@@ -1658,13 +1677,19 @@ def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) ->
     code, message = _VAULT_OFFER_REPLIES.get(
         outcome, (502, "The Vault-ready request could not be completed. Nothing was charged."))
     try:
+        offer_audit_values = {
+            ":actor": actor,
+            ":when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            ":status": outcome[:80],
+        }
+        audit_update = "SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, lastOfferOutcome=:status"
+        if offer_text is not None:
+            offer_audit_values[":text"] = offer_text
+            audit_update += ", lastOfferBodyText=:text"
         _table(FILES_TABLE).update_item(
             Key={"fileId": file_id},
-            UpdateExpression="SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, lastOfferOutcome=:status",
-            ExpressionAttributeValues={
-                ":actor": actor, ":when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                ":status": outcome[:80],
-            },
+            UpdateExpression=audit_update,
+            ExpressionAttributeValues=offer_audit_values,
         )
     except Exception as exc:
         logger.warning(json.dumps({"event": "vault_offer_audit_failed",
