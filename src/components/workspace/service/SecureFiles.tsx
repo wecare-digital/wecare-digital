@@ -58,7 +58,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
-    const [ documentType, setDocumentType ] = useState( 'other' );
     const [ file, setFile ] = useState<File | null>( null );
     const [ uploading, setUploading ] = useState( false );
     const [ step, setStep ] = useState( '' );
@@ -210,7 +209,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const resetForm = () => {
         setName( '' );
         setMobile( '' );
-        setDocumentType( 'other' );
         setFile( null );
     };
 
@@ -236,7 +234,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             const ticket = await api.initDocumentUpload( {
                 customerName,
                 customerPhone,
-                type: documentType,
+                // Vault no longer asks staff to classify the file. Keep the Documents API's
+                // neutral internal type until that older contract is retired server-side.
+                type: 'other',
                 fileName: file.name,
                 mimeType: contentType,
                 fileSize: file.size,
@@ -375,24 +375,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </div>
 
                         <div className="sf-field">
-                            <label className="sf-label" htmlFor="sf-type">Document type</label>
-                            <select
-                                id="sf-type"
-                                className="sf-input"
-                                value={ documentType }
-                                onChange={ e => setDocumentType( e.target.value ) }
-                                disabled={ uploading }
-                            >
-                                <option value="other">Other</option>
-                                <option value="id_proof">ID proof</option>
-                                <option value="address_proof">Address proof</option>
-                                <option value="prescription">Prescription</option>
-                                <option value="invoice">Invoice</option>
-                                <option value="photo">Photo</option>
-                            </select>
-                        </div>
-
-                        <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-file">Document</label>
                             <input
                                 id="sf-file"
@@ -443,7 +425,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 <section className="sf-panel" aria-labelledby="sf-list">
                     <div className="sf-listhead">
                         <div>
-                            <h2 className="sf-h2" id="sf-list">Vault documents</h2>
+                            <h2 className="sf-h2" id="sf-list">Current Vault documents</h2>
                             <p className="sf-note">
                                 { loading ? 'Loading…' : `${files.length} file${files.length === 1 ? '' : 's'}` }
                             </p>
@@ -480,7 +462,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     ) }
 
                     { !loading && !loadError && files.length === 0 && (
-                        <p className="sf-note sf-note-pad">No files registered yet.</p>
+                        <p className="sf-note sf-note-pad">No current Vault documents yet. Historical records are in Logs.</p>
                     ) }
 
                     { !loading && truncated && (
@@ -494,7 +476,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             <table className="sf-table">
                                 <thead>
                                     <tr>
-                                        { [ 'File', 'Tag', 'Customer', 'Mobile', 'Size', 'Downloads', 'Vault purchase', 'Access window', 'Status', '' ].map( heading => (
+                                        { [ 'File', 'Customer', 'Mobile', 'Uploaded by', 'Size', 'Downloads', 'Vault purchase', 'Access window', 'Status', '' ].map( heading => (
                                             <th key={ heading } scope="col">{ heading }</th>
                                         ) ) }
                                     </tr>
@@ -506,12 +488,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                             <tr key={ row.fileId }>
                                                 <td>
                                                     <span className="sf-filename">{ row.displayName }</span>
-                                                    <span className="sf-fileorig">{ row.tag || 'Vault document' }</span>
+                                                    <span className="sf-fileorig">{ row.originalFilename || 'Vault document' }</span>
                                                 </td>
-                                                <td>{ row.tag ? <span className="sf-tagpill">{ row.tag }</span> : <span className="sf-muted">—</span> }</td>
                                                 <td>{ row.ownerName || '—' }</td>
                                                 {/* masked at the API; the full number never reaches the browser */ }
                                                 <td className="sf-mono">{ row.ownerPhoneMasked || '—' }</td>
+                                                <td className="sf-mono">{ row.uploadedBy || '—' }</td>
                                                 <td>{ formatBytes( row.sizeBytes ) }</td>
                                                 <td>{ row.downloadCount ?? 0 }</td>
                                                 <td>
@@ -928,9 +910,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                   .sf-table td{display:grid;grid-template-columns:minmax(96px,34%) minmax(0,1fr);gap:12px;width:100%;box-sizing:border-box;padding:11px 12px;border-bottom:1px solid rgba(26,58,42,.08);overflow-wrap:anywhere}
                   .sf-table td::before{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(26,58,42,.58)}
                   .sf-table td:nth-child(1)::before{content:'File'}
-                  .sf-table td:nth-child(2)::before{content:'Tag'}
-                  .sf-table td:nth-child(3)::before{content:'Customer'}
-                  .sf-table td:nth-child(4)::before{content:'Mobile'}
+                  .sf-table td:nth-child(2)::before{content:'Customer'}
+                  .sf-table td:nth-child(3)::before{content:'Mobile'}
+                  .sf-table td:nth-child(4)::before{content:'Uploaded by'}
                   .sf-table td:nth-child(5)::before{content:'Size'}
                   .sf-table td:nth-child(6)::before{content:'Downloads'}
                   .sf-table td:nth-child(7)::before{content:'Purchase'}
