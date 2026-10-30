@@ -44,7 +44,8 @@ def test_uuid_name_is_s3_basename_and_download_name():
     assert "':original': generated_name" in service
     assert "new_name = str(current.get('fileName') or current.get('originalFileName') or '')" in service
     assert '"displayName": display_name' in secure
-    assert 'f\'attachment; filename="{_system_name_for_file(item)}"\'' in secure
+    assert 'f\'attachment; filename="{_safe_download_filename(item)}"\'' in secure
+    assert "def _safe_download_filename(" in secure
     assert "_vault_system_name(document, file_id)" in secure
 
 
