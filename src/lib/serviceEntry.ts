@@ -26,8 +26,6 @@ import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/checkout/';
-/** Retained alias; /checkout/ is the one review and payment page. */
-export const CHECKOUT_METHOD_PATH = CHECKOUT_PATH;
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
