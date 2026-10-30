@@ -286,57 +286,33 @@ but see §10 — do not simply delete keywords customers were told to send.
 
 ---
 
-## 5. CURRENT STATE — every form
+## 5. CURRENT STATE — seven retained published Meta Flows
 
-10 keyword-triggered Flows plus 2 post-payment Flows. JSON lives in
-`amplify/functions/messaging/whatsapp-business-api/flows/` (15 files, design-time only — nothing
-reads them at runtime). Server handlers are `flows/*.py`, dispatched by `flows/router.py` on the
-**flow-token prefix**, not the flow id. Token shape: `{flow_key}-{uuid}-waba-{1|2}-ph-{phone}`.
+As of 30 October 2026, WABA 1 has seven canonical customer Flow identities. Their
+current source assets live in `amplify/functions/messaging/whatsapp-business-api/flows/published/`.
+All earlier drafts and versioned JSON designs were removed from the working repository.
+Historical submissions and retired-provider audit records are a separate concern; they
+do not define current customer launch targets.
 
-| Flow key | flowId (WABA1) | flowId2 | JSON | Screens | flowCode | Paid |
-|---|---|---|---|---|---|---|
-| `submit_request` | `1469093721293830` | — | submit-request-flow-v3 | ORDER_SELECT → SUBMIT_REQUEST_FORM → TERMS → REVIEW → THANK_YOU | `01.WD_SR` | **₹49** |
-| `track_request` | `1486454129852338` | — | track-request-flow-v1 | ORDER_SELECT → STATUS | `02.WD_TR` | free |
-| `amend_request` | `3678132465672138` | — | amend-request-flow-v1 | ORDER_SELECT → SELECT_REQUEST → AMEND_FORM → CONFIRM | *(none)* | free |
-| `schedule_appointment` | `26575380852083467` | — | appointment-flow-v1 | BOOKING_FORM → REVIEW → CONFIRM | `WD_APPT` | free |
-| `rx_slot` | `895208030185211` | — | rx-slot-flow-v1 | SLOT_FORM → REVIEW → CONFIRM | `WD_RX` | free |
-| `drop_docs` | `1211063631104445` | — | drop-docs-flow-v1 | DOC_FORM → REVIEW → CONFIRM | `WD_DOCS` | free |
-| `enterprise_assist` | `1707170524029465` | — | enterprise-assist-flow-v1 | INTAKE_FORM → CONFIRM | `WD_ENT` | free |
-| `leave_review` | `1578178897413815` | — | leave-review-flow-v2 | FEEDBACK → REVIEW | `WD_IDEA` | free |
-| `subscribe` (F001) | `2413873616105042` | — (WABA 1 only) | design-drafts/subscribe | PROFILE → ADDRESS → REVIEW → COMPLETE | `WD-F001-SUBSCRIBE-PROFILE` (earlier rows `WD_SUBSCRIBE`) | free; see `docs/operations/f001-subscribe.md` |
-| `order_notes` | `1434731571172691` | — | order-notes-flow-v1 | ORDER_SELECT → NOTES_FORM → CONFIRM | `WD_NOTE` | free |
-| *(post-pay)* | env `POST_PAYMENT_FLOW_WABA1/2` | | postpay-request-flow-v2 | SUMMARY → ADDRESS → DETAILS → SUCCESS | `03.WD_POSTPAY_REQUEST` | after payment |
-| *(post-pay v1)* | — | | postpay-flow-v1 | DETAILS only | `02.WD_POSTPAY` | after payment |
+| Capability | Meta Flow ID | Source asset | Current Meta state |
+|---|---|---|---|
+| Subscribe / Profile | `2413873616105042` | `published/subscribe.json` | PUBLISHED |
+| Leave Review | `993862443003108` | `published/f002-leave-review.json` | PUBLISHED |
+| Drop Docs | `39581903361452878` | `published/f003-drop-docs.json` | PUBLISHED |
+| Submit Request | `993516553092471` | `published/submit-request.json` | PUBLISHED |
+| Request Amendment | `2408621596338289` | `published/request-amendment.json` | PUBLISHED |
+| Pickup Request | `2988393421499259` | `published/request-pickup.json` | PUBLISHED (customer launch guarded) |
+| Track Shipment | `1804165164183485` | `published/shipments.json` | PUBLISHED |
 
-`leave_review` and `customer_idea` share Flow `1578178897413815` (WD_Leave_Review_v2,
-PUBLISHED on WABA1). Meta has no per-door flow identity, so two trigger keys pointing at one
-flow is the only shape available — it is one room with two doors, not duplication. That flow is
-**endpointless** (no `data_api_version`; its first screen `FEEDBACK` carries no `data` block),
-so it must be opened with `flowAction: navigate` via `STATIC_ENTRY_SCREENS` in
-`_send_generic_flow`. Opening it with `data_exchange` fails at open, and that failure looks
-exactly like a wrong flow id — `tests/test_leave_review_wiring.py` pins both.
+These assets are version 7.3 and data API version 3.0. Operational launch requires
+the runtime policy, server-issued session and payment guards where applicable;
+Meta publication alone is not a send authorization. In particular, Pickup Request
+remains fail-closed until its completion schema is confirmed.
 
-`flows/leave_review.py`, the `review <REF>` attribution branch and
-`REVIEW_ATTRIBUTION_ENABLED` are the **v1** attribution path. v1 was never published, so none
-of it is on this route today (v2 never calls `/flow-data`), and `_review_attribution_enabled()`
-defaults false and is set nowhere. It is a follow-up to finish or retire deliberately, not dead
-code to delete in passing.
-
-
-### Fields collected
-
-- **submit_request** — `order_id`, `subject`, `description`, `accept_terms`, `confirm_submit`
-  ("I confirm the details are correct and agree to pay ₹49")
-- **track_request** — `order_id`; returns `order_ref, order_status, payment_info, items_info, requests_summary, requests_count`
-- **amend_request** — `order_id`, `request_id`, `amendment`
-- **schedule_appointment** — `appointment_type` ⚠️, `location`, `slot_date`, `slot_time`, `notes`
-- **rx_slot** — `slot_type` (Prescription Pickup / Medical Tourism / Lab Test / Pharmacy Visit), `slot_date`, `slot_time`, `facility_name`, `prescription_notes`
-- **drop_docs** — `doc_type`, `order_id` (opt), `description`. **No file picker** — the customer sends media as a normal message and `_link_media_to_service_request` (`:6193`) attaches it to the open request for 14 days
-- **enterprise_assist** — `account_name`, `contact_name`, `contact_email`, `subject`, `description`, `priority`
-- **leave_review** — `rating`, `category`, `review_text`
-- **subscribe** — `full_name`, `phone_number`, `wa_username`, `email_address`, `company_name`, `designation`, then delivery address, then confirm
-- **order_notes** — `order_id`, `notes`
-- **post-pay v2** — `name`, `address`, `landmark`, `city`, `state`, `pin`, `description`, `preferred_time`
+`Track Request` is **not** a retained Meta Flow: the order/status service endpoint
+and `/orders/` page perform that function. Orders and Vault likewise do not have
+a retained Meta Flow asset. Deprecated provider definitions may still appear in
+Meta historical audit views, but not in the Workspace inventory.
 
 ### Form storage
 
@@ -524,7 +500,7 @@ Ordered by customer impact. None of these are introduced by the redesign; they a
 | 8 | MEDIUM | `wa_auto_response.fallbackMessage` is loadable but the unmatched-text path sends nothing, so the configured fallback can never appear |
 | 9 | LOW | `_handle_list_reply`'s pay branch (`:6551`) omits the `sent == 0` failure message the text path has — a failed send is silent |
 | 10 | LOW | `customerservice.tsx:110` hardcodes `flow.key === 'submit_request' ? 'Published' : 'Draft'`, ignoring the `status` field two lines above |
-| 11 | LOW | `code-repo.tsx` and `system-architecture.tsx` still name `submit-request-flow.json` v1 and `subscribe-flow.json`; runtime uses v3 and `profile-flow.json` |
+| 11 | RESOLVED 2026-10-30 | Obsolete versioned Flow JSON assets were removed; both code catalogs point to the seven `flows/published/` definitions. |
 | 12 | LOW | Two functions named `_is_deterministic_trigger` are defined in the same module (`:170` and `:206`); the second shadows the first, so the `ai_hybrid_routing` config the first one reads is ignored |
 | 13 | **CONFIRMED 2026-09-26** | `region_*` / `lang_*` list ids appear in no dispatch table — measured, 4 region ids and 25 language ids all absent from `MENU_TO_KEYWORD`. Language switching via the picker was dead: the picker opened and every row was silent. `menu_language` now reopens the one menu instead of that trap. The picker code and `bot_language_picker_config` are untouched, so restoring it is one line **plus** registering the 29 ids |
 | 14 | MEDIUM | `menu_find_id` → `'find id'`, but `_handle_list_reply` has no subscriber-lookup branch, so a tap falls through to the generic `"You selected: Find Id. Processing..."` and nothing follows. Pre-existing; the row is off the one menu but stays tappable on handsets. Fixing it means extracting the my-id lookup out of the text path into a function both paths call |

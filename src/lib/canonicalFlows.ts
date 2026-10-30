@@ -44,7 +44,7 @@ export interface CanonicalFlow {
 export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
   orders: {
     capability: 'orders', label: 'Orders',
-    flowId: '2167802357142172', status: 'DRAFT', metaName: 'WD_Orders_Design_v1',
+    flowId: null, status: 'NONE', metaName: null,
   },
   // DEPRECATED on Meta (live read 2026-10-25): it cannot be sent. The id stays as the identity
   // of past paid submissions; paid requests start on the website.

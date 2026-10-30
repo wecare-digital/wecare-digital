@@ -19,7 +19,7 @@ routed from here.
 
 # capability -> (flow_id or None, status, meta_name or None)
 CANONICAL_FLOWS = {
-    'orders':         ('2167802357142172', 'DRAFT',     'WD_Orders_Design_v1'),
+    'orders':         (None, 'NONE', None),  # No Orders Flow; website and invoices own this journey.
     # DEPRECATED on Meta (live read 2026-10-25): it cannot be sent, so `published_flow` no longer
     # offers it. The id stays as the identity of past paid submissions; paid requests start on
     # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).

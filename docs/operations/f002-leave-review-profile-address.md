@@ -36,7 +36,6 @@ There are no profile fields and no address fields in F002.
 - Flow number: F002
 - Flow code / Meta Flow name: `WD-F002-LEAVE-REVIEW`
 - Published Flow: `993862443003108` (the runtime id, `lambda_utils/canonical_flows.py`)
-- Historical draft (do not reuse for F002): `2352304845587149` / `WD_Leave_Review_Design_v1`
 - Deprecated content origin: `940049388908144`
 
 `wecare_leave_review` and the invoice template's review FLOW button open `993862443003108`.
@@ -44,6 +43,6 @@ There are no profile fields and no address fields in F002.
 
 ## Source asset
 
-`amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/f002-leave-review.json`
+`amplify/functions/messaging/whatsapp-business-api/flows/published/f002-leave-review.json`
 
 This asset uses the F001 visual treatment and keeps the 940049388908144 review fields/content. The word `privately` is intentionally omitted from customer-facing copy.

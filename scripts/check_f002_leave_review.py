@@ -9,7 +9,7 @@ PY=ROOT/'amplify/functions/shared/lambda_utils/canonical_flows.py'
 TS=ROOT/'src/lib/canonicalFlows.ts'
 IDEA=ROOT/'amplify/functions/shared/lambda_utils/customer_ideas.py'
 RECORDS=ROOT/'amplify/functions/shared/lambda_utils/flow_records.py'
-FLOW=ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/leave-review-flow-v2.json'
+FLOW=ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/published/f002-leave-review.json'
 HUB=ROOT/'src/components/workspace/service/CustomerServiceHub.tsx'
 INBOUND=ROOT/'amplify/functions/messaging/inbound-whatsapp-handler/handler.py'
 
@@ -67,7 +67,7 @@ check("merged['flowNumber'] = contract_match[1]['flowNumber']" in biz,'registry 
 doc=json.loads(FLOW.read_text(encoding='utf-8'))
 check(doc.get('version')=='7.3','Flow schema version')
 check(doc.get('routing_model')=={'FEEDBACK':['REVIEW'],'REVIEW':[]},'routing model')
-check('data_api_version' not in doc,'F002 must remain endpointless')
+check(doc.get('data_api_version')=='3.0','F002 live data API must match published v3.0')
 screens={s['id']:s for s in doc['screens']}
 check(set(screens)=={'FEEDBACK','REVIEW'},'screen set')
 review=json.dumps(screens['REVIEW'],ensure_ascii=False)
