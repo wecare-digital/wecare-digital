@@ -45,7 +45,7 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
-from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response
+from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response, pickup_request_response
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
@@ -2517,6 +2517,22 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id)
 
+    # Pickup has its own service code and paid-order contract. Parse before the
+    # F004 Submit Request fallback so a cloned marker can never be filed as SR.
+    _pickup_data = pickup_request_response.pickup_payload(message)
+    _pickup_contact = None
+    _pickup_result = None
+    if _pickup_data is not None:
+        _pickup_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        _pickup_result = pickup_request_response.save_pickup(
+            _pickup_data,
+            contact_id=_pickup_contact.get('contactId') or _pickup_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            request_id=request_id)
+
     _submit_request_data = submit_request_response.request_payload(message)
     _submit_request_contact = None
     _submit_request_result = None
@@ -2568,8 +2584,8 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = (_idea_contact or _track_shipping_contact or _submit_request_contact
-               or _request_amendment_contact
+    contact = (_idea_contact or _track_shipping_contact or _pickup_contact
+               or _submit_request_contact or _request_amendment_contact
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
                                          contact_book_name=sender_contact_book_name,
@@ -2616,6 +2632,24 @@ def _process_message(
         }
         msg_type = 'flow_response'
         content = 'Flow response — Track Shipping'
+
+    _pickup_inbox = None
+    if _pickup_data is not None and _pickup_result is not None:
+        _pickup_item = _pickup_result.item or {}
+        _pickup_inbox = {
+            'flowCode': pickup_request_response.FLOW_CODE,
+            'flowType': 'pickup_request',
+            'flowScreen': 'CONFIRMATION',
+            'flowSubmissionId': _pickup_result.submission_id,
+            'flowReference': _pickup_result.reference,
+            'flowAnswers': pickup_request_response.response_answers(
+                _pickup_data, _pickup_result),
+            'flowAttachments': [],
+            'pickupRequestId': _pickup_result.submission_id,
+            'pickupRequestStatus': _pickup_item.get('status', 'pending_confirmation'),
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Pickup Request'
 
     _submit_request_inbox = None
     if _submit_request_data is not None and _submit_request_result is not None:
@@ -2774,6 +2808,8 @@ def _process_message(
         message_record.update(_idea_inbox)
     if _track_shipping_inbox:
         message_record.update(_track_shipping_inbox)
+    if _pickup_inbox:
+        message_record.update(_pickup_inbox)
     if _submit_request_inbox:
         message_record.update(_submit_request_inbox)
     if _request_amendment_inbox:
@@ -2785,7 +2821,8 @@ def _process_message(
     _flow_card = (
         project_flow_message(message)
         if (_idea_data is None and _track_shipping_data is None
-            and _submit_request_data is None and _request_amendment_data is None)
+            and _pickup_data is None and _submit_request_data is None
+            and _request_amendment_data is None)
         else {})
     if _flow_card:
         message_record.update(_flow_card)
@@ -2877,6 +2914,7 @@ def _process_message(
         timestamp=timestamp,
         **(_idea_inbox or {}),
         **(_track_shipping_inbox or {}),
+        **(_pickup_inbox or {}),
         **(_submit_request_inbox or {}),
         **(_request_amendment_inbox or {}),
     )
@@ -2994,6 +3032,10 @@ def _process_message(
             if _track_shipping_data is not None:
                 # F006 was persisted above. Keep the customer service window current and
                 # stop before the cloned Submit Request/post-payment paths can reinterpret it.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
+                return
+            if _pickup_data is not None:
+                # Dedicated paid Pickup completion has been stored before transport dedup.
                 _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
                 return
             if _submit_request_data is not None:

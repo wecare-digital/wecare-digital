@@ -21,7 +21,7 @@ the production code and checks it against these live definitions:
 
     PAY            wecare_whatapp_native_pay_template     UTILITY, IMAGE header, ORDER_DETAILS button
     INVOICE        wecare_default_invoice_image_template  UTILITY, IMAGE header, FLOW button index 0
-                                                          (NAVIGATE to FEEDBACK of Flow 993862443003108)
+                                                          (DATA_EXCHANGE -> static FEEDBACK INIT, F002 Flow 993862443003108)
     ORDER_STATUS   wecare_order_status_v3                 UTILITY / ORDER_STATUS, order_status component
     OTP            wecare_otp                             AUTHENTICATION, copy-code URL button index 0
     LEAVE_REVIEW   wecare_leave_review                    IMAGE header, FLOW button index 0 (same Flow);
