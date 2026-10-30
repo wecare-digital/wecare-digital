@@ -293,6 +293,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     setFiles( current => current.map( row => row.fileId === file.fileId
                         ? { ...row, accessState: 'EXPIRED', accessWindowOpen: false }
                         : row ) );
+                    feedback( 'status', 'Your free 24-hour window has ended. Choose website cart renewal or WhatsApp payment to open another paid window.' );
+                    void loadFiles();
                     return;
                 }
                 feedback(
@@ -310,7 +312,20 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 feedback( 'error', 'The download URL was not returned. Please try again.' );
                 return;
             }
-            window.location.assign( result.data.downloadUrl );
+            // Only the approved private S3 bucket is a valid transport destination.
+            let destination: URL;
+            try { destination = new URL( result.data.downloadUrl ); }
+            catch {
+                feedback( 'error', 'The secure file link is invalid. Please try downloading again.' );
+                return;
+            }
+            if ( destination.protocol !== 'https:'
+                || destination.hostname !== 'wecare-digital-get.s3.us-east-1.amazonaws.com' ) {
+                feedback( 'error', 'The file was not hosted at the expected secure location. Please contact support.' );
+                return;
+            }
+            feedback( 'status', 'Your secure file download is starting. The short-lived link will expire automatically.' );
+            window.location.assign( destination.href );
         } catch ( err: any )
         {
             feedback( 'error', err?.message || 'Could not prepare the download.' );
@@ -558,7 +573,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <p className="sf-state-note">
                                                     { state === 'OPEN'
                                                         ? `Access is active${ ends ? ` until ${ ends }` : '' }. Download again anytime before it ends.`
-                                                        : 'Your 24-hour access starts with your first download.' }
+                                                        : 'Payment is verified. Your 24-hour window begins when access is first delivered or downloaded; refreshing this page never extends it.' }
                                                 </p>
                                             </>
                                         ) : state === 'PAID_UNVERIFIED' ? (
