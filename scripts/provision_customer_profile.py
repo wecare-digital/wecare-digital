@@ -74,7 +74,8 @@ def expected_role_policy(acct=None):
     Lifted out of `ensure_role` so `tests/test_customer_profile_iam.py` can assert the document
     rather than the source text, the same shape `provision_customer_orders.py` already uses.
 
-    What is ABSENT is the point: no `Scan`, no S3, no SES, no SNS and no `lambda:InvokeFunction`.
+    What is ABSENT is the point: no `Scan`, no S3, no SES and no SNS. The only Lambda invoke is
+    the exact live WhatsApp Business API alias used for the customer-requested profile Flow send.
     The only mutable stores outside ContactsTable are the narrow identity-claim registry and the
     append-only audit log. `DeleteItem` is scoped only to releasing a claim this contact owned.
     """
@@ -106,6 +107,8 @@ def expected_role_policy(acct=None):
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-OrderTable"]},
         {"Sid":"FinalizeLinkedPaymentAttempt","Effect":"Allow","Action":["dynamodb:UpdateItem"],
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-PaymentAttemptsTable"]},
+        {"Sid":"SendCustomerProfileFlow","Effect":"Allow","Action":["lambda:InvokeFunction"],
+         "Resource":[f"arn:aws:lambda:{REGION}:{acct}:function:wecare-whatsapp-business-api:live"]},
         # customer_auth.GetUser validates the caller's own access token.
         {"Sid":"ValidateCustomerToken","Effect":"Allow","Action":["cognito-idp:GetUser"],"Resource":["*"]},
     ]}

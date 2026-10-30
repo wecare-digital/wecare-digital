@@ -7217,11 +7217,115 @@ def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
     return {'error': 'INVALID_SCOPE'}
 
 
+
+def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Send the approved F001 profile-update template for an authenticated website customer.
+
+    This is an internal-only door. The caller has already authenticated the customer and
+    supplies the session-owned phone. This function owns the provider boundary: it checks that
+    F001 is still published, records a one-use website Flow session before delivery, injects
+    current profile data into the PROFILE screen, and sends the approved Utility template.
+    """
+    from flows import common as flow_common, subscribe_profile
+    from lambda_utils import canonical_flows, contact_store, template_media, whatsapp_templates
+
+    phone = contact_store.digits(event.get('phone'))
+    if not phone:
+        return _resp(400, {'error': 'Invalid customer phone'})
+
+    record = canonical_flows.published_flow('subscribe')
+    if not record:
+        return _resp(409, {'error': flow_launch.explain('canonical_not_published'),
+                           'reason': 'canonical_not_published'})
+    try:
+        registry = flow_launch.read_registry_row(
+            dynamodb.Table(FLOW_REGISTRY_TABLE), str(record.get('flowId') or ''))
+    except Exception as exc:
+        logger.error(json.dumps({'event': 'customer_profile_flow_registry_failed',
+                                 'errorType': type(exc).__name__}))
+        return _resp(503, {'error': flow_launch.explain('registry_unreadable'),
+                           'reason': 'registry_unreadable'})
+    decision = flow_launch.publication_decision(capability='subscribe', registry_row=registry)
+    if not decision.allowed:
+        return _resp(409, {'error': flow_launch.explain(decision.reason),
+                           'reason': decision.reason})
+
+    flow_code = str((canonical_flows.canonical_contract('subscribe') or {}).get('flowCode') or '')
+    funnel_table = dynamodb.Table(flow_funnel.table_name())
+
+    def count(stage: str, **fields: Any) -> None:
+        flow_funnel.record(funnel_table, flow_code, stage, logger=logger,
+                           launchChannel=flow_sessions.LAUNCH_WEB, **fields)
+
+    count('launch_attempted')
+    table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
+    try:
+        contact_row = contact_store.lookup(table, phone) or {}
+    except contact_store.IdentityConflict:
+        count('launch_blocked', reason='identity_conflict')
+        return _resp(409, {'error': 'Customer profile identity needs support before it can be updated.'})
+
+    try:
+        token, session = subscribe_profile.launch_session_token(
+            phone, launch_channel=flow_sessions.LAUNCH_WEB, initiated_by='customer_web')
+    except (flow_sessions.FlowSessionUnavailable, ValueError) as exc:
+        count('launch_failed', reason=f'session_{type(exc).__name__}')
+        return _resp(503, {'error': 'Could not start a profile update session.'})
+
+    # service_details opens PROFILE. Supplying current screen data preserves the same
+    # prefill/revision contract as F001 INIT while the server-issued token remains the
+    # authorization boundary for every save.
+    action = {'flow_token': token}
+    try:
+        if contact_row:
+            action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)
+    except Exception as exc:
+        logger.warning(json.dumps({'event': 'customer_profile_prefill_failed',
+                                   'errorType': type(exc).__name__}))
+
+    template = whatsapp_templates.PROFILE_DETAILS
+    header = template_media.fixed_image_header(template.name)
+    components = []
+    if header:
+        components.append({
+            'type': 'header',
+            'parameters': [{'type': 'image', 'image': {'link': header}}],
+        })
+    components.append({
+        'type': 'button',
+        'sub_type': 'flow',
+        'index': '0',
+        'parameters': [{'type': 'action', 'action': action}],
+    })
+    response = _send_template_msg({
+        'to': phone,
+        'phoneId': PHONE1_META_ID,
+        'templateName': template.name,
+        'language': template.language,
+        'components': components,
+    }, internal=True)
+    if response.get('statusCode') != 200:
+        count('launch_failed', reason='graph_error')
+        return response
+
+    count('launch_sent')
+    return _resp(200, {
+        'success': True,
+        'status': 'PROFILE_UPDATE_SENT',
+        'flowCode': flow_code,
+        'launchChannel': flow_sessions.LAUNCH_WEB,
+        'sessionExpiresAt': session.expires_at,
+    })
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'customerProfileUpdateTemplate':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _customer_profile_update_template(event)
     if event.get('internalAction') == 'ensurePrimaryFlowEncryption':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
