@@ -50,8 +50,16 @@ export default function CheckoutStatus (): React.ReactElement {
   const [ orderNumber, setOrderNumber ] = useState( '' );
   const [ amount, setAmount ] = useState( '' );
   const [ stalled, setStalled ] = useState( false );
+  const [ vaultReturnFile, setVaultReturnFile ] = useState( '' );
   const handedOffRef = useRef( false );
   const router = useRouter();
+
+  useEffect( () => {
+    try {
+      const file = window.sessionStorage.getItem( 'wecare.vault.websiteCheckoutReturnFile' ) || '';
+      if ( /^[A-Za-z0-9_-]{1,120}$/.test( file ) ) setVaultReturnFile( file );
+    } catch { /* A return hint never establishes payment or file ownership. */ }
+  }, [] );
 
   const poll = useCallback( async ( attemptId: string ): Promise<boolean> => {
     let session;
@@ -127,10 +135,13 @@ export default function CheckoutStatus (): React.ReactElement {
   }, [ poll ] );
 
   useEffect( () => {
-    if ( view !== 'paid' || !orderNumber || handedOffRef.current ) return;
+    // A website Vault renewal should return to the SAME owned document, not
+    // lose the customer in their generic orders list. Paid status is verified
+    // above and Vault verifies owner/entitlement independently on entry.
+    if ( view !== 'paid' || !orderNumber || handedOffRef.current || vaultReturnFile ) return;
     handedOffRef.current = true;
     void router.replace( orderPagePath( orderNumber ) ).catch( () => undefined );
-  }, [ orderNumber, router, view ] );
+  }, [ orderNumber, router, view, vaultReturnFile ] );
 
   const copy = COPY[ view ];
 
@@ -175,7 +186,14 @@ export default function CheckoutStatus (): React.ReactElement {
 
           { view === 'paid' && (
             <div className="co-actions">
-              <Link className="co-auth-action co-auth-primary" href={ orderPagePath( orderNumber ) }>Order</Link>
+              { vaultReturnFile && (
+                <Link className="co-auth-action co-auth-primary"
+                  href={ { pathname: '/vault/', query: { file: vaultReturnFile } } }
+                  onClick={ () => { try { window.sessionStorage.removeItem( 'wecare.vault.websiteCheckoutReturnFile' ); } catch { /* best effort */ } } }>
+                  Return to Vault · Download
+                </Link>
+              ) }
+              <Link className="co-auth-action" href={ orderPagePath( orderNumber ) }>View order</Link>
             </div>
           ) }
 
