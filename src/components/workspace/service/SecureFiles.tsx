@@ -10,7 +10,7 @@
  * This component is the staff surface and never exposes raw S3 keys.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Spinner from '../../../components/ui/Spinner';
@@ -93,10 +93,27 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ mode, setMode ] = useState<'upload' | 'existing'>( 'upload' );
     const [ journey, setJourney ] = useState<VaultRegistryJourney | null>( null );
     const [ journeyError, setJourneyError ] = useState( '' );
+    // An older all-files request must not overwrite a newly selected customer's files.
+    const latestFilesRead = useRef( 0 );
+    // Prevent double-clicks during the confirmation modal and network send.
+    const sendingAction = useRef( false );
+
+    const clearFileSelection = () => {
+        latestFilesRead.current += 1;
+        setFiles( [] );
+        setReviewFile( null );
+        setLastAcceptedOfferFileId( '' );
+        setTruncated( false );
+        setLoadError( '' );
+        setLoading( false );
+    };
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
     const fetchInto = useCallback( async ( mobileFilter?: string ) => {
+        const readId = ++latestFilesRead.current;
         const result = await api.listSecureFiles( mobileFilter || undefined );
+        // Selection may have changed while this request was in flight.
+        if ( readId !== latestFilesRead.current ) return null;
         if ( result.ok )
         {
             setFiles( result.data.files || [] );
@@ -163,7 +180,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setFilterMobile( contact.phone );
         setFile( null );
         setOfferBodyText( '' );
-        setReviewFile( null );
+        clearFileSelection();
         setMode( 'existing' );
         void load( contact.phone );
     };
@@ -183,26 +200,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     }, [] );
 
     useEffect( () => {
-        // Settled from the promise callback rather than the effect body: `loading`
-        // already starts true, and calling a state-setting helper directly here trips
-        // react-hooks/set-state-in-effect even when every write is after an await.
-        let cancelled = false;
-        api.listSecureFiles().then( result => {
-            if ( cancelled ) return;
-            if ( result.ok )
-            {
-                setFiles( result.data.files || [] );
-                setTruncated( !!result.data.truncated );
-                setLoadError( '' );
-            } else
-            {
-                setLoadError( result.failure.message || 'Could not load secure files' );
-                setFiles( [] );
-            }
-            setLoading( false );
-        } );
-        return () => { cancelled = true; };
-    }, [] );
+        // The same read-sequence guard protects the initial listing and customer filters.
+        void fetchInto();
+        return () => { latestFilesRead.current += 1; };
+    }, [ fetchInto ] );
 
     /** Meta API acceptance is not handset delivery; 202 means an uncertain send. */
     const reportAction = ( result: api.SecureFileActionResult ) => {
@@ -219,7 +220,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     };
 
     const handleSendOffer = async ( target: SecureFile ) => {
-        if ( acting || confirmingOffer || uploading || mode !== 'existing' || reviewFile?.fileId !== target.fileId ) return;
+        if ( sendingAction.current || acting || confirmingOffer || uploading || mode !== 'existing' || reviewFile?.fileId !== target.fileId ) return;
         if ( target.status !== 'active' || ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
             toast.error( 'This file does not need a payment offer. Review its access state.' );
             return;
@@ -234,6 +235,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
             return;
         }
+        sendingAction.current = true;
         setConfirmingOffer( true );
         let approved = false;
         try {
@@ -242,10 +244,17 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 message: `Customer: ${target.ownerName || 'Selected customer'} (${target.ownerPhoneMasked || 'verified owner'}).\nFile: ${target.displayName}\nWhatsApp {{1}}: ${variable}\n\nThis sends one real message. Payment starts only after the customer taps Unlock Vault.`,
                 confirmText: 'Send WhatsApp offer',
             } );
+        } catch {
+            sendingAction.current = false;
+            toast.error( 'Unable to confirm the send. No WhatsApp request was made.' );
+            return;
         } finally {
             setConfirmingOffer( false );
         }
-        if ( !approved ) return;
+        if ( !approved ) {
+            sendingAction.current = false;
+            return;
+        }
 
         setActing( target.fileId );
         try {
@@ -255,24 +264,36 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             void load( filterMobile || undefined );
         } finally {
             setActing( '' );
+            sendingAction.current = false;
         }
     };
 
     const handleSendAccess = async ( target: SecureFile ) => {
-        if ( acting || uploading ) return;
-        const approved = await confirm( {
+        if ( sendingAction.current || acting || uploading ) return;
+        sendingAction.current = true;
+        let approved = false;
+        try {
+            approved = await confirm( {
             title: 'Resend Access Vault link?',
             message: `Send the existing paid Vault access link to ${target.ownerName || 'the selected owner'} for ${target.displayName}? No new payment is requested.`,
             confirmText: 'Send access link',
-        } );
+            } );
+        } catch {
+            toast.error( 'Unable to confirm the send. No WhatsApp request was made.' );
+            return;
+        } finally {
+            if ( !approved ) sendingAction.current = false;
+        }
         if ( !approved ) return;
         setActing( target.fileId );
         try
         {
             reportAction( await api.sendSecureFileAccess( target.fileId ) );
+            void load( filterMobile || undefined );
         } finally
         {
             setActing( '' );
+            sendingAction.current = false;
         }
     };
 
@@ -451,11 +472,20 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 onChange={ event => {
                                     setSelectedCustomerId( '' );
                                     setContactQuery( event.target.value );
+                                    clearFileSelection();
                                 } }
                                 disabled={ uploading } autoComplete="off" />
                             { selectedCustomerId ? (
                                 <p className="sf-hint">Customer selected · <button type="button" className="sf-contact-change"
-                                    onClick={ () => { setSelectedCustomerId( '' ); setContactQuery( '' ); } }>Change customer</button></p>
+                                    onClick={ () => {
+                                        setSelectedCustomerId( '' );
+                                        setContactQuery( '' );
+                                        setName( '' );
+                                        setMobile( '' );
+                                        setFilterMobile( '' );
+                                        setOfferBodyText( '' );
+                                        clearFileSelection();
+                                    } }>Change customer</button></p>
                             ) : matchingCustomers.length > 0 ? (
                                 <div className="sf-customer-results" role="group" aria-label="Contact search results">
                                     { matchingCustomers.map( contact => (
@@ -472,13 +502,22 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             <div className="sf-field">
                                 <label className="sf-label" htmlFor="sf-name">Customer name</label>
                                 <input id="sf-name" className="sf-input" value={ name }
-                                    onChange={ event => { setSelectedCustomerId( '' ); setName( event.target.value ); } }
+                                    onChange={ event => {
+                                        setSelectedCustomerId( '' );
+                                        setName( event.target.value );
+                                        clearFileSelection();
+                                    } }
                                     autoComplete="off" placeholder="Customer full name" disabled={ uploading } />
                             </div>
                             <div className="sf-field">
                                 <label className="sf-label" htmlFor="sf-mobile">WhatsApp mobile</label>
                                 <input id="sf-mobile" className="sf-input" value={ mobile }
-                                    onChange={ event => { setSelectedCustomerId( '' ); setMobile( event.target.value ); } }
+                                    onChange={ event => {
+                                        setSelectedCustomerId( '' );
+                                        setMobile( event.target.value );
+                                        setFilterMobile( event.target.value );
+                                        clearFileSelection();
+                                    } }
                                     autoComplete="tel" inputMode="tel" placeholder="+91…" disabled={ uploading } />
                             </div>
                         </div>
