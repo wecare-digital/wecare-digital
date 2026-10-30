@@ -843,7 +843,7 @@ def run(root: Path) -> int:
         # Full website quote is a READ; its amount must equal the Razorpay
         # order prepared for the exact same multi-line basket. The native
         # one-unit contract stays independent of this website-only flow.
-        website_buyer = shop.customer(40)
+        website_buyer = shop.customer(72)
         from lambda_utils import customer_auth as _short_auth
         website_who = _short_auth.CustomerIdentity(
             customer_id=website_buyer["sub"], subject=website_buyer["sub"],
@@ -1710,7 +1710,7 @@ def run(root: Path) -> int:
     try:
         # A sandboxed Razorpay provider is now installed, so a full two-product
         # website basket must prepare with EXACTLY the previously reviewed quote.
-        multi_customer = shop.customer(63)
+        multi_customer = shop.customer(73)
         multi_who = _customer_auth.CustomerIdentity(
             customer_id=multi_customer["sub"], subject=multi_customer["sub"],
             phone=multi_customer["phone"])
