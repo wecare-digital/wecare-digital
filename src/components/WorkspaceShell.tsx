@@ -66,6 +66,15 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
     setProfileOpen( false );
   }, [ router.pathname ] );
 
+  useEffect( () => {
+    if ( !profileOpen ) return undefined;
+    const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( event.key === 'Escape' ) setProfileOpen( false );
+    };
+    document.addEventListener( 'keydown', onKeyDown );
+    return () => document.removeEventListener( 'keydown', onKeyDown );
+  }, [ profileOpen ] );
+
   useKeyboardShortcuts( [
     { key: 'k', ctrl: true, action: () => setSearchOpen( true ), description: 'Open search' },
     { key: '/', action: () => setSearchOpen( true ), description: 'Open search' },
@@ -207,6 +216,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
             top:calc(100% + 8px);
             inset-inline-end:0;
             width:min(300px,calc(100vw - 32px));
+            max-height:min(70vh,520px);
             max-height:min(70dvh,520px);
             overflow:auto;
             overscroll-behavior:contain;
@@ -301,7 +311,9 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
           @media(max-width:767px){
             .workspace-action-band{padding-top:96px}
             .workspace-action-inner{
-              padding:10px var(--public-mobile-page-gutter,16px);
+              padding:
+                10px max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-right,0px))
+                10px max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-left,0px));
               justify-content:flex-start;
               flex-wrap:nowrap;
               overflow-x:auto;
@@ -316,16 +328,19 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
             .workspace-content-frame{
               padding:
                 var(--public-mobile-hero-top,48px)
-                var(--public-mobile-page-gutter,16px)
-                var(--public-mobile-section-gap,64px);
+                max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-right,0px))
+                calc(var(--public-mobile-section-gap,64px) + env(safe-area-inset-bottom,0px))
+                max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-left,0px));
             }
             .workspace-main{
               min-height:calc(100vh - 96px);
               min-height:calc(100dvh - 96px);
             }
             .workspace-public-share{
-              padding-inline:var(--public-mobile-page-gutter,16px);
-              padding-bottom:max(40px,env(safe-area-inset-bottom,0px));
+              padding-inline:
+                max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-left,0px))
+                max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-right,0px));
+              padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));
             }
             .profile-menu{
               position:fixed;
@@ -334,6 +349,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
               bottom:max(16px,env(safe-area-inset-bottom,0px));
               left:max(var(--public-mobile-page-gutter,16px),env(safe-area-inset-left,0px));
               width:auto;
+              max-height:min(70vh,520px);
               max-height:min(70dvh,520px);
             }
             .workspace-main :global(input:not([type="checkbox"]):not([type="radio"])),
@@ -350,7 +366,9 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ( { children, user, onSign
             .workspace-action-inner{flex-wrap:wrap;overflow-x:visible}
             .workspace-action{max-width:100%;white-space:normal}
             .workspace-content-frame{
-              padding-inline:max(8px,env(safe-area-inset-left,0px),env(safe-area-inset-right,0px));
+              padding-inline:
+                max(8px,env(safe-area-inset-left,0px))
+                max(8px,env(safe-area-inset-right,0px));
             }
           }
           @media(prefers-reduced-motion:reduce){
