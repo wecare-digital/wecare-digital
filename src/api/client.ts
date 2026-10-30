@@ -7564,6 +7564,11 @@ export interface SecureFile {
   workspaceRecordVersion?: number;
   /** Staff-authored approved template body {{1}}, unrelated to storage name. */
   lastOfferBodyText?: string;
+  /** Staff send audit; Meta accepted does not establish delivered/read. */
+  lastOfferRequestedBy?: string;
+  lastOfferRequestedAt?: string;
+  lastOfferOutcome?: string;
+  lastOfferMessageId?: string;
   lastPaymentRequestedBy?: string;
   lastPaymentRequestedAt?: string;
   lastPaymentRequestOutcome?: string;
