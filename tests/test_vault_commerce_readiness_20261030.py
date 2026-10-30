@@ -96,6 +96,7 @@ def test_cart_restores_session_and_shows_name_for_digital_orders():
     card = IDENTITY_CARD.read_text(encoding="utf-8")
     assert "getSession() || await restoreSession()" in cart
     assert "mode === 'name'" in cart
+    assert "profile?.name ? 'address' : profile ? 'name' : 'create'" in cart
     assert "showAddress={ cartRequiresDelivery() }" in cart
     assert "showAddress?: boolean;" in card
     assert "{ showAddress &&" in card
