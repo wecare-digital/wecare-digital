@@ -51,9 +51,16 @@ def fixtures():
            "sourceGrantId": "grant-1"}
     grant = {"grantId": "grant-1", "paid": True,
              "customerId": "customer-1", "ownerPhone": "919999999999",
-             "fileId": "file-1", "entitlementId": "ent-1", "reference": "ref-1"}
+             "fileId": "file-1", "entitlementId": "ent-1", "reference": "ref-1",
+             "requestId": "req-1"}
     tables = {
         "stack-wecare-digital-DownloadGrantsTable": Table({"ent-1": ent, "grant-1": grant}),
+        "stack-wecare-digital-ServiceRequestsTable": Table(items={
+            "req-1": {"requestId": "req-1", "kind": "VAULT",
+                      "customerId": "customer-1", "vaultFileId": "file-1",
+                      "referenceId": "ref-1", "vaultNotificationStatus": "ACCEPTED",
+                      "vaultNotificationStatusMessageId": "wamid.auto-access"}
+        }),
         # GSI has INCLUDE projection; only the ID is present until base GetItem.
         "stack-wecare-digital-WhatsAppOutboundTable": Table(
             items={"m-1": {"id": "m-1", "direction": "outbound", "messageType": "template",
@@ -77,11 +84,12 @@ def fixtures():
 def test_all_five_templates_and_two_order_updates_have_bound_status_times():
     row, tables = fixtures()
     evidence = engine(tables)(row)
-    assert set(evidence) == {"nativePay", "processing", "completed", "invoice"}
+    assert set(evidence) == {"nativePay", "processing", "completed", "invoice", "autoAccess"}
     assert evidence["nativePay"]["status"] == "READ"
     assert evidence["processing"]["status"] == "DELIVERED"
     assert evidence["completed"]["status"] == "READ"
     assert evidence["invoice"]["status"] == "READ"
+    assert evidence["autoAccess"]["status"] == "READ"
     assert all(e["observedAt"] == 1900001234 for e in evidence.values())
     projection = tables["stack-wecare-digital-WhatsAppOutboundTable"].calls
     assert projection[0][1]["IndexName"] == "paymentReferenceId-index"
