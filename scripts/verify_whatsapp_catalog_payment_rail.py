@@ -840,6 +840,55 @@ def run(root: Path) -> int:
     # flag ON. These are full production handlers against moto, not string tests.
     # The request must be refused BEFORE any provider attempt or payment message.
     if short_mode:
+        # Full website quote is a READ; its amount must equal the Razorpay
+        # order prepared for the exact same multi-line basket. The native
+        # one-unit contract stays independent of this website-only flow.
+        website_buyer = shop.customer(40)
+        from lambda_utils import customer_auth as _short_auth
+        website_who = _short_auth.CustomerIdentity(
+            customer_id=website_buyer["sub"], subject=website_buyer["sub"],
+            phone=website_buyer["phone"])
+        website_lines = [
+            {"catalogReference": {"catalogItemId": shop.tee,
+                                  "options": {"variantId": "TEE-M"}}, "quantity": 2},
+            {"catalogReference": {"catalogItemId": shop.kit,
+                                  "options": {"variantId": "KIT1"}}, "quantity": 1},
+        ]
+        before_quote = W.mark()
+        quoted = checkout._website_quote(
+            website_who, {"action": "quote", "lineItems": website_lines},
+            "https://wecare.digital")
+        quote_body = json.loads(quoted.get("body") or "{}")
+        quote = quote_body.get("quote") or {}
+        terms = quote.get("charges") or {}
+        quote_good = (
+            quoted.get("statusCode") == 200
+            and quote_body.get("status") == "QUOTE_READY"
+            and len(quote.get("items") or []) == 2
+            and terms.get("totalPaise", 0) > 0
+            and quote.get("currency") == "INR")
+        check("WEB", "two-line website quote is itemised and read-only",
+              quote_good and not _attempts_for(website_buyer["sub"])
+              and not _pay_sends(W.since(before_quote, "meta_sends")),
+              {"http": quoted.get("statusCode"), "status": quote_body.get("status"),
+               "items": len(quote.get("items") or []),
+               "totalPaise": terms.get("totalPaise")})
+        if quote_good:
+            website_prepared = checkout._website_prepare(
+                website_who, {"action": "prepare", "lineItems": website_lines,
+                              "requestKey": "website-full-cart-test-key"},
+                "https://wecare.digital")
+            prepared_body = json.loads(website_prepared.get("body") or "{}")
+            opts = prepared_body.get("options") or {}
+            check("WEB", "multi-item Razorpay amount exactly matches reviewed quote",
+                  website_prepared.get("statusCode") == 200
+                  and prepared_body.get("status") == "CHECKOUT_OPTIONS_READY"
+                  and opts.get("amountPaise") == terms.get("totalPaise"),
+                  {"http": website_prepared.get("statusCode"),
+                   "status": prepared_body.get("status"),
+                   "quotePaise": terms.get("totalPaise"),
+                   "preparedPaise": opts.get("amountPaise")})
+
         short_buyer = shop.customer(39)
         for label, lines in (
                 ("two_units", [{"product_retailer_id": tee, "quantity": 2}]),
