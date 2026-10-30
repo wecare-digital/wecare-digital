@@ -1375,7 +1375,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
             background:var(--lime-hover);color:var(--public-brand-green);
-            border:0;box-shadow:inset 0 0 0 1px var(--public-brand-green);
+            border:0;box-shadow:none;
             transform:none;opacity:1;
           }
           .ord-account-action:focus-visible,
@@ -1433,7 +1433,7 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-tr,.ord-tr-open{background:transparent}
           .ord-tr:hover,.ord-tr-open:hover{
-            background:transparent;box-shadow:inset 0 -2px 0 var(--public-brand-lime);
+            background:transparent;box-shadow:none;
           }
           .ord-detailcell{
             padding:12px 16px;background:transparent;
