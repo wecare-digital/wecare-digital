@@ -61,6 +61,8 @@ MAX_HOPS = 5
 PUBLIC_PAGES = (
     "/", "/checkout/", "/orders/", "/blog/", "/contact/", "/checkout/status/",
     "/grahak-os/", "/vayulok/", "/terms/", "/anew/", "/shop/guided-resolution/", "/shop/",
+    "/submit-request/", "/request-amendment/", "/drop-docs/", "/vault/",
+    "/request-pickup/", "/shipments/track/", "/leave-review/", "/subscribe/",
 )
 
 
