@@ -5,9 +5,9 @@ interface PageProps { signOut?: () => void; user?: any; }
 
 const DocsRedirect: React.FC<PageProps> = () => {
   const router = useRouter();
-  // FEAT-005: Drop Docs is a tab on the Service hub now; forward to that hub tab.
-  React.useEffect(() => { router.replace('/workspace/service?view=documents'); }, [router]);
-  return <div style={{ padding: '24px 32px', textAlign: 'center', color: 'var(--text-muted)' }}>Redirecting to Drop Docs...</div>;
+  // Legacy staff document entry goes to Vault, never the customer Drop Docs Flow.
+  React.useEffect(() => { router.replace('/workspace/service?view=vault'); }, [router]);
+  return <div style={{ padding: '24px 32px', textAlign: 'center', color: 'var(--text-muted)' }}>Redirecting to Vault...</div>;
 };
 
 export default DocsRedirect;
