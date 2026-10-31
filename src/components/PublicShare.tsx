@@ -317,7 +317,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         </div>
       </div>
 
-      <PublicNotice mode="screen-reader" tone="success" message={ copied ? 'Link copied.' : '' } />
+      <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
+        message={ copied ? 'Link copied.' : '' } />
 
       <style jsx>{`
         .public-share{
