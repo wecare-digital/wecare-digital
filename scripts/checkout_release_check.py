@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -65,6 +66,95 @@ def check_html(path, html):
     return failures
 
 
+def check_orders_history_source():
+    """Production export invariant: no customer expandable order receipts.
+
+    This is part of the existing release checker, not a revived offline test
+    runner or CI workflow. It reads source only; no customer or AWS calls.
+    Staff Orders detail screens and internal invoice records are unaffected.
+    """
+    failures = []
+
+    def source(relative):
+        try:
+            return (ROOT / relative).read_text(encoding='utf-8')
+        except OSError:
+            failures.append('orders: missing source ' + relative)
+            return ''
+
+    orders = source('src/components/orders/OrdersPage.tsx')
+    route = source('src/pages/orders.tsx')
+    page_path = source('src/lib/orderPage.ts')
+    checkout_status = source('src/pages/checkout/status.tsx')
+    actions = source('src/components/orders/OrderActionsMenu.tsx')
+    checkout_backend = source('amplify/functions/ecommerce/checkout/handler.py')
+
+    component_dir = ROOT / 'src/components/orders'
+    if (ROOT / 'src/pages/orders').exists():
+        failures.append('orders: alternate individual-order route is forbidden')
+    if component_dir.exists():
+        old_details = [p.name for p in component_dir.iterdir()
+                       if p.name.lower().startswith(('orderdetail', 'orderreceipt'))]
+        if old_details:
+            failures.append('orders: deleted order-detail component returned: ' +
+                            ', '.join(sorted(old_details)))
+
+    jsx = orders.split('<style jsx>{`')[0]
+    thead = re.search(r'<thead>[\s\S]*?</thead>', jsx)
+    headings = re.findall(r'<th\b[^>]*>([^<]*)</th>', thead.group(0)) if thead else []
+    if [x.strip() for x in headings] != ['Order #', 'Date', 'Amount', 'Status', 'Invoice']:
+        failures.append('orders: history must have only five column headings')
+    if not re.search(r'<tr\s+key=\{\s*rowId\s*\}\s+className="ord-tr"\s*>', jsx):
+        failures.append('orders: history row must be static, never clickable or expandable')
+    if not re.search(r'<span\s+className="ord-ordno"(?=\s|>)', jsx):
+        failures.append('orders: static order-number label is missing')
+    if '<OrderActionsMenu' not in jsx or 'MY_INVOICE_URL' not in jsx:
+        failures.append('orders: invoice download and More actions must remain available')
+
+    forbidden = (
+        ('detail component or expand state',
+         r'\b(?:OrderDetail|OrderReceipt|expandedOrder|setExpandedOrder|selectedOrder|setSelectedOrder|setExpanded|openOrderDetails|toggleOrderDetails)\b'),
+        ('itemized/order-detail data in customer history',
+         r'\b(?:lineItems|deliveryAddress|paymentReference|invoiceNumber|gstAmount)\b'),
+        ('click handler on order table row or cell', r'<(?:tr|th|td)\b[^>]*\bonClick\s*='),
+        ('inline expandable receipt or dialog', r'<(?:details|dialog)\b|\baria-expanded\s*='),
+        ('retired order-detail checkout action', r'\baction\s*:\s*[\'"]order[\'"]'),
+    )
+    for label, pattern in forbidden:
+        if re.search(pattern, jsx, flags=re.IGNORECASE if label == 'inline expandable receipt or dialog' else 0):
+            failures.append('orders: forbidden ' + label)
+
+    if ("params.has( 'o' )" not in jsx or
+            "window.history.replaceState( window.history.state, '', '/orders/' )" not in jsx or
+            "sessionStorage.removeItem( 'wecare.pendingOrderView' )" not in jsx):
+        failures.append('orders: stale ?o= links and old selectors must be discarded')
+    if ("import OrdersPage from '../components/orders/OrdersPage'" not in route or
+            'export default OrdersPage;' not in route):
+        failures.append('orders: /orders must use the single history component')
+
+    helper = re.search(r'export function orderPagePath\s*\([^)]*\)\s*:\s*string\s*\{([^}]*)\}', page_path)
+    if not helper or not re.fullmatch(r"\s*return\s+['\"]/orders/['\"];\s*", helper.group(1)):
+        failures.append('orders: links must resolve only to /orders/')
+    if (not re.search(r'router\.replace\(\s*orderPagePath\(', checkout_status) or
+            not re.search(r'href=\{\s*orderPagePath\(', checkout_status) or
+            re.search(r"sessionStorage\.setItem\(\s*['\"]wecare\.pendingOrderView", checkout_status) or
+            re.search(r'[?&]o=', checkout_status)):
+        failures.append('orders: checkout must return to history without selecting a receipt')
+    if re.search(r'\bOrderDetail\b|/orders/\$\{|[?&]o=', actions):
+        failures.append('orders: More actions must not open individual-order details')
+
+    retired = checkout_backend.find('if action == "order":')
+    refused = checkout_backend.find(
+        'return _hardened(cors_response(410, {"error": "ORDER_DETAILS_RETIRED"}, origin))',
+        retired)
+    creates = checkout_backend.find('if action == "create":', retired)
+    if (retired < 0 or refused < retired or creates <= refused or
+            re.search(r'^\s*def _order_(?:detail|view|lines)\b', checkout_backend, re.MULTILINE)):
+        failures.append('orders: retired backend action must return 410 before payment create')
+
+    return failures
+
+
 def paths():
     catalogue = json.loads((ROOT / 'config/public-pages.json').read_text())
     public = [entry['path'].rstrip('/') + '/' for entry in catalogue['pages']
@@ -94,8 +184,11 @@ def main():
         except Exception as error:
             return [f'{path}: {type(error).__name__}']
 
+    # Source-only Orders check runs for every Amplify export build, before deploy.
+    # --live validates public HTML only and cannot attest an authenticated UI.
+    failures = check_orders_history_source() if args.export_dir else []
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        failures = [failure for result in pool.map(check, paths()) for failure in result]
+        failures.extend(failure for result in pool.map(check, paths()) for failure in result)
     print(json.dumps({'pages': len(paths()), 'failures': failures}, indent=2))
     return bool(failures)
 

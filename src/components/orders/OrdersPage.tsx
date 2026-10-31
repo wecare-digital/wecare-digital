@@ -901,33 +901,10 @@ export default function OrdersPage (): React.ReactElement {
              measure, so the band's gutters still apply and nothing re-declares them. */
           .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:var(--public-section-gap);max-width:1100px}
 
-          /* Mobile-first: one column, panel above orders, which is both the DOM order and the
-             layout this page already had. The 1024px override lives with every other media
-             query at the foot of this stylesheet, after the defaults it overrides. */
+          /* One customer history column. No legacy account/receipt panel layout. */
           .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
-          /* min-inline-size:0 for the same reason as minmax(0,...): a flex/grid item defaults to
-             min-content and refuses to shrink. No position:sticky - the panel is short, and
-             sticky interacts badly with overflow ancestors. */
-          .ord-panel,.ord-main{display:flex;flex-direction:column;gap:24px;min-inline-size:0}
-          /* Customer/account context is a single contained surface, matching the cart review
-             card rather than floating controls beside the history table. */
-          .ord-panel{align-self:stretch;padding:0;border:0;background:transparent}
-          .ord-summary{max-width:960px}
-          .ord-summary-head{display:flex;align-items:flex-end;gap:20px;margin-bottom:18px}
-          .ord-eyebrow{margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green)}
-          .ord-summary-rows{margin:0;border-top:1px solid var(--public-hairline)}
-          .ord-summary-rows>div{display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;padding:16px 0;border-bottom:1px solid var(--public-hairline)}
-          .ord-summary-rows dt{font-size:13px;font-weight:700;color:var(--public-brand-green)}
-          .ord-summary-rows dd{margin:0;font-size:17px;line-height:1.45;color:#1a1a1a}
-          .ord-verified{display:inline-flex;margin-inline-start:8px;padding:3px 8px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:12px;font-weight:700}
-          .ord-support{margin-top:12px}
-          .ord-support summary{display:inline-flex;align-items:center;min-height:44px;padding:0;color:var(--public-brand-green);font-size:16px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
-          .ord-support p{margin:4px 0 0;padding:10px 0 10px 12px;border-inline-start:3px solid var(--public-brand-lime);font-size:15px;color:var(--public-muted)}
+          .ord-main{display:flex;flex-direction:column;gap:24px;min-inline-size:0}
           .ord-pager{width:100%;margin-top:4px}
-          .ord-pager-copy{display:flex;justify-content:space-between;gap:16px;margin-bottom:8px;font-size:14px;color:var(--public-muted)}
-          .ord-pager-copy strong{color:var(--public-brand-green)}
-          .ord-pager-rail{height:3px;background:#edf0e8;border-radius:999px;overflow:hidden}
-          .ord-pager-rail span{display:block;width:38%;height:100%;background:var(--public-brand-lime)}
           .ord-pager .ord-quiet{margin-top:12px}
 
           /* The section rung: 700 against the band's 600 h1. That inversion is the site's and is
@@ -946,8 +923,6 @@ export default function OrdersPage (): React.ReactElement {
             color:var(--public-body);margin:0;
           }
           .ord-gate{display:flex;flex-direction:column;align-items:flex-start;gap:20px}
-          .ord-nodetails{padding:18px;border:1px solid var(--public-hairline);border-radius:14px;background:#fff}
-          .ord-link{color:var(--public-brand-green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
 
           /* The state treatment, lifted from .cart-status: a lime tint behind a solid lime
              inline-start edge with #1a3a2a type. A luminance and weight step rather than a hue,
@@ -1033,7 +1008,6 @@ export default function OrdersPage (): React.ReactElement {
           .ord-status-firm{border-inline-start-width:4px}
           .ord-status-label{font-size:16px;font-weight:600}
           .ord-status-firm .ord-status-label{font-weight:700}
-          .ord-status-note{font-size:14px;font-weight:400}
 
           /* The quiet secondary, reused from /checkout/status/'s co-btn-quiet so the page keeps
              exactly one lime SURFACE (the pill) and this one carries a lime EDGE instead. The
@@ -1203,9 +1177,6 @@ export default function OrdersPage (): React.ReactElement {
             .ord-shell{gap:12px}
             .ord-p,.ord-aside{font-size:18px}
             .ord-list{padding:0;border-radius:14px}
-            .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
-            .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
-            .ord-verified{margin-inline-start:6px}
             .ord-col-date{display:none}
             .ord-subdate{display:block}
             .ord-table{min-inline-size:480px}
@@ -1213,7 +1184,6 @@ export default function OrdersPage (): React.ReactElement {
             .ord-td{padding:5px 8px}
             .ord-th:first-child,.ord-td:first-child{padding-inline-start:10px}
             .ord-tablewrap{overflow-x:auto;border-inline:0;border-radius:0}
-            .ord-pager-copy{font-size:13px}
           }
 
           /* NO ENTRANCE ANIMATION OF ITS OWN, and the absence is the point: opacity:0 does not
