@@ -1,0 +1,240 @@
+name: Short Commerce payment-safe regression
+
+on:
+  pull_request:
+    branches: [wecare.digital]
+    paths:
+      - 'src/components/cart/**'
+      - 'src/components/get/**'
+      - 'src/styles/tokens.css'
+      - 'scripts/check_design_drift.py'
+      - 'src/lib/cart.ts'
+      - 'src/components/orders/**'
+      - 'src/components/Header.tsx'
+      - 'src/lib/customerMenuActions.ts'
+      - 'amplify/functions/auth/customer-profile/**'
+      - 'tests/test_authenticated_customer_menu_templates.py'
+      - 'src/components/workspace/pay/**'
+      - 'src/pages/workspace/payments/**'
+      - 'src/components/workspace/service/**'
+      - 'src/pages/workspace/service/**'
+      - 'src/lib/servicePricing.ts'
+      - 'src/lib/serviceWorkspaceRoutes.ts'
+      - 'src/api/client.ts'
+      - 'src/lib/checkoutQuote.ts'
+      - 'src/lib/customerInvoice.ts'
+      - 'src/lib/serviceEntry.ts'
+      - 'src/pages/cart.tsx'
+      - 'src/pages/_app.tsx'
+      - 'src/lib/whatsappBasket.ts'
+      - 'src/pages/checkout/**'
+      - 'src/lib/paymentVocabulary.ts'
+      - 'amplify/functions/ecommerce/checkout/**'
+      - 'amplify/functions/messaging/inbound-whatsapp-handler/**'
+      - 'amplify/functions/payments/razorpay-webhook/**'
+      - 'amplify/functions/shared/lambda_utils/**'
+      - 'amplify/functions/payments/invoice-engine/**'
+      - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'scripts/check_whatsapp_templates_live.py'
+      - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'tests/test_drop_docs_published_flow_audit.py'
+      - 'scripts/check_drop_docs_published_flow_live.py'
+      - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
+      - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
+      - 'scripts/test-short-commerce-part1.mjs'
+      - 'scripts/test-payflow-collect.mjs'
+      - 'scripts/provision_lambda_alarms.py'
+      - 'tests/test_payment_collect_alarm_contract.py'
+      - 'tests/test_pickup_shared_flow_backend.py'
+      - 'tests/test_service_payment_contract_ledger.py'
+      - 'tests/test_post_payment_service_next_action_20261031.py'
+      - 'tests/test_service_flow_delivery_outcome_20261031.py'
+      - 'tests/test_workspace_service_pricing_20261031.py'
+      - 'tests/test_request_service_contracts.py'
+      - 'scripts/test-workspace-service-routes.mjs'
+      - 'scripts/verify_whatsapp_catalog_payment_rail.py'
+      - 'scripts/check_short_commerce_live.py'
+      - 'tests/test_short_commerce_live.py'
+      - 'tests/test_short_commerce_part1.py'
+      - 'tests/test_orders_single_page_contract.py'
+      - 'tests/test_canonical_customer_order_urls_20261031.py'
+      - 'tests/test_retired_customer_service_pages_20261031.py'
+      - 'src/pages/vault.tsx'
+      - 'src/pages/submit-request.tsx'
+      - 'src/pages/request-amendment.tsx'
+      - 'src/pages/drop-docs.tsx'
+      - 'src/pages/shipments/track.tsx'
+      - 'src/pages/request-pickup.tsx'
+      - 'src/content/shopProducts.ts'
+      - 'scripts/generate_shop_listings.py'
+      - 'scripts/provision_legacy_redirects.py'
+      - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
+      - 'tests/test_vault_post_payment_link_only_20261031.py'
+      - 'tests/test_vault_safe_message_timeline.py'
+      - 'tests/test_short_purchase_policy.py'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/check_short_commerce_packages.py'
+      - 'tests/test_short_commerce_packages.py'
+      - '.github/workflows/short-commerce-qa.yml'
+  push:
+    branches: [wecare.digital]
+    paths:
+      - 'src/components/cart/**'
+      - 'src/components/get/**'
+      - 'src/styles/tokens.css'
+      - 'scripts/check_design_drift.py'
+      - 'src/lib/cart.ts'
+      - 'src/components/orders/**'
+      - 'src/components/Header.tsx'
+      - 'src/lib/customerMenuActions.ts'
+      - 'amplify/functions/auth/customer-profile/**'
+      - 'tests/test_authenticated_customer_menu_templates.py'
+      - 'src/components/workspace/pay/**'
+      - 'src/pages/workspace/payments/**'
+      - 'src/components/workspace/service/**'
+      - 'src/pages/workspace/service/**'
+      - 'src/lib/servicePricing.ts'
+      - 'src/lib/serviceWorkspaceRoutes.ts'
+      - 'src/api/client.ts'
+      - 'src/lib/checkoutQuote.ts'
+      - 'src/lib/customerInvoice.ts'
+      - 'src/lib/serviceEntry.ts'
+      - 'src/pages/cart.tsx'
+      - 'src/pages/_app.tsx'
+      - 'src/lib/whatsappBasket.ts'
+      - 'src/pages/checkout/**'
+      - 'src/lib/paymentVocabulary.ts'
+      - 'amplify/functions/ecommerce/checkout/**'
+      - 'amplify/functions/messaging/inbound-whatsapp-handler/**'
+      - 'amplify/functions/payments/razorpay-webhook/**'
+      - 'amplify/functions/shared/lambda_utils/**'
+      - 'amplify/functions/payments/invoice-engine/**'
+      - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'scripts/check_whatsapp_templates_live.py'
+      - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'tests/test_drop_docs_published_flow_audit.py'
+      - 'scripts/check_drop_docs_published_flow_live.py'
+      - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
+      - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
+      - 'scripts/test-short-commerce-part1.mjs'
+      - 'scripts/test-payflow-collect.mjs'
+      - 'scripts/provision_lambda_alarms.py'
+      - 'tests/test_payment_collect_alarm_contract.py'
+      - 'tests/test_pickup_shared_flow_backend.py'
+      - 'tests/test_service_payment_contract_ledger.py'
+      - 'tests/test_post_payment_service_next_action_20261031.py'
+      - 'tests/test_service_flow_delivery_outcome_20261031.py'
+      - 'tests/test_workspace_service_pricing_20261031.py'
+      - 'tests/test_request_service_contracts.py'
+      - 'scripts/test-workspace-service-routes.mjs'
+      - 'scripts/verify_whatsapp_catalog_payment_rail.py'
+      - 'scripts/check_short_commerce_live.py'
+      - 'tests/test_short_commerce_live.py'
+      - 'tests/test_short_commerce_part1.py'
+      - 'tests/test_orders_single_page_contract.py'
+      - 'tests/test_canonical_customer_order_urls_20261031.py'
+      - 'tests/test_retired_customer_service_pages_20261031.py'
+      - 'src/pages/vault.tsx'
+      - 'src/pages/submit-request.tsx'
+      - 'src/pages/request-amendment.tsx'
+      - 'src/pages/drop-docs.tsx'
+      - 'src/pages/shipments/track.tsx'
+      - 'src/pages/request-pickup.tsx'
+      - 'src/content/shopProducts.ts'
+      - 'scripts/generate_shop_listings.py'
+      - 'scripts/provision_legacy_redirects.py'
+      - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
+      - 'tests/test_vault_post_payment_link_only_20261031.py'
+      - 'tests/test_vault_safe_message_timeline.py'
+      - 'tests/test_short_purchase_policy.py'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/check_short_commerce_packages.py'
+      - 'tests/test_short_commerce_packages.py'
+      - '.github/workflows/short-commerce-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkout-ui-and-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: node scripts/test-short-commerce-part1.mjs
+      - run: node scripts/test-payflow-collect.mjs
+      - run: node scripts/test-workspace-service-routes.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Ledger helper imports the production lambda_utils package.
+      # Its boto3 import is required even though the tests use fake tables.
+      - run: python -m pip install --quiet pytest boto3==1.43.116
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_retired_customer_service_pages_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_vault_safe_message_timeline.py tests/test_vault_post_payment_link_only_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_service_payment_contract_ledger.py tests/test_post_payment_service_next_action_20261031.py tests/test_service_flow_delivery_outcome_20261031.py tests/test_workspace_service_pricing_20261031.py tests/test_request_service_contracts.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
+      # Run only the two profile-related source contracts; the legacy module contains
+      # an unrelated CartPage assertion for an old checkout surface.
+      - run: python -m pytest -q tests/test_checkout_profile_lime_contract.py::test_orders_signout_moves_into_card_and_profile_update_stays_in_subscribe tests/test_checkout_profile_lime_contract.py::test_website_profile_template_uses_data_exchange_init_for_optional_prefill
+      - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
+      - name: Release attestation checker (offline, no AWS access)
+        run: python -m unittest discover -s tests -p test_short_commerce_live.py
+      # The four legacy token gaps were corrected on the default branch (issue #1970).
+      # Keep the canonical contract strict: design regressions now fail this job,
+      # alongside the required checkout, payment, and invoice safety checks.
+      - name: Public design drift gate
+        run: python scripts/check_design_drift.py --gate
+
+  hermetic-payment-rail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      # Use the production packager to verify the exact ZIP bytes for checkout,
+      # commerce and inbound WhatsApp without accessing AWS or payment services.
+      # This prevents a passing source-level test from masking an incomplete ZIP.
+      - name: Off-cloud payment Lambda ZIP integrity gate
+        run: |
+          uv run --no-project --python 3.12 --with boto3==1.43.116 \
+            python -m unittest discover -s tests -p test_short_commerce_packages.py
+          uv run --no-project --python 3.12 --with boto3==1.43.116 \
+            python scripts/check_short_commerce_packages.py
+      # Synthetic live-template definitions only: the verifier imports the
+      # production lambda_utils package, which requires boto3. No AWS calls.
+      - name: Canonical WhatsApp Flow-button audit (offline)
+        env:
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: >
+          uv run --no-project --python 3.12 --with boto3==1.43.116
+          python -m unittest discover -s tests -p test_whatsapp_flow_template_audit.py
+      # Real production handlers; fake AWS in moto; fake Meta and Razorpay endpoints;
+      # no cloud credentials or payment resources. Never a production smoke charge.
+      - run: >
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with 'moto[dynamodb,cognitoidp]==5.2.4'
+          python scripts/verify_whatsapp_catalog_payment_rail.py
+      # Exercise paid Pickup owner binding and single-claim behavior with fake
+      # DynamoDB/Meta dependencies. No live payment or service invocation.
+      - name: Paid Pickup Flow owner and idempotency regression (offline)
+        run: >
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with pytest
+          python -m pytest -q tests/test_pickup_shared_flow_backend.py
+      # Preserve the base branch's native short-only payment-safety regression.
+      # Website full-cart quoting stays a separate hermetic scenario in this script.
+      - name: Opt-in native one-unit hermetic payment and refusal E2E
+        run: >
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with 'moto[dynamodb,cognitoidp]==5.2.4'
+          python scripts/verify_whatsapp_catalog_payment_rail.py --short-only
