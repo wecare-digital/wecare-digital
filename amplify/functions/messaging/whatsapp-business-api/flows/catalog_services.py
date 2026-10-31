@@ -500,10 +500,6 @@ def _send_offer(event, client, db, keys, contacts, now):
     else:
         offer_body_text = whatsapp_templates.vault_offer_document_name(
             file.get('displayName') or 'Document')
-    description = event.get(
-        'paymentItemDescription', catalog.VAULT_ITEM_DESCRIPTION_DEFAULT)
-    if not catalog.valid_vault_item_description(description):
-        return {'outcome': 'VAULT_ITEM_DESCRIPTION_INVALID'}
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
@@ -588,6 +584,10 @@ def _send_native_payment(event, client, db, keys, contacts, now):
             or file.get('ownerPhone') != owner_phone):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
 
+    description = event.get(
+        'paymentItemDescription', catalog.VAULT_ITEM_DESCRIPTION_DEFAULT)
+    if not catalog.valid_vault_item_description(description):
+        return {'outcome': 'VAULT_ITEM_DESCRIPTION_INVALID'}
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
