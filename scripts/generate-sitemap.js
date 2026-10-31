@@ -42,6 +42,16 @@ const PUBLIC_EXACT = new Set( [
   '/contact',
   '/grahak-os',
   '/orders',
+  // Informational public service front doors; actual customer actions remain
+  // verified by the WhatsApp, order and exact-file payment backends.
+  '/submit-request',
+  '/request-amendment',
+  '/drop-docs',
+  '/vault',
+  '/request-pickup',
+  '/shipments/track',
+  '/leave-review',
+  '/subscribe',
   '/privacy',
   '/terms',
   '/vayulok',
@@ -66,8 +76,9 @@ const PUBLIC_EXACT = new Set( [
   '/ritual-guru/ritva',
   '/ritual-guru/puja-guidance',
   '/ritual-guru/diy-puja-kit',
-  // Paid request-service and Track routes are customer-session/deep-link surfaces. They are
-  // intentionally absent from this crawl allowlist; _app keeps them renderable and noindex.
+  // The eight service routes now have real public pages. Their private
+  // customer/session actions are separate, and /vault/?file=<id> is noindex
+  // even though the bare /vault/ explanatory page is indexable.
   // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
   // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
   // src/pages/shop/index.tsx is recreated), so it belongs in the sitemap. Its PUBLIC_PAGE_META
