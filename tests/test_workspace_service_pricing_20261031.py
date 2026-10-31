@@ -137,6 +137,8 @@ def test_workspace_targets_are_distinct_and_read_only():
     assert "<Contribute />" in page
     assert "PaymentTemplateMedia" in pricing
     assert "SERVICE_CHOICES.map" in pay
+    assert "const templatePreview = SERVICE_CHOICES" in pay
+    assert 'serviceLabel="All request services"' in pay
     for forbidden in ("api.createInvoice", "requestSecureFilePayment", "sendPaymentLink", "issuePayment"):
         assert forbidden not in page
     assert "/workspace/commerce?view=orders" in page
