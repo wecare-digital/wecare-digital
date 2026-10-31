@@ -63,6 +63,15 @@ function accessStateOf ( file: SecureFile ): SecureFileAccessState {
     return file.paidEntitlementId || file.paidGrantId ? 'PAID_UNVERIFIED' : 'UNPAID';
 }
 
+/** An owner-verified expired Vault file returns Home, never Contact or Orders. */
+function expiredVaultFile ( file: SecureFile ): boolean {
+    const state = accessStateOf( file );
+    if ( state === 'EXPIRED' ) return true;
+    const endsAt = Number( file.accessWindowEndsAt || 0 );
+    return ( state === 'OPEN' || state === 'READY' )
+        && Number.isFinite( endsAt ) && endsAt > 0 && endsAt * 1000 <= Date.now();
+}
+
 /** "26 Oct 2026, 4:30 pm" in the reader's locale, or '' when there is no window end. */
 function windowEndLabel ( epochSeconds?: number ): string {
     if ( !epochSeconds ) return '';
@@ -141,11 +150,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             const visibleFiles = targetFileId
                 ? ownedFiles.filter( file => file.fileId === targetFileId && file.status === 'active' )
                 : ownedFiles;
-            if ( targetFileId && visibleFiles.length === 0 ) {
-                // Only an authenticated, successful owner-scoped read may
-                // determine that this exact link is absent or inactive.
-                // The existing 404 page redirects to the homepage.
-                window.location.replace( '/404' );
+            if ( targetFileId && ( visibleFiles.length === 0 || visibleFiles.some( expiredVaultFile ) ) ) {
+                // Check only after an authenticated owner-scoped read. Missing,
+                // revoked and expired file links all return directly to Home.
+                window.location.replace( '/' );
                 return;
             }
             setFiles( visibleFiles );
@@ -202,11 +210,12 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     const visibleFiles = targetFileId
                         ? ownedFiles.filter( file => file.fileId === targetFileId && file.status === 'active' )
                         : ownedFiles;
-                    if ( targetFileId && visibleFiles.length === 0 )
+                    if ( targetFileId && ( visibleFiles.length === 0
+                        || visibleFiles.some( expiredVaultFile ) ) )
                     {
-                        // Missing, revoked or unpublished: never prompt for a
+                        // Missing, revoked or expired: never prompt for a
                         // fresh payment or disclose a file's existence.
-                        window.location.replace( '/404' );
+                        window.location.replace( '/' );
                         return;
                     }
                     setFiles( visibleFiles );
@@ -324,16 +333,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 if ( code === 'ACCESS_WINDOW_CLOSED' )
                 {
-                    setFiles( current => current.map( row => row.fileId === file.fileId
-                        ? { ...row, accessState: 'EXPIRED', accessWindowOpen: false }
-                        : row ) );
-                    setFileFeedback( current => {
-                        const next = { ...current };
-                        delete next[ file.fileId ];
-                        return next;
-                    } );
-                    // The expired state is already applied; refreshing files is authoritative.
-                    void loadFiles();
+                    // The server confirmed the access window is over.
+                    // Return to Home; do not show a stale Vault download action.
+                    window.location.replace( '/' );
                     return;
                 }
                 feedback(

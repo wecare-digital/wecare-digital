@@ -46,10 +46,11 @@ silently queues such actions. Copied page URLs and page reloads cannot send.
    `python scripts/provision_legacy_redirects.py --apply`.
    Its release gate checks the page assets itself, snapshots the old rules and
    preserves the current 200 API/media rewrites and terminal 404 fallback.
-   This removes ten old service redirect rules (bare and slash variants of
-   five routes). The historical `/shop/shipments-track` alias remains a 301,
-   but now points straight to `/shipments/track/`, not Orders. All twelve
-   approved blog-merge 301s remain.
+   The updated baseline policy removes all **24 previous Amplify 30x rules**:
+   ten old service aliases, two obsolete shop aliases and twelve blog-merge
+   aliases. Obsolete shop/blog paths now follow the site's 404 → Home policy.
+   No replacement 30x rule is introduced, and direct service pages remain
+   at their own URLs.
 4. Verify `python scripts/provision_legacy_redirects.py --verify` and
    `python scripts/probe_url_host_matrix.py --only public` return direct 200.
    Check clean browser + no-cache HTTP requests: old 301 responses may be
@@ -65,10 +66,10 @@ silently queues such actions. Copied page URLs and page reloads cannot send.
 
 ## Rollback
 
-- If the new static pages fail after deployment, **restore the exact Amplify
-  customRules JSON snapshot saved by the provisioning script**, returning old
-  routes to Orders until the website issue is corrected. Keep API/file/404
-  rules byte-for-byte unchanged.
+- If new static pages fail after deployment, **restore the exact Amplify
+  customRules JSON snapshot saved by the provisioning script** under an
+  authorized rollback, temporarily restoring the previously deployed routing
+  policy. Keep API/file/404 rules byte-for-byte unchanged.
 - If a WhatsApp entry fails, roll back its **page/menu navigation** only after
   checking the server-side customer guard; do not create a second payment rail.
 - Never install any 301/302 rule on `/vault/`. Amplify path-only redirects

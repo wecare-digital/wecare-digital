@@ -144,18 +144,11 @@ HEADERS = {
 }
 
 
-# Where an unknown, expired or malformed short code lands. Four call sites use it.
-#
-# This pointed at `[retired public path]` until 2026-09-27, which had been a
-# 404 since commit 6bc44a35 removed the in-repo stub on 2026-09-24 and nothing replaced
-# it. Measured live before the change: /r/<unknown> -> 302 -> [retired public path] -> 301 ->
-# [retired public path]/ -> 404. So every mistyped or expired PRINTED short link ended on an error
-# page, which is the worst possible destination for the one visitor who already got
-# something slightly wrong.
-#
-# `/contact/` is a real page and TERMINAL - 200 with zero redirect hops, verified with the
-# trailing slash, because `/contact` without it costs a 301. Keep the slash.
-FALLBACK_URL = "https://wecare.digital/contact/"
+# Missing, expired, inactive, or invalid short codes go to the canonical
+# homepage, not Contact or Orders. Valid active codes continue to use their
+# own validated originalUrl (or device-specific deep link) in redirect().
+# This exact homepage URL is already canonical; it needs no additional hop.
+FALLBACK_URL = "https://wecare.digital/"
 
 
 # ── Destination validation ──────────────────────────────────────────────────────
@@ -341,7 +334,7 @@ def handler(event, context):
             if code and "." not in code and "/" not in code:
                 return redirect(code, event)
 
-        # 404 → redirect to customer-service
+        # Unknown shortener path → homepage fallback
         logger.info(f"No route matched, falling back")
         return {
             "statusCode": 302,
@@ -350,7 +343,7 @@ def handler(event, context):
         }
 
     except Exception as e:
-        # 500 → redirect to customer-service
+        # Handler failure → homepage fallback
         logger.error(f"Handler exception: {e}", exc_info=True)
         return {
             "statusCode": 302,

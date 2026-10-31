@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
-"""Own the site's permanent redirects in Amplify customRules, and nothing else.
+"""Remove legacy 30x content redirects from the site's Amplify customRules.
 
-Authority: this script writes ONE thing, the 30x redirect rules of Amplify app d22dm4b0jn71jw
-(`UpdateApp customRules`), and only with --apply. It writes a rollback snapshot first and reads
-the list back afterwards. Without a flag it reports; --verify is read-only (AWS read plus public
-HTTP GETs).
+Authority: this script reconciles only Amplify app d22dm4b0jn71jw customRules,
+and only with --apply. It snapshots the complete prior list and reads it back.
+Without --apply it reports; --verify is read-only (AWS read + public HTTP GETs).
 
-What it manages: the approved blog post merges in config/blog-merges.json, the retired
-/shop/shipments-track alias (now pointing at the public Shipment Tracking page), and the
-REMOVAL of five old 301-to-Orders service paths once their new landing HTML is deployed.
-The other three public service pages have never needed hosting 301 rules.
-No legacy SEO, workspace or frozen-template destination may be recreated, and retired
-/access stays unavailable. Host canonicalisation (www -> apex) is owned by CloudFront,
-not this script. See desired_redirects().
+No 30x content redirect is approved. Eight former service URLs now have their
+own public landing pages; obsolete blog/old shop aliases still use the
+not-found fallback to Home. Before retiring any previous 30x redirect,
+verify that all eight exported service HTML assets are published, to avoid
+a window in which visitors reach 404 instead of the new service pages.
+Real current pages continue to serve normally. Host canonicalisation (www -> apex) is separately
+owned by the CloudFront function in amplify/infra/home-fallback.json.
 
-What it preserves, byte for byte and in order: every non-30x rule. That is the internal 200
-rewrites (API, files, short links, MCP), the not-found rules for retired routes, and the terminal
-`/<*>` catch-all. Those belong to the owner's live routing policy, which has moved since this
-script was first written (retired routes now answer through explicit 404 rules and the catch-all
-target changed), so they are kept exactly as found rather than re-asserted from a stale copy.
-The catch-all must exist once, be last and be a not-found rule, or the script refuses to write.
+All non-30x rules are preserved byte for byte and in order: API, file, short-link,
+and MCP 200 rewrites, specific 404 rules, and the terminal /<*> -> /404.html
+404-200 catch-all. The catch-all must remain last and must be a not-found rule.
 
 The legacy filename is retained because earlier deployment tooling invokes this entry point.
 
@@ -49,21 +45,16 @@ SNAPSHOT = ROOT / "docs/execution/snapshots/amplify-custom-rules-before-8.4.json
 REDIRECT_STATUSES = frozenset({"301", "302", "307", "308"})
 NOT_FOUND_STATUSES = frozenset({"404", "404-200"})
 CATCH_ALL_SOURCE = "/<*>"
-# All eight now own real exported public service pages. Never add a 301 here;
-# direct page loads must stay at their original URL. Particularly /vault/?file=
-# must keep its original query and exact-file customer identity checks.
+# The service URL paths now have their own public HTML; never redirect them.
+# The authenticated /vault/?file=<id> link shares bare /vault's path, so
+# no Amplify path-only redirect may be installed on that route.
 PUBLIC_SERVICE_PAGE_ROUTES = (
     "/submit-request", "/request-amendment", "/drop-docs", "/vault",
     "/request-pickup", "/shipments/track", "/leave-review", "/subscribe",
 )
-# These five old destinations are the specific 301-to-Orders rules to retire.
-OLD_SERVICE_REDIRECT_ROUTES = (
-    "/submit-request", "/request-amendment", "/drop-docs",
-    "/request-pickup", "/shipments/track",
-)
-# This obsolete SHOP slug still needs a legacy 301, but directly to Track,
-# never to Orders. Do not turn the live /shipments/track/ page into a redirect.
-LEGACY_SHOP_TRACK = "/shop/shipments-track"
+# The old Shop shipment product alias is still retired, and now falls back
+# to the site's existing 404 → Home (not to any replacement checkout).
+RETIRED_CONTENT_ROUTES = ("/shop/shipments-track",)
 
 
 def amplify():
@@ -85,39 +76,12 @@ def blog_merges() -> list[tuple[str, str]]:
 
 
 def desired_redirects() -> list[dict]:
-    """The approved permanent redirects: the old shop alias and blog merges only.
-
-    Both slashless and trailing-slash aliases stay covered, but live public
-    services have NO host redirects on either spelling.
-
-    NO HOST RULE. This list used to open with {"source": "https://wecare.digital", "target": SITE},
-    a redirect from the apex to itself: the `www` host had been rewritten to the apex by a
-    bulk cleanup, which turned the www canonicalisation rule into a no-op that --apply kept
-    re-asserting. It cannot simply be pointed back at `www` either: www.wecare.digital is not a
-    domain of this Amplify app. Route 53 resolves it through `*.wecare.digital` to the wildcard
-    CloudFront distribution, so an Amplify rule for that host would never see a request. The
-    www -> apex redirect is owned by the CloudFront function in amplify/infra/home-fallback.json.
-    """
-    rules: list[dict] = []
-    for source in (LEGACY_SHOP_TRACK, LEGACY_SHOP_TRACK + "/"):
-        rules.append({"source": source, "target": "/shipments/track/", "status": "301"})
-    for source_slug, target_slug in blog_merges():
-        for source in (f"/post/{source_slug}", f"/post/{source_slug}/"):
-            rules.append({"source": source, "target": f"/post/{target_slug}/", "status": "301"})
-    return rules
-
-
-def managed_redirect_sources() -> set[str]:
-    """Only replace known alias/merge sources; never delete unrelated 30x."""
-    paths = set(OLD_SERVICE_REDIRECT_ROUTES) | {LEGACY_SHOP_TRACK}
-    for source_slug, _ in blog_merges():
-        paths.add(f"/post/{source_slug}")
-    return {s for p in paths for s in (p, p + "/")}
+    """No 30x rules are approved in Amplify; missing pages use /404.html."""
+    return []
 
 
 def is_ours(rule: dict) -> bool:
-    return (str(rule.get("status", "")) in REDIRECT_STATUSES
-            and str(rule.get("source", "")) in managed_redirect_sources())
+    return str(rule.get("status", "")) in REDIRECT_STATUSES
 
 
 def current_rules(client) -> list[dict]:
@@ -152,23 +116,23 @@ def planned(existing: list[dict]) -> list[dict]:
 
 
 def apply(client, existing: list[dict]) -> int:
-    """After verified public export, snapshot and replace managed 301 rules."""
-    # The currently deployed host may still 301 /submit-request/ to Orders,
-    # so probe the *index.html asset* instead. These eight files must all exist
-    # before ANY hosting rule is removed, avoiding a 404 -> Home release window.
-    missing = verify_exported_service_assets()
-    if missing:
-        for failure in missing:
-            print(f"Refusing redirect removal: {failure}", file=sys.stderr)
-        return 2
+    """Snapshot first, replace the redirects only, preserve every other rule in order."""
     new_rules = planned(existing)
     problem = catch_all_problem(new_rules)
     if problem:
         print(f"Refusing update: {problem}", file=sys.stderr)
         return 2
     if new_rules == existing:
-        print("Approved redirects are current; no write needed")
+        print("No Amplify 30x redirects remain; no write needed")
         return 0
+    # Old 301 rules can mask the new static pages at /route/, while
+    # /route/index.html remains available. Refuse any mutation until all
+    # eight underlying assets can be read directly from the deployed host.
+    missing_assets = verify_exported_service_assets()
+    if missing_assets:
+        for failure in missing_assets:
+            print(f"Refusing redirect removal: {failure}", file=sys.stderr)
+        return 2
     rollback = ROOT / ".scratch" / f"amplify-custom-rules-before-{time.time_ns()}.json"
     rollback.parent.mkdir(parents=True, exist_ok=True)
     rollback.write_text(json.dumps(existing, indent=4) + "\n")
@@ -180,8 +144,8 @@ def apply(client, existing: list[dict]) -> int:
         print("FAIL: read-back differs from what was written; restore from the snapshot above",
               file=sys.stderr)
         return 1
-    print(f"Reconciled {len(desired_redirects())} approved redirects; preserved "
-          f"{len(new_rules) - len(desired_redirects())} other rules in order")
+    print(f"Removed {len(existing) - len(new_rules)} 30x redirects; preserved "
+          f"{len(new_rules)} rewrites and not-found rules in order")
     return 0
 
 
@@ -201,35 +165,36 @@ def _no_follow_status(url: str) -> tuple[int, str]:
 
 
 def verify_exported_service_assets() -> list[str]:
-    """A 301 to Orders masks /route/, but not the published /route/index.html."""
+    """Probe published HTML even when old 301s still mask the service path."""
     failures = []
     for route in PUBLIC_SERVICE_PAGE_ROUTES:
         status, location = _no_follow_status(f"{SITE}{route}/index.html")
         if status != 200:
             failures.append(f"{route}/index.html answered {status} -> {location or '-'}"
-                            " (requires published service page before redirect removal)")
+                            " (deploy public service HTML before removing redirects)")
     return failures
 
 
-def verify_live_merges() -> list[str]:
-    """Public service URLs remain at 200; legacy shop/blog aliases still 301."""
+def verify_live_fallbacks() -> list[str]:
+    """Eight direct service pages return 200, old blog/shop aliases return 404."""
     failures = []
     for route in PUBLIC_SERVICE_PAGE_ROUTES:
         status, location = _no_follow_status(f"{SITE}{route}/")
         if status != 200:
             failures.append(f"{route}/ answered {status} -> {location or '-'}, "
-                            "expected direct 200 at same path")
-    for source in (LEGACY_SHOP_TRACK, LEGACY_SHOP_TRACK + "/"):
-        status, location = _no_follow_status(f"{SITE}{source}")
-        if status != 301 or location.removeprefix(SITE) != "/shipments/track/":
-            failures.append(f"{source} answered {status} -> {location or '-'}, "
-                            "expected 301 -> /shipments/track/")
+                            "expected the public page (direct HTTP 200)")
+    for route in RETIRED_CONTENT_ROUTES:
+        status, location = _no_follow_status(f"{SITE}{route}/")
+        if status != 404:
+            failures.append(f"{route}/ answered {status} -> {location or '-'}, "
+                            "expected the not-found page (404), which navigates home")
     for source_slug, target_slug in blog_merges():
+        source_path = f"/post/{source_slug}/"
+        status, location = _no_follow_status(f"{SITE}{source_path}")
+        if status != 404:
+            failures.append(f"{source_path} answered {status} -> {location or '-'}, "
+                            "expected the not-found page (404), which navigates home")
         target_path = f"/post/{target_slug}/"
-        status, location = _no_follow_status(f"{SITE}/post/{source_slug}/")
-        if status != 301 or location.removeprefix(SITE) != target_path:
-            failures.append(f"/post/{source_slug}/ answered {status} -> {location or '-'}, "
-                            f"expected 301 -> {target_path}")
         status, location = _no_follow_status(f"{SITE}{target_path}")
         if status != 200:
             failures.append(f"{target_path} answered {status} {location}".rstrip())
@@ -239,19 +204,19 @@ def verify_live_merges() -> list[str]:
 def verify() -> int:
     existing, removable = report(amplify())
     failures = []
-    if removable != desired_redirects():
-        failures.append("live redirects differ from the approved set")
+    if removable:
+        failures.append(f"{len(removable)} unexpected 30x Amplify redirect rules remain")
     problem = catch_all_problem(existing)
     if problem:
         failures.append(problem)
-    failures += verify_live_merges()
+    failures += verify_live_fallbacks()
     for failure in failures:
         print(f"FAIL: {failure}", file=sys.stderr)
     if failures:
         return 1
-    print(f"Verified: all {len(PUBLIC_SERVICE_PAGE_ROUTES)} public service pages answer direct 200; "
-          f"all {len(desired_redirects())} legacy redirects are approved and the 404 catch-all "
-          "is intact and last")
+    print("Verified: zero Amplify 30x redirects, eight public service URLs "
+          "answer 200 directly, obsolete blog/shop aliases 404, "
+          "and the not-found catch-all remains last")
     return 0
 
 
@@ -267,13 +232,13 @@ def main(argv=None) -> int:
         existing, _ = report(client)
         new_rules = planned(existing)
         if new_rules == existing:
-            print("Approved redirects are current; no write needed")
+            print("No Amplify 30x redirects remain; no write needed")
             return 0
         if args.apply:
             return apply(client, existing)
-        for rule in desired_redirects():
-            if rule not in existing:
-                print(f"  would add {rule['status']} {rule['source']} -> {rule['target']}")
+        for rule in existing:
+            if is_ours(rule):
+                print(f"  would remove {rule['status']} {rule['source']} -> {rule['target']}")
         problem = catch_all_problem(new_rules)
         print(f"Refusing to plan a write: {problem}" if problem
               else "Re-run with --apply to write the approved redirects")

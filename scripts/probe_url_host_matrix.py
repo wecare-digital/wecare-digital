@@ -213,10 +213,10 @@ def matrix() -> list[dict]:
                      method="POST"))
     rows.append(_row("api", f"{SITE}/get/o/stream/media/m/wecare-digital.png", 200,
                      "media CDN passthrough"))
-    # A short-link miss answers with a 302 to /contact/ from inside the Lambda. Terminal is
-    # therefore /contact/ at 200, one hop, no loop.
-    rows.append(_row("api", f"{SITE}/r/zzznotacode", 200, "short-link miss lands on /contact/",
-                     terminal_url=f"{SITE}/contact/"))
+    # An unknown short code answers 302 to the canonical homepage, one hop.
+    # Active short codes continue to use their stored, validated destination.
+    rows.append(_row("api", f"{SITE}/r/zzznotacode", 200, "short-link miss lands on home",
+                     terminal_url=f"{SITE}/"))
     # Unknown API paths must remain missing routes, regardless of segment count.
     rows.append(_row("api", f"{SITE}/api/definitely-no-route", 404,
                      "unknown single-segment API path stays 404"))
