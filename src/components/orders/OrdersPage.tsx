@@ -99,9 +99,9 @@ interface OrdersResponse {
 }
 
 /**
- * `focus` is the order page: `/orders/?o=<orderNumber>` for a signed-in customer, rendered by
- * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
- * export still renders `signedOut` first and the indexed page is unchanged.
+ * The customer stays on one Orders history screen. An owned order expands inside its
+ * existing row; incoming historical query links are sanitized back to /orders/.
+ * There is no focus/detail page URL and no separate sign-in surface here.
  */
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
@@ -650,8 +650,8 @@ export default function OrdersPage (): React.ReactElement {
         description="Your orders, payment status and invoices in one place."
         path="/orders/"
       />
-      { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
-           canonical, title and description stay the history's. Only the visible band changes. */ }
+      { /* Orders has one canonical URL. Historical incoming order selectors are
+           consumed and removed before they can become new outgoing links. */ }
       <RotatingHero
         compact
         frame="Your"

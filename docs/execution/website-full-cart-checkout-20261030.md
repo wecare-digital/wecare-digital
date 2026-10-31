@@ -12,8 +12,9 @@
    open the provider modal and asks the customer to review the new quote.
 4. Captured/pending/failed is determined by the existing authenticated
    `/checkout/status/` flow. Only a verified paid status routes to the
-   customer-owned `/orders/?o=<real order number>` page.
-5. The order detail page shows a semantic line-item table (product, quantity,
+   customer-owned `/orders/` history page; the order selection travels in
+   one-use session storage, never a new order-specific URL.
+5. The expanded row within the Orders table shows a semantic line-item table (product, quantity,
    unit price, total), actual GST/tax terms, the real order number and real
    invoice number. Authenticated **Download GST invoice** requests a short-lived
    signed URL using the existing `/ecommerce/my-invoice` API.

@@ -41,6 +41,7 @@ on:
       - 'tests/test_short_commerce_live.py'
       - 'tests/test_short_commerce_part1.py'
       - 'tests/test_orders_single_page_contract.py'
+      - 'tests/test_canonical_customer_order_urls_20261031.py'
       - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
@@ -87,6 +88,7 @@ on:
       - 'tests/test_short_commerce_live.py'
       - 'tests/test_short_commerce_part1.py'
       - 'tests/test_orders_single_page_contract.py'
+      - 'tests/test_canonical_customer_order_urls_20261031.py'
       - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
@@ -116,7 +118,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
       - name: Release attestation checker (offline, no AWS access)
         run: python -m unittest discover -s tests -p test_short_commerce_live.py
