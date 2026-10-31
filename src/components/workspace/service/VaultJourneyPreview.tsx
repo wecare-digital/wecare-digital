@@ -137,7 +137,6 @@ export default function VaultJourneyPreview ( props: Props ) {
     || ( draftFile ? 'wecare-digital-<uuid>' + extension : 'Choose a document' );
   const offerBodyText = props.offerBodyText.trim();
   const fileType = currentFile?.contentType || draftFile?.type || 'Type confirmed after upload';
-  const isPdf = fileType === 'application/pdf';
   const fileBytes = currentFile?.sizeBytes || draftFile?.size;
   const fileId = currentFile?.fileId || '';
   const owner = currentFile?.ownerName || props.customerName || 'Choose a customer';
@@ -154,7 +153,32 @@ export default function VaultJourneyPreview ( props: Props ) {
     4: props.templates?.receipt,
     5: props.templates?.delivery,
   };
-  const templateName = registryStep?.templateName || fallbackTemplates[ activeStage ] || stage.fallback;
+  // Prefer the server's live service-price template registry for paid steps.
+  // The staff-only SystemConfig journal remains a read-only audit fallback.
+  // Neither source is used to choose a WhatsApp template or initiate a send.
+  const templateName = fallbackTemplates[ activeStage ] || registryStep?.templateName || stage.fallback;
+  const metaIds = props.templates?.templateIds;
+  const paidIdByStage: Record<number, string | undefined> = {
+    2: metaIds?.nativePay,
+    3: metaIds?.orderStatus,
+    4: metaIds?.receipt,
+    5: metaIds?.delivery,
+  };
+  const templateId = paidIdByStage[ activeStage ] || registryStep?.templateId || '';
+  const mappingMismatch = Boolean(
+    paidIdByStage[ activeStage ] && registryStep?.templateId
+    && paidIdByStage[ activeStage ] !== registryStep.templateId
+  );
+  const paidTemplateRows = [
+    { stage: 2, label: 'Review & Pay', name: props.templates?.nativePay || stages[ 1 ].fallback,
+      metaId: metaIds?.nativePay || props.journey?.steps[ 1 ]?.templateId || '' },
+    { stage: 3, label: 'Payment status ×2', name: props.templates?.orderStatus || stages[ 2 ].fallback,
+      metaId: metaIds?.orderStatus || props.journey?.steps[ 2 ]?.templateId || '' },
+    { stage: 4, label: 'GST invoice', name: props.templates?.receipt || stages[ 3 ].fallback,
+      metaId: metaIds?.receipt || props.journey?.steps[ 3 ]?.templateId || '' },
+    { stage: 5, label: 'Access Vault', name: props.templates?.delivery || stages[ 4 ].fallback,
+      metaId: metaIds?.delivery || props.journey?.steps[ 4 ]?.templateId || '' },
+  ];
   const priceMismatch = props.pricePaise !== null && props.pricePaise !== 4900;
 
   return (
@@ -178,9 +202,21 @@ export default function VaultJourneyPreview ( props: Props ) {
 
       <section className={ styles.messages } aria-label="WhatsApp journey preview">
         <div className={ styles.sectionTitle }>
-          <h3>Approved WhatsApp templates</h3>
+          <h3>Vault WhatsApp templates &amp; Meta IDs</h3>
           <span>WABA1 · no message sent by preview</span>
         </div>
+        <dl className={ styles.templateCatalog } aria-label="Payment and Vault template IDs">
+          { paidTemplateRows.map( item => (
+            <div key={ item.stage } className={ styles.templateCatalogRow }>
+              <dt>{ item.label }</dt>
+              <dd>
+                <code>{ item.name }</code>
+                <small>Meta Template ID: { item.metaId || 'Not available from backend' }</small>
+              </dd>
+            </div>
+          ) ) }
+        </dl>
+        <p className={ styles.templateNote }>Read-only IDs from the backend template registry; live Meta approval is rechecked by the sender. Payment status uses one approved template twice (processing → completed).</p>
         <div className={ styles.steps } role="group" aria-label="Choose a WhatsApp message step">
           { stages.map( item => (
             <button key={ item.step } type="button"
@@ -197,6 +233,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         </div>
         <div className={ styles.bubble }>
           <small>{ templateName }</small>
+          <small>Meta Template ID: { templateId || 'Awaiting backend registry' }</small>
           <p>{ stageBody( activeStage, offerBodyText ) }</p>
           { activeStage === 1 && <span className={ styles.bubbleButton }>Unlock Vault</span> }
           { activeStage === 2 && <span className={ styles.bubbleButton }>Review and Pay · ORDER_DETAILS</span> }
@@ -205,6 +242,8 @@ export default function VaultJourneyPreview ( props: Props ) {
           { activeStage === 5 && <span className={ styles.bubbleButton }>Access Vault · URL</span> }
         </div>
 
+        { mappingMismatch && <p className={ styles.warning } role="status">Backend template ID differs from the saved journey registry. Verify the WABA mapping before sending; the preview cannot change the live sender.</p> }
+
         { activeStage === 2 && (
           <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } />
         ) }
@@ -212,7 +251,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         <details className={ styles.technical }>
           <summary className={ styles.disclosureTitle }>Template variables and technical send gates</summary>
         <dl className={ styles.variables }>
-          <div><dt>Meta template</dt><dd>{ registryStep?.templateId || 'Registry read pending' }</dd></div>
+          <div><dt>Meta template ID</dt><dd>{ templateId || 'Registry read pending' }</dd></div>
           <div><dt>Send gate</dt><dd>{ registryStep?.trigger || 'See approved server workflow' }</dd></div>
           <div><dt>Spacing</dt><dd>{ registryStep ? String( registryStep.defaultDelaySeconds ) + 's (not delivery ordering)' : '—' }</dd></div>
           { activeStage === 1 && (
@@ -290,9 +329,7 @@ export default function VaultJourneyPreview ( props: Props ) {
           <div><dt>Generated stored filename</dt><dd>{ fileName }</dd></div>
           <div><dt>Customer transport</dt><dd>Exact-file Vault link; never a raw private S3 key</dd></div>
           <div><dt>Access</dt><dd>One paid 24-hour window; renewal required after expiry</dd></div>
-          <div><dt>Media variants</dt><dd>{ isPdf
-            ? 'PDF: Vault link plus an optional WhatsApp document when a delivery copy exists and the customer messaged within 24 hours. Attachment filename: ' + fileName
-            : 'Images, office files and other supported types: the approved secure Vault link.' }</dd></div>
+          <div><dt>Media variants</dt><dd>PDFs, images and other supported documents: one approved Access Vault download-link template. No additional raw WhatsApp document attachment is sent by automatic paid Vault delivery.</dd></div>
           <div><dt>Invoice header</dt><dd>Dynamic PNG generated only after payment</dd></div>
         </dl>
         { currentFile && (
