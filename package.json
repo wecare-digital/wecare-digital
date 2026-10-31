@@ -25,7 +25,7 @@
     "amplify:install": "npm install --prefix amplify --no-audit --no-fund",
     "demo-video": "node scripts/make_demo_video.mjs",
     "postinstall": "node scripts/guard_braces_depth.cjs",
-    "prebuild": "node scripts/guard_braces_depth.cjs --check",
+    "prebuild": "node scripts/guard_braces_depth.cjs --check && node scripts/check-retired-public-pages.cjs",
     "preamplify": "node scripts/guard_braces_depth.cjs --check",
     "preamplify:deploy": "node scripts/guard_braces_depth.cjs --check",
     "precap:build": "node scripts/guard_braces_depth.cjs --check"
