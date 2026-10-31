@@ -6220,7 +6220,11 @@ export interface Document {
   orderId?: string;
   /** The linked order's WD-ORD number, resolved by the list. */
   orderNumber?: string;
-  source: string; // whatsapp, upload, manual
+  /** Paid F003 customer-upload identity; absent for staff Vault documents and other Flows. */
+  dropDocsRequestId?: string;
+  dropDocsOrderId?: string;
+  dropDocsPaymentAttemptId?: string;
+  source: string; // flow (customer F003), manual (staff Vault), whatsapp attachments
   type: string; // prescription, id_proof, invoice, photo, other
   status: string; // pending, uploaded, approved, rejected, reupload_requested
   fileName?: string;
