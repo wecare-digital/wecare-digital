@@ -26,7 +26,9 @@ def test_hidden_qa_item_uses_existing_noindex_checkout_not_a_product_page():
 
 
 def test_test_link_is_exactly_one_allowlisted_variant_and_idempotent():
-    select = PAGE.split("function cartFromDirectTestLink ():", 1)[-1]
+    select = PAGE.split("function cartFromDirectTestLink (): CartItem[] {", 1)[1].split(
+        "function goToCheckoutStatus", 1
+    )[0]
     assert "query.get( 'test' ) !== COMMERCE_TEST_VARIANT_ID" in select
     assert "query.has( 'basket' )" in select
     assert "item.productId === COMMERCE_TEST_PRODUCT.id" in select
