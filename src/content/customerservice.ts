@@ -4,9 +4,9 @@ import type { ProductDef } from './products';
 /**
  * The five public request pages, as data.
  *
- * These are the request actions that still have explanatory website pages. Leave Review is
- * deliberately not part of this catalogue any more: the public menu opens the canonical
- * WhatsApp short link directly, while the WhatsApp Flow and per-order review action remain.
+ * These five request actions use authored ProductPage explanations.
+ * Review and Subscribe now have separate public entry pages linking to their
+ * approved WhatsApp conversations; the per-order review action still exists.
  *
  * The pages reuse ProductPage and the existing hero/content hierarchy. They make no turnaround,
  * price or outcome guarantees; where a third party controls an outcome, the copy says so.
