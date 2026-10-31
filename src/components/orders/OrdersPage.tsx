@@ -1290,6 +1290,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-action:disabled{opacity:.55;cursor:default}
           .ord-account-action[aria-busy='true']{cursor:progress}
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
+          .ord-empty-head{inline-size:100%}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
 
