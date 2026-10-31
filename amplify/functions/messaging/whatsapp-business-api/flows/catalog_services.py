@@ -66,7 +66,7 @@ DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
 # ORDER_DETAILS request or an unauthorized paid Submit Request Flow.
 SUBMIT_NEW_REQUEST_MESSAGE = (
     'No document is available for Vault download, or its access has expired. '
-    'Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.'
+    'Submit a New Request: https://wecare.digital/submit-request/'
 )
 
 
