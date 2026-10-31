@@ -21,19 +21,18 @@
  *
  * The trust model, which is the whole point
  * -----------------------------------------
- * Nothing on this page can grant access. For UNPAID or EXPIRED, the browser names only this
- * exact fileId to secure-files under the customer session. The backend re-proves ownership and
- * entitlement state, then hands the file to the existing native WhatsApp Review and Pay rail.
- * ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF and Meta ORDER_DETAILS are server-owned.
- * The customer can use owner-bound WEBSITE cart checkout or WhatsApp-native Review & Pay.
- * The same verified payment entitlement changes this exact file card to Download.
+ * Nothing on this page can grant access. For UNPAID, the browser names only this
+ * exact fileId to secure-files under the customer session. The backend re-proves
+ * ownership and entitlement state before handing off to verified payment rails.
+ * ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF and Meta ORDER_DETAILS stay server-owned.
+ * An OPEN/READY entitlement enables the Download action.
  *
- * Paying and renewing
- * -------------------
- * Each file carries `accessState`. UNPAID and EXPIRED can choose website or WhatsApp payment;
- * OPEN/READY never charge again, and PAID_UNVERIFIED only reconciles. After a payment request is
- * sent, this page stays on /vault/?file=<id>, refreshes on focus and polls until the server-owned
- * state changes.
+ * Customer-facing states
+ * ----------------------
+ * UNPAID can choose website or WhatsApp checkout. OPEN/READY show Download;
+ * PAID_UNVERIFIED awaits verification. EXPIRED displays only a non-interactive
+ * Access expired action, with no renewal/payment choices. The backend remains
+ * authoritative for entitlement and expiry checks.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -115,6 +114,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const [ working, setWorking ] = useState<string>( '' );
     const [ paymentWaiting, setPaymentWaiting ] = useState<Record<string, boolean>>( {} );
     const [ fileFeedback, setFileFeedback ] = useState<Record<string, FileFeedback>>( {} );
+    // Used only to hide the Download action exactly when the local window reaches its cutoff.
+    // Server-side access checks remain authoritative.
+    const [ nowSeconds, setNowSeconds ] = useState( () => Math.floor( Date.now() / 1000 ) );
 
     const redirectToAuth = useCallback( (): void => {
         if ( targetFileId && VAULT_FILE_ID_PATTERN.test( targetFileId ) )
@@ -238,6 +240,30 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         };
     }, [ stage, files, paymentWaiting, loadFiles ] );
 
+    // Switch an already-open page to Access expired at the paid cutoff, including mobile
+    // tabs resumed later. A server refresh confirms the authoritative state.
+    useEffect( () => {
+        if ( stage !== 'files' ) return;
+        const refresh = () => {
+            setNowSeconds( Math.floor( Date.now() / 1000 ) );
+            void loadFiles();
+        };
+        const nowMs = Date.now();
+        const upcomingEnds = files
+            .filter( file => accessStateOf( file ) === 'OPEN'
+                && ( file.accessWindowEndsAt || 0 ) * 1000 > nowMs )
+            .map( file => Number( file.accessWindowEndsAt ) * 1000 );
+        const nextExpiryMs = upcomingEnds.length ? Math.min( ...upcomingEnds ) : null;
+        const timer = nextExpiryMs === null
+            ? null
+            : window.setTimeout( refresh, Math.max( 0, nextExpiryMs - nowMs + 50 ) );
+        window.addEventListener( 'focus', refresh );
+        return () => {
+            if ( timer !== null ) window.clearTimeout( timer );
+            window.removeEventListener( 'focus', refresh );
+        };
+    }, [ stage, files, loadFiles ] );
+
     // Once the backend moves a file out of its sale state, the temporary "check WhatsApp"
     // message has done its job. The authoritative OPEN/READY/PAID_UNVERIFIED UI takes over.
     useEffect( () => {
@@ -293,7 +319,12 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     setFiles( current => current.map( row => row.fileId === file.fileId
                         ? { ...row, accessState: 'EXPIRED', accessWindowOpen: false }
                         : row ) );
-                    feedback( 'status', 'Your free 24-hour window has ended. Choose website cart renewal or WhatsApp payment to open another paid window.' );
+                    setFileFeedback( current => {
+                        const next = { ...current };
+                        delete next[ file.fileId ];
+                        return next;
+                    } );
+                    setNowSeconds( Math.floor( Date.now() / 1000 ) );
                     void loadFiles();
                     return;
                 }
@@ -342,7 +373,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
 
     const handleWebsiteCheckout = async ( file: SecureFile ) => {
         const state = accessStateOf( file );
-        if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
+        if ( state !== 'UNPAID' ) return;
         const service = serviceByKind( 'VAULT' );
         if ( !service || !vaultLinePrice ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
@@ -415,7 +446,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
 
     const handleVaultPayment = async ( file: SecureFile ) => {
         const state = accessStateOf( file );
-        if ( state !== 'UNPAID' && state !== 'EXPIRED' ) return;
+        if ( state !== 'UNPAID' ) return;
         // This is only a display price preview. The native WhatsApp payment
         // rail re-prices on the server and shows the approved total before the
         // customer authorises anything. A failed preview must not disable it.
@@ -571,7 +602,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                             ) }
 
                             { files.map( file => {
-                                const state = accessStateOf( file );
+                                const serverState = accessStateOf( file );
+                                const state = serverState === 'OPEN' && !!file.accessWindowEndsAt
+                                    && nowSeconds >= file.accessWindowEndsAt ? 'EXPIRED' : serverState;
                                 const isPaid = state === 'OPEN' || state === 'READY';
                                 const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
                                 const feedback = fileFeedback[ file.fileId ];
@@ -597,7 +630,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
-                                        { state !== 'OPEN' && (
+                                        { state !== 'OPEN' && state !== 'EXPIRED' && (
                                             <div className="sf-file-status-row" role="status" aria-live="polite">
                                                 <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
                                                     : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
@@ -627,11 +660,19 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         : 'Payment verified. Your 24-hour access starts on delivery or first download.' }
                                                 </p>
                                             </>
+                                        ) : state === 'EXPIRED' ? (
+                                            <div className="sf-file-action" role="status" aria-live="polite">
+                                                <button type="button"
+                                                    className="sf-file-action-button sf-download-button sf-expired-button"
+                                                    disabled>
+                                                    Access expired
+                                                </button>
+                                            </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
                                                 Your payment is recorded and access is being confirmed. Do not pay again.
                                             </p>
-                                        ) : (
+                                        ) : state === 'UNPAID' ? (
                                             <>
                                                 { waitingForPayment ? (
                                                     <div className="sf-pay-waiting">
@@ -645,10 +686,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                     </div>
                                                 ) : (
                                                     <div className="sf-payment-options" role="group" aria-label="Vault payment options">
-                                                        <p className="sf-expired-lead">
-                                                            { state === 'EXPIRED'
-                                                                ? 'Your previous 24-hour access expired. Renew this same document for another 24-hour window.'
-                                                                : 'Choose how to unlock this private file for 24 hours.' }
+                                                        <p className="sf-payment-lead">
+                                                            Choose how to unlock this private file for 24 hours.
                                                         </p>
                                                         <p className="sf-payment-total">
                                                             { payablePrice !== null
@@ -668,8 +707,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                                 aria-busy={ working === file.fileId }>
                                                                 { working === file.fileId ? 'Preparing cart…'
                                                                     : payablePrice === null ? 'Price unavailable'
-                                                                        : state === 'EXPIRED' ? 'Add 24-hour renewal to cart'
-                                                                            : 'Add 24-hour Vault access to cart' }
+                                                                        : 'Add 24-hour Vault access to cart' }
                                                             </button>
                                                         </div>
                                                         <div className="sf-payment-option">
@@ -685,17 +723,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         </div>
                                                     </div>
                                                 ) }
-                                                <p className="sf-state-note" role="status">
-                                                    Free downloads and access-link resends last only for the active paid 24-hour window.
-                                                    Renewal opens a new paid window on this same secure file—no new upload.
-                                                </p>
                                             </>
-                                        ) }
+                                        ) : null }
 
-                                        { feedback?.kind === 'status' && !waitingForPayment && (
+                                        { state !== 'EXPIRED' && feedback?.kind === 'status' && !waitingForPayment && (
                                             <p className="sf-payment-note" role="status">{ feedback.message }</p>
                                         ) }
-                                        { feedback?.kind === 'error' && (
+                                        { state !== 'EXPIRED' && feedback?.kind === 'error' && (
                                             <p className="sf-file-error" role="alert">{ feedback.message }</p>
                                         ) }
                                     </div>
@@ -798,6 +832,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   outline:3px solid var(--public-brand-green);outline-offset:3px;
                 }
                 .sf-file-action-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+                .sf-expired-button:disabled{opacity:1;cursor:not-allowed}
                 /* Exact /auth and /orders notification treatment: 4px lime rule,
                    11px/13px padding, 10px radius, lime tint and supporting typography.
                    Access details stay visible rather than auto-dismissing. */
@@ -811,7 +846,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 .sf-confirming-note,.sf-payment-note{margin-top:0}
                 .sf-payment-options{display:grid;gap:12px;min-width:0}
-                .sf-expired-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
+                .sf-payment-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
                 .sf-payment-option-primary{background:#f6fbf0;border-color:#bedcac}
                 .sf-payment-choice-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}

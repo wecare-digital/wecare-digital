@@ -232,7 +232,7 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "fileStatusLabel( state )" in page
     assert "case 'OPEN': return ''" in page
     assert "Ready to download" not in page
-    assert "{ state !== 'OPEN' && (" in page
+    assert "{ state !== 'OPEN' && state !== 'EXPIRED' && (" in page
     assert "case 'READY': return 'Payment verified'" in page
     assert "case 'PAID_UNVERIFIED': return 'Verifying payment'" in page
     assert "case 'EXPIRED': return 'Access expired'" in page
@@ -267,6 +267,36 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "targetFileId" in route and "<GetPage targetFileId={ targetFileId } />" in route
     assert "noindex" in page
     assert "VAULT_AUTH_RETURN_FILE_KEY" in route
+
+
+def test_expired_vault_shows_only_disabled_status_action_without_checkout():
+    page = (ROOT / "src/components/get/GetPage.tsx").read_text()
+
+    # Expiry must not turn into another public checkout or show a second badge.
+    expired = page.split(") : state === 'EXPIRED' ? (", 1)[1].split(
+        ") : state === 'PAID_UNVERIFIED' ? (", 1)[0]
+    assert 'className="sf-file-action-button sf-download-button sf-expired-button"' in expired
+    assert "disabled>" in expired
+    assert "Access expired" in expired
+    assert 'role="status" aria-live="polite"' in expired
+    assert "onClick=" not in expired
+    assert "sf-payment-options" not in expired
+    assert "{ state !== 'OPEN' && state !== 'EXPIRED' && (" in page
+    assert ".sf-expired-button:disabled{opacity:1;cursor:not-allowed}" in page
+    assert "state === 'UNPAID' ? (" in page
+    assert page.count("if ( state !== 'UNPAID' ) return;") == 2
+    assert "Add 24-hour renewal to cart" not in page
+    assert "Renewal opens a new paid window" not in page
+    assert "Your previous 24-hour access expired." not in page
+    assert "state !== 'EXPIRED' && feedback?.kind" in page
+
+    # The page switches at the timestamp even if it was left open overnight.
+    assert "nowSeconds >= file.accessWindowEndsAt ? 'EXPIRED' : serverState" in page
+    assert "window.setTimeout( refresh, Math.max( 0, nextExpiryMs - nowMs + 50 ) )" in page
+    assert "window.addEventListener( 'focus', refresh )" in page
+    assert "void loadFiles();" in page
+    # The actual authorization and paid-access cutoff stay in the backend.
+    assert "api.redeemSecureFileDownload( file.fileId, accessId )" in page
 
 
 def test_vault_access_notices_are_crisp_and_match_public_auth_orders_toasts():
