@@ -1623,66 +1623,52 @@ def run(root: Path) -> int:
               len(_attempts_for(alice["sub"])) == 2 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
               f"attempts={len(_attempts_for(alice['sub']))}")
 
-        # ── 9c. the order page: the owner reads the order; nobody else can ─────────────────────
-        print("\n== 9c. inline order details on /orders/ -> checkout action 'order'")
+        # ── 9c. retire the detailed customer order-read action ───────────────────────────────
+        print("\n== 9c. customer order breakdown retired -> 410; payment operations unchanged")
         from lambda_utils import customer_auth
         origin = "https://wecare.digital"
         number = str(paid_order.get("orderNumber") or "")
         owner = customer_auth.CustomerIdentity(customer_id=alice["sub"], subject=alice["sub"],
                                                phone=alice["phone"])
-        page = checkout._order_detail(owner, {"orderNumber": number}, origin)
-        page_body = json.loads(page.get("body") or "{}")
-        view = page_body.get("order") or {}
-        check("PAGE", "the owner gets the order: 200 ORDER_READY, never cached",
-              page.get("statusCode") == 200 and page_body.get("status") == "ORDER_READY"
-              and view.get("orderNumber") == number
-              and "no-store" in json.dumps(page.get("headers") or {}).lower(),
-              (page.get("statusCode"), page_body.get("status")))
-        check("PAGE", "...with the lines the buyer reviewed (name, quantity, integer paise)",
-              view.get("items") == [{"name": "Hermetic Tee", "quantity": expected_quantity, "unitPricePaise": 59900,
-                                     "totalPaise": 59900 * expected_quantity}], view.get("items"))
-        charges = view.get("charges") or {}
-        check("PAGE", "...a breakdown that closes to the amount paid, with Delight named",
-              charges.get("totalPaise") == amount == view.get("amountPaise")
-              and charges.get("merchandisePaise") == 59900 * expected_quantity and charges.get("discountPaise", 0) > 0
-              and charges.get("discountLabel") == "Delight", charges)
-        # Payment and fulfilment are separate. Capture starts the internal fulfilment state at
-        # processing; the customer order page reads that same OrderTable value.
-        check("PAGE", "...paid, placed on WhatsApp, and payment-order state is not mislabelled as fulfilment",
-              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == ""
-              and view.get("channel") == "whatsapp"
-              and paid_order.get("orderStatus") == "completed",
-              {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
-        delivery = view.get("delivery") or {}
-        check("PAGE", "...and the delivery address frozen at checkout",
-              (delivery.get("address") or {}).get("postalCode") == "700001"
-              and delivery.get("recipient") == "Buyer 1", delivery.get("recipient"))
-        contact_row = _table("ContactsTable").get_item(Key={"id": alice["contactId"]})["Item"]
-        _table("ContactsTable").put_item(Item={**contact_row, "checkoutDeliveryAddress": {
-            "addressLine1": "9 Moved Lane", "city": "Bengaluru", "state": "Karnataka",
-            "postalCode": "560001", "countryCode": "IN"}})
-        moved = json.loads(checkout._order_detail(owner, {"orderNumber": number}, origin)["body"])
-        _table("ContactsTable").put_item(Item=contact_row)
-        check("PAGE", "a profile address edited AFTER payment does not move the order",
-              ((moved.get("order") or {}).get("delivery") or {}).get("address", {}).get("postalCode")
-              == "700001", ((moved.get("order") or {}).get("delivery") or {}).get("address"))
-        stranger = customer_auth.CustomerIdentity(customer_id=bob["sub"], subject=bob["sub"],
-                                                  phone=bob["phone"])
-        foreign = checkout._order_detail(stranger, {"orderNumber": number}, origin)
-        absent = checkout._order_detail(owner, {"orderNumber": "WD-ORD-22222222"}, origin)
-        check("PAGE", "another customer's order and a non-existent order answer the identical 404",
-              foreign.get("statusCode") == absent.get("statusCode") == 404
-              and foreign.get("body") == absent.get("body"),
-              (foreign.get("statusCode"), absent.get("statusCode")))
-        malformed = checkout._order_detail(owner, {"orderNumber": "WD-ORD-../../x"}, origin)
-        check("PAGE", "a malformed order number is refused 400 before any read",
-              malformed.get("statusCode") == 400, malformed.get("statusCode"))
+        before_detail = W.mark()
+        attempts_before = len(_attempts_for(alice["sub"]))
+        original_require = checkout.customer_auth.require_customer
+        detail_results = []
+        try:
+            # Authenticated callers still receive the SAME safe refusal for owned,
+            # other-customer and malformed selectors. The action never reads an
+            # order, reveals invoice/GST/addresses or falls through into CREATE.
+            checkout.customer_auth.require_customer = lambda _event: (owner, None)
+            for candidate in (number, "WD-ORD-22222222", "WD-ORD-../../x"):
+                response = checkout.handler(
+                    {"requestContext": {"http": {"method": "POST",
+                                                 "path": "/ecommerce/checkout/status"}},
+                     "rawPath": "/ecommerce/checkout/status", "headers": {},
+                     "body": json.dumps({"action": "order", "orderNumber": candidate})},
+                    FakeContext("wecare-checkout"))
+                detail_results.append(response)
+        finally:
+            checkout.customer_auth.require_customer = original_require
+
+        check("PAGE", "owned, foreign, and malformed order selectors all return 410 with no details",
+              len(detail_results) == 3 and all(
+                  result.get("statusCode") == 410 and
+                  json.loads(result.get("body") or "{}") == {"error": "ORDER_DETAILS_RETIRED"}
+                  for result in detail_results),
+              [(r.get("statusCode"), r.get("body")) for r in detail_results])
+        check("PAGE", "retired order action cannot cause payment, WhatsApp, or expose GST sequence",
+              len(_attempts_for(alice["sub"])) == attempts_before
+              and not W.since(before_detail, "invocations")
+              and not W.since(before_detail, "meta_sends")
+              and all("invoiceNumber" not in str(r) and "charges" not in str(r)
+                      and "delivery" not in str(r) for r in detail_results),
+              {"attemptsBefore": attempts_before, "attemptsAfter": len(_attempts_for(alice["sub"]))})
         anonymous = checkout.handler(
             {"requestContext": {"http": {"method": "POST", "path": "/ecommerce/checkout/status"}},
              "rawPath": "/ecommerce/checkout/status", "headers": {},
              "body": json.dumps({"action": "order", "orderNumber": number})},
             FakeContext("wecare-checkout"))
-        check("PAGE", "the order action requires the customer session (401 without one)",
+        check("PAGE", "the retired action still requires customer authentication (401)",
               anonymous.get("statusCode") == 401, anonymous.get("statusCode"))
 
     # ── 9d. website checkout: the server asks for the address and freezes the one confirmed ───
