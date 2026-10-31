@@ -25,11 +25,7 @@ WEBSITE_RETURNS = {
     '/checkout/',
     '/orders/',
     '/blog/',
-    '/submit-request/',
-    '/request-amendment/',
-    '/drop-docs/',
     '/vault/',
-    '/request-pickup/',
 }
 _CLIENTS: dict[str, object] = {}
 
@@ -103,17 +99,15 @@ def normalized_phone(params: dict) -> str:
 def website_return(value: str) -> str:
     if not value:
         return '/'
-    # /get was the old customer file entry. Keep old auth URLs working, but collapse them to
-    # the canonical Vault destination so there is only one customer download route.
-    if value in {'/get', '/get/'}:
-        return '/vault/'
+    # Retired service page returns and bare /get are unapproved.
+    # Valid checkout, Orders and authenticated Vault returns remain allowlisted.
     normalized = value if value.endswith('/') else value + '/'
     if (
         normalized not in WEBSITE_RETURNS
         or any(char in value for char in ('%', '?', '#', '\\'))
         or value.startswith('//')
     ):
-        return '/checkout/'
+        return '/'
     return normalized
 
 
