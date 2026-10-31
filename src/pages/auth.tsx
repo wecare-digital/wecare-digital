@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
+import PublicNotice from '../components/public/PublicNotice';
 import { DEFAULT_DIAL_CODE, DIAL_CODES, findDialCode, isValidNationalLength, nationalLengthHint } from '../lib/dialCodes';
 import { authStateQuery } from '../lib/authStateQuery';
 
@@ -271,7 +272,7 @@ const AuthPage: React.FC = () => {
               </>
             ) }
 
-            { error && <p className="auth-error" id="auth-error" role="alert">{ error }</p> }
+            { error && <PublicNotice id="auth-error" mode="inline" tone="error" message={ error } /> }
 
             { step && (
               <div className="auth-actions">
@@ -320,7 +321,6 @@ const AuthPage: React.FC = () => {
         .country-row>span:last-child{flex:0 0 auto}
         .country-empty{margin:0;padding:18px 14px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.4}
         .country-row:hover,.country-row[aria-selected='true']{background:var(--public-lime-tint)}
-        .auth-error{margin:14px 0 0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);font-size:var(--public-supporting-size);font-weight:600;line-height:1.4}
         /* Shared action treatment for Sign in, Verify, Resend and Edit on all viewports. */
         .auth-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:22px;width:100%}
         .auth-action{
