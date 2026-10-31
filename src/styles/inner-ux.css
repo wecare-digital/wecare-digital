@@ -778,6 +778,7 @@
   flex-direction: column;
   gap: var(--space-2);
   max-width: calc(100vw - 40px);
+  pointer-events: none;
 }
 
 .toast {
@@ -785,15 +786,18 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--color-bg);
+  background: var(--public-brand-lime);
+  color: var(--public-brand-green);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
   animation: toast-enter 0.2s ease;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--public-brand-lime);
+  pointer-events: auto;
+  box-sizing: border-box;
 }
 
 .toast.toast-error {
-  border-color: #dc2626;
+  border-color: var(--public-brand-lime);
 }
 
 .toast-exit {
@@ -801,27 +805,13 @@
 }
 
 @keyframes toast-enter {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes toast-exit {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateX(20px);
-  }
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .toast-icon {
@@ -837,29 +827,29 @@
 }
 
 .toast-success .toast-icon {
-  background: #d1f470;
-  color: #1a3a2a;
+  background: var(--public-brand-green);
+  color: var(--public-brand-lime);
 }
 
 .toast-error .toast-icon {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
+  background: var(--public-brand-green);
+  color: var(--public-brand-lime);
 }
 
 .toast-warning .toast-icon {
-  background: #f9fafb;
-  color: #1a3a2a;
+  background: var(--public-brand-green);
+  color: var(--public-brand-lime);
 }
 
 .toast-info .toast-icon {
-  background: #f9fafb;
-  color: #1a3a2a;
+  background: var(--public-brand-green);
+  color: var(--public-brand-lime);
 }
 
 .toast-message {
   flex: 1;
   font-size: var(--font-body);
-  color: var(--color-text);
+  color: var(--public-brand-green);
 }
 
 .toast-close {
@@ -867,13 +857,19 @@
   border: none;
   padding: var(--space-1);
   cursor: pointer;
-  color: var(--color-text-muted);
+  color: var(--public-brand-green);
   font-size: 16px;
   line-height: 1;
 }
 
 .toast-close:hover {
-  color: var(--color-text);
+  color: var(--public-brand-green);
+  opacity: 0.75;
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid var(--public-brand-green);
+  outline-offset: 2px;
 }
 
 
