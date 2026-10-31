@@ -237,7 +237,11 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "case 'PAID_UNVERIFIED': return 'Verifying payment'" in page
     assert "case 'EXPIRED': return 'Access expired'" in page
     assert "sf-download-button" in page
-    assert "Download securely" in page
+    assert "Download securely" not in page
+    download_button = page.split('className="sf-file-action-button sf-download-button"', 1)[1].split("</button>", 1)[0]
+    assert "{ working === file.fileId ? 'Preparing…' : 'Download' }" in download_button
+    assert "<svg" not in download_button
+    assert "onClick={ () => { void handleDownload( file ); } }" in download_button
     assert "{ vaultLinePrice !== null && <span className=\"sf-choice-tag\">Recommended</span> }" in page
     assert "Estimated total:" in page
     assert "Final total and tax are calculated at checkout." in page
