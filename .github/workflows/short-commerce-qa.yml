@@ -24,6 +24,10 @@ on:
       - 'amplify/functions/shared/lambda_utils/**'
       - 'amplify/functions/payments/invoice-engine/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'scripts/check_whatsapp_templates_live.py'
+      - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
+      - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
       - 'scripts/test-short-commerce-part1.mjs'
       - 'scripts/verify_whatsapp_catalog_payment_rail.py'
       - 'scripts/check_short_commerce_live.py'
@@ -57,6 +61,10 @@ on:
       - 'amplify/functions/shared/lambda_utils/**'
       - 'amplify/functions/payments/invoice-engine/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'scripts/check_whatsapp_templates_live.py'
+      - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
+      - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
       - 'scripts/test-short-commerce-part1.mjs'
       - 'scripts/verify_whatsapp_catalog_payment_rail.py'
       - 'scripts/check_short_commerce_live.py'
@@ -116,6 +124,14 @@ jobs:
             python -m unittest discover -s tests -p test_short_commerce_packages.py
           uv run --no-project --python 3.12 --with boto3==1.43.116 \
             python scripts/check_short_commerce_packages.py
+      # Synthetic live-template definitions only: the verifier imports the
+      # production lambda_utils package, which requires boto3. No AWS calls.
+      - name: Canonical WhatsApp Flow-button audit (offline)
+        env:
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: >
+          uv run --no-project --python 3.12 --with boto3==1.43.116
+          python -m unittest discover -s tests -p test_whatsapp_flow_template_audit.py
       # Real production handlers; fake AWS in moto; fake Meta and Razorpay endpoints;
       # no cloud credentials or payment resources. Never a production smoke charge.
       - run: >

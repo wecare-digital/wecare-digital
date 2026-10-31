@@ -158,3 +158,30 @@ then the sender, then the two frontend flags. Previously paid attempts must
 still be reconciled/fulfilled; do not cancel or delete existing financial
 records. Under no circumstances backfill `fulfillmentReadiness` to READY
 without a successful live completion and asset verification.
+
+## 31 October 2026 — independent, read-only Drop Docs binding recheck
+
+This section supersedes the **template-target mismatch** in the historical
+30 October table; it does not supersede the service's paid completion gate.
+
+- The connected WECARE.DIGITAL Meta Messaging Account's **existing**
+  `_dropdoc_flow` template (ID `1041974032198332`, language `en`) now reads
+  `APPROVED` / `UTILITY`, with the original IMAGE header, message body,
+  footer, label and `DATA_EXCHANGE` FLOW action. Its button now points to
+  canonical `39581903361452878` (not the old mismatched `...880`).
+- A separate read-only AWS invocation of both live template read functions
+  independently returned that same button target. The canonical Flow's live
+  Meta metadata reports `PUBLISHED`, zero validation errors and
+  `can_send_message=AVAILABLE`. The FlowRegistry row matches the template
+  entry mode and paid flag; the wrong ID has no registry row.
+- The source release checker has been extended to fail closed when any of the
+  nine known Flow-button targets disagree with the canonical map. This does
+  **not** inspect Meta's actual published FLOW_JSON nor prove that a signed
+  recipient can complete the service. It sends no WhatsApp messages and
+  creates no payment attempts.
+
+**Residual HOLD:** Independently inspect the downloaded published Drop Docs
+FLOW_JSON completion payload, exercise signed/paid flow ownership,
+invoice-before-service order, idempotent completion/webhook replay, and one
+owner-authorized handset run. Do not close #1984 or assert paid service
+fulfillment until these are verified.
