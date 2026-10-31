@@ -185,7 +185,7 @@ const VaultDeliveryTiming: React.FC = () => {
         <PaymentTemplateMedia serviceLabel="Vault" templates={ templates } signedPreview />
         <p>The approved S3 media is read only. The production sender checks the live images separately.</p>
       </details>
-      <style jsx>{\`
+      <style jsx>{`
         .vdt-shell{min-width:0;display:grid;gap:16px;max-width:1050px;padding:16px 0 36px}
         .vdt-header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
         .vdt-eyebrow{margin:0 0 5px;font-size:11px;font-weight:800;letter-spacing:.08em;color:#62816c}
@@ -233,7 +233,7 @@ const VaultDeliveryTiming: React.FC = () => {
           .vdt-save{width:100%}
           .vdt-input-row input{font-size:18px}
         }
-      \`}</style>
+      `}</style>
     </section>
   );
 };
