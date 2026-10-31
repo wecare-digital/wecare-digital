@@ -102,8 +102,9 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
                  "/vault/", "/shipments/track/", "/request-pickup/"):
         assert f"href: '{path}'" not in menu
     assert "stashPendingOrder( orderNumber );" in menu
-    assert "event.button === 0 && !event.metaKey" in menu
-    assert "import { CUSTOMER_MENU_HREFS } from '../../lib/customerMenuActions';" in menu
+    assert "isPrimaryMenuActivation( event )" in menu
+    assert "stashCustomerMenuAction( sendAction );" in menu
+    assert "import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../../lib/customerMenuActions';" in menu
     assert "href: CUSTOMER_MENU_HREFS['leave-review']" in menu
     assert "href: CUSTOMER_MENU_HREFS.subscribe" in menu
     for title in ("Submit Request", "Request Amendment", "Drop Docs", "Vault", "Track",
