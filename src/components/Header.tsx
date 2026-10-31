@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
-import { CUSTOMER_MENU_HREFS } from '../lib/customerMenuActions';
+import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../lib/customerMenuActions';
 import { PLAY_STORE } from '../config/analytics';
 import type { MaterialSymbol } from '../config/materialSymbols';
 
@@ -492,10 +492,9 @@ const Header: React.FC = () => {
   const currentPath = concretePath || normalizePath( router.pathname );
   const isActive = ( link: NavLink ) => {
     if ( !link.href ) return false;
-    // Six service rows now share the Orders destination; only Orders itself is current.
+    // Orders is the only navigation destination. Customer template links are
+    // actions even though their destination is the same clean /orders/ URL.
     if ( link.href === '/orders/' && link.label !== 'Orders' ) return false;
-    // Both customer-menu actions launch a template, not a navigation destination.
-    if ( link.href.startsWith( '/orders/?service=' ) ) return false;
     const destination = normalizePath( link.href );
     if ( !destination ) return false;
     if ( concretePath ) return destination === currentPath;
@@ -565,6 +564,12 @@ const Header: React.FC = () => {
   // Internal destinations stay inside the site/WebView. In a Capacitor shell an external
   // destination is handed to the native browser instead of being trapped inside the WebView.
   const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
+    const sendAction = menuActionForLabel( link.label );
+    if ( sendAction && isPrimaryMenuActivation( event ) ) {
+      // A real menu click is the only way to queue one authenticated template.
+      // The URL is deliberately /orders/ with no ?service= send trigger.
+      stashCustomerMenuAction( sendAction );
+    }
     const capacitor = typeof window !== 'undefined'
       ? ( window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } } ).Capacitor
       : undefined;
