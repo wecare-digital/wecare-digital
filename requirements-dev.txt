@@ -75,7 +75,7 @@ plivo==4.63.0
 propcache==0.5.4
 proto-plus==1.29.0
 protobuf==7.36.2
-pyasn1==0.6.4
+pyasn1==0.6.5
 pyasn1_modules==0.4.2
 pycountry==26.2.16
 pycparser==3.11
