@@ -103,8 +103,9 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
         assert f"href: '{path}'" not in menu
     assert "stashPendingOrder( orderNumber );" in menu
     assert "event.button === 0 && !event.metaKey" in menu
-    assert "import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';" in menu
-    assert "import { SUBSCRIBE_CTA_HREF } from '../../content/subscribe';" in menu
+    assert "import { CUSTOMER_MENU_HREFS } from '../../lib/customerMenuActions';" in menu
+    assert "href: CUSTOMER_MENU_HREFS['leave-review']" in menu
+    assert "href: CUSTOMER_MENU_HREFS.subscribe" in menu
     for title in ("Submit Request", "Request Amendment", "Drop Docs", "Vault", "Track",
                   "Pickup Request", "Leave Review", "Subscribe"):
         assert f"label: '{title}'" in menu
