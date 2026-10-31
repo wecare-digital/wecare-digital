@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 from lambda_utils import customer_auth, template_status, template_media
-from . import meta_catalog_sync, service_requests, whatsapp_basket
+from . import service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
 # Vault and Drop Docs use the one native WhatsApp service-payment rail. Submit Request was sold
@@ -135,8 +135,12 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         unit_paise = int(quote.collection_before_convenience_paise)
         quantity = 1
 
+    # Meta rejects retailer_id together with an item image in a Review & Pay
+    # ORDER_DETAILS action (131009). Keep the approved shared thumbnail used by
+    # the successful staff Pay Flow, and omit retailer_id from the Meta payment
+    # wire only. Product/variant identity remains bound in the server-owned
+    # catalogue session, priced service intent, and payment attempt.
     items = [{
-        'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
         'name': label, 'quantity': quantity,
         'amount': {'value': unit_paise, 'offset': 100},
         'image': {'link': template_media.DEFAULT_ORDER_ITEM_THUMBNAIL},
