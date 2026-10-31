@@ -255,14 +255,32 @@ SystemConfig record `vault_delivery_timing_v1` (staff Operator permission):
 `orderStatusGapSeconds` field is ignored when reading historical records and
 **rejected on new writes**. The webhook no longer reads status-spacing config.
 
-There is **no application-imposed waiting** between native Review & Pay, captured
-payment → processing, processing → completed, or completed → paid invoice. Each
-operation still waits for its real authentication, payment capture, provider
-acknowledgment and idempotent state transition as required. Only after the
-accepted paid receipt does the Vault delivery worker apply the editable access
-delay. It is a bounded presentation gap, **not** delivered/read confirmation;
-no timer may bypass ownership, entitlement or paid-invoice checks. A message
-timeout is uncertain and must not trigger a blind duplicate send.
+There is **no application-imposed waiting** before native Review & Pay, between
+captured payment and Processing, or between Completed and the paid invoice.
+For an authoritative Vault native payment **only**, one fixed **1-second** gap
+is applied after Meta accepts the Processing order-status update and before the
+Completed update. The fixed 1-second gap is not editable; when the Processing
+update was already current and is not resent, no extra pause is required.
+After Completed, the paid invoice is sent as soon as its required workflow
+conditions are satisfied, with **0 seconds** additional spacing. Only after the
+accepted paid receipt does Vault apply the editable **0–5 seconds** access delay.
+These gaps do not replace payment capture, Meta message acceptance, exact-file
+entitlement, deduplication, or delivered/read status; uncertain messages must not
+be resent blindly.
+
+Approved customer templates (Meta ID from the canonical server allowlist):
+- Review & Pay: `wecare_whatapp_native_pay_template`, `2714938845570815`
+- Processing and Completed (same status template, distinct sends):
+  `wecare_order_status_v3`, `1754227779211208`
+- Paid invoice image: `wecare_default_invoice_image_template`, `1782246473079550`
+- Dynamic Access Vault link: `wecare_default_download`, `1410998911012572`
+
+The approved Access Vault URL button is
+`https://wecare.digital/vault/?file={{1}}`, where the sender fills button
+variable `{{1}}` using the exact server-bound `fileId`. Customers authenticate,
+pass ownership and paid-entitlement checks on the Vault page, then receive a
+separate 60-second private S3 download URL. Staff never insert a presigned
+customer document URL into an outbound WhatsApp template.
 
 Staff may request a **60-second presigned S3 GET preview** of two exact owner-approved,
 non-customer PNG assets from `GET /secure-files/payment-media-preview`:
