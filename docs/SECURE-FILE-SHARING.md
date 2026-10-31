@@ -284,11 +284,14 @@ customer document URL into an outbound WhatsApp template.
 
 ### Exact-file 404 fallback, ₹49 one-line description and no-file WhatsApp reply
 
-- `/vault/` with no document, an invalid `?file=` identifier, or an authenticated
-  user with no matching **active** owner-bound file uses the site's existing
-  `/404` → homepage redirect. A valid paid file is not redirected simply
-  because its **24-hour access window** ended: the page may show expired access,
-  but cannot issue a private URL or charge for an unauthorized file.
+- Bare `/vault/` is now a **public service-information page**, which stays
+  at that URL without redirecting to Orders or opening the sign-in screen.
+  An invalid `?file=` identifier, or a successful authenticated lookup with no
+  matching **active** owner-bound file, still uses the existing `/404` →
+  homepage fallback. A valid paid file is not redirected simply because its
+  **24-hour access window** ended: the page may show expired access, but cannot
+  issue a private URL or charge for an unauthorized file. The approved
+  `/vault/?file=<fileId>` deep link remains the only customer download route.
   A lookup error does not masquerade as a missing file; a 401 first allows
   customer authentication, and ownership is never inferred from the URL.
 - The **only editable field** in the Vault payment/invoice workbench is the
@@ -306,7 +309,7 @@ customer document URL into an outbound WhatsApp template.
 - A WhatsApp Vault **catalog purchase** with no usable customer-owned active
   document or only expired documents sends one service-window message:
   `No document is available for Vault download, or its access has expired.
-  Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.`
+  Submit a New Request: https://wecare.digital/submit-request/`
   It creates **no payable ORDER_DETAILS message, no payment attempt and no
   false paid Submit Request Flow**. Already-paid OPEN/READY files get the same
   Access Vault link again without charge. Historical Unlock Vault quick-reply
