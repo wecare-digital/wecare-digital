@@ -25,9 +25,20 @@ def test_home_and_orders_menu_use_authenticated_actions() -> None:
     )[0]
     assert "href: CUSTOMER_MENU_HREFS['leave-review']" in menu
     assert "href: CUSTOMER_MENU_HREFS.subscribe" in menu
-    assert "'/orders/?service=subscribe'" in handoff
-    assert "'/orders/?service=leave-review'" in handoff
-    assert "if ( fromMenu ) stashCustomerMenuAction( fromMenu );" in orders
+    assert "subscribe: '/orders/'" in handoff
+    assert "'leave-review': '/orders/'" in handoff
+    assert "menuActionForLabel( link.label )" in header
+    assert "stashCustomerMenuAction( sendAction );" in header
+    assert "menuActionForLabel( action.label )" in menu
+    assert "stashCustomerMenuAction( sendAction );" in menu
+    assert "isPrimaryMenuActivation( event )" in header
+    assert "isPrimaryMenuActivation( event )" in menu
+    assert "if ( params.has( 'o' ) || params.has( 'service' ) )" in orders
+    assert "actionFromSearch" not in handoff
+    assert "actionFromSearch" not in orders
+    assert "if ( fromMenu )" not in orders
+    assert "'/orders/?service=subscribe'" not in handoff
+    assert "'/orders/?service=leave-review'" not in handoff
     assert "takeCustomerMenuAction();" in orders
     assert "await sendCustomerMenuAction( serviceAction, session.accessToken );" in orders
     assert "window.location.replace( '/auth?return=/orders/' );" in orders
@@ -58,6 +69,11 @@ def test_exact_approved_templates_and_provider_delivery_audit() -> None:
 
     assert 'PROFILE_DETAILS = Template(name="service_details"' in templates
     assert 'LEAVE_REVIEW = Template(name="wecare_leave_review"' in templates
+    assert '"service_details": "2419125382263851"' in templates
+    assert '"wecare_leave_review": "1801972550682516"' in templates
+    canonical = src("amplify/functions/shared/lambda_utils/canonical_flows.py")
+    assert "'subscribe':      ('2413873616105042', 'PUBLISHED'" in canonical
+    assert "'leave_review':   ('993862443003108',  'PUBLISHED'" in canonical
     assert "if event.get('internalAction') == 'customerLeaveReviewTemplate':" in sender
     assert "return _customer_leave_review_template(event)" in sender
     assert "flow_sessions.mint_token('leave', phone, waba='1')" in sender
@@ -110,3 +126,27 @@ def test_service_tab_shows_delivery_and_flow_answers_from_canonical_inbox() -> N
     assert "/workspace/engage/inbox?channel=whatsapp" in logs
     assert "templateName?: string;" in client
     assert "templateName: item.templateName" in client
+
+def test_untrusted_url_cannot_create_a_customer_template_send() -> None:
+    handoff = src("src/lib/customerMenuActions.ts")
+    header = src("src/components/Header.tsx")
+    row_menu = src("src/components/orders/OrderActionsMenu.tsx")
+    orders = src("src/components/orders/OrdersPage.tsx")
+    assert "menuActionForLabel ( label: string )" in handoff
+    assert "isPrimaryMenuActivation ( event:" in handoff
+    assert "event.button === 0 && !event.metaKey && !event.ctrlKey" in handoff
+    assert "&& !event.shiftKey && !event.altKey" in handoff
+    assert "window.sessionStorage.setItem( PENDING_KEY" in handoff
+    assert "window.sessionStorage.removeItem( PENDING_KEY );" in handoff
+    assert "sendCustomerMenuAction( serviceAction, session.accessToken )" in orders
+    assert "stashCustomerMenuAction( sendAction );" in header
+    assert "stashCustomerMenuAction( sendAction );" in row_menu
+    assert "stashPendingOrder( orderNumber );" in row_menu
+    assert "params.has( 'service' )" in orders
+    assert "window.history.replaceState( window.history.state, '', '/orders/' );" in orders
+    assert "?service=" not in header
+    assert "?service=" not in row_menu
+    assert "actionFromSearch" not in orders
+    # A click that opens a new tab cannot cause an unsolicited send in the old tab.
+    assert "Modified/new-tab opens navigate only" in handoff
+    assert "Privacy-mode storage denial fails CLOSED" in handoff

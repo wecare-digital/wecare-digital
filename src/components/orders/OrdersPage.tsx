@@ -10,7 +10,7 @@ import PillButton from '../PillButton';
 // overridable today. There is deliberately no local alias either: two names for one fact.
 import { featureFlags } from '../../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
-import { actionFromSearch, stashCustomerMenuAction, takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
+import { takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import {
@@ -539,16 +539,15 @@ export default function OrdersPage (): React.ReactElement {
   useEffect( () => {
     let live = true;
     ( async () => {
-      // The menu URL holds an allowlisted action, never a phone. Preserve the intent
-      // in this tab through the existing /auth/ sign-in redirect.
-      const fromMenu = actionFromSearch( window.location.search );
-      if ( fromMenu ) stashCustomerMenuAction( fromMenu );
-      // Older ?o= links open the same Orders table; no separate detail URL remains.
+      // Service actions are queued ONLY by an explicit menu-click handler in
+      // sessionStorage, never by a query string. Strip old ?service= links without
+      // sending anything: opening a URL must not trigger a WhatsApp template.
+      const params = new URLSearchParams( window.location.search );
       const fromUrl = orderNumberFromUrl();
       const pending = takePendingOrder();
       const requested = fromUrl || pending;
-      if ( new URLSearchParams( window.location.search ).has( 'o' ) || fromMenu ) {
-        // One canonical URL: refresh/back cannot queue the same template again.
+      if ( params.has( 'o' ) || params.has( 'service' ) ) {
+        // Preserve historical ?o= row selection, then canonicalize the URL.
         window.history.replaceState( window.history.state, '', '/orders/' );
       }
       let session = getSession();

@@ -1,27 +1,36 @@
 /**
  * Authenticated home/Orders menu doors for the two customer-initiated WhatsApp templates.
  *
- * The URL carries ONLY an allowlisted action, never a mobile number or bearer token.
- * /orders/ consumes the intent after Cognito sign-in and sends it to the customer-profile
- * API; that API takes the verified number exclusively from the authenticated session.
- *
- * A short-lived sessionStorage handoff survives the /auth/ redirect in the same tab,
- * and is consumed BEFORE an API send so reloads cannot silently send again.
+ * An explicit first-party menu click is required to create a one-time send intent.
+ * Plain navigation to /orders/ (including a copied URL with ?service=...) must NEVER
+ * generate a WhatsApp send. A sessionStorage handoff survives the /auth/ redirect
+ * in the same tab, then is consumed BEFORE an API call so refresh/back never resends.
+ * The server chooses the verified phone from the authenticated session, never the URL.
  */
 export type CustomerMenuAction = 'subscribe' | 'leave-review';
 
 export const CUSTOMER_MENU_HREFS: Readonly<Record<CustomerMenuAction, string>> = {
-  subscribe: '/orders/?service=subscribe',
-  'leave-review': '/orders/?service=leave-review',
+  subscribe: '/orders/',
+  'leave-review': '/orders/',
 };
 
 const PENDING_KEY = 'wecare.customer.pendingServiceAction';
 const MAX_PENDING_AGE_MS = 10 * 60 * 1000;
 const PROFILE_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/customer/profile`;
 
-export function actionFromSearch ( search: string ): CustomerMenuAction | null {
-  const value = new URLSearchParams( search ).get( 'service' );
-  return value === 'subscribe' || value === 'leave-review' ? value : null;
+/** Return a send intent only for the two real menu labels, never arbitrary URLs. */
+export function menuActionForLabel ( label: string ): CustomerMenuAction | null {
+  if ( label === 'Subscribe' ) return 'subscribe';
+  if ( label === 'Leave Review' ) return 'leave-review';
+  return null;
+}
+
+/** Modified/new-tab opens navigate only: never queue a send in the original tab. */
+export function isPrimaryMenuActivation ( event: {
+  button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean;
+} ): boolean {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey
+    && !event.shiftKey && !event.altKey;
 }
 
 export function stashCustomerMenuAction ( action: CustomerMenuAction ): void {
@@ -29,7 +38,7 @@ export function stashCustomerMenuAction ( action: CustomerMenuAction ): void {
   try {
     window.sessionStorage.setItem( PENDING_KEY, JSON.stringify( { action, at: Date.now() } ) );
   } catch {
-    // Storage can be unavailable in privacy modes. The URL remains intact until sign-in.
+    // Privacy-mode storage denial fails CLOSED: navigation occurs, but nothing is sent.
   }
 }
 
