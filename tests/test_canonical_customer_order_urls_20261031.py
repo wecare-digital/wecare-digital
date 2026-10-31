@@ -33,22 +33,21 @@ def test_no_new_per_order_urls_in_active_public_and_backend_sources():
     assert offenders == [], f"Public per-order URL found: {offenders}"
 
 
-def test_whatsapp_invoice_link_is_the_plain_canonical_url_only():
+def test_post_payment_invoice_never_creates_a_free_form_orders_url_message():
+    # The canonical Orders URL still exists on authenticated website pages.
+    # WhatsApp post-payment automation is template-only: no extra cta_url.
     source = read("amplify/functions/payments/invoice-engine/handler.py")
     beginning = source.index("def _send_order_page_link(")
     end = source.index("def _resolve_order_id(", beginning)
     send = source[beginning:end]
     assert "_ORDER_PAGE_URL = 'https://wecare.digital/orders/'" in source
-    assert "'interactiveType': 'cta_url'" in send
-    assert "'buttonText': 'View your order'" in send
-    assert "'url': _ORDER_PAGE_URL," in send
-    assert "f'{_ORDER_PAGE_URL}" not in send
-    assert ".format(order_number" not in send
-    assert "urlencode(" not in send
-    assert "order_number" in send  # In message body, not in URL.
-    assert "'idempotencyKey': f'order-page-link:{invoice_id}'" in send
-    assert "claim_invoice_delivery(" in send
-
+    assert "return 'template_only_policy'" in send
+    assert "'interactiveType': 'cta_url'" not in send
+    assert "'isInteractive': True" not in send
+    assert "'buttonText': 'View your order'" not in send
+    assert "'url': _ORDER_PAGE_URL" not in send
+    assert "lambda_client.invoke(" not in send
+    assert "claim_invoice_delivery(" not in send
 
 def test_whatsapp_command_and_rcs_template_link_to_order_history():
     command = read(

@@ -127,9 +127,8 @@ sequenceDiagram
     OW->>WA: invoice template
     WA->>C: Paid invoice + Leave Review Flow
 
-    CO->>OW: cta_url "View your order" -> /orders/ (after the invoice is accepted)
-    OW->>WA: interactive cta_url (24-hour window only)
-    WA->>C: Order page link
+    Note over C,WA: No additional free-form interactive messages after invoice
+    Note over C,DDB: Authenticated Orders history remains at wecare.digital/orders/
 ```
 
 ### Hard ordering rule
@@ -154,22 +153,39 @@ The invoice template owns the **Leave Review** Flow button:
 
 There is no separate review message in the payment rail.
 
-### Order page link (owner-approved 2026-10-26)
+### Template-only post-payment policy (31 October 2026)
 
-After the paid invoice template is accepted, a WhatsApp cart or catalog-service buyer gets one
-free-form interactive `cta_url` message: "View your order", opening
-`https://wecare.digital/orders/`. Historical `?o=` links remain supported and are cleaned to `/orders/` after login. The page is session-gated (checkout's `order`
-action answers only for the signed-in owner). Owner: invoice engine `_send_order_page_link`,
-called from `send_invoice_whatsapp`.
+The prior owner-approved (26 October) free-form interactive `cta_url` "View your
+order" message has been **retired** at the invoice engine. The customer explicitly
+requested that automated payment follow-ups use only approved WECARE.DIGITAL
+message templates, not ordinary `type=interactive` messages.
 
-- Never instead of the invoice, and never on a staff re-send (`force`).
-- Not sent for website payments (the buyer is already on the page) or invoice-native
-  `WHATSAPP_NATIVE_PG` payments (no order row).
-- At most once per invoice: delivery claim `INVOICEDELIVERY#<invoiceId>#order-page-link`, kept
-  on every outcome, so a failure is never retried into a duplicate.
-- Free-form, so inside the 24-hour customer-service window only. Outside it, outbound refuses it
-  and nothing else is sent. It is not a status message, so the template-only rule below is
-  unaffected.
+- **Before payment:** use the approved `wecare_whatapp_native_pay_template`
+  (Meta wire `type=template` with the required `ORDER_DETAILS` **Review and Pay**
+  button). The button itself is a Meta interactive *component inside a template*;
+  it is NOT a separate free-form interactive message.
+- **After capture:** retain `wecare_order_status_v3` processing then completed,
+  followed by exactly one `wecare_default_invoice_image_template` paid-invoice
+  PNG and its existing Leave Review Flow button. Meta's payment status sequence,
+  GST invoice and one-send claims are unchanged.
+- **Services:** after the paid invoice is accepted, send only the verified
+  *service-specific approved template* (Vault's `wecare_default_download`
+  owner-bound URL, Drop Docs' F003 upload Flow, etc.), once and only after
+  payment and entitlement checks.
+- **Ordinary catalog/cart orders:** do not invent an unapproved Orders template
+  and do not fall back to an interactive `cta_url`. The customer may always
+  sign in at `https://wecare.digital/orders/` to see their owned purchases;
+  the merchant can submit a new dedicated URL-button template for Meta approval
+  in a future, separately reviewed release.
+- The invoice engine compatibility `_send_order_page_link` is now a
+  side-effect-free `template_only_policy` refusal. Previously recorded
+  `INVOICEDELIVERY#<invoiceId>#order-page-link` rows remain historical audit
+  evidence and must not trigger customer re-sends.
+
+No direct raw Vault PDF, standalone review Flow, generic Orders CTA or new
+payment prompt is automatically sent after a verified paid Vault invoice.
+This policy concerns the automated payment **journey**; it does not disable
+approved standalone manually initiated customer-support operations.
 
 ### Status transport invariant
 
@@ -255,7 +271,7 @@ must not be collapsed:
    - `order-status:<invoiceId>:processing`
    - `order-status:<invoiceId>:completed`
    - `invoice-receipt:<invoiceId>`
-   - `order-page-link:<invoiceId>`
+   - historical only: `order-page-link:<invoiceId>` (no new sends after the template-only policy)
    The outbound Lambda hashes this value into its internal message row id. If that row already has
    a Meta WAMID, a replay returns the existing WAMID without another Graph send. A row whose
    outcome is still ambiguous is refused as `MESSAGE_SEND_IN_FLIGHT`. A definite `failed` or
@@ -500,7 +516,7 @@ Before production promotion, prove:
 - [ ] OrderTable projection becomes completed
 - [ ] paid invoice Date/Time uses `paidAt`
 - [ ] exactly one invoice template is sent
-- [ ] after it, at most one "View your order" `cta_url` (WhatsApp cart/catalog-service only), never retried
+- [ ] after it, **zero free-form interactive** `cta_url` messages or new order-page-link claims; approved service templates only
 - [ ] invoice Flow token is bound to order/invoice and opens FEEDBACK
 - [ ] retry index remains ACTIVE and scheduled retry is working
 - [ ] `live` catalog alias is WABA1; `waba2` alias is WABA2

@@ -1428,8 +1428,8 @@ def run(root: Path) -> int:
             else "order_page" if (s["payload"].get("interactive") or {}).get("type") == "cta_url"
             else f"OTHER:{s['payload'].get('type')}:{(s['payload'].get('template') or {}).get('name', '')}"
             for s in capture_sends]
-        check("R17", "the capture sent two status templates, one invoice template, then the order page",
-              post_capture_kinds == ["order_status", "order_status", "invoice", "order_page"], post_capture_kinds)
+        check("R17", "the capture sent only two status templates and one paid invoice template",
+              post_capture_kinds == ["order_status", "order_status", "invoice"], post_capture_kinds)
         capture_outbound_bodies = [
             _outbound_body(call) for call in W.since(mark, "invocations")
             if call["function"] == "wecare-outbound-whatsapp"
@@ -1439,31 +1439,23 @@ def run(root: Path) -> int:
             f"order-status:{invoice_id}:processing",
             f"order-status:{invoice_id}:completed",
             f"invoice-receipt:{invoice_id}",
-            f"order-page-link:{invoice_id}",
         ]
         actual_delivery_keys = [body.get("idempotencyKey") for body in capture_outbound_bodies]
         check("IDEM", "post-capture customer messages carry one stable key per logical delivery",
               bool(invoice_id) and actual_delivery_keys == expected_delivery_keys,
               {"expected": expected_delivery_keys, "actual": actual_delivery_keys})
-        # The last message: one "View your order" button to the buyer's own order page, after the
-        # invoice, never instead of it.
+        # Template-only post-payment: no standalone interactive cta_url is
+        # permitted. Orders remain accessible on the website /orders/ page.
         page_sends = [s["payload"] for s in capture_sends
                       if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
-        page_action = (((page_sends[0].get("interactive") or {}).get("action") or {})
-                       .get("parameters") or {}) if page_sends else {}
-        page_number = str((counts["orders"][0] if counts["orders"] else {}).get("orderNumber") or "")
-        check("LINK", "the message opens the buyer's single Orders list, sent to the buyer",
-              len(page_sends) == 1 and bool(page_number)
-              and page_action.get("url") == "https://wecare.digital/orders/"
-              and page_action.get("display_text") == "View your order"
-              and page_sends[0].get("to") == alice["phone"],
-              {"url": page_action.get("url"), "text": page_action.get("display_text")})
-        page_claim = _table("CommerceKeys").get_item(Key={
+        check("LINK", "no free-form View your order message after a captured payment",
+              not page_sends, len(page_sends))
+        historical_order_link_claim = _table("CommerceKeys").get_item(Key={
             "orderId": f"INVOICEDELIVERY#{counts['invoices'][0]['invoiceId']}#order-page-link"
         }).get("Item") if counts["invoices"] else None
-        check("LINK", "...and its delivery claim is recorded as delivered, so it is sent once",
-              bool(page_claim) and page_claim.get("deliveryStatus") == "DELIVERED",
-              (page_claim or {}).get("deliveryStatus"))
+        check("LINK", "no new order-page-link claim consumed by a template-only receipt",
+              historical_order_link_claim is None,
+              bool(historical_order_link_claim))
         invoice_template = (capture_sends[invoice_idx[0]]["payload"].get("template") or {}) if invoice_idx else {}
         components = invoice_template.get("components") or []
         header_ok = any(c.get("type") == "header" and any(p.get("type") == "image" for p in c.get("parameters") or [])
@@ -1530,8 +1522,8 @@ def run(root: Path) -> int:
               replay_traffic)
         page_after_replay = [s for s in W.since(mark, "meta_sends")
                              if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
-        check("LINK", "...and the order page message is not sent again by a replay or reprocess",
-              len(page_after_replay) == 1, len(page_after_replay))
+        check("LINK", "...and replay/reprocess cannot add a free-form order page message",
+              len(page_after_replay) == 0, len(page_after_replay))
         # Only a WhatsApp cart or catalog-service payment gets it: a website payment's buyer is
         # already on the page, and an invoice-native payment has no order. Default deny.
         keys = _table("CommerceKeys")
@@ -1550,12 +1542,12 @@ def run(root: Path) -> int:
         outcomes["repeat"] = invoice_engine._send_order_page_link(
             counts["invoices"][0]["invoiceId"], alice["contactId"], alice["phone"], PHONE_ID_1,
             keys, "hermetic") if counts["invoices"] else ""
-        check("LINK", "website, invoice-native and unknown payments get no order page message; a repeat is refused",
-              outcomes == {"website": "not_a_whatsapp_order", "invoice-native": "not_a_whatsapp_order",
-                           "unknown reference": "not_a_whatsapp_order", "repeat": "already_sent"}
+        check("LINK", "all purchase types and replays refuse free-form post-payment messaging",
+              outcomes == {"website": "template_only_policy", "invoice-native": "template_only_policy",
+                           "unknown reference": "template_only_policy", "repeat": "template_only_policy"}
               and not W.since(link_mark, "meta_sends"), outcomes)
-        # Outside the 24-hour window the free-form message is refused by outbound and nothing
-        # reaches Meta; the claim stays, so it is not retried into a late duplicate.
+        # Even inside/outside the 24-hour chat window, no free-form message
+        # is attempted. No outbound claims need to be taken or retained.
         contact_row = _table("ContactsTable").get_item(Key={"id": alice["contactId"]})["Item"]
         _table("ContactsTable").put_item(Item={**contact_row, "lastInboundMessageAt": Decimal(1)})
         keys.put_item(Item={"orderId": "PAYREF#WD-PAY-HERMETICLINKW", "checkoutMode": "WHATSAPP_NATIVE_CART"})
@@ -1568,8 +1560,8 @@ def run(root: Path) -> int:
         again = invoice_engine._send_order_page_link(
             "inv-hermetic-link-window", alice["contactId"], alice["phone"], PHONE_ID_1, keys, "hermetic")
         _table("ContactsTable").put_item(Item=contact_row)
-        check("LINK", "outside the 24-hour window: refused by outbound, nothing sent, and not retried",
-              closed.startswith("not_sent_4") and again == "already_sent"
+        check("LINK", "outside the 24-hour window: no attempt to send an interactive message",
+              closed == "template_only_policy" and again == "template_only_policy"
               and not W.since(window_mark, "meta_sends"), (closed, again))
 
         # Terminal idempotency: asking for completed again is a local no-op and never reaches
