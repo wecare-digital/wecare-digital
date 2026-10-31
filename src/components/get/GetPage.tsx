@@ -36,6 +36,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import type { CycleWord } from '../RotatingHero';
@@ -324,7 +325,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         delete next[ file.fileId ];
                         return next;
                     } );
-                    setNowSeconds( Math.floor( Date.now() / 1000 ) );
+                    // The expired state is already applied; refreshing files is authoritative.
                     void loadFiles();
                     return;
                 }
@@ -598,7 +599,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                         role={ error ? 'alert' : undefined }>
                                         { error || 'There are no files shared with your number right now.' }
                                     </p>
-                                    <a className="sf-back-link" href="/orders/">Back to Orders</a>
+                                    <Link className="sf-back-link" href="/orders/">Back to Orders</Link>
                                 </div>
                             ) }
 
