@@ -284,7 +284,7 @@ async function main() {
     }
     record( stillServed.length === 0,
       `all ${RETIRED.length} retired routes are gone from the export (no 200)`,
-      stillServed.length ? stillServed.join( '; ' ) : 'none serve a page; CDN 301 to /contact/ is console-managed' );
+      stillServed.length ? stillServed.join( '; ' ) : 'none serve a page; missing URLs use the 404-to-Home fallback' );
 
     console.log( '\nFresh-catalog routes (expect 200)' );
     const missingCatalogPages = [];
