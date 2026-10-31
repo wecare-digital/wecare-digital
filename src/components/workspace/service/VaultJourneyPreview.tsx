@@ -92,6 +92,8 @@ interface Props {
   draftFile: File | null;
   selectedFile: SecureFile | null;
   pricePaise: number | null;
+  paymentItemDescription: string;
+  onPaymentItemDescriptionChange: ( value: string ) => void;
   breakdown: ServicePriceBreakdown | null;
   templates: ServicePaymentTemplates | null;
   priceLoading: boolean;
@@ -138,6 +140,8 @@ export default function VaultJourneyPreview ( props: Props ) {
   const fileType = currentFile?.contentType || draftFile?.type || 'Type confirmed after upload';
   const fileBytes = currentFile?.sizeBytes || draftFile?.size;
   const fileId = currentFile?.fileId || '';
+  const editable49Item = props.pricePaise === 4900;
+  const invoiceItemLabel = editable49Item ? props.paymentItemDescription : 'Vault access';
   const owner = currentFile?.ownerName || props.customerName || 'Choose a customer';
   const mobile = currentFile?.ownerPhoneMasked || props.customerPhone || '—';
   const link = fileId
@@ -257,7 +261,7 @@ export default function VaultJourneyPreview ( props: Props ) {
               : 'No artificial wait; next action starts after its required event/acknowledgment' }</dd></div>
           { activeStage === 2 && (
             <>
-              <div><dt>Payment item</dt><dd>Vault · quantity 1 · { currency( props.pricePaise ) } base</dd></div>
+              <div><dt>Payment item</dt><dd>{ invoiceItemLabel } · quantity 1 · { currency( props.pricePaise ) } base</dd></div>
               <div><dt>Native payload</dt><dd>Server-priced ORDER_DETAILS; original-icon item thumbnail</dd></div>
               <div><dt>Customer action</dt><dd>Customer confirms the server-priced native Review &amp; Pay request</dd></div>
             </>
@@ -280,12 +284,12 @@ export default function VaultJourneyPreview ( props: Props ) {
           ) }
         </dl>
         </details>
-        <p className={ styles.hint }>Staff may select a verified file but cannot edit the Vault catalogue price, approved payment media, invoice or access URL. The issued receipt follows verified capture.</p>
+        <p className={ styles.hint }>Only the description of the ₹49 single Vault item is editable. Quantity 1, catalogue amount, GST, fees, approved template assets and access URL remain locked. The issued receipt follows verified capture.</p>
       </section>
 
       <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
 
-      <details open className={ styles.invoice } aria-label="Invoice builder preview (server-priced, read-only)">
+      <details open className={ styles.invoice } aria-label="₹49 Vault item description editor with locked invoice totals">
         <summary className={ styles.disclosureTitle }>
           <span>Estimated invoice &amp; pricing</span>
           <strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong>
@@ -295,9 +299,32 @@ export default function VaultJourneyPreview ( props: Props ) {
           <span>PREVIEW · NOT ISSUED</span>
         </div>
         <h3>Vault access invoice · fixed amount</h3>
-        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. The selected file, quantity 1 and live catalogue amount are read-only; the actual receipt image and invoice are issued after verified payment, never from this preview.</p>
+        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. Only the ₹49 Vault item's one-line description is editable; the file, quantity 1, catalogue amount and all pricing remain locked. The receipt image and tax invoice are generated only after verified payment.</p>
         <p className={ styles.customer }>{ owner } · { mobile }</p>
-        <div className={ styles.billRow }><span>Vault · one file / one access window</span><strong>{ currency( props.pricePaise ) }</strong></div>
+        { editable49Item && (
+          <div style={ { display: 'grid', gap: 6, margin: '10px 0 16px' } }>
+            <label htmlFor="sf-vault-item-description">
+              <strong>₹49 Vault item description · editable (one line)</strong>
+            </label>
+            <input
+              id="sf-vault-item-description"
+              aria-describedby="sf-vault-item-hint"
+              type="text"
+              minLength={ 12 }
+              maxLength={ 60 }
+              autoComplete="off"
+              value={ props.paymentItemDescription }
+              onChange={ e => props.onPaymentItemDescriptionChange( e.target.value ) }
+              style={ { width: '100%', boxSizing: 'border-box', padding: 12, borderRadius: 8,
+                border: '1px solid #b8c9b1', background: '#fff', color: '#1f3828' } }
+            />
+            <small id="sf-vault-item-hint">
+              Only this one ₹49 item name changes for Review &amp; Pay and the paid GST invoice PNG.
+              Price ₹49, quantity 1, taxes, discount, fees and total are server-owned and cannot be edited.
+            </small>
+          </div>
+        ) }
+        <div className={ styles.billRow }><span>{ invoiceItemLabel }</span><strong>{ currency( props.pricePaise ) }</strong></div>
         <div className={ styles.billRow }><span>GST on supply</span><strong>{ currency( props.breakdown?.supplyGstPaise ) }</strong></div>
         <div className={ styles.billRow }><span>Delight</span><strong>{ props.breakdown ? '−' + currency( props.breakdown.delightPaise ) : '—' }</strong></div>
         <div className={ styles.billRow }><span>Express</span><strong>{ currency( props.breakdown?.expressPaise ) }</strong></div>
