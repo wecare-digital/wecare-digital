@@ -1,15 +1,14 @@
 /**
- * Customer-initiated WhatsApp menu notices shown on /orders.
+ * One short notification vocabulary for customer-initiated WhatsApp sends on Orders.
  *
- * Keep this separate from the authenticated Workspace ToastContext: /orders is a
- * public/customer route with a local, accessible inline notice rail.
+ * Only actual provider send attempts may display these messages. At present, only
+ * Subscribe and Leave Review initiate a WhatsApp template from the public Orders
+ * page. Other menu items navigate to /orders/ and must never imply a send.
  *
- * "accepted" means Meta accepted the invitation for delivery, NOT that the
- * customer received it or completed the Flow. An ambiguous failure must never
- * trigger an automatic retry; the customer may already have received it.
+ * 'accepted' means the WhatsApp sender accepted the request. It does not prove
+ * handset delivery, a completed Flow, or submitted customer feedback.
+ * An ambiguous failure is never automatically retried.
  */
-import type { CustomerMenuAction } from './customerMenuActions';
-
 export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'failed';
 
 export type CustomerMenuNotice = Readonly<{
@@ -17,40 +16,21 @@ export type CustomerMenuNotice = Readonly<{
   error: boolean;
 }>;
 
-const NOTICES: Readonly<Record<CustomerMenuAction,
-  Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>>>> = {
-  subscribe: {
-    pending: {
-      message: 'Requesting your profile update invitation on WhatsApp…',
-      error: false,
-    },
-    accepted: {
-      message: 'WhatsApp accepted your profile update invitation. Delivery is not yet confirmed.',
-      error: false,
-    },
-    failed: {
-      message: 'We could not confirm the profile update invitation. Check WhatsApp before trying again.',
-      error: true,
-    },
+const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = {
+  pending: {
+    message: 'Processing…',
+    error: false,
   },
-  'leave-review': {
-    pending: {
-      message: 'Requesting your Leave Review invitation on WhatsApp…',
-      error: false,
-    },
-    accepted: {
-      message: 'WhatsApp accepted your Leave Review invitation. Delivery is not yet confirmed.',
-      error: false,
-    },
-    failed: {
-      message: 'We could not confirm the Leave Review invitation. Check WhatsApp before trying again.',
-      error: true,
-    },
+  accepted: {
+    message: 'Sent to WhatsApp.',
+    error: false,
+  },
+  failed: {
+    message: "Couldn't confirm. Check WhatsApp.",
+    error: true,
   },
 };
 
-export function customerMenuNotice (
-  action: CustomerMenuAction, status: CustomerMenuNoticeStatus,
-): CustomerMenuNotice {
-  return NOTICES[ action ][ status ];
+export function customerMenuNotice ( status: CustomerMenuNoticeStatus ): CustomerMenuNotice {
+  return NOTICES[ status ];
 }
