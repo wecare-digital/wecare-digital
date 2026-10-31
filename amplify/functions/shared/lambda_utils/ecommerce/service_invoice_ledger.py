@@ -78,8 +78,13 @@ def verified_service_kind(
 
     invoiced_paise = _paise(invoice.get("total"))
     try:
-        captured_paise = int(attempt.get("verifiedCapturedPaise"))
-    except (ValueError, TypeError):
+        verified_minor = Decimal(str(attempt.get("verifiedCapturedPaise")))
+        if (not verified_minor.is_finite()
+                or verified_minor != verified_minor.to_integral_value()
+                or verified_minor < 0):
+            return ""
+        captured_paise = int(verified_minor)
+    except (ValueError, TypeError, InvalidOperation):
         return ""
     if invoiced_paise is None or invoiced_paise != captured_paise:
         return ""
