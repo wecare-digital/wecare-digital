@@ -330,7 +330,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 feedback( 'error', 'The file was not hosted at the expected secure location. Please contact support.' );
                 return;
             }
-            feedback( 'status', 'Your secure file download is starting. The short-lived link will expire automatically.' );
             window.location.assign( destination.href );
         } catch ( err: any )
         {
@@ -652,11 +651,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                         { feedback?.kind === 'status' && !waitingForPayment && (
                                             <p className="sf-payment-note" role="status">{ feedback.message }</p>
                                         ) }
-                                        { ( state === 'OPEN' || state === 'READY' ) && (
-                                            <p className="sf-link-help">
-                                                The WhatsApp file link is not a public download. Sign-in, ownership and your active paid window are checked before a short-lived secure URL is issued.
-                                            </p>
-                                        ) }
                                         { feedback?.kind === 'error' && (
                                             <p className="sf-file-error" role="alert">{ feedback.message }</p>
                                         ) }
@@ -753,7 +747,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-payment-option .sf-secondary-btn,.sf-pay-waiting .sf-secondary-btn{border:1px solid #d0e0c8;background:#fff;color:var(--public-brand-green)}
                 .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-muted);margin:2px 0 0;line-height:1.5}
                 .sf-pay-waiting{display:grid;gap:12px}
-                .sf-link-help{margin:16px 0 0;border-top:1px solid #e9eee5;padding-top:12px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.55}
                 .sf-confirming-note{
                   margin:0;padding:12px 14px;border-inline-start:4px solid var(--public-brand-lime);
                   border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
