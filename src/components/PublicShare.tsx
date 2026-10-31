@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
+import PublicNotice from './public/PublicNotice';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 import {
   CONTRIBUTION_AMOUNT_LABEL,
@@ -316,9 +317,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         </div>
       </div>
 
-      <span className="ps-status" role="status" aria-live="polite">
-        { copied ? 'Link copied to clipboard' : '' }
-      </span>
+      <PublicNotice mode="screen-reader" tone="success" message={ copied ? 'Link copied.' : '' } />
 
       <style jsx>{`
         .public-share{
@@ -433,7 +432,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
         .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
-        .ps-sr-only,.ps-status{
+        .ps-sr-only{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
           clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
