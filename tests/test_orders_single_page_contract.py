@@ -125,3 +125,76 @@ def test_orders_table_stays_compact_and_signout_is_inside_card() -> None:
     assert "fetch( PROFILE_URL" in orders
     assert "featureFlags.invoiceDownload" in orders
     assert 'colSpan={ 5 }' in orders
+
+
+def test_orders_backend_failures_render_once_above_table() -> None:
+    orders = source("src/components/orders/OrdersPage.tsx")
+    detail = source("src/components/orders/OrderDetail.tsx")
+
+    # The source stays a client-only status, never included in public static output or a query URL.
+    assert "const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );" in orders
+    assert 'className="ord-toast-rail"' in orders
+    assert 'className="ord-backend-toast" role="alert" aria-atomic="true"' in orders
+    assert orders.index('className="ord-toast-rail"') < orders.index('className="ord-shell"')
+    assert orders.count('className="ord-backend-toast"') == 1
+    assert "role=\"status\"" in orders  # Non-error clipboard feedback remains separate.
+
+    # Covers backend history errors (including rate limits), pagination, profile linking,
+    # invoice failures (including unavailable) and the authorized inline-detail read.
+    assert "setOrdersAlert( { source: 'orders', message: kind === 'rate'" in orders
+    assert "setOrdersAlert( { source: 'pagination', message: outcome.kind === 'rate'" in orders
+    assert "setOrdersAlert( { source: 'link'," in orders
+    for message in (
+        "An invoice is not available for this order yet.",
+        "Too many invoice requests. Wait a moment and try again.",
+        "Invoice download failed. Please try again.",
+    ):
+        assert message in orders
+    assert "onNotice={ detailNotice }" in orders
+    assert orders.count("onNotice={ detailNotice }") == 2
+    assert "onNotice?: (orderNumber: string, message: string | null) => void;" in detail
+    assert "noticeRef.current?.( orderNumber," in detail
+    assert "noticeRef.current?.( orderNumber, null );" in detail
+    assert "result === 'rate'" in detail and "result === 'unavailable'" in detail
+
+    # The alert is stable until the relevant retry succeeds; another order cannot
+    # accidentally clear a concurrent invoice or order-details error.
+    assert "dismissAlertFor( 'orders' );" in orders
+    assert "dismissAlertFor( 'pagination' );" in orders
+    assert "dismissAlertFor( 'invoice', invoiceKey );" in orders
+    assert "dismissAlertFor( 'detail', orderNumber );" in orders
+    assert "current?.source === source && ( !key || current.key === key )" in orders
+    assert "moreFailed" not in orders
+    assert 'className="ord-notice"' not in orders
+
+
+def test_orders_alert_matches_auth_error_pixel_values() -> None:
+    orders = source("src/components/orders/OrdersPage.tsx")
+    auth = source("src/pages/auth.tsx")
+    assert ".auth-error{" in auth
+    auth_rule = auth.split(".auth-error{", 1)[1].split("}", 1)[0]
+    assert ".ord-backend-toast{" in orders
+    orders_rule = orders.split(".ord-backend-toast{", 1)[1].split("}", 1)[0]
+
+    # Same exact banner treatment as /auth (not the fixed workspace toast).
+    for declaration in (
+        "margin:14px 0 0",
+        "padding:11px 13px",
+        "border-inline-start:4px solid var(--public-brand-lime)",
+        "border-radius:10px",
+        "background:var(--public-lime-tint)",
+        "color:var(--public-text)",
+        "font-size:var(--public-supporting-size)",
+        "font-weight:600",
+        "line-height:1.4",
+    ):
+        assert declaration in auth_rule
+        assert declaration in orders_rule, declaration
+
+    assert ".ord-toast-rail{display:flex;justify-content:flex-end;inline-size:100%;min-inline-size:0}" in orders
+    assert "inline-size:min(100%,560px)" in orders_rule
+    assert "overflow-wrap:anywhere" in orders_rule
+    assert "position:fixed" not in orders_rule
+    assert "box-shadow" not in orders_rule
+    assert 'colSpan={ 5 }' in orders
+    assert ".ord-invoice-actions{display:inline-flex;align-items:center;gap:16px}" in orders

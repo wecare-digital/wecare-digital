@@ -142,10 +142,12 @@ interface OrderDetailProps {
   orderNumber: string;
   /** Called when the session has expired; the page drops back to its sign-in state. */
   onExpired: () => void;
+  /** Report backend failures to the single Orders alert above the table. */
+  onNotice?: (orderNumber: string, message: string | null) => void;
 }
 
 export default function OrderDetail (
-  { accessToken, orderNumber, onExpired }: OrderDetailProps,
+  { accessToken, orderNumber, onExpired, onNotice }: OrderDetailProps,
 ): React.ReactElement {
   const [ load, setLoad ] = useState<Load>( { kind: 'loading' } );
   const [ attempt, setAttempt ] = useState( 0 );
@@ -154,7 +156,9 @@ export default function OrderDetail (
   // The parent's expiry handler is a fresh function on every render. Read through a ref so the
   // fetch effect depends only on what it actually fetches and never re-runs on a parent render.
   const expiredRef = useRef( onExpired );
+  const noticeRef = useRef( onNotice );
   useEffect( () => { expiredRef.current = onExpired; }, [ onExpired ] );
+  useEffect( () => { noticeRef.current = onNotice; }, [ onNotice ] );
 
   useEffect( () => {
     let live = true;
@@ -169,11 +173,17 @@ export default function OrderDetail (
         return;
       }
       setLoad( outcome );
+      if ( outcome.kind === 'unavailable' ) {
+        noticeRef.current?.( orderNumber, 'We could not load this order just now. Try again shortly.' );
+      } else {
+        noticeRef.current?.( orderNumber, null );
+      }
     } )();
     return () => { live = false; };
   }, [ accessToken, orderNumber, attempt ] );
 
   const retry = () => {
+    noticeRef.current?.( orderNumber, null );
     setLoad( { kind: 'loading' } );
     setAttempt( count => count + 1 );
   };
@@ -220,9 +230,6 @@ export default function OrderDetail (
           <h2 className="odt-h2" id={ `odt-title-${ orderNumber }` }>
             Order <span data-wc-no-translate>{ orderNumber }</span>
           </h2>
-          <p className="odt-notice" role="status">
-            We could not load this order just now. Try again shortly.
-          </p>
           <button type="button" className="odt-quiet" onClick={ retry }>Try again</button>
         </div>
       ) }
@@ -393,6 +400,7 @@ export default function OrderDetail (
                 disabled={ invoiceState === 'busy' }
                 onClick={ () => {
                   setInvoiceState( 'busy' );
+                  noticeRef.current?.( orderNumber, null );
                   void downloadOrderInvoice(
                     accessToken, order.referenceId, order.createdAt!,
                   ).then( result => {
@@ -401,21 +409,23 @@ export default function OrderDetail (
                       expiredRef.current();
                     } else {
                       setInvoiceState( result === 'ok' ? 'idle' : result );
+                      const failureMessage = result === 'rate'
+                        ? 'Too many invoice requests. Please try later.'
+                        : result === 'unavailable'
+                          ? 'Your invoice is not available yet.'
+                          : result === 'failed'
+                            ? 'Invoice download failed. Please try again.'
+                            : null;
+                      noticeRef.current?.( orderNumber, failureMessage );
                     }
-                  } ).catch( () => setInvoiceState( 'failed' ) );
+                  } ).catch( () => {
+                    setInvoiceState( 'failed' );
+                    noticeRef.current?.( orderNumber, 'Invoice download failed. Please try again.' );
+                  } );
                 } }>
                 { invoiceState === 'busy' ? 'Preparing invoice…' : 'Download GST invoice' }
               </button>
             ) }
-            { invoiceState === 'rate' && <p className="odt-p" role="status">
-              Too many invoice requests. Please try later.
-            </p> }
-            { invoiceState === 'unavailable' && <p className="odt-p" role="status">
-              Your invoice is not available yet. View all orders for updates.
-            </p> }
-            { invoiceState === 'failed' && <p className="odt-p" role="alert">
-              Invoice download failed. Please try again.
-            </p> }
             { /* Plain navigations, not client-side links: /orders/ without `?o=` must remount
                  the page so it shows the history rather than this order again. */ }
             { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }

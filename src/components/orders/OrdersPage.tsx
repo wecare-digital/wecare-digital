@@ -106,6 +106,9 @@ interface OrdersResponse {
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
+type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'detail';
+interface OrdersAlert { source: AlertSource; message: string; key?: string; }
+
 type Outcome =
   | { kind: 'ok'; data: OrdersResponse }
   | { kind: 'expired' }
@@ -360,13 +363,11 @@ async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
 
 export default function OrdersPage (): React.ReactElement {
   const [ view, setView ] = useState<View>( 'loading' );
-  const [ failure, setFailure ] = useState<Failure>( 'unavailable' );
   const [ token, setToken ] = useState( '' );
   const [ orders, setOrders ] = useState<OrderRow[]>( [] );
   const [ cursor, setCursor ] = useState( '' );
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
-  const [ moreFailed, setMoreFailed ] = useState( false );
   /** Historical or post-checkout order to open within this table, never on another page. */
   const [ requestedOrder, setRequestedOrder ] = useState( '' );
 
@@ -377,6 +378,9 @@ export default function OrdersPage (): React.ReactElement {
   const [ copiedKey, setCopiedKey ] = useState<string | null>( null );
   const [ copyFailedKey, setCopyFailedKey ] = useState<string | null>( null );
   const [ liveMessage, setLiveMessage ] = useState( '' );
+  // One persistent, accessible failure notice for every backend operation on this page.
+  // It is rendered above the table rather than over it, and cleared by a successful retry.
+  const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
   const [ canCopy, setCanCopy ] = useState( false );
 
   const liveRef = useRef( true );
@@ -460,11 +464,25 @@ export default function OrdersPage (): React.ReactElement {
    * `const unhandled: never = outcome` a sixth outcome compiles clean and leaves the row stuck
    * on 'busy' forever. `void unhandled` is there so the binding is not an unused local.
    */
+  const dismissAlertFor = ( source: AlertSource, key?: string ) => {
+    setOrdersAlert( current => current?.source === source && ( !key || current.key === key )
+      ? null : current );
+  };
+
+  const detailNotice = ( orderNumber: string, message: string | null ) => {
+    if ( message ) {
+      setOrdersAlert( { source: 'detail', key: orderNumber, message } );
+    } else {
+      dismissAlertFor( 'detail', orderNumber );
+    }
+  };
+
   const downloadInvoice = async ( order: OrderRow ) => {
     // The map's key. SAME NAME and same expression as the row callback's local, deliberately:
     // this writes the map and the render reads it, so one grep finds both sides.
     const invoiceKey = order.referenceId;
     if ( !token || !invoiceKey || !Number.isInteger( order.createdAt ) ) return;
+    dismissAlertFor( 'invoice', invoiceKey );
     setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'busy' } ) );
     const outcome = await fetchInvoiceUrl( token, invoiceKey, order.createdAt as number );
     if ( !liveRef.current ) return;
@@ -474,15 +492,22 @@ export default function OrdersPage (): React.ReactElement {
       case 'ok':
         triggerDownload( outcome.url );
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'idle' } ) );
+        dismissAlertFor( 'invoice', invoiceKey );
         return;
       case 'none':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'none' } ) );
+        setOrdersAlert( { source: 'invoice', key: invoiceKey,
+          message: 'An invoice is not available for this order yet.' } );
         return;
       case 'rate':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'rate' } ) );
+        setOrdersAlert( { source: 'invoice', key: invoiceKey,
+          message: 'Too many invoice requests. Wait a moment and try again.' } );
         return;
       case 'failed':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'failed' } ) );
+        setOrdersAlert( { source: 'invoice', key: invoiceKey,
+          message: 'Invoice download failed. Please try again.' } );
         return;
       default: { const unhandled: never = outcome; void unhandled; return; }
     }
@@ -513,11 +538,14 @@ export default function OrdersPage (): React.ReactElement {
     const rows = data.orders || [];
     setOrders( rows );
     setCursor( String( data.cursor || '' ) );
+    dismissAlertFor( 'orders' );
     setView( rows.length === 0 ? 'empty' : 'ready' );
   };
 
   const applyFailure = ( kind: Failure ) => {
-    setFailure( kind );
+    setOrdersAlert( { source: 'orders', message: kind === 'rate'
+      ? 'Too many requests. Wait a moment and try again.'
+      : 'We could not load your orders just now. Try again shortly.' } );
     setView( 'error' );
   };
 
@@ -555,6 +583,10 @@ export default function OrdersPage (): React.ReactElement {
       const linkOutcome = await ensureCustomerLink( session.accessToken );
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
+      if ( linkOutcome === 'ignored' ) {
+        setOrdersAlert( { source: 'link',
+          message: 'Some linked purchases could not be refreshed right now.' } );
+      }
 
       setView( 'loading' );
       const outcome = await fetchOrders( session.accessToken, '' );
@@ -603,7 +635,7 @@ export default function OrdersPage (): React.ReactElement {
   const loadMore = async () => {
     if ( !token || !cursor || loadingMore ) return;
     setLoadingMore( true );
-    setMoreFailed( false );
+    dismissAlertFor( 'pagination' );
     const outcome = await fetchOrders( token, cursor );
     if ( !liveRef.current ) return;
     setLoadingMore( false );
@@ -612,7 +644,9 @@ export default function OrdersPage (): React.ReactElement {
     {
       // The rows already on screen stay, and so does the button, so a second tap retries. An
       // error view here would throw away a list the customer is reading over a pagination hiccup.
-      setMoreFailed( true );
+      setOrdersAlert( { source: 'pagination', message: outcome.kind === 'rate'
+        ? 'Too many requests. Wait a moment before loading more orders.'
+        : 'We could not load more orders. Please try again.' } );
       return;
     }
     const rows = outcome.data.orders || [];
@@ -652,25 +686,30 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
+          { ordersAlert && (
+            <div className="ord-toast-rail">
+              <p className="ord-backend-toast" role="alert" aria-atomic="true">
+                { ordersAlert.message }
+              </p>
+            </div>
+          ) }
+
           { ( view === 'ready' || view === 'empty' ) && token && requestedOrder
             && !orders.some( item => item.orderNumber === requestedOrder ) && (
             <section className="ord-requested-order" aria-label="Requested order details in your Orders list">
-              <OrderDetail accessToken={ token } orderNumber={ requestedOrder } onExpired={ expire } />
+              <OrderDetail accessToken={ token } orderNumber={ requestedOrder }
+                onExpired={ expire } onNotice={ detailNotice } />
             </section>
           ) }
 
           { view === 'error' && (
             <div className="ord-gate">
-              <p className="ord-notice" role="status">
-                { failure === 'rate'
-                  ? 'Too many requests. Wait a moment and try again.'
-                  : 'We could not load your orders just now. Try again shortly.' }
-              </p>
               <button
                 type="button"
                 className="ord-quiet"
                 onClick={ () => {
                   if ( !token ) return;
+                  dismissAlertFor( 'orders' );
                   setView( 'loading' );
                   ( async () => {
                     const outcome = await fetchOrders( token, '' );
@@ -929,12 +968,6 @@ export default function OrdersPage (): React.ReactElement {
                                     >
                                       <OrderActionIcon name="download" />
                                     </button>
-                                    { invoiceCell === 'failed' && (
-                                      <span className="ord-invnote">Download failed</span>
-                                    ) }
-                                    { invoiceCell === 'rate' && (
-                                      <span className="ord-invnote">Wait before retrying</span>
-                                    ) }
                                   </>
                                 ) }
                               <OrderActionsMenu orderNumber={ order.orderNumber } />
@@ -973,7 +1006,8 @@ export default function OrdersPage (): React.ReactElement {
                                   { isPublicOrderNumber( order.orderNumber ) && token && (
                                     <div className="ord-detail-full">
                                       <OrderDetail accessToken={ token }
-                                        orderNumber={ order.orderNumber } onExpired={ expire } />
+                                        orderNumber={ order.orderNumber }
+                                        onExpired={ expire } onNotice={ detailNotice } />
                                     </div>
                                   ) }
                                 </div>
@@ -991,12 +1025,6 @@ export default function OrdersPage (): React.ReactElement {
                    §6.4's source gates leave no visually-hidden utility available on this page;
                    it is empty at rest, carries no identifier, and translates. */ }
               <span className="ord-live" role="status" aria-live="polite">{ liveMessage }</span>
-
-              { moreFailed && (
-                <p className="ord-notice" role="status">
-                  We could not load your orders just now. Try again shortly.
-                </p>
-              ) }
 
               { !!cursor && (
                 <div className="ord-pager">
@@ -1124,11 +1152,17 @@ export default function OrdersPage (): React.ReactElement {
              inline-start edge with #1a3a2a type. A luminance and weight step rather than a hue,
              which is what survives forced-colors and reduced colour discrimination - and colour
              is never the only cue, because every one of these states is also stated in words. */
-          .ord-notice{
-            font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            margin:0;padding:14px 16px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
-            background:var(--public-lime-tint);color:var(--public-brand-green);
-            font-size:16px;font-weight:700;line-height:1.5;
+          /* Match the /auth sign-in error treatment pixel for pixel, but right-align
+             the notice above Orders. No fixed overlay, timer, or duplicate row alert. */
+          .ord-toast-rail{display:flex;justify-content:flex-end;inline-size:100%;min-inline-size:0}
+          .ord-backend-toast{
+            box-sizing:border-box;inline-size:min(100%,560px);
+            margin:14px 0 0;padding:11px 13px;
+            border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
+            background:var(--public-lime-tint);color:var(--public-text);
+            font-family:var(--font-sans);
+            font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
+            overflow-wrap:anywhere;
           }
 
           /* A TABLE IS CORRECT HERE, and the 280px objection the previous comment raised is
