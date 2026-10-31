@@ -30,6 +30,25 @@ TEMPLATE_IMAGE_HEADER = {'templateHeaderMedia': HEADER_IMAGE, 'templateHeaderTyp
 _POST_RECEIPT_ACCESS_GAP_SECONDS = 4
 
 
+def _post_receipt_access_gap_seconds() -> int:
+    """Bounded staff-configured spacing; never a handset-delivery guarantee."""
+    try:
+        db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        table = db.Table(os.environ.get(
+            'SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable'))
+        item = table.get_item(
+            Key={'id': 'vault_delivery_timing_v1'}, ConsistentRead=True).get('Item') or {}
+        raw = item.get('configValue') or '{}'
+        value = json.loads(raw) if isinstance(raw, str) else raw
+        gap = value.get('postReceiptAccessGapSeconds') if isinstance(value, dict) else None
+        if type(gap) is int and 0 <= gap <= 5:
+            return gap
+    except Exception as exc:
+        log_event(logger, 'vault_access_spacing_config_unavailable', level='warning',
+                  reason=type(exc).__name__)
+    return _POST_RECEIPT_ACCESS_GAP_SECONDS
+
+
 def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
     record_key = record_key or {'requestId': row['requestId']}
     current = requests.get_item(Key=record_key, ConsistentRead=True).get('Item') or {}
@@ -204,7 +223,7 @@ def _prepare_and_send(event, lambda_client):
     # Access Vault message; the paid request row still deduplicates concurrent invocations.
     # A sleep is spacing, not a receipt-delivered acknowledgement.
     if not delivered_before:
-        time.sleep(_POST_RECEIPT_ACCESS_GAP_SECONDS)
+        time.sleep(_post_receipt_access_gap_seconds())
     # The approved download template is tied to this paid purchase's file ID.
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
