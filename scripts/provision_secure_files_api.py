@@ -95,10 +95,9 @@ ROUTES = [
     ("GET", "/secure-files"),
     ("POST", "/secure-files/publish-document"),
     ("POST", "/secure-files/{fileId}/revoke"),
-    # Ask the owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link when their
-    # WhatsApp is not linked yet), and resend the Access Vault link for a paid file.
+    # Direct owner-bound native Review & Pay, staff-only media preview and paid access resend.
     ("POST", "/secure-files/{fileId}/request-payment"),
-    ("POST", "/secure-files/{fileId}/send-offer"),
+    ("GET", "/secure-files/payment-media-preview"),
     ("GET", "/secure-files/{fileId}/message-log"),
     ("GET", "/secure-files/{fileId}/schedules"),
     ("POST", "/secure-files/{fileId}/schedules"),
@@ -120,6 +119,7 @@ ROUTES = [
 RETIRED_ROUTES = {
     "POST /secure-files/upload-init",
     "POST /secure-files/{fileId}/confirm",
+    "POST /secure-files/{fileId}/send-offer",
 }
 
 
