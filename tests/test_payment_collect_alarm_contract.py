@@ -48,6 +48,15 @@ def test_error_alarms_notify_confirmed_humans_and_quiet_functions_do_not_page():
 
 def test_invoice_reconciliation_remains_forward_only_and_report_only_by_default():
     source = RECONCILE.read_text(encoding="utf-8")
-    assert 'ap.add_argument("--apply", action="store_true")' in source
+    parsed = ast.parse(source)
+    apply_flags = [
+        node for node in ast.walk(parsed)
+        if isinstance(node, ast.Call) and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "--apply"
+        and any(kw.arg == "action" and isinstance(kw.value, ast.Constant)
+                and kw.value.value == "store_true" for kw in node.keywords)
+    ]
+    assert len(apply_flags) == 1, "Only an explicit --apply flag may write the counter"
     assert 'ConditionExpression="attribute_not_exists(last_seq) OR last_seq < :floor"' in source
     assert 'if not args.apply:' in source
