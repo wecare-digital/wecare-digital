@@ -236,7 +236,7 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "case 'EXPIRED': return 'Access expired'" in page
     assert "sf-download-button" in page
     assert "Download securely" in page
-    assert "sf-choice-tag" in page
+    assert "{ vaultLinePrice !== null && <span className=\"sf-choice-tag\">Recommended</span> }" in page
     assert "Estimated total:" in page
     assert "Final total and tax are calculated at checkout." in page
     assert "Website estimate unavailable. WhatsApp Review & Pay will show the verified amount" in page
