@@ -24,6 +24,7 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
     setLoading( true );
     setError( '' );
     setSigned( null );
+    try {
     const result = await api.getVaultPaymentMediaPreview();
     if ( !result.ok ) setError( 'Unable to load a signed S3 preview. The approved public image is shown instead.' );
     else {
@@ -40,7 +41,11 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
         setSigned( data );
       } else setError( 'Signed S3 preview was not validated; no private URL was displayed.' );
     }
-    setLoading( false );
+    } catch {
+      setError( 'S3 preview status could not be verified; approved source images remain available.' );
+    } finally {
+      setLoading( false );
+    }
   };
   const header = signed?.headerPreviewUrl || templates?.headerImage;
   const item = signed?.itemPreviewUrl || templates?.itemThumbnail;
