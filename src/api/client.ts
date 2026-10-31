@@ -7675,6 +7675,18 @@ export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActio
   return secureFileAction( fileId, 'send-access' );
 }
 
+/** Authenticated, 60-second S3 GET preview of the two already-approved payment assets.
+ * Only the backend selects keys. Never use these URLs as outbound WhatsApp media. */
+export interface VaultPaymentMediaPreview {
+  headerPreviewUrl: string;
+  itemPreviewUrl: string;
+  expiresInSeconds: number;
+}
+export function getVaultPaymentMediaPreview (): Promise<ApiResult<VaultPaymentMediaPreview>> {
+  return apiCallResult<VaultPaymentMediaPreview>( `${API_BASE}/secure-files/payment-media-preview`,
+    { cache: 'no-store' } );
+}
+
 /** Timed actions use the existing five-minute scheduled-messages worker, but dispatch
  * only through the same owner-verified Vault backend (never generic template params). */
 export type VaultScheduleAction = 'offer' | 'payment' | 'access';
