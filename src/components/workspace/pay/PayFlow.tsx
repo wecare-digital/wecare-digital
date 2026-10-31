@@ -512,6 +512,12 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   }, [] );
 
   const applyServicePreset = ( choice: ServiceChoice ) => {
+    if ( choice.needsTarget ) {
+      // An unbound invoice does not create a Vault file entitlement or a
+      // service intent. Refuse old bookmarked ?preset= URLs, not just new buttons.
+      showMsg( `${choice.label} requires a verified service target. Open the service first; nothing was added or charged.`, 'error' );
+      return;
+    }
     const price = servicePrices[ choice.slug ];
     if ( !price?.available ) {
       showMsg( `${ choice.label } live price is unavailable. Nothing was added.`, 'error' );

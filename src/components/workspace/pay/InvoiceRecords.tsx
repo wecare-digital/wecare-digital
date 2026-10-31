@@ -37,7 +37,7 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; serviceKind?: string; }
 
 const PER_PAGE = 25;
 
@@ -75,11 +75,12 @@ function money ( amount?: number, currency?: string ): string {
   }
 }
 
-const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, serviceKind } ) => {
   const toast = useToastContext();
   const router = useRouter();
   const [ invoices, setInvoices ] = useState<api.Invoice[]>( [] );
   const [ loading, setLoading ] = useState( true );
+  const [ scopeError, setScopeError ] = useState( '' );
   const [ statusFilter, setStatusFilter ] = useState( 'all' );
   const [ search, setSearch ] = useState( '' );
   const [ page, setPage ] = useState( 1 );
@@ -95,23 +96,37 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
 
   const load = useCallback( async () => {
     setLoading( true );
+    setScopeError( '' );
     try
     {
       // No status passed: filtering happens client-side so switching filters does
       // not re-hit the API on every keystroke of a 2,000-row ledger.
-      const r = await api.listInvoicesEngine( { limit: 2000 } );
-      setInvoices( r.invoices || [] );
+      const r = await api.listInvoicesEngine( {
+        limit: 2000,
+        ...( serviceKind ? { serviceKind } : {} ),
+      } );
+      const rows = r.invoices || [];
+      if ( serviceKind && rows.some( row => row.serviceKind !== serviceKind ) ) {
+        // Old backend versions silently ignore unknown query keys. Never show
+        // every invoice under the Vault label until the backend proves its scope.
+        setInvoices( [] );
+        setScopeError( 'Verified service-ledger filtering is not yet active on this payment backend. No invoices have been attributed to this service. Check the all-invoices ledger until the backend is deployed.' );
+      } else {
+        setInvoices( rows );
+      }
     } catch
     {
+      setInvoices( [] );
+      setScopeError( serviceKind ? 'Could not verify the service ledger. No invoice has been attributed.' : '' );
       toast.error( 'Could not load invoice records' );
     } finally
     {
       setLoading( false );
     }
-  }, [ toast ] );
+  }, [ serviceKind, toast ] );
 
   useEffect( () => { load(); }, [ load ] );
-  useEffect( () => { setPage( 1 ); }, [ statusFilter, search ] );
+  useEffect( () => { setPage( 1 ); }, [ statusFilter, search, serviceKind ] );
 
   const statuses = useMemo( () => {
     const set = new Set<string>();
@@ -187,7 +202,13 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
   const content = (
     <div className="ir-page">
       <div className="ir-inner">
-        { !embedded && (
+        { serviceKind && (
+          <header className="ir-head">
+            <h2>{ serviceKind === 'VAULT' ? 'Vault payment ledger' : serviceKind.replace( /_/g, ' ' ) + ' ledger' }</h2>
+            <p className="ir-sub">Verified payments for this service. Invoices and delivery proof come from the same read-only Payments ledger.</p>
+          </header>
+        ) }
+        { !embedded && !serviceKind && (
           <header className="ir-head">
             <h1 className="ir-h1">Invoice records</h1>
             <p className="ir-sub">
@@ -197,6 +218,10 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
           </header>
         ) }
 
+        { scopeError ? (
+          <div role="alert" className="ir-scope-error">{ scopeError }</div>
+        ) : (
+        <>
         <div className="ir-cards">
           <div className="ir-card">
             <span className="ir-n">{ totals.count }</span>
@@ -354,6 +379,8 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
           from line items — the invoice is the record. Phone numbers show the last
           four digits only.
         </p>
+        </>
+        ) }
       </div>
 
       <style jsx>{ `
@@ -363,6 +390,7 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
         }
         .ir-inner{max-width:1300px;margin:0 auto;padding:0 24px;box-sizing:border-box}
         .ir-head{margin:0 0 28px}
+        .ir-scope-error{padding:18px;border:1px solid #b45309;border-radius:12px;background:#fffbeb;color:#78350f;font-size:14px;line-height:1.5}
         .ir-h1{
           font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
           letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 14px;

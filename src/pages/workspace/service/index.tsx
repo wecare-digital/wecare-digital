@@ -28,6 +28,11 @@ const VaultLogs = dynamic(
   () => import( '../../../components/workspace/service/VaultLogs' ),
   { ssr: false },
 );
+/** Exactly the same read-only, server-authoritative invoice ledger used in Payments. */
+const InvoiceRecords = dynamic(
+  () => import( '../../../components/workspace/pay/InvoiceRecords' ),
+  { ssr: false },
+);
 
 function one ( raw: string | string[] | undefined ): string {
   return Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
@@ -40,7 +45,9 @@ function serviceView ( raw: string | string[] | undefined ): ServiceView {
 const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
   const active = serviceView( router.query.view );
-  const vaultTab = one( router.query.tab ) === 'logs' ? 'logs' : 'documents';
+  const requestedTab = one( router.query.tab );
+  const vaultTab = requestedTab === 'logs' ? 'logs'
+    : requestedTab === 'ledger' ? 'ledger' : 'documents';
 
   const select = ( view: ServiceView ) => {
     void router.push( {
@@ -49,7 +56,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
     } );
   };
 
-  const selectVaultTab = ( tab: 'documents' | 'logs' ) => {
+  const selectVaultTab = ( tab: 'documents' | 'logs' | 'ledger' ) => {
     void router.push( {
       pathname: '/workspace/service',
       query: tab === 'documents' ? { view: 'vault' } : { view: 'vault', tab: 'logs' },
@@ -87,6 +94,11 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
             onClick={ () => selectVaultTab( 'logs' ) }>
             Logs
           </button>
+          <button type="button" aria-pressed={ vaultTab === 'ledger' }
+            className={ vaultTab === 'ledger' ? 'active' : '' }
+            onClick={ () => selectVaultTab( 'ledger' ) }>
+            Ledger
+          </button>
         </nav>
       ) }
 
@@ -94,7 +106,9 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         { active === 'vault'
           ? vaultTab === 'logs'
             ? <VaultLogs />
-            : <SecureFiles signOut={ signOut } user={ user } embedded />
+            : vaultTab === 'ledger'
+              ? <InvoiceRecords signOut={ signOut } user={ user } embedded serviceKind="VAULT" />
+              : <SecureFiles signOut={ signOut } user={ user } embedded />
           : <Contribute /> }
       </Suspense>
 
