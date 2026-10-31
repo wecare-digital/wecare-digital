@@ -216,8 +216,8 @@ def test_request_menu_routes_via_orders_customer_auth_gate() -> None:
 
     assert "link.href === '/orders/' && link.label !== 'Orders'" in header
     assert "const MENU_SEARCH_LINKS = flattenMenuLinks();" in header
-    assert "label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true" in section
-    assert "label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true" in section
+    assert "label: 'Leave Review', href: CUSTOMER_MENU_HREFS['leave-review']" in section
+    assert "label: 'Subscribe', href: CUSTOMER_MENU_HREFS.subscribe" in section
     assert "let session = getSession();" in orders
     assert "session = await restoreSession();" in orders
     assert "window.location.replace( '/auth?return=/orders/' );" in orders
