@@ -35,3 +35,26 @@ jobs:
         run: python tools/customer-commerce/verify_oauth.py
       - name: Verify website and OAuth session isolation
         run: python tools/customer-commerce/verify_auth_isolation.py
+      - name: Public website sign-in routing smoke (no OTP, no payment)
+        env:
+          SITE_AUTH_BASE: https://wecare.digital/auth/state
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.error import HTTPError
+          from urllib.request import Request, urlopen
+
+          for suffix in ('', '?utm_source=chatgpt.com'):
+              uri = os.environ['SITE_AUTH_BASE'] + suffix
+              request = Request(uri, headers={'Accept': 'application/json', 'User-Agent': 'WECARE-auth-qa/1'})
+              try:
+                  with urlopen(request, timeout=20) as response:
+                      status = response.status
+                      payload = json.loads(response.read(8192))
+              except HTTPError as error:
+                  raise AssertionError('Auth state returned HTTP ' + str(error.code) + ' for ' + ('tracked' if suffix else 'clean')) from None
+              assert status == 200, 'Unexpected auth state HTTP status'
+              assert payload.get('phase') == 'phone' and payload.get('website') is True, 'Unexpected auth init response'
+              print(('tracked' if suffix else 'clean') + ' sign-in initialization: PASS (HTTP 200)')
+          PY
