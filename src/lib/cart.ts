@@ -183,7 +183,7 @@ function droppableUnknown ( item: CartItem ): boolean {
  * This does not make the browser a price authority. It only upgrades identifiers and display
  * strings; checkout still sends references + quantities and the backend still prices from
  * ProductsTable. A multi-variant legacy row with no recoverable choice is deliberately left
- * WITHOUT a variant so /cart/ can ask the customer to choose one instead of silently guessing a
+ * WITHOUT a variant so /checkout/ can ask the customer to choose one instead of silently guessing a
  * size.
  *
  * AN ID FROM THE PREVIOUS CATALOGUE IS NOW DROPPED RATHER THAN CARRIED. Every product id was

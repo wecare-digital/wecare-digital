@@ -9,10 +9,10 @@
  * input standard against every route, and a select is a different control with a different
  * radius and a chevron, so widening the harvest would make it fail on correct output.
  *
- * WHY IT SEEDS. /cart/ renders NONE of the affected controls without a cart.
+ * WHY IT SEEDS. /checkout/ renders NONE of the affected controls without a cart.
  * cart.tsx:1682 is `const isEmpty = ready && items.length === 0`, and .cart-option,
  * .cart-qty and .cart-amount-select all live inside item rows. A fresh Playwright context
- * has an empty localStorage, so an unseeded screenshot of /cart/ shows "Your cart is empty"
+ * has an empty localStorage, so an unseeded screenshot of /checkout/ shows "Your cart is empty"
  * — an image of nothing this batch touched, offered as evidence for a radius change.
  *
  * ORDER OF OPERATIONS IS THE POINT. It asserts the three controls are PRESENT AND VISIBLE
@@ -115,7 +115,7 @@ const num = v => {
  * Is this computed box-shadow an actual ring?
  *
  * `!== 'none'` IS NOT ENOUGH, and that is measured rather than defensive: on the pre-batch
- * /cart/ both controls computed `rgba(0, 0, 0, 0) 0px 0px 0px 0px` — a fully transparent,
+ * /checkout/ both controls computed `rgba(0, 0, 0, 0) 0px 0px 0px 0px` — a fully transparent,
  * zero-length shadow. It is not `none`, it paints nothing, and a check written as
  * `shadow !== 'none'` reports the ring pairing as PASS on a page where neither control has a
  * ring. A gate that passes in the safe-looking direction is worse than no gate.
@@ -138,7 +138,7 @@ async function probeCart ( browser, base ) {
       localStorage.setItem( 'wecare.cart.v1', JSON.stringify( seed ) );
     }, CART_SEED );
     const page = await context.newPage();
-    await gotoStable( page, `${base}/cart/` );
+    await gotoStable( page, `${base}/checkout/` );
 
     // THE GATE. Present AND visible, for all three, before any number is recorded.
     const presence = await page.evaluate( sels => sels.map( sel => {
@@ -154,7 +154,7 @@ async function probeCart ( browser, base ) {
         failures++;
         console.error(
           `FAIL ${vp.name}: ${p.sel} (${control.what}) `
-          + `${p.present ? 'is present but NOT VISIBLE' : 'DID NOT RENDER'} on the seeded /cart/. `
+          + `${p.present ? 'is present but NOT VISIBLE' : 'DID NOT RENDER'} on the seeded /checkout/. `
           + 'The seed did not produce the control this probe exists to measure — fix the seed, '
           + 'do not record a number.'
         );

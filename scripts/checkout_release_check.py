@@ -56,7 +56,10 @@ def check_html(path, html):
                 and (parsed.path.startswith('/workspace') or parsed.path.rstrip('/') == '/access')):
             failures.append(f'{path}: public staff link {href}')
     if '/checkout/' not in page.links:
-        failures.append(f'{path}: Shopping Bag destination missing')
+        failures.append(f'{path}: Checkout destination missing')
+    # Existing cart URLs redirect, but customer-facing links must use canonical checkout.
+    if any(urlsplit(href).path.rstrip('/') == '/cart' for href in page.links):
+        failures.append(f'{path}: legacy cart destination linked')
     if not any(urlsplit(href).path == '/r/wa' for href in page.links):
         failures.append(f'{path}: default WhatsApp widget missing')
     return failures

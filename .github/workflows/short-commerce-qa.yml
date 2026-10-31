@@ -123,3 +123,11 @@ jobs:
           --with boto3==1.43.116
           --with 'moto[dynamodb,cognitoidp]==5.2.4'
           python scripts/verify_whatsapp_catalog_payment_rail.py
+      # Preserve the base branch's native short-only payment-safety regression.
+      # Website full-cart quoting stays a separate hermetic scenario in this script.
+      - name: Opt-in native one-unit hermetic payment and refusal E2E
+        run: >
+          uv run --no-project --python 3.12
+          --with boto3==1.43.116
+          --with 'moto[dynamodb,cognitoidp]==5.2.4'
+          python scripts/verify_whatsapp_catalog_payment_rail.py --short-only

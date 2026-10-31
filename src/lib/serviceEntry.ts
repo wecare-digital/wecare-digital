@@ -11,10 +11,10 @@
  * WHY THE DESTINATION IS NORMALLY `/checkout/`
  * ----------------------------------------
  * `safeLocalReturnPath` only lets a post-sign-in redirect land on an allowlisted customer path
- * (`/cart/`, `/orders/`, `/blog/`, `/`), and that allowlist is a security control we do NOT
- * loosen. Every paid action in this store is a line on the ONE checkout (`/cart/`) — the four
+ * (`/checkout/`, `/orders/`, `/blog/`, `/`), and that allowlist is a security control we do NOT
+ * loosen. Every paid action in this store is a line on the ONE checkout (`/checkout/`) — the four
  * fixed-price services (O-1/O-2), a contribution, and any product — so the gate's destination is
- * `/cart/`, which is already allowlisted and round-trips through sign-in unchanged. The specific
+ * `/checkout/`, which is already allowlisted and round-trips through sign-in unchanged. The specific
  * action (which service, which product) is carried OUT OF BAND in sessionStorage, the same
  * pattern Phase W used for the WhatsApp basket token, so it survives the sign-in round trip
  * without ever riding the `?return=` query string (which the validator strips).

@@ -2,7 +2,7 @@
  * Claiming a WhatsApp catalogue basket, from the browser.
  *
  * WHAT A CLAIM IS. A customer sends their cart in the WhatsApp catalogue; the inbound Lambda writes
- * a phone-bound hand-off row and replies with a link to `/cart/?basket=<token>`. Opening that link
+ * a phone-bound hand-off row and replies with a link to `/checkout/?basket=<token>`. Opening that link
  * while signed in merges the lines into the customer's own catalog cart. The token alone is not
  * authority: the server additionally requires the session's verified phone to equal the phone the
  * hand-off was written for, so a leaked link cannot be redeemed by whoever holds it.
@@ -84,7 +84,7 @@ function claimedLines ( value: unknown ): ClaimedLine[] {
  * the cart sends the customer to `/auth?return=...` first. That `return` value is
  * validated by `safeLocalReturnPath` (`src/lib/safeReturnPath.ts`), which REJECTS any value
  * carrying a query string and re-emits the normalised allowlist member -- so the path that survives
- * sign-in is a bare `/cart/` and `?basket=` is gone by the time the customer arrives back. That
+ * sign-in is a bare `/checkout/` and `?basket=` is gone by the time the customer arrives back. That
  * refusal is deliberate and is the control against a smuggled query, so the token travels BESIDE
  * the URL instead of inside it.
  *
@@ -125,7 +125,7 @@ export function rememberBasketToken ( token: string ): void {
  *
  * THE FALLBACK IS SINGLE-USE: the key is CLEARED as it is read, whether or not the claim that
  * follows succeeds. A claim is a single-use server-side write, so a token left in the stash could
- * only be re-posted on some later visit to `/cart/` and refused -- showing a refusal for a basket
+ * only be re-posted on some later visit to `/checkout/` and refused -- showing a refusal for a basket
  * the customer already has. Clearing on read is what makes the stash a hand-off and not a replay.
  *
  * The URL wins when both are present. `?basket=` is the link the customer just opened; the stash
