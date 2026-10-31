@@ -11,7 +11,7 @@
     -> ONE order (internal fulfilment starts at processing) + ONE paid invoice
     -> exactly TWO template-only WhatsApp payment-order status messages: processing -> completed
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
-    -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
+    -> the order page (`/orders/`, with checkout's owner-checked inline `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
     Section 9d covers the website prepare's own address gate. Section 13 runs one ₹49 Vault
     purchase the same way: the `wecare_vault_request_ready` offer, the Unlock Vault tap, Review and Pay, the
@@ -1452,9 +1452,9 @@ def run(root: Path) -> int:
         page_action = (((page_sends[0].get("interactive") or {}).get("action") or {})
                        .get("parameters") or {}) if page_sends else {}
         page_number = str((counts["orders"][0] if counts["orders"] else {}).get("orderNumber") or "")
-        check("LINK", "the order page message opens the buyer's own order, sent to the buyer",
+        check("LINK", "the message opens the buyer's single Orders list, sent to the buyer",
               len(page_sends) == 1 and bool(page_number)
-              and page_action.get("url") == f"https://wecare.digital/orders/?o={page_number}"
+              and page_action.get("url") == "https://wecare.digital/orders/"
               and page_action.get("display_text") == "View your order"
               and page_sends[0].get("to") == alice["phone"],
               {"url": page_action.get("url"), "text": page_action.get("display_text")})
@@ -1632,7 +1632,7 @@ def run(root: Path) -> int:
               f"attempts={len(_attempts_for(alice['sub']))}")
 
         # ── 9c. the order page: the owner reads the order; nobody else can ─────────────────────
-        print("\n== 9c. order page: /orders/?o=<orderNumber> -> checkout action 'order'")
+        print("\n== 9c. inline order details on /orders/ -> checkout action 'order'")
         from lambda_utils import customer_auth
         origin = "https://wecare.digital"
         number = str(paid_order.get("orderNumber") or "")

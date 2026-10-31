@@ -1,22 +1,8 @@
 /**
- * The order page: `/orders/?o=<orderNumber>`, one of the signed-in customer's own orders.
- *
- * Both purchase channels reach it once the payment is confirmed: the website's
- * /checkout/status/ screen hands off to it, and a WhatsApp buyer gets a "View your order" button
- * after the paid invoice (the invoice engine's `_send_order_page_link` builds the same
- * `/orders/?o=<orderNumber>` shape). The order_status templates themselves carry no link: they
- * are template-only with fixed wording (docs/operations/whatsapp-payment-collection-stack.md).
- *
- * THE NUMBER SELECTS, THE SESSION AUTHORISES. An order number is printed on receipts and read
- * aloud to support, so it is never a credential. The page reads the order through the checkout
- * `order` action, which answers only for an order the WhatsApp-OTP session owns, so a number in
- * a URL reveals nothing on its own.
- *
- * WHY THE NUMBER RIDES SESSIONSTORAGE THROUGH SIGN-IN. `safeLocalReturnPath` refuses any
- * `?` in a return path, and that allowlist is a security control this does not loosen. A
- * signed-out visitor who opened an order link therefore has the number stashed out of band,
- * the same pattern `serviceEntry` uses for a pending checkout, and `/orders/` picks it up once
- * the sign-in returns there.
+ * The single customer Orders page is /orders/ for all purchase channels.
+ * New links never carry an Order Number; historical ?o= links are still read
+ * to expand the owned order before cleaning the address bar.
+ * Session storage carries an order through OTP sign-in without weakening returns.
  */
 
 /**
@@ -36,14 +22,12 @@ export function isPublicOrderNumber ( value: unknown ): value is string {
   return typeof value === 'string' && PUBLIC_ORDER_NUMBER.test( value );
 }
 
-/** `/orders/?o=<orderNumber>`, or the order history when the value is not an order number. */
-export function orderPagePath ( orderNumber: string ): string {
-  return isPublicOrderNumber( orderNumber )
-    ? `/orders/?${ ORDER_PARAM }=${ encodeURIComponent( orderNumber ) }`
-    : '/orders/';
+/** Canonical destination, without a second order-detail route. */
+export function orderPagePath ( _orderNumber: string ): string {
+  return '/orders/';
 }
 
-/** The order number in the current URL, or '' when there is none or it is malformed. */
+/** Read an older ?o= deep link during migration; do not generate new ones. */
 export function orderNumberFromUrl (): string {
   if ( typeof window === 'undefined' ) return '';
   const value = new URLSearchParams( window.location.search ).get( ORDER_PARAM ) || '';

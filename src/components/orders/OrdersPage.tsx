@@ -13,7 +13,7 @@ import { clearSession, getSession, restoreSession } from '../../lib/customerAuth
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import {
-  isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
+  isPublicOrderNumber, orderNumberFromUrl, stashPendingOrder, takePendingOrder,
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
@@ -50,14 +50,10 @@ import OrderDetail from './OrderDetail';
  * row at all (finalization stages PURCHASED_SNAPSHOT_MISSING and returns before the order write),
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
  *
- * THE ORDER PAGE IS THIS PAGE WITH `?o=<orderNumber>`. Both purchase channels end there: the
- * website's /checkout/status/ hands off to it once the payment is confirmed, a WhatsApp buyer
- * gets a "View your order" button after the paid invoice, and each history row's panel links to
- * it. OrderDetail renders
- * it, from one session-gated read of one order. It is a client-side view of the same static
- * route, so the export, the canonical and the signed-out first render above are unchanged. A
- * number opened while signed out is kept in sessionStorage (`lib/orderPage`) and reopened once
- * the sign-in returns here, because the return path may carry no query string.
+ * ONE ORDERS PAGE. Every purchase channel goes to /orders/, not a separate detail
+ * screen. Expanding a history row fetches its own authorized item, delivery and invoice data.
+ * Historical ?o= links are reduced to /orders/ and their row opens after OTP sign-in.
+ * A public Order Number is a selector only; authenticated APIs verify ownership.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -106,7 +102,7 @@ interface OrdersResponse {
  * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
  * export still renders `signedOut` first and the indexed page is unchanged.
  */
-type View = 'loading' | 'ready' | 'empty' | 'error' | 'focus';
+type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
 type Outcome =
@@ -379,12 +375,8 @@ export default function OrdersPage (): React.ReactElement {
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
     return () => window.clearTimeout( timer );
   }, [ profileAction ] );
-  /**
-   * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
-   * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
-   * so the server-rendered shell and the first client paint agree.
-   */
-  const [ focusOrder, setFocusOrder ] = useState( '' );
+  /** Historical or post-checkout order to open within this table, never on another page. */
+  const [ requestedOrder, setRequestedOrder ] = useState( '' );
 
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
@@ -567,12 +559,13 @@ export default function OrdersPage (): React.ReactElement {
   useEffect( () => {
     let live = true;
     ( async () => {
-      // THE ORDER PAGE. `?o=` wins; otherwise a link opened while signed out, carried through
-      // the sign-in round trip out of band because the return path may not carry a query.
-      // Both read on every visit, so a stale stash is consumed even when the URL names an order.
+      // Older ?o= links open the same Orders table; no separate detail URL remains.
       const fromUrl = orderNumberFromUrl();
       const pending = takePendingOrder();
       const requested = fromUrl || pending;
+      if ( new URLSearchParams( window.location.search ).has( 'o' ) ) {
+        window.history.replaceState( window.history.state, '', '/orders/' );
+      }
       let session = getSession();
       if ( !session )
       {
@@ -580,7 +573,7 @@ export default function OrdersPage (): React.ReactElement {
         catch { session = null; }
       }
       if ( !live ) return;
-      if ( requested ) setFocusOrder( requested );
+      if ( requested ) setRequestedOrder( requested );
       if ( !session )
       {
         if ( requested ) stashPendingOrder( requested );
@@ -596,12 +589,6 @@ export default function OrdersPage (): React.ReactElement {
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
 
-      if ( requested )
-      {
-        // OrderDetail owns the one read; the history is not fetched for this visit.
-        setView( 'focus' );
-        return;
-      }
       setView( 'loading' );
       const outcome = await fetchOrders( session.accessToken, '' );
       if ( !live ) return;
@@ -611,6 +598,16 @@ export default function OrdersPage (): React.ReactElement {
     } )();
     return () => { live = false; };
   }, [] );
+
+  // Open a post-checkout or historical deep link inside its matching history row.
+  useEffect( () => {
+    if ( !requestedOrder || view !== 'ready' ) return;
+    const index = orders.findIndex( item => item.orderNumber === requestedOrder );
+    if ( index < 0 ) return;
+    const id = rowKey( orders[ index ], index );
+    setOpenRows( previous => previous[ id ] ? previous : { ...previous, [ id ]: true } );
+    setRequestedOrder( '' );
+  }, [ requestedOrder, orders, view ] );
 
   /**
    * The one-shot re-ask, in its own effect WITH a clearTimeout cleanup. Without the cleanup,
@@ -673,9 +670,9 @@ export default function OrdersPage (): React.ReactElement {
       <RotatingHero
         compact
         frame="Your"
-        words={ [ { word: focusOrder ? 'order' : 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
-        sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
+        words={ [ { word: 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
+        sub="Purchases, payments and invoices."
+        ariaLabel="Your orders"
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -688,7 +685,7 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { token && ( view === 'ready' || view === 'empty' || view === 'focus' ) && (
+          { token && ( view === 'ready' || view === 'empty' ) && (
             <div className="ord-account-bar" aria-label="Account actions">
               <div className="ord-account-actions">
                 <button
@@ -734,8 +731,11 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
-          { view === 'focus' && focusOrder && token && (
-            <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
+          { ( view === 'ready' || view === 'empty' ) && token && requestedOrder
+            && !orders.some( item => item.orderNumber === requestedOrder ) && (
+            <section className="ord-requested-order" aria-label="Requested order details in your Orders list">
+              <OrderDetail accessToken={ token } orderNumber={ requestedOrder } onExpired={ expire } />
+            </section>
           ) }
 
           { view === 'error' && (
@@ -1037,19 +1037,18 @@ export default function OrdersPage (): React.ReactElement {
                                       </div>
                                     </dl>
                                     <div className="ord-detail-actions">
-                                      { isPublicOrderNumber( order.orderNumber ) && (
-                                        <a className="ord-view"
-                                          href={ orderPagePath( order.orderNumber ) }
-                                          aria-label={ `View details for order ${ order.orderNumber }` }>
-                                          View order
-                                        </a>
-                                      ) }
                                       { !!reviewHref && (
                                         <PillButton as="a" href={ reviewHref } action="Review" />
                                       ) }
                                     </div>
                                     { !!panelInvoice && <p className="ord-invnote">{ panelInvoice }</p> }
                                   </div>
+                                  { isPublicOrderNumber( order.orderNumber ) && token && (
+                                    <div className="ord-detail-full">
+                                      <OrderDetail accessToken={ token }
+                                        orderNumber={ order.orderNumber } onExpired={ expire } />
+                                    </div>
+                                  ) }
                                 </div>
                               </td>
                             </tr>

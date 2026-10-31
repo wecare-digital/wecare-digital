@@ -127,7 +127,7 @@ sequenceDiagram
     OW->>WA: invoice template
     WA->>C: Paid invoice + Leave Review Flow
 
-    CO->>OW: cta_url "View your order" -> /orders/?o=<orderNumber> (after the invoice is accepted)
+    CO->>OW: cta_url "View your order" -> /orders/ (after the invoice is accepted)
     OW->>WA: interactive cta_url (24-hour window only)
     WA->>C: Order page link
 ```
@@ -158,7 +158,7 @@ There is no separate review message in the payment rail.
 
 After the paid invoice template is accepted, a WhatsApp cart or catalog-service buyer gets one
 free-form interactive `cta_url` message: "View your order", opening
-`https://wecare.digital/orders/?o=<orderNumber>`. The page is session-gated (checkout's `order`
+`https://wecare.digital/orders/`. Historical `?o=` links remain supported and are cleaned to `/orders/` after login. The page is session-gated (checkout's `order`
 action answers only for the signed-in owner). Owner: invoice engine `_send_order_page_link`,
 called from `send_invoice_whatsapp`.
 

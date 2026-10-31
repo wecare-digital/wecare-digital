@@ -3196,7 +3196,7 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     return cors_response(200, {"status": entry.get("status"), "attempt": entry}, origin)
 
 
-# ── the order page (`/orders/?o=<orderNumber>`) ─────────────────────────────────────────────
+# ── the order page (`/orders/`) ─────────────────────────────────────────────
 
 #: The order page's refusal for an order this session cannot see. ONE code and ONE status for "no
 #: such order" and "another customer's order", so the action is not an oracle for which order

@@ -1,6 +1,6 @@
 /**
  * The customer's words for an order's two statuses, shared by the order history (/orders/) and
- * the order page (/orders/?o=).
+ * the order page (/orders/).
  *
  * Two vocabularies, deliberately kept apart, because they answer different questions:
  *   - PAYMENT: what the money did. Keyed on the canonical `lambda_utils.payment_status` word the

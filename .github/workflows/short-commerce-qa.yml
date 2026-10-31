@@ -33,6 +33,7 @@ on:
       - 'scripts/check_short_commerce_live.py'
       - 'tests/test_short_commerce_live.py'
       - 'tests/test_short_commerce_part1.py'
+      - 'tests/test_orders_single_page_contract.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/check_short_commerce_packages.py'
@@ -70,6 +71,7 @@ on:
       - 'scripts/check_short_commerce_live.py'
       - 'tests/test_short_commerce_live.py'
       - 'tests/test_short_commerce_part1.py'
+      - 'tests/test_orders_single_page_contract.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/check_short_commerce_packages.py'
@@ -97,7 +99,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_short_commerce_part1.py
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
       - name: Release attestation checker (offline, no AWS access)
         run: python -m unittest discover -s tests -p test_short_commerce_live.py
