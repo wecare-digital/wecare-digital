@@ -7238,6 +7238,72 @@ def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 
+
+def _track_customer_menu_template_send(*, phone: str, contact: Dict[str, Any],
+                                       template_name: str, content: str,
+                                       response: Dict[str, Any]) -> str:
+    """Persist the Meta-accepted outbound invite for Inbox and delivery webhooks.
+
+    WhatsApp acknowledgements are NOT a delivered/read signal: store `pending`,
+    and let the signed status webhook advance the same WAMID monotonically. Use
+    one message id for the legacy outbound table and the canonical MessagesTable
+    so the Workspace Inbox does not show duplicates.
+    """
+    from lambda_utils import contact_key, contact_store
+    from lambda_utils.message_store import put_message
+
+    raw = response.get('body')
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except (TypeError, ValueError):
+        payload = {}
+    wamid = str(payload.get('messageId') or '') if isinstance(payload, dict) else ''
+    if not wamid:
+        logger.error(json.dumps({'event': 'customer_menu_wamid_missing',
+                                 'templateName': template_name}))
+        return ''
+
+    now = int(time.time())
+    contact_id = contact_key.resolve(contact) or contact_store.deterministic_id(phone)
+    outbound = {
+        'id': wamid,
+        'messageId': wamid,
+        'whatsappMessageId': wamid,
+        'contactId': contact_id,
+        'channel': 'whatsapp',
+        'direction': 'outbound',
+        'messageType': 'template',
+        'templateName': template_name,
+        'content': content,
+        'status': 'pending',
+        'timestamp': Decimal(str(now)),
+        'createdAt': Decimal(str(now)),
+        'expiresAt': Decimal(str(now + 30 * 86400)),
+        'awsPhoneNumberId': PHONE1_META_ID,
+    }
+    try:
+        dynamodb.Table(
+            os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
+        ).put_item(Item=outbound, ConditionExpression='attribute_not_exists(id)')
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'customer_menu_outbound_log_failed',
+                                 'templateName': template_name,
+                                 'errorType': type(exc).__name__}))
+
+    stored = put_message(
+        channel='whatsapp', direction='outbound', contact_id=contact_id,
+        content=content, status='pending', message_id=wamid,
+        whatsapp_message_id=wamid, message_type='template',
+        templateName=template_name, aws_phone_number_id=PHONE1_META_ID,
+    )
+    if not stored:
+        logger.error(json.dumps({'event': 'customer_menu_inbox_log_failed',
+                                 'templateName': template_name}))
+    logger.info(json.dumps({'event': 'customer_menu_template_accepted',
+                            'templateName': template_name, 'hasMessageId': True}))
+    return wamid
+
+
 def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
     """Send the approved F001 profile-update template for an authenticated website customer.
 
@@ -7280,7 +7346,7 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
     count('launch_attempted')
     table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
     try:
-        contact_store.lookup(table, phone)  # Identity-conflict guard; prefill is handled by INIT.
+        contact_row = contact_store.lookup(table, phone) or {}  # Prefill comes from INIT.
     except contact_store.IdentityConflict:
         count('launch_blocked', reason='identity_conflict')
         return _resp(409, {'error': 'Customer profile identity needs support before it can be updated.'})
@@ -7323,14 +7389,104 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
         count('launch_failed', reason='graph_error')
         return response
 
+    message_id = _track_customer_menu_template_send(
+        phone=phone, contact=contact_row, template_name=template.name,
+        content='🔔 Please review or update the service details associated with your account.',
+        response=response)
     count('launch_sent')
     return _resp(200, {
         'success': True,
         'status': 'PROFILE_UPDATE_SENT',
+        'messageId': message_id,
         'flowCode': flow_code,
         'launchChannel': flow_sessions.LAUNCH_WEB,
         'sessionExpiresAt': session.expires_at,
     })
+
+
+
+def _customer_leave_review_template(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Send the approved review Flow invitation to this authenticated customer's phone.
+
+    This is an explicit website menu action, NOT a post-payment automation. The
+    review Flow's FEEDBACK INIT returns no private data. Its signed nfm_reply
+    goes through the existing idempotent F002 submission and Inbox projection.
+    """
+    from lambda_utils import canonical_flows, contact_store, template_media, whatsapp_templates
+    from flows import common as flow_common
+
+    phone = contact_store.digits(event.get('phone'))
+    if not phone:
+        return _resp(400, {'error': 'Invalid customer phone'})
+
+    record = canonical_flows.published_flow('leave_review')
+    if not record:
+        return _resp(409, {'error': flow_launch.explain('canonical_not_published'),
+                           'reason': 'canonical_not_published'})
+    try:
+        registry = flow_launch.read_registry_row(
+            dynamodb.Table(FLOW_REGISTRY_TABLE), str(record.get('flowId') or ''))
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'customer_review_registry_failed',
+                                 'errorType': type(exc).__name__}))
+        return _resp(503, {'error': flow_launch.explain('registry_unreadable'),
+                           'reason': 'registry_unreadable'})
+    decision = flow_launch.publication_decision(capability='leave_review', registry_row=registry)
+    if not decision.allowed:
+        return _resp(409, {'error': flow_launch.explain(decision.reason),
+                           'reason': decision.reason})
+
+    flow_code = str((canonical_flows.canonical_contract('leave_review') or {}).get('flowCode') or '')
+    funnel_table = dynamodb.Table(flow_funnel.table_name())
+
+    def count(stage: str, **fields: Any) -> None:
+        flow_funnel.record(funnel_table, flow_code, stage, logger=logger,
+                           launchChannel=flow_sessions.LAUNCH_WEB, **fields)
+
+    count('launch_attempted')
+    try:
+        contact_row = contact_store.lookup(
+            flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE), phone) or {}
+    except contact_store.IdentityConflict:
+        count('launch_blocked', reason='identity_conflict')
+        return _resp(409, {'error': 'Customer identity needs support before leaving a review.'})
+
+    # The router recognises the leave-* token and opens FEEDBACK on INIT. It
+    # carries no order reference; the signed inbound reply owns sender identity.
+    token = flow_sessions.mint_token('leave', phone, waba='1')
+    template = whatsapp_templates.LEAVE_REVIEW
+    header = template_media.fixed_image_header(template.name)
+    components = []
+    if header:
+        components.append({
+            'type': 'header',
+            'parameters': [{'type': 'image', 'image': {'link': header}}],
+        })
+    components.append({
+        'type': 'button', 'sub_type': 'flow', 'index': '0',
+        'parameters': [{'type': 'action', 'action': {'flow_token': token}}],
+    })
+    response = _send_template_msg({
+        'to': phone, 'phoneId': PHONE1_META_ID,
+        'templateName': template.name, 'language': template.language,
+        'components': components,
+    }, internal=True)
+    if response.get('statusCode') != 200:
+        count('launch_failed', reason='graph_error')
+        return response
+
+    message_id = _track_customer_menu_template_send(
+        phone=phone, contact=contact_row, template_name=template.name,
+        content='⭐ Your service is complete. We’d appreciate your feedback.',
+        response=response)
+    count('launch_sent')
+    return _resp(200, {
+        'success': True, 'status': 'REVIEW_REQUEST_SENT',
+        'messageId': message_id,
+        'flowCode': flow_code,
+        'launchChannel': flow_sessions.LAUNCH_WEB,
+    })
+
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
@@ -7341,6 +7497,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
         return _customer_profile_update_template(event)
+    if event.get('internalAction') == 'customerLeaveReviewTemplate':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _customer_leave_review_template(event)
     if event.get('internalAction') == 'ensurePrimaryFlowEncryption':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
