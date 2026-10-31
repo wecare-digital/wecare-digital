@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../../lib/customerMenuActions';
+import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
+import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 
 /**
  * The Orders history's per-row service navigation. Actions open the
@@ -86,9 +87,13 @@ const OTHER_ACTIONS: readonly Action[] = [
     icon: 'subscribe', keywords: 'profile address account' },
 ];
 
-type Props = { orderNumber: string };
+type Props = {
+  orderNumber: string;
+  onInvite: ( action: CustomerMenuAction ) => void;
+  inviteBusy: boolean;
+};
 
-export default function OrderActionsMenu ( { orderNumber }: Props ): React.ReactElement {
+export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }: Props ): React.ReactElement {
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>( null );
   const panelRef = useRef<HTMLDivElement>( null );
@@ -170,13 +175,14 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
   const count = requests.length + shipments.length + other.length;
 
   const onNavigate = ( event: React.MouseEvent<HTMLAnchorElement>, action: Action ) => {
-    // Only a real click on Subscribe/Leave Review queues the authenticated
-    // WhatsApp template. No row selection or receipt is opened in Orders.
+    // This row already has an authenticated customer token. Dispatch the
+    // invitation on the deliberate click, not by reloading /orders/ and hoping
+    // a sessionStorage handoff survives. All other actions retain their links.
     if ( !action.external && action.href === '/orders/' && isPrimaryMenuActivation( event ) ) {
       const sendAction = menuActionForLabel( action.label );
       if ( sendAction ) {
-        // The server selects the recipient from the verified customer session.
-        stashCustomerMenuAction( sendAction );
+        event.preventDefault();
+        onInvite( sendAction );
       }
     }
     setOpen( false );
@@ -199,6 +205,8 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
       <button
         ref={ triggerRef }
         type="button"
+        disabled={ inviteBusy }
+        aria-busy={ inviteBusy ? true : undefined }
         className="orm-more"
         aria-label={ 'More actions for ' + ( orderNumber || 'this order' ) }
         title="More order actions"

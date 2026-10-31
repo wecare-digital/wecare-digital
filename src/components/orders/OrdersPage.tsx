@@ -10,7 +10,8 @@ import PillButton from '../PillButton';
 // overridable today. There is deliberately no local alias either: two names for one fact.
 import { featureFlags } from '../../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
-import { takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
+import { stashCustomerMenuAction, takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
+import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import OrderActionIcon from './OrderActionIcon';
@@ -345,6 +346,10 @@ export default function OrdersPage (): React.ReactElement {
   // One persistent, accessible failure notice for every backend operation on this page.
   // It is rendered above the table rather than over it, and cleared by a successful retry.
   const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
+  // A review invitation must not disappear behind a later order-list error.
+  const [ inviteNotice, setInviteNotice ] = useState<{ message: string; error: boolean } | null>( null );
+  const [ inviteBusy, setInviteBusy ] = useState( false );
+  const inviteInFlight = useRef( false );
   const [ canCopy, setCanCopy ] = useState( false );
 
   const liveRef = useRef( true );
@@ -466,6 +471,46 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
+  const inviteName = ( action: CustomerMenuAction ) =>
+    action === 'subscribe' ? 'Subscribe' : 'Review';
+
+  const presentInviteResult = ( action: CustomerMenuAction, kind: 'accepted' | 'failed' ) => {
+    const name = inviteName( action );
+    setInviteNotice( {
+      message: kind === 'accepted'
+        ? `${ name } invitation accepted by WhatsApp. Delivery is not yet confirmed.`
+        : `${ name } invitation could not be confirmed. Check WhatsApp before trying again.`,
+      error: kind === 'failed',
+    } );
+  };
+
+  // Orders-row actions must work on the current page without relying on a
+  // reload. One in-flight guard prevents double taps from sending twice.
+  const dispatchInvite = ( action: CustomerMenuAction ) => {
+    if ( !token || inviteInFlight.current ) return;
+    inviteInFlight.current = true;
+    setInviteBusy( true );
+    setInviteNotice( { message: `Requesting ${ inviteName( action ) } invitation…`, error: false } );
+    void ( async () => {
+      try {
+        const result = await sendCustomerMenuAction( action, token );
+        if ( !liveRef.current ) return;
+        if ( result.kind === 'expired' ) {
+          // Preserve this explicit click across a new sign-in, once only.
+          stashCustomerMenuAction( action );
+          expire();
+          return;
+        }
+        presentInviteResult( action, result.kind );
+      } catch {
+        if ( liveRef.current ) presentInviteResult( action, 'failed' );
+      } finally {
+        inviteInFlight.current = false;
+        if ( liveRef.current ) setInviteBusy( false );
+      }
+    } )();
+  };
+
   const applyFirstPage = ( data: OrdersResponse ) => {
     const rows = data.orders || [];
     setOrders( rows );
@@ -509,28 +554,31 @@ export default function OrdersPage (): React.ReactElement {
       }
       setToken( session.accessToken );
 
-      // A customer can already have a paid WhatsApp order before this browser session owns the
-      // WhatsApp-first contact row. Re-run the evidence-checked bootstrap on every Orders visit:
-      // it is idempotent, and it promotes any NEEDS_CUSTOMER_LINK order to this Cognito subject.
+      // Deliver an explicit header-menu click as soon as authentication is ready.
+      // Do not hold it behind the unrelated customer/order-link bootstrap: that
+      // request can stall even when the review template sender is healthy.
+      // Consume BEFORE sending; refresh/back must never silently resend.
+      const serviceAction = takeCustomerMenuAction();
+      if ( serviceAction ) {
+        setInviteNotice( { message: `Requesting ${ inviteName( serviceAction ) } invitation…`, error: false } );
+        const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
+        if ( !live ) return;
+        if ( result.kind === 'expired' ) {
+          stashCustomerMenuAction( serviceAction );
+          expire();
+          return;
+        }
+        presentInviteResult( serviceAction, result.kind );
+      }
+
+      // Link pre-existing WhatsApp purchases independently of template delivery.
+      // A failure here must not prevent the previously requested invitation.
       const linkOutcome = await ensureCustomerLink( session.accessToken );
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
       if ( linkOutcome === 'ignored' ) {
         setOrdersAlert( { source: 'link',
           message: 'Some linked purchases could not be refreshed right now.' } );
-      }
-
-      // Consume BEFORE sending. Even if the provider times out, a reload must not
-      // silently send a second template; a fresh menu click is an explicit retry.
-      const serviceAction = takeCustomerMenuAction();
-      if ( serviceAction ) {
-        const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
-        if ( !live ) return;
-        if ( result.kind === 'expired' ) { expire(); return; }
-        const actionName = serviceAction === 'subscribe' ? 'Subscribe' : 'Review';
-        setOrdersAlert( { source: 'service', message: result.kind === 'accepted'
-          ? `${ actionName } invite accepted.`
-          : `${ actionName } invite failed. Try again.` } );
       }
 
       setView( 'loading' );
@@ -621,8 +669,13 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { ( ordersAlert || copyNotice ) && (
+          { ( ordersAlert || inviteNotice || copyNotice ) && (
             <div className="ord-toast-rail">
+              { inviteNotice && (
+                <p className="ord-backend-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
+                  { inviteNotice.message }
+                </p>
+              ) }
               { ordersAlert && (
                 <p className="ord-backend-toast" role="alert" aria-atomic="true">
                   { ordersAlert.message }
@@ -816,7 +869,7 @@ export default function OrdersPage (): React.ReactElement {
                                     </button>
                                   </>
                                 ) }
-                              <OrderActionsMenu orderNumber={ order.orderNumber } />
+                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } />
                               </span>
                             </td>
                           </tr>
