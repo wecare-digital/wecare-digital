@@ -738,6 +738,9 @@ export default function OrdersPage (): React.ReactElement {
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
                       const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      const note = order.status
+                        ? ( STATUS_NOTE[ order.status ] || '' )
+                        : 'Contact us and we will check.';
                       // FIRST MATCH WINS, and the gate plus the three structural refusals are
                       // all evaluated BEFORE any state is consulted. Computed as a word so the
                       // ladder stays readable and the JSX stays one short chain over one value.
