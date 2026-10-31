@@ -65,6 +65,13 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
     return () => { active = false; };
   }, [] );
 
+  // All five request services now expose the same approved Meta images.
+  // Preview whichever live server-priced service supplied the verified media;
+  // do not couple the shared asset display to Vault availability.
+  const templatePreview = SERVICE_CHOICES
+    .map( choice => prices[ choice.slug ] )
+    .find( price => price?.available && !!price.templates );
+
   return (
     <section className="default-items" aria-label="Default invoice items">
       <div className="default-items-panel">
@@ -107,8 +114,8 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
       <details className="default-media-preview">
         <summary>Approved WhatsApp Review &amp; Pay header and item icon</summary>
         <PaymentTemplateMedia
-          serviceLabel="Vault and Drop Docs"
-          templates={ prices.vault?.available ? prices.vault.templates : null }
+          serviceLabel="All request services"
+          templates={ templatePreview?.available ? templatePreview.templates : null }
         />
       </details>
       </div>
