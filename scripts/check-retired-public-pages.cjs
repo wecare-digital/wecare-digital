@@ -70,6 +70,28 @@ if (!block) {
   }
 }
 
+// Retired or invalid URLs are silent handoffs, not splash/loading pages.
+const vaultPage = fs.readFileSync(path.join(root, 'src/pages/vault.tsx'), 'utf8');
+const vaultView = fs.readFileSync(path.join(root, 'src/components/get/GetPage.tsx'), 'utf8');
+const cartPage = fs.readFileSync(path.join(root, 'src/pages/cart.tsx'), 'utf8');
+const shell = fs.readFileSync(path.join(root, 'src/pages/_app.tsx'), 'utf8');
+if (/Opening your account|Go to Home/.test(vaultPage)) {
+  failures.push('Vault redirect renders an obsolete loading waypoint');
+}
+if (/Opening your Vault|Checking your verified customer session|sf-loading-mark/.test(vaultView)) {
+  failures.push('Private Vault preflight renders an obsolete loading waypoint');
+}
+if (/Continue to checkout|cart-return/.test(cartPage)) {
+  failures.push('Cart redirect renders an obsolete checkout waypoint');
+}
+if (!vaultView.includes("if ( stage === 'loading' && !error ) return null;")) {
+  failures.push('Vault preflight must remain silent until owner-scoped verification');
+}
+if (!shell.includes("router.pathname === '/404' || router.pathname === '/cart'") ||
+    !shell.includes("router.pathname === '/vault'")) {
+  failures.push('Redirect-only/private routes must bypass public chrome and translation');
+}
+
 // /vault/?file=ID is not a retired marketing page. Keep the protected entry.
 // The CloudFront /get/<*> media rewrite is also intentionally out of scope.
 if (!exists('src/pages/vault.tsx')) failures.push('Protected exact-file Vault route is missing');
