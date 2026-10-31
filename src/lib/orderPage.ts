@@ -1,5 +1,5 @@
 /**
- * The one orders table: `/orders/?o=<orderNumber>` selects a row, never a new detail page.
+ * The order page: `/orders/?o=<orderNumber>`, one of the signed-in customer's own orders.
  *
  * Both purchase channels reach it once the payment is confirmed: the website's
  * /checkout/status/ screen hands off to it, and a WhatsApp buyer gets a "View your order" button
@@ -7,8 +7,10 @@
  * `/orders/?o=<orderNumber>` shape). The order_status templates themselves carry no link: they
  * are template-only with fixed wording (docs/operations/whatsapp-payment-collection-stack.md).
  *
- * THE NUMBER SELECTS, THE SESSION AUTHORISES. The customer history is read only after
- * authenticated session verification. A public order number never authorizes a record.
+ * THE NUMBER SELECTS, THE SESSION AUTHORISES. An order number is printed on receipts and read
+ * aloud to support, so it is never a credential. The page reads the order through the checkout
+ * `order` action, which answers only for an order the WhatsApp-OTP session owns, so a number in
+ * a URL reveals nothing on its own.
  *
  * WHY THE NUMBER RIDES SESSIONSTORAGE THROUGH SIGN-IN. `safeLocalReturnPath` refuses any
  * `?` in a return path, and that allowlist is a security control this does not loosen. A

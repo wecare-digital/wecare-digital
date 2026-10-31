@@ -9,6 +9,12 @@ on:
       - 'src/styles/tokens.css'
       - 'scripts/check_design_drift.py'
       - 'src/lib/cart.ts'
+      - 'src/components/orders/**'
+      - 'src/lib/checkoutQuote.ts'
+      - 'src/lib/customerInvoice.ts'
+      - 'src/lib/serviceEntry.ts'
+      - 'src/pages/cart.tsx'
+      - 'src/pages/_app.tsx'
       - 'src/lib/whatsappBasket.ts'
       - 'src/pages/checkout/**'
       - 'src/lib/paymentVocabulary.ts'
@@ -36,6 +42,12 @@ on:
       - 'src/styles/tokens.css'
       - 'scripts/check_design_drift.py'
       - 'src/lib/cart.ts'
+      - 'src/components/orders/**'
+      - 'src/lib/checkoutQuote.ts'
+      - 'src/lib/customerInvoice.ts'
+      - 'src/lib/serviceEntry.ts'
+      - 'src/pages/cart.tsx'
+      - 'src/pages/_app.tsx'
       - 'src/lib/whatsappBasket.ts'
       - 'src/pages/checkout/**'
       - 'src/lib/paymentVocabulary.ts'
@@ -111,10 +123,9 @@ jobs:
           --with boto3==1.43.116
           --with 'moto[dynamodb,cognitoidp]==5.2.4'
           python scripts/verify_whatsapp_catalog_payment_rail.py
-      # The feature-ON contract must also pass: one SKU/one unit through the
-      # exact native + web payment capture/invoice path, with negative multi-cart
-      # requests refused before a PaymentAttempt or Meta payment template.
-      - name: Opt-in one-unit hermetic payment and refusal E2E
+      # Preserve the base branch's native short-only payment-safety regression.
+      # Website full-cart quoting stays a separate hermetic scenario in this script.
+      - name: Opt-in native one-unit hermetic payment and refusal E2E
         run: >
           uv run --no-project --python 3.12
           --with boto3==1.43.116

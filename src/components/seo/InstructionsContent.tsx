@@ -209,10 +209,10 @@ export default function InstructionsContent () {
 
       {/* ═══ 4. SYSTEM PAGE JSON-LD ═══ */ }
       <JCard n="4" title='System Page (checkout, status, 404...) — no rich schema'
-        desc="Checkout and payment status pages are noindex. The retired cart route has no page or redirect."
+        desc="Checkout and payment status pages are noindex. The legacy cart URL serves a noindex checkout handoff for existing links."
         code={ `// Checkout → null (noindex, nofollow — no JSON-LD)
 // Payment status → null (noindex, nofollow — no JSON-LD)
-// Cart URL → removed (404, no redirect)
+// Cart URL → noindex client-side handoff to /checkout/
 // Login-gated pages → null (not crawlable)` } />
 
       {/* ═══ 5. NEW PAGE ═══ */ }

@@ -125,8 +125,8 @@ def matrix() -> list[dict]:
                      "must serve 404.html with noindex and the apex canonical",
                      body_contains=('"page":"/404"', 'name="robots"', 'noindex')))
     rows.append(_row("fallback", f"{SITE}/404/", 200, "the exported page itself"))
-    rows.append(_row("fallback", f"{SITE}/cart/", 404,
-                     "retired cart route is removed, not redirected to checkout",
+    rows.append(_row("public", f"{SITE}/cart/", 200,
+                     "legacy cart handoff is noindex and redirects in the browser to checkout",
                      terminal_url=f"{SITE}/cart/"))
 
     # ── the staff entry, untouched ──────────────────────────────────────────────────

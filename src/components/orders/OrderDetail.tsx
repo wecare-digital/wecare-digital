@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import PillButton from '../PillButton';
 import { formatPaiseINR } from '../../lib/money';
 import { stashPendingOrder } from '../../lib/orderPage';
+import { downloadOrderInvoice } from '../../lib/customerInvoice';
 import {
   FULFILMENT_STATUS_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE,
 } from '../../lib/orderStatusLabels';
@@ -43,6 +44,7 @@ interface OrderItem {
 
 interface OrderCharges {
   merchandisePaise: number;
+  supplyGstPaise: number;
   deliveryPaise: number;
   discountPaise: number;
   convenienceFeePaise: number;
@@ -152,6 +154,7 @@ export default function OrderDetail (
 ): React.ReactElement {
   const [ load, setLoad ] = useState<Load>( { kind: 'loading' } );
   const [ attempt, setAttempt ] = useState( 0 );
+  const [ invoiceState, setInvoiceState ] = useState<'idle' | 'busy' | 'unavailable' | 'rate' | 'failed'>( 'idle' );
 
   // The parent's expiry handler is a fresh function on every render. Read through a ref so the
   // fetch effect depends only on what it actually fetches and never re-runs on a parent render.
@@ -262,19 +265,24 @@ export default function OrderDetail (
               <h3 className="odt-h3" id="odt-items">Items</h3>
               { items.length > 0
                 ? (
-                  <ul className="odt-items">
-                    { items.map( ( item, index ) => (
-                      <li className="odt-item" key={ `${ item.name }-${ index }` }>
-                        <span className="odt-item-name">{ item.name }</span>
-                        <span className="odt-item-qty">
-                          Qty <span data-wc-no-translate>{ item.quantity }</span>
-                        </span>
-                        <span className="odt-item-amount" data-wc-no-translate>
-                          { money( item.totalPaise ) }
-                        </span>
-                      </li>
-                    ) ) }
-                  </ul>
+                  <div className="odt-table-scroll">
+                    <table className="odt-items-table">
+                      <caption className="odt-visually-hidden">Items in this order</caption>
+                      <thead>
+                        <tr><th scope="col">Item</th><th scope="col">Qty</th><th scope="col">Unit price</th><th scope="col">Amount</th></tr>
+                      </thead>
+                      <tbody>
+                        { items.map( ( item, index ) => (
+                          <tr key={ `${item.name}-${index}` }>
+                            <th scope="row">{ item.name }</th>
+                            <td data-wc-no-translate="true">{ item.quantity }</td>
+                            <td data-wc-no-translate="true">{ money( item.unitPricePaise ) }</td>
+                            <td data-wc-no-translate="true">{ money( item.totalPaise ) }</td>
+                          </tr>
+                        ) ) }
+                      </tbody>
+                    </table>
+                  </div>
                 )
                 : <p className="odt-p">Item details are not available for this order.</p> }
 
@@ -285,6 +293,12 @@ export default function OrderDetail (
                       <dt>Subtotal</dt>
                       <dd data-wc-no-translate>{ money( charges.merchandisePaise ) }</dd>
                     </div>
+                    { charges.supplyGstPaise > 0 && (
+                      <div className="odt-sum-row">
+                        <dt>GST on products / services</dt>
+                        <dd data-wc-no-translate="true">{ money( charges.supplyGstPaise ) }</dd>
+                      </div>
+                    ) }
                     { charges.discountPaise > 0 && (
                       <div className="odt-sum-row">
                         <dt>{ charges.discountLabel || 'Discount' }</dt>
@@ -378,6 +392,36 @@ export default function OrderDetail (
           </div>
 
           <div className="odt-actions">
+            { ( order.paymentStatus === 'captured' || order.paymentStatus === 'refunded' )
+              && order.invoiceNumber && order.referenceId
+              && Number.isSafeInteger( order.createdAt ) && ( order.createdAt || 0 ) > 0 && (
+              <button className="odt-quiet" type="button"
+                disabled={ invoiceState === 'busy' }
+                onClick={ () => {
+                  setInvoiceState( 'busy' );
+                  void downloadOrderInvoice(
+                    accessToken, order.referenceId, order.createdAt!,
+                  ).then( result => {
+                    if ( result === 'expired' ) {
+                      stashPendingOrder( orderNumber );
+                      expiredRef.current();
+                    } else {
+                      setInvoiceState( result === 'ok' ? 'idle' : result );
+                    }
+                  } ).catch( () => setInvoiceState( 'failed' ) );
+                } }>
+                { invoiceState === 'busy' ? 'Preparing invoice…' : 'Download GST invoice' }
+              </button>
+            ) }
+            { invoiceState === 'rate' && <p className="odt-p" role="status">
+              Too many invoice requests. Please try later.
+            </p> }
+            { invoiceState === 'unavailable' && <p className="odt-p" role="status">
+              Your invoice is not available yet. View all orders for updates.
+            </p> }
+            { invoiceState === 'failed' && <p className="odt-p" role="alert">
+              Invoice download failed. Please try again.
+            </p> }
             { /* Plain navigations, not client-side links: /orders/ without `?o=` must remount
                  the page so it shows the history rather than this order again. */ }
             <PillButton as="a" href="/orders/" action="See all your orders" />
@@ -435,6 +479,13 @@ export default function OrderDetail (
           border-radius:16px;background:#fff;
         }
 
+        .odt-table-scroll{width:100%;overflow-x:auto;margin-bottom:18px}
+        .odt-items-table{width:100%;border-collapse:collapse;text-align:left;color:var(--public-text);font-size:14px;line-height:1.5}
+        .odt-items-table th,.odt-items-table td{padding:12px 10px;border-bottom:1px solid var(--public-hairline)}
+        .odt-items-table thead th{color:var(--public-brand-green);font-size:13px}
+        .odt-items-table th:first-child{min-width:130px;overflow-wrap:anywhere}
+        .odt-items-table td{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .odt-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
         .odt-items{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column}
         .odt-item{
           display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:'name amount' 'qty amount';

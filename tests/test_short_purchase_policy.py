@@ -83,32 +83,32 @@ class ShortPurchaseTests(unittest.TestCase):
         claim = checkout.split("def _claim_basket(", 1)[1].split("\ndef ", 1)[0]
         native = checkout.split("def _native_cart(", 1)[1]
         incoming = inbound.split("def _handle_cart_order(", 1)[1].split("\ndef ", 1)[0]
-        self.assertLess(website.index("SHORT_CHECKOUT_ONE_ITEM"),
+        self.assertNotIn("short_purchase.one_unit_lines(line_items)", website)
+        self.assertLess(website.index("service_requests.checkout_preflight"),
                         website.index("profile = _checkout_profile(identity)"))
         self.assertLess(claim.index("BASKET_SHORT_ONLY"), claim.index("carts.ensure("))
         self.assertLess(native.index("NATIVE_CART_SHORT_ONLY"), native.index("_wa_cart_live_key("))
         self.assertLess(incoming.index("cart_order_short_only_refused"), incoming.index("service_from_lines"))
         self.assertIn("CART_REPLY_SHORT_ONLY", inbound)
 
-    def test_explicit_payment_choice_survives_sign_in(self):
+    def test_website_checkout_does_not_autopay_after_sign_in(self):
         page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
-        self.assertIn("stashPendingAction( { kind: 'checkout', channel: chosenChannel } )", page)
-        self.assertIn("stashPendingAction( { kind: 'checkout', channel } )", page)
         self.assertIn("takePendingAction()", page)
-        self.assertIn("selectedCheckoutChannelRef.current = pending.channel", page)
-        self.assertIn("Review your total and select Pay here to continue.", page)
         self.assertNotIn("void proceed( pending.channel )", page)
+        self.assertIn("const chosenChannel: CheckoutChannel = 'website'", page)
+        self.assertIn("options.amountPaise !== expectedTotalPaise", page)
 
 
-    def test_server_refusal_is_explicit_and_truthful(self):
+    def test_website_payment_requires_reviewed_server_quote(self):
         page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")
-        self.assertIn("| { kind: 'SHORT_CHECKOUT_ONE_ITEM' }", page)
-        self.assertIn("status === 'SHORT_CHECKOUT_ONE_ITEM'", page)
-        self.assertIn("outcome.kind === 'SHORT_CHECKOUT_ONE_ITEM'", page)
-        self.assertIn("Remove extra cart lines to continue. Nothing has been charged.", page)
-        # This is a 409 returned before any payment attempt, not an unknown payment result.
-        self.assertLess(page.index("if ( status === 'SHORT_CHECKOUT_ONE_ITEM' )"),
-                        page.index("return { kind: 'UNRECOGNISED' };"))
+        self.assertIn("parseCheckoutQuote( body )", page)
+        self.assertIn("quoteFor !== basketFingerprint( lineItems )", page)
+        self.assertIn("options.amountPaise !== expectedTotalPaise", page)
+        self.assertIn("return { kind: 'QUOTE_CHANGED' };", page)
+        self.assertIn("disabled={ busy || !quoteReady }", page)
+        # Native multi-unit refusal remains server-side, not a website cart limit.
+        backend = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
+        self.assertIn('"error": "SHORT_CHECKOUT_ONE_ITEM"', backend)
 
     def test_claim_failure_keeps_catalog_snapshot_refusal_distinct(self):
         page = (ROOT / "src/components/cart/CartPage.tsx").read_text(encoding="utf-8")

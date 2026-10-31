@@ -26,6 +26,8 @@ import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/checkout/';
+/** The canonical website checkout route, retained as an exported alias. */
+export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
@@ -74,7 +76,7 @@ export function isSignedIn (): boolean {
 
 /**
  * The gate. Resolve the session, then route:
- *   signed in  → push `destination` (default `/checkout/`), the real form/checkout → payment;
+ *   signed in  → push `destination` (default `/cart/`), the real form/checkout → payment;
  *   signed out → push `/auth?return=<destination>`, the one WhatsApp login,
  *                which returns to `destination` after sign-in to continue.
  *
@@ -104,6 +106,6 @@ export async function goToServiceAction (
   }
   // The ONE login, returning to the SAME destination. encodeURIComponent so the path is a clean
   // single query value; safeLocalReturnPath re-validates it on arrival and only honours an
-  // allowlisted local path, which `/checkout/` is.
+  // allowlisted local path, which `/cart/` is.
   await router.push( `${SIGN_IN_PATH}?return=${encodeURIComponent( destination )}` );
 }

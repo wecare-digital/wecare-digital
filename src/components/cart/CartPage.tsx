@@ -1,114 +1,35 @@
 import { buildPageTitle } from '../../lib/page-title';
 /**
- * /checkout/ - the only cart review page and the checkout payment handoff.
- *
- * WHAT IT DOES. Lists the cart (name + catalogue formattedPrice for DISPLAY only), keeps website
- * product lines single-unit, lets the shopper remove lines, and on "Proceed to checkout" ensures a customer session then
- * POSTs {action:'profile'}, {action:'prepare'} and {action:'verify'} to
- * {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a Authorization: Bearer token from getSession().
- * It does NOT post {action:'create'} and has not for some time; that line said so for long enough
- * to mislead anyone tracing which payment path the storefront uses. Cart purchases are collected
- * HERE, on the website, through Razorpay Standard Checkout — `create` is the in-WhatsApp leg and
- * it refuses a non-catalog session outright. The lineItems carry catalogue references and
- * quantities ONLY (src/lib/cart.ts, toLineItems) - the browser never sends a price.
- *
- * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
- * (customer_auth.require_customer). If getSession() is null the shopper is sent to
- * /auth?return=/checkout/ FIRST and returned here afterwards; the cart is in localStorage
- * so it survives the redirect. A signed-in shopper proceeds directly. A test asserts that a null
- * session routes to sign-in and makes NO create call.
- *
- * THE READINESS QUESTION IS ASKED BEFORE ANYTHING IS RENDERED. This page used to decide whether to
- * show the checkout form from `profile`, a piece of state that is null on every arrival - so a
- * customer who had already saved their name, verified email and delivery address was shown the
- * form again, every single visit. It now POSTs {action:'profile'} on mount and again on the click,
- * and renders the form only when the answer says something is missing. A returning customer gets
- * CheckoutIdentityCard - what we already know, with three edit affordances - and no form at all.
- *
- * TWO RULES ABOUT THAT ANSWER, and both are the difference between a sale and a dead end.
- *   1. `proceed` branches on a LOCAL `status`, assigned from `deriveStatus`'s RETURN value, never
- *      on the `profileStatus` state. `setProfileStatus` cannot change the value captured in the
- *      `useCallback` closure, so branching on the state after setting it means the 'ready' arm is
- *      never taken on a first click.
- *   2. 'ready' AND 'unknown' BOTH continue to the prepare POST. `deriveStatus` answers 'unknown'
- *      for a 500, a network failure, a parse failure or a status string this build does not
- *      recognise, and the server's own 409 arms are the authority on readiness - so a transient
- *      index blip costs one wasted prepare call and the customer still pays. A FAILED READINESS
- *      READ MUST NEVER BE THE THING THAT STOPS A PAYABLE CUSTOMER.
- *
- * TRUTHFUL RESPONSE HANDLING - the honesty requirement. The create responses are mapped exactly as
- * checkout/handler.py documents them:
- *   PAYMENT_INITIATION_DISABLED (200) -> INLINE, cart preserved: the server's initiation gate is
- *     off, so it stopped before the payment rail and no charge can have been made. Offers NO
- *     pay-now button. It does NOT hand off to /checkout/status/ - see NOT_PREPARED below for why
- *     that screen cannot carry this claim.
- *   PAYMENT_REQUEST_SENT (200)        -> /checkout/status/?a=<paymentAttemptId> (in-flight view).
- *     RETAINED legacy in-chat response: the server still returns it for the in-WhatsApp flow and
- *     this mapping stays until that path is migrated. See the website contract note below.
- *   payment_unavailable (409)         -> inline: no charge was made.
- *   SEND_FAILED (502)                 -> inline, with a retry: no charge was made.
- *   LINE_ITEMS_REQUIRED (400)         -> empty-cart state.
- *   UNSUPPORTED_CURRENCY / AMOUNT_NOT_SETTLED / CATALOGUE_UNAVAILABLE -> honest error copy.
- *   401                               -> session gone: back to sign-in.
- * There is NEVER a control that claims to take payment while initiation is off.
- *
- * "No charge was made" APPEARS ONLY WHERE THE SERVER HAS SAID SO. Each notice below is reached from
- * a status that means the attempt never got as far as money moving - the initiation gate was off, a
- * readiness block, a message that did not send, a request that was refused or one that never left
- * the browser. It is deliberately absent from the one path that hands off to /checkout/status/,
- * because once an attempt is in flight the browser cannot know whether the money moved, and neither
- * this page nor that one may guess.
- *
- * ADDITIVE WEBSITE RAZORPAY STANDARD CHECKOUT CONTRACT (section 8), replacing PAYMENT_REQUEST_SENT
- * for the website path without removing it for the in-chat path. The backend
- * (lambda_utils/ecommerce/website_checkout.py) returns, behind the SAME initiation gate:
- *   PAYMENT_INITIATION_DISABLED (gate off, the default) -> INLINE, cart preserved, no pay button:
- *     the gate is off, no Razorpay gateway order was created and no charge can have been made.
- *   CHECKOUT_OPTIONS_READY (gate on) -> the browser opens the Razorpay Standard Checkout hosted
- *     modal with ONLY {keyId (public), orderId (server-stored gateway order id), amountPaise
- *     (the FEAT-001 calculator total: collection+fee+GST, never a raw catalogue total), currency,
- *     prefill, paymentAttemptId}. The modal's result is POSTed back to the owned backend
- *     callback, which verifies the signature over the STORED order id and STILL requires an
- *     authoritative Razorpay capture before any paid state.
- *   CHECKOUT_REJECTED -> inline, no charge was made (ownership/snapshot/intent failed).
- *   CHECKOUT_AMBIGUOUS -> hand off to /checkout/status/; the browser must not claim a charge was
- *     or was not made, exactly as the in-flight rule above requires.
- * Cart/resume data is kept until a VERIFIED_PAID finalization. "No charge was made" still appears
- * ONLY where the server has said so (the gate-off, rejected and unavailable paths), never once a
- * gateway order exists.
- *
- * CHROME AND INDEXING. Customer-session route registered in the _app.tsx isPublic chain beside
- * /checkout/status and /checkout/success; noindex; imports no Layout/Header/Footer/SupportWidget.
- * Absent from PUBLIC_PAGE_META, the sitemap and the browser route lists.
- *
- * THE TOP BAND IS SHARED. components/PageTopBand owns the main landmark, the h1, the 108px/96px
- * header clearance, the 1300px measure and the entrance animation, so this page cannot drift from
- * the fifteen routes built on RotatingHero. The band carries no price and no button: §6 of the
- * new-public-page skill puts the action further down, which is where the lime CTA sits.
+ * /checkout/ - the website full-cart review and Razorpay rail.
+ * A read-only server quote displays every line, discount, supply GST, delivery,
+ * convenience fee and fee GST before payment. Neither cart prices nor browser
+ * calculations are sent as money; prepare must match the reviewed server total.
+ * A verified captured attempt is the only successful order transition.
+ * WhatsApp checkout is a separate follow-up route and is not initiated here.
  */
-
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
 import CheckoutProfile from '../CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
-import CheckoutPriceBreakdown from './CheckoutPriceBreakdown';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
+  readCart, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
-  basketFingerprint, cartRequiresDelivery, SHORT_COMMERCE_ONE_PRODUCT_MESSAGE,
+  basketFingerprint, cartRequiresDelivery,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
 import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
 import type { CartItem, CheckoutLineItem } from '../../lib/cart';
+import { parseCheckoutQuote, type CheckoutQuote } from '../../lib/checkoutQuote';
+import { formatPaiseINR } from '../../lib/money';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
 import {
@@ -126,7 +47,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { CHECKOUT_PATH, stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -137,6 +58,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
+// The old production checkout Lambda treats unknown actions as CREATE. Until
+// version-pinned backend deployment proves it understands action:quote, do not
+// send a quote request at all. This switch is compile-time, default OFF.
+const WEBSITE_FULL_CART_QUOTE_ENABLED =
+  process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED === 'true';
 
 /**
  * Every hand-off to /checkout/status/. The attempt is recorded first, so that screen empties this
@@ -200,7 +126,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
-const SIGN_IN_PATH = `/auth?return=${encodeURIComponent(CHECKOUT_PATH)}`;
+const SIGN_IN_PATH = '/auth?return=/checkout/';
 
 /**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
@@ -339,6 +265,7 @@ type Outcome =
   | { kind: 'UNAUTHORIZED' }
   | { kind: 'MALFORMED' }
   | { kind: 'SDK_UNAVAILABLE' }
+  | { kind: 'QUOTE_CHANGED' }
   | { kind: 'LOST' }
   | { kind: 'PROFILE_REQUIRED' }
   | { kind: 'DELIVERY_DETAILS_REQUIRED' }
@@ -505,11 +432,15 @@ interface CartPageProps {
 export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
+  const [ quote, setQuote ] = useState<CheckoutQuote | null>( null );
+  const [ quoteFor, setQuoteFor ] = useState( '' );
+  const [ quoteLoading, setQuoteLoading ] = useState( false );
+  const [ quoteNotice, setQuoteNotice ] = useState( '' );
+  const [ quoteRevision, setQuoteRevision ] = useState( 0 );
   const [ busy, setBusy ] = useState<boolean>( false );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
-  const [ quotedFingerprint, setQuotedFingerprint ] = useState<string>( '' );
   const [ profile, setProfile ] = useState<CheckoutProfileValue | null>( null );
   const [ profileStatus, setProfileStatus ] = useState<ProfileStatus>( 'unknown' );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'create' );
@@ -611,6 +542,95 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     return () => { live = false; };
   }, [] );
 
+  // A read-only ProductsTable quote is mandatory before the website can start
+  // Razorpay. Profile, delivery or cart edits trigger an independent fresh quote.
+  // No payment attempt or provider order is created by this effect.
+  useEffect( () => {
+    let live = true;
+    if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteLoading( false );
+      setQuoteNotice( 'Secure full-cart checkout is being prepared. Payment is not available yet.' );
+      return () => { live = false; };
+    }
+    if ( !ready || items.length === 0 ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteLoading( false );
+      return () => { live = false; };
+    }
+    if ( items.some( needsVariantSelection ) ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteNotice( 'Choose an option for each product to see the total.' );
+      setQuoteLoading( false );
+      return () => { live = false; };
+    }
+
+    let lines: CheckoutLineItem[];
+    try { lines = toLineItems( items ); }
+    catch {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteNotice( 'Review the products and quantities in your cart.' );
+      setQuoteLoading( false );
+      return () => { live = false; };
+    }
+    const fingerprint = basketFingerprint( lines );
+    setQuote( null );
+    setQuoteFor( '' );
+    setQuoteLoading( true );
+    setQuoteNotice( '' );
+    void ( async () => {
+      try {
+        const session = getSession() || await restoreSession();
+        if ( !session ) {
+          if ( live ) setQuoteNotice( 'Sign in to review the final price before paying.' );
+          return;
+        }
+        const serviceIntent = serviceIntentFor( lines );
+        const response = await fetch( PREPARE_CHECKOUT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json',
+            Authorization: `Bearer ${ session.accessToken }` },
+          body: JSON.stringify( { action: 'quote', lineItems: lines,
+            ...( serviceIntent ? { serviceIntentId: serviceIntent } : {} ) } ),
+        } );
+        const body = await response.json().catch( () => ( {} ) ) as Record<string, unknown>;
+        if ( !live ) return;
+        const parsed = response.ok ? parseCheckoutQuote( body ) : null;
+        if ( !parsed ) {
+          const error = String( body.error || '' );
+          if ( error === 'PROFILE_REQUIRED' || error === 'DELIVERY_DETAILS_REQUIRED' ) {
+            // The price cannot be computed for a missing identity/address.
+            // The checkout editor must be usable WITHOUT a payable button.
+            setCheckoutAccessToken( session.accessToken );
+            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : 'create' );
+            setProfileStatus( 'required' );
+            setShowProfile( true );
+          }
+          setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Complete your name to review the price.'
+            : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm your delivery address to see the final price.'
+              : error === 'CART_NOT_PAYABLE' ? 'Review your cart; one of its items cannot be priced.'
+                : response.status === 401 ? 'Sign in again to review the price.'
+                  : 'A verified price breakdown is not available yet. Payment is disabled.' );
+          return;
+        }
+        // A stale response must never price a different basket selected meanwhile.
+        if ( basketFingerprint( toLineItems( readCart() ) ) !== fingerprint ) return;
+        setQuote( parsed );
+        setQuoteFor( fingerprint );
+        setQuoteNotice( '' );
+      } catch {
+        if ( live ) setQuoteNotice( 'The price service is unavailable. Payment is disabled.' );
+      } finally {
+        if ( live ) setQuoteLoading( false );
+      }
+    } )();
+    return () => { live = false; };
+  }, [ items, ready, profile, profileStatus, quoteRevision ] );
+
   /**
    * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
    *
@@ -625,7 +645,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    * than an edge. The `return` value is validated by `safeLocalReturnPath`
    * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
    * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
-   * comes back as a bare `/checkout/` and the token is gone. That refusal is the control against a
+   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
    * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
    * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
    * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
@@ -662,7 +682,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const session = getSession();
     if ( !session )
     {
-      // The sign-in flow returns to a BARE `/checkout/` -- the allowlist strips the query -- so the
+      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
       // token has to be stashed here or it is lost. See the docblock above.
       rememberBasketToken( token );
       window.location.assign( `/auth?return=${ encodeURIComponent(
@@ -697,6 +717,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
   const drop = useCallback( ( ref: string ): void => {
     setItems( removeItem( ref ) );
+    setQuote( null );
+  }, [] );
+
+  const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
+    try {
+      setItems( setQuantity( ref, quantity ) );
+      setQuote( null );
+      setNotice( { kind: 'none' } );
+      setPaymentBlocked( false );
+    } catch {
+      setNotice( { kind: 'quiet', message: 'Choose a quantity from 1 to 99.' } );
+    }
   }, [] );
 
   /*
@@ -712,6 +744,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
     if ( !variantId ) return;
     setItems( setVariant( ref, variantId ) );
+    setQuote( null );
     setPaymentBlocked( false );
     setNotice( { kind: 'none' } );
   }, [] );
@@ -734,6 +767,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     session: CustomerSession,
     lineItems: ReturnType<typeof toLineItems>,
     channel: CheckoutChannel,
+    expectedTotalPaise: number,
     // AN ARGUMENT, not a ref read inside the body, for the same reason `lineItems` is one: this
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
@@ -763,7 +797,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify( {
-          action: channel === 'whatsapp' ? 'create' : 'prepare',
+          action: 'prepare',
           lineItems,
           requestKey: getCheckoutRequestKey( lineItems ),
           // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
@@ -818,6 +852,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         )
         {
           return { kind: 'MALFORMED' };
+        }
+
+        // A quote change between review and prepare must never open a payment modal.
+        // Exact integer paise equality is checked BEFORE invoking the provider SDK.
+        if ( options.currency !== 'INR' || options.amountPaise !== expectedTotalPaise ) {
+          return { kind: 'QUOTE_CHANGED' };
         }
 
         const sdkReady = await loadRazorpaySdk();
@@ -1044,6 +1084,16 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( outcome.kind === 'OPENED' || outcome.kind === 'NAVIGATED' )
     {
       justSavedRef.current = false;
+      return;
+    }
+
+    if ( outcome.kind === 'QUOTE_CHANGED' )
+    {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteRevision( previous => previous + 1 );
+      setNotice( { kind: 'quiet', message:
+        'The payable amount changed. Review the updated price breakdown before paying.' } );
       return;
     }
 
@@ -1284,7 +1334,16 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
     // Website payment is the ordinary cart action. An explicit WhatsApp choice still uses
     // the existing native leg, and survives the profile editor / sign-in round trip.
-    const chosenChannel = channel ?? selectedCheckoutChannelRef.current ?? checkoutChannel ?? 'website';
+    if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
+      setNotice( { kind: 'quiet', message:
+        'Secure checkout is being prepared. No payment has been started.' } );
+      return;
+    }
+    // Website checkout is the only payment rail on this page. WhatsApp has its
+    // own route, where no payment is started until that separate project ships.
+    const chosenChannel: CheckoutChannel = 'website';
+    void channel;
+    void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
@@ -1343,7 +1402,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
-      // Remember the chosen rail across WhatsApp OTP. /auth returns to /checkout/,
+      // Remember the chosen rail across WhatsApp OTP. /auth returns to /cart/,
       // whose one-shot pending checkout resumes this exact channel after sign-in.
       stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
@@ -1420,13 +1479,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
-    if ( currentItems.length > 1 || currentItems.some( item => item.quantity !== 1 ) )
-    {
-      setItems( currentItems );
-      setPaymentBlocked( true );
-      setNotice( { kind: 'quiet', message: SHORT_COMMERCE_ONE_PRODUCT_MESSAGE } );
-      return;
-    }
+    // A full website basket is allowed; the server checks every line/quantity.
     const unresolved = currentItems.find( needsVariantSelection );
     if ( unresolved )
     {
@@ -1438,12 +1491,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       } );
       return;
     }
-    const lineItems = toLineItems( currentItems );
-    if ( lineItems.length === 0 )
-    {
+    let lineItems: CheckoutLineItem[];
+    try { lineItems = toLineItems( currentItems ); }
+    catch {
+      setItems( currentItems );
+      setNotice( { kind: 'quiet', message: 'Review the quantities in your cart.' } );
+      return;
+    }
+    if ( lineItems.length === 0 ) {
       setItems( readCart() );
       return;
     }
+    if ( !quote || quoteFor !== basketFingerprint( lineItems ) || quoteLoading ) {
+      setNotice( { kind: 'quiet', message:
+        'Wait for the verified price breakdown before opening Razorpay.' } );
+      setQuoteRevision( previous => previous + 1 );
+      return;
+    }
+    const expectedTotalPaise = quote.charges.totalPaise;
 
     // Payment is initiated from this reviewed one-product cart, without a second chooser page.
     // The two existing server actions, their idempotency key, and verification remain unchanged.
@@ -1457,7 +1522,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
       // re-posts of a request whose cart was already abandoned, and abandoning it a second time
       // would mint a third cart.
-      let outcome = await postPrepare( session, lineItems, chosenChannel, resetCart );
+      let outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1471,7 +1536,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       {
         justSavedRef.current = false;
         await sleep( POST_SAVE_RETRY_MS );
-        outcome = await postPrepare( session, lineItems, chosenChannel );
+        outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise );
       }
 
       // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
@@ -1513,7 +1578,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
         }
-        outcome = await postPrepare( session, lineItems, chosenChannel );
+        outcome = await postPrepare( session, lineItems, chosenChannel, expectedTotalPaise );
       }
 
       applyOutcome( outcome, session );
@@ -1525,7 +1590,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus, checkoutChannel ] );
+  }, [ profile, profileStatus, checkoutChannel, quote, quoteFor, quoteLoading ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
@@ -1590,25 +1655,19 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [ proceed ] );
 
   useEffect( () => {
-    const pending = takePendingAction();
-    if ( pending?.kind !== 'checkout' || !pending.channel ) return;
-    selectedCheckoutChannelRef.current = pending.channel;
-    // A sign-in return must not open Razorpay behind the customer's back.
-    // Show the fresh server quote first; the user explicitly presses Pay here.
-    setNotice( { kind: 'quiet', message: 'Review your total and select Pay here to continue.' } );
+    // A saved payment-channel choice is not permission to initiate a charge
+    // automatically after OTP. Show the reviewed price and require a fresh click.
+    takePendingAction();
   }, [] );
 
   const isEmpty = ready && items.length === 0;
-  const singleSelectionRequired = ready && items.length > 0
-    && ( items.length !== 1 || items[ 0 ].quantity !== 1 );
-  // A quote is bound to this exact one-product selection. A variant change
-  // invalidates the button immediately, even before the new quote fetch completes.
-  const quoteLineItems = useMemo( () => {
-    if ( items.length !== 1 || items[ 0 ].quantity !== 1 || needsVariantSelection( items[ 0 ] ) ) return [];
-    try { return toLineItems( items ); } catch { return []; }
-  }, [ items ] );
-  const quoteFingerprint = quoteLineItems.length === 1 ? basketFingerprint( quoteLineItems ) : '';
-  const websiteQuoteReady = !!quoteFingerprint && quoteFingerprint === quotedFingerprint;
+  const reviewedBasketFingerprint = ( (): string => {
+    try { return basketFingerprint( toLineItems( items ) ); }
+    catch { return ''; }
+  } )();
+  const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
+    && quoteFor && quoteFor === reviewedBasketFingerprint
+    && !items.some( needsVariantSelection ) );
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1653,6 +1712,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         compact
       >
         <div className="cart-in">
+          <h1 className="cart-heading">Checkout</h1>
+          <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
           {!ready && <p className="cart-body">Loading your cart…</p>}
 
           {isEmpty && (
@@ -1664,6 +1725,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           {ready && items.length > 0 && (
             <>
+              <h2 className="cart-subheading">Your cart</h2>
               <ul className="cart-list">
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
@@ -1706,6 +1768,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       ) }
                     </div>
                     <div className="cart-row-controls">
+                      <div className="cart-qty" role="group" aria-label={ `Quantity for ${item.name}` }>
+                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
+                          disabled={ item.quantity <= 1 } aria-label={ `Decrease ${item.name} quantity` }>−</button>
+                        <span data-wc-no-translate="true" aria-live="polite">{ item.quantity }</span>
+                        <button type="button" onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
+                          disabled={ item.quantity >= 99 } aria-label={ `Increase ${item.name} quantity` }>+</button>
+                      </div>
                       <button
                         className="cart-remove"
                         type="button"
@@ -1724,13 +1793,53 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
-              { quoteLineItems.length === 1 && (
-                <CheckoutPriceBreakdown
-                  accessToken={ checkoutAccessToken }
-                  lineItems={ quoteLineItems }
-                  onQuoteReady={ setQuotedFingerprint }
-                />
-              ) }
+              <section className="cart-quote" aria-labelledby="cart-price-heading">
+                <div className="cart-quote-title">
+                  <h2 className="cart-subheading" id="cart-price-heading">Price breakdown</h2>
+                  <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
+                    onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
+                    Refresh prices
+                  </button>
+                </div>
+                { quoteLoading && <p className="cart-body" role="status">Checking current prices…</p> }
+                { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
+                { quoteNotice.startsWith( 'Sign in' ) && (
+                  <Link className="cart-auth-action" href="/auth?return=/checkout/">
+                    Sign in on WhatsApp
+                  </Link>
+                ) }
+                { quoteReady && quote && (
+                  <>
+                    <div className="cart-table-wrap">
+                      <table className="cart-breakdown-table">
+                        <caption className="cart-visually-hidden">Server-verified cart item prices</caption>
+                        <thead><tr><th scope="col">Item</th><th scope="col">Qty</th><th scope="col">Unit price</th><th scope="col">Amount</th></tr></thead>
+                        <tbody>
+                          { quote.items.map( ( row, index ) => (
+                            <tr key={ `${index}-${row.name}` }>
+                              <th scope="row">{ row.name }</th>
+                              <td data-wc-no-translate="true">{ row.quantity }</td>
+                              <td data-wc-no-translate="true">{ formatPaiseINR( row.unitPricePaise, quote.currency ) }</td>
+                              <td data-wc-no-translate="true">{ formatPaiseINR( row.totalPaise, quote.currency ) }</td>
+                            </tr>
+                          ) ) }
+                        </tbody>
+                      </table>
+                    </div>
+                    <dl className="cart-summary">
+                      <div><dt>Items subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
+                      { quote.charges.supplyGstPaise > 0 && <div><dt>GST on products / services</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
+                      { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel || 'Discount' }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
+                      <div><dt>Delivery</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
+                      <div><dt>Convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
+                      <div><dt>GST on convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
+                      <div className="cart-summary-total"><dt>Final amount to pay</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
+                    </dl>
+                  </>
+                ) }
+                <p className="cart-price-note">The total comes from the live server quotation.
+                  Razorpay must show this same amount before you authorise payment.</p>
+              </section>
 
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
@@ -1824,9 +1933,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   build -- and is shown by `applyOutcome` when the server answers it, which is a
                   press away rather than at render, because nothing local can predict it. */}
 
-              { singleSelectionRequired && (
-                <p className="cart-status" role="status">{ SHORT_COMMERCE_ONE_PRODUCT_MESSAGE }</p>
-              ) }
+
 
               {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
                   which nothing on this page can touch, so words alone would name an action the
@@ -1850,20 +1957,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || singleSelectionRequired || ( !!checkoutAccessToken && !websiteQuoteReady ) }
+                      disabled={ busy || !quoteReady }
                       aria-busy={ busy ? 'true' : undefined }
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
                     </button>
-                    <button
-                      className="cart-auth-action"
-                      type="button"
-                      onClick={ () => { void proceed( 'whatsapp' ); } }
-                      disabled={ busy || singleSelectionRequired }
-                      aria-busy={ busy ? 'true' : undefined }
-                    >
-                      Pay on WhatsApp
-                    </button>
+                    <Link className="cart-auth-action" href="/checkout/whatsapp/">
+                      Checkout with WhatsApp
+                    </Link>
                   </> }
               </div>
             </>
@@ -1879,6 +1980,31 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
+          .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
+          .cart-intro{margin-bottom:24px}
+          .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
+          .cart-qty{display:flex;align-items:center;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--public-heading)}
+          .cart-qty button{width:36px;height:40px;border:1px solid var(--public-hairline);border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:20px;cursor:pointer}
+          .cart-qty button:disabled{opacity:.4;cursor:default}
+          .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+          .cart-qty span{min-width:26px;text-align:center}
+          .cart-quote{margin-top:26px;padding-top:24px;border-top:1px solid var(--public-hairline)}
+          .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
+          .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
+          .cart-quiet-refresh:disabled{opacity:.5}
+          .cart-table-wrap{overflow-x:auto}
+          .cart-breakdown-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px;line-height:1.5;color:var(--public-text)}
+          .cart-breakdown-table th,.cart-breakdown-table td{padding:9px 8px;border-bottom:1px solid var(--public-hairline)}
+          .cart-breakdown-table thead th{font-size:13px;color:var(--public-brand-green)}
+          .cart-breakdown-table td:not(:first-child){font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+          .cart-breakdown-table th:first-child{min-width:110px;overflow-wrap:anywhere}
+          .cart-summary{display:flex;flex-direction:column;gap:11px;margin:24px 0 0;font-size:15px}
+          .cart-summary>div{display:flex;gap:18px;justify-content:space-between;align-items:baseline}
+          .cart-summary dt{color:var(--public-muted)}
+          .cart-summary dd{margin:0;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--public-heading)}
+          .cart-summary-total{padding-top:14px;border-top:1px solid var(--public-hairline);font-size:19px}
+          .cart-summary-total dt,.cart-summary-total dd{font-weight:700;color:var(--public-brand-green)}
+          .cart-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
           .cart-in{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */

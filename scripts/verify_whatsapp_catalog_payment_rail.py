@@ -840,6 +840,40 @@ def run(root: Path) -> int:
     # flag ON. These are full production handlers against moto, not string tests.
     # The request must be refused BEFORE any provider attempt or payment message.
     if short_mode:
+        # Full website quote is a READ; its amount must equal the Razorpay
+        # order prepared for the exact same multi-line basket. The native
+        # one-unit contract stays independent of this website-only flow.
+        website_buyer = shop.customer(72)
+        from lambda_utils import customer_auth as _short_auth
+        website_who = _short_auth.CustomerIdentity(
+            customer_id=website_buyer["sub"], subject=website_buyer["sub"],
+            phone=website_buyer["phone"])
+        website_lines = [
+            {"catalogReference": {"catalogItemId": shop.tee,
+                                  "options": {"variantId": "TEE-M"}}, "quantity": 2},
+            {"catalogReference": {"catalogItemId": shop.kit,
+                                  "options": {"variantId": "KIT1"}}, "quantity": 1},
+        ]
+        before_quote = W.mark()
+        quoted = checkout._website_quote(
+            website_who, {"action": "quote", "lineItems": website_lines},
+            "https://wecare.digital")
+        quote_body = json.loads(quoted.get("body") or "{}")
+        quote = quote_body.get("quote") or {}
+        terms = quote.get("charges") or {}
+        quote_good = (
+            quoted.get("statusCode") == 200
+            and quote_body.get("status") == "QUOTE_READY"
+            and len(quote.get("items") or []) == 2
+            and terms.get("totalPaise", 0) > 0
+            and quote.get("currency") == "INR")
+        check("WEB", "two-line website quote is itemised and read-only",
+              quote_good and not _attempts_for(website_buyer["sub"])
+              and not _pay_sends(W.since(before_quote, "meta_sends")),
+              {"http": quoted.get("statusCode"), "status": quote_body.get("status"),
+               "items": len(quote.get("items") or []),
+               "totalPaise": terms.get("totalPaise")})
+
         short_buyer = shop.customer(39)
         for label, lines in (
                 ("two_units", [{"product_retailer_id": tee, "quantity": 2}]),
@@ -860,22 +894,35 @@ def run(root: Path) -> int:
         who = _short_auth.CustomerIdentity(
             customer_id=short_buyer["sub"], subject=short_buyer["sub"],
             phone=short_buyer["phone"])
-        for action, callback in (("prepare", checkout._website_prepare),
-                                 ("create", checkout._create)):
-            for label, lines in (
-                    ("two_units", [{"quantity": 2}]),
-                    ("two_lines", [{"quantity": 1}, {"quantity": 1}])):
-                before = W.mark()
-                reply = callback(who, {"action": action,
-                                       "requestKey": "short-denial",
-                                       "lineItems": lines}, "https://wecare.digital")
-                body = json.loads(reply.get("body") or "{}")
-                check("SHORT", action + " " + label + ": refuses before price or attempt",
-                      reply.get("statusCode") == 409
-                      and body.get("error") == "SHORT_CHECKOUT_ONE_ITEM"
-                      and not _attempts_for(short_buyer["sub"])
-                      and not _pay_sends(W.since(before, "meta_sends")),
-                      {"status": reply.get("statusCode"), "error": body.get("error")})
+        # The native CREATE rail still enforces one-unit policy. The full
+        # website basket has different, server-authoritative quantity rules.
+        for label, lines in (
+                ("two_units", [{"quantity": 2}]),
+                ("two_lines", [{"quantity": 1}, {"quantity": 1}])):
+            before = W.mark()
+            native = checkout._create(
+                who, {"action": "create", "requestKey": "short-denial",
+                      "lineItems": lines}, "https://wecare.digital")
+            body = json.loads(native.get("body") or "{}")
+            check("SHORT", "native create " + label + ": refuses before payment",
+                  native.get("statusCode") == 409
+                  and body.get("error") == "SHORT_CHECKOUT_ONE_ITEM"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  {"status": native.get("statusCode"), "error": body.get("error")})
+
+            # A deliberately invalid browser payload must still fail BEFORE a
+            # payment attempt, but must not inherit the native one-item refusal.
+            before = W.mark()
+            website = checkout._website_prepare(
+                who, {"action": "prepare", "requestKey": "short-website",
+                      "lineItems": lines}, "https://wecare.digital")
+            web_body = json.loads(website.get("body") or "{}")
+            check("SHORT", "website " + label + ": not native one-unit gated",
+                  web_body.get("error") != "SHORT_CHECKOUT_ONE_ITEM"
+                  and not _attempts_for(short_buyer["sub"])
+                  and not _pay_sends(W.since(before, "meta_sends")),
+                  {"status": website.get("statusCode"), "error": web_body.get("error")})
 
         for label, lines in (
                 ("two_units", [{"productId": shop.kit, "variantId": "KIT1", "quantity": 2}]),
@@ -1661,6 +1708,43 @@ def run(root: Path) -> int:
     checkout.razorpay_orders.create_order = fake_create_order
     checkout.razorpay_orders.find_order_by_receipt = lambda receipt: None
     try:
+        # A sandboxed Razorpay provider is now installed, so a full two-product
+        # website basket must prepare with EXACTLY the previously reviewed quote.
+        multi_customer = shop.customer(73)
+        multi_who = _customer_auth.CustomerIdentity(
+            customer_id=multi_customer["sub"], subject=multi_customer["sub"],
+            phone=multi_customer["phone"])
+        multi_lines = [
+            {"catalogReference": {"catalogItemId": shop.tee,
+                                  "options": {"variantId": "TEE-M"}}, "quantity": 2},
+            {"catalogReference": {"catalogItemId": shop.kit,
+                                  "options": {"variantId": "KIT1"}}, "quantity": 1},
+        ]
+        before_multi = len(created_orders)
+        preview_response = checkout._website_quote(
+            multi_who, {"action": "quote", "lineItems": multi_lines},
+            "https://wecare.digital")
+        preview = json.loads(preview_response.get("body") or "{}")
+        check("WEB", "full-cart quote returns two lines without reserving payment",
+              preview_response.get("statusCode") == 200
+              and len((preview.get("quote") or {}).get("items") or []) == 2
+              and len(created_orders) == before_multi
+              and not _attempts_for(multi_customer["sub"]),
+              {"status": preview.get("status"), "orders": len(created_orders)})
+        prepared_response = checkout._website_prepare(
+            multi_who, {"action": "prepare", "lineItems": multi_lines,
+                        "requestKey": "hermetic-web-multi"},
+            "https://wecare.digital")
+        prepared = json.loads(prepared_response.get("body") or "{}")
+        amount = (prepared.get("options") or {}).get("amountPaise")
+        quoted_amount = ((preview.get("quote") or {}).get("charges") or {}).get("totalPaise")
+        check("WEB", "two-product Razorpay amount equals exact read-only quote",
+              prepared_response.get("statusCode") == 200
+              and prepared.get("status") == "CHECKOUT_OPTIONS_READY"
+              and amount == quoted_amount
+              and len(created_orders) == before_multi + 1,
+              {"status": prepared.get("status"), "quote": quoted_amount, "provider": amount})
+
         web_basket = [{"catalogReference": {"catalogItemId": shop.kit, "options": {"variantId": "KIT1"}},
                        "quantity": 1}]
 

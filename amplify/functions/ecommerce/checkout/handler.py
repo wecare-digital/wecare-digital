@@ -542,7 +542,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if action == "prepare":
             return _website_prepare(identity, body, origin)
         if action == "quote":
-            return _website_quote_preview(identity, body, origin)
+            return _website_quote(identity, body, origin)
         if action == "verify":
             return _website_verify(identity, body, origin)
         # The readiness question. This arm is NOT optional alongside adding "profile" to
@@ -1166,68 +1166,6 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
     return _native_quote(identity, line_items, now)
 
 
-def _website_quote_preview(identity: customer_auth.CustomerIdentity,
-                           body: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Read-only website price breakdown. Never reserves payment or creates a gateway order.
-
-    The same _website_snapshot function prices the eventual Razorpay prepare.
-    This is a review-time quote, NOT a promise to charge the preview unchanged:
-    prepare reprices against the current ProductsTable before opening Razorpay.
-    The provider presents the final amount for customer confirmation.
-    """
-    line_items = body.get("lineItems")
-    # Preview has the Part 1 policy unconditionally. No partial or adjusted cart
-    # may show a plausible price for one item and subsequently charge another.
-    if not short_purchase.one_unit_lines(line_items):
-        return cors_response(409, {
-            "error": "SHORT_CHECKOUT_ONE_ITEM",
-            "message": "Select one product, quantity one, to review the price.",
-        }, origin)
-    try:
-        snapshot = _website_snapshot(identity, line_items, int(time.time()))
-        invoice_lines = _website_invoice_lines(snapshot)
-        if not invoice_lines or not snapshot.quote.is_payable:
-            return cors_response(409, {"error": "QUOTE_NOT_PAYABLE"}, origin)
-        merchandise = sum(
-            int(line["unitPricePaise"]) * int(line["quantity"])
-            for line in invoice_lines["lines"]
-        )
-        supply_gst = int(invoice_lines.get("supplyGstPaise") or 0)
-        delivery = int(invoice_lines.get("deliveryPaise") or 0)
-        discount = int(invoice_lines.get("discountPaise") or 0)
-        convenience = int(snapshot.quote.convenience_fee_paise)
-        convenience_gst = int(snapshot.quote.convenience_gst_paise)
-        total = int(snapshot.quote.total_payable_paise)
-        # A full breakdown is shown only when it reconciles exactly to the
-        # backend payable, to the paise. Otherwise show no speculative figure.
-        if merchandise + supply_gst + delivery - discount + convenience + convenience_gst != total:
-            return cors_response(503, {"error": "QUOTE_UNAVAILABLE"}, origin)
-        return cors_response(200, {
-            "status": "QUOTE_READY",
-            "quote": {
-                "currency": "INR",
-                "subtotalPaise": merchandise,
-                "supplyGstPaise": supply_gst,
-                "discountPaise": discount,
-                "discountLabel": "Delight" if discount else "",
-                "deliveryPaise": delivery,
-                "requiresDelivery": _basket_requires_delivery(line_items),
-                "deliveryLabel": ("Express service" if
-                                  (snapshot.frozen_data.get("pricingMetadata") or {}).get("policy", "").startswith("vault-dropdocs")
-                                  else "Delivery"),
-                "convenienceFeePaise": convenience,
-                "convenienceGstPaise": convenience_gst,
-                "totalPayablePaise": total,
-            },
-        }, origin)
-    except Exception as error:  # noqa: BLE001
-        logger.warning(json.dumps({
-            "event": "website_quote_preview_unavailable",
-            "reason": type(error).__name__,
-        }))
-        return cors_response(503, {"error": "QUOTE_UNAVAILABLE"}, origin)
-
-
 def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
     _attempts_table().put_item(
         Item=attempt,
@@ -1819,19 +1757,77 @@ def _verify_vault_website_renewal(identity: customer_auth.CustomerIdentity,
         raise website_checkout.CheckoutRejected("VAULT_ENTITLEMENT_UNVERIFIED")
 
 
+def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
+                   origin: str) -> Dict[str, Any]:
+    """READ ONLY: price the full website basket before a Razorpay order is created.
+
+    Returns the same ProductsTable-backed QuoteSnapshot and invoice-line breakdown
+    used by _website_prepare. It performs no CartTable write, PaymentAttempt
+    allocation, gateway-order creation, message send or invoice issuance.
+
+    Names and financial terms must reconcile to the server quote in exact paise.
+    Never fall back to client catalogue display prices on a missing term.
+    """
+    def answer(code: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        return _hardened(cors_response(code, data, origin))
+
+    line_items = body.get("lineItems")
+    if not isinstance(line_items, list) or not line_items:
+        return answer(400, {"error": "LINE_ITEMS_REQUIRED"})
+    refusal = service_requests.checkout_preflight(line_items, body)
+    if refusal is not None:
+        return answer(refusal[0], refusal[1])
+    try:
+        _verify_vault_website_renewal(identity, body, line_items)
+        profile = _checkout_profile(identity)
+        if not profile or not str(profile.get("name") or
+                f'{profile.get("firstName") or ""} {profile.get("lastName") or ""}').strip():
+            return answer(409, {"error": "PROFILE_REQUIRED"})
+        if _basket_requires_delivery(line_items):
+            address = contact_address.from_contact(profile)
+            if address is None:
+                return answer(409, {"error": "DELIVERY_DETAILS_REQUIRED"})
+            try:
+                payment_address.assert_payable(
+                    address, channel=payment_address.WEBSITE_RAZORPAY)
+            except payment_address.UnpayableAddress:
+                return answer(409, {"error": "DELIVERY_DETAILS_REQUIRED"})
+
+        snapshot = _website_snapshot(identity, line_items, int(time.time()))
+        spec = _website_invoice_lines(snapshot)
+        if not spec:
+            return answer(503, {"error": "QUOTE_BREAKDOWN_UNAVAILABLE"})
+        items = _display_lines(spec.get("lines"))
+        charges = _order_charges(spec, items, int(snapshot.quote.total_payable_paise))
+        if not items or charges is None:
+            return answer(503, {"error": "QUOTE_BREAKDOWN_UNAVAILABLE"})
+        return answer(200, {"status": "QUOTE_READY",
+                            "quote": {"currency": "INR",
+                                      "items": items,
+                                      "charges": charges}})
+    except website_checkout.CheckoutRejected as rejected:
+        return answer(409, {"error": "CHECKOUT_REJECTED",
+                            "reason": rejected.reason})
+    except (ContributionRejected, service_requests.ServiceNotPayable,
+            service_requests.ServicePriceChanged, cart_contract.CartContractError,
+            checkout_pricing.PricingError, catalog_pricing.CatalogPricingError,
+            ValueError):
+        return answer(409, {"error": "CART_NOT_PAYABLE"})
+    except Exception as exc:  # noqa: BLE001 - no PII in logs or browser
+        logger.error(json.dumps({"event": "website_quote_failed",
+                                 "error": type(exc).__name__}))
+        return answer(503, {"error": "QUOTE_UNAVAILABLE"})
+
+
 def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                      origin: str) -> Dict[str, Any]:
     line_items = body.get("lineItems")
     request_key = str(body.get("requestKey") or "").strip()
     if not isinstance(line_items, list) or not line_items:
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED"}, origin)
-    # Product/variant count is verified before any profile, price, cart or attempt write.
-    # The launch flag is intentionally OFF until the frozen payment rail's RFC is signed off.
-    if short_purchase.enabled() and not short_purchase.one_unit_lines(line_items):
-        return cors_response(409, {
-            "error": "SHORT_CHECKOUT_ONE_ITEM",
-            "message": "Select one product, quantity one, to continue.",
-        }, origin)
+    # Website checkout accepts the complete catalogue basket. The opt-in one-unit
+    # enforcement remains on the separate native WhatsApp paths; the website's
+    # existing quote/cart contract validates product and quantity server-side.
     if not request_key or len(request_key) > 80:
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any pricing or

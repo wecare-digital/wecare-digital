@@ -50,9 +50,12 @@ const CART_KEY = 'wecare.cart.v1';
  */
 export const CART_CHANGED_EVENT = 'wecare:cart-changed';
 
-/** Part 1 storefront checkout: one catalogue selection, one unit, no invisible basket truncation. */
+/** Maximum distinct catalogue variants accepted by the server's canonical basket. */
+export const MAX_CART_LINES = 100;
+export const MAX_CART_QTY = 99;
+/** Native WhatsApp remains a separate, later checkout implementation. */
 export const SHORT_COMMERCE_ONE_PRODUCT_MESSAGE =
-  'Buy one product at a time (quantity 1). Remove extra cart lines to continue.';
+  'WhatsApp multi-item checkout is not yet available. Use website checkout.';
 
 export interface CartItem {
   productId?: string;
@@ -209,8 +212,7 @@ function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed
       slug: product.slug,
       name: hasMultiple && variant ? `${product.name} (${variant.label})` : product.name,
       formattedPrice: product.formattedPrice,
-      // Website purchases are single-unit by policy. Old stored quantities are collapsed on read.
-      quantity: 1,
+      quantity: item.quantity,
     };
     return [ next ];
   } );
@@ -221,8 +223,8 @@ function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed
   for ( const item of reconciled )
   {
     const existing = merged.find( candidate => candidate.ref === item.ref );
-    if ( existing ) existing.quantity = 1;
-    else merged.push( { ...item, quantity: 1 } );
+    if ( existing ) existing.quantity = Math.min( 100000, existing.quantity + item.quantity );
+    else merged.push( { ...item } );
   }
 
   return {
@@ -293,20 +295,24 @@ function announce (): void {
   window.dispatchEvent( new window.CustomEvent( CART_CHANGED_EVENT ) );
 }
 
-/**
- * Select the one storefront product for checkout. Re-selecting it is idempotent; choosing a
- * different product or variant replaces the earlier UNPAID browser selection. Quantity remains
- * fixed to 1 and the payment, order and invoice contracts are not changed.
- */
+/** Add a catalogue variant without discarding the rest of the unpaid website cart. */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );
   if ( product.variants && product.variants.length > 1 && !variantId ) throw new Error( 'Choose an option first.' );
   if ( variantId && !product.variants?.some( variant => variant.id === variantId && variant.inStock ) ) throw new Error( 'Choose an available option.' );
   const ref = String( product.id || product.slug || '' ) + ( variantId ? `:${variantId}` : '' );
   if ( !ref ) return readCart();
-  void qty;
-  const existing = readCart().find( item => item.ref === ref );
-  const selected: CartItem = existing ? { ...existing, quantity: 1 } : {
+  const units = Math.trunc( Number( qty ) );
+  if ( !Number.isSafeInteger( units ) || units < 1 || units > MAX_CART_QTY ) {
+    throw new Error( 'Choose a quantity from 1 to 99.' );
+  }
+  const current = readCart();
+  const existing = current.find( item => item.ref === ref );
+  if ( !existing && current.length >= MAX_CART_LINES ) {
+    throw new Error( 'Your cart has reached its item limit.' );
+  }
+  const selected: CartItem = existing ? { ...existing,
+    quantity: Math.min( MAX_CART_QTY, existing.quantity + units ) } : {
     productId: product.id,
     ...( variantId ? { variantId } : {} ),
     ref,
@@ -315,11 +321,14 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
       ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
       : String( product.name || '' ),
     formattedPrice: String( product.formattedPrice || '' ),
-    quantity: 1,
+    quantity: units,
   };
-  // A new selection replaces the prior UNPAID website selection. No multi-bag checkout.
-  writeCart( [ selected ] );
-  return [ selected ];
+  // Adding a new product keeps the other unpaid lines; a duplicate increments its quantity.
+  const result = existing
+    ? current.map( item => item.ref === ref ? selected : item )
+    : [ ...current, selected ];
+  writeCart( result );
+  return result;
 }
 
 /**
@@ -373,16 +382,13 @@ export function setVariant ( ref: string, variantId: string ): CartItem[] {
 
   const remaining = items.filter( ( _candidate, candidateIndex ) => candidateIndex !== index );
   const duplicate = remaining.find( candidate => candidate.ref === next.ref );
-  if ( duplicate ) duplicate.quantity = 1;
-  else remaining.splice( index, 0, { ...next, quantity: 1 } );
+  if ( duplicate ) duplicate.quantity = Math.min( MAX_CART_QTY, duplicate.quantity + next.quantity );
+  else remaining.splice( index, 0, { ...next } );
   writeCart( remaining );
   return remaining;
 }
 
-/**
- * Compatibility helper for older callers. Website quantity is fixed to 1: zero/below removes
- * the line; any positive value keeps exactly one unit.
- */
+/** Change the quantity of one catalogue line; zero removes it. */
 export function setQuantity ( ref: string, qty: number ): CartItem[] {
   const items = readCart();
   const next = Math.floor( Number( qty ) );
@@ -391,7 +397,10 @@ export function setQuantity ( ref: string, qty: number ): CartItem[] {
     return removeItem( ref );
   }
   const existing = items.find( item => item.ref === ref );
-  if ( existing ) existing.quantity = 1;
+  if ( !Number.isSafeInteger( next ) || next > MAX_CART_QTY ) {
+    throw new Error( 'Choose a quantity from 1 to 99.' );
+  }
+  if ( existing ) existing.quantity = next;
   writeCart( items );
   return items;
 }
@@ -408,7 +417,7 @@ export function removeItem ( ref: string ): CartItem[] {
  *
  * NOT ON A PREPARE, which is what this docstring used to claim and what no caller ever did. A
  * prepared checkout is not a paid one: clearing there would empty the basket of a customer who
- * closed the Razorpay modal. The single call site is `src/components/cart/CartPage.tsx`'s verify handler, on the
+ * closed the Razorpay modal. The single call site is `src/pages/cart.tsx`'s verify handler, on the
  * one status where the server has confirmed an authoritative capture.
  */
 export function clearCart (): void {
@@ -644,15 +653,18 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
  * server reads the authoritative total from ProductsTable, not from this.
  */
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
-  // Defense in depth for legacy/crafted carts; no request may silently drop a second line
-  // or turn a stored quantity > 1 into a charged single unit.
-  if ( items.length > 1 || items.some( item => item.quantity !== 1 ) )
+  // Do not silently truncate a full basket: the server prices all lines from
+  // ProductsTable and rejects any unpayable quantity or variant independently.
+  if ( items.length > MAX_CART_LINES || items.some( item =>
+    !Number.isSafeInteger( item.quantity ) || item.quantity < 1 || item.quantity > 100000 ) )
   {
-    throw new Error( SHORT_COMMERCE_ONE_PRODUCT_MESSAGE );
+    throw new Error( 'Review cart quantities before checkout.' );
   }
   return items
     .filter( item => item.ref && item.quantity > 0 )
-    .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: 1 } ) );
+    .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref,
+      ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) },
+      quantity: item.quantity } ) );
 }
 
 /* ── Phase O-1 services: Submit Request / Request Amendment ─────────────────────────────────── */

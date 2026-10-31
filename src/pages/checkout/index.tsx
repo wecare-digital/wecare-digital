@@ -1,2 +1,4 @@
-/** The single checkout page: selected product, full server quote and direct Razorpay. */
-export { default } from '../../components/cart/CartPage';
+import CartPage from '../../components/cart/CartPage';
+
+/** The canonical full-cart, server-priced website Razorpay checkout. */
+export default CartPage;
