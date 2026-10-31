@@ -13,6 +13,7 @@ from . import service_requests, whatsapp_basket
 # an explicit file-bound send; no client can change the SKU, quantity or amount.
 # This exact label is frozen into PaymentAttempt.invoiceLines and rendered on
 # the paid GST invoice PNG, so later edits cannot rewrite issued documents.
+VAULT_EDITABLE_ITEM_PAISE = 4900  # exactly one ₹49 Vault supply line; never a proposed price
 VAULT_ITEM_DESCRIPTION_DEFAULT = 'Secure document download (24-hour access)'
 _VAULT_ITEM_DESCRIPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,'()&/-]{11,59}")
 
@@ -161,7 +162,9 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
     # catalogue session, priced service intent, and payment attempt.
     # Same frozen description as PaymentAttempt.invoiceLines -> paid invoice PNG.
     # Never accept a description from the inbound WhatsApp event or price quote.
-    if row['kind'] == service_requests.VAULT:
+    if (row['kind'] == service_requests.VAULT
+            and len(lines) == 1 and quantity == 1
+            and unit_paise == VAULT_EDITABLE_ITEM_PAISE):
         label = vault_item_description(service_line.get('name'))
     items = [{
         'name': label, 'quantity': quantity,
