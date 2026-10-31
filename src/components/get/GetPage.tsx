@@ -621,10 +621,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         { working === file.fileId ? 'Preparing…' : 'Download' }
                                                     </button>
                                                 </div>
-                                                <p className="sf-state-note">
+                                                <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
-                                                        ? `Access is active${ ends ? ` until ${ ends }` : '' }. Download again anytime before it ends.`
-                                                        : 'Payment is verified. Your 24-hour window begins when access is first delivered or downloaded; refreshing this page never extends it.' }
+                                                        ? `Access active${ ends ? ` until ${ ends }` : '' }. Download again before it expires.`
+                                                        : 'Payment verified. Your 24-hour access starts on delivery or first download.' }
                                                 </p>
                                             </>
                                         ) : state === 'PAID_UNVERIFIED' ? (
@@ -685,7 +685,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         </div>
                                                     </div>
                                                 ) }
-                                                <p className="sf-state-note">
+                                                <p className="sf-state-note" role="status">
                                                     Free downloads and access-link resends last only for the active paid 24-hour window.
                                                     Renewal opens a new paid window on this same secure file—no new upload.
                                                 </p>
@@ -798,10 +798,18 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   outline:3px solid var(--public-brand-green);outline-offset:3px;
                 }
                 .sf-file-action-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
-                .sf-state-note{
-                  margin:14px 0 0;max-width:480px;color:var(--public-muted);
-                  font-size:var(--public-supporting-size);line-height:1.45;
+                /* Exact /auth and /orders notification treatment: 4px lime rule,
+                   11px/13px padding, 10px radius, lime tint and supporting typography.
+                   Access details stay visible rather than auto-dismissing. */
+                .sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
+                  box-sizing:border-box;inline-size:fit-content;max-inline-size:100%;
+                  margin:14px 0 0;padding:11px 13px;
+                  border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
+                  background:var(--public-lime-tint);color:var(--public-text);
+                  font-family:var(--font-sans);font-size:var(--public-supporting-size);
+                  font-weight:600;line-height:1.4;overflow-wrap:anywhere;
                 }
+                .sf-confirming-note,.sf-payment-note{margin-top:0}
                 .sf-payment-options{display:grid;gap:12px;min-width:0}
                 .sf-expired-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
@@ -818,19 +826,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   padding:12px 14px;margin:0;line-height:1.5;background:var(--public-lime-tint);
                   border-radius:12px;border:1px solid #dce8d6}
                 .sf-pay-waiting{display:grid;gap:12px}
-                .sf-confirming-note{
-                  margin:0;padding:12px 14px;border-inline-start:4px solid var(--public-brand-lime);
-                  border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
-                  font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
-                }
-                .sf-payment-note{
-                  margin:0;max-width:480px;color:var(--public-brand-green);
-                  font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
-                }
-                .sf-file-error{
-                  margin:14px 0 0;max-width:480px;color:var(--public-brand-green);
-                  font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
-                }
 
                 .sf-empty-state{display:grid;justify-items:start;gap:16px}
                 .sf-empty{
@@ -855,8 +850,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-card-title{font-size:22px}
                   .sf-file-head{gap:12px}
                   .sf-file-icon{width:42px;height:42px}
-                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size);
-                    width:100%;justify-content:center;text-align:center}
+                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}
+                  .sf-file-action-button:not(.sf-download-button){width:100%;justify-content:center;text-align:center}
                 }
                 @media(prefers-reduced-motion:reduce){
                   .sf-file-action-button{transition:none}
