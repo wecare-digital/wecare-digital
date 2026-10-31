@@ -55,9 +55,13 @@ or alter payment state; it sends only after an explicit customer click.
   outbound template messages and provider delivery status; F001 and F002
   `flow_response` messages show answer fields and attachments via
   `FlowResponseDetails`.
-- **Workspace > Service > Reviews**: private F002 feedback, moderation and
-  customer history through existing service components.
+- **Workspace > Service > WhatsApp Logs** (`/workspace/service?view=whatsapp-logs`):
+  read-only filtered delivery and response history for these two templates,
+  including submitted form answers. This view reads the latest 2,000 WhatsApp
+  messages and links back to the full Inbox.
 - **Flow Hub**: submission status and existing launch funnel counters.
+  The existing F002 review data stays private and can be inspected through
+  its Flow response; no new public review publication is added.
 - **Audit Logs**: `customer.template_send.requested`,
   `customer.template_send.accepted`, `customer.template_send.failed` on
   a customer ID/template ID, with non-PII status and Meta message ID.
