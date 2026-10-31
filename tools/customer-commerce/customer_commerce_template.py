@@ -15,6 +15,10 @@ ROUTES = {
     # so an update deletes only those obsolete resources.
     9: 'GET /auth/state',
     10: 'POST /auth/step',
+    # Exact branded-resource aliases. Existing API IDs, OAuth issuer, host callbacks,
+    # and all current customer sessions remain unchanged.
+    11: 'POST /mcp-branded',
+    12: 'GET /mcp-branded-metadata',
 }
 
 
