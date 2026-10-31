@@ -112,7 +112,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
 
   const loadRegistry = async () => {
     setRegistryLoading( true );
-    try { setRegistry( await api.listFlowRegistry() ); }
+    try { setRegistry( await api.listFlowRegistry( true ) ); }
     catch ( e ) { console.error( e ); toast.error( 'Failed to load flow registry' ); }
     finally { setRegistryLoading( false ); }
   };
@@ -369,6 +369,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Version</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Registry</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Meta</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Templates</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Entry</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Payment</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Flow ID</th>
@@ -392,6 +393,16 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                       </td>
                       <td style={ { padding: '8px 12px' } }>
                         { f.metaStatus ? <StatusBadge status={ f.metaStatus } /> : <span style={ { color: 'var(--text-muted)' } }>Not synced</span> }
+                      </td>
+                      <td style={ { padding: '8px 12px', minWidth: '180px', fontSize: '0.75rem' } }>
+                        { f.templateFlowMappings?.length ? f.templateFlowMappings.map( mapping => (
+                          <div key={ mapping.templateId } style={ { marginBottom: '0.35rem' } }>
+                            <div style={ { fontWeight: 600 } }>{ mapping.templateName }</div>
+                            <div style={ { fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '0.7rem' } }>
+                              { mapping.templateId }
+                            </div>
+                          </div>
+                        ) ) : <span style={ { color: 'var(--text-muted)' } }>No Flow-button template</span> }
                       </td>
                       <td style={ { padding: '8px 12px' } }>
                         <div style={ { fontWeight: 600 } }>{ f.entryMode === 'none' ? 'Template / service route' : f.entryMode || 'none' }</div>
