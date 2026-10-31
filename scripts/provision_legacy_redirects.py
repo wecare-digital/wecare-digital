@@ -43,10 +43,10 @@ SNAPSHOT = ROOT / "docs/execution/snapshots/amplify-custom-rules-before-8.4.json
 REDIRECT_STATUSES = frozenset({"301", "302", "307", "308"})
 NOT_FOUND_STATUSES = frozenset({"404", "404-200"})
 CATCH_ALL_SOURCE = "/<*>"
-# These marketing pages are removed. A legacy link must reach the authenticated
-# Orders hub, not a 404 or an obsolete product checkout. Do NOT redirect /vault:
-# /vault/?file=<id> is an approved exact-file link and the hosting rules cannot
-# distinguish it from /vault/ by path alone.
+# These former service pages have no standalone content. Without 301 rules they
+# fall through to /404.html, which sends visitors Home. Never add /vault/ here:
+# /vault/?file=<id> is an approved exact-file link and path-only rules cannot
+# distinguish it from bare /vault/.
 RETIRED_SERVICE_PAGE_ROUTES = (
     "/submit-request",
     "/request-amendment",
