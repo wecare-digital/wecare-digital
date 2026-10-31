@@ -7,6 +7,7 @@
  * FlowSubmission -> flow_response projection, never an inferred send success.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import * as api from '../../../api/client';
 import FlowResponseDetails from '../../FlowResponseDetails';
 
@@ -75,7 +76,7 @@ export default function WhatsAppServiceLogs (): React.ReactElement {
           <button type="button" onClick={ () => void reload() } disabled={ loading }>
             { loading ? 'Loading…' : 'Refresh' }
           </button>
-          <a href="/workspace/engage/inbox?channel=whatsapp">Open full Inbox</a>
+          <Link href="/workspace/engage/inbox?channel=whatsapp">Open full Inbox</Link>
         </div>
       </div>
       <p className="sl-summary" aria-live="polite">
