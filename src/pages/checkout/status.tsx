@@ -135,9 +135,9 @@ export default function CheckoutStatus (): React.ReactElement {
   }, [ poll ] );
 
   useEffect( () => {
-    // A website Vault renewal should return to the SAME owned document, not
-    // return the customer to the ONE compact Orders history. No individual
-    // breakdown is opened or stored; Vault checks entitlement independently.
+    // A website Vault renewal returns to its own authenticated document instead.
+    // Other completed purchases go to the one compact Orders history; no receipt
+    // expansion or per-order selector is queued.
     if ( view !== 'paid' || !orderNumber || handedOffRef.current || vaultReturnFile ) return;
     handedOffRef.current = true;
     void router.replace( orderPagePath( orderNumber ) ).catch( () => undefined );
