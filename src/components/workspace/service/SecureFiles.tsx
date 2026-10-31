@@ -25,7 +25,7 @@ import { resolveWaMime, validateWaMediaSize, WA_ACCEPT_STRING } from '../../../l
 import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 
 /** Staff may edit ONLY the one ₹49 Vault catalogue line's customer-facing name. */
-const VAULT_ITEM_DESCRIPTION_DEFAULT = 'Secure document download (24-hour access)';
+const VAULT_ITEM_DESCRIPTION_DEFAULT = 'Vault Access - Secure document download (24 hours)';
 const VAULT_BASE_ITEM_PAISE = 4900;
 const VAULT_ITEM_DESCRIPTION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 .,'()&\/-]{11,59}$/;
 function validVaultItemDescription ( text: string ): boolean {
