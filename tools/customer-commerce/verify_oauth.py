@@ -320,7 +320,7 @@ class OAuthContract(unittest.TestCase):
         self.assertEqual(state['returnPath'], '/orders/')
         self.assertTrue(cookie)
         _, fallback = self.begin_website('https://evil.example/')
-        self.assertEqual(fallback['returnPath'], '/cart/')
+        self.assertEqual(fallback['returnPath'], '/checkout/')
 
     def test_oauth_state_is_bound_to_registered_client(self):
         _, state = self.begin_oauth()

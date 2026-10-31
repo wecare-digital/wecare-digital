@@ -403,7 +403,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             // Same-tab, non-authoritative link for the success/status screen to offer.
             // File access still requires authenticated exact-file authorization.
             window.sessionStorage.setItem( VAULT_WEBSITE_RETURN_FILE_KEY, file.fileId );
-            window.location.assign( '/cart/' );
+            window.location.assign( '/checkout/' );
         } catch {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
                 kind: 'error',

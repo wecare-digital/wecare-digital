@@ -155,7 +155,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
 
       const demoCheckout = firstCard.locator( '.eta-demo-checkout' );
       if ( await demoCheckout.count() !== 1 ) {
-        fail( `${viewport.name}: demo result is missing the cart Checkout control` );
+        fail( `${viewport.name}: demo result is missing the Checkout control` );
       }
       if ( ( await demoCheckout.locator( '.eta-action-label' ).textContent() || '' ).trim() !== 'Checkout' ) {
         fail( `${viewport.name}: demo checkout label is not Checkout` );
@@ -163,8 +163,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( await demoCheckout.locator( '.eta-checkout-icon' ).textContent() !== 'shopping_cart_checkout' ) {
         fail( `${viewport.name}: demo checkout is missing the shared shopping_cart_checkout icon` );
       }
-      if ( await demoCheckout.getAttribute( 'href' ) !== '/cart/' ) {
-        fail( `${viewport.name}: demo checkout does not point to /cart/` );
+      if ( await demoCheckout.getAttribute( 'href' ) !== '/checkout/' ) {
+        fail( `${viewport.name}: demo checkout does not point to /checkout/` );
       }
       if ( await firstCard.locator( '.eta-checkout' ).count() !== 0 ) {
         fail( `${viewport.name}: demo result exposes live-provider checkout options` );

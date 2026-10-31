@@ -27,7 +27,7 @@
  *
  * Run:  node tools/browser/designsweep.js
  *       node tools/browser/designsweep.js --firefox
- *       node tools/browser/designsweep.js /cart/ /orders/
+ *       node tools/browser/designsweep.js /checkout/ /orders/
  */
 
 const { target } = require( './lib/serve' );
@@ -44,7 +44,7 @@ const ARGS = process.argv.slice( 2 ).filter( a => !a.startsWith( '--' ) );
  * it supplies the standard and is never judged against it.
  */
 const ROUTES = ARGS.length ? ARGS : [
-  '/cart/', '/orders/', '/checkout/status/', '/checkout/success/',
+  '/checkout/', '/orders/', '/checkout/status/', '/checkout/success/',
   '/get/', '/shop/kiosk/', '/blog/', '/contact/', '/vayulok/',
 '/submit-request/', '/request-amendment/',
   '/drop-docs/', '/terms/', '/privacy/', '/404/',

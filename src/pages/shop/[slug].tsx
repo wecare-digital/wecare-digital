@@ -36,8 +36,8 @@ import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } fr
  * A grey placeholder frame is a promise that a picture exists.
  *
  * The route exposes one compact Checkout action. It adds the product's catalogue REFERENCE and
- * quantity to the browser cart, then moves directly to /cart/ for review. The payment choices
- * appear on the reviewed one-product cart, not on an extra /checkout/ page.
+ * quantity to the browser cart, then moves directly to /checkout/ for review. The payment actions
+ * appear on the same reviewed one-product checkout page.
  */
 
 interface ShopProductPageProps {
@@ -85,7 +85,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           } );
         }
       }
-      await router.push( '/cart/' );
+      await router.push( '/checkout/' );
     } finally {
       setBusy( false );
     }

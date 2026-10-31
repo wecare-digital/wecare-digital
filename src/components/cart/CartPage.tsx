@@ -1,6 +1,6 @@
 import { buildPageTitle } from '../../lib/page-title';
 /**
- * /cart/ - the cart review page and the checkout `create` handoff.
+ * /checkout/ - the only cart review page and the checkout payment handoff.
  *
  * WHAT IT DOES. Lists the cart (name + catalogue formattedPrice for DISPLAY only), keeps website
  * product lines single-unit, lets the shopper remove lines, and on "Proceed to checkout" ensures a customer session then
@@ -14,7 +14,7 @@ import { buildPageTitle } from '../../lib/page-title';
  *
  * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
  * (customer_auth.require_customer). If getSession() is null the shopper is sent to
- * /auth?return=/cart/ FIRST and returned here afterwards; the cart is in localStorage
+ * /auth?return=/checkout/ FIRST and returned here afterwards; the cart is in localStorage
  * so it survives the redirect. A signed-in shopper proceeds directly. A test asserts that a null
  * session routes to sign-in and makes NO create call.
  *
@@ -89,12 +89,13 @@ import { buildPageTitle } from '../../lib/page-title';
 
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
 import CheckoutProfile from '../CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
+import CheckoutPriceBreakdown from './CheckoutPriceBreakdown';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
@@ -125,7 +126,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
-import { stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+import { CHECKOUT_PATH, stashPendingAction, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 // The two request-key slots live with the status-screen hand-off, so the screen that empties a
 // paid cart and the page that minted its key name the same storage keys.
 import {
@@ -199,7 +200,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
-const SIGN_IN_PATH = '/auth?return=/cart/';
+const SIGN_IN_PATH = `/auth?return=${encodeURIComponent(CHECKOUT_PATH)}`;
 
 /**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
@@ -508,6 +509,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
+  const [ quotedFingerprint, setQuotedFingerprint ] = useState<string>( '' );
   const [ profile, setProfile ] = useState<CheckoutProfileValue | null>( null );
   const [ profileStatus, setProfileStatus ] = useState<ProfileStatus>( 'unknown' );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'create' );
@@ -623,7 +625,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    * than an edge. The `return` value is validated by `safeLocalReturnPath`
    * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
    * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
-   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
+   * comes back as a bare `/checkout/` and the token is gone. That refusal is the control against a
    * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
    * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
    * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
@@ -660,7 +662,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const session = getSession();
     if ( !session )
     {
-      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
+      // The sign-in flow returns to a BARE `/checkout/` -- the allowlist strips the query -- so the
       // token has to be stashed here or it is lost. See the docblock above.
       rememberBasketToken( token );
       window.location.assign( `/auth?return=${ encodeURIComponent(
@@ -1341,7 +1343,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
-      // Remember the chosen rail across WhatsApp OTP. /auth returns to /cart/,
+      // Remember the chosen rail across WhatsApp OTP. /auth returns to /checkout/,
       // whose one-shot pending checkout resumes this exact channel after sign-in.
       stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
@@ -1591,12 +1593,22 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const pending = takePendingAction();
     if ( pending?.kind !== 'checkout' || !pending.channel ) return;
     selectedCheckoutChannelRef.current = pending.channel;
-    void proceed( pending.channel );
-  }, [ proceed ] );
+    // A sign-in return must not open Razorpay behind the customer's back.
+    // Show the fresh server quote first; the user explicitly presses Pay here.
+    setNotice( { kind: 'quiet', message: 'Review your total and select Pay here to continue.' } );
+  }, [] );
 
   const isEmpty = ready && items.length === 0;
   const singleSelectionRequired = ready && items.length > 0
     && ( items.length !== 1 || items[ 0 ].quantity !== 1 );
+  // A quote is bound to this exact one-product selection. A variant change
+  // invalidates the button immediately, even before the new quote fetch completes.
+  const quoteLineItems = useMemo( () => {
+    if ( items.length !== 1 || items[ 0 ].quantity !== 1 || needsVariantSelection( items[ 0 ] ) ) return [];
+    try { return toLineItems( items ); } catch { return []; }
+  }, [ items ] );
+  const quoteFingerprint = quoteLineItems.length === 1 ? basketFingerprint( quoteLineItems ) : '';
+  const websiteQuoteReady = !!quoteFingerprint && quoteFingerprint === quotedFingerprint;
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1620,7 +1632,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   return (
     <>
       <Head>
-        <title>{ buildPageTitle( 'Your cart' ) }</title>
+        <title>{ buildPageTitle( 'Checkout' ) }</title>
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
@@ -1712,14 +1724,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 ) ) }
               </ul>
 
-              {/* Only the signed backend quote and its provider presentation know the
-                  exact payable, after any applicable Delight discount, fees, tax or delivery.
-                  The catalogue display string above is never used as checkout money. */}
-              <p className="cart-price-note" role="note">
-                Catalog price shown above. The final amount after applicable discounts,
-                fees and taxes will appear in the secure payment screen or WhatsApp
-                Review and Pay before you confirm.
-              </p>
+              { quoteLineItems.length === 1 && (
+                <CheckoutPriceBreakdown
+                  accessToken={ checkoutAccessToken }
+                  lineItems={ quoteLineItems }
+                  onQuoteReady={ setQuotedFingerprint }
+                />
+              ) }
 
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
@@ -1839,7 +1850,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       className="cart-auth-action cart-auth-primary"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
-                      disabled={ busy || singleSelectionRequired }
+                      disabled={ busy || singleSelectionRequired || ( !!checkoutAccessToken && !websiteQuoteReady ) }
                       aria-busy={ busy ? 'true' : undefined }
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }

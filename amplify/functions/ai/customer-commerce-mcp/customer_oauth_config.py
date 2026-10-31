@@ -20,7 +20,6 @@ WEBSITE_CLIENT = 'wecare-website'
 WEBSITE_ORIGIN = 'https://wecare.digital'
 WEBSITE_RETURNS = {
     '/',
-    '/cart/',
     '/checkout/',
     '/orders/',
     '/blog/',
@@ -107,7 +106,7 @@ def website_return(value: str) -> str:
         or any(char in value for char in ('%', '?', '#', '\\'))
         or value.startswith('//')
     ):
-        return '/cart/'
+        return '/checkout/'
     return normalized
 
 

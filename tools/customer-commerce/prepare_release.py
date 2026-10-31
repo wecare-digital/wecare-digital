@@ -96,7 +96,7 @@ def canonical_return_paths() -> list[str]:
             'Service return paths missing from auth allowlist: '
             f'{sorted(service_paths - frontend)}'
         )
-    required = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/vault/'}
+    required = {'/', '/checkout/', '/orders/', '/blog/', '/vault/'}
     if not required <= frontend:
         raise ValueError(
             f'Required customer return paths missing: '

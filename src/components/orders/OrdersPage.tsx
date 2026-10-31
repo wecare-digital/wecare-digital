@@ -13,11 +13,10 @@ import { clearSession, getSession, restoreSession } from '../../lib/customerAuth
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import {
-  isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
+  orderNumberFromUrl, stashPendingOrder, takePendingOrder,
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
-import OrderDetail from './OrderDetail';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -50,14 +49,9 @@ import OrderDetail from './OrderDetail';
  * row at all (finalization stages PURCHASED_SNAPSHOT_MISSING and returns before the order write),
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
  *
- * THE ORDER PAGE IS THIS PAGE WITH `?o=<orderNumber>`. Both purchase channels end there: the
- * website's /checkout/status/ hands off to it once the payment is confirmed, a WhatsApp buyer
- * gets a "View your order" button after the paid invoice, and each history row's panel links to
- * it. OrderDetail renders
- * it, from one session-gated read of one order. It is a client-side view of the same static
- * route, so the export, the canonical and the signed-out first render above are unchanged. A
- * number opened while signed out is kept in sessionStorage (`lib/orderPage`) and reopened once
- * the sign-in returns here, because the return path may carry no query string.
+ * Website and WhatsApp purchase links open THIS orders table. An optional `?o=<orderNumber>`
+ * expands the matching customer-owned row after the history fetch; it never creates a separate
+ * order-detail screen. The number can survive sign-in in sessionStorage when necessary.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -102,11 +96,9 @@ interface OrdersResponse {
 }
 
 /**
- * `focus` is the order page: `/orders/?o=<orderNumber>` for a signed-in customer, rendered by
- * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
- * export still renders `signedOut` first and the indexed page is unchanged.
+ * One orders-table state machine. An optional query number changes only the expanded row.
  */
-type View = 'loading' | 'ready' | 'empty' | 'error' | 'focus';
+type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
 type Outcome =
@@ -379,12 +371,8 @@ export default function OrdersPage (): React.ReactElement {
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
     return () => window.clearTimeout( timer );
   }, [ profileAction ] );
-  /**
-   * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
-   * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
-   * so the server-rendered shell and the first client paint agree.
-   */
-  const [ focusOrder, setFocusOrder ] = useState( '' );
+  /** Selected order awaiting first-page visibility, never a separate route or view. */
+  const [ requestedOrder, setRequestedOrder ] = useState( '' );
 
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
@@ -580,7 +568,7 @@ export default function OrdersPage (): React.ReactElement {
         catch { session = null; }
       }
       if ( !live ) return;
-      if ( requested ) setFocusOrder( requested );
+      if ( requested ) setRequestedOrder( requested );
       if ( !session )
       {
         if ( requested ) stashPendingOrder( requested );
@@ -596,16 +584,20 @@ export default function OrdersPage (): React.ReactElement {
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
 
-      if ( requested )
-      {
-        // OrderDetail owns the one read; the history is not fetched for this visit.
-        setView( 'focus' );
-        return;
-      }
+      // Always show the existing orders table. A direct link merely opens the
+      // selected row beneath its public order number; it does not replace the
+      // table with a second detail view.
       setView( 'loading' );
       const outcome = await fetchOrders( session.accessToken, '' );
       if ( !live ) return;
-      if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
+      if ( outcome.kind === 'ok' ) {
+        applyFirstPage( outcome.data );
+        const selected = ( outcome.data.orders || [] ).find( row => row.orderNumber === requested );
+        if ( selected ) {
+          setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+          setRequestedOrder( '' );
+        }
+      }
       else if ( outcome.kind === 'expired' ) expire();
       else applyFailure( outcome.kind );
     } )();
@@ -621,20 +613,29 @@ export default function OrdersPage (): React.ReactElement {
    * reached the end of a page".
    */
   useEffect( () => {
-    if ( view !== 'empty' || rechecked || !token ) return undefined;
+    const pendingSelection = !!requestedOrder && view === 'ready'
+      && !orders.some( order => order.orderNumber === requestedOrder );
+    if ( ( view !== 'empty' && !pendingSelection ) || rechecked || !token ) return undefined;
     let live = true;
     const timer = window.setTimeout( () => {
       ( async () => {
         const outcome = await fetchOrders( token, '' );
         if ( !live ) return;
         setRechecked( true );
-        if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
+        if ( outcome.kind === 'ok' ) {
+          applyFirstPage( outcome.data );
+          const selected = ( outcome.data.orders || [] ).find( row => row.orderNumber === requestedOrder );
+          if ( selected ) {
+            setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+            setRequestedOrder( '' );
+          }
+        }
         else if ( outcome.kind === 'expired' ) expire();
         else applyFailure( outcome.kind );
       } )();
     }, RECHECK_DELAY_MS );
     return () => { live = false; window.clearTimeout( timer ); };
-  }, [ view, rechecked, token ] );
+  }, [ view, rechecked, token, requestedOrder, orders ] );
 
   const loadMore = async () => {
     if ( !token || !cursor || loadingMore ) return;
@@ -653,6 +654,11 @@ export default function OrdersPage (): React.ReactElement {
     }
     const rows = outcome.data.orders || [];
     setOrders( prev => [ ...prev, ...rows ] );
+    const selected = rows.find( row => row.orderNumber === requestedOrder );
+    if ( selected ) {
+      setOpenRows( prev => ( { ...prev, [ rowKey( selected, 0 ) ]: true } ) );
+      setRequestedOrder( '' );
+    }
     // An empty cursored page appends nothing and drops the button, silently: DynamoDB hands out
     // a cursor whenever a query stops at Limit, so a customer with exactly 20 orders gets one.
     // There is no "no more orders" message, because there is nothing to tell them.
@@ -668,14 +674,13 @@ export default function OrdersPage (): React.ReactElement {
         description="Your orders, payment status and invoices in one place."
         path="/orders/"
       />
-      { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
-           canonical, title and description stay the history's. Only the visible band changes. */ }
+      { /* One orders table. ?o= selects a row without creating another page. */ }
       <RotatingHero
         compact
         frame="Your"
-        words={ [ { word: focusOrder ? 'order' : 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
-        sub={ focusOrder ? 'Your order details.' : 'Purchases, payments and invoices.' }
-        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
+        words={ [ { word: 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
+        sub="Purchases, payments and invoices."
+        ariaLabel="Your orders"
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -688,7 +693,7 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { token && ( view === 'ready' || view === 'empty' || view === 'focus' ) && (
+          { token && ( view === 'ready' || view === 'empty' ) && (
             <div className="ord-account-bar" aria-label="Account actions">
               <div className="ord-account-actions">
                 <button
@@ -734,10 +739,6 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
-          { view === 'focus' && focusOrder && token && (
-            <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
-          ) }
-
           { view === 'error' && (
             <div className="ord-gate">
               <p className="ord-notice" role="status">
@@ -777,6 +778,13 @@ export default function OrdersPage (): React.ReactElement {
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
                 <h2 className="ord-h2" id="ord-history">Orders</h2>
+                { requestedOrder && (
+                  <p className="ord-p" role="status">
+                    { rechecked
+                      ? 'The selected order is not in your recent history. Check older orders or contact us.'
+                      : 'Checking for your recently paid order…' }
+                  </p>
+                ) }
               </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
@@ -1024,10 +1032,6 @@ export default function OrdersPage (): React.ReactElement {
                                   <div className="ord-detail-inline">
                                     <dl className="ord-compact-facts">
                                       <div>
-                                        <dt>Ref</dt>
-                                        <dd data-wc-no-translate>{ order.referenceId || '—' }</dd>
-                                      </div>
-                                      <div>
                                         <dt>Placed</dt>
                                         <dd>{ dateTimeLabel( order.createdAt ) || '—' }</dd>
                                       </div>
@@ -1037,13 +1041,6 @@ export default function OrdersPage (): React.ReactElement {
                                       </div>
                                     </dl>
                                     <div className="ord-detail-actions">
-                                      { isPublicOrderNumber( order.orderNumber ) && (
-                                        <a className="ord-view"
-                                          href={ orderPagePath( order.orderNumber ) }
-                                          aria-label={ `View details for order ${ order.orderNumber }` }>
-                                          View order
-                                        </a>
-                                      ) }
                                       { !!reviewHref && (
                                         <PillButton as="a" href={ reviewHref } action="Review" />
                                       ) }

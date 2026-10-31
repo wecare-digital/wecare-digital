@@ -1,14 +1,14 @@
 /**
- * The hand-off between /cart/ and /checkout/status/: which browser cart a payment belongs to.
+ * The hand-off between /checkout/ and /checkout/status/: which browser cart a payment belongs to.
  *
- * WHY THIS EXISTS. /cart/ empties the browser cart only on a VERIFIED_PAID verify reply, the one
+ * WHY THIS EXISTS. /checkout/ empties the browser cart only on a VERIFIED_PAID verify reply, the one
  * moment it has server proof that the basket was paid. Every other way a payment leaves the cart
  * page goes through /checkout/status/ instead: a WhatsApp payment request, a basket that already
  * has a live payment (CHECKOUT_AMBIGUOUS), and a Razorpay payment whose verify reply was lost or
  * did not confirm. That screen learns the attempt was paid, but it never knew which cart it came
- * from, so the paid basket stayed in the browser and the next visit to /cart/ offered it again.
+ * from, so the paid basket stayed in the browser and the next visit to /checkout/ offered it again.
  *
- * So /cart/ records the attempt it handed off (`rememberCheckoutAttempt`), and the status screen
+ * So /checkout/ records the attempt it handed off (`rememberCheckoutAttempt`), and the status screen
  * empties the cart only when the attempt the server reports PAID is that same attempt
  * (`settlePaidCheckout`). A status link opened later, in another tab or for an older payment,
  * names a different attempt and leaves the current cart alone.
@@ -30,7 +30,7 @@ export const CHECKOUT_REQUEST_KEY = 'wc_checkout_request_key';
  * `cart.revision` and `snapshot_hash`.
  */
 export const CHECKOUT_REQUEST_BASKET = 'wc_checkout_request_basket';
-/** The attempt /cart/ last handed to /checkout/status/. */
+/** The attempt /checkout/ last handed to /checkout/status/. */
 const HANDED_OFF_ATTEMPT = 'wc_checkout_handed_off_attempt';
 
 /** Record the attempt this cart's payment is now tracked under. Storage may be off; that is fine. */

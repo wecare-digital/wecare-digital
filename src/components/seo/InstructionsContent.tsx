@@ -208,24 +208,12 @@ export default function InstructionsContent () {
 }`} />
 
       {/* ═══ 4. SYSTEM PAGE JSON-LD ═══ */ }
-      <JCard n="4" title='System Page (cart, checkout, 404...) — WebPage (minimal) or null'
-        desc="14 system pages. Noindex. No rich schema. Checkout/login get no JSON-LD at all."
-        code={ `// Cart page — minimal WebPage only
-{
-  "@context": "https://schema.org",
-  "@type": "WebPage",
-  "name": "Your Cart",
-  "description": "Review items in your cart before checkout.",
-  "url": "https://wecare.digital/cart/",
-  "publisher": { "@type": "Organization", "name": "WECARE.DIGITAL" },
-  "inLanguage": "en-IN"
-}
-
-// Checkout → null (noindex, nofollow — no JSON-LD)
-// Thank You → null (noindex, nofollow — no JSON-LD)
-// 404 → null (noindex, nofollow — no JSON-LD)
-// Login-gated pages → null (not crawlable)
-// Side Cart, Fullscreen, Search Suggestions → UI overlays, not pages`} />
+      <JCard n="4" title='System Page (checkout, status, 404...) — no rich schema'
+        desc="Checkout and payment status pages are noindex. The retired cart route has no page or redirect."
+        code={ `// Checkout → null (noindex, nofollow — no JSON-LD)
+// Payment status → null (noindex, nofollow — no JSON-LD)
+// Cart URL → removed (404, no redirect)
+// Login-gated pages → null (not crawlable)` } />
 
       {/* ═══ 5. NEW PAGE ═══ */ }
       <JCard n="5" title='Any New Page (future) — AI auto-detects type'

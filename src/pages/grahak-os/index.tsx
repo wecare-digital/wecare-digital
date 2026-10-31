@@ -479,7 +479,7 @@ response = requests.post(
                   On mobile .api-steps becomes display:contents so this block can move AFTER
                   the API editor and demo link, making pricing the final Grahak content block.
                   ProductBuyBox is the sole paid checkout entry on this route. It sends the
-                  catalogue item to /cart/; WhatsApp vs Here is chosen once after cart review. */}
+                  catalogue item to /checkout/; WhatsApp vs Here is chosen once after cart review. */}
               <div className="api-steps-buy">
                 <ProductBuyBox
                   slug="grahak-os"

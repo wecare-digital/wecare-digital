@@ -180,7 +180,7 @@ function droppableUnknown ( item: CartItem ): boolean {
  * This does not make the browser a price authority. It only upgrades identifiers and display
  * strings; checkout still sends references + quantities and the backend still prices from
  * ProductsTable. A multi-variant legacy row with no recoverable choice is deliberately left
- * WITHOUT a variant so /cart/ can ask the customer to choose one instead of silently guessing a
+ * WITHOUT a variant so /checkout/ can ask the customer to choose one instead of silently guessing a
  * size.
  *
  * AN ID FROM THE PREVIOUS CATALOGUE IS NOW DROPPED RATHER THAN CARRIED. Every product id was
@@ -408,7 +408,7 @@ export function removeItem ( ref: string ): CartItem[] {
  *
  * NOT ON A PREPARE, which is what this docstring used to claim and what no caller ever did. A
  * prepared checkout is not a paid one: clearing there would empty the basket of a customer who
- * closed the Razorpay modal. The single call site is `src/pages/cart.tsx`'s verify handler, on the
+ * closed the Razorpay modal. The single call site is `src/components/cart/CartPage.tsx`'s verify handler, on the
  * one status where the server has confirmed an authoritative capture.
  */
 export function clearCart (): void {

@@ -368,7 +368,7 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket", "order",
+    if explicit in ("create", "status", "prepare", "quote", "verify", "profile", "claim-basket", "order",
                     "request-service-start"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
@@ -541,6 +541,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _status(identity, body, origin)
         if action == "prepare":
             return _website_prepare(identity, body, origin)
+        if action == "quote":
+            return _website_quote_preview(identity, body, origin)
         if action == "verify":
             return _website_verify(identity, body, origin)
         # The readiness question. This arm is NOT optional alongside adding "profile" to
@@ -1162,6 +1164,68 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
     product and variant ids.
     """
     return _native_quote(identity, line_items, now)
+
+
+def _website_quote_preview(identity: customer_auth.CustomerIdentity,
+                           body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Read-only website price breakdown. Never reserves payment or creates a gateway order.
+
+    The same _website_snapshot function prices the eventual Razorpay prepare.
+    This is a review-time quote, NOT a promise to charge the preview unchanged:
+    prepare reprices against the current ProductsTable before opening Razorpay.
+    The provider presents the final amount for customer confirmation.
+    """
+    line_items = body.get("lineItems")
+    # Preview has the Part 1 policy unconditionally. No partial or adjusted cart
+    # may show a plausible price for one item and subsequently charge another.
+    if not short_purchase.one_unit_lines(line_items):
+        return cors_response(409, {
+            "error": "SHORT_CHECKOUT_ONE_ITEM",
+            "message": "Select one product, quantity one, to review the price.",
+        }, origin)
+    try:
+        snapshot = _website_snapshot(identity, line_items, int(time.time()))
+        invoice_lines = _website_invoice_lines(snapshot)
+        if not invoice_lines or not snapshot.quote.is_payable:
+            return cors_response(409, {"error": "QUOTE_NOT_PAYABLE"}, origin)
+        merchandise = sum(
+            int(line["unitPricePaise"]) * int(line["quantity"])
+            for line in invoice_lines["lines"]
+        )
+        supply_gst = int(invoice_lines.get("supplyGstPaise") or 0)
+        delivery = int(invoice_lines.get("deliveryPaise") or 0)
+        discount = int(invoice_lines.get("discountPaise") or 0)
+        convenience = int(snapshot.quote.convenience_fee_paise)
+        convenience_gst = int(snapshot.quote.convenience_gst_paise)
+        total = int(snapshot.quote.total_payable_paise)
+        # A full breakdown is shown only when it reconciles exactly to the
+        # backend payable, to the paise. Otherwise show no speculative figure.
+        if merchandise + supply_gst + delivery - discount + convenience + convenience_gst != total:
+            return cors_response(503, {"error": "QUOTE_UNAVAILABLE"}, origin)
+        return cors_response(200, {
+            "status": "QUOTE_READY",
+            "quote": {
+                "currency": "INR",
+                "subtotalPaise": merchandise,
+                "supplyGstPaise": supply_gst,
+                "discountPaise": discount,
+                "discountLabel": "Delight" if discount else "",
+                "deliveryPaise": delivery,
+                "requiresDelivery": _basket_requires_delivery(line_items),
+                "deliveryLabel": ("Express service" if
+                                  (snapshot.frozen_data.get("pricingMetadata") or {}).get("policy", "").startswith("vault-dropdocs")
+                                  else "Delivery"),
+                "convenienceFeePaise": convenience,
+                "convenienceGstPaise": convenience_gst,
+                "totalPayablePaise": total,
+            },
+        }, origin)
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({
+            "event": "website_quote_preview_unavailable",
+            "reason": type(error).__name__,
+        }))
+        return cors_response(503, {"error": "QUOTE_UNAVAILABLE"}, origin)
 
 
 def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
