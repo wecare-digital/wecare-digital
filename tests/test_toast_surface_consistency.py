@@ -17,7 +17,7 @@ def test_orders_uses_canonical_subscribe_without_obsolete_profile_toast():
     assert 'OrderActionIcon name="person"' not in orders
     # The customer-link bootstrap still uses the authenticated profile endpoint.
     assert "fetch( PROFILE_URL" in orders
-    assert "SUBSCRIBE_CTA_HREF" in menu
+    assert "CUSTOMER_MENU_HREFS.subscribe" in menu
 
 
 def test_workspace_toasts_use_lime_and_quiet_fade():

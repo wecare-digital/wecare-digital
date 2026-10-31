@@ -56,6 +56,10 @@ ACTIONS = {
     'identity.claim', 'identity.claim_refused',
     # Canonical customer identity maintenance. The source remains retained as an alias.
     'customer.merge',
+    # Authenticated customer-initiated templates. Accepted means Meta acknowledged the
+    # request; delivery is tracked separately by the WhatsApp status webhook.
+    'customer.template_send.requested', 'customer.template_send.accepted',
+    'customer.template_send.failed',
 }
 
 

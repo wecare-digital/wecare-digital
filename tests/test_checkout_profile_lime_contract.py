@@ -74,7 +74,7 @@ def test_orders_signout_moves_into_card_and_profile_update_stays_in_subscribe():
     assert 'className="ord-empty-head"' in orders
     assert 'OrderActionIcon name="person"' not in orders
     assert "profileAction" not in orders
-    assert "href: SUBSCRIBE_CTA_HREF" in menu
+    assert "href: CUSTOMER_MENU_HREFS.subscribe" in menu
 
 
 def test_website_profile_template_uses_data_exchange_init_for_optional_prefill():

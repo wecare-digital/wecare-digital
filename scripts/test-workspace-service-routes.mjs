@@ -26,7 +26,7 @@ const {
 } = output.exports;
 
 assert.deepEqual([...SERVICE_WORKSPACE_VIEWS], [
-  'submit-request', 'request-amendment', 'drop-docs', 'vault', 'shipments', 'contribute',
+  'submit-request', 'request-amendment', 'drop-docs', 'vault', 'shipments', 'contribute', 'whatsapp-logs',
 ]);
 assert.equal(serviceWorkspaceView('requests'), 'submit-request');
 assert.equal(serviceWorkspaceView(''), 'vault');
@@ -40,6 +40,7 @@ const cases = [
   ['submit-request', 'overview'], ['submit-request', 'ledger'],
   ['request-amendment', 'overview'], ['request-amendment', 'ledger'],
   ['contribute', 'overview'], ['contribute', 'payments'],
+  ['whatsapp-logs', 'messages'],
 ];
 for (const [view, tab] of cases) {
   const next = serviceWorkspaceQuery(view, tab);

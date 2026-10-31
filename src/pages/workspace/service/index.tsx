@@ -9,6 +9,7 @@
  * - Vault: private secure download entitlement; NEVER Drop Docs upload Flow
  * - Shipments: owned-order tracking and separately gated paid Pickup Request
  * - Contribute: voluntary catalog purchase, not a request-service Flow
+ * - WhatsApp Logs: read-only delivery and signed Flow-response history
  *
  * Prices are read-only previews; no generic staff invoice here can open a
  * private Vault file, upload a document, or issue a pickup request.
@@ -54,6 +55,10 @@ const ShipmentTrackingPanel = dynamic(
   () => import('../../../components/workspace/service/ShipmentTrackingPanel'),
   { ssr: false },
 );
+const WhatsAppServiceLogs = dynamic(
+  () => import('../../../components/workspace/service/WhatsAppServiceLogs'),
+  { ssr: false },
+);
 
 const VIEW_LABELS: Record<ServiceWorkspaceView, string> = {
   'submit-request': 'Submit Request',
@@ -62,6 +67,7 @@ const VIEW_LABELS: Record<ServiceWorkspaceView, string> = {
   vault: 'Vault',
   shipments: 'Shipments',
   contribute: 'Contribute',
+  'whatsapp-logs': 'WhatsApp Logs',
 };
 
 const TABS: Record<ServiceWorkspaceView, readonly { id: string; label: string }[]> = {
@@ -93,6 +99,7 @@ const TABS: Record<ServiceWorkspaceView, readonly { id: string; label: string }[
     { id: 'overview', label: 'Contribute' },
     { id: 'payments', label: 'Payment records' },
   ],
+  'whatsapp-logs': [ { id: 'messages', label: 'Delivery & responses' } ],
 };
 
 const COMMON_ORDERS = { label: 'Open staff Orders', href: '/workspace/commerce?view=orders' } as const;
@@ -179,6 +186,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
   );
 
   const content = () => {
+    if (active === 'whatsapp-logs') return <WhatsAppServiceLogs />;
     if (active === 'vault') {
       if (tab === 'logs') return <VaultLogs />;
       if (tab === 'ledger') return serviceLedger('VAULT');
@@ -223,7 +231,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
 
   return (
     <>
-      <SEO title="Service" description="Request operations, document uploads, secure Vault access, shipment tracking, pickup and contributions." noindex />
+      <SEO title="Service" description="Request operations, document uploads, Vault, shipment tracking, pickup, contributions, and WhatsApp service logs." noindex />
 
       <nav className="service-switch" aria-label="Service workspace">
         {SERVICE_WORKSPACE_VIEWS.map(view => (

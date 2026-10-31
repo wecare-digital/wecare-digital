@@ -10,6 +10,7 @@ import PillButton from '../PillButton';
 // overridable today. There is deliberately no local alias either: two names for one fact.
 import { featureFlags } from '../../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
+import { actionFromSearch, stashCustomerMenuAction, takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import {
@@ -106,7 +107,7 @@ interface OrdersResponse {
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
-type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'detail';
+type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'detail' | 'service';
 interface OrdersAlert { source: AlertSource; message: string; key?: string; }
 interface CopyNotice { kind: 'success' | 'fallback'; message: string; }
 
@@ -538,11 +539,16 @@ export default function OrdersPage (): React.ReactElement {
   useEffect( () => {
     let live = true;
     ( async () => {
+      // The menu URL holds an allowlisted action, never a phone. Preserve the intent
+      // in this tab through the existing /auth/ sign-in redirect.
+      const fromMenu = actionFromSearch( window.location.search );
+      if ( fromMenu ) stashCustomerMenuAction( fromMenu );
       // Older ?o= links open the same Orders table; no separate detail URL remains.
       const fromUrl = orderNumberFromUrl();
       const pending = takePendingOrder();
       const requested = fromUrl || pending;
-      if ( new URLSearchParams( window.location.search ).has( 'o' ) ) {
+      if ( new URLSearchParams( window.location.search ).has( 'o' ) || fromMenu ) {
+        // One canonical URL: refresh/back cannot queue the same template again.
         window.history.replaceState( window.history.state, '', '/orders/' );
       }
       let session = getSession();
@@ -570,6 +576,19 @@ export default function OrdersPage (): React.ReactElement {
       if ( linkOutcome === 'ignored' ) {
         setOrdersAlert( { source: 'link',
           message: 'Some linked purchases could not be refreshed right now.' } );
+      }
+
+      // Consume BEFORE sending. Even if the provider times out, a reload must not
+      // silently send a second template; a fresh menu click is an explicit retry.
+      const serviceAction = takeCustomerMenuAction();
+      if ( serviceAction ) {
+        const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
+        if ( !live ) return;
+        if ( result.kind === 'expired' ) { expire(); return; }
+        const name = serviceAction === 'subscribe' ? 'Subscribe' : 'Leave Review';
+        setOrdersAlert( { source: 'service', message: result.kind === 'accepted'
+          ? `WhatsApp accepted your ${ name } invitation. Open your chat to continue. Delivery and form completion are tracked separately.`
+          : `Could not send the ${ name } invitation. Please try again from the menu.` } );
       }
 
       setView( 'loading' );

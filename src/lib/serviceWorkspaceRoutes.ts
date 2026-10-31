@@ -8,7 +8,7 @@
  */
 export const SERVICE_WORKSPACE_VIEWS = [
   'submit-request', 'request-amendment', 'drop-docs',
-  'vault', 'shipments', 'contribute',
+  'vault', 'shipments', 'contribute', 'whatsapp-logs',
 ] as const;
 export type ServiceWorkspaceView = typeof SERVICE_WORKSPACE_VIEWS[number];
 
@@ -19,6 +19,7 @@ const TABS = {
   vault: [ 'documents', 'logs', 'pricing', 'ledger' ],
   shipments: [ 'track', 'pickup', 'pickup-ledger' ],
   contribute: [ 'overview', 'payments' ],
+  'whatsapp-logs': [ 'messages' ],
 } as const satisfies Record<ServiceWorkspaceView, readonly string[]>;
 
 function first ( value: string | string[] | undefined ): string {
