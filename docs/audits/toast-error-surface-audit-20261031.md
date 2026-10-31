@@ -10,6 +10,14 @@
 | `/auth/` at initial load | `src/pages/auth.tsx` inline `auth-error`, not a toast | `GET /auth/state` → customer-commerce MCP | API Gateway access log at 2026-10-31 02:07:29.868 UTC returned 400. Server collapses validation failures to `invalid_request`; frontend collapses all errors into “temporarily unavailable.” Check sanitized request query/state; do not assume a service outage. |
 | Authenticated workspace pages | `src/contexts/ToastContext.tsx` and `src/components/Toast.tsx`; styled by `src/styles/inner-ux.css` | Each screen has its own action | Workspace-only provider in `src/pages/_app.tsx`. Shared notifications have severity types: success/error/warning/info. |
 
+## Meta template confirmation and proposed send fix
+
+Live WhatsApp template read (2026-10-31) confirmed `service_details` is **APPROVED**, **UTILITY**, button `flow_action: DATA_EXCHANGE`, Flow ID `2413873616105042`.
+
+The pre-fix sender attached `flow_action_data` to the send-time button action when the customer already had a contact record. The backend now sends **only** the server-issued `flow_token`. The protected F001 INIT handler already reads the canonical profile and returns PROFILE/ADDRESS values for `DATA_EXCHANGE`, so send-time prefill is redundant and likely caused the Meta 131009 response. The identity-conflict check, session mint, and flow publication checks are preserved.
+
+This change is **in the draft PR only**, not deployed. Meta's detailed rejected-field data was not retained, so confirm via a single controlled, consented production send after merging/deployment. Similar 131009 symptoms with `flow_action_data` and `DATA_EXCHANGE` are documented publicly: https://stackoverflow.com/questions/79489923/getting-a-problem-while-sending-the-whatsapp-flow-as-a-template-with-the-data
+
 ## Styling changes in this branch
 
 - Orders: failure feedback uses the same lime/forest palette as success and appears **inline beneath the action buttons**, not as a fixed toast over the page; existing four-second dismissal and alert/status semantics remain.
@@ -233,9 +241,9 @@ The first column is the actual source file to change. “Shared toast” means t
 | WhatsApp F001/template activation runbook | `docs/operations/f001-subscribe.md` |
 | Individual public form errors / status boxes | Their component source files in the inventory above, **not** `ToastContext` |
 
-## Outstanding functional investigations (not resolved by the appearance patch)
+## Remaining verification and unresolved auth behavior
 
-1. Verify the Meta-approved `service_details` template status and FLOW button mode, and reconcile `NAVIGATE` versus `DATA_EXCHANGE` with `flow_token` and any optional `flow_action_data` parameter. The backend currently forwards a template action that Meta rejected with code 131009. Do not claim the message was sent or retry in a loop.
+1. After code review and deployment, verify a single authorized Meta send succeeds with only the one-use `flow_token` (no `flow_action_data`) and opens F001 INIT with profile/address prefill. An approved `DATA_EXCHANGE` template is confirmed, but success is **not yet verified**. Never report delivered messages until Meta accepts a send; do not retry in a loop.
 2. Capture the **redacted** `GET /auth/state` URL and HTTP 400 response, including only parameter **names** (not values/cookies/tokens). The backend intentionally does not reveal a more specific cause through its public response. Improve frontend error text for invalid requests separately from temporary HTTP 5xx failures after determining whether the request was invalid, the authorization state stale, or another validation rejected it.
 3. Optional future work: move public notifications behind a shared public-only feedback provider if needed; ensure all persistent validation errors stay inline. Reconcile the duplicated `.toast-container` styles in `Layout.css` and `inner-ux.css` without disrupting import order.
 
