@@ -765,11 +765,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // suppressHydrationWarning on that element is the targeted answer - blanking the
   // document is not.
 
-  // Unknown URLs and private Vault handoffs must never render public chrome,
-  // translations, sharing controls or a loading page while navigating.
-  // /404 itself is a head-only redirect. /vault shows its actual content
-  // only after owner-scoped verification, or silently sends the visitor Home.
-  if ( router.pathname === '/404' || router.pathname === '/vault' )
+  // Redirect-only and private handoff routes must never render public chrome,
+  // translations, sharing controls or a loading waypoint while navigating.
+  // /404 and /cart render Head only. /vault displays its actual file content
+  // only after an owner-scoped verification, or silently navigates Home.
+  if ( router.pathname === '/404' || router.pathname === '/cart'
+    || router.pathname === '/vault' )
   {
     return (
       <ErrorBoundary>
