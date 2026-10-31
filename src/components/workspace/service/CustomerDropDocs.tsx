@@ -51,7 +51,7 @@ export default function CustomerDropDocs() {
     // Never mix manual Vault uploads or unrelated Flows into paid F003.
     const paidF003 = documents.filter(doc =>
       doc.source === 'flow' && !!doc.dropDocsRequestId
-      && !!doc.dropDocsPaymentAttemptId && !!doc.contactId,
+      && !!doc.dropDocsPaymentAttemptId,
     );
     setRows(paidF003);
     setFailure(documents.length === 0 && failures.length ? failures[0] : null);
@@ -178,7 +178,7 @@ export default function CustomerDropDocs() {
           </div>
         </ServiceDataState>
       </section>
-      <style jsx>{String.raw`
+      <style jsx>{`
         .cdd{max-width:1150px;display:grid;gap:18px;color:var(--text)}
         .cdd-head{display:flex;align-items:start;justify-content:space-between;gap:18px}
         .cdd-head h1{font-size:32px;margin:3px 0 9px}
