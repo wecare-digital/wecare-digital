@@ -30,9 +30,9 @@ def validate(candidate: Any, *, expected_id: str) -> list[str]:
     if not isinstance(candidate, dict):
         return ["provider response must be one template object"]
     issues: list[str] = []
-    if not re.fullmatch(r"[1-9][0-9]*", expected_id):
+    if not isinstance(expected_id, str) or not re.fullmatch(r"[1-9][0-9]*", expected_id):
         issues.append("reviewed expected template ID must be a positive numeric ID")
-    if str(candidate.get("id") or "") != expected_id:
+    elif str(candidate.get("id") or "") != expected_id:
         issues.append("template ID does not match reviewed provider ID")
     for field, expected in (
         ("name", CANDIDATE_NAME),

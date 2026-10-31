@@ -74,8 +74,26 @@ def _send_outcome(response: Any) -> str:
     except (TypeError, ValueError):
         return "SEND_UNKNOWN"
     if 200 <= code < 300:
-        return "ACCEPTED"
-    if code in (400, 401, 403, 404, 409, 413, 415, 422):
+        # HTTP success does NOT prove Meta accepted the customer message. An
+        # outbound 202/200 with no WAMID may be in flight or an unknown result.
+        # In that case hold the durable claim for reconciliation: do not
+        # automatically re-send or mark this paid service Flow delivered.
+        body = response.get("body")
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except (ValueError, TypeError):
+                body = None
+        if isinstance(body, dict) and str(body.get("whatsappMessageId") or "").strip():
+            return "ACCEPTED"
+        return "SEND_UNKNOWN"
+    # Outbound returns 409 MESSAGE_SEND_IN_FLIGHT when a keyed send may
+    # already be on its way to Meta. This is NOT proof of a terminal refusal:
+    # releasing the durable claim or minting a new Flow token can double-send.
+    # Hold it for reconciliation, the same as the legacy Drop Docs launcher.
+    if code == 409:
+        return "SEND_UNKNOWN"
+    if code in (400, 401, 403, 404, 413, 415, 422):
         return "SEND_REJECTED"
     return "SEND_UNKNOWN"
 

@@ -48,6 +48,12 @@ staff finished authenticated UI acceptance.
 | Footer | `WECARE.DIGITAL` |
 | One FLOW button | `Leave Review`, `DATA_EXCHANGE`, `993862443003108` |
 
+**Editorial reconciliation:** Merged PR #2020 documented a different proposed
+v2 body ("Your GST invoice is attached. Please keep it for your records.").
+This checklist deliberately tests the alternative copy above. Neither proposal
+is provider-approved; the payment/editorial owner must choose the exact final
+copy before Meta submission. Passing this gate alone is not approval.
+
 This copy refers to the actual issued invoice instead of repeating the payment
 status. It preserves the review Flow and the paid invoice PNG. The existing
 template remains active until Meta **approves a distinct, pinned template ID**

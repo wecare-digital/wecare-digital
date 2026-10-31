@@ -13,7 +13,8 @@ import unittest
 
 SOURCE = Path(__file__).resolve().parents[1] / "scripts/check_invoice_copy_candidate.py"
 SPEC = importlib.util.spec_from_file_location("check_invoice_copy_candidate", SOURCE)
-assert SPEC and SPEC.loader
+if SPEC is None or SPEC.loader is None:
+    raise ImportError(f"Invoice copy candidate module not importable: {SOURCE}")
 candidate_gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(candidate_gate)
 
@@ -31,7 +32,7 @@ def valid_template() -> dict:
             {"type": "FOOTER", "text": "WECARE.DIGITAL"},
             {"type": "BUTTONS", "buttons": [
                 {"type": "FLOW", "text": "Leave Review",
-                 "flow_id": 993862443003108, "flow_action": "DATA_EXCHANGE"}
+                 "flow_id": "993862443003108", "flow_action": "DATA_EXCHANGE"}
             ]},
         ],
     }
@@ -58,10 +59,17 @@ class CandidateGateTests(unittest.TestCase):
     def test_pinned_id_and_utility_category_are_required(self) -> None:
         t = valid_template()
         t["category"] = "MARKETING"
-        result = self.check(t, pinned_id="1782246473079550")
-        self.assertTrue(any("template ID" in e for e in result))
-        self.assertTrue(any("UTILITY" in e for e in result))
-        self.assertTrue(any("numeric ID" in e for e in self.check(t, pinned_id="not-pinned")))
+        category_issues = self.check(t)
+        self.assertEqual(len(category_issues), 1)
+        self.assertIn("UTILITY", category_issues[0])
+
+        wrong_id_issues = self.check(valid_template(), pinned_id="1782246473079550")
+        self.assertEqual(len(wrong_id_issues), 1)
+        self.assertIn("template ID", wrong_id_issues[0])
+
+        malformed_id_issues = self.check(valid_template(), pinned_id="not-pinned")
+        self.assertEqual(len(malformed_id_issues), 1)
+        self.assertIn("numeric ID", malformed_id_issues[0])
 
     def test_invoice_media_and_footer_cannot_be_removed(self) -> None:
         t = valid_template()
