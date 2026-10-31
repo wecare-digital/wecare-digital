@@ -560,11 +560,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # route a claim into the checkout-CREATE path.
         if action == "claim-basket":
             return _claim_basket(identity, body, origin)
-        # The order page's one read. AHEAD of the `_create` fallback for the reason `profile` is:
-        # an action in `_action`'s tuple with no arm here would route an order READ into the
-        # checkout-CREATE path.
+        # Explicitly retire the old individual-order breakdown API. Customers still
+        # get the five-column history from /ecommerce/my-orders and securely signed
+        # invoice downloads from /ecommerce/my-invoice. Critically, keep this case
+        # ahead of the create fallback: an old detail request must NEVER create a
+        # payable attempt, expose invoice sequence/GST lines, or read an order.
         if action == "order":
-            return _order_detail(identity, body, origin)
+            return _hardened(cors_response(410, {"error": "ORDER_DETAILS_RETIRED"}, origin))
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
         if action == "create":
@@ -3203,118 +3205,6 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     return cors_response(200, {"status": entry.get("status"), "attempt": entry}, origin)
 
 
-# ── the order page (`/orders/`) ─────────────────────────────────────────────
-
-#: The order page's refusal for an order this session cannot see. ONE code and ONE status for "no
-#: such order" and "another customer's order", so the action is not an oracle for which order
-#: numbers exist.
-ORDER_NOT_FOUND = "ORDER_NOT_FOUND"
-
-
-def _order_detail(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
-                  origin: str) -> Dict[str, Any]:
-    """`action:"order"`: one of the caller's own orders, for the order page.
-
-    THE NUMBER SELECTS, THE SESSION AUTHORISES. An order number is printed on receipts and read
-    aloud to support, so it is never a credential (`receipt_links`). It resolves through its
-    immutable `ORDERNO#` reservation to the order id, the order row is read by that key, and the
-    row is answered only when its `customerId` is the proven Cognito subject. A missing order and
-    another customer's order return the identical 404.
-
-    CONSISTENT READS. The page is opened seconds after `finalization.accept_paid` committed the
-    row (the status screen hands off only once the attempt carries the order number, which is
-    written after the order row), so an eventually consistent read could miss the order the
-    customer has just paid for.
-
-    Read-only, and `no-store`: the body carries the delivery address.
-    """
-    order_number = str(body.get("orderNumber") or "").strip()
-    if not order_keys.is_public_order_number(order_number):
-        return _hardened(cors_response(400, {"error": "ORDER_NUMBER_REQUIRED"}, origin))
-    try:
-        reservation = _keys_table().get_item(
-            Key={"orderId": order_keys.ORDER_NUMBER_PREFIX + order_number},
-            ConsistentRead=True).get("Item") or {}
-        order_id = str(reservation.get("orderIdRef") or "")
-        order = (_orders_table().get_item(Key={"orderId": order_id}, ConsistentRead=True)
-                 .get("Item") or {}) if order_id else {}
-    except Exception as error:  # noqa: BLE001
-        logger.error(json.dumps({"event": "checkout_order_read_failed",
-                                 "error": type(error).__name__}))
-        return _hardened(cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin))
-    if (not order or not identity.customer_id
-            or str(order.get("customerId") or "") != identity.customer_id
-            or str(order.get("orderNumber") or "") != order_number):
-        return _hardened(cors_response(404, {"error": ORDER_NOT_FOUND}, origin))
-
-    # The itemised lines the customer reviewed live on the attempt (`invoiceLines`), beside the
-    # frozen snapshot. Display data only: a failed read still answers with the order.
-    attempt: Dict[str, Any] = {}
-    attempt_id = str(order.get("paymentAttemptId") or "")
-    if attempt_id:
-        try:
-            attempt = _attempts_table().get_item(
-                Key={"paymentAttemptId": attempt_id}).get("Item") or {}
-        except Exception as error:  # noqa: BLE001
-            logger.warning(json.dumps({"event": "checkout_order_lines_unavailable",
-                                       "error": type(error).__name__}))
-            attempt = {}
-        if str(attempt.get("customerId") or "") != identity.customer_id:
-            attempt = {}
-    return _hardened(cors_response(200, {"status": "ORDER_READY",
-                                         "order": _order_view(order, attempt)}, origin))
-
-
-def _order_view(order: Dict[str, Any], attempt: Dict[str, Any]) -> Dict[str, Any]:
-    """The customer-safe projection of one order row, in integer paise and canonical words.
-
-    The only identifiers are the ones the customer already holds: the order number, the payment
-    reference printed on the receipt, the invoice number and the public customer id. Total by
-    construction, like `customer-orders._project`: an unreadable value degrades to an explicit
-    "unavailable" rather than raising, so one bad attribute cannot blank the page.
-    """
-    currency = str(order.get("currency") or "")
-    amount = finalization.integer_paise(order.get("amountPaise"))
-    if currency != "INR" or amount is None or amount < 0:
-        # Compared, never inferred: the page says "amount unavailable" instead of guessing.
-        amount = None
-    items, charges = _order_lines(order, attempt, amount)
-    try:
-        created_at: Optional[int] = int(order.get("createdAt"))
-    except (TypeError, ValueError):
-        created_at = None
-    fulfilment = wa_order_status.normalise(order.get("orderStatus") or order.get("status"))
-    if fulfilment not in wa_order_status.ALL_STATUSES:
-        fulfilment = ""
-    # A WhatsApp `order_details` payment's order row carries the PAYMENT-ORDER state Meta accepted
-    # (pending -> processing -> completed, docs/operations/whatsapp-payment-collection-stack.md),
-    # not a fulfilment state: capture moves it to `completed` within seconds. Shown as fulfilment,
-    # a physical order read "Paid · Completed" before it had shipped. The payment status already
-    # says paid, so these orders show no fulfilment status at all.
-    if str(order.get("checkoutMode") or "") in wa_payment_request.ORDER_DETAILS_CHECKOUT_MODES:
-        fulfilment = ""
-    return {
-        "orderNumber": str(order.get("orderNumber") or ""),
-        "referenceId": str(order.get("referenceId") or ""),
-        "createdAt": created_at,
-        "channel": order_channel.canonical(order.get("channel")),
-        "currency": currency,
-        "amountPaise": amount,
-        # What the MONEY did, in the one payment vocabulary `/orders` already reads.
-        "paymentStatus": payment_status.canonical(order.get("paymentStatus")),
-        # What the FULFILMENT did, in Meta's order_status vocabulary. '' when unrecognised, and
-        # for a WhatsApp-paid order, whose row holds the payment-order state instead.
-        "fulfilmentStatus": fulfilment,
-        "items": items,
-        "charges": charges,
-        "delivery": order_delivery.from_order(order),
-        "invoiceNumber": str(order.get("invoiceNumber") or ""),
-        # The compact support label is the only customer id exposed on this customer API.
-        # The canonical UUID remains stored on the order for internal joins/correlation.
-        "customerDisplayId": customer_uuid.display_code(order),
-    }
-
-
 def _display_lines(lines: Any) -> list:
     """Order lines as `{name, quantity, unitPricePaise, totalPaise}`, or `[]`.
 
@@ -3335,37 +3225,6 @@ def _display_lines(lines: Any) -> list:
         out.append({"name": name, "quantity": quantity, "unitPricePaise": unit,
                     "totalPaise": unit * quantity})
     return out
-
-
-def _order_lines(order: Dict[str, Any], attempt: Dict[str, Any],
-                 amount: Optional[int]) -> Tuple[list, Optional[Dict[str, Any]]]:
-    """`(items, charges)` for the order page. `charges` is None unless it closes to the paise."""
-    spec = attempt.get("invoiceLines") if isinstance(attempt.get("invoiceLines"), dict) else {}
-    items = _display_lines(spec.get("lines"))
-    if items:
-        return items, _order_charges(spec, items, amount)
-    # No itemised lines on the attempt (an order placed before they were recorded, or a snapshot
-    # that could not be itemised): the frozen snapshot's own lines, named from the catalogue.
-    snapshot = order.get("purchasedSnapshot")
-    frozen = snapshot.get("items") if isinstance(snapshot, dict) else None
-    if not isinstance(frozen, list):
-        return [], None
-    reader = _native_product_reader()
-    names: Dict[str, str] = {}
-    lines = []
-    for line in frozen:
-        if not isinstance(line, dict):
-            return [], None
-        product_id = str(line.get("productId") or "")
-        if product_id and product_id not in names:
-            try:
-                product = reader(product_id) or {}
-            except Exception:  # noqa: BLE001 - a name is display data
-                product = {}
-            names[product_id] = str(product.get("title") or product.get("name") or "")
-        lines.append({"name": names.get(product_id, ""), "quantity": line.get("quantity"),
-                      "unitPricePaise": line.get("unitPricePaise")})
-    return _display_lines(lines), None
 
 
 def _order_charges(spec: Dict[str, Any], items: list,
