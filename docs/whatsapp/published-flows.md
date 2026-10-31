@@ -2,6 +2,8 @@
 
 Last checked: 30 October 2026. Canonical WABA: `2094615664435155`.
 
+For the **31 October 2026 live Meta template/button reconciliation** and exact AWS DynamoDB registry names, see [WhatsApp templates, Flow IDs and AWS registries](../operations/whatsapp-template-flow-aws-registry-20261031.md).
+
 The repository deliberately retains **seven** Meta Flow JSON definitions, all
 under `amplify/functions/messaging/whatsapp-business-api/flows/published/`.
 
