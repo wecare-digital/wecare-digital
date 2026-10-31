@@ -14,6 +14,7 @@ export interface VaultMessageStep {
   index: number;
   title: string;
   template: string;
+  templateId?: string;
   gap: string;
   event: string;
   state: 'accepted' | 'unknown' | 'failed' | 'waiting';
@@ -128,6 +129,7 @@ export function vaultMessageSteps (
     const record = journey?.steps[ i ];
     return {
       template: record?.templateName || FALLBACK[ i ],
+      templateId: record?.templateId || '',
       gap: record?.defaultDelaySeconds !== undefined
         ? ( record.defaultDelaySeconds > 0 ? record.defaultDelaySeconds + 's spacing' : 'Trigger-based' )
         : gapDefault,
@@ -262,7 +264,7 @@ export default function VaultMessageTimeline ( {
                   </div> }
                   <p className={ styles.note }>{ stage.detail }</p>
                   <p className={ styles.delivery }>{ stage.delivery }</p>
-                  <code className={ styles.template }>{ stage.template }</code>
+                  <code className={ styles.template }>{ stage.template }{ stage.templateId ? ' · Meta ID ' + stage.templateId : '' }</code>
                 </>
               ) }
             </div>

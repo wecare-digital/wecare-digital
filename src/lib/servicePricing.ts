@@ -40,6 +40,13 @@ export type ServicePaymentTemplates = {
   readonly orderStatusStates: readonly string[];
   readonly delivery: string;
   readonly receipt: string;
+  /** Meta ID lookup metadata, not a claim of live approval or authority to send. */
+  readonly templateIds?: {
+    readonly nativePay: string;
+    readonly orderStatus: string;
+    readonly receipt: string;
+    readonly delivery: string;
+  };
   /** Approved native payment template header; published by server, not the browser. */
   readonly headerImage?: string;
   /** Owner-approved default ORDER_DETAILS item thumbnail, never product-supplied. */
@@ -155,6 +162,21 @@ function trustedPaymentMedia ( raw: unknown ): string | undefined {
   }
 }
 
+/** Validate registry IDs for display only; Meta status is checked by the sender. */
+function readTemplateIds ( raw: unknown ): ServicePaymentTemplates['templateIds'] | undefined {
+  if ( !raw || typeof raw !== 'object' ) return undefined;
+  const row = raw as Record<string, unknown>;
+  const keys = [ 'nativePay', 'orderStatus', 'receipt', 'delivery' ] as const;
+  if ( !keys.every( key => typeof row[ key ] === 'string'
+    && /^[0-9]{10,25}$/.test( row[ key ] as string ) ) ) return undefined;
+  return {
+    nativePay: row.nativePay as string,
+    orderStatus: row.orderStatus as string,
+    receipt: row.receipt as string,
+    delivery: row.delivery as string,
+  };
+}
+
 function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
   if ( !raw || typeof raw !== 'object' ) return undefined;
   const row = raw as Record<string, unknown>;
@@ -164,12 +186,16 @@ function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
       || !row.orderStatusStates.every( x => typeof x === 'string' && x.length > 0 )
       || typeof row.delivery !== 'string' || !row.delivery
       || typeof row.receipt !== 'string' || !row.receipt ) return undefined;
+  const templateIds = readTemplateIds( row.templateIds );
   return {
     nativePay: row.nativePay,
     orderStatus: row.orderStatus,
     orderStatusStates: row.orderStatusStates as string[],
     delivery: row.delivery,
     receipt: row.receipt,
+    // Accept only a complete, numeric, server-supplied Meta template ID set.
+    // Never let these display-only IDs drive payment or message sends.
+    ...( templateIds ? { templateIds } : {} ),
     ...( trustedPaymentMedia( row.headerImage ) && trustedPaymentMedia( row.itemThumbnail )
       ? {
           headerImage: trustedPaymentMedia( row.headerImage ),

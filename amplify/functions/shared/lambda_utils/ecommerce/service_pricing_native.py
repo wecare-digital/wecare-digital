@@ -126,12 +126,26 @@ def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
     delivery = deliveries.get(kind)
     if delivery is None:
         return None
+    # Lookups from the SAME approved-name registry the payment sender and
+    # invoice engine use. These ids are display/audit metadata, NOT Meta
+    # approval status, customer-supplied pay parameters or new send choices.
+    # The live sender still checks provider approval before any money-path
+    # WhatsApp send. Exposing IDs here makes the read-only Vault workspace
+    # display the real backend mapping, not duplicate editable browser strings.
+    ids = whatsapp_templates.APPROVED_TEMPLATE_IDS
+    template_ids = {
+        "nativePay": ids.get(whatsapp_templates.PAY.name, ""),
+        "orderStatus": ids.get(whatsapp_templates.ORDER_STATUS.name, ""),
+        "receipt": ids.get(whatsapp_templates.INVOICE.name, ""),
+        "delivery": ids.get(delivery.name, ""),
+    }
     return {
         "nativePay": whatsapp_templates.PAY.name,
         "orderStatus": whatsapp_templates.ORDER_STATUS.name,
         "orderStatusStates": ["processing", "completed"],
         "delivery": delivery.name,
         "receipt": whatsapp_templates.INVOICE.name,
+        "templateIds": template_ids,
         "headerImage": template_media.PAYMENT_TEMPLATE_HEADER,
         "itemThumbnail": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
     }
