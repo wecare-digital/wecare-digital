@@ -58,6 +58,8 @@ RETIRED_SERVICE_PAGE_ROUTES = (
     "/drop-docs",
     "/request-pickup",
     "/shipments/track",
+    # Shipment Track also had a separate /shop/<slug>/ product page.
+    "/shop/shipments-track",
 )
 
 
