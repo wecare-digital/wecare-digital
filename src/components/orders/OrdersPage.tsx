@@ -538,10 +538,10 @@ export default function OrdersPage (): React.ReactElement {
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) { expire(); return; }
-        const name = serviceAction === 'subscribe' ? 'Subscribe' : 'Leave Review';
+        const actionName = serviceAction === 'subscribe' ? 'Subscribe' : 'Review';
         setOrdersAlert( { source: 'service', message: result.kind === 'accepted'
-          ? `WhatsApp accepted your ${ name } invitation. Open your chat to continue. Delivery and form completion are tracked separately.`
-          : `Could not send the ${ name } invitation. Please try again from the menu.` } );
+          ? `${ actionName } invite accepted.`
+          : `${ actionName } invite failed. Try again.` } );
       }
 
       setView( 'loading' );
