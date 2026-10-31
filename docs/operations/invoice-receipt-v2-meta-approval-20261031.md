@@ -13,7 +13,7 @@ During paid Vault QA, WhatsApp displayed:
 3. Approved GST invoice template `wecare_default_invoice_image_template` — "✅ Payment received. Your transaction has been confirmed."
 4. A generic Orders CTA and the service-specific Vault CTA.
 
-The two ORDER_STATUS transitions and one statutory invoice **must remain**; they are not duplicate payments or safe-to-delete notifications. The third message's *body copy* repeats the first status. Merged [PR #2018](https://github.com/wecare-digital/wecare-digital/pull/2018) suppresses the unrelated Orders CTA for verified paid services while preserving the canonical Orders CTA for ordinary WhatsApp carts. The source merge alone does not prove the new invoice-engine bytes are deployed; compare the exact `:live` ZIP before making that claim.
+The two ORDER_STATUS transitions and one statutory invoice **must remain**; they are not duplicate payments or safe-to-delete notifications. The third message's *body copy* repeats the first status. Merged [PR #2018](https://github.com/wecare-digital/wecare-digital/pull/2018) suppresses the unrelated Orders CTA for verified paid request/Vault/Drop Docs services, and merged [PR #2019](https://github.com/wecare-digital/wecare-digital/pull/2019) extends the source-level check to verified paid Track Shipping; ordinary WhatsApp carts retain their canonical Orders CTA. The source merge alone does not prove the new invoice-engine bytes are deployed; compare the exact `:live` ZIP before making that claim.
 
 ## Provider-verified existing approved template (do not edit or withdraw)
 
