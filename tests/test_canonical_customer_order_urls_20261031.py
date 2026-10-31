@@ -20,7 +20,7 @@ def test_no_new_per_order_urls_in_active_public_and_backend_sources():
     # Scan application runtime source, not legacy dated docs or authored test fixtures.
     runtime_roots = (ROOT / "src", ROOT / "amplify" / "functions")
     forbidden = re.compile(
-        r"(?:(?:https?://wecare\\.digital)?/orders/\\?(?:o|order|orderNumber|orderId)=",
+        r"(?:(?:https?://wecare\.digital)?/orders/\?(?:o|order|orderNumber|orderId)=",
         re.IGNORECASE,
     )
     offenders = []
