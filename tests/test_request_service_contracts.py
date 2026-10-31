@@ -264,7 +264,7 @@ def test_auth_action_copy_and_shared_mobile_button_style():
     assert 'className="auth-action auth-primary"' in page
     assert page.count('className="auth-action"') == 2  # Resend and Edit
     assert ".auth-actions{display:flex;align-items:stretch;" in page
-    assert ".auth-action{\\n          display:inline-flex;" in page
+    assert ".auth-action{" in page and "display:inline-flex;align-items:center;justify-content:center" in page
     assert "font:700 var(--public-cta-font-size)" in page
     assert ".auth-action{font-size:var(--public-mobile-cta-font-size);min-height:52px}" in page
     assert ".auth-primary{grid-column:1/-1}" in page
