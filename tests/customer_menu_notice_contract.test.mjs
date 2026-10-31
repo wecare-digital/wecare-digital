@@ -30,32 +30,45 @@ function loadTS(relativePath) {
 const menu = loadTS('src/lib/customerMenuActions.ts');
 const notices = loadTS('src/lib/customerMenuNotices.ts');
 
-test('both menu actions have exact pending, accepted, failed copy', () => {
-  for (const action of ['subscribe', 'leave-review']) {
-    const pending = notices.customerMenuNotice(action, 'pending');
-    const accepted = notices.customerMenuNotice(action, 'accepted');
-    const failed = notices.customerMenuNotice(action, 'failed');
-
-    assert.equal(pending.error, false);
-    assert.equal(accepted.error, false);
-    assert.equal(failed.error, true);
-    assert.match(pending.message, /WhatsApp/);
-    assert.match(accepted.message, /accepted/i);
-    assert.match(accepted.message, /Delivery is not yet confirmed/);
-    assert.doesNotMatch(accepted.message, /was delivered|has been delivered|review submitted/i);
-    assert.match(failed.message, /Check WhatsApp before trying again/);
+test('one exact short pending/success/failure notice for both WhatsApp invitations', () => {
+  assert.deepEqual(notices.customerMenuNotice('pending'), {
+    message: 'Processing…', error: false,
+  });
+  assert.deepEqual(notices.customerMenuNotice('accepted'), {
+    message: 'Sent to WhatsApp.', error: false,
+  });
+  assert.deepEqual(notices.customerMenuNotice('failed'), {
+    message: "Couldn't confirm. Check WhatsApp.", error: true,
+  });
+  for (const action of ['Subscribe', 'Leave Review']) {
+    assert.notEqual(menu.menuActionForLabel(action), null);
   }
-  assert.match(notices.customerMenuNotice('leave-review', 'accepted').message, /Leave Review/);
-  assert.match(notices.customerMenuNotice('subscribe', 'accepted').message, /profile update/);
+  assert.doesNotMatch(notices.customerMenuNotice('accepted').message, /delivered|review submitted/i);
 });
 
-test('Orders uses the same catalog for row and redirected-header invitations', () => {
+test('Orders uses the same toast for row and redirected-header invitations', () => {
   const page = readFileSync(resolve(ROOT, 'src/components/orders/OrdersPage.tsx'), 'utf8');
-  assert.match(page, /customerMenuNotice\( action, 'pending' \)/);
-  assert.match(page, /customerMenuNotice\( serviceAction, 'pending' \)/);
-  assert.match(page, /customerMenuNotice\( action, kind \)/);
+  const pendingCall = /customerMenuNotice\( 'pending' \)/g;
+  assert.equal([...page.matchAll(pendingCall)].length, 2, 'both customer entry paths share pending copy');
+  assert.match(page, /customerMenuNotice\( kind \)/);
   assert.doesNotMatch(page, /inviteName\(/);
+  assert.match(page, /className="ord-backend-toast ord-invite-toast"/);
   assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
+  assert.match(page, /\.ord-backend-toast\.ord-invite-toast\s*\{\s*inline-size:fit-content;max-inline-size:100%/);
+});
+
+test('six navigation-only Request and Shipment actions never claim a WhatsApp send', () => {
+  const menuSource = readFileSync(resolve(ROOT, 'src/components/orders/OrderActionsMenu.tsx'), 'utf8');
+  const headerSource = readFileSync(resolve(ROOT, 'src/components/Header.tsx'), 'utf8');
+  for (const label of [
+    'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Track', 'Pickup Request',
+  ]) {
+    assert.equal(menu.menuActionForLabel(label), null, label + ' must not trigger a false send toast');
+    assert.ok(menuSource.includes("label: '" + label + "'"), label + ' remains in Orders menu');
+  }
+  assert.match(menuSource, /const sendAction = menuActionForLabel\( action\.label \)/);
+  assert.match(headerSource, /const sendAction = menuActionForLabel\( link\.label \)/);
+  assert.match(menuSource, /href: '\/orders\/'/);
 });
 
 test('both Lambda dispatchers and template-to-Flow mapping hooks are present in source', () => {
