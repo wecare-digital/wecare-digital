@@ -121,20 +121,26 @@ export function vaultMessageSteps (
   }) );
   const payState = outcomeState( payment, 'PAYMENT_REQUEST_SENT' );
   const accessState = automaticAccessProof?.state || accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
-  const stage = ( i: number, gapDefault: string ) => {
+  const stage = ( i: number ) => {
     const roles = [ 'native_payment', 'order_status', 'receipt', 'access' ];
     const record = journey?.steps.find( step => step.role === roles[ i ] );
+    // Historical journey metadata may still mention removed status delays.
+    // Only the access link has a configurable wait in the sending runtime.
+    const gaps = [
+      'Customer-approved · no timer',
+      'No added wait · event-gated',
+      'No added wait · paid capture required',
+      'Access delay · Pay & Flow settings',
+    ];
     return {
       template: record?.templateName || FALLBACK[ i ],
       templateId: record?.templateId || '',
-      gap: record?.defaultDelaySeconds !== undefined
-        ? ( record.defaultDelaySeconds > 0 ? record.defaultDelaySeconds + 's spacing' : 'Trigger-based' )
-        : gapDefault,
+      gap: gaps[ i ],
     };
   };
   return [
     {
-      index: 1, title: TITLE[ 0 ], ...stage( 0, 'Staff/customer-triggered' ),
+      index: 1, title: TITLE[ 0 ], ...stage( 0 ),
       event: 'Staff or customer requests a native Review & Pay; customer approves the payment',
       state: nativePayProof?.state || ( paid ? 'accepted' : payState ),
       stateLabel: nativePayProof?.label || ( paid ? 'Payment captured · WA unverified' : payState === 'waiting' ? 'Ready for customer payment' : stateText( payState ) ),
@@ -144,7 +150,7 @@ export function vaultMessageSteps (
         : payment ? 'Staff request outcome: ' + payment : 'No automatic charge; the customer must approve this exact-file request',
     },
     {
-      index: 2, title: TITLE[ 1 ], ...stage( 1, 'After verified capture' ),
+      index: 2, title: TITLE[ 1 ], ...stage( 1 ),
       event: 'Processing → completed (two separate messages)',
       state: completedProof?.state || processingProof?.state || 'waiting',
       stateLabel: completedProof ? 'Completed · ' + completedProof.label
@@ -156,7 +162,7 @@ export function vaultMessageSteps (
       subEvents: orderEvents,
     },
     {
-      index: 3, title: TITLE[ 2 ], ...stage( 2, 'After order update' ),
+      index: 3, title: TITLE[ 2 ], ...stage( 2 ),
       event: 'Verified paid invoice image',
       state: invoiceProof?.state || 'waiting',
       stateLabel: invoiceProof?.label || ( paid ? 'Invoice delivery not verified' : 'Waiting for paid invoice' ),
@@ -165,7 +171,7 @@ export function vaultMessageSteps (
       detail: 'The invoice image is sent after payment confirmation. A paid entitlement alone never proves handset receipt.',
     },
     {
-      index: 4, title: TITLE[ 3 ], ...stage( 3, 'After invoice acceptance' ),
+      index: 4, title: TITLE[ 3 ], ...stage( 3 ),
       event: 'Paid entitlement + invoice required',
       state: accessState,
       stateLabel: automaticAccessProof
