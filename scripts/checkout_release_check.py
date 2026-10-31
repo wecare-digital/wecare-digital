@@ -47,6 +47,18 @@ class Page(HTMLParser):
 def check_html(path, html):
     page = Page()
     page.feed(html)
+    # /cart/ is a historical, browser-side redirect to /checkout/. The owner
+    # explicitly removed its splash page and the public translation widget.
+    # Never require a visible header/hero/CTA on that redirect-only waypoint.
+    # The source guard below separately requires its basket-token handoff.
+    if path == '/cart/':
+        failures = []
+        if any(tag in page.tags for tag in ('header', 'footer', 'h1', 'main')):
+            failures.append('/cart/: redirect-only HTML must have no visible page chrome')
+        if not any('name="robots"' in tag and 'noindex' in tag.lower()
+                   for tag in re.findall(r'<meta\\b[^>]*>', html, re.I)):
+            failures.append('/cart/: redirect-only HTML must remain noindex')
+        return failures
     failures = [f'{path}: missing {tag}' for tag in ('header', 'footer', 'h1', 'main')
                 if tag not in page.tags]
     for href in page.links:
@@ -63,6 +75,19 @@ def check_html(path, html):
         failures.append(f'{path}: legacy cart destination linked')
     if not any(urlsplit(href).path == '/r/wa' for href in page.links):
         failures.append(f'{path}: default WhatsApp widget missing')
+    return failures
+
+
+def check_cart_redirect_source():
+    """The legacy basket route silently preserves checkout handoff tokens."""
+    body = (ROOT / 'src/pages/cart.tsx').read_text(encoding='utf-8')
+    failures = []
+    if ('basketTokenFromUrl()' not in body
+            or 'window.location.replace(' not in body
+            or '/checkout/?basket=' not in body):
+        failures.append('cart: legacy basket redirect lost its token-preserving handoff')
+    if '<main' in body or '<h1' in body or '<SupportWidget' in body:
+        failures.append('cart: redirect-only page regained visible intermediate UI')
     return failures
 
 
@@ -186,7 +211,8 @@ def main():
 
     # Source-only Orders check runs for every Amplify export build, before deploy.
     # --live validates public HTML only and cannot attest an authenticated UI.
-    failures = check_orders_history_source() if args.export_dir else []
+    failures = (check_orders_history_source() + check_cart_redirect_source()
+                if args.export_dir else [])
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         failures.extend(failure for result in pool.map(check, paths()) for failure in result)
     print(json.dumps({'pages': len(paths()), 'failures': failures}, indent=2))
