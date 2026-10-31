@@ -73,9 +73,12 @@ frontend:
       commands:
         # Browser Maps credential is build-scoped only. Do not persist a Maps public-key alias
         # in Amplify app/branch environment variables; browser consumers share this one name.
-        - export NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL="${NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL:-https://wecare-digital-hrkl3sncxq-el.a.run.app}"; export NEXT_PUBLIC_GOOGLE_BROWSER_KEY="$(aws secretsmanager get-secret-value --secret-id wecare/google-maps --query SecretString --output text | python3 -c 'import json,sys; s=sys.stdin.read().strip(); d=json.loads(s) if s.startswith("{") else s; print((d.get("api_key") or d.get("unified_google_api_key") or "") if isinstance(d,dict) else d)')"; test -n "$NEXT_PUBLIC_GOOGLE_BROWSER_KEY"; test -n "$NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL"; npm run build
-        - python3 scripts/checkout_release_check.py --export-dir out
-        - python3 scripts/sync_faq.py --check
+        # Preserve failures in the account-owned private CDK asset bucket (Amplify's own
+        # BUILD/log.txt is not readable through the project's AWS role).
+        - export WEB_BUILD_DIAGNOSTICS="s3://cdk-hnb659fds-assets-$(aws sts get-caller-identity --query Account --output text)-${AWS_REGION:-us-east-1}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"
+        - export NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL="${NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL:-https://wecare-digital-hrkl3sncxq-el.a.run.app}"; export NEXT_PUBLIC_GOOGLE_BROWSER_KEY="$(aws secretsmanager get-secret-value --secret-id wecare/google-maps --query SecretString --output text | python3 -c 'import json,sys; s=sys.stdin.read().strip(); d=json.loads(s) if s.startswith("{") else s; print((d.get("api_key") or d.get("unified_google_api_key") or "") if isinstance(d,dict) else d)')"; test -n "$NEXT_PUBLIC_GOOGLE_BROWSER_KEY"; test -n "$NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL"; npm run build > /tmp/wecare-site-build.log 2>&1 || { aws s3 cp /tmp/wecare-site-build.log "$WEB_BUILD_DIAGNOSTICS/site-build-failure.log" --only-show-errors || true; tail -n 160 /tmp/wecare-site-build.log; exit 1; }; tail -n 55 /tmp/wecare-site-build.log
+        - python3 scripts/checkout_release_check.py --export-dir out > /tmp/wecare-checkout-release.log 2>&1 || { aws s3 cp /tmp/wecare-checkout-release.log "$WEB_BUILD_DIAGNOSTICS/checkout-release-failure.log" --only-show-errors || true; cat /tmp/wecare-checkout-release.log; exit 1; }; cat /tmp/wecare-checkout-release.log
+        - python3 scripts/sync_faq.py --check > /tmp/wecare-faq-check.log 2>&1 || { aws s3 cp /tmp/wecare-faq-check.log "$WEB_BUILD_DIAGNOSTICS/faq-check-failure.log" --only-show-errors || true; cat /tmp/wecare-faq-check.log; exit 1; }; cat /tmp/wecare-faq-check.log
         # THE REAL CREDENTIAL GATE. It must run in the production build.
         # output:'export' inlines every NEXT_PUBLIC_* value into a JS chunk that is
         # then served to every visitor. This production build has the branch-scoped
@@ -87,7 +90,7 @@ frontend:
         # server-side by wecare-whatsapp-templates. A genuine referrer-restricted Maps
         # browser key passes; that one fails the build before anything deploys.
         # Compares fingerprints only, so no secret is read or printed.
-        - python3 scripts/verify_public_bundle_secrets.py
+        - python3 scripts/verify_public_bundle_secrets.py > /tmp/wecare-public-bundle-check.log 2>&1 || { aws s3 cp /tmp/wecare-public-bundle-check.log "$WEB_BUILD_DIAGNOSTICS/public-bundle-failure.log" --only-show-errors || true; cat /tmp/wecare-public-bundle-check.log; exit 1; }; cat /tmp/wecare-public-bundle-check.log
   artifacts:
     baseDirectory: out
     files:
