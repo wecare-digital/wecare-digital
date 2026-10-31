@@ -532,7 +532,9 @@ def test_service_workspace_shows_all_services_without_reopening_retired_customer
                  "vault", "shipments", "contribute"):
         assert slug in routes
     assert "VaultLogs" in page and "SecureFiles" in page
-    assert "Documents" in page and "<Documents" in page
+    assert "CustomerDropDocs" in page and "<CustomerDropDocs" in page
+    assert "<Documents" not in page  # Staff publishing belongs to Vault, never customer F003
+    assert "Staff upload/publish belongs to Vault." in page
     assert "serviceLedger('VAULT')" in page
     assert "serviceLedger('DROP_DOCS')" in page
     assert "serviceLedger('REQUEST_PICKUP')" in page
