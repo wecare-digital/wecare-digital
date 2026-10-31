@@ -2,6 +2,8 @@
 
 Source: `wecare.digital` review snapshot on 31 October 2026. **Source-level audit; not runtime-delivery proof.** This catalog enumerates first-argument expressions to `toast.success`, `.error`, `.warning`, `.info` in the 70 files indexed by code search, with dynamic expressions shown unevaluated. For inline notifications and form errors see [the surface audit](./toast-error-surface-audit-20261031.md). Public Orders notices are included in a separate section. WhatsApp accepted is not the same as delivered.
 
+**Enumerated direct calls:** 779 total, across 69 source files: **223 success**, **514 error**, **29 warning**, **13 info**. GitHub search found 70 candidate files; one candidate contained no direct `toast.*` invocation. Dynamic expressions are intentionally not resolved or replaced. This is the complete matched `toast.*` call-site list for this snapshot—not a claim that every app notification uses this hook.
+
 | Type | Source file / line | Message argument (source expression) |
 |---|---|---|
 | warning | [`src/components/FloatingAgent.tsx:105`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/components/FloatingAgent.tsx#L105) | <code>'Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.'</code> |
@@ -783,3 +785,38 @@ Source: `wecare.digital` review snapshot on 31 October 2026. **Source-level audi
 | success | [`src/pages/workspace/task/index.tsx:142`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/pages/workspace/task/index.tsx#L142) | <code>`Moved to ${status}`</code> |
 | error | [`src/pages/workspace/task/index.tsx:143`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/pages/workspace/task/index.tsx#L143) | <code>'Could not update'</code> |
 | error | [`src/pages/workspace/task/index.tsx:144`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/pages/workspace/task/index.tsx#L144) | <code>'Could not update'</code> |
+
+## Public Orders notice messages (separate from Workspace `toast.*`)
+
+Customer Orders uses an inline `role="status"` / `role="alert"` rail. The six **customer WhatsApp invitations** now share one editable source: [`src/lib/customerMenuNotices.ts`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/lib/customerMenuNotices.ts). These strings are not included in the 779 Workspace `toast.*` counts.
+
+| Action | State / severity | Message |
+|---|---|---|
+| Profile update (menu label Subscribe) | Pending / status | Requesting your profile update invitation on WhatsApp… |
+| Profile update | Accepted / status | WhatsApp accepted your profile update invitation. Delivery is not yet confirmed. |
+| Profile update | Not confirmed / error | We could not confirm the profile update invitation. Check WhatsApp before trying again. |
+| Leave Review | Pending / status | Requesting your Leave Review invitation on WhatsApp… |
+| Leave Review | Accepted / status | WhatsApp accepted your Leave Review invitation. Delivery is not yet confirmed. |
+| Leave Review | Not confirmed / error | We could not confirm the Leave Review invitation. Check WhatsApp before trying again. |
+
+Additional Orders notices live in [`OrdersPage.tsx`](https://github.com/wecare-digital/wecare-digital/blob/fix/f002-notice-catalog-regression-20261031/src/components/orders/OrdersPage.tsx):
+
+| Trigger | Severity | Exact visible text |
+|---|---|---|
+| Order ID copied | Status | Copied |
+| Clipboard blocked | Error | Order ID selected. Copy it with your keyboard. |
+| Invoice missing | Error | An invoice is not available for this order yet. |
+| Invoice rate limited | Error | Too many invoice requests. Wait a moment and try again. |
+| Invoice failure | Error | Invoice download failed. Please try again. |
+| Orders rate limited | Error | Too many requests. Wait a moment and try again. |
+| Orders loading failed | Error | We could not load your orders just now. Try again shortly. |
+| Linked purchases unavailable | Error | Some linked purchases could not be refreshed right now. |
+
+## Copy and UX rules for review
+
+- **Accepted** means Meta acknowledged the outbound template; it does not mean **delivered** or **review submitted**. Delivery and F002 FlowSubmission need separate verification.
+- A failed or timed-out request can be ambiguous; advise checking WhatsApp, **never** automatically retry a template send.
+- For public Orders, edit `src/lib/customerMenuNotices.ts` to change the six menu messages and keep `OrdersPage.tsx` as the display mechanism. Other Orders feedback remains in `OrdersPage.tsx`.
+- For Workspace, use the path/line in this catalog to change individual messages; design and semantics are managed in `src/components/Toast.tsx`, `src/contexts/ToastContext.tsx`, and `src/styles/inner-ux.css`.
+- Keep persistent validation errors inline; don't replace them with disappearing toasts. Never expose credentials, customer phone numbers or raw internal error payloads in notices.
+- Regression tests: `node --test tests/customer_menu_notice_contract.test.mjs` (synthetic, no provider sends).
