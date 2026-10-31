@@ -494,6 +494,8 @@ const Header: React.FC = () => {
     if ( !link.href ) return false;
     // Six service rows now share the Orders destination; only Orders itself is current.
     if ( link.href === '/orders/' && link.label !== 'Orders' ) return false;
+    // Both customer-menu actions launch a template, not a navigation destination.
+    if ( link.href.startsWith( '/orders/?service=' ) ) return false;
     const destination = normalizePath( link.href );
     if ( !destination ) return false;
     if ( concretePath ) return destination === currentPath;
