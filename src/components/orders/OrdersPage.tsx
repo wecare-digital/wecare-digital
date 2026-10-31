@@ -365,7 +365,7 @@ export default function OrdersPage (): React.ReactElement {
   const [ profileAction, setProfileAction ] = useState<'idle' | 'busy' | 'sent' | 'failed'>( 'idle' );
 
   // Public /orders is outside the authenticated ToastProvider. Keep the feedback local,
-  // transient and screen-reader accessible rather than leaving a permanent status line.
+  // inline with the profile action, transient and screen-reader accessible.
   useEffect( () => {
     if ( profileAction !== 'sent' && profileAction !== 'failed' ) return;
     const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
@@ -1359,13 +1359,12 @@ export default function OrdersPage (): React.ReactElement {
           .ord-account-action:disabled{opacity:.55;cursor:default}
           .ord-account-action[aria-busy='true']{cursor:progress}
           .ord-profile-toast{
-            position:fixed;inset-block-start:calc(88px + env(safe-area-inset-top,0px));
-            inset-inline-end:clamp(12px,4vw,32px);z-index:10002;
+            position:static;
             box-sizing:border-box;display:flex;align-items:center;gap:10px;
             max-inline-size:min(360px,calc(100vw - 24px));padding:8px 10px 8px 14px;
             border:1px solid var(--public-brand-lime);border-radius:14px;
             background:var(--public-brand-lime);color:var(--public-brand-green);
-            box-shadow:0 12px 32px rgba(26,58,42,.14);
+            box-shadow:none;
             font-size:14px;font-weight:650;line-height:1.4;
           }
           .ord-profile-toast-icon{
@@ -1381,10 +1380,10 @@ export default function OrdersPage (): React.ReactElement {
             font:inherit;font-size:22px;cursor:pointer;
           }
           .ord-profile-toast-close:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-          .ord-profile-toast-error{background:var(--public-bg);color:#8a2e22}
-          .ord-profile-toast-error .ord-profile-toast-icon{background:#8a2e22;color:#fff}
+          .ord-profile-toast-error{background:var(--public-brand-lime);color:var(--public-brand-green)}
+          .ord-profile-toast-error .ord-profile-toast-icon{background:var(--public-brand-green);color:var(--public-brand-lime)}
           @media(max-width:480px){
-            .ord-profile-toast{inset-inline:12px;max-inline-size:none}
+            .ord-profile-toast{max-inline-size:100%}
           }
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
