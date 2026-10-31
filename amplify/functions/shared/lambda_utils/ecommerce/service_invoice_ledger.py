@@ -59,6 +59,11 @@ def verified_service_kind(
     kind = str(attempt.get("serviceKind") or "")
     if kind not in SERVICE_KINDS:
         return ""
+    # A purchase labelled Vault without the owner-verified file target cannot
+    # unlock anything; never classify it as a valid Vault ledger transaction.
+    # Other service intents use their own fulfilment-specific target policies.
+    if kind == service_requests.VAULT and not str(attempt.get("vaultFileId") or "").strip():
+        return ""
     if (str(attempt.get("referenceId") or "") != ref
             or str(attempt.get("status") or "") != "PAYMENT_PAID"):
         return ""
