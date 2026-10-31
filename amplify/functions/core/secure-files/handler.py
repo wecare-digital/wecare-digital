@@ -1827,13 +1827,8 @@ def _customer_request_payment(
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
-    body = json.loads(event.get("body") or "{}")
-    if not isinstance(body, dict):
-        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
-    description = body.get(
-        "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
-    if not catalog_service_checkout.valid_vault_item_description(description):
-        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
+    # Customer requests NEVER set the item wording. Only the staff Vault editor
+    # may choose it, and only for the one ₹49 service item. No body fields read.
     state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
@@ -1925,6 +1920,16 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
                 ExpressionAttributeValues={":n": system_name},
             )
             item["displayName"] = system_name
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (TypeError, ValueError):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    description = body.get(
+        "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
+    if not catalog_service_checkout.valid_vault_item_description(description):
+        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
