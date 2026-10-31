@@ -921,6 +921,16 @@ def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
         merchandise_paise += unit_paise * quantity
     if not lines:
         return None
+    # This public item wording is not the catalog SKU and never affects price.
+    # The same frozen invoice line is used for Meta Review & Pay and for the
+    # actual paid GST invoice image, including website-origin Vault checkout.
+    if (len(lines) == 1
+            and lines[0]["variantId"] == service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+            and lines[0]["productId"] == service_requests.SERVICE_PRODUCT_BY_VARIANT[
+                service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]]
+            and lines[0]["quantity"] == 1 and lines[0]["unitPricePaise"] == 4900):
+        from lambda_utils.ecommerce.catalog_service_checkout import VAULT_ITEM_DESCRIPTION_DEFAULT
+        lines[0]["name"] = VAULT_ITEM_DESCRIPTION_DEFAULT
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
     quote = snapshot.quote
@@ -3042,6 +3052,30 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                        "error": type(error).__name__}))
             invoice_lines = None
         if invoice_lines:
+            if catalog_session is not None and catalog_session.get("kind") == service_requests.VAULT:
+                # Staff can edit ONLY the display name of the server-quoted one
+                # ₹49 Vault item, never price, quantity, fees or another SKU.
+                from lambda_utils.ecommerce.catalog_service_checkout import (
+                    VAULT_EDITABLE_ITEM_PAISE, VAULT_ITEM_DESCRIPTION_DEFAULT,
+                    valid_vault_item_description, vault_item_description)
+                requested = catalog_session.get("paymentItemDescription")
+                lines = invoice_lines.get("lines") or []
+                vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+                is_single_49_vault = (
+                    len(lines) == 1 and lines[0].get("variantId") == vault_variant
+                    and lines[0].get("productId") == service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]
+                    and lines[0].get("quantity") == 1
+                    and lines[0].get("unitPricePaise") == VAULT_EDITABLE_ITEM_PAISE)
+                if requested is not None and not valid_vault_item_description(requested):
+                    return cors_response(409, {"error": "VAULT_ITEM_DESCRIPTION_INVALID"}, origin)
+                if requested and requested != VAULT_ITEM_DESCRIPTION_DEFAULT and not is_single_49_vault:
+                    # Catalog price changed or multiple items unexpectedly supplied.
+                    # Refuse BEFORE Meta send rather than showing a different name.
+                    return cors_response(409, {"error": "VAULT_ITEM_NOT_49"}, origin)
+                if is_single_49_vault:
+                    label = vault_item_description(requested)
+                    lines[0]["name"] = label
+                    attempt["vaultItemDescription"] = label
             attempt["invoiceLines"] = invoice_lines
 
     attempt = payment_attempt.transition(

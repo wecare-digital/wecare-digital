@@ -71,7 +71,8 @@ from botocore.exceptions import ClientError
 
 from lambda_utils import customer_auth, media_paths, whatsapp_templates
 from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
-from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
+from lambda_utils.ecommerce import (catalog_service_checkout, document_errors,
+                                  dropdocs_storage, service_request_store)
 from lambda_utils.ecommerce import vault_window
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
@@ -1742,6 +1743,7 @@ def _file_access_state(item: Dict[str, Any], now: int) -> str:
 
 def _start_native_vault_payment(
     item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
+    payment_description: str = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT,
 ) -> Dict[str, Any]:
     """Ask the existing native WhatsApp rail for ONE exact-file Review and Pay.
 
@@ -1755,6 +1757,8 @@ def _start_native_vault_payment(
     # actually available. No customer should receive a charge for a dead link.
     if not _vault_file_storage_ready(item):
         return _vault_storage_unavailable(origin)
+    if not catalog_service_checkout.valid_vault_item_description(payment_description):
+        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     try:
         response = _lambda_client().invoke(
             FunctionName=BUSINESS_API_FUNCTION,
@@ -1765,6 +1769,7 @@ def _start_native_vault_payment(
                 "ownerCustomerId": str(item["ownerCustomerId"]),
                 "ownerPhone": str(item["ownerPhone"]),
                 "requestedBy": str(requested_by or "")[:64],
+                "paymentItemDescription": payment_description,
             }).encode("utf-8"),
         )
         answer = json.loads(response["Payload"].read() or b"{}")
@@ -1822,6 +1827,8 @@ def _customer_request_payment(
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+    # Customer requests NEVER set the item wording. Only the staff Vault editor
+    # may choose it, and only for the one ₹49 service item. No body fields read.
     state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
@@ -1913,6 +1920,16 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
                 ExpressionAttributeValues={":n": system_name},
             )
             item["displayName"] = system_name
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (TypeError, ValueError):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    description = body.get(
+        "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
+    if not catalog_service_checkout.valid_vault_item_description(description):
+        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
@@ -1928,7 +1945,8 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
         }, origin)
     return _start_native_vault_payment(
         item, state, origin,
-        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64])
+        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
+        payment_description=description)
 
 
 def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -3013,6 +3031,7 @@ def _vault_schedule_public(row: Dict[str, Any]) -> Dict[str, Any]:
         "fileId": str(row.get("fileId") or ""),
         "action": str(row.get("vaultAction") or ""),
         "offerBodyText": str(row.get("offerBodyText") or ""),
+        "paymentItemDescription": str(row.get("paymentItemDescription") or ""),
         "scheduledAt": str(row.get("scheduledAt") or ""),
         "status": str(row.get("status") or ""),
         "createdAt": str(row.get("createdAt") or ""),
@@ -3057,6 +3076,11 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
     action = body.get("action")
     if action not in VAULT_SCHEDULE_ACTIONS:
         return cors_response(400, {"error": "ACTION_NOT_SCHEDULABLE"}, origin)
+    description = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT
+    if action == "payment":
+        description = body.get("paymentItemDescription", description)
+        if not catalog_service_checkout.valid_vault_item_description(description):
+            return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     try:
         when = _schedule_time(body.get("scheduledAt"))
     except ValueError as error:
@@ -3124,6 +3148,7 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
             "access": "wecare_default_download",
         }[action],
         "offerBodyText": text,
+        "paymentItemDescription": description if action == "payment" else "",
     }
     values = {
         ":owner": _ddb_encoded(item["ownerCustomerId"]),
@@ -3272,6 +3297,11 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
         internal_event["body"] = json.dumps({"offerBodyText": row.get("offerBodyText") or ""})
         answer = _admin_send_vault_offer(file_id, internal_event, "")
     elif action == "payment":
+        # Store and dispatch the exact wording chosen when scheduled; never
+        # pick up a later UI edit or change a previously issued invoice.
+        internal_event["body"] = json.dumps({"paymentItemDescription":
+            row.get("paymentItemDescription")
+            or catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT})
         answer = _admin_request_payment(file_id, internal_event, "")
     else:
         answer = _admin_send_access(file_id, internal_event, "")

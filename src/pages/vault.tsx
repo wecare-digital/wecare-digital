@@ -23,7 +23,15 @@ const VaultPage: React.FC = () => {
   const [ restoredFileId, setRestoredFileId ] = useState( '' );
 
   useEffect( () => {
-    if ( !router.isReady || queryFileId ) return;
+    if ( !router.isReady ) return;
+    if ( queryFileId ) {
+      if ( !VAULT_FILE_ID_PATTERN.test( queryFileId ) ) {
+        // Invalid links use the site's existing 404 → homepage rule.
+        // Do not send someone to authentication for an invalid file identifier.
+        void router.replace( '/404' );
+      }
+      return;
+    }
     // Sign-in can return here with the exact file id saved out of band. Restore
     // that file BEFORE considering the ordinary bare-route redirect.
     try
@@ -38,13 +46,13 @@ const VaultPage: React.FC = () => {
       }
     } catch
     {
-      // Storage can be unavailable; an ordinary /vault/ visit goes to Orders.
+      // Storage can be unavailable; no target means 404 → homepage.
     }
-    void router.replace( '/orders/' );
+    void router.replace( '/404' );
   }, [ router, router.isReady, queryFileId ] );
 
   const targetFileId = queryFileId || restoredFileId;
-  if ( router.isReady && targetFileId ) {
+  if ( router.isReady && VAULT_FILE_ID_PATTERN.test( targetFileId ) ) {
     return <GetPage targetFileId={ targetFileId } />;
   }
 
@@ -54,11 +62,11 @@ const VaultPage: React.FC = () => {
     <>
       <Head>
         <meta name="robots" content="noindex, nofollow" />
-        <link rel="canonical" key="canonical" href="https://wecare.digital/orders/" />
+        <link rel="canonical" key="canonical" href="https://wecare.digital/" />
       </Head>
       <main style={ { maxWidth: '1100px', margin: '50px auto', padding: '0 24px' } }>
         <p>Opening your account…</p>
-        <Link href="/orders/">Go to Orders</Link>
+        <Link href="/">Go to Home</Link>
       </main>
     </>
   );

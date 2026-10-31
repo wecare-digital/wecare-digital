@@ -7634,13 +7634,16 @@ export interface SecureFileActionResult {
  */
 async function secureFileAction (
   fileId: string, action: 'send-offer' | 'request-payment' | 'send-access',
-  options?: { offerBodyText?: string },
+  options?: { offerBodyText?: string; paymentItemDescription?: string },
 ): Promise<SecureFileActionResult> {
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
   {
     const requestBody = action === 'send-offer' && options?.offerBodyText !== undefined
-      ? JSON.stringify( { offerBodyText: options.offerBodyText } ) : '{}';
+      ? JSON.stringify( { offerBodyText: options.offerBodyText } )
+      : action === 'request-payment' && options?.paymentItemDescription !== undefined
+        ? JSON.stringify( { paymentItemDescription: options.paymentItemDescription } )
+        : '{}';
     const response = await authFetch( url, { method: 'POST', body: requestBody } );
     let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
     try { body = await response.json(); } catch { body = {}; }
@@ -7680,8 +7683,11 @@ export function sendSecureFileOffer (
 }
 
 /** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
-export function requestSecureFilePayment ( fileId: string ): Promise<SecureFileActionResult> {
-  return secureFileAction( fileId, 'request-payment' );
+export function requestSecureFilePayment (
+  fileId: string, paymentItemDescription?: string,
+): Promise<SecureFileActionResult> {
+  return secureFileAction( fileId, 'request-payment',
+    paymentItemDescription === undefined ? undefined : { paymentItemDescription } );
 }
 
 /** Resend the Access Vault link for a paid file. Never charges. */
@@ -7717,12 +7723,15 @@ export interface VaultScheduledAction {
   errorMessage?: string;
 }
 export function scheduleVaultAction (
-  fileId: string, action: VaultScheduleAction, scheduledAt: string, offerBodyText?: string,
+  fileId: string, action: VaultScheduleAction, scheduledAt: string,
+  offerBodyText?: string, paymentItemDescription?: string,
 ): Promise<ApiResult<{ schedule: VaultScheduledAction; message: string }>> {
   return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules`, {
     method: 'POST',
     body: JSON.stringify( { action, scheduledAt,
-      ...( action === 'offer' ? { offerBodyText } : {} ) } ),
+      ...( action === 'offer' ? { offerBodyText } : {} ),
+      ...( action === 'payment' && paymentItemDescription !== undefined
+        ? { paymentItemDescription } : {} ) } ),
   } );
 }
 export function listVaultSchedules (

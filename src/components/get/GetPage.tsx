@@ -139,15 +139,18 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         {
             const ownedFiles = result.data.files || [];
             const visibleFiles = targetFileId
-                ? ownedFiles.filter( file => file.fileId === targetFileId )
+                ? ownedFiles.filter( file => file.fileId === targetFileId && file.status === 'active' )
                 : ownedFiles;
+            if ( targetFileId && visibleFiles.length === 0 ) {
+                // Only an authenticated, successful owner-scoped read may
+                // determine that this exact link is absent or inactive.
+                // The existing 404 page redirects to the homepage.
+                window.location.replace( '/404' );
+                return;
+            }
             setFiles( visibleFiles );
             setStage( 'files' );
-            setError(
-                targetFileId && visibleFiles.length === 0
-                    ? 'This document is not available right now.'
-                    : ''
-            );
+            setError( '' );
         } else if ( result.failure.status === 401 )
         {
             clearSession();
@@ -197,14 +200,18 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 {
                     const ownedFiles = result.data.files || [];
                     const visibleFiles = targetFileId
-                        ? ownedFiles.filter( file => file.fileId === targetFileId )
+                        ? ownedFiles.filter( file => file.fileId === targetFileId && file.status === 'active' )
                         : ownedFiles;
-                    setFiles( visibleFiles );
-                    setStage( 'files' );
                     if ( targetFileId && visibleFiles.length === 0 )
                     {
-                        setError( 'This document is not available right now.' );
+                        // Missing, revoked or unpublished: never prompt for a
+                        // fresh payment or disclose a file's existence.
+                        window.location.replace( '/404' );
+                        return;
                     }
+                    setFiles( visibleFiles );
+                    setStage( 'files' );
+                    setError( '' );
                 } else if ( result.failure.status === 401 )
                 {
                     clearSession();

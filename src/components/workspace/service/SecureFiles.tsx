@@ -24,6 +24,16 @@ import { fetchServicePrices, rupeesFromPaise, type ServicePaymentTemplates, type
 import { resolveWaMime, validateWaMediaSize, WA_ACCEPT_STRING } from '../../../lib/wa-media';
 import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 
+/** Staff may edit ONLY the one ₹49 Vault catalogue line's customer-facing name. */
+const VAULT_ITEM_DESCRIPTION_DEFAULT = 'Vault Access - Secure document download (24 hours)';
+const VAULT_BASE_ITEM_PAISE = 4900;
+const VAULT_ITEM_DESCRIPTION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 .,'()&\/-]{11,59}$/;
+function validVaultItemDescription ( text: string ): boolean {
+    return text.trim() === text && !text.includes( '  ' )
+        && !text.toLowerCase().includes( 'http' )
+        && VAULT_ITEM_DESCRIPTION_PATTERN.test( text );
+}
+
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
     const units = [ 'B', 'KB', 'MB', 'GB' ];
@@ -74,6 +84,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ acting, setActing ] = useState( '' );
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
     const [ vaultPricePaise, setVaultPricePaise ] = useState<number | null>( null );
+    const [ paymentItemDescription, setPaymentItemDescription ] = useState( VAULT_ITEM_DESCRIPTION_DEFAULT );
     const [ vaultBreakdown, setVaultBreakdown ] = useState<ServicePriceBreakdown | null>( null );
     const [ vaultTemplates, setVaultTemplates ] = useState<ServicePaymentTemplates | null>( null );
     const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
@@ -203,6 +214,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
     const chooseCustomer = ( contact: api.Contact ) => {
         if ( !contact.phone ) return;
+        setPaymentItemDescription( VAULT_ITEM_DESCRIPTION_DEFAULT );
         setName( contact.name || '' );
         setMobile( contact.phone );
         setContactQuery( contact.name || contact.phone );
@@ -260,17 +272,24 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.error( 'Live service price is unavailable. No payment request was sent.' );
             return;
         }
+        if ( vaultPricePaise === VAULT_BASE_ITEM_PAISE
+            && !validVaultItemDescription( paymentItemDescription ) ) {
+            toast.error( 'Enter one valid ₹49 item description (12–60 characters).' );
+            return;
+        }
+        const itemDescription = vaultPricePaise === VAULT_BASE_ITEM_PAISE
+            ? paymentItemDescription : undefined;
         sendingAction.current = true;
         let approved = false;
         try {
             approved = await confirm( {
                 title: 'Send Review & Pay now?',
-                message: `Send a native WhatsApp payment request for ${ target.displayName } to the existing verified owner? This does not charge automatically. The customer must approve payment.`,
+                message: `Send a native WhatsApp payment request for ${ target.displayName } to the existing verified owner? Item description: ${ itemDescription || 'server catalogue' }. Amount, quantity and tax are locked. The customer must approve payment.`,
                 confirmText: 'Send payment request',
             } );
             if ( !approved ) return;
             setActing( target.fileId );
-            const result = await api.requestSecureFilePayment( target.fileId );
+            const result = await api.requestSecureFilePayment( target.fileId, itemDescription );
             reportAction( result );
             void load( filterMobile || undefined );
         } catch {
@@ -292,6 +311,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.error( 'File status changed. Refresh before scheduling.' );
             return;
         }
+        if ( action === 'payment' && vaultPricePaise === VAULT_BASE_ITEM_PAISE
+            && !validVaultItemDescription( paymentItemDescription ) ) {
+            toast.error( 'Enter one valid ₹49 item description (12–60 characters).' );
+            return;
+        }
+        const itemDescription = action === 'payment' && vaultPricePaise === VAULT_BASE_ITEM_PAISE
+            ? paymentItemDescription : undefined;
         const when = new Date( scheduledAtLocal );
         const delta = when.getTime() - Date.now();
         if ( !scheduledAtLocal || Number.isNaN( when.getTime() )
@@ -305,12 +331,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             const actionName = action === 'payment' ? 'native Review & Pay request' : 'paid Access Vault resend';
             const approved = await confirm( {
                 title: `Schedule ${actionName}?`,
-                message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\nTime: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
+                message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\n${itemDescription ? 'Item: ' + itemDescription + '\n' : ''}Time: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
                 confirmText: 'Confirm schedule',
             } );
             if ( !approved ) return;
             const result = await api.scheduleVaultAction(
-                target.fileId, action, when.toISOString(),
+                target.fileId, action, when.toISOString(), undefined, itemDescription,
             );
             if ( !result.ok ) {
                 toast.error( result.failure.message || 'Schedule was not accepted' );
@@ -693,7 +719,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                             <button type="button" key={ item.fileId }
                                                 className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
                                                 aria-pressed={ reviewFile?.fileId === item.fileId }
-                                                onClick={ () => { setReviewFile( item ); } }>
+                                                onClick={ () => {
+                                                    if ( item.fileId !== reviewFile?.fileId )
+                                                        setPaymentItemDescription( VAULT_ITEM_DESCRIPTION_DEFAULT );
+                                                    setReviewFile( item );
+                                                } }>
                                                 <span><strong>{ item.displayName }</strong>
                                                     <small>{ item.ownerName || 'Customer' } · { formatBytes( item.sizeBytes ) }</small></span>
                                                 <span className="sf-choice-status">{ PURCHASE_LABELS[ accessStateOf( item ) ] }</span>
@@ -829,6 +859,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         draftFile={ file }
                         selectedFile={ reviewFile }
                         pricePaise={ vaultPricePaise }
+                        paymentItemDescription={ paymentItemDescription }
+                        onPaymentItemDescriptionChange={ setPaymentItemDescription }
                         breakdown={ vaultBreakdown }
                         templates={ vaultTemplates }
                         priceLoading={ vaultPriceLoading }
