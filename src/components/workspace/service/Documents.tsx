@@ -1284,7 +1284,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           </section>
 
           <div style={ uploadFooterNoteStyle }>
-            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Unlock Vault</strong> publishes it, then sends the existing native Review &amp; Pay request. No invoice or access entitlement is issued before capture.
+            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Review &amp; Pay</strong> publishes it, then sends the existing native Review &amp; Pay request. No invoice or access entitlement is issued before capture.
           </div>
         </div>
       </Modal>
