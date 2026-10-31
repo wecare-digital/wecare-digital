@@ -421,8 +421,8 @@ const PUBLIC_PAGE_META: Record<string, {
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
-  // Request and tracking actions now live inside /orders/; old public service pages
-  // are retired and redirect. /vault/?file= remains a noindex exact-file handoff only.
+  // Request and tracking actions live inside /orders/; their retired public
+  // landing pages remain absent. /vault/?file= remains an owner-checked handoff.
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
@@ -445,8 +445,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
   // both parse this block as text and both require literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
-  // Shipments is a non-clickable family label. Its live destinations are the tracking
-  // page and the separate pickup-request page.
+  // Shipments is a non-clickable family label; Track and Pickup Request
+  // are customer actions, not separate public pages.
 };
 
 /** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.
@@ -548,7 +548,7 @@ const getPublicPageSchema = ( pathname: string ) => {
    mounts across both files. */
 
 // /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
-// Bare /vault/ navigates to Orders. All other former standalone request/tracking
+// Bare /vault/ navigates Home. All other former standalone request/tracking
 // pages were retired; their old paths fall through to 404 and then Home.
 const CUSTOMER_SERVICE_ROUTES = new Set( [
   '/vault',
@@ -605,7 +605,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // with HTTP 200 and is invisible until someone loads the route. Deriving the allowlist from
   // the metadata map means a product cannot exist for structured data but not for rendering.
   // /get is no longer a customer file surface. It is a redirect-only legacy signpost
-  // to /vault/ and is handled before the public chrome branch below, so it renders no second
+  // to Home and is handled before the public chrome branch below, so it renders no second
   // header/body/footer while the redirect fires. /get/<*> remains the unrelated media namespace.
   // '/contact-test' WAS LISTED HERE AND HAD TO COME OFF. It was the only route that was
   // both in this allowlist AND wrapped in the authenticated <Layout> by its own page file,
