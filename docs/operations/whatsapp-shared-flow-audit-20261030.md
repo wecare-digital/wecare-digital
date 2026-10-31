@@ -1,5 +1,7 @@
 # Fresh WhatsApp Flow + template audit — 30 October 2026
 
+> **Correction, 31 October 2026 (live, read-only verification):** The approved `_dropdoc_flow` template currently targets Flow ID `39581903361452878`, matching the canonical FlowRegistry ID. The `39581903361452880` shown in this historical audit is exactly the unsafe-integer rounding result of JavaScript `Number('39581903361452878')`; it is **not** evidence the live Meta button needs repair. Do **not** re-submit the approved Drop Docs template solely on this historical mismatch. The original observations are preserved below for audit history. See [31 October template/Flow/AWS registry inventory](whatsapp-template-flow-aws-registry-20261031.md).
+
 Scope: all seven retained Flow JSON assets in
 `amplify/functions/messaging/whatsapp-business-api/flows/published/`,
 the fifteen current WhatsApp templates, the Python Flow router, paid
