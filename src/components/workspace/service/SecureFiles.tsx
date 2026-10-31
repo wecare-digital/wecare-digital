@@ -27,7 +27,7 @@ import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } fro
 /** Staff may edit ONLY the one ₹49 Vault catalogue line's customer-facing name. */
 const VAULT_ITEM_DESCRIPTION_DEFAULT = 'Secure document download (24-hour access)';
 const VAULT_BASE_ITEM_PAISE = 4900;
-const VAULT_ITEM_DESCRIPTION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 .,'()&/-]{11,59}$/;
+const VAULT_ITEM_DESCRIPTION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 .,'()&\/-]{11,59}$/;
 function validVaultItemDescription ( text: string ): boolean {
     return text.trim() === text && !text.includes( '  ' )
         && !text.toLowerCase().includes( 'http' )
@@ -331,7 +331,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             const actionName = action === 'payment' ? 'native Review & Pay request' : 'paid Access Vault resend';
             const approved = await confirm( {
                 title: `Schedule ${actionName}?`,
-                message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\n${itemDescription ? 'Item: ' + itemDescription + '\\n' : ''}Time: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
+                message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\n${itemDescription ? 'Item: ' + itemDescription + '\n' : ''}Time: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
                 confirmText: 'Confirm schedule',
             } );
             if ( !approved ) return;
