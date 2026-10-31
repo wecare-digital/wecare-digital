@@ -80,6 +80,39 @@ class ConversationContract(unittest.TestCase):
         self.assertNotIn('otp', json.dumps([t['inputSchema'] for t in app.tools()]).lower())
         self.assertNotIn('token', json.dumps([t['inputSchema'] for t in app.tools()]).lower())
 
+    def test_branded_mcp_has_own_resource_metadata_and_challenge(self):
+        metadata = app.handler(
+            event(path='/mcp-branded-metadata', method='GET'), None,
+        )
+        self.assertEqual(metadata['statusCode'], 200)
+        body = json.loads(metadata['body'])
+        self.assertEqual(body['resource'], 'https://wecare.digital/api/mcp')
+        self.assertEqual(
+            body['authorization_servers'],
+            ['https://commerce.example.com'],
+        )
+        result = app.handler(event({
+            'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+            'params': {'name': 'list_my_orders', 'arguments': {}},
+        }, path='/mcp-branded'), None)
+        challenge = json.loads(result['body'])['result']['_meta']['mcp/www_authenticate'][0]
+        self.assertIn(
+            'https://wecare.digital/.well-known/oauth-protected-resource/api/mcp',
+            challenge,
+        )
+        handshake = app.handler(event({
+            'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {},
+        }, path='/mcp-branded', origin='https://wecare.digital'), None)
+        self.assertEqual(handshake['statusCode'], 200)
+        self.assertEqual(
+            json.loads(handshake['body'])['result']['serverInfo']['name'],
+            'wecare-customer-commerce',
+        )
+        refused = app.handler(event(
+            path='/mcp-branded', origin='https://other.example',
+        ), None)
+        self.assertEqual(refused['statusCode'], 403)
+
     def test_no_images_in_product_tool_result(self):
         with patch.object(app, 'catalog', return_value=[PRODUCT]):
             result = call('browse_products')
