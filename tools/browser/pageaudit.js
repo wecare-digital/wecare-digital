@@ -44,14 +44,15 @@ const OUT_JSON = path.join( REPO, 'docs', 'execution', 'page-audit.json' );
 // THIS LIST HAD DRIFTED. It said "the 15 public routes" and named 15, but PUBLIC_PAGE_META
 // had grown the Requests group and this list never followed - so `--public` audited 15 of 22
 // public routes while claiming to cover them all. It only matters for the `--public` flag:
-// the default run discovers routes by walking out/, which is how /hunar/kaushal/, /hunar/prastuti/ and /vault/ get
+// the default run discovers routes by walking out/, which is how /hunar/kaushal/ and /hunar/prastuti/ get
 // audited without being typed anywhere. The flag is the one that lies when it is stale.
 const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/sehat/', '/contact/', '/orders/', '/shop/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
-  '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/niji-setu/',
-  '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/',
+  '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/niji-setu/',
+  // Retired service pages redirect to Orders. /vault/?file= is an authenticated
+  // exact-file surface, not a public page and not part of the --public audit.
   // The catalogue. /shop/ was restored as a real public index on 2026-10-10. Keep one concrete
   // product route too because its taller transactional content is a useful obscured/overflow probe.
   '/shop/kiosk/' ];
