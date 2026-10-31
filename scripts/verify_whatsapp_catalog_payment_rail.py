@@ -1830,6 +1830,15 @@ def run(root: Path) -> int:
         orders_source = orders_file.read_text(encoding="utf-8") if orders_file.is_file() else ""
         path_source = order_path_file.read_text(encoding="utf-8") if order_path_file.is_file() else ""
         detail_file = root / "src/components/orders/OrderDetail.tsx"
+        guard_file = root / "scripts/guard_customer_orders_history_only.mjs"
+        config_file = root / "next.config.js"
+        guard_source = guard_file.read_text(encoding="utf-8") if guard_file.is_file() else ""
+        config_source = config_file.read_text(encoding="utf-8") if config_file.is_file() else ""
+        check("PAGE", "history-only guard is mandatory for every Next production build",
+              "assertCustomerOrdersHistoryOnly( projectRoot )" in config_source
+              and "guard_customer_orders_history_only.mjs" in config_source
+              and "Customer Orders history-only build gate FAILED" in guard_source,
+              "direct Next and Amplify builds refuse retired customer details")
         check("PAGE", "customer Orders remains compact with no detail or row expansion",
               bool(orders_source)
               and not detail_file.exists()
