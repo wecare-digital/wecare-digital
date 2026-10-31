@@ -207,45 +207,71 @@ it is absent from the Lambda runtime, and the Orders API is a single POST.
 config a caller actually sees and `update_function_configuration` alone changes nothing.
 It reported "verified" once against a stale alias; it now fails and names the fix.
 
-## Native WhatsApp payment and renewals (2026-10-29)
+## Vault under Pay & Flow — direct payment and renewal (2026-10-31 update)
 
-A file is sold per document, one access window at a time, and every payment is the commerce
-Review and Pay for that one file (server-priced, WABA1 only). **Vault has no WhatsApp Flow.**
-ProductsTable is the only payment/display price authority: customer surfaces read
-`GET /ecommerce/service-prices`, and the native payment backend independently re-prices the exact
-Vault SKU from ProductsTable before creating a PaymentAttempt. Secure-files owns file identity,
-entitlement and delivery and invokes the existing native Review and Pay rail; it has no price
-environment variable or fallback amount. There are three ways in:
+Vault staff operations now belong to **Workspace → Pay & Flow → Vault · Review & Pay**.
+Old `/workspace/service?view=vault` bookmarks redirect there. The general invoice
+builder remains available under **Collect** for other staff collections; it MUST NOT
+generate a free-form invoice to unlock a Vault document. Vault uses an exact-file,
+server-priced native WhatsApp payment request, not editable unit amounts or a
+separate cart. The staff sees a read-only, dynamic item/taxes/Delight/fee preview.
 
-| Who | Where | What happens |
-|---|---|---|
-| Staff | Workspace Vault → **Send Vault-ready offer** → `POST /secure-files/{fileId}/send-offer` | After private Documents/S3 confirmation and Vault publishing, secure-files re-checks the owner and entitlement. Business-api sends approved `wecare_vault_request_ready` with IMAGE header and document-bound **Unlock Vault** quick reply. No payment is initiated until that customer taps it |
-| Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
-| Customer | `/vault/?file=<fileId>` → **Checkout/Renew** | the customer-pool token proves the caller; secure-files re-proves exact file ownership + entitlement state and invokes the same native Review and Pay rail. The browser stays on Vault: no cart and no website payment chooser |
-| Customer with Vault-ready offer | **Unlock Vault** quick reply | A signed inbound event resolves the opaque offer token, validates customer/file ownership, and invokes `catalogService.unlock` → native Review & Pay; old offer tokens still work |
+There is one supported staff initiation: a private DocumentTable/S3 upload must be
+confirmed and **published** to Vault, yielding an active owner-bound `fileId`.
+The backend checks exact-file ownership, durable paid state and existence of the
+nonempty private S3 object before invoking `POST /secure-files/{fileId}/request-payment`.
+An unpaid or expired file may receive a native
+`wecare_whatapp_native_pay_template` **Review & Pay** request; only the customer
+can approve a charge. OPEN/READY may resend existing paid access for free.
+PAID_UNVERIFIED must reconcile rather than charge again. For expired access, one
+new verified capture buys one additional window for the same immutable document.
 
-For manual uploads the customer-visible templates are: **(1)** `wecare_vault_request_ready`
-(IMAGE + Unlock Vault), **(2)** `wecare_whatapp_native_pay_template` (ORDER_DETAILS,
-after tap), **(3)** `wecare_order_status_v3` (processing then completed, two sends after
-verified capture), **(4)** `wecare_default_invoice_image_template` (paid invoice IMAGE +
-Leave Review Flow), **(5)** `wecare_default_download` (Access Vault dynamic URL, only
-after paid entitlement). The common IMAGE header comes from `whatsapp-header.png`; normal
-ORDER_DETAILS product rows use `WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png` rather
-than adding images to tax/fee rows. The download URL suffix is the server-bound fileId, never
-an operator-entered value.
+The **new Unlock Vault offer is retired**: `POST /secure-files/{fileId}/send-offer`
+is a 410 tombstone in the reviewed handler and an explicitly retired API route in
+the provisioner. Staff cannot schedule new offer templates, and the legacy
+`sendVaultOffer` internal action refuses new sends. **Previously sent** signed
+quick replies are still accepted through the existing owner-bound inbound
+`catalogService.unlock` handler; history is not deleted or reassigned.
 
-The offer sender records Meta's `whatsappMessageId` when available, together with a
-per-file resend guard and an offer token; a 2xx send indicates provider acceptance, **not**
-handset delivery. Status-webhook WAMIDs must be used for delivered/read confirmation.
-Customer tap and verified capture are ordering gates; arbitrary sleep intervals cannot
-replace either event. For a verified native Vault purchase only, the processing and completed
-order-status sends have a **1-second gap** after provider acceptance, and completed and the
-invoice have another 1-second gap. After the accepted invoice, the paid Vault fulfilment waits
-**2 seconds** before sending the Access Vault link. These are bounded UI-spacing delays, NOT
-a guarantee of handset order: strict delivered/read sequencing requires consuming `messages`
-webhook statuses for every stage's `whatsappMessageId` with a durable per-customer outbox.
-The existing post-capture order-status, receipt and paid-Vault dispatches retain their
-individual idempotency claims.
+After authoritative capture, keep the already approved, noneditable Meta sequence:
+
+1. `wecare_order_status_v3` processing
+2. `wecare_order_status_v3` completed
+3. **One** `wecare_default_invoice_image_template` using the actual issued,
+   server-rendered paid PNG with Leave Review Flow button
+4. **One** `wecare_default_download` with dynamic Access Vault URL
+   `https://wecare.digital/vault/?file=<fileId>`, after verified entitlement
+
+No raw PDF/document WhatsApp attachment is sent as additional fulfillment. The
+Vault page proves customer login + exact ownership + paid access-window eligibility
+and only then generates the short-lived private S3 download session.
+
+### Bounded operator timing, read-only media verification
+
+Workspace **Pay & Flow → Delivery timing** edits the SystemConfig record
+`vault_delivery_timing_v1` (staff Operator permission). Both fields are whole
+seconds **0–5**; missing/invalid/unreadable values fall back to **2 seconds** between
+accepted processing/completed and completed/receipt, and **4 seconds** from accepted
+paid receipt to Access Vault. These are bounded presentation gaps, **not** delivered
+or read acknowledgments, and never skip provider capture, invoice, entitlement,
+send idempotency or webhook requirements. A message timeout remains uncertain and
+must not trigger blind duplicate sends.
+
+Staff may request a **60-second presigned S3 GET preview** of two exact owner-approved,
+non-customer PNG assets from `GET /secure-files/payment-media-preview`:
+the native WhatsApp IMAGE header `whatsapp-header.png` and the original
+`WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png` item thumbnail.
+This Operator-only endpoint HEAD-checks and signs exactly those two allowlisted
+`secure/d/public/whatsapp/wa-tpl/` objects. It accepts **no** S3 key, customer
+file id, arbitrary URL or upload. The preview URLs are never sent to customers.
+The actual sender uses its existing independently validated media constants.
+
+**Release prerequisites:** verify the reviewed Git commit, frontend typecheck/build,
+targeted tests and live template readiness, then release the affected Lambdas with
+immutable versions/alias rollback evidence, followed by frontend and explicit
+`provision_secure_files_api.py --verify`/route retirement. A merge or frontend
+Amplify success alone is not a backend deployment. No live payment or customer
+WhatsApp send is part of this refactor.
 
 The browser never submits a trusted amount, SKU, customer id or payment state. For an EXPIRED file,
 business-api reads the durable entitlement and allows a renewal only when every paid window has
