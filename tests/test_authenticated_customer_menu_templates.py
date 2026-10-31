@@ -90,3 +90,20 @@ def test_subscribe_updates_profile_and_review_replies_arrive_in_inbox() -> None:
     assert "flowResponseTitle( m )" in inbox
     assert "<FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />" in inbox
     assert "return 'Leave Review';" in details
+
+
+def test_service_tab_shows_delivery_and_flow_answers_from_canonical_inbox() -> None:
+    page = src("src/pages/workspace/service/index.tsx")
+    logs = src("src/components/workspace/service/WhatsAppServiceLogs.tsx")
+    client = src("src/api/client.ts")
+    assert "type ServiceView = 'vault' | 'contribute' | 'whatsapp-logs';" in page
+    assert "WhatsAppServiceLogs" in page
+    assert "WhatsApp Logs" in page
+    assert "api.listMessages( undefined, 'WHATSAPP', 2000 )" in logs
+    assert "'service_details', 'wecare_leave_review'" in logs
+    assert "'WD-F001-SUBSCRIBE-PROFILE', 'WD-F002-LEAVE-REVIEW'" in logs
+    assert "message.status || 'pending'" in logs
+    assert "<FlowResponseDetails flowAnswers={ message.flowAnswers }" in logs
+    assert "/workspace/engage/inbox?channel=whatsapp" in logs
+    assert "templateName?: string;" in client
+    assert "templateName: item.templateName" in client
