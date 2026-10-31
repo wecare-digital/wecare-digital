@@ -3924,8 +3924,10 @@ _ORDER_PAGE_LINK_CHECKOUT_MODES = frozenset({
     wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,  # WHATSAPP_NATIVE_CART
     'AWS_NATIVE',
 })
-#: The order page. Apex origin and trailing slash: the site is a static export with
-#: `trailingSlash`, so `/orders` would spend a redirect.
+#: The ONE customer-facing Orders URL, without any order identifier in the URL or
+#: query string. Order numbers belong in message text; session ownership is enforced
+#: at the authenticated Orders API. Older incoming ?o= links remain read-only compatibility.
+#: Static export uses trailingSlash, so /orders/ avoids an extra redirect.
 _ORDER_PAGE_URL = 'https://wecare.digital/orders/'
 #: The delivery-claim channel for the one order-page message per paid invoice.
 _ORDER_PAGE_LINK_CHANNEL = 'order-page-link'
