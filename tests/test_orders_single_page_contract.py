@@ -102,9 +102,16 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
                  "/vault/", "/shipments/track/", "/request-pickup/"):
         assert f"href: '{path}'" not in menu
     assert "stashPendingOrder( orderNumber );" in menu
+    # The click guard moved to a shared helper. Keep modifier/new-tab actions
+    # navigation-only so a menu click cannot queue an unintended WhatsApp send.
     assert "isPrimaryMenuActivation( event )" in menu
     assert "stashCustomerMenuAction( sendAction );" in menu
     assert "import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../../lib/customerMenuActions';" in menu
+    menu_actions = source("src/lib/customerMenuActions.ts")
+    for guard in ("event.button === 0", "!event.metaKey", "!event.ctrlKey",
+                  "!event.shiftKey", "!event.altKey"):
+        assert guard in menu_actions
+    assert "CUSTOMER_MENU_HREFS" in menu
     assert "href: CUSTOMER_MENU_HREFS['leave-review']" in menu
     assert "href: CUSTOMER_MENU_HREFS.subscribe" in menu
     for title in ("Submit Request", "Request Amendment", "Drop Docs", "Vault", "Track",
