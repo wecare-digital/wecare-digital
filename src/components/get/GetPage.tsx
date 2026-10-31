@@ -39,6 +39,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
+import PublicNotice from '../public/PublicNotice';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../api/client';
@@ -597,7 +598,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     </div>
                     { stage === 'loading' && error && (
                         <div className="sf-load-error">
-                            <p role="alert" className="sf-file-error">{ error }</p>
+                            <PublicNotice mode="inline" tone="error" message={ error } flush />
                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                 onClick={ () => { window.location.reload(); } }>Try again</button>
                         </div>
@@ -606,10 +607,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         <div className="sf-form">
                             { files.length === 0 && (
                                 <div className="sf-empty-state">
-                                    <p className={ error ? 'sf-file-error sf-unavailable-notice' : 'sf-empty' }
-                                        role={ error ? 'alert' : undefined }>
-                                        { error || 'There are no files shared with your number right now.' }
-                                    </p>
+                                    { error
+                                        ? <PublicNotice mode="inline" tone="error" message={ error } flush />
+                                        : <p className="sf-empty">There are no files shared with your number right now.</p> }
                                     <Link className="sf-back-link" href="/orders/">Back to Orders</Link>
                                 </div>
                             ) }
@@ -743,7 +743,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             <p className="sf-payment-note" role="status">{ feedback.message }</p>
                                         ) }
                                         { state !== 'EXPIRED' && feedback?.kind === 'error' && (
-                                            <p className="sf-file-error" role="alert">{ feedback.message }</p>
+                                            <PublicNotice mode="inline" tone="error" message={ feedback.message } />
                                         ) }
                                     </div>
                                 );
