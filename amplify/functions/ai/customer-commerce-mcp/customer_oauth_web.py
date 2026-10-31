@@ -135,6 +135,7 @@ def resume_authorization(
             if any(
                 (
                     row.get('client') != expected['client_id'],
+                    row.get('resource') != expected['resource'],
                     row.get('redirect') != expected['redirect_uri'],
                     row.get('state') != expected['state'],
                     row.get('scope') != expected['scope'],
