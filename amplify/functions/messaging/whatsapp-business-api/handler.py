@@ -183,6 +183,7 @@ DEFAULT_AI_ROUTING = {
 
 # Flow management tables
 FLOW_REGISTRY_TABLE = os.environ.get('FLOW_REGISTRY_TABLE', 'stack-wecare-digital-FlowRegistryTable')
+TEMPLATE_FLOW_MAPPING_TABLE = os.environ.get('TEMPLATE_FLOW_MAPPING_TABLE', 'stack-wecare-digital-WhatsAppTemplateFlowMappingTable')
 FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 FLOW_LOGS_TABLE = shared_tables.flow_logs_table_name()
 
@@ -5083,7 +5084,12 @@ def _list_flow_submissions(params: Dict) -> Dict:
 
 
 def _list_flow_registry(params: Dict) -> Dict:
-    """List all registered flows."""
+    """List registered Flows; optionally attach read-only, snapshot template mappings.
+
+    The opt-in mapping view is for the staff Flow Hub. It never authorizes a
+    template send, changes a Flow's status, or calls Meta. The normal response
+    remains unchanged when includeTemplateMappings is not requested.
+    """
     try:
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
         # The registry is the capability map — a truncated page would hide flows. Drain it.
@@ -5092,12 +5098,43 @@ def _list_flow_registry(params: Dict) -> Dict:
             for k, v in item.items():
                 if isinstance(v, Decimal):
                     item[k] = int(v) if v == int(v) else float(v)
+
+        if str(params.get('includeTemplateMappings') or '').lower() in ('1', 'true'):
+            mapping_table = dynamodb.Table(TEMPLATE_FLOW_MAPPING_TABLE)
+            mappings, mapping_complete = _drain(mapping_table, 'scan')
+            if not mapping_complete:
+                return _resp(503, {'error': 'Template-to-Flow mapping read incomplete'})
+            flow_ids = {str(item.get('flowId') or '') for item in items}
+            seen_template_ids = set()
+            by_flow = {}
+            for mapping in mappings:
+                flow_id = str(mapping.get('flowId') or '')
+                template_id = str(mapping.get('templateId') or '')
+                if not (flow_id.isascii() and flow_id.isdigit()
+                        and template_id.isascii() and template_id.isdigit()
+                        and flow_id in flow_ids and template_id not in seen_template_ids):
+                    return _resp(503, {'error': 'Template-to-Flow mapping registry mismatch'})
+                seen_template_ids.add(template_id)
+                by_flow.setdefault(flow_id, []).append({
+                    'templateId': template_id,
+                    'templateName': str(mapping.get('templateName') or ''),
+                    'flowId': flow_id,
+                    'buttonLabel': str(mapping.get('buttonLabel') or ''),
+                    'flowButtonAction': str(mapping.get('flowButtonAction') or ''),
+                    'metaTemplateStatus': str(mapping.get('metaTemplateStatus') or ''),
+                    'lastVerifiedAt': int(mapping.get('lastVerifiedAt') or 0),
+                })
+            for item in items:
+                item['templateFlowMappings'] = sorted(
+                    by_flow.get(str(item.get('flowId') or ''), []),
+                    key=lambda row: (row['templateName'], row['templateId']),
+                )
+
         items.sort(key=lambda x: x.get('flowCode', ''))
         return _resp(200, {'flows': items, 'count': len(items)})
     except Exception as e:
         logger.error(f'List flow registry error: {e}')
-        return _resp(500, {'error': str(e)})
-
+        return _resp(500, {'error': 'List flow registry failed'})
 
 #: Registry fields a Workspace write may set. Meta metadata (metaStatus, jsonVersion,
 #: validation and health) is owned by `_sync_flows`, and bookkeeping by this function, so
