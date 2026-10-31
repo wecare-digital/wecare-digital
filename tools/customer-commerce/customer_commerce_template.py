@@ -260,6 +260,17 @@ def build_template(
             'IntegrationUri': ref('Live'),
             'PayloadFormatVersion': '2.0',
             'TimeoutInMillis': 30000,
+            # Preserve the production mitigation for inbound share/tracking
+            # links. Only these attribution keys are removed; PKCE, resource,
+            # return, state and other authentication parameters pass through.
+            'RequestParameters': {
+                'remove:querystring.' + field: "''"
+                for field in (
+                    'utm_source', 'utm_medium', 'utm_campaign',
+                    'utm_term', 'utm_content', 'gclid', 'gbraid',
+                    'wbraid', 'fbclid', 'msclkid', 'mc_cid', 'mc_eid'
+                )
+            },
         },
     }
     for number, route in ROUTES.items():
