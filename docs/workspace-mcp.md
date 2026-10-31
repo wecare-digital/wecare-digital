@@ -228,8 +228,9 @@ normal AWS charges. The Plivo/Sinch release separately adds GetSecretValue on on
 their two existing secret ARNs and KMS decrypt for only the Plivo secret context
 through Secrets Manager. No new secret store or provider write tool is introduced.
 
-Run `python scripts/verify_chat_mcp_auth.py`, compile the changed Python, and run
-`cfn-lint amplify/infra/workspace-mcp.json` before deployment. Build with the exact
+Manually review the changed authorization/token boundary, compile the changed
+Python, and run `cfn-lint amplify/infra/workspace-mcp.json` before deployment.
+The retired offline auth test runner must not be restored. Build with the exact
 pinned dedicated dependency directory using scripts/build_workspace_mcp.py. The
 bundle includes chat_oauth.py and the manifest pins the template checksum. A
 callback change also replaces the immutable Lambda version, so the live alias

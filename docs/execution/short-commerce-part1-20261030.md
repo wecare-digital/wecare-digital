@@ -44,22 +44,20 @@ native-payment, Razorpay, capture verification, reconciliation or invoice rail.
 5. Legacy `/checkout/` navigation returns to `/cart/` without starting a
    payment. The fallback text link works when JavaScript navigation fails.
 
-## Acceptance and tests
+## Acceptance and release-scoped validation
 
-Run from the repository root:
+The historical JavaScript and Python test suites were retired. Do not restore them
+or their workflows. Follow `docs/operations/repository-validation.md`:
 
 ```sh
-node scripts/test-short-commerce-part1.mjs
-python -m pytest -q tests/test_short_commerce_part1.py
 npm run typecheck
+npm run build
+python3 scripts/checkout_release_check.py --export-dir out
 ```
 
-The JS test bundles the actual `src/lib/cart.ts` with the existing esbuild
-devDependency and runs in a synthetic browser with a test-only catalog. It
-covers one-product replacement, fixed quantity, contribution/service
-selection, ambiguous WhatsApp claims, legacy multiple lines, and the absence
-of monetary fields in checkout payloads. Python gates verify route wiring
-and that the existing payment actions and guards remain intact.
+Manually review single-product selection, fixed quantity, service flows,
+WhatsApp claims, legacy cart handling, server-authoritative pricing and
+the existing payment refusal/authorization boundaries before release.
 
 ## Explicit non-goals / remaining go-live gates
 

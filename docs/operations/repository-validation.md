@@ -2,7 +2,10 @@
 
 As of 2026-10-28, owner direction is to keep this repository without GitHub Actions workflows and
 without the root Python `tests/` regression suite. Standalone CI-focused test scripts,
+offline fixture-based regression harnesses under `scripts/` and `tools/`,
 Android sample tests, and the defunct `npm test` invocation are also retired.
+As reaffirmed on 2026-10-31, do not recreate these suites or add automated
+test runners to the production Amplify packaging build.
 
 Manual domain checks, typecheck/build, browser measurements, and guarded deployment
 verification remain available; do not bypass them for security-sensitive changes.

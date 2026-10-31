@@ -24,9 +24,10 @@ authentication.
 
 ## Release and register
 
-1. Run `scripts/verify_chat_mcp_auth.py` and
-   `scripts/verify_separate_provider_mcp.py` with the pinned adapter dependencies.
-   Compile the changed Python and lint `amplify/infra/workspace-mcp.json`.
+1. Follow `docs/operations/repository-validation.md` for manual authorization,
+   audience-isolation and provider readback review. Compile the changed Python
+   and lint `amplify/infra/workspace-mcp.json`. The retired offline tests and
+   GitHub Actions workflows must not be restored.
 2. Build with `scripts/build_workspace_mcp.py --dependencies PATH --output PATH
    --separate-providers`. Deploy through the existing reviewed CloudFormation
    change-set process from the merged production revision. The deployer preserves

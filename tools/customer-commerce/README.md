@@ -28,19 +28,11 @@ resource ownership. Tokens, passwords and authentication OTPs are not tool argum
 secure authorization form is the connection step only, not a shopping website or graphical app.
 The source does not grant a staff identity customer authority or expose the staff gateway.
 
-## Run verification
+## Manual validation
 
-From the existing repository root:
-
-```sh
-python3 tools/customer-commerce/verify.py
-python3 -m compileall -q amplify/functions/ai/customer-commerce-mcp
-```
-
-Checks use stubs and synthetic input only. No customer messages, credentials or payments are
-used. They cover no-UI behavior, exact schemas, deny-by-default product approval, money/stock
-integrity, account connection challenges, identity injection, downstream refusal, provider-error
-redaction, native payment gating and optional WhatsApp request idempotency payloads.
+The retired offline unit tests and GitHub Actions workflows must not be restored.
+Follow `docs/operations/repository-validation.md` for release-scoped reviews, compile
+checks, production artifact inspection, and controlled authorization/payment readback.
 
 ## Payment fallback messages
 
@@ -60,11 +52,11 @@ FlowSubmissionTable/draft/log records. No replacement commerce or customer datab
 ## Build and release
 
 ```sh
-python3 tools/customer-commerce/verify.py
-python3 tools/customer-commerce/verify_oauth.py
-python3 tools/customer-commerce/prepare_release.py --output /absolute/review/output
-python3 tools/customer-commerce/verify_release.py /absolute/review/output/index.py
+python3 -m compileall -q amplify/functions/ai/customer-commerce-mcp
+python3 tools/customer-commerce/prepare_release.py --output /absolute/review/output --runtime-bucket YOUR_PRIVATE_ARTIFACT_BUCKET
 ```
+The generated ZIP, manifest and template require manual review; the old offline test
+harnesses and their automated runners are retired.
 
 The release builder produces a deterministic runtime ZIP, source-verified single-file handler,
 and a complete CloudFormation deployment template using existing state and provider resources.
@@ -86,8 +78,10 @@ listing restrictions; it does not change customer, product or provider eligibili
 
 ## Verification and remaining gates
 
-25 conversation checks plus 28 OAuth checks pass against readable source. The same 53 checks pass
-against the exact packaged runtime. Python compilation and CloudFormation ValidateTemplate pass.
+Historical offline check results predate test retirement and do not validate new releases.
+For current releases, inspect the exact generated artifacts, compile the changed Python,
+confirm owner-bound OAuth/identity behavior through approved read-only checks, and perform
+reviewed CloudFormation validation without introducing an automated test suite.
 The stack has since been deployed as `wecare-customer-commerce-mcp` (HTTP API `mtx59syrt6`).
 `amplify/functions/ai/customer-commerce-mcp/README.md` describes the deployed files and how to
 release a change.

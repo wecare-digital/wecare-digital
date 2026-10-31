@@ -61,12 +61,12 @@ frontend:
         # without relying on Amplify's service-owned log bucket.
         - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-unknown}"
         - npx tsc --noEmit > /tmp/customer-commerce-tsc.log 2>&1 || { aws s3 cp /tmp/customer-commerce-tsc.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/tsc-failure.log" --only-show-errors || true; cat /tmp/customer-commerce-tsc.log; exit 1; }
-        # The customer-commerce auth boundary is deployed separately, but its source lives in
-        # this repository. Keep its JSON-only OAuth/OTP contracts and exact packaged runtime in
-        # the same release gate so a frontend merge cannot silently leave an undeployable backend.
-        - python3 tools/customer-commerce/validate_pipeline.py --output /tmp/customer-commerce-release --report /tmp/customer-commerce-validation.json --runtime-bucket "$CUSTOMER_COMMERCE_RUNTIME_BUCKET" || { aws s3 cp /tmp/customer-commerce-validation.json "$CUSTOMER_COMMERCE_DIAGNOSTICS/backend-failure.json" --only-show-errors || true; cat /tmp/customer-commerce-validation.json; exit 1; }
-        - aws s3 cp /tmp/customer-commerce-validation.json "$CUSTOMER_COMMERCE_DIAGNOSTICS/backend-success.json" --only-show-errors
-        # Stage only the verified, content-addressed backend artifacts. This does not update the
+        # Prepare customer-commerce backend release assets without reintroducing retired test suites.
+        # The package builder still compiles exact runtime sources, validates return-path and dial
+        # code contracts, and produces a deterministic content-addressed ZIP and stack template.
+        # Package failure diagnostics are private; this does not deploy the backend.
+        - python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release --runtime-bucket "$CUSTOMER_COMMERCE_RUNTIME_BUCKET" > /tmp/customer-commerce-package.log 2>&1 || { aws s3 cp /tmp/customer-commerce-package.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/backend-package-failure.log" --only-show-errors || true; cat /tmp/customer-commerce-package.log; exit 1; }
+        # Stage only the content-addressed backend artifacts. This does not update the
         # CloudFormation stack or move the live alias; deployment remains a separate reviewed step.
         - export CUSTOMER_COMMERCE_SOURCE_SHA="$(python3 -c "import json; print(json.load(open('/tmp/customer-commerce-release/release-manifest.json'))['sourceSha256'])")"; test -n "$CUSTOMER_COMMERCE_SOURCE_SHA"; export CUSTOMER_COMMERCE_RELEASE_PREFIX="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/$CUSTOMER_COMMERCE_SOURCE_SHA"; aws s3 cp /tmp/customer-commerce-release/customer-commerce-runtime.zip "$CUSTOMER_COMMERCE_RELEASE_PREFIX/runtime.zip" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/customer-commerce-stack.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/stack.json" --only-show-errors; aws s3 cp /tmp/customer-commerce-release/release-manifest.json "$CUSTOMER_COMMERCE_RELEASE_PREFIX/release-manifest.json" --only-show-errors
     build:

@@ -10,7 +10,9 @@ Before changing code, follow the current release-scoped validation policy:
 - `docs/operations/repository-validation.md`
 
 The former `.kiro/steering/00-common.md` no longer exists in the default branch.
-Do not restore retired test suites or GitHub Actions workflows to satisfy historical references.
+Do not restore retired test suites, standalone offline test harnesses or GitHub Actions workflows
+to satisfy historical references. Do not introduce test runners into Amplify's deployment build;
+keep reviewed release packaging and operational security guards separate.
 
 If a future nested `AGENTS.md` exists, its more specific instructions apply within that
 subtree. Otherwise the common steering file above governs repository work.

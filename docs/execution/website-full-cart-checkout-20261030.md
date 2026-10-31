@@ -58,17 +58,17 @@ The global Short Commerce native one-unit issue #1973 is independent. Its
 existing native guard remains untouched by this website-only full-cart change.
 WhatsApp checkout must not be activated as part of this phase.
 
-## Tests
+## Release-scoped validation (no retired tests or GitHub workflow)
 
 ```sh
-npm ci --ignore-scripts --no-audit --no-fund
+npm ci --no-audit --no-fund
 npm run typecheck
-node scripts/test-short-commerce-part1.mjs
-python -m pytest -q tests/test_short_commerce_part1.py
-python -m unittest discover -s tests -p test_short_purchase_policy.py
+npm run build
+python3 scripts/checkout_release_check.py --export-dir out
 ```
 
-The existing Short Commerce GitHub workflow additionally verifies the hermetic
-payment/order/invoice rail. The checkout export release gate must still pass.
+Manually review cart/pricing authority, customer ownership and payment/order/invoice
+outcomes with an approved release plan. The old tests and GitHub Actions checks are
+retired and must not be recreated to satisfy historical instructions.
 
 **Current status: draft PR / branch validation only. Not a production release.**
