@@ -31,7 +31,7 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         payments = source("src/pages/workspace/payments/index.tsx")
         service = source("src/pages/workspace/service/index.tsx")
         self.assertIn("{ id: 'vault', label: 'Vault · Review & Pay' }", payments)
-        self.assertIn("{ id: 'timing', label: 'Delivery timing' }", payments)
+        self.assertIn("{ id: 'timing', label: 'Access delay' }", payments)
         self.assertIn("view=vault", service)
         self.assertIn("router.replace(destination)", service)
         self.assertIn("view !== 'vault'", service)
@@ -67,19 +67,58 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         self.assertNotIn("Unlock Vault offer", timeline)
         self.assertIn("Four-stage Vault payment and access", timeline)
 
-    def test_bounded_timing_has_backend_validation_and_payment_gates(self):
+    def test_only_access_delay_is_editable_and_status_messages_have_no_sleep(self):
         editor = source("src/components/workspace/pay/VaultDeliveryTiming.tsx")
         ai_config = source("amplify/functions/ai/ai-config-management/handler.py")
         webhook = source("amplify/functions/payments/razorpay-webhook/handler.py")
         access = source("amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py")
-        for text in (editor, ai_config, webhook, access):
+        for text in (editor, ai_config, access):
             self.assertIn("vault_delivery_timing_v1", text)
+            self.assertIn("postReceiptAccessGapSeconds", text)
+        self.assertNotIn("vault_delivery_timing_v1", webhook)
         self.assertIn("value <= 5", editor)
-        self.assertIn("proposed[key] > 5", ai_config)
-        self.assertIn("0 <= value <= 5", webhook)
+        self.assertIn("required = {'postReceiptAccessGapSeconds'}", ai_config)
+        self.assertNotIn("required = {'orderStatusGapSeconds',", ai_config)
+        self.assertIn("not 0 <= proposed['postReceiptAccessGapSeconds'] <= 5", ai_config)
         self.assertIn("0 <= gap <= 5", access)
-        self.assertIn("_is_paid_vault_checkout(reference_id)", webhook)
+        self.assertIn("_post_receipt_access_gap_seconds()", access)
         self.assertIn("vaultNotificationStatus", access)
+        self.assertNotIn("_vault_status_gap_seconds", webhook)
+        self.assertNotIn("_VAULT_STATUS_GAP_SECONDS", webhook)
+        fulfilment = webhook.split("def _start_native_fulfilment(")[1].split(
+            "_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS", 1
+        )[0]
+        self.assertIn("invoice_id, 'processing'", fulfilment)
+        self.assertIn("invoice_id, 'completed'", fulfilment)
+        # Exactly one fixed second for Vault after accepted Processing,
+        # never an additional wait before paid invoice or for other services.
+        self.assertIn("if processing_status == 200 and _is_paid_vault_checkout(reference_id):", fulfilment)
+        self.assertEqual(fulfilment.count("time.sleep(1)"), 1)
+        self.assertEqual(fulfilment.count("time.sleep("), 1)
+        self.assertNotIn(
+            "time.sleep(", fulfilment.split("invoice_id, 'completed'", 1)[1]
+        )
+        preview = source("src/components/workspace/service/VaultJourneyPreview.tsx")
+        timeline = source("src/components/workspace/service/VaultMessageTimeline.tsx")
+        self.assertIn("Fixed 1s", preview)
+        self.assertIn("1s Processing", timeline)
+        self.assertNotIn("record.defaultDelaySeconds", timeline)
+
+    def test_approved_meta_ids_and_dynamic_download_url(self):
+        templates = source("amplify/functions/shared/lambda_utils/whatsapp_templates.py")
+        for template_id in (
+            "2714938845570815",  # native Review & Pay
+            "1754227779211208",  # Processing and Completed
+            "1782246473079550",  # invoice image
+            "1410998911012572",  # Access Vault
+        ):
+            self.assertIn(template_id, templates)
+        ui = source("src/components/workspace/pay/VaultDeliveryTiming.tsx")
+        self.assertIn("templates?.templateIds?.nativePay", ui)
+        self.assertIn("templates?.templateIds?.orderStatus", ui)
+        self.assertIn("templates?.templateIds?.receipt", ui)
+        self.assertIn("templates?.templateIds?.delivery", ui)
+        self.assertIn("https://wecare.digital/vault/?file={{1}}", ui)
 
     def test_media_endpoint_is_fixed_and_staff_only(self):
         handler = source("amplify/functions/core/secure-files/handler.py")

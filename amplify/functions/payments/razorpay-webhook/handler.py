@@ -3419,7 +3419,7 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
 
 
 def _is_paid_vault_checkout(reference_id: str) -> bool:
-    """Only genuine server-owned native Vault purchases receive short message spacing."""
+    """Only real server-bound Vault native payments receive the fixed 1s status gap."""
     if not reference_id:
         return False
     try:
@@ -3433,37 +3433,9 @@ def _is_paid_vault_checkout(reference_id: str) -> bool:
         return (attempt.get('nativeCatalogService') is True
                 and str(attempt.get('serviceKind') or '') == 'VAULT')
     except Exception as error:
-        logger.warning(json.dumps({'event': 'vault_status_spacing_unavailable',
-                                   'error': type(error).__name__}))
+        logger.warning(json.dumps({'event': 'vault_order_status_kind_unavailable',
+                                   'reason': type(error).__name__}))
         return False
-
-
-# Vault only: separate processing, completed and the paid receipt. Provider
-# acceptance is not handset delivery; never block a statutory invoice on a
-# missing delivery webhook. The sequential state transition remains authoritative.
-_VAULT_STATUS_GAP_SECONDS = 2
-
-
-def _vault_status_gap_seconds() -> int:
-    """Optional operator timing setting, strictly bounded for webhook safety.
-
-    Missing/invalid/unreadable config retains the reviewed two-second behaviour.
-    A delay never substitutes for confirmed payment or an accepted prior message.
-    """
-    try:
-        table = dynamodb.Table(os.environ.get(
-            'SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable'))
-        item = table.get_item(
-            Key={'id': 'vault_delivery_timing_v1'}, ConsistentRead=True).get('Item') or {}
-        raw = item.get('configValue') or '{}'
-        config = json.loads(raw) if isinstance(raw, str) else raw
-        value = config.get('orderStatusGapSeconds') if isinstance(config, dict) else None
-        if type(value) is int and 0 <= value <= 5:
-            return value
-    except Exception as exc:
-        logger.warning(json.dumps({'event': 'vault_spacing_config_unavailable',
-                                   'reason': type(exc).__name__}))
-    return _VAULT_STATUS_GAP_SECONDS
 
 
 def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
@@ -3506,20 +3478,16 @@ def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number
             }))
             return
 
-        # Meta has accepted processing (or it is already current) before completed is sent.
-        # A one-second Vault-only gap reduces client-side message reordering; provider
-        # acceptance is not device delivery and capture/invoice guards remain authoritative.
-        vault_spacing = _is_paid_vault_checkout(reference_id)
-        spacing_seconds = _vault_status_gap_seconds() if vault_spacing else 0
-        if vault_spacing and processing_status == 200:
-            time.sleep(spacing_seconds)
-        completed_status, _ = _invoke_order_status(
+        # For the verified Vault service only, give Meta one second between
+        # an accepted Processing and the Completed order-status template. This
+        # is spacing, NOT a customer delivery/read receipt. No timer is added
+        # before Processing, after Completed or before the paid invoice.
+        if processing_status == 200 and _is_paid_vault_checkout(reference_id):
+            time.sleep(1)
+        _invoke_order_status(
             invoice_id, 'completed', phone_number_id, request_id,
             event_prefix='order_status_completed',
             description='Payment complete.')
-        if vault_spacing and completed_status == 200:
-            # The receipt send immediately follows this synchronous status step.
-            time.sleep(spacing_seconds)
     except Exception as error:  # noqa: BLE001 - must never mask the receipt step's outcome
         logger.warning(json.dumps({'event': 'payment_order_status_unavailable',
                                    'referenceId': reference_id, 'error': type(error).__name__,

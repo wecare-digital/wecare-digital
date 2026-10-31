@@ -250,7 +250,11 @@ export default function VaultJourneyPreview ( props: Props ) {
         <dl className={ styles.variables }>
           <div><dt>Meta template ID</dt><dd>{ templateId || 'Registry read pending' }</dd></div>
           <div><dt>Send gate</dt><dd>{ registryStep?.trigger || 'See approved server workflow' }</dd></div>
-          <div><dt>Spacing</dt><dd>{ registryStep ? String( registryStep.defaultDelaySeconds ) + 's (not delivery ordering)' : '—' }</dd></div>
+          <div><dt>Timing</dt><dd>{ activeStage === 5
+            ? 'Only Access Vault has an editable wait (0–5s, default 4s) in Pay & Flow → Access delay'
+            : activeStage === 3
+              ? 'Fixed 1s after accepted Processing → Completed (Vault only); 0s before paid invoice'
+              : 'No artificial wait; next action starts after its required event/acknowledgment' }</dd></div>
           { activeStage === 2 && (
             <>
               <div><dt>Payment item</dt><dd>Vault · quantity 1 · { currency( props.pricePaise ) } base</dd></div>

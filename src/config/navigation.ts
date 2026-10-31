@@ -123,7 +123,7 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/payments?view=collect', label: 'Collect' },
       { path: '/workspace/payments?view=vault', label: 'Vault · Review & Pay' },
       { path: '/workspace/payments?view=defaults', label: 'Default invoice items' },
-      { path: '/workspace/payments?view=timing', label: 'Vault delivery timing' },
+      { path: '/workspace/payments?view=timing', label: 'Access Vault delay' },
       { path: '/workspace/payments?view=ledger', label: 'Ledger' },
     ],
   },

@@ -325,15 +325,17 @@ def _update_config(body: Dict, request_id: str, config_key: str = 'ai_config') -
     try:
         config_table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
 
-        # Payment-adjacent settings must not inherit the unrestricted generic JSON writer.
-        # The two bounded gaps are presentation spacing only and cannot skip capture gates.
+        # This is the ONLY operator-editable Vault timer. Never accept a field
+        # that could re-introduce status, native-pay or paid-invoice sleep.
+        # Legacy records with orderStatusGapSeconds remain readable while new
+        # writes replace them with this single bounded access-only field.
         if config_key == 'vault_delivery_timing_v1':
             proposed = body.get('config')
-            required = {'orderStatusGapSeconds', 'postReceiptAccessGapSeconds'}
+            required = {'postReceiptAccessGapSeconds'}
             if (not isinstance(proposed, dict) or set(proposed) != required
-                    or any(type(proposed[key]) is not int or proposed[key] < 0
-                           or proposed[key] > 5 for key in required)):
-                return _error_response(400, 'Vault spacing must contain two whole seconds values (0-5)')
+                    or type(proposed['postReceiptAccessGapSeconds']) is not int
+                    or not 0 <= proposed['postReceiptAccessGapSeconds'] <= 5):
+                return _error_response(400, 'Access Vault delay must be a whole number of seconds (0-5)')
 
         # If a specific key is provided (non-ai_config), do a raw put
         if config_key != 'ai_config':
