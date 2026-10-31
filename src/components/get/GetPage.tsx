@@ -30,9 +30,9 @@
  * Customer-facing states
  * ----------------------
  * UNPAID can choose website or WhatsApp checkout. OPEN/READY show Download;
- * PAID_UNVERIFIED awaits verification. EXPIRED displays only a non-interactive
- * Access expired action, with no renewal/payment choices. The backend remains
- * authoritative for entitlement and expiry checks.
+ * PAID_UNVERIFIED awaits verification. Missing, revoked or EXPIRED links
+ * navigate Home after owner-scoped verification, never displaying a temporary
+ * status or payment action. The backend remains authoritative.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -170,9 +170,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         }
     }, [ targetFileId, redirectToAuth ] );
 
-    // Vault has no file-local or deploy-local price. This preview is display-only; the native
-    // WhatsApp payment backend independently re-prices before a payment attempt exists.
+    // Fetch prices only after the owned file is verified; invalid and expired links
+    // must not start a second background API request while navigating Home.
     useEffect( () => {
+        if ( stage !== 'files' ) return;
         let active = true;
         void fetchServicePrices().then( prices => {
             if ( !active ) return;
@@ -185,7 +186,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             setVaultLinePrice( vault?.available && vault.breakdown ? vault.paise : null );
         } );
         return () => { active = false; };
-    }, [] );
+    }, [ stage ] );
 
     // /auth is the only customer sign-in surface. Exact-file /vault/?file= links restore a
     // server-owned customer session here; when none exists, the file id is kept in same-tab
@@ -262,6 +263,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     useEffect( () => {
         if ( stage !== 'files' ) return;
         const refresh = () => {
+            if ( files.some( expiredVaultFile ) ) {
+                window.location.replace( '/' );
+                return;
+            }
             setNowSeconds( Math.floor( Date.now() / 1000 ) );
             void loadFiles();
         };
@@ -534,6 +539,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         }
     };
 
+    // Blank during identity and ownership lookup. Only a verified, active file
+    // may render the Vault hero. Failed requests still show a retry/error state.
+    if ( stage === 'loading' && !error ) return null;
+
     return (
         <>
             {/* noindex: a personal collection point, not a marketing page. There is
@@ -586,18 +595,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                             <p className="sf-card-description">Protected by your verified account.</p>
                         </div>
                     </div>
-                    { stage === 'loading' && (
-                        <div className="sf-loading" role="status" aria-live="polite">
-                            <span className="sf-loading-mark" aria-hidden="true">V</span>
-                            <strong>Opening your Vault…</strong>
-                            <span>Checking your verified customer session.</span>
-                            { error && (
-                                <div className="sf-load-error">
-                                    <p role="alert" className="sf-file-error">{ error }</p>
-                                    <button type="button" className="sf-file-action-button sf-secondary-btn"
-                                        onClick={ () => { window.location.reload(); } }>Try again</button>
-                                </div>
-                            ) }
+                    { stage === 'loading' && error && (
+                        <div className="sf-load-error">
+                            <p role="alert" className="sf-file-error">{ error }</p>
+                            <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                onClick={ () => { window.location.reload(); } }>Try again</button>
                         </div>
                     ) }
                     { stage === 'files' && (
@@ -784,17 +786,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
                   letter-spacing:-.04em;color:var(--public-heading)}
                 .sf-card-description{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--public-muted)}
-                .sf-loading{display:grid;gap:8px;justify-items:start;color:var(--public-text)}
                 .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
                 .sf-load-error .sf-file-error{margin:0}
                 .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
-                .sf-loading-mark{
-                  display:grid;place-items:center;width:48px;height:48px;margin-bottom:10px;
-                  border-radius:12px;background:var(--public-brand-lime);color:var(--public-brand-green);
-                  font-size:20px;font-weight:800;line-height:1;
-                }
-                .sf-loading strong{font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
-                .sf-loading>span:last-child{font-size:var(--public-supporting-size);line-height:1.45;color:var(--public-muted)}
                 .sf-form{display:block}
 
                 /* The auth-inspired outer card owns the surface; the exact file is its content,
@@ -888,8 +882,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
 
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
-                  .sf-loading-mark{width:46px;height:46px;border-radius:11px}
-                  .sf-loading strong{font-size:var(--public-mobile-section-size)}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
