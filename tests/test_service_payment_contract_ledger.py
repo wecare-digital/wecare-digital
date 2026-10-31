@@ -52,6 +52,7 @@ def fixture():
         "paymentAttemptId": "attempt-valid",
         "referenceId": "WD-PAY-VALID",
         "serviceKind": "VAULT",
+        "vaultFileId": "file-verified-owner",
         "status": "PAYMENT_PAID",
         "verifiedProviderPaymentId": "pay_valid",
         "verifiedCapturedPaise": Decimal(8497),
@@ -93,6 +94,7 @@ def test_unlinked_customer_invoice_cannot_fake_a_vault_purchase():
         ) == ""
     for key, new in [
         ("serviceKind", "OTHER"),
+        ("vaultFileId", ""),
         ("status", "PAYMENT_PENDING"),
         ("verifiedProviderPaymentId", "pay_other"),
         ("verifiedCapturedPaise", 8498),
