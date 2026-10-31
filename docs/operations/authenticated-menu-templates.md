@@ -122,9 +122,18 @@ and replay/idempotency were not established by that report alone**.
    distinct states. Do not close the end-to-end QA item solely on an accepted
    send or Lambda dispatch probe.
 
-**Toast copy review:** the six editable Orders invitation states (Subscribe and
-Leave Review x pending/accepted/failed) now have one source at
-`src/lib/customerMenuNotices.ts`. The complete source-level Workspace toast
+**Orders WhatsApp toast copy:** Both Subscribe and Leave Review now use the **same
+three short messages** from `src/lib/customerMenuNotices.ts`:
+`Processing…`, `Sent to WhatsApp.`, and `Couldn't confirm. Check WhatsApp.`.
+The success message is displayed only after the backend reports acceptance; it
+does **not** claim handset delivery or Flow submission. A timeout/failure is
+not automatically retried. The six other Request/Shipment menu destinations
+(Submit Request, Request Amendment, Drop Docs, Vault, Track, Pickup Request)
+still navigate to `/orders/` and do not invoke a WhatsApp sender. Do **not**
+display `Sent to WhatsApp.` for those links until distinct authenticated
+send actions actually exist, with the appropriate authorization/readiness
+gates; Pickup has additional fulfillment protection.
+The complete source-level Workspace toast
 list is [`docs/audits/toast-message-catalog-20261031.md`](../audits/toast-message-catalog-20261031.md).
 Shared Workspace toasts use `src/contexts/ToastContext.tsx` and
 `src/components/Toast.tsx` instead of the Orders inline rail.
