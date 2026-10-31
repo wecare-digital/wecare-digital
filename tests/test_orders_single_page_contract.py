@@ -58,3 +58,52 @@ def test_inline_order_details_are_owned_and_accessible() -> None:
     assert "stashPendingOrder( orderNumber );" in details
     assert 'Key={"orderId": order_id}, ConsistentRead=True' in backend
     assert 'str(order.get("customerId") or "") != identity.customer_id' in backend
+
+def test_order_actions_stay_inside_the_existing_five_column_table() -> None:
+    orders = source("src/components/orders/OrdersPage.tsx")
+    menu = source("src/components/orders/OrderActionsMenu.tsx")
+    assert "import OrderActionsMenu from './OrderActionsMenu';" in orders
+    assert '<td className="ord-td ord-invoice-cell">' in orders
+    assert '<span className="ord-invoice-actions">' in orders
+    assert '<OrderActionsMenu orderNumber={ order.orderNumber } />' in orders
+    assert orders.index('<OrderActionIcon name="download" />') < orders.index(
+        '<OrderActionsMenu orderNumber={ order.orderNumber } />'
+    )
+    assert 'colSpan={ 5 }' in orders
+    assert '<th scope="col" className="ord-th">Invoice</th>' in orders
+    assert "featureFlags.invoiceDownload" in orders
+    assert 'createPortal(' in menu
+    assert "window.addEventListener( 'scroll', onScroll, true )" in menu
+    assert 'aria-expanded={ open }' in menu
+    assert "event.key !== 'Escape'" in menu
+    assert "document.addEventListener( 'pointerdown', onPointerDown )" in menu
+    assert ".orm-more:hover,.orm-more[aria-expanded='true']{" in menu
+    assert "background:var(--lime-hover);border:0;box-shadow:none;outline:none;" in menu
+
+
+def test_order_action_destinations_and_icons_match_homepage() -> None:
+    header = source("src/components/Header.tsx")
+    menu = source("src/components/orders/OrderActionsMenu.tsx")
+    header_icons = header.split("const NAV_ICON_PATHS:", 1)[1].split("};", 1)[0]
+
+    # These are the actual source paths, not approximate icon-library substitutions.
+    for label in ("Submit Request", "Drop Docs", "Vault", "Shipments",
+                  "Leave Review", "Subscribe"):
+        marker = f"'{label}': '" if " " in label else f"{label}: '"
+        assert marker in header_icons
+        path = header_icons.split(marker, 1)[1].split("'", 1)[0]
+        assert f"path: '{path}'" in menu, f"{label} icon differs from homepage"
+
+    subnav_path = header.split("const SUBNAV_ICON_PATH = '", 1)[1].split("'", 1)[0]
+    assert f"path: '{subnav_path}'" in menu
+    for route in ("/submit-request/", "/drop-docs/", "/vault/",
+                  "/shipments/track/", "/request-pickup/"):
+        assert f"href: '{route}'" in menu
+    assert "import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';" in menu
+    assert "import { SUBSCRIBE_CTA_HREF } from '../../content/subscribe';" in menu
+    for title in ("Submit Request", "Drop Docs", "Vault", "Track",
+                  "Pickup Request", "Leave Review", "Subscribe"):
+        assert f"label: '{title}'" in menu
+    assert "Request Amendment" not in menu
+    assert "Coming soon" not in menu
+    assert "?o=" not in menu

@@ -17,6 +17,7 @@ import {
 } from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
+import OrderActionsMenu from './OrderActionsMenu';
 import OrderDetail from './OrderDetail';
 
 /**
@@ -980,6 +981,7 @@ export default function OrdersPage (): React.ReactElement {
                               </span>
                             </td>
                             <td className="ord-td ord-invoice-cell">
+                              <span className="ord-invoice-actions">
                               { invoiceCell === 'absent' || invoiceCell === 'none'
                                 || invoiceCell === 'ineligible'
                                 ? (
@@ -1012,6 +1014,8 @@ export default function OrdersPage (): React.ReactElement {
                                     ) }
                                   </>
                                 ) }
+                              <OrderActionsMenu orderNumber={ order.orderNumber } />
+                              </span>
                             </td>
                           </tr>
                           { isOpen && (
@@ -1500,6 +1504,7 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-status-firm .ord-status-label{font-weight:700}
           .ord-invoice-cell{white-space:nowrap}
+          .ord-invoice-actions{display:inline-flex;align-items:center;gap:8px}
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }
