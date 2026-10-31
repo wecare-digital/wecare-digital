@@ -53,7 +53,7 @@ export function assertCustomerOrdersHistoryOnly(root = defaultRoot) {
   if (!/<tr\s+key=\{\s*rowId\s*\}\s+className="ord-tr"\s*>/.test(jsx)) {
     problems.push('Order rows must remain static, without extra interactive attributes.');
   }
-  if (!/<span\s+className="ord-ordno"\b/.test(jsx)) {
+  if (!/<span\s+className="ord-ordno"(?=\s|>)/.test(jsx)) {
     // JSX's real order-number span has other attributes; the class is its identity.
     problems.push('The static order-number label is missing.');
   }
