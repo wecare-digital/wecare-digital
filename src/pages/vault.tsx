@@ -24,6 +24,10 @@ const VaultPage: React.FC = () => {
   // Duplicate file parameters are invalid; never silently choose an ID.
   const queryFileId = typeof fileParam === 'string' ? fileParam : '';
   const [ restoredFileId, setRestoredFileId ] = useState( '' );
+  // Static-export HTML must be identical to the first client render even if
+  // a private ?file= query is present; query handling starts after hydration.
+  const [ hydrated, setHydrated ] = useState( false );
+  useEffect( () => { setHydrated( true ); }, [] );
 
   useEffect( () => {
     if ( !router.isReady ) return;
@@ -53,14 +57,14 @@ const VaultPage: React.FC = () => {
   }, [ router, router.isReady, hasFileParam, queryFileId ] );
 
   const targetFileId = queryFileId || restoredFileId;
-  if ( router.isReady && hasFileParam ) {
+  if ( hydrated && router.isReady && hasFileParam ) {
     if ( VAULT_FILE_ID_PATTERN.test( queryFileId ) ) {
       return <GetPage targetFileId={ queryFileId } />;
     }
     // An invalid query never renders a payment/file page while Home fallback runs.
     return <Head><meta name="robots" content="noindex, nofollow" /></Head>;
   }
-  if ( router.isReady && VAULT_FILE_ID_PATTERN.test( restoredFileId ) ) {
+  if ( hydrated && router.isReady && VAULT_FILE_ID_PATTERN.test( restoredFileId ) ) {
     return <GetPage targetFileId={ targetFileId } />;
   }
 
