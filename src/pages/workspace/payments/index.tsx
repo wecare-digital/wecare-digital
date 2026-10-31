@@ -29,7 +29,7 @@ const TABS: ShellTab[] = [
   { id: 'collect', label: 'Collect' },
   { id: 'vault', label: 'Vault · Review & Pay' },
   { id: 'defaults', label: 'Default invoice items' },
-  { id: 'timing', label: 'Delivery timing' },
+  { id: 'timing', label: 'Access delay' },
   { id: 'ledger', label: 'Ledger', divider: true },
 ];
 
