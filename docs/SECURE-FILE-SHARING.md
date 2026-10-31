@@ -248,14 +248,21 @@ and only then generates the short-lived private S3 download session.
 
 ### Bounded operator timing, read-only media verification
 
-Workspace **Pay & Flow → Delivery timing** edits the SystemConfig record
-`vault_delivery_timing_v1` (staff Operator permission). Both fields are whole
-seconds **0–5**; missing/invalid/unreadable values fall back to **2 seconds** between
-accepted processing/completed and completed/receipt, and **4 seconds** from accepted
-paid receipt to Access Vault. These are bounded presentation gaps, **not** delivered
-or read acknowledgments, and never skip provider capture, invoice, entitlement,
-send idempotency or webhook requirements. A message timeout remains uncertain and
-must not trigger blind duplicate sends.
+Workspace **Pay & Flow → Delivery timing** now edits only one field in the
+SystemConfig record `vault_delivery_timing_v1` (staff Operator permission):
+`postReceiptAccessGapSeconds`, a whole number from **0–5 seconds**, default
+**4 seconds** if absent, invalid or unreadable. The previous
+`orderStatusGapSeconds` field is ignored when reading historical records and
+**rejected on new writes**. The webhook no longer reads status-spacing config.
+
+There is **no application-imposed waiting** between native Review & Pay, captured
+payment → processing, processing → completed, or completed → paid invoice. Each
+operation still waits for its real authentication, payment capture, provider
+acknowledgment and idempotent state transition as required. Only after the
+accepted paid receipt does the Vault delivery worker apply the editable access
+delay. It is a bounded presentation gap, **not** delivered/read confirmation;
+no timer may bypass ownership, entitlement or paid-invoice checks. A message
+timeout is uncertain and must not trigger a blind duplicate send.
 
 Staff may request a **60-second presigned S3 GET preview** of two exact owner-approved,
 non-customer PNG assets from `GET /secure-files/payment-media-preview`:
