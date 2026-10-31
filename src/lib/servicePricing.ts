@@ -230,6 +230,49 @@ export async function fetchServicePrices (): Promise<Record<string, ServicePrice
 
 
 /**
+ * One staff-only read for the complete Service workspace price surface:
+ * five request services, the separate Track Shipping catalog product, and
+ * voluntary Contribute. All prices come from the same anonymous ProductsTable
+ * projection and fail closed independently; never synthesize a rupee value.
+ *
+ * Tracking an already-owned shipment is not this priced Track Shipping SKU.
+ * Contribute is not a request service and has no paid Flow fulfilment.
+ */
+export type ServiceWorkspacePriceSlug = ServiceSlug | 'shipments-track' | 'contribute';
+
+export async function fetchServiceWorkspacePrices ():
+  Promise<Record<ServiceWorkspacePriceSlug, ServicePrice>> {
+  const unavailable = {
+    ...allUnavailable(),
+    'shipments-track': UNAVAILABLE,
+    contribute: UNAVAILABLE,
+  } as Record<ServiceWorkspacePriceSlug, ServicePrice>;
+  try {
+    const response = await fetch( SERVICE_PRICES_URL, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    } );
+    if ( !response.ok ) return unavailable;
+    const payload = ( await response.json().catch( () => null ) ) as
+      { currency?: unknown; prices?: unknown } | null;
+    if ( !payload || payload.currency !== SERVICES_PRICE_CURRENCY
+      || !payload.prices || typeof payload.prices !== 'object'
+      || Array.isArray( payload.prices ) ) return unavailable;
+    const rows = payload.prices as Record<string, unknown>;
+    // Preserve pristine fail-closed fallback: a malformed/malicious row getter
+    // or unexpected error must not return partially populated prices.
+    const out = { ...unavailable } as Record<ServiceWorkspacePriceSlug, ServicePrice>;
+    for ( const key of Object.keys( out ) as ServiceWorkspacePriceSlug[] ) {
+      out[ key ] = readPrice( rows[ key ] );
+    }
+    return out;
+  } catch {
+    return unavailable;
+  }
+}
+
+
+/**
  * Live Contribute catalog price from the same anonymous server endpoint as service pricing.
  * Contribute is deliberately not added to SERVICE_CHOICES: it is a voluntary payment with no
  * service fulfilment or Meta Flow.

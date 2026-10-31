@@ -29,6 +29,9 @@ from lambda_utils.ecommerce.money import positive_paise
 logger = logging.getLogger(__name__)
 
 SERVICE_CURRENCY = service_requests.SERVICE_CURRENCY
+# A separate catalog product, NOT a sixth request-service kind. Viewing an
+# owned order's shipment tracking remains distinct from buying this SKU.
+SHIPMENT_TRACK_SKU = "SHT8M5P3"
 
 #: A reader taking a service variant id and returning its ProductsTable price row, e.g.
 #: {"priceMinor": 9900, "currency": "INR", "status": "active"} — or None if absent.
@@ -47,6 +50,10 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
     value = row.get("priceMinor")
     from decimal import Decimal
     if isinstance(value, Decimal):
+        # DynamoDB numbers arrive as Decimal; never truncate fractional paise
+        # (e.g. Decimal("8497.9") -> 8497 would silently undercharge).
+        if not value.is_finite() or value != value.to_integral_value():
+            raise ValueError("service variant priceMinor must be integer paise")
         value = int(value)
     return positive_paise(value)
 
@@ -101,30 +108,33 @@ def _contribution_breakdown(item_subtotal_paise: int) -> Dict[str, int]:
 
 
 def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
-    """The exact shared outbound defaults Workspace should preview.
+    """Read-only preview of the approved, shared native payment template.
 
-    Names come from the same registry used by checkout/outbound. Vault and Drop Docs deliberately
-    share PAY, ORDER_STATUS and INVOICE; only the paid delivery step differs.
+    All FIVE single-order service payments share their Meta PAY/ORDER_STATUS
+    template, the same approved image header and item thumbnail, and one
+    receipt template. After that the service-specific paid Flow/secure-download
+    action is DIFFERENT. This merely describes the registered names; actual
+    sends remain governed by the stored paid intent and outbound sender.
     """
-    if kind not in (service_requests.VAULT, service_requests.DROP_DOCS):
+    deliveries = {
+        service_requests.SUBMIT_REQUEST: whatsapp_templates.SUBMIT_REQUEST_FLOW,
+        service_requests.REQUEST_AMENDMENT: whatsapp_templates.REQUEST_AMENDMENT_FLOW,
+        service_requests.DROP_DOCS: whatsapp_templates.DROP_DOCS_FLOW,
+        service_requests.VAULT: whatsapp_templates.DOWNLOAD,
+        service_requests.REQUEST_PICKUP: whatsapp_templates.REQUEST_PICKUP_FLOW,
+    }
+    delivery = deliveries.get(kind)
+    if delivery is None:
         return None
-    delivery = (
-        whatsapp_templates.DOWNLOAD
-        if kind == service_requests.VAULT
-        else whatsapp_templates.DROP_DOCS_FLOW
-    )
     return {
         "nativePay": whatsapp_templates.PAY.name,
         "orderStatus": whatsapp_templates.ORDER_STATUS.name,
         "orderStatusStates": ["processing", "completed"],
         "delivery": delivery.name,
         "receipt": whatsapp_templates.INVOICE.name,
-        # The same immutable send-time media the production outbound sender uses.
-        # Presentation only: clients do not construct payment templates or amounts.
         "headerImage": template_media.PAYMENT_TEMPLATE_HEADER,
         "itemThumbnail": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
     }
-
 
 def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     """Every public service slug's native price. No warm-sandbox cache here: a
@@ -147,6 +157,17 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
             logger.warning(json.dumps({"event": "service_price_unavailable_native",
                                        "slug": slug, "error": type(error).__name__}))
             prices[slug] = {"available": False}
+    # Track Shipping is an ordinary priced catalog SKU, NOT a service intent.
+    # Return a separate read-only item price for Workspace without inventing a
+    # paid tracking Flow, an invoice, or a sixth service in SERVICE_KIND_BY_SLUG.
+    try:
+        paise = _variant_paise(product_reader(SHIPMENT_TRACK_SKU))
+        prices["shipments-track"] = {"available": True, "paise": paise}
+    except Exception as error:  # noqa: BLE001 - one product must not blank other prices
+        logger.warning(json.dumps({"event": "shipment_track_price_unavailable_native",
+                                   "error": type(error).__name__}))
+        prices["shipments-track"] = {"available": False}
+
     # Contribute is not a request service, but Workspace needs the same anonymous,
     # server-authoritative price read. Keep it as a separate row rather than adding it to
     # SERVICE_KIND_BY_SLUG, because it has no service fulfilment / Meta Flow contract.
@@ -170,4 +191,4 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     return {"currency": SERVICE_CURRENCY, "prices": prices}
 
 
-__all__ = ["SERVICE_CURRENCY", "_collect_breakdown", "_contribution_breakdown", "_payment_templates", "resolve_all"]
+__all__ = ["SERVICE_CURRENCY", "SHIPMENT_TRACK_SKU", "_collect_breakdown", "_contribution_breakdown", "_payment_templates", "resolve_all"]

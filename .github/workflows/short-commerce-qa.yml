@@ -12,6 +12,11 @@ on:
       - 'src/components/orders/**'
       - 'src/components/workspace/pay/**'
       - 'src/pages/workspace/payments/**'
+      - 'src/components/workspace/service/**'
+      - 'src/pages/workspace/service/**'
+      - 'src/lib/servicePricing.ts'
+      - 'src/lib/serviceWorkspaceRoutes.ts'
+      - 'src/api/client.ts'
       - 'src/lib/checkoutQuote.ts'
       - 'src/lib/customerInvoice.ts'
       - 'src/lib/serviceEntry.ts'
@@ -36,6 +41,10 @@ on:
       - 'scripts/test-payflow-collect.mjs'
       - 'scripts/provision_lambda_alarms.py'
       - 'tests/test_payment_collect_alarm_contract.py'
+      - 'tests/test_service_payment_contract_ledger.py'
+      - 'tests/test_workspace_service_pricing_20261031.py'
+      - 'tests/test_request_service_contracts.py'
+      - 'scripts/test-workspace-service-routes.mjs'
       - 'scripts/verify_whatsapp_catalog_payment_rail.py'
       - 'scripts/check_short_commerce_live.py'
       - 'tests/test_short_commerce_live.py'
@@ -71,6 +80,11 @@ on:
       - 'src/components/orders/**'
       - 'src/components/workspace/pay/**'
       - 'src/pages/workspace/payments/**'
+      - 'src/components/workspace/service/**'
+      - 'src/pages/workspace/service/**'
+      - 'src/lib/servicePricing.ts'
+      - 'src/lib/serviceWorkspaceRoutes.ts'
+      - 'src/api/client.ts'
       - 'src/lib/checkoutQuote.ts'
       - 'src/lib/customerInvoice.ts'
       - 'src/lib/serviceEntry.ts'
@@ -95,6 +109,10 @@ on:
       - 'scripts/test-payflow-collect.mjs'
       - 'scripts/provision_lambda_alarms.py'
       - 'tests/test_payment_collect_alarm_contract.py'
+      - 'tests/test_service_payment_contract_ledger.py'
+      - 'tests/test_workspace_service_pricing_20261031.py'
+      - 'tests/test_request_service_contracts.py'
+      - 'scripts/test-workspace-service-routes.mjs'
       - 'scripts/verify_whatsapp_catalog_payment_rail.py'
       - 'scripts/check_short_commerce_live.py'
       - 'tests/test_short_commerce_live.py'
@@ -138,13 +156,16 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/test-short-commerce-part1.mjs
       - run: node scripts/test-payflow-collect.mjs
+      - run: node scripts/test-workspace-service-routes.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_retired_customer_service_pages_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_vault_safe_message_timeline.py tests/test_vault_post_payment_link_only_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
-      # Unrelated legacy CartPage assertion predates full-cart checkout; keep
-      # only the two currently relevant authenticated-menu source contracts.
+      # Ledger helper imports the production lambda_utils package.
+      # Its boto3 import is required even though the tests use fake tables.
+      - run: python -m pip install --quiet pytest boto3==1.43.116
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_retired_customer_service_pages_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_vault_safe_message_timeline.py tests/test_vault_post_payment_link_only_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_service_payment_contract_ledger.py tests/test_workspace_service_pricing_20261031.py tests/test_request_service_contracts.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
+      # Run only the two profile-related source contracts; the legacy module contains
+      # an unrelated CartPage assertion for an old checkout surface.
       - run: python -m pytest -q tests/test_checkout_profile_lime_contract.py::test_orders_signout_moves_into_card_and_profile_update_stays_in_subscribe tests/test_checkout_profile_lime_contract.py::test_website_profile_template_uses_data_exchange_init_for_optional_prefill
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
       - name: Release attestation checker (offline, no AWS access)

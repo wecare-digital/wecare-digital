@@ -1093,7 +1093,7 @@ function normalizeMessage ( item: any ): Message {
     s3Key: item.s3Key,
     mediaUrl: item.mediaUrl,  // Use pre-signed URL from API
     messageType: item.messageType,  // image, video, audio, document, text
-    templateName: item.templateName, // approved WhatsApp template, when recorded at send
+    templateName: item.templateName, // approved WhatsApp template associated with outbound send
     senderPhone: item.senderPhone,
     senderName: item.senderName,
     senderBsuid: item.senderBsuid,
@@ -4923,6 +4923,8 @@ export interface Invoice {
   orderId: string;
   referenceId: string;
   entryPoint: string;
+  /** Exact service-kind attribution from verified payment lineage, when requested. */
+  serviceKind?: string;
   status: string;
   paymentStatus: string;
   /** Local projection of the WhatsApp payment-order lifecycle. Distinct from paymentStatus,
@@ -5186,11 +5188,12 @@ export async function createInvoiceFromPayment ( paymentId: string, extras?: Rec
 }
 
 // List invoices with optional filters
-export async function listInvoicesEngine ( params?: { status?: string; contactId?: string; paymentId?: string; limit?: number } ): Promise<{ invoices: Invoice[]; count: number }> {
+export async function listInvoicesEngine ( params?: { status?: string; contactId?: string; paymentId?: string; serviceKind?: string; limit?: number } ): Promise<{ invoices: Invoice[]; count: number }> {
   const query = new URLSearchParams();
   if ( params?.status ) query.set( 'status', params.status );
   if ( params?.contactId ) query.set( 'contactId', params.contactId );
   if ( params?.paymentId ) query.set( 'paymentId', params.paymentId );
+  if ( params?.serviceKind ) query.set( 'serviceKind', params.serviceKind );
   if ( params?.limit ) query.set( 'limit', String( params.limit ) );
   const qs = query.toString();
   const data = await apiCall<any>( `${INVOICE_BASE}${qs ? '?' + qs : ''}` );

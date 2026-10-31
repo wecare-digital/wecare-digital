@@ -59,6 +59,11 @@ def verified_service_kind(
     kind = str(attempt.get("serviceKind") or "")
     if kind not in SERVICE_KINDS:
         return ""
+    # A purchase labelled Vault without the owner-verified file target cannot
+    # unlock anything; never classify it as a valid Vault ledger transaction.
+    # Other service intents use their own fulfilment-specific target policies.
+    if kind == service_requests.VAULT and not str(attempt.get("vaultFileId") or "").strip():
+        return ""
     if (str(attempt.get("referenceId") or "") != ref
             or str(attempt.get("status") or "") != "PAYMENT_PAID"):
         return ""
@@ -73,8 +78,13 @@ def verified_service_kind(
 
     invoiced_paise = _paise(invoice.get("total"))
     try:
-        captured_paise = int(attempt.get("verifiedCapturedPaise"))
-    except (ValueError, TypeError):
+        verified_minor = Decimal(str(attempt.get("verifiedCapturedPaise")))
+        if (not verified_minor.is_finite()
+                or verified_minor != verified_minor.to_integral_value()
+                or verified_minor < 0):
+            return ""
+        captured_paise = int(verified_minor)
+    except (ValueError, TypeError, InvalidOperation):
         return ""
     if invoiced_paise is None or invoiced_paise != captured_paise:
         return ""

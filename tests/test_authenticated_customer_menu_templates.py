@@ -96,7 +96,10 @@ def test_service_tab_shows_delivery_and_flow_answers_from_canonical_inbox() -> N
     page = src("src/pages/workspace/service/index.tsx")
     logs = src("src/components/workspace/service/WhatsAppServiceLogs.tsx")
     client = src("src/api/client.ts")
-    assert "type ServiceView = 'vault' | 'contribute' | 'whatsapp-logs';" in page
+    routes = src("src/lib/serviceWorkspaceRoutes.ts")
+    assert "'whatsapp-logs': 'WhatsApp Logs'" in page
+    assert "'whatsapp-logs': [ 'messages' ]" in routes
+    assert "serviceWorkspaceQuery(view, nextTab)" in page
     assert "WhatsAppServiceLogs" in page
     assert "WhatsApp Logs" in page
     assert "api.listMessages( undefined, 'WHATSAPP', 2000 )" in logs
