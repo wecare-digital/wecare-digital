@@ -21,6 +21,7 @@ const retired = [
   '/shop/shipments-track',
   '/leave-review',
   '/subscribe',
+  '/get', // Legacy customer-file signpost; /get/<*> media stays active.
 ];
 const deadModules = [
   'src/content/customerservice.ts',
@@ -70,6 +71,7 @@ if (!block) {
 }
 
 // /vault/?file=ID is not a retired marketing page. Keep the protected entry.
+// The CloudFront /get/<*> media rewrite is also intentionally out of scope.
 if (!exists('src/pages/vault.tsx')) failures.push('Protected exact-file Vault route is missing');
 if (!exists('src/pages/orders.tsx')) failures.push('Customer Orders route is missing');
 
