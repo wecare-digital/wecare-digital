@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import PillButton from '../PillButton';
 import { formatPaiseINR } from '../../lib/money';
 import { stashPendingOrder } from '../../lib/orderPage';
 import { downloadOrderInvoice } from '../../lib/customerInvoice';
@@ -9,13 +8,9 @@ import {
 } from '../../lib/orderStatusLabels';
 
 /**
- * The order page body: one of the signed-in customer's own orders, at /orders/?o=<orderNumber>.
- *
- * This is where both purchase channels end. A website purchase arrives here from
- * /checkout/status/ once the payment is confirmed; a WhatsApp catalog purchase arrives from the
- * "View your order" button sent after the paid invoice. Either way it shows what was bought,
- * where it ships, what was paid and the order's current status. A WhatsApp-paid order has no
- * fulfilment status to show (the server sends none: its row holds the payment-order state).
+ * Inline details for one expanded purchase on /orders/.
+ * Both website and WhatsApp orders stay in the same authenticated history table.
+ * The parent loads this component only when its order is expanded.
  *
  * ONE AUTHENTICATED READ. `POST /ecommerce/checkout/status` with `{action:'order', orderNumber}`
  * (checkout `_order_detail`). The server answers only for an order the session owns and returns
@@ -198,10 +193,10 @@ export default function OrderDetail (
   const money = ( paise: number ) => formatPaiseINR( paise, order?.currency || '' );
 
   return (
-    <section className="odt" aria-labelledby="odt-title" aria-busy={ load.kind === 'loading' }>
+    <section className="odt" aria-labelledby={ `odt-title-${ orderNumber }` } aria-busy={ load.kind === 'loading' }>
       { load.kind === 'loading' && (
         <>
-          <h2 className="odt-h2" id="odt-title">
+          <h2 className="odt-h2" id={ `odt-title-${ orderNumber }` }>
             Order <span data-wc-no-translate>{ orderNumber }</span>
           </h2>
           <p className="odt-p" role="status">Loading your order…</p>
@@ -210,20 +205,19 @@ export default function OrderDetail (
 
       { load.kind === 'notFound' && (
         <div className="odt-gate">
-          <h2 className="odt-h2" id="odt-title">
+          <h2 className="odt-h2" id={ `odt-title-${ orderNumber }` }>
             Order <span data-wc-no-translate>{ orderNumber }</span>
           </h2>
           <p className="odt-notice" role="status">
             We could not find this order on your account. Check that you signed in with the
             WhatsApp number you ordered from.
           </p>
-          <PillButton as="a" href="/orders/" action="See all your orders" />
         </div>
       ) }
 
       { load.kind === 'unavailable' && (
         <div className="odt-gate">
-          <h2 className="odt-h2" id="odt-title">
+          <h2 className="odt-h2" id={ `odt-title-${ orderNumber }` }>
             Order <span data-wc-no-translate>{ orderNumber }</span>
           </h2>
           <p className="odt-notice" role="status">
@@ -238,7 +232,7 @@ export default function OrderDetail (
           <header className="odt-head">
             { /* The confirmation the customer came here for, in words rather than a colour. */ }
             <p className="odt-kicker">{ paid ? 'Payment received' : paymentLabel }</p>
-            <h2 className="odt-h2" id="odt-title">
+            <h2 className="odt-h2" id={ `odt-title-${ orderNumber }` }>
               Order <span data-wc-no-translate>{ order.orderNumber }</span>
             </h2>
             <p className="odt-status" role="status">
@@ -261,8 +255,8 @@ export default function OrderDetail (
           </header>
 
           <div className="odt-grid">
-            <section className="odt-card" aria-labelledby="odt-items">
-              <h3 className="odt-h3" id="odt-items">Items</h3>
+            <section className="odt-card" aria-labelledby={ `odt-items-${ orderNumber }` }>
+              <h3 className="odt-h3" id={ `odt-items-${ orderNumber }` }>Items</h3>
               { items.length > 0
                 ? (
                   <div className="odt-table-scroll">
@@ -339,8 +333,8 @@ export default function OrderDetail (
             </section>
 
             <div className="odt-side">
-              <section className="odt-card" aria-labelledby="odt-delivery">
-                <h3 className="odt-h3" id="odt-delivery">Delivery address</h3>
+              <section className="odt-card" aria-labelledby={ `odt-delivery-${ orderNumber }` }>
+                <h3 className="odt-h3" id={ `odt-delivery-${ orderNumber }` }>Delivery address</h3>
                 { delivery && deliveryLines.length > 0
                   ? (
                     <p className="odt-address">
@@ -357,8 +351,8 @@ export default function OrderDetail (
                   ) }
               </section>
 
-              <section className="odt-card" aria-labelledby="odt-facts-title">
-                <h3 className="odt-h3" id="odt-facts-title">Order details</h3>
+              <section className="odt-card" aria-labelledby={ `odt-facts-title-${ orderNumber }` }>
+                <h3 className="odt-h3" id={ `odt-facts-title-${ orderNumber }` }>Order details</h3>
                 <dl className="odt-facts">
                   { placed && (
                     <>
@@ -424,7 +418,6 @@ export default function OrderDetail (
             </p> }
             { /* Plain navigations, not client-side links: /orders/ without `?o=` must remount
                  the page so it shows the history rather than this order again. */ }
-            <PillButton as="a" href="/orders/" action="See all your orders" />
             { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
             <a className="odt-link" href="/shop/">Continue shopping</a>
           </div>
