@@ -87,9 +87,9 @@ def _send_access(client, row, file_id):
 
 
 def readiness(graph):
-    """Live Meta readback of the approved Vault-ready, payment and delivery templates."""
+    """Live Meta readback of the current native payment and download templates."""
     templates = {}
-    for name, ident in {'wecare_vault_request_ready': '29124703577146420',
+    for name, ident in {
                         'wecare_whatapp_native_pay_template': '2714938845570815',
                         'wecare_default_download': '1410998911012572',
                         '_dropdoc_flow': '1041974032198332'}.items():
@@ -186,9 +186,9 @@ def handle(event, client):
     action = event.get('action', 'start')
 
     if action == 'sendVaultOffer':
-        # Staff's manual Vault journey begins with an owner-bound quick-reply template.
-        # Review and Pay follows only after the customer taps Unlock Vault.
-        return _send_offer(event, client, db, keys, contacts, now)
+        # Retired outbound template: legacy inbound Unlock Vault taps remain valid,
+        # but no new offer may be minted through an older caller or Lambda alias.
+        return {'outcome': 'VAULT_OFFER_RETIRED'}
     if action in ('sendPayment', 'sendOffer'):
         # Preserve the existing direct payment route for older and customer callers.
         return _send_native_payment(event, client, db, keys, contacts, now)

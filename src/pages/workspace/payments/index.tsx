@@ -9,6 +9,7 @@
  * wrapper becomes a compatibility redirect after this page lands.
  */
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
@@ -21,13 +22,18 @@ import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../..
 
 interface PageProps { signOut?: () => void; user?: any; }
 
+const VaultWorkbench = dynamic( () => import('../../../components/workspace/service/SecureFiles'), { ssr: false } );
+const VaultDeliveryTiming = dynamic( () => import('../../../components/workspace/pay/VaultDeliveryTiming'), { ssr: false } );
+
 const TABS: ShellTab[] = [
   { id: 'collect', label: 'Collect' },
+  { id: 'vault', label: 'Vault · Review & Pay' },
   { id: 'defaults', label: 'Default invoice items' },
+  { id: 'timing', label: 'Delivery timing' },
   { id: 'ledger', label: 'Ledger', divider: true },
 ];
 
-type PaymentsView = 'collect' | 'defaults' | 'ledger';
+type PaymentsView = 'collect' | 'vault' | 'defaults' | 'timing' | 'ledger';
 type LedgerView = 'invoices' | 'activity' | ServiceSlug;
 
 function one ( raw: string | string[] | undefined ): string {
@@ -37,7 +43,9 @@ function one ( raw: string | string[] | undefined ): string {
 function mode ( raw: string | string[] | undefined ): PaymentsView {
   const value = one( raw );
   if ( value === 'collect' ) return 'collect';
+  if ( value === 'vault' ) return 'vault';
   if ( value === 'defaults' ) return 'defaults';
+  if ( value === 'timing' ) return 'timing';
   return 'ledger';
 }
 
@@ -138,12 +146,12 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
   return (
     <>
-      <SEO title="Payments" description="Collect payments and review the authoritative payment ledger." noindex />
+      <SEO title="Pay & Flow" description="Collect payments, send a server-priced Vault request and review the payment ledger." noindex />
       <PageShell
         key={ active }
         className="payments-shell"
-        title="Payments"
-        subtitle="Collect through the invoice engine, then use one ledger for invoices, delivery evidence and payment state."
+        title="Pay & Flow"
+        subtitle="Collect manually or send file-bound Vault Review & Pay. Invoices and download links follow verified payment."
         tabs={ TABS }
         activeTab={ active }
         defaultTab={ active }
@@ -153,22 +161,22 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             pathname: '/workspace/payments',
             query: view === 'ledger'
               ? { view: 'ledger', ledger: 'invoices' }
-              : view === 'defaults'
-                ? { view: 'defaults' }
-                : { view: 'collect' },
+              : { view },
           } );
         } }
       >
         { ( tab ) => (
           <>
             { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
+            { tab === 'vault' && <VaultWorkbench signOut={ signOut } user={ user } embedded /> }
+            { tab === 'timing' && <VaultDeliveryTiming /> }
             { tab === 'defaults' && (
               <DefaultInvoiceItems onUse={ choice => {
                 // A service requiring a file/request target cannot be settled by
                 // a free-form invoice: enter its owned service workflow first.
                 if ( choice.needsTarget ) {
                   void router.push( choice.kind === 'VAULT'
-                    ? '/workspace/service?view=vault'
+                    ? '/workspace/payments?view=vault'
                     : choice.path );
                   return;
                 }

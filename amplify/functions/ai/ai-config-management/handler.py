@@ -95,6 +95,7 @@ SETTINGS_CONFIG_KEYS = frozenset({
     'ai_config', 'welcome_message', 'welcome_message_2', 'welcome_message_config',
     'customerservice_menu_config', 'wa_auto_response',
     'flow_triggers_config', 'subscribe_messages_config',
+    'vault_delivery_timing_v1',
 })
 
 # Vault journey rows document existing approved send metadata. Workspace may
@@ -323,6 +324,16 @@ def _update_config(body: Dict, request_id: str, config_key: str = 'ai_config') -
     """Update AI configuration — or any SystemConfig entry by key."""
     try:
         config_table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
+
+        # Payment-adjacent settings must not inherit the unrestricted generic JSON writer.
+        # The two bounded gaps are presentation spacing only and cannot skip capture gates.
+        if config_key == 'vault_delivery_timing_v1':
+            proposed = body.get('config')
+            required = {'orderStatusGapSeconds', 'postReceiptAccessGapSeconds'}
+            if (not isinstance(proposed, dict) or set(proposed) != required
+                    or any(type(proposed[key]) is not int or proposed[key] < 0
+                           or proposed[key] > 5 for key in required)):
+                return _error_response(400, 'Vault spacing must contain two whole seconds values (0-5)')
 
         # If a specific key is provided (non-ai_config), do a raw put
         if config_key != 'ai_config':

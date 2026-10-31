@@ -51,13 +51,6 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
-/** Meta's approved Vault offer provides one editable, one-line body {{1}} value. */
-function validOfferBodyText ( raw: string ): string | null {
-    const clean = raw.trim();
-    if ( !clean || clean.length > 60 || /[*_~\r\n\t]/u.test( clean ) || /\s{2,}/u.test( clean ) ) return null;
-    return clean;
-}
-
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
@@ -67,8 +60,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
     const [ file, setFile ] = useState<File | null>( null );
-    // This is WhatsApp wecare_vault_request_ready body {{1}}, NOT the S3 filename.
-    const [ offerBodyText, setOfferBodyText ] = useState( '' );
     const [ uploading, setUploading ] = useState( false );
     const [ step, setStep ] = useState( '' );
 
@@ -77,9 +68,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
-    // Saving a file never sends a WhatsApp message; the offer is a separate confirmed action.
-    const [ confirmingOffer, setConfirmingOffer ] = useState( false );
-    const [ lastAcceptedOfferFileId, setLastAcceptedOfferFileId ] = useState( '' );
+    // Saving/publishing never sends a WhatsApp request or charges a customer.
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
     const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
@@ -93,7 +82,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ mode, setMode ] = useState<'upload' | 'existing'>( 'upload' );
     const [ journey, setJourney ] = useState<VaultRegistryJourney | null>( null );
     const [ journeyError, setJourneyError ] = useState( '' );
-    const [ scheduledAction, setScheduledAction ] = useState<api.VaultScheduleAction | null>( null );
+    const [ scheduledAction, setScheduledAction ] = useState<'payment' | 'access' | null>( null );
     const [ scheduledAtLocal, setScheduledAtLocal ] = useState( '' );
     const [ scheduled, setScheduled ] = useState<api.VaultScheduledAction[]>( [] );
     const [ schedulingBusy, setSchedulingBusy ] = useState( false );
@@ -107,7 +96,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         latestFilesRead.current += 1;
         setFiles( [] );
         setReviewFile( null );
-        setLastAcceptedOfferFileId( '' );
+        
         setScheduledAction( null );
         setScheduled( [] );
         setScheduleError( '' );
@@ -219,7 +208,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setSelectedCustomerId( contact.id || contact.contactId );
         setFilterMobile( contact.phone );
         setFile( null );
-        setOfferBodyText( '' );
+        
         clearFileSelection();
         setMode( 'existing' );
         void load( contact.phone );
@@ -252,62 +241,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         else toast.error( result.message );
     };
 
-    const prepareOffer = ( target: SecureFile ) => {
+    const preparePayment = ( target: SecureFile ) => {
         setMode( 'existing' );
         setSelectedCustomerId( '' );
         setContactQuery( target.ownerName || '' );
         setReviewFile( target );
-        setOfferBodyText( target.lastOfferBodyText || '' );
-        document.getElementById( 'sf-offer-body-text' )?.scrollIntoView( { behavior: 'smooth', block: 'center' } );
-    };
-
-    const handleSendOffer = async ( target: SecureFile ) => {
-        if ( sendingAction.current || acting || confirmingOffer || uploading || mode !== 'existing' || reviewFile?.fileId !== target.fileId ) return;
-        if ( target.status !== 'active' || ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
-            toast.error( 'This file does not need a payment offer. Review its access state.' );
-            return;
-        }
-        const variable = validOfferBodyText( offerBodyText );
-        if ( !variable ) {
-            toast.error( 'Enter WhatsApp {{1}} text (1–60 characters, one line and no formatting).' );
-            return;
-        }
-        // Meta's approved offer says ₹49. Keep the existing live pricing guard.
-        if ( vaultPricePaise !== 4900 || !vaultBreakdown ) {
-            toast.error( 'The approved ₹49 offer cannot be matched to live pricing. No WhatsApp offer was sent.' );
-            return;
-        }
-        sendingAction.current = true;
-        setConfirmingOffer( true );
-        let approved = false;
-        try {
-            approved = await confirm( {
-                title: 'Send Unlock Vault on WhatsApp?',
-                message: `Customer: ${target.ownerName || 'Selected customer'} (${target.ownerPhoneMasked || 'verified owner'}).\nFile: ${target.displayName}\nWhatsApp {{1}}: ${variable}\n\nThis sends one real message. Payment starts only after the customer taps Unlock Vault.`,
-                confirmText: 'Send WhatsApp offer',
-            } );
-        } catch {
-            sendingAction.current = false;
-            toast.error( 'Unable to confirm the send. No WhatsApp request was made.' );
-            return;
-        } finally {
-            setConfirmingOffer( false );
-        }
-        if ( !approved ) {
-            sendingAction.current = false;
-            return;
-        }
-
-        setActing( target.fileId );
-        try {
-            const result = await api.sendSecureFileOffer( target.fileId, variable );
-            reportAction( result );
-            if ( result.ok && result.status !== 202 ) setLastAcceptedOfferFileId( target.fileId );
-            void load( filterMobile || undefined );
-        } finally {
-            setActing( '' );
-            sendingAction.current = false;
-        }
+        document.getElementById( 'sf-action-panel' )?.scrollIntoView( { behavior: 'smooth', block: 'center' } );
     };
 
     const handleSendPayment = async ( target: SecureFile ) => {
@@ -359,17 +298,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.error( 'Choose a time 10 minutes to 30 days from now.' );
             return;
         }
-        const variable = action === 'offer' ? validOfferBodyText( offerBodyText ) : null;
-        if ( action === 'offer' && ( !variable || vaultPricePaise !== 4900 || !vaultBreakdown ) ) {
-            toast.error( 'Enter valid WhatsApp {{1}} text and verify the live ₹49 offer first.' );
-            return;
-        }
         sendingAction.current = true;
         setSchedulingBusy( true );
         try {
-            const actionName = action === 'offer' ? 'Unlock Vault offer'
-                : action === 'payment' ? 'native Review & Pay request'
-                    : 'paid Access Vault resend';
+            const actionName = action === 'payment' ? 'native Review & Pay request' : 'paid Access Vault resend';
             const approved = await confirm( {
                 title: `Schedule ${actionName}?`,
                 message: `File: ${target.displayName}\nCustomer: ${target.ownerName || 'verified owner'}\nTime: ${displayScheduleTime( when.toISOString() )}\n\nThe send will only run if owner, file, payment and message rules still permit it. A failed or ambiguous send is not retried automatically.`,
@@ -377,7 +309,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             } );
             if ( !approved ) return;
             const result = await api.scheduleVaultAction(
-                target.fileId, action, when.toISOString(), variable || undefined,
+                target.fileId, action, when.toISOString(),
             );
             if ( !result.ok ) {
                 toast.error( result.failure.message || 'Schedule was not accepted' );
@@ -478,7 +410,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         if ( !file ) { toast.error( 'Choose a document first' ); return; }
         if ( !customerName ) { toast.error( 'Customer name is required' ); return; }
         if ( !customerPhone ) { toast.error( 'Customer mobile number is required' ); return; }
-        // Saving a document requires no WhatsApp text: the separate offer is optional.
+        // The private upload and publication complete before staff may request payment.
         const contentType = resolveWaMime( file );
         const validation = validateWaMediaSize( file, contentType );
         if ( !validation.ok )
@@ -538,7 +470,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
             toast.success( `${published.data.displayName || ticket.data.fileName} saved to Vault. No WhatsApp was sent.` );
             setFile( null );
-            setLastAcceptedOfferFileId( '' );
+            
             setName( customerName );
             setMobile( customerPhone );
             setContactQuery( customerName );
@@ -549,7 +481,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setReviewFile( publishedFile );
             setMode( 'existing' );
             if ( !publishedFile )
-                toast.info( 'File is saved. Use Find to refresh the document list, then review the WhatsApp offer.' );
+                toast.info( 'File is saved. Use Find to refresh the document list, then review the direct Review & Pay action.' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
@@ -589,7 +521,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     <div className="sf-heading-line">
                         <div>
                             <h1 className="sf-title">Secure customer delivery</h1>
-                            <p className="sf-lead">One customer. One private file. Review first, then send Unlock Vault when you choose.</p>
+                            <p className="sf-lead">One verified customer, one private file, one server-priced Review &amp; Pay request. Invoice and access follow captured payment.</p>
                         </div>
                         <span className="sf-private-indicator">Private · Customer-bound</span>
                     </div>
@@ -635,7 +567,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                         setName( '' );
                                         setMobile( '' );
                                         setFilterMobile( '' );
-                                        setOfferBodyText( '' );
+                                        
                                         clearFileSelection();
                                     } }>Change customer</button></p>
                             ) : matchingCustomers.length > 0 ? (
@@ -683,14 +615,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
                             <button type="button" className={ mode === 'upload' ? 'active' : '' }
                                 aria-pressed={ mode === 'upload' }
-                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); setOfferBodyText( '' ); setScheduledAction( null ); } }>
+                                onClick={ () => { setMode( 'upload' ); setReviewFile( null ); setScheduledAction( null ); } }>
                                 Upload new
                             </button>
                             <button type="button" className={ mode === 'existing' ? 'active' : '' }
                                 aria-pressed={ mode === 'existing' }
                                 onClick={ () => {
                                     setMode( 'existing' ); setFile( null );
-                                    setOfferBodyText( '' ); setScheduledAction( null );
+                                    setScheduledAction( null );
                                     void load( filterMobile || mobile || undefined );
                                 } }>
                                 Reuse existing Vault file
@@ -760,7 +692,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                             <button type="button" key={ item.fileId }
                                                 className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
                                                 aria-pressed={ reviewFile?.fileId === item.fileId }
-                                                onClick={ () => { setReviewFile( item ); setOfferBodyText( item.lastOfferBodyText || '' ); } }>
+                                                onClick={ () => { setReviewFile( item ); } }>
                                                 <span><strong>{ item.displayName }</strong>
                                                     <small>{ item.ownerName || 'Customer' } · { formatBytes( item.sizeBytes ) }</small></span>
                                                 <span className="sf-choice-status">{ PURCHASE_LABELS[ accessStateOf( item ) ] }</span>
@@ -780,41 +712,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             </section>
                         ) }
 
-                        <div className="sf-message-composer">
-                            <div className="sf-message-heading">
-                                <strong>Unlock Vault · WhatsApp message</strong>
-                                <span>Approved template · body {'{{1}}'}</span>
-                            </div>
-                            <div className="sf-field sf-field-wide sf-offer-variable">
-                            <label className="sf-label" htmlFor="sf-offer-body-text">
-                                WhatsApp Unlock Vault · body {'{{1}}'} <strong>(editable)</strong>
-                            </label>
-                            <textarea
-                                className="sf-input sf-offer-textarea"
-                                id="sf-offer-body-text"
-                                rows={ 2 }
-                                maxLength={ 60 }
-                                placeholder="e.g. Updated October compliance agreement"
-                                value={ offerBodyText }
-                                onChange={ e => setOfferBodyText( e.target.value ) }
-                                disabled={ uploading }
-                                aria-describedby="sf-offer-body-help"
-                            />
-                            <p className="sf-hint" id="sf-offer-body-help">
-                                Free text for the approved WhatsApp message only. The uploaded S3 file is
-                                separately named wecare-digital-&lt;uuid&gt;.&lt;ext&gt;.
-                                <span className="sf-offer-counter">{ offerBodyText.length } / 60</span>
-                            </p>
-                        </div>
-
-                            <p className="sf-composer-help">The message preview updates instantly. Staff text is independent of the generated <code>wecare-digital-UUID</code> S3 filename.</p>
-                        </div>
                         <div className="sf-review-actions" id="sf-action-panel">
                             <div className="sf-review-checks" aria-live="polite">
-                                <strong>Step 4 · Publish, send or schedule</strong>
+                                <strong>Step 4 · Review &amp; Pay or paid access</strong>
                                 <span>{ reviewFile && mode === 'existing' ? 'File selected · saved in Vault' : 'Save & publish, then select the file' }</span>
-                                <span>{ validOfferBodyText( offerBodyText ) ? 'WhatsApp text ready' : 'WhatsApp {{1}} text not entered' }</span>
-                                <span>{ vaultPricePaise === 4900 && !!vaultBreakdown ? 'Live ₹49 offer verified' : 'Offer price not verified' }</span>
+                                <span>{ vaultPricePaise !== null && !!vaultBreakdown ? 'Live catalogue quote available · amount locked' : 'Waiting for verified service quote' }</span>
                             </div>
                             { mode === 'upload' && (
                                 <div className="sf-action-empty">
@@ -832,19 +734,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
                                 <div className="sf-delivery-buttons">
                                     <button type="button" className="sf-cta sf-send-cta"
-                                        onClick={ () => { void handleSendOffer( reviewFile ); } }
-                                        disabled={ !!acting || confirmingOffer || uploading || schedulingBusy || !validOfferBodyText( offerBodyText ) || !vaultBreakdown || vaultPricePaise !== 4900 }>
-                                        { acting === reviewFile.fileId ? 'Sending…' : reviewFile.lastOfferRequestedAt ? 'Resend Unlock Vault' : 'Send Unlock Vault now' }
-                                    </button>
-                                    <button type="button" className="sf-cta sf-cta-quiet"
-                                        onClick={ () => setScheduledAction( 'offer' ) }
-                                        disabled={ !!acting || schedulingBusy || !validOfferBodyText( offerBodyText ) || vaultPricePaise !== 4900 || !vaultBreakdown }>
-                                        Schedule Unlock Vault
-                                    </button>
-                                    <button type="button" className="sf-cta sf-cta-quiet"
                                         onClick={ () => { void handleSendPayment( reviewFile ); } }
-                                        disabled={ !!acting || schedulingBusy || !vaultBreakdown || vaultPricePaise === null }>
-                                        { reviewFile.lastPaymentRequestedAt ? 'Resend Review & Pay' : 'Send Review & Pay now' }
+                                        disabled={ !!acting || uploading || schedulingBusy || !vaultBreakdown || vaultPricePaise === null }>
+                                        { acting === reviewFile.fileId ? 'Sending…' : reviewFile.lastPaymentRequestedAt ? 'Review payment status / resend' : 'Send Review & Pay now' }
                                     </button>
                                     <button type="button" className="sf-cta sf-cta-quiet"
                                         onClick={ () => setScheduledAction( 'payment' ) }
@@ -852,7 +744,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                         Schedule Review &amp; Pay
                                     </button>
                                     <p className="sf-action-warning">
-                                        Payment requests are customer-authorized, not automatic charges. Order-status updates and invoice messages are sent only after verified payment; they cannot be manually scheduled.
+                                        One owner-bound file and fixed catalogue price. Staff cannot edit the amount.
+                                        The customer approves payment on WhatsApp; the receipt and Access Vault link
+                                        follow only verified capture. Check uncertain sends before retrying.
                                     </p>
                                 </div>
                             ) }
@@ -877,8 +771,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 <p className="sf-action-warning">Payment requires reconciliation. Sending and scheduling are disabled to prevent a second charge.</p> }
                             { scheduledAction && reviewFile && (
                                 <div className="sf-schedule-box">
-                                    <h3>Schedule { scheduledAction === 'offer' ? 'Unlock Vault'
-                                        : scheduledAction === 'payment' ? 'Review & Pay' : 'Access Vault resend' }</h3>
+                                    <h3>Schedule { scheduledAction === 'payment' ? 'Review &amp; Pay' : 'Access Vault resend' }</h3>
                                     <label className="sf-label" htmlFor="sf-scheduled-at">Send date &amp; time · your device timezone</label>
                                     <input type="datetime-local" id="sf-scheduled-at" className="sf-input" step={ 60 }
                                         value={ scheduledAtLocal } onChange={ e => setScheduledAtLocal( e.target.value ) }
@@ -908,7 +801,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     { scheduled.map( record => (
                                         <div className="sf-schedule-record" key={ record.scheduledId }>
                                             <div>
-                                                <strong>{ record.action === 'offer' ? 'Unlock Vault'
+                                                <strong>{ record.action === 'offer' ? 'Retired offer (historical)'
                                                     : record.action === 'payment' ? 'Review & Pay'
                                                         : 'Paid access resend' }</strong>
                                                 <small>{ displayScheduleTime( record.scheduledAt ) } · { record.status === 'DISPATCH_UNKNOWN' ? 'Needs delivery review' : record.status }</small>
@@ -923,9 +816,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ) ) }
                                 </section>
                             ) }
-                            { lastAcceptedOfferFileId && reviewFile?.fileId === lastAcceptedOfferFileId && (
-                                <p className="sf-send-accepted" role="status">Meta accepted the WhatsApp offer request. Handset delivery is not yet confirmed. Check the message logs before resending.</p>
-                            ) }
                             <a href="/workspace/communications?view=manage&section=scheduled" className="sf-other-messages">
                                 Schedule other approved WhatsApp messages in Communications
                             </a>
@@ -937,7 +827,6 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         customerPhone={ mobile }
                         draftFile={ file }
                         selectedFile={ reviewFile }
-                        offerBodyText={ offerBodyText }
                         pricePaise={ vaultPricePaise }
                         breakdown={ vaultBreakdown }
                         templates={ vaultTemplates }
@@ -1056,12 +945,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
                                                             <button
                                                                 className="sf-act"
-                                                                onClick={ () => prepareOffer( row ) }
+                                                                onClick={ () => preparePayment( row ) }
                                                                 disabled={ !!acting }
                                                             >
                                                                 { accessStateOf( row ) === 'EXPIRED'
-                                                                    ? 'Prepare renewal WhatsApp text'
-                                                                    : 'Prepare WhatsApp offer text' }
+                                                                    ? 'Review renewal payment'
+                                                                    : 'Review & Pay for this file' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
@@ -1081,7 +970,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                                 setSelectedCustomerId( '' );
                                                                 setContactQuery( row.ownerName || '' );
                                                                 setReviewFile( row );
-                                                                setOfferBodyText( row.lastOfferBodyText || '' );
+                                                                
                                                                 document.getElementById( 'sf-journey-preview' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
                                                             } }
                                                         >

@@ -78,7 +78,7 @@ export interface SettingsGroup {
  * Children are a deep-link / command-palette index, not a second sidebar level.
  * `getAllNavItems()` walks them so canonical sub-modes stay findable by name in Ctrl+K.
  * Commerce and other multi-mode workspaces may therefore keep children even though the
- * sidebar itself stays flat. Service currently exposes only Vault and Contribute as deep links;
+ * sidebar itself stays flat. Vault now belongs to Pay & Flow, while Service retains Contribute;
  * Flow-backed service items remain intentionally absent until they are deliberately added back. `isNavItemActive` matches on the row's own base path.
  */
 export const navigationConfig: NavItem[] = [
@@ -115,23 +115,24 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Canonical Payments workspace: Collect for money-moving initiation, Ledger for read/audit.
+    // Pay & Flow owns staff money requests and secure Vault delivery.
     path: '/workspace/payments',
-    label: 'Payments',
+    label: 'Pay & Flow',
     icon: 'payment',
     children: [
       { path: '/workspace/payments?view=collect', label: 'Collect' },
+      { path: '/workspace/payments?view=vault', label: 'Vault · Review & Pay' },
+      { path: '/workspace/payments?view=defaults', label: 'Default invoice items' },
+      { path: '/workspace/payments?view=timing', label: 'Vault delivery timing' },
       { path: '/workspace/payments?view=ledger', label: 'Ledger' },
     ],
   },
   {
-    // Milestone 1b: exactly two Service capabilities. Vault remains manual/no-Flow;
-    // Contribute is a separate voluntary payment with no fulfilment Flow.
+    // Vault has moved to Pay & Flow. Keep other service capabilities in Service.
     path: '/workspace/service',
     label: 'Service',
     icon: 'order',
     children: [
-      { path: '/workspace/service?view=vault', label: 'Vault' },
       { path: '/workspace/service?view=contribute', label: 'Contribute' },
     ],
   },

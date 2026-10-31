@@ -418,11 +418,11 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         const published = await api.publishDocumentToVault( confirmed.data.documentId );
         if ( !published.ok )
         {
-          toast.warning( 'Document uploaded, but it could not be published to Vault. Open the document and try Publish & send.' );
+          toast.warning( 'Document uploaded, but it could not be published to Vault. Open the document and try Publish & request payment.' );
         }
         else
         {
-          const sent = await api.sendSecureFileOffer( published.data.fileId );
+          const sent = await api.requestSecureFilePayment( published.data.fileId );
           reportVaultAction( sent );
         }
       }
@@ -560,12 +560,12 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
-  const handleSendVaultOffer = async ( doc: api.Document ) => {
+  const handleSendVaultPayment = async ( doc: api.Document ) => {
     if ( actionLoading || !doc.vaultFileId ) return;
     setActionLoading( true );
     try
     {
-      reportVaultAction( await api.sendSecureFileOffer( doc.vaultFileId ) );
+      reportVaultAction( await api.requestSecureFilePayment( doc.vaultFileId ) );
       void loadVaultFile( doc );
       void loadData();
     } finally
@@ -588,7 +588,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
-  const handlePublishAndSend = async ( doc: api.Document ) => {
+  const handlePublishAndRequestPayment = async ( doc: api.Document ) => {
     if ( actionLoading || doc.archivedAt ) return;
     setActionLoading( true );
     try
@@ -604,7 +604,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         }
         fileId = published.data.fileId;
       }
-      const sent = await api.sendSecureFileOffer( fileId );
+      const sent = await api.requestSecureFilePayment( fileId );
       reportVaultAction( sent );
       void loadData();
       if ( selected?.documentId === doc.documentId )
@@ -758,7 +758,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           ) : (
             <>
               { !d.vaultFileId && d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) && (
-                <button className="dd-action dd-action-primary" onClick={ () => { void handlePublishAndSend( d ); } } disabled={ actionLoading }>
+                <button className="dd-action dd-action-primary" onClick={ () => { void handlePublishAndRequestPayment( d ); } } disabled={ actionLoading }>
                   Publish & send
                 </button>
               ) }
@@ -1001,7 +1001,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               ) }
               { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
                 <Button variant="primary" loading={ actionLoading } onClick={ () => handlePublishAndSend( selected ) }>
-                  Publish & send Vault offer
+                  Publish & send Review & Pay
                 </Button>
               ) }
               { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
@@ -1009,9 +1009,9 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   variant="primary"
                   loading={ actionLoading }
                   disabled={ vaultFile.status === 'loading' }
-                  onClick={ () => handleSendVaultOffer( selected ) }
+                  onClick={ () => handleSendVaultPayment( selected ) }
                 >
-                  { vaultActionsFor( vaultFile ).renewal ? 'Send renewal offer' : 'Send Vault offer' }
+                  { vaultActionsFor( vaultFile ).renewal ? 'Send renewal Review & Pay' : 'Send Review & Pay' }
                 </Button>
               ) }
               { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
@@ -1065,7 +1065,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               disabled={ creating || !createReady }
               onClick={ () => { void handleCreateDocument( true ); } }
             >
-              Upload & send Unlock Vault
+              Upload & send Review & Pay
             </Button>
           </>
         }
@@ -1269,21 +1269,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
           <section className="dd-unlock-template" style={ unlockTemplateStyle }>
             <div style={ sectionHeadingStyle }>
-              <strong>Unlock Vault variables</strong>
-              <span style={ sectionHintStyle }>Approved Meta template</span>
+              <strong>Vault Review &amp; Pay</strong>
+              <span style={ sectionHintStyle }>Server-priced · fixed amount</span>
             </div>
             <div className="dd-variable-grid">
-              <div><span>{ 'Body {{1}}' }</span><strong>Generated WECARE filename</strong></div>
-              <div><span>Price</span><strong>Live Vault product price</strong></div>
-              <div><span>Button</span><strong>Unlock Vault · exact-file token</strong></div>
+              <div><span>Item</span><strong>One verified owner-bound Vault file</strong></div>
+              <div><span>Amount</span><strong>Live catalogue price · staff cannot change</strong></div>
+              <div><span>Button</span><strong>Review &amp; Pay · ORDER_DETAILS</strong></div>
+              <div><span>After capture</span><strong>Payment receipt image, then Access Vault link</strong></div>
             </div>
             <div style={ helperStyle }>
-              The uploaded customer file stays private and is never attached to WhatsApp. Meta requires the fixed WECARE image header on this approved template.
+              The file remains private. The native payment sender uses the approved header and item image, then sends the issued receipt and Access Vault only after verified payment.
             </div>
           </section>
 
           <div style={ uploadFooterNoteStyle }>
-            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Unlock Vault</strong> publishes it and sends only the approved template variables above.
+            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Review &amp; Pay</strong> publishes it, then sends the existing native Review &amp; Pay request. No invoice or access entitlement is issued before capture.
           </div>
         </div>
       </Modal>

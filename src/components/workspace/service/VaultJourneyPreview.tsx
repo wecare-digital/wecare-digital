@@ -42,10 +42,12 @@ export interface VaultRegistryJourney {
 export function parseVaultJourney ( value: unknown ): VaultRegistryJourney | null {
   if ( !value || typeof value !== 'object' ) return null;
   const raw = value as Record<string, unknown>;
-  if ( raw.journeyId !== 'VAULT_WA_MANUAL_OFFER_V1'
-    || raw.schemaVersion !== 1 || !Array.isArray( raw.steps ) || raw.steps.length !== 5 ) return null;
-
-  const expected = [ 'ready_offer', 'native_payment', 'order_status', 'receipt', 'access' ];
+  const legacy = raw.journeyId === 'VAULT_WA_MANUAL_OFFER_V1';
+  if ( !legacy && raw.journeyId !== 'VAULT_WA_DIRECT_PAYMENT_V2' ) return null;
+  const expected = legacy
+    ? [ 'ready_offer', 'native_payment', 'order_status', 'receipt', 'access' ]
+    : [ 'native_payment', 'order_status', 'receipt', 'access' ];
+  if ( raw.schemaVersion !== 1 || !Array.isArray( raw.steps ) || raw.steps.length !== expected.length ) return null;
   const steps: VaultRegistryStep[] = [];
   for ( let index = 0; index < expected.length; index += 1 ) {
     const step = raw.steps[ index ] as Partial<VaultRegistryStep> | undefined;
@@ -76,7 +78,9 @@ export function parseVaultJourney ( value: unknown ): VaultRegistryJourney | nul
     normalMessageCountOnFullManualPath:
       typeof raw.normalMessageCountOnFullManualPath === 'number'
         ? raw.normalMessageCountOnFullManualPath : 6,
-    steps,
+    // Keep old send metadata for historical audit, but never render it as
+    // a stage or offer an operator any new Unlock Vault action.
+    steps: steps.filter( step => step.role !== 'ready_offer' ),
   };
 }
 
@@ -87,8 +91,6 @@ interface Props {
   customerPhone: string;
   draftFile: File | null;
   selectedFile: SecureFile | null;
-  /** Staff typed {{1}} in the approved Vault-ready offer; unrelated to file identity. */
-  offerBodyText: string;
   pricePaise: number | null;
   breakdown: ServicePriceBreakdown | null;
   templates: ServicePaymentTemplates | null;
@@ -100,8 +102,7 @@ interface Props {
 }
 
 const stages = [
-  { step: 1, name: 'Vault ready', trigger: 'Staff sends offer', fallback: 'wecare_vault_request_ready' },
-  { step: 2, name: 'Review & Pay', trigger: 'Customer taps Unlock Vault', fallback: 'wecare_whatapp_native_pay_template' },
+  { step: 2, name: 'Review & Pay', trigger: 'Staff or customer requests native payment', fallback: 'wecare_whatapp_native_pay_template' },
   { step: 3, name: 'Order updates', trigger: 'Captured payment', fallback: 'wecare_order_status_v3' },
   { step: 4, name: 'Paid invoice', trigger: 'Invoice is ready', fallback: 'wecare_default_invoice_image_template' },
   { step: 5, name: 'Access Vault', trigger: 'Paid entitlement granted', fallback: 'wecare_default_download' },
@@ -117,9 +118,8 @@ function fileSize ( bytes: number | undefined ): string {
   return ( bytes / 1048576 ).toFixed( 1 ) + ' MB';
 }
 
-function stageBody ( step: number, offerBodyText: string ): string {
+function stageBody ( step: number ): string {
   switch ( step ) {
-    case 1: return '📄 Your requested *' + ( offerBodyText || '{{1}}' ) + '* is available in your Vault. Amount due for this request: *₹49*.';
     case 2: return '💳 Your order is ready for payment. Tap Review and Pay to complete it securely.';
     case 3: return '📦 Your order status has been updated.';
     case 4: return '✅ Payment received. Your transaction has been confirmed.';
@@ -128,14 +128,13 @@ function stageBody ( step: number, offerBodyText: string ): string {
 }
 
 export default function VaultJourneyPreview ( props: Props ) {
-  const [ activeStage, setActiveStage ] = React.useState( 1 );
+  const [ activeStage, setActiveStage ] = React.useState( 2 );
   const currentFile = props.mode === 'existing' ? props.selectedFile : null;
   const draftFile = props.mode === 'upload' ? props.draftFile : null;
   const extension = draftFile?.name.match( /\.[a-zA-Z0-9]{1,10}$/ )?.[ 0 ]?.toLowerCase() || '';
   // The backend assigns the UUID when upload begins; never preview original upload names.
   const fileName = currentFile?.displayName
     || ( draftFile ? 'wecare-digital-<uuid>' + extension : 'Choose a document' );
-  const offerBodyText = props.offerBodyText.trim();
   const fileType = currentFile?.contentType || draftFile?.type || 'Type confirmed after upload';
   const fileBytes = currentFile?.sizeBytes || draftFile?.size;
   const fileId = currentFile?.fileId || '';
@@ -145,9 +144,9 @@ export default function VaultJourneyPreview ( props: Props ) {
     ? 'https://wecare.digital/vault/?file=' + encodeURIComponent( fileId )
     : 'https://wecare.digital/vault/?file={{1}}';
   const stage = stages.find( item => item.step === activeStage ) || stages[ 0 ];
-  const registryStep = props.journey?.steps.find( item => item.step === activeStage );
+  const registryStep = props.journey?.steps.find( item =>
+    item.role === ( { 2: 'native_payment', 3: 'order_status', 4: 'receipt', 5: 'access' } as Record<number, string> )[ activeStage ] );
   const fallbackTemplates: Record<number, string | undefined> = {
-    1: stage.fallback,
     2: props.templates?.nativePay,
     3: props.templates?.orderStatus,
     4: props.templates?.receipt,
@@ -170,16 +169,15 @@ export default function VaultJourneyPreview ( props: Props ) {
     && paidIdByStage[ activeStage ] !== registryStep.templateId
   );
   const paidTemplateRows = [
-    { stage: 2, label: 'Review & Pay', name: props.templates?.nativePay || stages[ 1 ].fallback,
-      metaId: metaIds?.nativePay || props.journey?.steps[ 1 ]?.templateId || '' },
-    { stage: 3, label: 'Payment status ×2', name: props.templates?.orderStatus || stages[ 2 ].fallback,
-      metaId: metaIds?.orderStatus || props.journey?.steps[ 2 ]?.templateId || '' },
-    { stage: 4, label: 'GST invoice', name: props.templates?.receipt || stages[ 3 ].fallback,
-      metaId: metaIds?.receipt || props.journey?.steps[ 3 ]?.templateId || '' },
-    { stage: 5, label: 'Access Vault', name: props.templates?.delivery || stages[ 4 ].fallback,
-      metaId: metaIds?.delivery || props.journey?.steps[ 4 ]?.templateId || '' },
+    { stage: 2, label: 'Review & Pay', name: props.templates?.nativePay || stages[ 0 ].fallback,
+      metaId: metaIds?.nativePay || props.journey?.steps.find( s => s.role === 'native_payment' )?.templateId || '' },
+    { stage: 3, label: 'Payment status ×2', name: props.templates?.orderStatus || stages[ 1 ].fallback,
+      metaId: metaIds?.orderStatus || props.journey?.steps.find( s => s.role === 'order_status' )?.templateId || '' },
+    { stage: 4, label: 'GST invoice', name: props.templates?.receipt || stages[ 2 ].fallback,
+      metaId: metaIds?.receipt || props.journey?.steps.find( s => s.role === 'receipt' )?.templateId || '' },
+    { stage: 5, label: 'Access Vault', name: props.templates?.delivery || stages[ 3 ].fallback,
+      metaId: metaIds?.delivery || props.journey?.steps.find( s => s.role === 'access' )?.templateId || '' },
   ];
-  const priceMismatch = props.pricePaise !== null && props.pricePaise !== 4900;
 
   return (
     <aside className={ styles.preview } id="sf-journey-preview" aria-label="Vault invoice and WhatsApp preview">
@@ -223,7 +221,7 @@ export default function VaultJourneyPreview ( props: Props ) {
               className={ styles.stepButton + ( activeStage === item.step ? ' ' + styles.activeStep : '' ) }
               aria-pressed={ activeStage === item.step }
               onClick={ () => setActiveStage( item.step ) }>
-              <span>{ item.step }</span>{ item.name }
+              <span>{ item.step - 1 }</span>{ item.name }
             </button>
           ) ) }
         </div>
@@ -234,8 +232,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         <div className={ styles.bubble }>
           <small>{ templateName }</small>
           <small>Meta Template ID: { templateId || 'Awaiting backend registry' }</small>
-          <p>{ stageBody( activeStage, offerBodyText ) }</p>
-          { activeStage === 1 && <span className={ styles.bubbleButton }>Unlock Vault</span> }
+          <p>{ stageBody( activeStage ) }</p>
           { activeStage === 2 && <span className={ styles.bubbleButton }>Review and Pay · ORDER_DETAILS</span> }
           { activeStage === 3 && <span className={ styles.smallNote }>Two separate updates: processing → completed</span> }
           { activeStage === 4 && <span className={ styles.bubbleButton }>Leave Review · existing Flow</span> }
@@ -245,7 +242,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         { mappingMismatch && <p className={ styles.warning } role="status">Backend template ID differs from the saved journey registry. Verify the WABA mapping before sending; the preview cannot change the live sender.</p> }
 
         { activeStage === 2 && (
-          <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } />
+          <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } signedPreview />
         ) }
 
         <details className={ styles.technical }>
@@ -254,18 +251,11 @@ export default function VaultJourneyPreview ( props: Props ) {
           <div><dt>Meta template ID</dt><dd>{ templateId || 'Registry read pending' }</dd></div>
           <div><dt>Send gate</dt><dd>{ registryStep?.trigger || 'See approved server workflow' }</dd></div>
           <div><dt>Spacing</dt><dd>{ registryStep ? String( registryStep.defaultDelaySeconds ) + 's (not delivery ordering)' : '—' }</dd></div>
-          { activeStage === 1 && (
-            <>
-              <div><dt>Body {'{{1}}'}</dt><dd>{ offerBodyText || 'Enter free text in the left-side WhatsApp field' }</dd></div>
-              <div><dt>Quick reply</dt><dd>Server-generated signed offer token; not editable</dd></div>
-              <div><dt>Header</dt><dd>Fixed WhatsApp header image</dd></div>
-            </>
-          ) }
           { activeStage === 2 && (
             <>
               <div><dt>Payment item</dt><dd>Vault · quantity 1 · { currency( props.pricePaise ) } base</dd></div>
               <div><dt>Native payload</dt><dd>Server-priced ORDER_DETAILS; original-icon item thumbnail</dd></div>
-              <div><dt>Customer action</dt><dd>Unlock Vault must be tapped first</dd></div>
+              <div><dt>Customer action</dt><dd>Customer confirms the server-priced native Review &amp; Pay request</dd></div>
             </>
           ) }
           { activeStage === 3 && (
@@ -286,12 +276,12 @@ export default function VaultJourneyPreview ( props: Props ) {
           ) }
         </dl>
         </details>
-        <p className={ styles.hint }>The approved template wording is fixed. Only its {'{{1}}'} body value is editable in the customer card. The S3 filename, invoice, token and URL remain server-generated.</p>
+        <p className={ styles.hint }>Staff may select a verified file but cannot edit the Vault catalogue price, approved payment media, invoice or access URL. The issued receipt follows verified capture.</p>
       </section>
 
       <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
 
-      <details className={ styles.invoice } aria-label="Invoice breakdown preview">
+      <details open className={ styles.invoice } aria-label="Invoice builder preview (server-priced, read-only)">
         <summary className={ styles.disclosureTitle }>
           <span>Estimated invoice &amp; pricing</span>
           <strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong>
@@ -300,7 +290,8 @@ export default function VaultJourneyPreview ( props: Props ) {
           <strong>WECARE.DIGITAL</strong>
           <span>PREVIEW · NOT ISSUED</span>
         </div>
-        <h3>Vault access invoice</h3>
+        <h3>Vault access invoice · fixed amount</h3>
+        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. The selected file, quantity 1 and live catalogue amount are read-only; the actual receipt image and invoice are issued after verified payment, never from this preview.</p>
         <p className={ styles.customer }>{ owner } · { mobile }</p>
         <div className={ styles.billRow }><span>Vault · one file / one access window</span><strong>{ currency( props.pricePaise ) }</strong></div>
         <div className={ styles.billRow }><span>GST on supply</span><strong>{ currency( props.breakdown?.supplyGstPaise ) }</strong></div>
@@ -316,7 +307,7 @@ export default function VaultJourneyPreview ( props: Props ) {
               ? 'Live price breakdown unavailable. Do not request payment until it recovers.'
               : 'Prices are server-provided. The actual invoice image is created after verified capture.' }
         </p>
-        { priceMismatch && <p className={ styles.warning }>Approved offer copy still says ₹49; catalogue base price differs. Align the approved template before sending.</p> }
+        
       </details>
 
       <details className={ styles.delivery } aria-label="File and delivery details">
@@ -340,7 +331,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         ) }
         <p className={ styles.hint }>
           { props.journey
-            ? 'Journey order loaded from the saved DynamoDB registry. No Meta Flow is created by this preview.'
+            ? 'Four live payment stages are shown; a legacy saved offer stage is ignored. No Meta Flow is created by this preview.'
             : ( props.journeyError || 'Loading saved Vault journey mapping…' ) }
         </p>
       </details>
