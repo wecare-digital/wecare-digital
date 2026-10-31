@@ -239,6 +239,8 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "sf-choice-tag" in page
     assert "Estimated total:" in page
     assert "Final total and tax are calculated at checkout." in page
+    assert "Website estimate unavailable. WhatsApp Review & Pay will show the verified amount" in page
+    assert 'className="sf-file-status-row" role="status" aria-live="polite"' in page
 
     # A cosmetic treatment must not accidentally turn a paid-but-unverified
     # entitlement into a download, or generate a new payment while confirming.
