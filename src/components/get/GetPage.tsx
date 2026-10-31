@@ -3,10 +3,10 @@
  *
  * Design
  * ------
- * Home is the typography source of truth. The shared RotatingHero consumes the canonical
- * public hero/body tokens directly. The file block stays left-aligned on the 560px public
- * copy measure. File actions preserve the established Vault treatment: lime-tint surface,
- * dark-green underlined label, 10px radius and 48px minimum height.
+ * Home is the typography source of truth. Exact-file Vault uses a compact, static
+ * RotatingHero, an accessible ownership/status summary, and one clear primary action.
+ * The file stays on the canonical 560px public-copy measure. Only presentation changes
+ * here; all checkout, entitlement and download decisions remain server-owned.
  *
  * Route ownership
  * ---------------
@@ -75,20 +75,20 @@ function windowEndLabel ( epochSeconds?: number ): string {
     }
 }
 
-/**
- * The hero's rotating nouns, TRUE OF THIS PAGE rather than borrowed from the home page's
- * marketing audiences. This is the collection point for files someone has shared with you, so the
- * rotation names what arrives here. The pill sits on its own line (.rh-head-line is
- * display:block) so the headline's line count cannot change as the word changes. Tints/dots are
- * the four per-subject pairs the Grahak OS hero established and the home page reuses verbatim; no
- * new colour is introduced.
- */
+/** One calm, stationary hero word for a private, single-file download task. */
 const GET_WORDS: CycleWord[] = [
-    { word: 'files', tint: '#dbeafe', dot: '#2563eb' },
-    { word: 'docs', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'records', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'papers', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'document', tint: '#e0f7c8', dot: '#3da35a' },
 ];
+
+function fileStatusLabel ( state: SecureFileAccessState ): string {
+    switch ( state ) {
+        case 'OPEN': return 'Ready to download';
+        case 'READY': return 'Payment verified';
+        case 'PAID_UNVERIFIED': return 'Verifying payment';
+        case 'EXPIRED': return 'Access expired';
+        default: return 'Access locked';
+    }
+}
 
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 export const VAULT_WEBSITE_RETURN_FILE_KEY = 'wecare.vault.websiteCheckoutReturnFile';
@@ -524,18 +524,40 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
                 the same reason. */}
             <RotatingHero
-                frame="Collect your"
+                frame="Your secure"
                 words={ GET_WORDS }
-                sub="Your shared files are right here."
-                ariaLabel="Collect your files"
+                sub="View your access and download the file shared with you."
+                ariaLabel="Your secure document"
                 mobileFoundation
+                compact
             >
                 <div className="sf-card">
+                    <div className="sf-card-overview">
+                        <span className="sf-vault-icon" aria-hidden="true">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="5" y="10" width="14" height="11" rx="2" />
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3M12 15v2" />
+                            </svg>
+                        </span>
+                        <div className="sf-card-overview-copy">
+                            <p className="sf-card-kicker">PRIVATE VAULT</p>
+                            <h2 className="sf-card-title">Your file access</h2>
+                            <p className="sf-card-description">Protected by your verified account.</p>
+                        </div>
+                    </div>
                     { stage === 'loading' && (
                         <div className="sf-loading" role="status" aria-live="polite">
                             <span className="sf-loading-mark" aria-hidden="true">V</span>
                             <strong>Opening your Vault…</strong>
                             <span>Checking your verified customer session.</span>
+                            { error && (
+                                <div className="sf-load-error">
+                                    <p role="alert" className="sf-file-error">{ error }</p>
+                                    <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                        onClick={ () => { window.location.reload(); } }>Try again</button>
+                                </div>
+                            ) }
                         </div>
                     ) }
                     { stage === 'files' && (
@@ -556,8 +578,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                 return (
                                     <div key={ file.fileId } className="sf-file">
                                         <div className="sf-file-head">
+                                            <span className="sf-file-icon" aria-hidden="true">
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z" />
+                                                    <path d="M13 3v7h7M8 15h8M8 18h5" />
+                                                </svg>
+                                            </span>
                                             <div className="sf-file-copy">
-                                                <div className="sf-file-name">{ file.displayName }</div>
+                                                <h3 className="sf-file-name">{ file.displayName }</h3>
                                                 <div className="sf-file-meta">
                                                     { formatBytes( file.sizeBytes ) }
                                                     { file.contentType === 'application/pdf' ? ' · PDF' : '' }
@@ -566,6 +595,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
+                                        <div className="sf-file-status-row">
+                                            <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
+                                                : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
+                                                <span className="sf-status-dot" aria-hidden="true" />
+                                                { fileStatusLabel( state ) }
+                                            </span>
+                                        </div>
                                         <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (
@@ -573,12 +609,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <div className="sf-file-action">
                                                     <button
                                                         type="button"
-                                                        className="sf-file-action-button"
+                                                        className="sf-file-action-button sf-download-button"
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
                                                     >
-                                                        { working === file.fileId ? 'Preparing…' : 'Download' }
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"
+                                                            strokeLinejoin="round" aria-hidden="true">
+                                                            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+                                                        </svg>
+                                                        { working === file.fileId ? 'Preparing…' : 'Download securely' }
                                                     </button>
                                                 </div>
                                                 <p className="sf-state-note">
@@ -610,9 +651,18 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                                 ? 'Your previous 24-hour access expired. Renew this same document for another 24-hour window.'
                                                                 : 'Choose how to unlock this private file for 24 hours.' }
                                                         </p>
+                                                        <p className="sf-payment-total">
+                                                            { payablePrice !== null
+                                                                ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
+                                                                    + '. Final total and tax are calculated at checkout.'
+                                                                : 'The current amount is being verified. No payment can begin until it is available.' }
+                                                        </p>
                                                         <div className="sf-payment-option sf-payment-option-primary">
-                                                            <strong>Website checkout</strong>
-                                                            <span>Use your cart and secure Razorpay checkout · recommended for quick renewal</span>
+                                                            <div className="sf-payment-choice-head">
+                                                                <strong>Website checkout</strong>
+                                                                <span className="sf-choice-tag">Recommended</span>
+                                                            </div>
+                                                            <span>Use your cart and secure Razorpay checkout. Review the final amount before paying.</span>
                                                             <button type="button" className="sf-file-action-button"
                                                                 onClick={ () => { void handleWebsiteCheckout( file ); } }
                                                                 disabled={ working === file.fileId || vaultLinePrice === null }
@@ -634,12 +684,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                                     : 'Pay on WhatsApp instead' }
                                                             </button>
                                                         </div>
-                                                        <p className="sf-payment-total">
-                                                            { payablePrice !== null
-                                                                ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
-                                                                    + '. Final total and tax are calculated at checkout.'
-                                                                : 'The current amount is being verified. No payment can begin until it is available.' }
-                                                        </p>
                                                     </div>
                                                 ) }
                                                 <p className="sf-state-note">
