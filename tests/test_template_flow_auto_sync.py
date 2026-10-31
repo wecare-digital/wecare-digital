@@ -110,7 +110,7 @@ class AutoSyncTests(unittest.TestCase):
         items = client.calls[0]['TransactItems']
         self.assertEqual(len(items), 9)
         self.assertTrue(all('Put' in item for item in items))
-        self.assertEqual(items[0]['Put']['Item']['flowId']['S'], IDS[0])
+        self.assertEqual({item['Put']['Item']['flowId']['S'] for item in items}, set(IDS))
 
     def test_stale_entry_is_removed_in_same_transaction(self):
         old = [{'flowId': IDS[0], 'templateId': '555555',
