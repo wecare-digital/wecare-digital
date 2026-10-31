@@ -269,6 +269,34 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "VAULT_AUTH_RETURN_FILE_KEY" in route
 
 
+def test_vault_access_notices_are_crisp_and_match_public_auth_orders_toasts():
+    page = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    orders = (ROOT / "src/components/orders/OrdersPage.tsx").read_text()
+
+    # Keep the paid-access cutoff, but not the verbose repeated explanation.
+    assert "Access active${ ends ? ` until ${ ends }` : '' }. Download again before it expires." in page
+    assert "Payment verified. Your 24-hour access starts on delivery or first download." in page
+    assert "Download again anytime before it ends." not in page
+    assert '<p className="sf-state-note" role="status">' in page
+
+    # Reuse exactly the public /auth and /orders toast visual contract.
+    assert ".sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{" in page
+    for style in (
+        "margin:14px 0 0;padding:11px 13px;",
+        "border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;",
+        "background:var(--public-lime-tint);color:var(--public-text);",
+        "font-size:var(--public-supporting-size);",
+        "font-weight:600;line-height:1.4;",
+    ):
+        assert style in page and style in orders
+
+    # Non-blocking persistent information remains visible; no auto-dismiss.
+    assert ".sf-confirming-note,.sf-payment-note{margin-top:0}" in page
+    assert ".sf-download-button{" not in page
+    assert ".sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}" in page
+    assert ".sf-file-action-button:not(.sf-download-button){width:100%;justify-content:center;text-align:center}" in page
+
+
 def test_auth_action_copy_and_shared_mobile_button_style():
     page = (ROOT / "src/pages/auth.tsx").read_text()
     assert "{ step.phase === 'phone' ? 'Sign in' : 'Verify' }" in page
