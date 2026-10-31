@@ -133,7 +133,7 @@ async function main () {
     console.warn( `Blog RSS: fetch failed (${error.message}) — writing an empty feed.` );
   }
 
-  // Merged-away posts answer 301 and have no page, as in lib/public-blog.ts.
+  // Merged-away source slugs have no page: 404 then Home. Canonical posts remain live.
   const mergedAway = mergedAwaySlugs();
   const items = posts
     .filter( post => post && post.slug && post.title && !mergedAway.has( post.slug ) )

@@ -549,7 +549,7 @@ const getPublicPageSchema = ( pathname: string ) => {
 
 // /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
 // Bare /vault/ navigates to Orders. All other former standalone request/tracking
-// pages were retired; their old paths receive 301 redirects to /orders/.
+// pages were retired; their old paths fall through to 404 and then Home.
 const CUSTOMER_SERVICE_ROUTES = new Set( [
   '/vault',
 ] );

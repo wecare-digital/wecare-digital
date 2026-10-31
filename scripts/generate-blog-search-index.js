@@ -110,7 +110,7 @@ async function main () {
     console.warn( `Blog search index: fetch failed (${error.message}) — writing an empty index.` );
   }
 
-  // Merged-away posts answer 301 and have no page, as in lib/public-blog.ts. llms.txt reads
+  // Merged-away source slugs now 404 and lead Home; no page is exported. llms.txt reads
   // this index, so dropping them here covers it too.
   const mergedAway = mergedAwaySlugs();
   const cards = posts

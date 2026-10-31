@@ -134,7 +134,8 @@ const COLUMNS: NavColumn[] = [
         heading: 'Request',
         links: [
           // Service controls will live on the authenticated order history. Preserve
-          // original service URLs for direct file/legacy access; menu clicks open /orders/.
+          // Old service URLs now fall through to Home. Explicit authenticated
+          // menu actions still open the Orders hub; exact Vault file links stay intact.
           { label: 'Orders', href: '/orders/', match: '/orders' },
           { label: 'Submit Request', href: '/orders/', match: '/orders', searchTerms: [ 'submit request' ] },
           { label: 'Request Amendment', href: '/orders/', match: '/orders', searchTerms: [ 'amend request' ] },

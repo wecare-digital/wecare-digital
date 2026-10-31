@@ -5,8 +5,8 @@ import { useRouter } from 'next/router';
 import GetPage from '../components/get/GetPage';
 
 /**
- * Vault is NOT a standalone public product page. Ordinary /vault/ entries
- * return to the authenticated /orders/ hub.
+ * Vault is NOT a standalone public product page. Bare /vault/ entries
+ * without a file identifier return to the homepage.
  *
  * Preserve /vault/?file=<fileId> as the ONE exact-file download route used by
  * approved WhatsApp templates and the website's paid Vault return journey.
@@ -26,9 +26,8 @@ const VaultPage: React.FC = () => {
     if ( !router.isReady ) return;
     if ( queryFileId ) {
       if ( !VAULT_FILE_ID_PATTERN.test( queryFileId ) ) {
-        // Invalid links use the site's existing 404 → homepage rule.
-        // Do not send someone to authentication for an invalid file identifier.
-        void router.replace( '/404' );
+        // Malformed file identifiers return directly Home without sign-in.
+        void router.replace( '/' );
       }
       return;
     }
@@ -46,9 +45,9 @@ const VaultPage: React.FC = () => {
       }
     } catch
     {
-      // Storage can be unavailable; no target means 404 → homepage.
+      // Storage can be unavailable; no file target means Home.
     }
-    void router.replace( '/404' );
+    void router.replace( '/' );
   }, [ router, router.isReady, queryFileId ] );
 
   const targetFileId = queryFileId || restoredFileId;
