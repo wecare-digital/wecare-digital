@@ -184,6 +184,24 @@
       "description": "CV, professional profile and pitch deck creation built from real experience."
     },
     {
+      "path": "/shipments/track",
+      "group": "services",
+      "name": "Shipment Tracking",
+      "description": "Track a shipment linked to your verified service request."
+    },
+    {
+      "path": "/leave-review",
+      "group": "services",
+      "name": "Leave Review",
+      "description": "Share feedback with WECARE.DIGITAL through the approved review conversation."
+    },
+    {
+      "path": "/subscribe",
+      "group": "services",
+      "name": "Subscribe",
+      "description": "Manage your contact details and updates through the verified Subscribe conversation."
+    },
+    {
       "path": "/expo-week",
       "group": "services",
       "name": "Expo Week",
@@ -200,6 +218,36 @@
       "group": "services",
       "name": "Niji Setu",
       "description": "A QR code people scan to reach you on a masked call."
+    },
+    {
+      "path": "/submit-request",
+      "group": "services",
+      "name": "Submit Request",
+      "description": "Raise a request linked to an existing WECARE.DIGITAL order."
+    },
+    {
+      "path": "/request-amendment",
+      "group": "services",
+      "name": "Request Amendment",
+      "description": "Ask to amend an existing request, including details, dates or scope."
+    },
+    {
+      "path": "/drop-docs",
+      "group": "services",
+      "name": "Drop Docs",
+      "description": "Provide supporting documents for an existing request through verified channels."
+    },
+    {
+      "path": "/vault",
+      "group": "services",
+      "name": "Vault",
+      "description": "Learn how to retrieve an owner-verified document using a secure Vault link."
+    },
+    {
+      "path": "/request-pickup",
+      "group": "services",
+      "name": "Pickup Request",
+      "description": "Request collection of documents associated with a WECARE.DIGITAL service."
     },
     {
       "path": "/privacy",
