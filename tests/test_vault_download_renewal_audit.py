@@ -153,7 +153,11 @@ def test_website_and_whatsapp_rails_share_same_file_and_entitlement():
     svc = INTENT.read_text(encoding="utf-8")
     checkout = CHECKOUT.read_text(encoding="utf-8")
     iam = json.loads(IAM.read_text(encoding="utf-8"))
-    assert "handleWebsiteCheckout" in src and "Add 24-hour renewal to cart" in src
+    assert "handleWebsiteCheckout" in src and "Add 24-hour Vault access to cart" in src
+    assert "Add 24-hour renewal to cart" not in src
+    assert "state === 'UNPAID' ? (" in src
+    assert "state === 'EXPIRED' ? (" in src  # Disabled status only; no customer renewal
+
     assert "postRequestIntent(" in src and "file.fileId" in src
     assert "setServiceLine( service.variantId, response.intent.intentId, vaultLinePrice )" in src
     assert "serviceIntentFor( lineItems ) === response.intent.intentId" in src
