@@ -941,10 +941,12 @@ export default function OrdersPage (): React.ReactElement {
           /* Declared rather than inferred. prefers-color-scheme appears zero times under src/,
              so the site is light-only; stating it stops a browser inferring a scheme and
              recolouring form controls against a hardcoded light palette. */
-          /* 1100px, not the 700px a single column of prose wanted: a five-column table inside
-             700px is a permanent horizontal scroll. 1100 sits INSIDE PageTopBand's 1300px
-             measure, so the band's gutters still apply and nothing re-declares them. */
-          .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:var(--public-section-gap);max-width:1100px}
+          /* Keep the five-column Orders card centered within PageTopBand's wider measure.
+             On phones, fill the available gutter-safe width; only .ord-tablewrap scrolls. */
+          .ord-page{
+            color-scheme:light;display:flex;flex-direction:column;gap:var(--public-section-gap);
+            inline-size:100%;max-inline-size:1100px;min-inline-size:0;margin-inline:auto;
+          }
 
           /* One customer history column. No legacy account/receipt panel layout. */
           .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
