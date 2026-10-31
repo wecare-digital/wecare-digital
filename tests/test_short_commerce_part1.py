@@ -98,3 +98,64 @@ def test_authenticated_order_table_and_real_invoice_download():
     assert "isSignedInvoiceUrl" in INVOICE
     assert "X-Amz-Signature" in INVOICE
     assert "paymentStatus === 'captured'" in ORDER
+
+
+def _isolated_checkout_dispatch():
+    """Run actual checkout routing without importing AWS or any payment clients."""
+    import ast
+    from types import SimpleNamespace
+
+    parsed = ast.parse(HANDLER)
+    nodes = [node for node in parsed.body if
+             isinstance(node, ast.FunctionDef) and node.name in ("_action", "handler")]
+    assert len(nodes) == 2
+    calls = []
+    def _create_stub(*_args, **_kwargs):
+        calls.append("create")
+        return {"statusCode": 201, "body": {"outcome": "created"}}
+    def _quote_stub(*_args, **_kwargs):
+        calls.append("quote")
+        return {"statusCode": 200, "body": {"status": "QUOTE_READY"}}
+
+    namespace = {
+        "Dict": dict, "Any": object,
+        "extract_origin": lambda event: "",
+        "options_response": lambda origin: {"statusCode": 200},
+        "cors_response": lambda status, body, origin: {"statusCode": status, "body": body},
+        "customer_auth": SimpleNamespace(
+            require_customer=lambda event: (object(), None),
+            CustomerNotAuthorized=type("CustomerNotAuthorized", (Exception,), {}),
+            denied_response=lambda event: {"statusCode": 401}),
+        "_body": lambda event: event.get("body", {}),
+        "_create": _create_stub,
+        "_website_quote": _quote_stub,
+        "_website_prepare": lambda *_: {"statusCode": 200, "body": "prepare"},
+    }
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "checkout_handler", "exec"), namespace)
+    return namespace, calls
+
+
+def test_explicit_unknown_checkout_action_cannot_create_a_payment():
+    namespace, calls = _isolated_checkout_dispatch()
+    event = {"requestContext": {"http": {"method": "POST"}},
+             "rawPath": "/ecommerce/prepare-checkout",
+             "body": {"action": "new-read-only-probe", "lineItems": [{"quantity": 1}]}}
+    response = namespace["handler"](event, None)
+    assert response == {"statusCode": 400, "body": {"error": "UNKNOWN_CHECKOUT_ACTION"}}
+    assert calls == []
+    assert namespace["_action"](event, event["body"]) == "unsupported"
+
+
+def test_quote_stays_a_distinct_read_only_dispatch_and_explicit_create_still_works():
+    namespace, calls = _isolated_checkout_dispatch()
+    event = {"requestContext": {"http": {"method": "POST"}},
+             "rawPath": "/ecommerce/prepare-checkout",
+             "body": {"action": "quote", "lineItems": [{"quantity": 1}]}}
+    assert namespace["handler"](event, None)["body"]["status"] == "QUOTE_READY"
+    assert calls == ["quote"]
+    event["body"]["action"] = "create"
+    assert namespace["handler"](event, None)["statusCode"] == 201
+    assert calls == ["quote", "create"]
+    # Existing older clients without an explicit action still map to the intended path.
+    event["body"].pop("action")
+    assert namespace["_action"](event, event["body"]) == "prepare"

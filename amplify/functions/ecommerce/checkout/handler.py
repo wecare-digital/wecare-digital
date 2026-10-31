@@ -368,9 +368,13 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("create", "status", "prepare", "quote", "verify", "profile", "claim-basket", "order",
-                    "request-service-start"):
-        return explicit
+    if explicit:
+        if explicit in ("create", "status", "prepare", "quote", "verify", "profile",
+                        "claim-basket", "order", "request-service-start"):
+            return explicit
+        # Never reinterpret an unrecognized explicit read (especially 'quote')
+        # as create: payment attempts and provider orders are side effects.
+        return "unsupported"
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/status"):
         return "status"
@@ -563,7 +567,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _order_detail(identity, body, origin)
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
-        return _create(identity, body, origin)
+        if action == "create":
+            return _create(identity, body, origin)
+        # Unknown operations must never fall through into a payable action.
+        return cors_response(400, {"error": "UNKNOWN_CHECKOUT_ACTION"}, origin)
     except customer_auth.CustomerNotAuthorized:
         # Same opaque 401 as unauthenticated, so the endpoint is not an IDOR oracle.
         return customer_auth.denied_response(event)
