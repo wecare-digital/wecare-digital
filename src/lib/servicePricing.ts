@@ -40,6 +40,10 @@ export type ServicePaymentTemplates = {
   readonly orderStatusStates: readonly string[];
   readonly delivery: string;
   readonly receipt: string;
+  /** Approved native payment template header; published by server, not the browser. */
+  readonly headerImage?: string;
+  /** Owner-approved default ORDER_DETAILS item thumbnail, never product-supplied. */
+  readonly itemThumbnail?: string;
 };
 
 export type ServicePriceBreakdown = {
@@ -132,6 +136,25 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   return row as ServicePriceBreakdown;
 }
 
+/**
+ * Presentation URLs are emitted by the server from lambda_utils.template_media.
+ * Only the public owned WhatsApp media prefix can be drawn here; the browser never
+ * supplies an image URL to Meta, chooses a template or authorises a charge.
+ */
+function trustedPaymentMedia ( raw: unknown ): string | undefined {
+  if ( typeof raw !== 'string' ) return undefined;
+  try {
+    const url = new URL( raw );
+    return url.protocol === 'https:'
+      && url.hostname === 'wecare.digital'
+      && !url.username && !url.password && !url.search && !url.hash
+      && url.pathname.startsWith( '/get/secure/d/public/whatsapp/wa-tpl/' )
+      ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
   if ( !raw || typeof raw !== 'object' ) return undefined;
   const row = raw as Record<string, unknown>;
@@ -147,6 +170,11 @@ function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
     orderStatusStates: row.orderStatusStates as string[],
     delivery: row.delivery,
     receipt: row.receipt,
+    ...( trustedPaymentMedia( row.headerImage ) && trustedPaymentMedia( row.itemThumbnail )
+      ? {
+          headerImage: trustedPaymentMedia( row.headerImage ),
+          itemThumbnail: trustedPaymentMedia( row.itemThumbnail ),
+        } : {} ),
   };
 }
 

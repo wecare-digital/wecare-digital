@@ -54,7 +54,7 @@ from lambda_utils.ecommerce import order_channel, business_identity, checkout_pr
 # Identity reservation for a native WhatsApp collection, and the key prefixes it reserves on.
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
-from lambda_utils.ecommerce import order_keys, wa_payment_request
+from lambda_utils.ecommerce import order_keys, service_invoice_ledger, wa_payment_request
 # The fulfilment-status vocabulary and legal transitions for a WhatsApp order_status update. A
 # SEPARATE lifecycle from the payment's money state — this is what the merchant did (shipped,
 # completed), not what the money did. One home for the rules `send_order_status` validates.
@@ -2309,7 +2309,27 @@ def list_invoices(params: Dict, request_id: str) -> Dict:
 
     invoices.sort(key=lambda x: int(x.get('createdAt', 0)), reverse=True)
 
-    return _resp(200, {'invoices': [_normalize_invoice(i) for i in invoices], 'count': len(invoices)})
+    # Opt-in shared service invoice ledger. An invoice description saying "Vault"
+    # is not proof that the captured payment unlocked an owned Vault file. Join
+    # only through immutable PAYREF -> PaymentAttempt + exact verified payment/amount.
+    # The default staff ledger remains byte-for-byte the same with no new reads.
+    requested_kind = str(params.get('serviceKind') or '').strip().upper()
+    if requested_kind:
+        if requested_kind not in service_invoice_ledger.SERVICE_KINDS:
+            return _resp(400, {'error': 'Unsupported serviceKind filter'})
+        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        attempts_table = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
+        invoices = [
+            invoice for invoice in invoices
+            if service_invoice_ledger.verified_service_kind(
+                invoice, keys_table, attempts_table) == requested_kind
+        ]
+
+    normalized = [_normalize_invoice(i) for i in invoices]
+    if requested_kind:
+        for row in normalized:
+            row['serviceKind'] = requested_kind
+    return _resp(200, {'invoices': normalized, 'count': len(normalized)})
 
 
 # ─── Invoice Rendering (POS Receipt Style Image + PDF) ───
