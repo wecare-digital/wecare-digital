@@ -259,10 +259,13 @@ export async function fetchServiceWorkspacePrices ():
       || !payload.prices || typeof payload.prices !== 'object'
       || Array.isArray( payload.prices ) ) return unavailable;
     const rows = payload.prices as Record<string, unknown>;
-    for ( const key of Object.keys( unavailable ) as ServiceWorkspacePriceSlug[] ) {
-      unavailable[ key ] = readPrice( rows[ key ] );
+    // Preserve pristine fail-closed fallback: a malformed/malicious row getter
+    // or unexpected error must not return partially populated prices.
+    const out = { ...unavailable } as Record<ServiceWorkspacePriceSlug, ServicePrice>;
+    for ( const key of Object.keys( out ) as ServiceWorkspacePriceSlug[] ) {
+      out[ key ] = readPrice( rows[ key ] );
     }
-    return unavailable;
+    return out;
   } catch {
     return unavailable;
   }
