@@ -3,8 +3,7 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
-import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
-import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
+import { CUSTOMER_MENU_HREFS } from '../lib/customerMenuActions';
 import { PLAY_STORE } from '../config/analytics';
 import type { MaterialSymbol } from '../config/materialSymbols';
 
@@ -149,8 +148,8 @@ const COLUMNS: NavColumn[] = [
               { label: 'Pickup Request', href: '/orders/', match: '/orders', searchTerms: [ 'shipments', 'pickup' ] },
             ],
           },
-          { label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true },
-          { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
+          { label: 'Leave Review', href: CUSTOMER_MENU_HREFS['leave-review'], match: '/orders' },
+          { label: 'Subscribe', href: CUSTOMER_MENU_HREFS.subscribe, match: '/orders' },
         ],
       },
     ],
