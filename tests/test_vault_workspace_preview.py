@@ -36,7 +36,12 @@ def test_whatsapp_preview_is_read_only_and_uses_backend_authorities():
     assert "PREVIEW · NOT ISSUED" in preview
     assert "normalMessageCountOnFullManualPath" in preview
     assert "Server-generated signed offer token" in preview
-    assert "Vault link plus an optional WhatsApp document" in preview
+    assert "No additional raw WhatsApp document attachment" in preview
+    assert "templateIds" in preview
+    assert "Meta Template ID:" in preview
+    assert "Payment status uses one approved template twice" in preview
+    assert "mappingMismatch" in preview
+    assert "paidTemplateRows" in preview
     assert "The approved template wording is fixed" in preview
     assert "offerBodyText" in preview
     assert "<VaultMessageTimeline" in preview
