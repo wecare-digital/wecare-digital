@@ -398,15 +398,24 @@ def test_vault_logs_are_fresh_and_missing_object_probe_permission_is_durable():
     assert '"Resource": f"arn:aws:s3:::{BUCKET}"' in provisioner
 
 
-def test_service_workspace_keeps_vault_documents_logs_and_excludes_retired_service_buttons():
+def test_service_workspace_shows_all_services_without_reopening_retired_customer_pages():
     page = (ROOT / "src/pages/workspace/service/index.tsx").read_text()
-    rendered = page[page.index("  return ("):]
-    assert "Documents" in rendered
-    assert "Logs" in rendered
-    assert "VaultLogs" in rendered
-    assert ">Request Amendment<" not in rendered
-    assert ">Drop Docs<" not in rendered
-    assert ">Appointments<" not in rendered
+    routes = (ROOT / "src/lib/serviceWorkspaceRoutes.ts").read_text()
+    assert "SERVICE_WORKSPACE_VIEWS.map" in page
+    for slug in ("submit-request", "request-amendment", "drop-docs",
+                 "vault", "shipments", "contribute"):
+        assert slug in routes
+    assert "VaultLogs" in page and "SecureFiles" in page
+    assert "Documents" in page and "<Documents" in page
+    assert "serviceLedger('VAULT')" in page
+    assert "serviceLedger('DROP_DOCS')" in page
+    assert "serviceLedger('REQUEST_PICKUP')" in page
+    assert 'href="/orders/' not in page
+    assert "/workspace/commerce?view=orders" in page
+    # Exposing a staff-priced operations view is NOT reopening the five
+    # retired standalone public service pages or launching an unpaid Flow.
+    assert "api.requestSecureFilePayment(" not in page
+    assert "startRequestService(" not in page
 
 
 def test_manual_workspace_vault_offer_precedes_customer_payment():

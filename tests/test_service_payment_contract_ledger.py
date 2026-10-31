@@ -125,13 +125,21 @@ def test_missing_lineage_or_unpaid_invoice_does_not_create_vault_attribution():
 
 
 def test_media_contract_is_exactly_production_outbound_template_media():
-    for kind in ("VAULT", "DROP_DOCS"):
+    deliveries = {
+        "SUBMIT_REQUEST": "submit_request_flow",
+        "REQUEST_AMENDMENT": "request_amendment_flow",
+        "DROP_DOCS": "_dropdoc_flow",
+        "VAULT": "wecare_default_download",
+        "REQUEST_PICKUP": "pickup_request_flow",
+    }
+    for kind, delivery in deliveries.items():
         templates = service_pricing_native._payment_templates(kind)
+        assert templates["delivery"] == delivery
         assert templates["headerImage"] == template_media.PAYMENT_TEMPLATE_HEADER
         assert templates["itemThumbnail"] == template_media.DEFAULT_ORDER_ITEM_THUMBNAIL
         assert templates["headerImage"] != templates["itemThumbnail"]
         assert templates["nativePay"] == "wecare_whatapp_native_pay_template"
-    assert service_pricing_native._payment_templates("SUBMIT_REQUEST") is None
+    assert service_pricing_native._payment_templates("UNSUPPORTED") is None
 
 
 def test_vault_pricing_remains_server_authoritative_integer_paise():
@@ -153,8 +161,12 @@ def test_workspace_shares_real_ledger_and_blocks_unbound_service_invoices():
     vault = (ROOT / "src/components/workspace/service/VaultJourneyPreview.tsx").read_text()
     engine = (ROOT / "amplify/functions/payments/invoice-engine/handler.py").read_text()
 
-    assert 'serviceKind="VAULT"' in service
-    assert 'serviceKind="VAULT"' in pay
+    assert "serviceLedger('VAULT')" in service
+    assert "serviceLedger('DROP_DOCS')" in service
+    assert "serviceLedger('SUBMIT_REQUEST')" in service
+    assert "serviceLedger('REQUEST_AMENDMENT')" in service
+    assert "serviceLedger('REQUEST_PICKUP')" in service
+    assert "serviceKind={ serviceLedger.kind }" in pay
     assert "serviceKind ? { serviceKind }" in ledger
     assert "rows.some( row => row.serviceKind !== serviceKind )" in ledger
     assert "setScopeError(" in ledger
