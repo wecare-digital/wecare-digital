@@ -47,7 +47,7 @@ test('other Orders actions cannot claim a WhatsApp invitation was sent', () => {
   assert.equal(menu.menuActionForLabel('Subscribe'), 'subscribe');
   assert.equal(menu.menuActionForLabel('Leave Review'), 'leave-review');
   for (const label of ['Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
-    'Track', 'Pickup Request', 'Shipped Orders']) {
+    'Track', 'Pickup Request', 'Referral', 'Contribute', 'Shipped Orders']) {
     assert.equal(menu.menuActionForLabel(label), null);
   }
   const actionsMenu = readFileSync(resolve(ROOT, 'src/components/orders/OrderActionsMenu.tsx'), 'utf8');
