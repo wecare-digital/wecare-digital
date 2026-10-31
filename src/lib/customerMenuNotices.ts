@@ -1,13 +1,12 @@
 /**
- * One short notification vocabulary for customer-initiated WhatsApp sends on Orders.
+ * One short toast vocabulary for authenticated WhatsApp invitations on /orders.
  *
- * Only actual provider send attempts may display these messages. At present, only
- * Subscribe and Leave Review initiate a WhatsApp template from the public Orders
- * page. Other menu items navigate to /orders/ and must never imply a send.
+ * Only Subscribe and Leave Review currently trigger an actual send. Other order
+ * menu entries must not display "Sent to WhatsApp." without a confirmed API
+ * acknowledgment. Keep this separate from Workspace ToastContext.
  *
- * 'accepted' means the WhatsApp sender accepted the request. It does not prove
- * handset delivery, a completed Flow, or submitted customer feedback.
- * An ambiguous failure is never automatically retried.
+ * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
+ * or Flow completion is confirmed. Never automatically retry an ambiguous send.
  */
 export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'failed';
 

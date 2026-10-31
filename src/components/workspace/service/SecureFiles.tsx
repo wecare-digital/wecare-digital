@@ -28,10 +28,18 @@ import VaultJourneyPreview, { parseVaultJourney, type VaultRegistryJourney } fro
 const VAULT_ITEM_DESCRIPTION_DEFAULT = 'Vault Access - Secure document download (24 hours)';
 const VAULT_BASE_ITEM_PAISE = 4900;
 const VAULT_ITEM_DESCRIPTION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 .,'()&\/-]{11,59}$/;
-function validVaultItemDescription ( text: string ): boolean {
-    return text.trim() === text && !text.includes( '  ' )
-        && !text.toLowerCase().includes( 'http' )
-        && VAULT_ITEM_DESCRIPTION_PATTERN.test( text );
+/** Keep the exact native WhatsApp ORDER_DETAILS item-name limit (12-60).
+ * Give staff a specific inline reason instead of a toast about a field below the fold.
+ * This mirrors catalog_service_checkout.valid_vault_item_description. */
+function vaultItemDescriptionError ( text: string ): string {
+    if ( text.length < 12 ) return `Add ${ 12 - text.length } more character(s). Minimum 12; maximum 60.`;
+    if ( text.length > 60 ) return 'The WhatsApp payment item name cannot exceed 60 characters.';
+    if ( text.trim() !== text ) return 'Remove leading or trailing spaces.';
+    if ( text.includes( '  ' ) ) return 'Use only one space between words.';
+    if ( text.toLowerCase().includes( 'http' ) ) return 'Links are not allowed in the payment item name.';
+    if ( !VAULT_ITEM_DESCRIPTION_PATTERN.test( text ) )
+        return "Start with a letter or number. Use only letters, numbers, spaces, . , ' ( ) & / -.";
+    return '';
 }
 
 function formatBytes ( bytes: number ): string {
@@ -205,6 +213,17 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } ) + ' IST';
     };
 
+    const descriptionError = vaultItemDescriptionError( paymentItemDescription );
+    const focusInvalidDescription = (): boolean => {
+        const error = vaultItemDescriptionError( paymentItemDescription );
+        if ( !error ) return false;
+        toast.error( error );
+        document.getElementById( 'sf-vault-item-description' )?.focus();
+        document.getElementById( 'sf-vault-item-description' )?.scrollIntoView(
+            { behavior: 'smooth', block: 'center' } );
+        return true;
+    };
+
     const matchingCustomers = !reviewFile && !selectedCustomerId && contactQuery.trim().length > 1
         ? customers.filter( customer =>
             ( customer.name || '' ).toLowerCase().includes( contactQuery.trim().toLowerCase() )
@@ -272,11 +291,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.error( 'Live service price is unavailable. No payment request was sent.' );
             return;
         }
-        if ( vaultPricePaise === VAULT_BASE_ITEM_PAISE
-            && !validVaultItemDescription( paymentItemDescription ) ) {
-            toast.error( 'Enter one valid ₹49 item description (12–60 characters).' );
-            return;
-        }
+        if ( vaultPricePaise === VAULT_BASE_ITEM_PAISE && focusInvalidDescription() ) return;
         const itemDescription = vaultPricePaise === VAULT_BASE_ITEM_PAISE
             ? paymentItemDescription : undefined;
         sendingAction.current = true;
@@ -312,10 +327,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             return;
         }
         if ( action === 'payment' && vaultPricePaise === VAULT_BASE_ITEM_PAISE
-            && !validVaultItemDescription( paymentItemDescription ) ) {
-            toast.error( 'Enter one valid ₹49 item description (12–60 characters).' );
-            return;
-        }
+            && focusInvalidDescription() ) return;
         const itemDescription = action === 'payment' && vaultPricePaise === VAULT_BASE_ITEM_PAISE
             ? paymentItemDescription : undefined;
         const when = new Date( scheduledAtLocal );
@@ -555,6 +567,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     <nav className="sf-top-links" aria-label="Vault action shortcuts">
                         <a href="#sf-add" onClick={ () => setMode( 'upload' ) }>Where to publish a file</a>
                         <a href="#sf-action-panel" onClick={ () => setMode( 'existing' ) }>Send · Resend · Schedule</a>
+                        <Link href="/workspace/payments?view=timing">Access delay settings (0–5s)</Link>
                     </nav>
                     <ol className="sf-progress" aria-label="Vault workflow">
                         <li><span>1</span> Customer</li>
@@ -749,6 +762,40 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 <span>{ reviewFile && mode === 'existing' ? 'File selected · saved in Vault' : 'Save & publish, then select the file' }</span>
                                 <span>{ vaultPricePaise !== null && !!vaultBreakdown ? 'Live catalogue quote available · amount locked' : 'Waiting for verified service quote' }</span>
                             </div>
+                            { mode === 'existing' && reviewFile?.status === 'active'
+                                && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' )
+                                && vaultPricePaise === VAULT_BASE_ITEM_PAISE && (
+                                <section className="sf-description-editor" aria-label="Vault WhatsApp payment item name">
+                                    <div className="sf-description-heading">
+                                        <label htmlFor="sf-vault-item-description">₹49 item description · Review &amp; Pay</label>
+                                        <output className={ descriptionError ? 'sf-description-count invalid' : 'sf-description-count' }
+                                            aria-label={ `${ paymentItemDescription.length } of 60 characters` }>
+                                            { paymentItemDescription.length } / 60
+                                        </output>
+                                    </div>
+                                    <input
+                                        id="sf-vault-item-description"
+                                        className="sf-input sf-description-input"
+                                        type="text"
+                                        minLength={ 12 }
+                                        maxLength={ 60 }
+                                        value={ paymentItemDescription }
+                                        onChange={ event => setPaymentItemDescription( event.target.value ) }
+                                        autoComplete="off"
+                                        spellCheck={ false }
+                                        aria-invalid={ !!descriptionError }
+                                        aria-describedby="sf-vault-item-help sf-vault-item-feedback"
+                                    />
+                                    <p className="sf-description-help" id="sf-vault-item-help">
+                                        12–60 characters. This name appears in the native WhatsApp payment item and
+                                        the issued GST invoice. It does not edit template message text, quantity or price.
+                                    </p>
+                                    <p id="sf-vault-item-feedback" role={ descriptionError ? 'alert' : 'status' }
+                                        className={ descriptionError ? 'sf-description-feedback invalid' : 'sf-description-feedback' }>
+                                        { descriptionError || 'Valid item name · Ready for Review & Pay.' }
+                                    </p>
+                                </section>
+                            ) }
                             { mode === 'upload' && (
                                 <div className="sf-action-empty">
                                     <strong>First, save &amp; publish the selected file above.</strong>
@@ -1068,6 +1115,16 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-message-heading span{font-weight:700;font-size:11px;color:#59745c}
                 .sf-composer-help{font-size:var(--public-meta-size);line-height:1.5;color:var(--public-muted);margin:8px 0 0}
                 .sf-composer-help code{font-size:11px}
+                .sf-description-editor{min-width:0;display:grid;gap:9px;padding:16px;border-radius:14px;border:1px solid #bcd6b4;background:#f6fbf3}
+                .sf-description-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+                .sf-description-heading label{font-weight:750;font-size:14px;line-height:1.35;color:#193d26}
+                .sf-description-count{font-size:12px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;color:#315b38}
+                .sf-description-count.invalid{color:#aa3b2c}
+                .sf-description-input{min-width:0;font-size:16px}
+                .sf-description-input[aria-invalid="true"]{border-color:#b4533c;background:#fffafa}
+                .sf-description-help{font-size:12px;line-height:1.5;color:#506756;margin:0}
+                .sf-description-feedback{font-size:12px;font-weight:700;line-height:1.4;color:#27613b;margin:0}
+                .sf-description-feedback.invalid{color:#aa3b2c}
                 .sf-delivery-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
                 .sf-delivery-buttons .sf-cta{min-height:48px;padding:10px 12px;font-family:var(--font-sans);font-size:var(--public-supporting-size);white-space:normal;line-height:1.4}
                 .sf-delivery-buttons .sf-send-cta{grid-column:1 / -1;min-height:52px;font-size:var(--public-cta-font-size)!important}
@@ -1087,9 +1144,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-schedule-record:first-of-type{margin-top:8px}
                 .sf-schedule-record strong{display:block;font-size:12px;color:#243c2c}
                 .sf-schedule-record small{display:block;font-size:11px;color:#61746a;line-height:1.6}
-                .sf-other-messages{display:inline-flex;color:var(--accent);font-size:12px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
+                .sf-other-messages{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-size:12px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
                 .sf-top-links{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 18px}
-                .sf-top-links a{font-size:12px;font-weight:750;padding:7px 13px;border:1px solid #d7e6d3;background:#f8faf5;color:#245334;border-radius:999px;text-decoration:none}
+                .sf-top-links a{display:inline-flex;align-items:center;min-height:42px;box-sizing:border-box;font-size:12px;font-weight:750;padding:7px 13px;border:1px solid #d7e6d3;background:#f8faf5;color:#245334;border-radius:999px;text-decoration:none}
                 .sf-top-links a:hover{background:#ecf7e0}
                 .sf-top-links a:focus-visible{outline:2px solid #356e38;outline-offset:2px}
                                 .sf-review-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:grid;gap:12px}
@@ -1134,7 +1191,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-selection-actions>small{color:var(--text-muted);font-size:12px}
                 .sf-selection-actions .sf-cta{font-size:13px;min-height:44px;padding:0 16px}
                 @media(max-width:1080px){.sf-workbench{grid-template-columns:minmax(0,1fr)}}
-                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid,.sf-identity-fields,.sf-delivery-buttons{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}.sf-progress{gap:5px}.sf-progress li{font-size:10px;padding:5px 7px}.sf-private-indicator{margin-top:4px}}
+                @media(max-width:600px){.sf-wrap{padding:12px}.sf-compose{padding:14px}.sf-upload-area .sf-grid,.sf-identity-fields,.sf-delivery-buttons{grid-template-columns:minmax(0,1fr)}.sf-lookup{grid-template-columns:minmax(0,1fr)}.sf-workbench-heading>span{display:none}.sf-progress{gap:5px}.sf-progress li{font-size:10px;padding:5px 7px}.sf-private-indicator{margin-top:4px}.sf-description-editor{padding:13px}.sf-top-links{display:grid;grid-template-columns:1fr 1fr}.sf-top-links a{justify-content:center;text-align:center}.sf-top-links a:last-child{grid-column:1/-1}.sf-schedule-controls{display:grid;grid-template-columns:1fr}.sf-schedule-controls .sf-cta{width:100%}}
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
                   display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));

@@ -7,7 +7,8 @@
  * the existing sender and Meta decide the actual message and dynamic payload.
  */
 import React from 'react';
-import type { SecureFile } from '../../../api/client';
+import Link from 'next/link';
+import { getSystemConfigResult, getTemplateDetails, type SecureFile } from '../../../api/client';
 import {
   rupeesFromPaise,
   type ServicePaymentTemplates,
@@ -120,6 +121,34 @@ function fileSize ( bytes: number | undefined ): string {
   return ( bytes / 1048576 ).toFixed( 1 ) + ' MB';
 }
 
+type MetaTemplateCopy = { body: string; footer: string; buttons: string[]; status: string };
+
+/** Only render actual text if the staff Meta template read supplied its BODY.
+ * Never present a hand-authored illustration as approved live copy. */
+export function parseMetaTemplateCopy ( raw: unknown ): MetaTemplateCopy | null {
+  if ( !raw || typeof raw !== 'object' ) return null;
+  const row = raw as Record<string, unknown>;
+  if ( !Array.isArray( row.components ) ) return null;
+  let body = '';
+  let footer = '';
+  const buttons: string[] = [];
+  for ( const value of row.components ) {
+    if ( !value || typeof value !== 'object' ) continue;
+    const part = value as Record<string, unknown>;
+    const kind = String( part.type || '' ).toUpperCase();
+    if ( kind === 'BODY' && typeof part.text === 'string' ) body = part.text;
+    if ( kind === 'FOOTER' && typeof part.text === 'string' ) footer = part.text;
+    if ( kind === 'BUTTONS' && Array.isArray( part.buttons ) ) {
+      for ( const entry of part.buttons ) {
+        if ( entry && typeof entry === 'object'
+          && typeof ( entry as Record<string, unknown> ).text === 'string' )
+          buttons.push( String( ( entry as Record<string, unknown> ).text ) );
+      }
+    }
+  }
+  return body ? { body, footer, buttons, status: String( row.status || 'UNKNOWN' ).toUpperCase() } : null;
+}
+
 function stageBody ( step: number ): string {
   switch ( step ) {
     case 2: return '💳 Your order is ready for payment. Tap Review and Pay to complete it securely.';
@@ -183,6 +212,58 @@ export default function VaultJourneyPreview ( props: Props ) {
       metaId: metaIds?.delivery || props.journey?.steps.find( s => s.role === 'access' )?.templateId || '' },
   ];
 
+  const [ copies, setCopies ] = React.useState<Record<string, MetaTemplateCopy>>( {} );
+  const [ copyLoading, setCopyLoading ] = React.useState( false );
+  const [ accessDelay, setAccessDelay ] = React.useState<{ seconds: number; source: string }>(
+    { seconds: 4, source: 'unverified' } );
+
+  // Read the CURRENT Meta template BODY by the backend-provided ID. This API is
+  // staff-only and read-only; nothing here creates a message or alters a template.
+  React.useEffect( () => {
+    const ids = Array.from( new Set( [
+      metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery,
+    ].filter( ( id ): id is string => typeof id === 'string' && /^[0-9]+$/.test( id ) ) ) );
+    if ( ids.length === 0 ) {
+      setCopies( {} );
+      setCopyLoading( false );
+      return;
+    }
+    let active = true;
+    setCopyLoading( true );
+    void Promise.all( ids.map( async id => {
+      try {
+        // WABA1 owns the approved Vault journey. Never substitute WABA2 text.
+        const data = await getTemplateDetails( id, '2094615664435155' );
+        return { id, copy: parseMetaTemplateCopy( data ) };
+      } catch {
+        return { id, copy: null };
+      }
+    } ) ).then( results => {
+      if ( !active ) return;
+      const next: Record<string, MetaTemplateCopy> = {};
+      results.forEach( item => { if ( item.copy ) next[ item.id ] = item.copy; } );
+      setCopies( next );
+      setCopyLoading( false );
+    } );
+    return () => { active = false; };
+  }, [ metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery ] );
+
+  React.useEffect( () => {
+    let active = true;
+    void getSystemConfigResult( 'vault_delivery_timing_v1' ).then( result => {
+      if ( !active ) return;
+      if ( !result.ok ) return;
+      const raw = result.data.config;
+      if ( raw === null ) { setAccessDelay( { seconds: 4, source: 'default' } ); return; }
+      const seconds = ( raw as Record<string, unknown> ).postReceiptAccessGapSeconds;
+      if ( typeof seconds === 'number' && Number.isInteger( seconds ) && seconds >= 0 && seconds <= 5 )
+        setAccessDelay( { seconds, source: 'saved' } );
+    } ).catch( () => { /* Never pretend an unreadable setting is confirmed. */ } );
+    return () => { active = false; };
+  }, [] );
+
+  const liveCopy = templateId ? copies[ templateId ] : undefined;
+
   return (
     <aside className={ styles.preview } id="sf-journey-preview" aria-label="Vault invoice and WhatsApp preview">
       <header className={ styles.header }>
@@ -202,6 +283,17 @@ export default function VaultJourneyPreview ( props: Props ) {
         </div>
       </div>
 
+      <section className={ styles.quickFlow } aria-label="Vault message timing settings">
+        <div><small>After payment capture</small><strong>Processing → Completed: 1s fixed</strong></div>
+        <div><small>After Completed</small><strong>Paid invoice: 0s added</strong></div>
+        <div>
+          <small>Invoice accepted → Access link</small>
+          <strong>{ accessDelay.seconds }s { accessDelay.source === 'saved'
+            ? 'saved' : accessDelay.source === 'default' ? 'default' : 'default · unverified' }</strong>
+        </div>
+        <Link href="/workspace/payments?view=timing">View / edit Access delay</Link>
+      </section>
+
       <section className={ styles.messages } aria-label="WhatsApp journey preview">
         <div className={ styles.sectionTitle }>
           <h3>Vault WhatsApp templates &amp; Meta IDs</h3>
@@ -218,7 +310,7 @@ export default function VaultJourneyPreview ( props: Props ) {
             </div>
           ) ) }
         </dl>
-        <p className={ styles.templateNote }>Read-only IDs from the backend template registry; live Meta approval is rechecked by the sender. Payment status uses one approved template twice (processing → completed).</p>
+        <p className={ styles.templateNote }>These are the internal template names and IDs selected by the live pricing registry. Select a stage to read its Meta message body. The sender rechecks approval and eligibility before any customer send.</p>
         <div className={ styles.steps } role="group" aria-label="Choose a WhatsApp message step">
           { stages.map( item => (
             <button key={ item.step } type="button"
@@ -236,17 +328,38 @@ export default function VaultJourneyPreview ( props: Props ) {
         <div className={ styles.bubble }>
           <small>{ templateName }</small>
           <small>Meta Template ID: { templateId || 'Awaiting backend registry' }</small>
-          <p>{ stageBody( activeStage ) }</p>
-          { activeStage === 2 && <span className={ styles.bubbleButton }>Review and Pay · ORDER_DETAILS</span> }
-          { activeStage === 3 && <span className={ styles.smallNote }>Two separate updates: processing → completed</span> }
-          { activeStage === 4 && <span className={ styles.bubbleButton }>Leave Review · existing Flow</span> }
-          { activeStage === 5 && <span className={ styles.bubbleButton }>Access Vault · URL</span> }
+          <strong className={ styles.copySource }>{
+            liveCopy?.status === 'APPROVED' ? 'Live approved Meta message body · read-only'
+              : liveCopy ? `Meta text · status ${ liveCopy.status } (approval not confirmed)`
+                : copyLoading ? 'Loading Meta message text…'
+                  : 'Illustrative text only · live Meta body unavailable'
+          }</strong>
+          <p>{ liveCopy?.body || stageBody( activeStage ) }</p>
+          { liveCopy?.footer && <small className={ styles.metaFooter }>Footer: { liveCopy.footer }</small> }
+          { liveCopy?.buttons.length ? (
+            <div className={ styles.metaButtons } aria-label="Meta template button labels">
+              { liveCopy.buttons.map( ( label, index ) =>
+                <span className={ styles.bubbleButton } key={ index }>{ label }</span> ) }
+            </div>
+          ) : (
+            <>
+              { activeStage === 2 && <span className={ styles.bubbleButton }>Review and Pay · ORDER_DETAILS</span> }
+              { activeStage === 3 && <span className={ styles.smallNote }>Two separate status updates: processing → completed</span> }
+              { activeStage === 4 && <span className={ styles.bubbleButton }>Leave Review · existing Flow</span> }
+              { activeStage === 5 && <span className={ styles.bubbleButton }>Access Vault · URL</span> }
+            </>
+          ) }
+          <small className={ styles.metaFooter }>Variables such as {'{{1}}'} are filled by the sender at delivery.
+            This preview never sends messages or issues invoices.</small>
         </div>
 
         { mappingMismatch && <p className={ styles.warning } role="status">Backend template ID differs from the saved journey registry. Verify the WABA mapping before sending; the preview cannot change the live sender.</p> }
 
         { activeStage === 2 && (
-          <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } signedPreview />
+          <details className={ styles.mediaDetails }>
+            <summary className={ styles.disclosureTitle }>Approved payment header and item images</summary>
+            <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } signedPreview />
+          </details>
         ) }
 
         <details className={ styles.technical }>
@@ -287,9 +400,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         <p className={ styles.hint }>Only the description of the ₹49 single Vault item is editable. Quantity 1, catalogue amount, GST, fees, approved template assets and access URL remain locked. The issued receipt follows verified capture.</p>
       </section>
 
-      <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
-
-      <details open className={ styles.invoice } aria-label="₹49 Vault item description editor with locked invoice totals">
+      <details open className={ styles.invoice } aria-label="Vault item name and locked invoice totals">
         <summary className={ styles.disclosureTitle }>
           <span>Estimated invoice &amp; pricing</span>
           <strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong>
@@ -302,26 +413,14 @@ export default function VaultJourneyPreview ( props: Props ) {
         <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. Only the ₹49 Vault item's one-line description is editable; the file, quantity 1, catalogue amount and all pricing remain locked. The receipt image and tax invoice are generated only after verified payment.</p>
         <p className={ styles.customer }>{ owner } · { mobile }</p>
         { editable49Item && (
-          <div style={ { display: 'grid', gap: 6, margin: '10px 0 16px' } }>
-            <label htmlFor="sf-vault-item-description">
-              <strong>₹49 Vault item description · editable (one line)</strong>
-            </label>
-            <input
-              id="sf-vault-item-description"
-              aria-describedby="sf-vault-item-hint"
-              type="text"
-              minLength={ 12 }
-              maxLength={ 60 }
-              autoComplete="off"
-              value={ props.paymentItemDescription }
-              onChange={ e => props.onPaymentItemDescriptionChange( e.target.value ) }
-              style={ { width: '100%', boxSizing: 'border-box', padding: 12, borderRadius: 8,
-                border: '1px solid #b8c9b1', background: '#fff', color: '#1f3828' } }
-            />
-            <small id="sf-vault-item-hint">
-              Only this one ₹49 item name changes for Review &amp; Pay and the paid GST invoice PNG.
-              Price ₹49, quantity 1, taxes, discount, fees and total are server-owned and cannot be edited.
-            </small>
+          <div className={ styles.itemNamePreview }>
+            <small>₹49 WhatsApp and GST invoice item · read-only mirror</small>
+            <strong>{ invoiceItemLabel }</strong>
+            { currentFile ? (
+              <a href="#sf-vault-item-description">Edit in the Send panel above · 12–60 characters</a>
+            ) : (
+              <small>Choose a published file to edit the payment item above Send.</small>
+            ) }
           </div>
         ) }
         <div className={ styles.billRow }><span>{ invoiceItemLabel }</span><strong>{ currency( props.pricePaise ) }</strong></div>
@@ -339,6 +438,11 @@ export default function VaultJourneyPreview ( props: Props ) {
               : 'Prices are server-provided. The actual invoice image is created after verified capture.' }
         </p>
         
+      </details>
+
+      <details className={ styles.historyDetails }>
+        <summary className={ styles.disclosureTitle }>Message and delivery evidence · selected file</summary>
+        <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
       </details>
 
       <details className={ styles.delivery } aria-label="File and delivery details">

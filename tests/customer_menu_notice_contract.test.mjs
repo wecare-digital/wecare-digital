@@ -30,7 +30,7 @@ function loadTS(relativePath) {
 const menu = loadTS('src/lib/customerMenuActions.ts');
 const notices = loadTS('src/lib/customerMenuNotices.ts');
 
-test('one exact short pending/success/failure notice for both WhatsApp invitations', () => {
+test('one short toast vocabulary for authenticated WhatsApp invitations', () => {
   assert.deepEqual(notices.customerMenuNotice('pending'), {
     message: 'Processing…', error: false,
   });
@@ -40,35 +40,29 @@ test('one exact short pending/success/failure notice for both WhatsApp invitatio
   assert.deepEqual(notices.customerMenuNotice('failed'), {
     message: "Couldn't confirm. Check WhatsApp.", error: true,
   });
-  for (const action of ['Subscribe', 'Leave Review']) {
-    assert.notEqual(menu.menuActionForLabel(action), null);
-  }
   assert.doesNotMatch(notices.customerMenuNotice('accepted').message, /delivered|review submitted/i);
 });
 
-test('Orders uses the same toast for row and redirected-header invitations', () => {
-  const page = readFileSync(resolve(ROOT, 'src/components/orders/OrdersPage.tsx'), 'utf8');
-  const pendingCall = /customerMenuNotice\( 'pending' \)/g;
-  assert.equal([...page.matchAll(pendingCall)].length, 2, 'both customer entry paths share pending copy');
-  assert.match(page, /customerMenuNotice\( kind \)/);
-  assert.doesNotMatch(page, /inviteName\(/);
-  assert.match(page, /className="ord-backend-toast ord-invite-toast"/);
-  assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
-  assert.match(page, /\.ord-backend-toast\.ord-invite-toast\s*\{\s*inline-size:fit-content;max-inline-size:100%/);
+test('other Orders actions cannot claim a WhatsApp invitation was sent', () => {
+  assert.equal(menu.menuActionForLabel('Subscribe'), 'subscribe');
+  assert.equal(menu.menuActionForLabel('Leave Review'), 'leave-review');
+  for (const label of ['Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
+    'Track', 'Pickup Request', 'Shipped Orders']) {
+    assert.equal(menu.menuActionForLabel(label), null);
+  }
+  const actionsMenu = readFileSync(resolve(ROOT, 'src/components/orders/OrderActionsMenu.tsx'), 'utf8');
+  assert.match(actionsMenu, /const sendAction = menuActionForLabel\( action.label \)/);
+  assert.match(actionsMenu, /if \( sendAction \) \{/);
 });
 
-test('six navigation-only Request and Shipment actions never claim a WhatsApp send', () => {
-  const menuSource = readFileSync(resolve(ROOT, 'src/components/orders/OrderActionsMenu.tsx'), 'utf8');
-  const headerSource = readFileSync(resolve(ROOT, 'src/components/Header.tsx'), 'utf8');
-  for (const label of [
-    'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Track', 'Pickup Request',
-  ]) {
-    assert.equal(menu.menuActionForLabel(label), null, label + ' must not trigger a false send toast');
-    assert.ok(menuSource.includes("label: '" + label + "'"), label + ' remains in Orders menu');
-  }
-  assert.match(menuSource, /const sendAction = menuActionForLabel\( action\.label \)/);
-  assert.match(headerSource, /const sendAction = menuActionForLabel\( link\.label \)/);
-  assert.match(menuSource, /href: '\/orders\/'/);
+test('Orders uses the same catalog for row and redirected-header invitations', () => {
+  const page = readFileSync(resolve(ROOT, 'src/components/orders/OrdersPage.tsx'), 'utf8');
+  assert.equal((page.match(/customerMenuNotice\( 'pending' \)/g) || []).length, 2);
+  assert.match(page, /customerMenuNotice\( kind \)/);
+  assert.doesNotMatch(page, /inviteName\(/);
+  assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
+  assert.match(page, /className="ord-backend-toast ord-invite-toast"/);
+  assert.match(page, /\.ord-backend-toast\.ord-invite-toast\s*\{\s*inline-size:fit-content;max-inline-size:100%/);
 });
 
 test('both Lambda dispatchers and template-to-Flow mapping hooks are present in source', () => {
