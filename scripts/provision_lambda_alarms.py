@@ -88,6 +88,10 @@ INVOCATION_FLOOR = int(50)
 ALWAYS = {
     "wecare-customer-whatsapp-auth": "customer sign-in; every invocation is a real person",
     "wecare-razorpay-webhook": "payment confirmation; a missed webhook is an unpaid order",
+    "wecare-commerce": "canonical Pay Flow collection, invoice issuance, and paid-order finalisation",
+    "wecare-payments-read": "staff reconciliation ledger; an error hides the payment state needed for safe retries",
+    "wecare-customer-invoice": "paid-customer invoice download; an error strands the statutory document",
+    "wecare-outbound-whatsapp": "payment request and paid-invoice messaging; send errors must reach an operator",
     "wecare-secure-files": "paid file delivery; a failure is a customer who paid and got nothing",
     "wecare-mcp": "public unauthenticated endpoint; nothing else would report it failing",
     "wecare-cognito-custom-message": "sends the sign-in email; failing it locks people out",
