@@ -664,7 +664,7 @@ export default function OrdersPage (): React.ReactElement {
           { ( ordersAlert || inviteNotice || copyNotice ) && (
             <div className="ord-toast-rail">
               { inviteNotice && (
-                <p className="ord-backend-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
+                <p className="ord-backend-toast ord-invite-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
                   { inviteNotice.message }
                 </p>
               ) }
@@ -989,6 +989,11 @@ export default function OrdersPage (): React.ReactElement {
           }
           /* Clipboard success is a short, content-width toast. Backend failures keep
              their larger readable banner; lengthy clipboard fallback text wraps. */
+          /* A short WhatsApp confirmation should be a compact notice, not a 560px banner.
+             Keep invoice/order failures readable in their existing wider alerts. */
+          .ord-backend-toast.ord-invite-toast{
+            inline-size:fit-content;max-inline-size:100%;
+          }
           .ord-backend-toast.ord-copy-toast{
             inline-size:fit-content;max-inline-size:min(100%,320px);
             margin:0;padding:8px 12px;

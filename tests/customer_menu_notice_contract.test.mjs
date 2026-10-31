@@ -61,6 +61,8 @@ test('Orders uses the same catalog for row and redirected-header invitations', (
   assert.match(page, /customerMenuNotice\( kind \)/);
   assert.doesNotMatch(page, /inviteName\(/);
   assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
+  assert.match(page, /className="ord-backend-toast ord-invite-toast"/);
+  assert.match(page, /\.ord-backend-toast\.ord-invite-toast\s*\{\s*inline-size:fit-content;max-inline-size:100%/);
 });
 
 test('both Lambda dispatchers and template-to-Flow mapping hooks are present in source', () => {
