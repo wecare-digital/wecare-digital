@@ -89,3 +89,53 @@ closed and tell the operator to open the service first.
    excluded and the all-invoices ledger still includes every record.
 5. Do not create an unnecessary live charge, resend a customer message,
    modify the FY invoice counter or change the frozen payment rail to test UI.
+
+
+## 2026-10-31: Service workspace expanded to all requested operations
+
+Staff route: `/workspace/service`. Top-level sections now include:
+
+| Workspace area | Backend identity | Staff action / fulfilment | Shared price and ledger |
+| --- | --- | --- | --- |
+| Submit Request | `SUBMIT_REQUEST`, `RSR7M2P9` | Existing owned order, paid Submit Request Meta Flow | Server catalog item price, verified service invoices |
+| Request Amendment | `REQUEST_AMENDMENT`, `RAM5Q8K4` | Amend verified existing-order request in paid Flow | Same |
+| Drop Docs | `DROP_DOCS`, `RDD9P3M7` | Document manager for **upload**; F003 after paid authorization | Same; separate upload fulfilment template |
+| Vault | `VAULT`, `RVT6K4Q8` | Staff SecureFiles and private **download** entitlement, no F003 | Same; separate download fulfilment template |
+| Shipments → Track | Catalog product `SHT8M5P3` | Existing owned-order tracking in Commerce Orders; separate paid SKU exists | Catalog price only, not a sixth service-Flow ledger |
+| Shipments → Pickup Request | `REQUEST_PICKUP`, `SHP7Q4N9` | Paid pickup Flow; separate published-asset + availability gate | Server price and verified pickup invoice ledger |
+| Contribute | `CNT5Q2M8` catalog product | Voluntary purchase; no fulfilment Flow | Catalog price/fee policy; existing commerce invoice/activity, legacy non-invoice captures stay in PaymentsTable |
+
+**Not all item prices are final totals.** Only Vault/Drop Docs have an exposed full
+server breakdown in `GET /ecommerce/service-prices`; other services can quote their
+catalog item price, but final payable authority remains the frozen backend
+checkout (GST, Delight and convenience policy can differ by service).
+
+The same approved Meta payment template and shared default IMAGE header +
+ORDER_DETAILS item icon metadata are published for the five request services.
+Their post-payment fulfilment buttons are **not interchangeable**. Contribute
+and paid Track SKU must not be advertised as request service Flows.
+
+### URL and release contract
+
+- `/workspace/service?view=vault&tab=ledger` must route to **Ledger**,
+  never `tab=logs`. `scripts/test-workspace-service-routes.mjs` tests the
+  actual TypeScript route helper at runtime for every combination.
+- `/workspace/service?view=drop-docs` opens the authenticated upload manager.
+  `/workspace/service?view=vault` opens SecureFiles; no shared file-send action.
+- `/workspace/service?view=shipments&tab=track` shows existing-order tracking
+  entry and a separate, read-only Track catalog SKU price.
+- `/workspace/service?view=shipments&tab=pickup` shows Pickup catalog price;
+  the server and public checkout keep Pickup **disabled** until separate release
+  gates confirm the published Meta asset and successful paid end-to-end flow.
+- `/workspace/payments?view=ledger&ledger=<service-slug>` reuses verified
+  `InvoiceRecords` for any of the **five** request services, and nothing else.
+- `/workspace/forms` legacy redirect `view=requests` resolves to the new
+  Submit Request staff section; it does not reopen retired public routes.
+
+**No payment initiation, message send, price write, invoice numbering or
+fulfilment mutation** is permitted by any price or ledger tab. A backend and
+Amplify release must pass the existing payment-safe checks, read back the live
+Lambda alias and Amplify job, then verify an owner-bound Vault invoice appears
+in Vault and Pay while unrelated invoices are excluded. Legacy Contribute
+settlement cannot be attributed to a statutory invoice because it intentionally
+creates none. Do not fabricate one or sum it as a paid service invoice.
