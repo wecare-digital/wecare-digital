@@ -47,6 +47,9 @@ def _outcome(response):
         if isinstance(body, dict) and str(body.get("whatsappMessageId") or "").strip():
             return "ACCEPTED"
         return "SEND_UNKNOWN"
+    # Do not classify HTTP 409 as a definitive refusal. The outbound Lambda
+    # also uses it for MESSAGE_SEND_IN_FLIGHT, where a previous keyed message
+    # may already be reaching Meta and needs reconciliation, not a fresh send.
     if code in (400, 401, 403, 404, 413, 415, 422):
         return "SEND_REJECTED"
     return "SEND_UNKNOWN"
