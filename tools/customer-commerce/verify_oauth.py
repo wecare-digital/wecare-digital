@@ -147,10 +147,10 @@ class OAuthContract(unittest.TestCase):
         for module in (auth, auth_store, auth_web, auth_authorize):
             module.STORE = self.store
             module.capsule = (
-                lambda value, client_id, key: json.dumps(value)
+                lambda value, client_id, key, token_resource=None: json.dumps(value)
             )
             module.uncapsule = (
-                lambda value, client_id, key: json.loads(value)
+                lambda value, client_id, key, token_resource=None: json.loads(value)
             )
         auth_config._CLIENTS.clear()
         self.aws_patches = [
@@ -584,6 +584,77 @@ class OAuthContract(unittest.TestCase):
         self.assertTrue(issued['access_token'].startswith('wca_'))
         with self.assertRaises(auth.AuthError):
             auth.token_exchange(request)
+
+    def test_branded_mcp_authorization_and_access_are_resource_bound(self):
+        self.params['resource'] = auth.BRANDED_RESOURCE
+        cookie, state = self.begin_oauth()
+        self.assertFalse(state['website'])
+        _, code_state = self.step(
+            cookie, {'csrf': state['csrf'], 'country': '+44',
+                     'phone': '7700900123'},
+        )
+        _, payload = self.step(
+            cookie, {'csrf': code_state['csrf'], 'code': '123456'},
+        )
+        code = parse_qs(urlparse(payload['redirect']).query)['code'][0]
+        request = {
+            'grant_type': 'authorization_code', 'client_id': 'client',
+            'resource': auth.BRANDED_RESOURCE, 'code': code,
+            'redirect_uri': REDIRECT, 'code_verifier': VERIFIER,
+        }
+        with self.assertRaises(auth.AuthError):
+            auth.token_exchange({**request, 'resource': BASE + '/mcp'})
+        issued = auth.token_exchange(request)
+        branded = {
+            'rawPath': '/mcp-branded',
+            'headers': {'authorization': 'Bearer ' + issued['access_token']},
+        }
+        delegated = auth.customer_event(branded, 'commerce:read')
+        self.assertEqual(
+            delegated['headers']['authorization'],
+            'Bearer ' + self.cognito.access,
+        )
+        with self.assertRaises(auth.AuthError):
+            auth.customer_event({**branded, 'rawPath': '/mcp'}, 'commerce:read')
+        with self.assertRaises(auth.AuthError):
+            auth.token_exchange(request)
+
+    def test_original_mcp_token_cannot_authorize_branded_route(self):
+        cookie, state = self.begin_oauth()
+        _, code_state = self.step(
+            cookie, {'csrf': state['csrf'], 'country': '+44',
+                     'phone': '7700900123'},
+        )
+        _, payload = self.step(
+            cookie, {'csrf': code_state['csrf'], 'code': '123456'},
+        )
+        code = parse_qs(urlparse(payload['redirect']).query)['code'][0]
+        issued = auth.token_exchange({
+            'grant_type': 'authorization_code', 'client_id': 'client',
+            'resource': BASE + '/mcp', 'code': code,
+            'redirect_uri': REDIRECT, 'code_verifier': VERIFIER,
+        })
+        with self.assertRaises(auth.AuthError):
+            auth.customer_event({
+                'rawPath': '/mcp-branded',
+                'headers': {'authorization': 'Bearer ' + issued['access_token']},
+            }, 'commerce:read')
+        result = auth.customer_event({
+            'rawPath': '/mcp',
+            'headers': {'authorization': 'Bearer ' + issued['access_token']},
+        }, 'commerce:read')
+        self.assertEqual(
+            result['headers']['authorization'],
+            'Bearer ' + self.cognito.access,
+        )
+
+    def test_unrecognized_resource_still_fails_closed(self):
+        params = {**self.params, 'resource': 'https://other.example/mcp'}
+        result = auth.route({
+            'rawPath': '/auth/state', 'rawQueryString': urlencode(params),
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        self.assertEqual(result['statusCode'], 400)
 
     def test_invalid_content_type_is_rejected(self):
         result = auth.route(
