@@ -3953,6 +3953,57 @@ _ORDER_PAGE_URL = 'https://wecare.digital/orders/'
 _ORDER_PAGE_LINK_CHANNEL = 'order-page-link'
 
 
+def _verified_paid_track_next_action(invoice: Dict, payref: Dict) -> bool:
+    """Read only: does this EXACT captured invoice contain paid Track Shipping?
+
+    Track Shipping is a catalog SKU, not one of the five request-service kinds.
+    The same post-invoice Flow launcher requires a finalized payment attempt
+    holding that SKU. Never decide from an invoice label or phone number.
+    This helper cannot create a payment or send a message.
+    """
+    attempt_id = str((payref or {}).get('paymentAttemptId') or '').strip()
+    reference_id = str(invoice.get('referenceId') or '').strip()
+    provider_id = str(invoice.get('providerPaymentId') or invoice.get('paymentId') or '').strip()
+    if not attempt_id or not provider_id or not reference_id:
+        return False
+    try:
+        attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+            Key={'paymentAttemptId': attempt_id}, ConsistentRead=True
+        ).get('Item') or {}
+        # Do not suppress a generic order link unless the payment belongs to
+        # this invoice and the service Flow's own paid/finalized gates pass.
+        if (str(attempt.get('referenceId') or '') != reference_id
+                or str(attempt.get('verifiedProviderPaymentId') or '') != provider_id
+                or str(attempt.get('status') or '') != 'PAYMENT_PAID'
+                or str(attempt.get('finalizationStage') or '') != 'ORDER_FINALIZED'
+                or attempt.get('singleOrderService') is True):
+            return False
+        linked_invoice = str(attempt.get('invoiceId') or '')
+        if linked_invoice and linked_invoice != str(invoice.get('invoiceId') or ''):
+            return False
+        invoice_paise = service_invoice_ledger._paise(invoice.get('total'))
+        charged = Decimal(str(attempt.get('verifiedCapturedPaise') or ''))
+        if (invoice_paise is None or not charged.is_finite()
+                or charged != charged.to_integral_value()
+                or int(charged) != invoice_paise):
+            return False
+        invoice_lines = attempt.get('invoiceLines')
+        lines = invoice_lines.get('lines') if isinstance(invoice_lines, dict) else None
+        if not isinstance(lines, list):
+            return False
+        return sum(
+            1 for row in lines
+            if isinstance(row, dict)
+            and str(row.get('variantId') or '').strip().upper() == 'SHT8M5P3'
+            and type(row.get('quantity')) is int and row['quantity'] == 1
+        ) == 1
+    except Exception:
+        # Evidence unavailable: never claim this paid Track action was sent.
+        # The generic order page can still be useful to the customer; the
+        # dedicated launcher independently enforces payment/Flow idempotency.
+        return False
+
+
 def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
                           phone_number_id: str, keys_table: Any, request_id: str) -> str:
     """Send a WhatsApp buyer their order page once the paid invoice was accepted.
@@ -4004,6 +4055,13 @@ def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
                 and (service_code in service_invoice_ledger.SERVICE_KINDS
                      or (payref or {}).get('nativeCatalogService') is True)):
             return 'service_next_action_priority'
+
+        # Track Shipping is a separate paid catalog SKU with its own
+        # track_ship_flow next action. Do not place the generic Orders CTA
+        # ahead of it when captured payment + invoice amounts match exactly.
+        if (str(invoice.get('status') or '').lower() == 'paid'
+                and _verified_paid_track_next_action(invoice, payref)):
+            return 'paid_track_next_action_priority'
 
         if not contact_id:
             return 'no_contact'
