@@ -410,7 +410,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         if ( !file ) { toast.error( 'Choose a document first' ); return; }
         if ( !customerName ) { toast.error( 'Customer name is required' ); return; }
         if ( !customerPhone ) { toast.error( 'Customer mobile number is required' ); return; }
-        // Saving a document requires no WhatsApp text: the separate offer is optional.
+        // The private upload and publication complete before staff may request payment.
         const contentType = resolveWaMime( file );
         const validation = validateWaMediaSize( file, contentType );
         if ( !validation.ok )
@@ -481,7 +481,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setReviewFile( publishedFile );
             setMode( 'existing' );
             if ( !publishedFile )
-                toast.info( 'File is saved. Use Find to refresh the document list, then review the WhatsApp offer.' );
+                toast.info( 'File is saved. Use Find to refresh the document list, then review the direct Review & Pay action.' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
