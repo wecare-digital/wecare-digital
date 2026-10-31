@@ -139,6 +139,10 @@ def test_untrusted_url_cannot_create_a_customer_template_send() -> None:
     assert "window.sessionStorage.setItem( PENDING_KEY" in handoff
     assert "window.sessionStorage.removeItem( PENDING_KEY );" in handoff
     assert "sendCustomerMenuAction( serviceAction, session.accessToken )" in orders
+    assert "${ actionName } invite accepted." in orders
+    assert "${ actionName } invite failed. Try again." in orders
+    assert "WhatsApp accepted your" not in orders
+    assert "Could not send the ${ name } invitation." not in orders
     assert "stashCustomerMenuAction( sendAction );" in header
     assert "stashCustomerMenuAction( sendAction );" in row_menu
     assert "stashPendingOrder" not in row_menu
