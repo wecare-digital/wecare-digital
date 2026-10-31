@@ -78,11 +78,18 @@ def live_templates() -> list:
 
 
 def live_flow_definitions() -> list:
-    # The approval list intentionally omits 'components'. Read them through the
-    # separately deployed Meta template management function; this also drains
-    # provider pagination and refuses incomplete inventories.
-    rows = _invoke_get(DEFINITIONS_FUNCTION, "/whatsapp/templates",
-                       {"wabaId": WABA_ID, "maxResults": "200"}).get("templates")
+    # The approval list intentionally omits 'components'. Read them through
+    # Meta template management, whose own list endpoint follows provider
+    # pagination and returns HTTP 502 rather than a partial inventory.
+    data = _invoke_get(DEFINITIONS_FUNCTION, "/whatsapp/templates",
+                       {"wabaId": WABA_ID, "maxResults": "200"})
+    # Reject an unexpected cursor if the endpoint ever changes its response
+    # contract: do not accept a first-page-only result as authoritative.
+    paging = data.get("paging")
+    if (data.get("next_cursor") or data.get("next")
+            or (isinstance(paging, dict) and paging.get("next"))):
+        raise RuntimeError("template button inventory is incomplete")
+    rows = data.get("templates")
     if not isinstance(rows, list):
         raise RuntimeError("template button definitions unavailable")
     return rows

@@ -35,7 +35,7 @@ class LiveFlowTemplateAuditTest(unittest.TestCase):
         self.assertEqual(len(audit.FLOW_TARGETS), 9)
         self.assertEqual(audit.FLOW_TARGETS[self.drop.name], "drop_docs")
         for name, capability in audit.FLOW_TARGETS.items():
-            self.assertTrue(canonical_flows.published_flow(capability), name)
+            self.assertIsNotNone(canonical_flows.published_flow(capability), name)
             self.assertIsNotNone(whatsapp_templates.by_name(name))
 
     def test_approved_drop_docs_canonical_button_passes(self):
@@ -70,6 +70,26 @@ class LiveFlowTemplateAuditTest(unittest.TestCase):
         template = whatsapp_templates.TRACK_SHIPPING_FLOW
         row = definition(template.name, "shipments")
         self.assertFalse(audit.flow_binding_issues(template, [row]))
+
+    def test_provider_inventory_rejects_unexpected_pagination(self):
+        # The production template API exhausts Meta pages before returning.
+        # If its response contract changes, never silently trust a first page.
+        cases = (
+            {"templates": [], "next_cursor": "remaining"},
+            {"templates": [], "next": "remaining"},
+            {"templates": [], "paging": {"next": "remaining"}},
+            {"templates": None},
+        )
+        for payload in cases:
+            with self.subTest(payload=payload), patch.object(audit, "_invoke_get",
+                                                            return_value=payload):
+                with self.assertRaises(RuntimeError):
+                    audit.live_flow_definitions()
+
+    def test_complete_inventory_response_is_accepted(self):
+        with patch.object(audit, "_invoke_get", return_value={"templates": [self.definition]}) as read:
+            self.assertEqual(audit.live_flow_definitions(), [self.definition])
+            self.assertEqual(read.call_count, 1)
 
     def test_live_reads_are_get_only(self):
         calls = []
