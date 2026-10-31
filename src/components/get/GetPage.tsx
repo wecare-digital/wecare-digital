@@ -516,8 +516,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 <h1>, and the panel below is its child. The former <main className="sf-shell"> and
                 <h1 className="sf-title"> are therefore GONE - keeping either would produce two
                 mains and two h1s, which fails htmlcheck's MANY-MAIN and H1-MANY at once. The
-                stage-dependent heading is now an <h2> inside the panel, styled by the same class,
-                so nothing moves visually.
+                document-access heading is an <h2> inside the panel, while the file name
+                is its subordinate <h3>. No duplicate page landmark is introduced.
 
                 NO badgeLabel, matching the home page and /blog/: the label here would just be the
                 company name again, 109px under the header's own lockup, which is exactly what the
@@ -563,9 +563,12 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
-                                <p className="sf-empty" role={ error ? 'alert' : undefined }>
-                                    { error || 'There are no files shared with your number right now.' }
-                                </p>
+                                <div className="sf-empty-state">
+                                    <p className="sf-empty" role={ error ? 'alert' : undefined }>
+                                        { error || 'There are no files shared with your number right now.' }
+                                    </p>
+                                    <a className="sf-back-link" href="/orders/">Back to Orders</a>
+                                </div>
                             ) }
 
                             { files.map( file => {
@@ -841,9 +844,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
                 }
 
+                .sf-empty-state{display:grid;justify-items:start;gap:16px}
                 .sf-empty{
                   font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
                 }
+                .sf-back-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;
+                  border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
+                  font-weight:700;text-decoration:underline;text-underline-offset:3px}
+                .sf-back-link:hover{background:var(--public-brand-lime)}
+                .sf-back-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
