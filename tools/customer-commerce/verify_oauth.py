@@ -619,6 +619,48 @@ class OAuthContract(unittest.TestCase):
         with self.assertRaises(auth.AuthError):
             auth.token_exchange(request)
 
+    def test_branded_refresh_remains_branded_and_original_is_untouched(self):
+        self.params['resource'] = auth.BRANDED_RESOURCE
+        cookie, state = self.begin_oauth()
+        _, code_state = self.step(
+            cookie, {'csrf': state['csrf'], 'country': '+44',
+                     'phone': '7700900123'},
+        )
+        _, payload = self.step(
+            cookie, {'csrf': code_state['csrf'], 'code': '123456'},
+        )
+        code = parse_qs(urlparse(payload['redirect']).query)['code'][0]
+        issued = auth.token_exchange({
+            'grant_type': 'authorization_code', 'client_id': 'client',
+            'resource': auth.BRANDED_RESOURCE, 'code': code,
+            'redirect_uri': REDIRECT, 'code_verifier': VERIFIER,
+        })
+        refresh = {
+            'grant_type': 'refresh_token', 'client_id': 'client',
+            'resource': auth.BRANDED_RESOURCE,
+            'refresh_token': issued['refresh_token'],
+        }
+        # A mismatched resource must fail before consuming the correct token.
+        with self.assertRaises(auth.AuthError):
+            auth.token_exchange({**refresh, 'resource': BASE + '/mcp'})
+        rotated = auth.token_exchange(refresh)
+        self.assertNotEqual(rotated['refresh_token'], issued['refresh_token'])
+        with self.assertRaises(auth.AuthError):
+            auth.token_exchange(refresh)
+        delegated = auth.customer_event({
+            'rawPath': '/mcp-branded',
+            'headers': {'authorization': 'Bearer ' + rotated['access_token']},
+        }, 'commerce:read')
+        self.assertEqual(
+            delegated['headers']['authorization'],
+            'Bearer ' + self.cognito.access,
+        )
+        with self.assertRaises(auth.AuthError):
+            auth.customer_event({
+                'rawPath': '/mcp',
+                'headers': {'authorization': 'Bearer ' + rotated['access_token']},
+            }, 'commerce:read')
+
     def test_original_mcp_token_cannot_authorize_branded_route(self):
         cookie, state = self.begin_oauth()
         _, code_state = self.step(
