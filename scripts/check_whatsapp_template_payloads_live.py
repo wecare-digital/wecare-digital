@@ -32,7 +32,8 @@ What runs for real, read-only
 
 Where a caller is not callable without its database (the invoice engine, the Workspace
 TemplateSender), its request body is mirrored here and named as such; the invoice engine to
-outbound boundary is exercised end to end by `verify_whatsapp_catalog_payment_rail.py`.
+outbound payment boundaries require separately approved manual release verification;
+the previous hermetic payment regression runner is retired.
 
 What is stubbed: the Meta send itself (the message is captured instead), contact rows, the rate
 limit, message records and media upload. Secrets Manager reads, DynamoDB/S3/CloudWatch writes,

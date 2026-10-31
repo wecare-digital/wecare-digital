@@ -5,8 +5,9 @@ Follow the current repository policy and manual validation guidance before editi
 - `AGENTS.md`
 - `docs/operations/repository-validation.md`
 
-GitHub Actions and the root test suite are retired. Do not recreate them to satisfy
-historical references. Keep this file a pointer to the current policies.
+GitHub Actions, the root test suite, and standalone offline test harnesses are retired.
+Do not recreate them under `scripts/`, `tools/`, or Amplify build commands to
+satisfy historical references. Keep this file a pointer to current policies.
 
 Important defaults:
 - Match existing code style and architecture; strict TypeScript rules and repo lint/type gates win.

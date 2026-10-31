@@ -159,9 +159,10 @@ provider parity, Meta QA, and release-owner approval before changing :live.
 1. Review and approve the payment-contract change described in
    `docs/execution/short-commerce-part1-server-review-20261030.md`
    against the existing frozen payment rail.
-2. Run the new `Short Commerce payment-safe regression` CI,
-   existing full release gates, and the hermetic WhatsApp+Razorpay
-   capture/order/invoice test on the exact tree to be bundled.
+2. Follow the current manual, release-scoped payment validation policy in
+   `docs/operations/repository-validation.md`, including reviewed WhatsApp
+   and Razorpay capture/order/invoice evidence on the exact tree to be bundled.
+   The historical CI job and test suites are retired.
 3. Stage the same bundle and shared `lambda_utils` policy on all
    **three** receivers: checkout, commerce and inbound WhatsApp.
    Verify signed package SHA, published version, alias, and that

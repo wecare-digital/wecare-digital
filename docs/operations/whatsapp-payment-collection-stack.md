@@ -64,8 +64,9 @@ Unfreeze only for one of:
 3. a statutory/accounting requirement,
 4. an owner-approved architecture RFC with migration and rollback plans.
 
-Any unfreeze PR must run the payment CI, update this runbook, and include a fresh production
-sign-off plan before merge.
+Any unfreeze PR must follow manual payment-rail validation in
+`docs/operations/repository-validation.md`, update this runbook, and include a
+fresh production sign-off plan before merge. Retired CI/tests must not be restored.
 
 ## 1. Product invariant
 
@@ -440,10 +441,12 @@ deployment instead of repository workflows.
 Before release, all of these must pass on the exact tree being deployed:
 
 1. Python compile checks for payment/messaging/shared modules.
-2. `python scripts/verify_whatsapp_catalog_payment_rail.py`.
+2. Manual payment capture, authorization/refusal, webhook, replay and invoice
+   readback using an owner-approved staged/controlled verification plan.
 3. Workspace TypeScript typecheck.
 4. Deterministic Lambda package creation through
    `scripts/deploy_all_lambdas.py::build_zip()`.
+No retired automated test suite or GitHub Actions workflow is required.
 
 After validation, deploy only through the repository's documented Lambda release tooling. Publish
 immutable versions, move the `live` aliases deliberately, then read back every alias/code hash.
@@ -490,9 +493,8 @@ When changing the payment journey, inspect/update this set in the same PR:
 - `amplify/functions/ai/ai-generate-response/handler.py`
 - `config/lambda-env-manifest.json`
 
-### Infra/release/tests
+### Infra and controlled release
 - `scripts/commerce_release_audit.py`
-- `scripts/verify_whatsapp_catalog_payment_rail.py`
 - `scripts/provision_invoice_order_status_route.py`
 - `scripts/provision_meta_catalog_sync.py`
 - `scripts/provision_meta_catalog_sync_waba2.py`
@@ -523,8 +525,9 @@ Before production promotion, prove:
 - [ ] no catalog production trigger targets `$LATEST`
 - [ ] public payment write routes point at `wecare-commerce:live`
 - [ ] new internal callers do not target rollback `wecare-checkout` or `wecare-invoice-engine`
-- [ ] payment CI/test/package jobs are green on the production commit
-- [ ] deploy job succeeded with GitHub OIDC (no static AWS keys)
+- [ ] release-scoped manual payment safety checks and deterministic packaging
+      are reviewed against the exact production commit
+- [ ] controlled deployment used an approved scoped identity (no static AWS keys)
 - [ ] all nine `live` aliases match the production artifact manifest `CodeSha256`
 
 ## 14. Failure policy

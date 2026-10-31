@@ -395,7 +395,6 @@ def collect_live() -> dict:
         "validation": {
             "typecheck": "PASS" if sh("npm run typecheck >/dev/null 2>&1; echo $?") == "0" else "FAIL",
             "lint": lint,
-            "secret_hook": sh(".venv/bin/python scripts/verify_secret_hook.py 2>&1 | tail -1"),
         },
         "aws_auth": "EXPIRED" if "expired" in sh("aws sts get-caller-identity 2>&1").lower()
                     else ("OK" if "Account" in sh("aws sts get-caller-identity 2>&1") else "UNKNOWN"),
@@ -618,7 +617,7 @@ def render_txt(d: dict) -> str:
     add("")
     add(bar); add("NEXT RECOMMENDED IMPROVEMENTS"); add(bar); add("")
     add("1. P0 - give OpenAI/Plivo a Secrets Manager home (root cause of the leak)")
-    add("2. P1 - add lint + tests + secret scanning to CI")
+    add("2. P1 - perform release-scoped lint, typecheck and secret checks without retired test/CI")
     add("3. P1 - redeploy the fleet on forward-slash packages")
     add("")
     add(bar)

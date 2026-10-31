@@ -58,10 +58,11 @@ In a reviewed and enabled environment:
   payment-system owner has approved the change to the signed-off native
   catalog/cart contract. Do not deploy code by updating live aliases as part
   of resolving a GitHub PR conflict.
-- Run `python -m unittest discover -s tests -p test_short_purchase_policy.py`
-  alongside `python -m pytest -q tests/test_short_commerce_part1.py`,
-  `node scripts/test-short-commerce-part1.mjs`, `npm run typecheck`, and
-  all existing native payment, WhatsApp inbound and invoice regression checks.
+- Follow the manual release-scoped policy in
+  `docs/operations/repository-validation.md`. Run `npm run typecheck` and
+  `npm run build`, then review native payment, WhatsApp inbound and invoice
+  evidence through an approved non-CI verification plan. Do not recreate the
+  deleted automated tests or workflows.
 - Validate single item/one unit, multi-product, quantity two, duplicate SKU,
   unknown SKU, a saved pending cart, one-time handoff, expired session, and
   WhatsApp OTP channel persistence.

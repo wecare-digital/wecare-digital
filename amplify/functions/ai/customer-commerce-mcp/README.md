@@ -98,16 +98,16 @@ with a production account number in source. For local verification:
 
 ```bash
 export CUSTOMER_COMMERCE_RUNTIME_BUCKET="your-private-artifact-bucket"
-python3 tools/customer-commerce/validate_pipeline.py \
+python3 tools/customer-commerce/prepare_release.py \
   --output /tmp/customer-commerce-release \
-  --report /tmp/customer-commerce-validation.json \
   --runtime-bucket "$CUSTOMER_COMMERCE_RUNTIME_BUCKET"
 ```
 
-The runner executes the conversation checks, OAuth/OTP checks, website/OAuth
-session-isolation checks, deterministic release build, and exact packaged-runtime
-checks. `prepare_release.py` also rejects backend presentation code, dial-code
-drift, return-path drift, and unallowlisted service paths.
+The previous offline-test runner is retired. Invoke `prepare_release.py` directly
+to compile source, package deterministic release artifacts, and reject backend
+presentation code, dial-code drift, return-path drift, and unallowlisted service
+paths. Separately review authorization, isolation and payment behavior before
+releasing; successful packaging is not a substitute for those reviews.
 
 A successful build emits:
 
