@@ -1,6 +1,6 @@
 /**
  * Operator-editable delay only between the paid invoice and Access Vault.
- * Native Review & Pay, processing, completed and receipt have no added wait.
+ * Processing -> Completed has a fixed 1s gap for Vault. All other steps before the paid receipt have no added wait.
  * Payment capture and exact-file entitlement remain mandatory event gates.
  */
 import React from 'react';
@@ -104,7 +104,7 @@ const VaultDeliveryTiming: React.FC = () => {
     <section style={ { display: 'grid', gap: 18, maxWidth: 980, padding: '12px 0 32px' } } aria-label="Vault delivery timing and media">
       <div>
         <h2 style={ { margin: '0 0 8px' } }>Access Vault delivery delay</h2>
-        <p style={ { margin: 0 } }>The only adjustable WhatsApp delay is after the paid receipt. Native Review &amp; Pay, processing, completed and invoice have no artificial wait. The customer still authorizes payment, and a paid entitlement is required to send access.</p>
+        <p style={ { margin: 0 } }>Only Access Vault timing is editable. Native Review &amp; Pay and payment-to-Processing have no wait; Processing → Completed has a fixed 1-second gap; Completed → paid invoice has a 0-second gap. The customer must approve payment and retain a paid entitlement.</p>
       </div>
       <div style={ { display: 'grid', gap: 14, maxWidth: 530 } }>
         <label style={ { display: 'grid', gap: 6 } }>
@@ -117,13 +117,49 @@ const VaultDeliveryTiming: React.FC = () => {
         </label>
       </div>
       <p style={ { margin: 0, fontSize: 13 } }>
-        <strong>Other steps:</strong> Review &amp; Pay → customer approval → processing → completed → paid invoice: event-gated and sent without an added timer.
+        <strong>Other steps:</strong> Review &amp; Pay → customer approval → Processing (no wait) → Completed (fixed 1 second) → paid invoice (0 seconds).
+        All transitions still require their payment and provider-status gates.
       </p>
       { error && <p role="alert" style={ { color: '#b91c1c' } }>{ error }</p> }
       { message && <p role="status">{ message }</p> }
       <div><button type="button" disabled={ loading || saving || !canSave } onClick={ () => { void save(); } }>
         { saving ? 'Saving…' : 'Save delivery timing' }
       </button></div>
+      <section aria-label="Approved Vault WhatsApp template IDs" style={ { display: 'grid', gap: 10, maxWidth: 960 } }>
+        <h3 style={ { margin: 0, fontSize: 16 } }>Approved template IDs · read-only live catalogue</h3>
+        <p style={ { margin: 0, fontSize: 12 } }>
+          Names and Meta IDs below come from the server&apos;s service-pricing contract, not from a staff text field.
+          If unavailable, verify the template registry before sending.
+        </p>
+        <div style={ { overflowX: 'auto' } }>
+          <table style={ { width: '100%', minWidth: 620, borderCollapse: 'collapse', fontSize: 12 } }>
+            <thead><tr style={ { textAlign: 'left', borderBottom: '1px solid var(--border)' } }>
+              <th scope="col">Send</th><th scope="col">Meta template</th><th scope="col">Template ID</th><th scope="col">Timing</th>
+            </tr></thead>
+            <tbody>
+              { [
+                { step: 'Review & Pay', name: templates?.nativePay, id: templates?.templateIds?.nativePay, when: 'Customer approval; no added delay' },
+                { step: 'Processing', name: templates?.orderStatus, id: templates?.templateIds?.orderStatus, when: 'After verified capture; no added delay' },
+                { step: 'Completed', name: templates?.orderStatus, id: templates?.templateIds?.orderStatus, when: 'Fixed 1s after accepted Processing' },
+                { step: 'Paid invoice image', name: templates?.receipt, id: templates?.templateIds?.receipt, when: '0s after Completed, once issued' },
+                { step: 'Access Vault link', name: templates?.delivery, id: templates?.templateIds?.delivery, when: `${ value.postReceiptAccessGapSeconds }s after invoice acceptance` },
+              ].map( item => (
+                <tr key={ item.step } style={ { borderBottom: '1px solid var(--border-light, var(--border))' } }>
+                  <td style={ { padding: '10px 6px' } }>{ item.step }</td>
+                  <td style={ { padding: '10px 6px' } }><code>{ item.name || 'Server quote unavailable' }</code></td>
+                  <td style={ { padding: '10px 6px' } }><code>{ item.id || 'ID verification pending' }</code></td>
+                  <td style={ { padding: '10px 6px' } }>{ item.when }</td>
+                </tr>
+              ) ) }
+            </tbody>
+          </table>
+        </div>
+        <p style={ { margin: 0, fontSize: 12 } }>
+          The approved download button points to <code>{ 'https://wecare.digital/vault/?file={{1}}' }</code>.
+          WhatsApp replaces <code>{ '{{1}}' }</code> with the server-bound file ID.
+          This customer-facing Vault page is not a presigned S3 document URL.
+        </p>
+      </section>
       <PaymentTemplateMedia serviceLabel="Vault" templates={ templates } signedPreview />
       <p style={ { fontSize: 13, color: 'var(--text-muted)' } }>
         The header and item images are approved S3 assets. The signed preview is short-lived and
