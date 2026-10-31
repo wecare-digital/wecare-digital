@@ -26,6 +26,8 @@ on:
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'scripts/check_whatsapp_templates_live.py'
       - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'tests/test_drop_docs_published_flow_audit.py'
+      - 'scripts/check_drop_docs_published_flow_live.py'
       - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
       - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
       - 'scripts/test-short-commerce-part1.mjs'
@@ -65,6 +67,8 @@ on:
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'scripts/check_whatsapp_templates_live.py'
       - 'tests/test_whatsapp_flow_template_audit.py'
+      - 'tests/test_drop_docs_published_flow_audit.py'
+      - 'scripts/check_drop_docs_published_flow_live.py'
       - 'amplify/functions/shared/lambda_utils/canonical_flows.py'
       - 'amplify/functions/shared/lambda_utils/whatsapp_templates.py'
       - 'scripts/test-short-commerce-part1.mjs'
@@ -101,7 +105,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_vault_review_pay_image_compatibility_20261031.py
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_drop_docs_published_flow_audit.py
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
       - name: Release attestation checker (offline, no AWS access)
         run: python -m unittest discover -s tests -p test_short_commerce_live.py
