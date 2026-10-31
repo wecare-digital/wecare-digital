@@ -1837,98 +1837,58 @@ def _customer_request_payment(
 
 
 def _admin_send_vault_offer(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Send the approved Vault-ready offer for exactly one verified owner-bound file.
+    """Compatibility tombstone: never emit a new retired Unlock Vault template.
 
-    A staff upload does not initiate payment: the signed Unlock Vault reply is the gate
-    that creates the normal one-file native Review and Pay request. Keep the customer
-    request-payment route intact for direct authenticated checkout.
+    Previously sent signed quick replies still resolve through catalogService.unlock;
+    removing the outbound sender must not strand those existing customers.
     """
-    body = json.loads(event.get("body") or "{}")
-    if not isinstance(body, dict):
-        return cors_response(400, {"error": "OFFER_BODY_REQUIRED"}, origin)
-    # Only the approved template body {{1}} may be edited; never accept caller
-    # overrides of the file, price, customer, media or signed Unlock Vault token.
-    offer_text = None
-    if "offerBodyText" in body:
-        candidate = body["offerBodyText"]
-        if (not isinstance(candidate, str) or not candidate or len(candidate) > 60
-                or whatsapp_templates.vault_offer_document_name(candidate) != candidate):
-            return cors_response(400, {
-                "error": "VAULT_OFFER_TEXT_INVALID",
-                "message": "Enter one line of 1-60 characters for WhatsApp {{1}}; no markup.",
-            }, origin)
-        offer_text = candidate
-    item, refusal = _owned_file_for_admin(file_id)
-    if refusal:
-        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
-    state = _file_access_state(item, int(time.time()))
-    if state in ("OPEN", "READY"):
-        return cors_response(409, {"error": "VAULT_ACCESS_ACTIVE",
-                                   "message": _VAULT_OFFER_REPLIES["VAULT_ACCESS_ACTIVE"][1]}, origin)
-    if state == "PAID_UNVERIFIED":
-        return cors_response(409, {"error": "PAID_UNVERIFIED",
-                                   "message": "Access needs reconciliation; do not request payment again."}, origin)
-    if state not in ("UNPAID", "EXPIRED"):
-        return cors_response(409, {"error": "VAULT_FILE_UNAVAILABLE"}, origin)
-    # Read identity and file attributes from SecureFilesTable, not from the staff request body.
-    actor = str((event.get("_auth") or {}).get("username") or "staff")[:64]
-    send_payload = {
-        "internalAction": "catalogService", "action": "sendVaultOffer",
-        "fileId": str(item["fileId"]),
-        "ownerCustomerId": str(item["ownerCustomerId"]),
-        "ownerPhone": str(item["ownerPhone"]),
-        "requestedBy": actor,
-    }
-    if offer_text is not None:
-        send_payload["offerBodyText"] = offer_text
-    try:
-        response = _lambda_client().invoke(
-            FunctionName=BUSINESS_API_FUNCTION,
-            InvocationType="RequestResponse",
-            Payload=json.dumps(send_payload).encode("utf-8"),
-        )
-        answer = json.loads(response["Payload"].read() or b"{}")
-        if response.get("FunctionError") or not isinstance(answer, dict):
-            answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
-    except Exception as exc:
-        # A timeout can follow Meta acceptance; never automatically send another offer.
-        logger.warning(json.dumps({"event": "vault_offer_invoke_unconfirmed",
-                                   "error": type(exc).__name__}))
-        answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
-    outcome = str(answer.get("outcome") or "VAULT_OFFER_UNCONFIRMED")
-    # Preserve only the provider message ID of this confirmed send. An unconfirmed
-    # attempt must not retain the prior send's WAMID or claim handset delivery.
-    wamid = str(answer.get("whatsappMessageId") or "") if outcome == "VAULT_OFFER_SENT" else ""
-    if not wamid.startswith("wamid.") or len(wamid) > 512:
-        wamid = ""
-    code, message = _VAULT_OFFER_REPLIES.get(
-        outcome, (502, "The Vault-ready request could not be completed. Nothing was charged."))
-    try:
-        offer_audit_values = {
-            ":actor": actor,
-            ":when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            ":status": outcome[:80],
-            ":msg": wamid,
-        }
-        audit_update = ("SET lastOfferRequestedBy=:actor, lastOfferRequestedAt=:when, "
-                        "lastOfferOutcome=:status, lastOfferMessageId=:msg")
-        if offer_text is not None:
-            offer_audit_values[":text"] = offer_text
-            audit_update += ", lastOfferBodyText=:text"
-        _table(FILES_TABLE).update_item(
-            Key={"fileId": file_id},
-            UpdateExpression=audit_update,
-            ExpressionAttributeValues=offer_audit_values,
-        )
-    except Exception as exc:
-        logger.warning(json.dumps({"event": "vault_offer_audit_failed",
-                                   "error": type(exc).__name__}))
-    result = {"outcome": outcome, "fileId": file_id, "message": message,
-              "renewal": state == "EXPIRED"}
-    if code >= 400:
-        result["error"] = outcome
-    return cors_response(code, result, origin)
+    return _no_store(cors_response(410, {
+        "error": "VAULT_OFFER_RETIRED",
+        "message": "Unlock Vault offers are retired. Send the owner-bound Review & Pay request.",
+    }, origin))
 
+
+def _admin_payment_media_preview(origin: str) -> Dict[str, Any]:
+    """Presigned S3 GETs for exactly two approved, non-customer payment images.
+
+    Only staff Operators reach this endpoint. Never accept a caller-supplied key:
+    a signing endpoint with any fileId or arbitrary S3 key could bypass the Vault
+    payment/ownership gates. These URLs are display-only and expire after 60s.
+    """
+    from lambda_utils import template_media
+
+    approved = {
+        "headerPreviewUrl": "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png",
+        "itemPreviewUrl":
+            "secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png",
+    }
+    media = {
+        "headerPreviewUrl": template_media.PAYMENT_TEMPLATE_HEADER,
+        "itemPreviewUrl": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
+    }
+    if any(key not in template_media.RETAINED_MEDIA_KEYS
+           or media[name] != "https://wecare.digital/get/" + key
+           for name, key in approved.items()):
+        return _no_store(cors_response(503, {
+            "error": "PAYMENT_MEDIA_NOT_APPROVED",
+        }, origin))
+    client = _s3_client()
+    signed = {}
+    try:
+        for name, key in approved.items():
+            client.head_object(Bucket=BUCKET, Key=key)
+            signed[name] = client.generate_presigned_url(
+                "get_object", Params={"Bucket": BUCKET, "Key": key},
+                ExpiresIn=60, HttpMethod="GET",
+            )
+    except Exception as error:
+        logger.warning(json.dumps({
+            "event": "vault_media_preview_unavailable", "reason": type(error).__name__,
+        }))
+        return _no_store(cors_response(503, {
+            "error": "PAYMENT_MEDIA_PREVIEW_UNAVAILABLE",
+        }, origin))
+    return _no_store(cors_response(200, {**signed, "expiresInSeconds": 60}, origin))
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     """Staff-triggered native Review and Pay for one owner-bound Vault file.
@@ -2992,7 +2952,7 @@ def _path_parts(event: Dict[str, Any]) -> Tuple[str, list]:
 VAULT_SCHEDULE_TABLE = os.environ.get(
     "SCHEDULED_TABLE", "stack-wecare-digital-ScheduledMessagesTable")
 VAULT_SCHEDULE_KIND = "VAULT_ACTION_V1"
-VAULT_SCHEDULE_ACTIONS = {"offer", "payment", "access"}
+VAULT_SCHEDULE_ACTIONS = {"payment", "access"}  # legacy offer schedules fail closed
 VAULT_SCHEDULE_MAX_ITEMS = 20
 _DDB_SERIALIZER = TypeSerializer()
 
@@ -3462,6 +3422,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if tail == ["publish-document"] and method == "POST":
             return _admin_publish_document(event, origin)
+        if tail == ["payment-media-preview"] and method == "GET":
+            return _admin_payment_media_preview(origin)
         # Retired 2026-10-28: Vault no longer accepts a direct upload path.
         # Drop Docs is the only intake store; Vault rows are created only by publish-document.
         # Keep an explicit 410 during rollout so an old client cannot silently mint a second
