@@ -1,18 +1,24 @@
 # Authenticated home-menu WhatsApp template invitations
 
-Feature branch: `feature/authenticated-service-menu-templates-20261031`.
-This document describes source changes only. **Not production-deployed** until a
-merged/released version and controlled WhatsApp handset QA are confirmed.
+PR #2012 merged the authenticated sender and workspace logs into `wecare.digital`.
+The exact template versions were independently confirmed APPROVED on 2026-10-31.
+Production Lambdas `wecare-customer-profile:live` (v42) and
+`wecare-whatsapp-business-api:live` (v401) are active with the
+customer-profile invoke/audit IAM grants, and FlowRegistry marks F001/F002 PUBLISHED.
+The customer-facing menu must be published through a separate pinned Amplify
+release; automated source/registry checks are NOT a substitute for a handset QA send.
 
 ## User journey
 
 The public **Subscribe** and **Leave Review** menu rows (plus the same two
-per-order menu rows) now point to an internal Orders URL with an *allowlisted*
-`service` action, not a WhatsApp deep link and not a phone number.
+per-order menu rows) use clean `/orders/` links, not WhatsApp deep links and
+not phone numbers. Sending is a deliberate user-click effect, not a GET side effect.
 
-1. The Orders route reads `service=subscribe` or `service=leave-review`, stores
-   that action in same-tab sessionStorage for at most 10 minutes, and removes it
-   from the URL. No personal data appears in the URL/storage value.
+1. An unmodified click on one of these two menu items stores its allowlisted
+   action in same-tab sessionStorage for at most 10 minutes. A modified/new-tab
+   navigation, blocked storage, reload, copied link or externally crafted
+   `/orders/?service=...` URL **cannot queue a send**. The Orders route strips
+   any such legacy parameter without acting on it.
 2. If there is no valid customer Cognito session, the existing
    `/auth?return=/orders/` WhatsApp OTP sign-in runs first. The same-tab
    action survives the redirect, and is consumed **once** after sign-in.
@@ -72,10 +78,10 @@ the customer finished the Flow. Those are separate webhook/submission facts.
 
 ## Deployment and verification checklist
 
-1. Merge the feature branch; deploy the public site, the customer-profile
-   Lambda and the WhatsApp Business API Lambda **with matching revisions**.
-   Verify Lambda live aliases, permissions to audit/outbound/unified tables,
-   and that service_details and wecare_leave_review remain APPROVED.
+1. Deploy the clean-URL, explicit-click frontend from a green pinned commit.
+   Do not redeploy the active backend Lambdas just to refresh the menu. Confirm
+   the customer-profile and WhatsApp sender live aliases remain at the reviewed
+   versions, audit/invoke IAM is intact, and both templates remain APPROVED.
 2. Sync FlowRegistry with Meta. For F001/F002, the canonical flow contract,
    Meta publication state and Registry configuration must agree. Do **not**
    weaken the publication checks to force a send through a stale registry.
