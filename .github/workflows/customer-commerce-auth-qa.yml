@@ -35,6 +35,13 @@ jobs:
         run: python tools/customer-commerce/verify_oauth.py
       - name: Verify website and OAuth session isolation
         run: python tools/customer-commerce/verify_auth_isolation.py
+      - name: Verify exact packaged customer-commerce runtime
+        run: |
+          python tools/customer-commerce/prepare_release.py \
+            --output /tmp/customer-commerce-ci \
+            --runtime-bucket review-only-runtime-bucket
+          python tools/customer-commerce/verify_release.py \
+            /tmp/customer-commerce-ci/customer-commerce-runtime.zip
       - name: Public website sign-in routing smoke (no OTP, no payment)
         env:
           SITE_AUTH_BASE: https://wecare.digital/auth/state
