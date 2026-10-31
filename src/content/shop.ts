@@ -161,7 +161,8 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
 
 /**
  * Paid request products remain valid catalogue/payment identities, not separate public
- * `/shop/<slug>/` checkout pages. Every service starts from the customer's Orders hub.
+ * `/shop/<slug>/` checkout pages. Each service has its own informational public page;
+ * owner-verified payment and order actions remain on their existing secure rails.
  * Exclude by product identity AND by known service slug: Shipment Track has a distinct
  * product id but must not accidentally generate /shop/shipments-track/ in the sitemap.
  * Keep excluded identities in KNOWN_CATALOGUE_PRODUCT_IDS for existing cart receipts.
