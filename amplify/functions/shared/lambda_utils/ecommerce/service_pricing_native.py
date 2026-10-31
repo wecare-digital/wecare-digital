@@ -50,6 +50,10 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
     value = row.get("priceMinor")
     from decimal import Decimal
     if isinstance(value, Decimal):
+        # DynamoDB numbers arrive as Decimal; never truncate fractional paise
+        # (e.g. Decimal("8497.9") -> 8497 would silently undercharge).
+        if not value.is_finite() or value != value.to_integral_value():
+            raise ValueError("service variant priceMinor must be integer paise")
         value = int(value)
     return positive_paise(value)
 
