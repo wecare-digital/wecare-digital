@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
-import { orderPagePath, stashPendingOrder } from '../../lib/orderPage';
+import { orderPagePath } from '../../lib/orderPage';
 import { settlePaidCheckout } from '../../lib/checkoutHandoff';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
@@ -135,12 +135,11 @@ export default function CheckoutStatus (): React.ReactElement {
   }, [ poll ] );
 
   useEffect( () => {
-    // A website Vault renewal should return to the SAME owned document, not
-    // lose the customer in their generic orders list. Paid status is verified
-    // above and Vault verifies owner/entitlement independently on entry.
+    // A website Vault renewal returns to its own authenticated document instead.
+    // Other completed purchases go to the one compact Orders history; no receipt
+    // expansion or per-order selector is queued.
     if ( view !== 'paid' || !orderNumber || handedOffRef.current || vaultReturnFile ) return;
     handedOffRef.current = true;
-    stashPendingOrder( orderNumber );
     void router.replace( orderPagePath( orderNumber ) ).catch( () => undefined );
   }, [ orderNumber, router, view, vaultReturnFile ] );
 
@@ -194,7 +193,7 @@ export default function CheckoutStatus (): React.ReactElement {
                   Return to Vault · Download
                 </Link>
               ) }
-              <Link className="co-auth-action" href={ orderPagePath( orderNumber ) }>View order</Link>
+              <Link className="co-auth-action" href={ orderPagePath( orderNumber ) }>View orders</Link>
             </div>
           ) }
 

@@ -8,7 +8,7 @@ CHECKOUT = (ROOT / "src/pages/checkout/index.tsx").read_text(encoding="utf-8")
 CART_COMPAT = (ROOT / "src/pages/cart.tsx").read_text(encoding="utf-8")
 WHATSAPP = (ROOT / "src/pages/checkout/whatsapp.tsx").read_text(encoding="utf-8")
 HANDLER = (ROOT / "amplify/functions/ecommerce/checkout/handler.py").read_text(encoding="utf-8")
-ORDER = (ROOT / "src/components/orders/OrderDetail.tsx").read_text(encoding="utf-8")
+ORDER = (ROOT / "src/components/orders/OrdersPage.tsx").read_text(encoding="utf-8")
 INVOICE = (ROOT / "src/lib/customerInvoice.ts").read_text(encoding="utf-8")
 STATUS_PAGE = (ROOT / "src/pages/checkout/status.tsx").read_text(encoding="utf-8")
 SERVICE = (ROOT / "src/lib/serviceEntry.ts").read_text(encoding="utf-8")
@@ -88,16 +88,21 @@ def test_no_paid_order_claim_before_server_capture():
 
 
 def test_authenticated_order_table_and_real_invoice_download():
-    assert '<table className="odt-items-table">' in ORDER
+    assert '<table className="ord-table">' in ORDER
     assert "order.orderNumber" in ORDER
-    assert "order.invoiceNumber" in ORDER
-    assert "charges.supplyGstPaise" in ORDER
-    assert "Download GST invoice" in ORDER
-    assert "downloadOrderInvoice(" in ORDER
+    assert '<OrderActionIcon name="download" />' in ORDER
+    assert "downloadInvoice( order )" in ORDER
+    assert 'const MY_INVOICE_URL = ' in ORDER
+    assert "format: 'png'" in ORDER
+    assert "isSignedHttpsUrl( body.url )" in ORDER
+    assert "X-Amz-Signature" in ORDER
+    assert "featureFlags.invoiceDownload" in ORDER
+    assert "OrderDetail" not in ORDER
+    assert "invoiceNumber" not in ORDER
+    assert "charges.supplyGstPaise" not in ORDER
     assert "format: 'png'" in INVOICE
     assert "isSignedInvoiceUrl" in INVOICE
     assert "X-Amz-Signature" in INVOICE
-    assert "paymentStatus === 'captured'" in ORDER
 
 
 def _isolated_checkout_dispatch():
@@ -127,6 +132,7 @@ def _isolated_checkout_dispatch():
             CustomerNotAuthorized=type("CustomerNotAuthorized", (Exception,), {}),
             denied_response=lambda event: {"statusCode": 401}),
         "_body": lambda event: event.get("body", {}),
+        "_hardened": lambda response: response,
         "_create": _create_stub,
         "_website_quote": _quote_stub,
         "_website_prepare": lambda *_: {"statusCode": 200, "body": "prepare"},
@@ -159,3 +165,20 @@ def test_quote_stays_a_distinct_read_only_dispatch_and_explicit_create_still_wor
     # Existing older clients without an explicit action still map to the intended path.
     event["body"].pop("action")
     assert namespace["_action"](event, event["body"]) == "prepare"
+
+
+def test_retired_order_detail_read_never_returns_gst_or_creates_payment():
+    """Old app clients must not retrieve an itemized receipt or trigger checkout."""
+    namespace, calls = _isolated_checkout_dispatch()
+    event = {"requestContext": {"http": {"method": "POST"}},
+             "rawPath": "/ecommerce/checkout/status",
+             "body": {"action": "order", "orderNumber": "WD-ORD-K5VB57VG"}}
+    response = namespace["handler"](event, None)
+    assert response["statusCode"] == 410
+    assert response["body"] == {"error": "ORDER_DETAILS_RETIRED"}
+    assert "invoiceNumber" not in str(response)
+    assert "items" not in str(response)
+    assert "charges" not in str(response)
+    assert "delivery" not in str(response)
+    assert calls == []
+    assert namespace["_action"](event, event["body"]) == "order"

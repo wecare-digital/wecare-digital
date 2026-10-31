@@ -13,13 +13,8 @@ import { clearSession, getSession, restoreSession } from '../../lib/customerAuth
 import { takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
-import {
-  isPublicOrderNumber, orderNumberFromUrl, stashPendingOrder, takePendingOrder,
-} from '../../lib/orderPage';
-import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
-import OrderDetail from './OrderDetail';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -52,10 +47,10 @@ import OrderDetail from './OrderDetail';
  * row at all (finalization stages PURCHASED_SNAPSHOT_MISSING and returns before the order write),
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
  *
- * ONE ORDERS PAGE. Every purchase channel goes to /orders/, not a separate detail
- * screen. Expanding a history row fetches its own authorized item, delivery and invoice data.
- * Historical ?o= links are reduced to /orders/ and their row opens after OTP sign-in.
- * A public Order Number is a selector only; authenticated APIs verify ownership.
+ * ONE ORDERS PAGE. Every purchase channel opens only the compact history.
+ * There is no individual-order screen, expanded receipt, itemized amount,
+ * delivery address or channel tag. Old ?o= URLs sanitize to the history without
+ * opening details. Backend payment, ownership and invoice records remain intact.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -99,15 +94,11 @@ interface OrdersResponse {
   cursor?: string;
 }
 
-/**
- * The customer stays on one Orders history screen. An owned order expands inside its
- * existing row; incoming historical query links are sanitized back to /orders/.
- * There is no focus/detail page URL and no separate sign-in surface here.
- */
+/** A single history table, without per-order detail views. */
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
-type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'detail' | 'service';
+type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'service';
 interface OrdersAlert { source: AlertSource; message: string; key?: string; }
 interface CopyNotice { kind: 'success' | 'fallback'; message: string; }
 
@@ -148,30 +139,19 @@ function dateLabel ( createdAt: number | null ): string {
 }
 
 /**
- * The column shows a short date; the detail panel is where the time belongs. Same refusal as
- * `dateLabel`: an unreadable `createdAt` renders nothing rather than "Invalid Date".
- */
-function dateTimeLabel ( createdAt: number | null ): string {
-  if ( createdAt === null || !Number.isFinite( createdAt ) ) return '';
-  return new Date( createdAt * 1000 ).toLocaleString( 'en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  } );
-}
-
-/**
- * The key for the VIEW state - expansion and the copy hint. A pure module-scope function, which
+ * Stable row identity. A pure module-scope function, which
  * the styled-jsx rule permits (only JSX may not be hoisted out of the return tree).
  *
  * It is NEVER empty, which is the whole reason it is separate from the invoice map's key: a row
- * with no `orderNumber` and no `referenceId` still has a date, an amount and a status worth
- * reading, so it must still be expandable. Behaviourally identical to the old React key
+ * with no `orderNumber` and no `referenceId` still has a date, an amount and a status
+ * worth reading. Behaviourally identical to the old React key
  * (`referenceId || orderNumber || index`) - only the final fallback differs, and both are unique
  * among siblings, which is all a key must be.
  */
 const rowKey = ( order: OrderRow, index: number ) =>
   order.referenceId || order.orderNumber || `row-${ index }`;
 
-/** Per-row invoice state. Transient; the column carries it, the panel never echoes it. */
+/** Per-row invoice request state, never a second receipt display. */
 type InvoiceState = 'idle' | 'busy' | 'none' | 'failed' | 'rate';
 
 /**
@@ -370,11 +350,6 @@ export default function OrdersPage (): React.ReactElement {
   const [ cursor, setCursor ] = useState( '' );
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
-  /** Historical or post-checkout order to open within this table, never on another page. */
-  const [ requestedOrder, setRequestedOrder ] = useState( '' );
-
-  /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
-  const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
   const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
   const [ copyNotice, setCopyNotice ] = useState<CopyNotice | null>( null );
@@ -407,15 +382,6 @@ export default function OrdersPage (): React.ReactElement {
   // The expiry path unmounts the table while a timer may still be pending, and setState on an
   // unmounted tree is the warning this cleanup exists to avoid.
   useEffect( () => () => { if ( copyTimer.current ) clearTimeout( copyTimer.current ); }, [] );
-
-  /**
-   * The parameter is `rowId` and not `key`, and the name is the point: there are two keyers in
-   * the row callback - `rowId` (never empty, keys the view state) and `invoiceKey`
-   * (`order.referenceId`, may be `''`, keys the request state). `key` was the overloaded name
-   * that let one identifier stand for both, and the read then used the wrong one of the pair.
-   */
-  const toggleRow = ( rowId: string ) =>
-    setOpenRows( prev => ( { ...prev, [ rowId ]: !prev[ rowId ] } ) );
 
   /**
    * Only the unmodified order identifier is copied. The top-right toast confirms
@@ -452,14 +418,6 @@ export default function OrdersPage (): React.ReactElement {
   const dismissAlertFor = ( source: AlertSource, key?: string ) => {
     setOrdersAlert( current => current?.source === source && ( !key || current.key === key )
       ? null : current );
-  };
-
-  const detailNotice = ( orderNumber: string, message: string | null ) => {
-    if ( message ) {
-      setOrdersAlert( { source: 'detail', key: orderNumber, message } );
-    } else {
-      dismissAlertFor( 'detail', orderNumber );
-    }
   };
 
   const downloadInvoice = async ( order: OrderRow ) => {
@@ -543,13 +501,11 @@ export default function OrdersPage (): React.ReactElement {
       // sessionStorage, never by a query string. Strip old ?service= links without
       // sending anything: opening a URL must not trigger a WhatsApp template.
       const params = new URLSearchParams( window.location.search );
-      const fromUrl = orderNumberFromUrl();
-      const pending = takePendingOrder();
-      const requested = fromUrl || pending;
       if ( params.has( 'o' ) || params.has( 'service' ) ) {
-        // Preserve historical ?o= row selection, then canonicalize the URL.
+        // Legacy links go to the history, not an individual order.
         window.history.replaceState( window.history.state, '', '/orders/' );
       }
+      try { window.sessionStorage.removeItem( 'wecare.pendingOrderView' ); } catch { /* storage disabled */ }
       let session = getSession();
       if ( !session )
       {
@@ -557,10 +513,8 @@ export default function OrdersPage (): React.ReactElement {
         catch { session = null; }
       }
       if ( !live ) return;
-      if ( requested ) setRequestedOrder( requested );
       if ( !session )
       {
-        if ( requested ) stashPendingOrder( requested );
         window.location.replace( '/auth?return=/orders/' );
         return;
       }
@@ -599,16 +553,6 @@ export default function OrdersPage (): React.ReactElement {
     } )();
     return () => { live = false; };
   }, [] );
-
-  // Open a post-checkout or historical deep link inside its matching history row.
-  useEffect( () => {
-    if ( !requestedOrder || view !== 'ready' ) return;
-    const index = orders.findIndex( item => item.orderNumber === requestedOrder );
-    if ( index < 0 ) return;
-    const id = rowKey( orders[ index ], index );
-    setOpenRows( previous => previous[ id ] ? previous : { ...previous, [ id ]: true } );
-    setRequestedOrder( '' );
-  }, [ requestedOrder, orders, view ] );
 
   /**
    * The one-shot re-ask, in its own effect WITH a clearTimeout cleanup. Without the cleanup,
@@ -704,14 +648,6 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
-          { ( view === 'ready' || view === 'empty' ) && token && requestedOrder
-            && !orders.some( item => item.orderNumber === requestedOrder ) && (
-            <section className="ord-requested-order" aria-label="Requested order details in your Orders list">
-              <OrderDetail accessToken={ token } orderNumber={ requestedOrder }
-                onExpired={ expire } onNotice={ detailNotice } />
-            </section>
-          ) }
-
           { view === 'error' && (
             <div className="ord-gate">
               <button
@@ -783,11 +719,7 @@ export default function OrdersPage (): React.ReactElement {
                   </thead>
                   <tbody>
                     { orders.map( ( order, index ) => {
-                      // TWO KEYERS FOR TWO MAPS, named separately. `rowId` is view state and is
-                      // never empty; `invoiceKey` is request state and is '' when there is
-                      // nothing to ask for. One local serving both is the shape that let a read
-                      // use the wrong one of the pair and stay correct only by coincidence of
-                      // render ordering. No identifier on this page is named `key`.
+                      // Stable React row key and independent invoice request key.
                       const rowId = rowKey( order, index );
                       const invoiceKey = order.referenceId;
                       const date = dateLabel( order.createdAt );
@@ -799,10 +731,6 @@ export default function OrdersPage (): React.ReactElement {
                       // and never falls through to the date, because copying a date into a
                       // support ticket is worse than no control at all.
                       const copyValue = order.orderNumber || order.referenceId || '';
-                      const isOpen = !!openRows[ rowId ];
-                      // Derived from the render position, not the referenceId, so a row with no
-                      // identifier still gets a unique valid id and aria-controls is never empty.
-                      const detailId = `ord-detail-${ index }`;
                       // '' short-circuits rather than falling back to rowId: a row with no
                       // reference has no request this could ever key.
                       const state = ( invoiceKey && invoiceState[ invoiceKey ] ) || 'idle';
@@ -810,16 +738,6 @@ export default function OrdersPage (): React.ReactElement {
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
                       const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
-                      // ONE local, read in two places - the row tag and the panel rung - so the
-                      // two cannot disagree. Anything that is not exactly 'whatsapp' is the
-                      // website, which matches the server's own coercion and makes a row that
-                      // predates the field (or arrives from the serving index's older
-                      // projection) read as 'Website' rather than as blank.
-                      const sourceLabel = order.channel === 'whatsapp' ? 'WhatsApp' : 'Website';
-                      const note = order.status
-                        ? ( STATUS_NOTE[ order.status ] || '' )
-                        : 'Contact us and we will check.';
-
                       // FIRST MATCH WINS, and the gate plus the three structural refusals are
                       // all evaluated BEFORE any state is consulted. Computed as a word so the
                       // ladder stays readable and the JSX stays one short chain over one value.
@@ -832,68 +750,13 @@ export default function OrdersPage (): React.ReactElement {
                                   || ( order.createdAt as number ) <= 0 ? 'ineligible'
                                   : state;
 
-                      // The panel's Invoice rung, same first-match-wins shape, and row 1 carries
-                      // THE SAME FLAG TERM as the cell's first row so the two cannot drift. The
-                      // third arm omits the rung entirely rather than echoing the transient
-                      // state: the column carries that, and the panel must not grow a second
-                      // place where it can disagree with the column.
-                      const panelInvoice =
-                        ( !featureFlags.invoiceDownload || state === 'none' )
-                          ? 'No invoice for this order. Some paid orders never get one — '
-                            + 'contact us and we will check.'
-                          : !INVOICE_ELIGIBLE.has( order.status )
-                            ? 'An invoice is created once the payment is settled.'
-                            : '';
-
-                      // THE ATTRIBUTED REVIEW DOOR. `wa.me/<WABA1>?text=review <REF>`, so the
-                      // CUSTOMER messages us and their own message opens the 24-hour window the
-                      // review Flow needs. This page sends nothing.
-                      //
-                      // Deliberately reusing `copyValue`'s ladder, not `displayId`'s: the two
-                      // real identifiers and never the date, for the same reason — a date is not
-                      // something staff can resolve to an order.
-                      //
-                      // '' omits the row entirely rather than rendering an unattributed button.
-                      // A review door in a per-order panel that carries no order would attribute
-                      // nothing while looking like it does, and the direct Leave Review menu action is the
-                      // unattributed door for anyone who wants one. `isCarriableReference` is the
-                      // same bound the Lambda enforces on arrival, so the legacy spaced order
-                      // number ('WD-ORD - A1B2C3D4 - …') drops out here instead of travelling as
-                      // a mangled reference that matches no order.
-                      const reviewHref =
-                        featureFlags.reviewCta && isCarriableReference( copyValue )
-                          ? reviewWaLink( copyValue )
-                          : '';
-
                       return (
-                        <React.Fragment key={ rowId }>
-                          <tr className={ isOpen ? 'ord-tr ord-tr-open' : 'ord-tr' }>
-                            { /* aria-label is the IDENTIFIER ONLY. A <th scope="row"> is
-                                 re-announced before each data cell in a screen reader's table
-                                 mode, and its default name is its text content - which here is
-                                 the trigger, the copy button, the hint, the Ref line and the
-                                 folded date, announced five times per row. The label RENAMES the
-                                 cell; it does not hide what is in it, so everything inside stays
-                                 in the DOM, focusable and separately named. */ }
+                          <tr key={ rowId } className="ord-tr">
+                            { /* Static order label: no hidden receipt/individual-order trigger. */ }
                             <th scope="row" className="ord-td" aria-label={ displayId }>
-                              <button
-                                type="button"
-                                className="ord-ordbtn"
-                                aria-expanded={ isOpen }
-                                aria-controls={ detailId }
-                                onClick={ () => toggleRow( rowId ) }
-                              >
-                                <span
-                                  className="ord-ordno"
-                                  id={ `ord-id-${ index }` }
-                                  data-wc-no-translate
-                                >
-                                  { displayId }
-                                </span>
-                                <span className="ord-caret" aria-hidden="true">
-                                  { isOpen ? '\u25be' : '\u25b8' }
-                                </span>
-                              </button>
+                              <span className="ord-ordno" id={ `ord-id-${ index }` } data-wc-no-translate>
+                                { displayId }
+                              </span>
                               { /* Copy is available only when Clipboard API and a stable
                                    identifier exist. Feedback stays in the shared top-right toast. */ }
                               { canCopy && copyValue && (
@@ -965,47 +828,7 @@ export default function OrdersPage (): React.ReactElement {
                               </span>
                             </td>
                           </tr>
-                          { isOpen && (
-                            // A <td>, never a <th>, so the five-column header equality is
-                            // unaffected. colSpan={5} because a detail spanning fewer would
-                            // misalign the hairlines.
-                            <tr className="ord-detailrow ord-tr-open">
-                              <td className="ord-detailcell" colSpan={ 5 }>
-                                <div id={ detailId }>
-                                  <div className="ord-detail-inline">
-                                    <dl className="ord-compact-facts">
-                                      <div>
-                                        <dt>Ref</dt>
-                                        <dd data-wc-no-translate>{ order.referenceId || '—' }</dd>
-                                      </div>
-                                      <div>
-                                        <dt>Placed</dt>
-                                        <dd>{ dateTimeLabel( order.createdAt ) || '—' }</dd>
-                                      </div>
-                                      <div>
-                                        <dt>Via</dt>
-                                        <dd>{ sourceLabel }</dd>
-                                      </div>
-                                    </dl>
-                                    <div className="ord-detail-actions">
-                                      { !!reviewHref && (
-                                        <PillButton as="a" href={ reviewHref } action="Review" />
-                                      ) }
-                                    </div>
-                                    { !!panelInvoice && <p className="ord-invnote">{ panelInvoice }</p> }
-                                  </div>
-                                  { isPublicOrderNumber( order.orderNumber ) && token && (
-                                    <div className="ord-detail-full">
-                                      <OrderDetail accessToken={ token }
-                                        orderNumber={ order.orderNumber }
-                                        onExpired={ expire } onNotice={ detailNotice } />
-                                    </div>
-                                  ) }
-                                </div>
-                              </td>
-                            </tr>
-                          ) }
-                        </React.Fragment>
+                          
                       );
                     } ) }
                   </tbody>
@@ -1053,8 +876,8 @@ export default function OrdersPage (): React.ReactElement {
                          permanently, with no later writer able to create one. This page must
                          therefore not assert that nothing was bought. */ }
                     <p className="ord-aside">
-                      Ordered over WhatsApp, or paid in the last few minutes and don&apos;t see
-                      it here? Contact us and we will check.
+                      Made a recent payment and don&apos;t see it here? Contact us and
+                      we will check.
                     </p>
                   </>
                 ) }
@@ -1157,13 +980,8 @@ export default function OrdersPage (): React.ReactElement {
             margin:0;padding:8px 12px;
           }
 
-          /* A TABLE IS CORRECT HERE, and the 280px objection the previous comment raised is
-             answered by the container rather than by avoiding a table: .ord-tablewrap's
-             overflow-x:auto plus the shell's minmax(0,1fr) keep
-             document.documentElement.scrollWidth - vw at 0, which is what
-             tools/browser/devicecheck.js measures. The definition list, which does still
-             collapse to one column for free, is now the DETAIL PANEL's layout - which is why
-             these three rules survive the card markup being deleted. */
+          /* One five-column Orders table at every viewport, with mobile overflow in
+             the table wrapper rather than the page. No detail/receipt rows. */
           .ord-table{
             width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
@@ -1172,7 +990,7 @@ export default function OrdersPage (): React.ReactElement {
              children out with align-items:flex-start, so without a cap this wrapper is
              fit-content wide, which for a five-column table is its min-content (about 670px), and
              the overflow lands on the DOCUMENT instead of in here. Measured signed in at 375px:
-             188px of sideways page scroll with every panel closed, 309px with one open. Capped,
+             188px of sideways page scroll without this cap. Capped,
              the wrapper is never wider than its column, and at desktop widths, where the table
              fits, nothing changes. */
           .ord-tablewrap{overflow-x:auto;max-inline-size:100%;border:0;border-block-start:1px solid var(--public-hairline);border-radius:0;background:transparent}
@@ -1207,51 +1025,13 @@ export default function OrdersPage (): React.ReactElement {
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
           .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;overflow-wrap:anywhere}
 
-          /* The 14px/400/rgba(0,0,0,.54) sub-line rung, shared by all three sub-lines below the
-             identifier. Not 13px: a one-pixel "table cells are tighter" exception is not a
-             reason to leave the ladder. */
-          .ord-ref{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
-          /* The order-source tag. The SAME sub-line rung as .ord-ref, deliberately: the tag is
-             metadata about the row and promoting it with a pill, a background or a brand colour
-             would make a label compete with the order number for attention. 700 rather than 400
-             is the only departure, so it reads as a label and not as a second reference line -
-             and because the weight is doing that work, the tag is never distinguished by colour
-             alone, which is what keeps it legible to a reader who cannot tell these two greys
-             apart. Page-local on purpose: the shared control CSS under src/styles/ belongs to
-             another worktree and this rule has one consumer. */
-          .ord-src{display:block;font-size:14px;font-weight:700;color:var(--public-muted)}
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
              here, ahead of every media query, and flipped in the SAME query that hides the
              column it replaces - separating the two is what once rendered the date twice above
              767px, and a test that checked only the column would have passed on it. */
           .ord-subdate{display:none;font-size:14px;font-weight:400;color:var(--public-muted)}
-          .ord-invnote{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
 
-          .ord-ordbtn{
-            display:inline-flex;align-items:center;gap:8px;min-height:44px;
-            margin:0;padding:0;border:0;background:none;cursor:pointer;
-            font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            text-align:start;color:#1a1a1a;
-            text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;
-          }
-          /* 1px at rest, 2px on hover and focus - the hairline split applied to a TEXT
-             affordance rather than to a border, so the "2px means hoverable" signal still holds
-             without inventing a boxed control inside a table cell. The vocabulary is
-             .ord-link's, reused rather than coined. */
-          .ord-ordbtn:hover,.ord-ordbtn:focus-visible{text-decoration-thickness:2px}
-          .ord-ordbtn:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          .ord-caret{font-size:12px;color:var(--public-brand-green)}
-
-          .ord-tr-open{background:var(--public-lime-tint)}
-          .ord-detailcell{
-            padding:4px 16px 20px;border-block-end:1px solid var(--public-hairline);
-            background:var(--public-lime-tint);
-          }
-
-          .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
-          .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
-          .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
           .ord-amount{font-weight:700}
           .ord-status{
             display:inline-flex;flex-direction:column;gap:2px;
@@ -1281,22 +1061,19 @@ export default function OrdersPage (): React.ReactElement {
              "Show more orders" at rest. align-self:flex-start comes along from this body and is
              inert inside a <td>, which is not a flex container - noted so it is not read as a
              mistake. */
-          .ord-quiet,.ord-inv,.ord-copy,.ord-view{
+          .ord-quiet,.ord-inv,.ord-copy{
             align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
             background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled),.ord-view:hover{background:var(--public-lime-tint)}
-          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible,.ord-view:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-lime-tint)}
+          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
 
           /* The only differences, as overrides AFTER the shared body. font-size has to be
              re-stated because that body sets font:inherit, a shorthand that resets it. */
           .ord-inv{font-size:15px;padding:0 16px}
           .ord-copy{font-size:14px;padding:0 12px;margin-inline-start:12px}
-          /* An anchor in the button's clothes: no underline, and it may wrap at 200% text size. */
-          .ord-view{font-size:15px;padding:0 16px;text-decoration:none;text-align:center}
-
           .ord-list{
             width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:18px;
             padding:clamp(24px,3.2vw,32px);border:1px solid var(--public-hairline);
@@ -1387,10 +1164,6 @@ export default function OrdersPage (): React.ReactElement {
             font-family:var(--font-sans);font-size:var(--public-supporting-size);
             line-height:1.4;color:var(--public-body);
           }
-          .ord-ordbtn{
-            min-height:44px;border:0;background:transparent;text-decoration:none;
-            font-family:var(--font-sans);color:var(--public-heading);
-          }
           .ord-ordno{
             font-size:var(--public-supporting-size);font-weight:700;
             color:var(--public-heading);
@@ -1399,14 +1172,10 @@ export default function OrdersPage (): React.ReactElement {
             font-size:var(--public-data-size);font-weight:700;
             color:var(--public-heading);
           }
-          .ord-tr,.ord-tr-open{background:transparent}
-          .ord-tr:hover,.ord-tr-open:hover{
+          .ord-tr{background:transparent}
+          .ord-tr:hover{
             background:transparent;box-shadow:none;
           }
-          .ord-detailcell{
-            padding:12px 16px;background:transparent;
-          }
-
           /* Payment state stays readable as text, with one lime marker instead of
              tinted/grey pills. The firm state remains a weight step. */
           .ord-status,.ord-status-firm{
@@ -1430,34 +1199,6 @@ export default function OrdersPage (): React.ReactElement {
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }
-          .ord-invnote{
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-brand-green);
-          }
-          .ord-detail-inline{
-            display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;
-          }
-          .ord-compact-facts{
-            display:flex;flex-wrap:wrap;gap:8px 20px;margin:0;
-          }
-          .ord-compact-facts>div{display:flex;align-items:baseline;gap:6px}
-          .ord-compact-facts dt{
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            font-weight:700;color:var(--public-brand-green);
-          }
-          .ord-compact-facts dd{
-            margin:0;font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-body);overflow-wrap:anywhere;
-          }
-          .ord-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-          .ord-view{
-            min-height:44px;padding:0 12px;border:0;background:transparent;
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-brand-green);
-            text-decoration:underline;text-decoration-color:var(--public-brand-lime);
-            text-underline-offset:4px;
-          }
-          .ord-view:hover{background:transparent;text-decoration-thickness:2px}
           .ord-pager{margin:0;padding:10px 18px}
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
@@ -1473,7 +1214,6 @@ export default function OrdersPage (): React.ReactElement {
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
             .ord-verified{margin-inline-start:6px}
-            .ord-facts{grid-template-columns:1fr;gap:4px}
             .ord-col-date{display:none}
             .ord-subdate{display:block}
             .ord-table{min-inline-size:480px}
