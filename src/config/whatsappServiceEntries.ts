@@ -14,8 +14,9 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: canonicalFlowId( 'request_pickup' ) || '', state: 'Published on Meta; payment-gated; completion wiring guarded' },
   { slug: 'shipments-track', label: 'Track', keyword: 'Shipment Track', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: canonicalFlowId( 'shipments' ) || '', state: 'Published on Meta; canonical shipment tracking flow' },
   { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: REVIEW_FLOW_ID, state: 'Published on Meta; direct review Meta short link' },
-  // Subscribe has no website page. Customer-facing Subscribe actions go straight to this
-  // dedicated Meta conversation; keep it byte-equal to SUBSCRIBE_CTA_HREF.
+  // This explicit WhatsApp keyword entry retains its dedicated Meta short link.
+  // Public Subscribe bell/Header use an authenticated Orders invitation instead;
+  // keep this link byte-equal to SUBSCRIBE_CTA_HREF for other chat entry integrations.
   { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: canonicalFlowId( 'subscribe' ) || '', state: 'Published on Meta; direct Subscribe Meta short link' },
   { slug: 'anew', label: 'Anew', keyword: 'Start a conversation', messageLink: 'https://wa.me/message/F2D7PVR5Q45MP1', flowId: '', state: 'Public Anew conversation entry' },
   // No Meta short link exists for this entry; the empty messageLink makes whatsappServiceLink
