@@ -61,7 +61,7 @@ def test_whatsapp_command_and_rcs_template_link_to_order_history():
     body = template["component"]["text"]
     assert ORDERS_URL in body
     assert "order_id" in body  # Separate text variable, never URL interpolation.
-    assert not re.search(r"/orders/\\?", body)
+    assert not re.search(r"/orders/\?", body)
 
 
 def test_checkout_and_request_menus_use_only_orders_page():
