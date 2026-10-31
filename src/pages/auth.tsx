@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import { DEFAULT_DIAL_CODE, DIAL_CODES, findDialCode, isValidNationalLength, nationalLengthHint } from '../lib/dialCodes';
+import { authStateQuery } from '../lib/authStateQuery';
 
 type AuthPhase = 'phone' | 'code' | 'registration';
 
@@ -47,7 +48,7 @@ const AuthPage: React.FC = () => {
     let cancelled = false;
     const begin = async () => {
       try {
-        const query = new URLSearchParams( window.location.search );
+        const query = authStateQuery( new URLSearchParams( window.location.search ) );
         if ( query.size === 0 && sessionStorage.getItem( 'wecare.vault.authReturnFile' ) ) query.set( 'return', '/vault/' );
         const url = '/auth/state' + ( query.size ? `?${query.toString()}` : '' );
         const response = await fetch( url, { credentials: 'same-origin', cache: 'no-store' } );
