@@ -36,6 +36,8 @@ on:
       - 'amplify/functions/payments/invoice-engine/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'scripts/check_whatsapp_templates_live.py'
+      - 'scripts/check_invoice_copy_candidate.py'
+      - 'tests/test_invoice_copy_candidate.py'
       - 'tests/test_whatsapp_flow_template_audit.py'
       - 'tests/test_drop_docs_published_flow_audit.py'
       - 'scripts/check_drop_docs_published_flow_live.py'
@@ -110,6 +112,8 @@ on:
       - 'amplify/functions/payments/invoice-engine/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'scripts/check_whatsapp_templates_live.py'
+      - 'scripts/check_invoice_copy_candidate.py'
+      - 'tests/test_invoice_copy_candidate.py'
       - 'tests/test_whatsapp_flow_template_audit.py'
       - 'tests/test_drop_docs_published_flow_audit.py'
       - 'scripts/check_drop_docs_published_flow_live.py'
@@ -175,6 +179,8 @@ jobs:
       # Ledger helper imports the production lambda_utils package.
       # Its boto3 import is required even though the tests use fake tables.
       - run: python -m pip install --quiet pytest boto3==1.43.116
+      # Offline-only: candidate invoice copy requires Meta approval and payment-owner signoff.
+      - run: python -m unittest discover -s tests -p test_invoice_copy_candidate.py
       - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_retired_customer_service_pages_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_vault_safe_message_timeline.py tests/test_vault_post_payment_link_only_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_service_payment_contract_ledger.py tests/test_post_payment_service_next_action_20261031.py tests/test_service_flow_delivery_outcome_20261031.py tests/test_workspace_service_pricing_20261031.py tests/test_request_service_contracts.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
       # Run only the two profile-related source contracts; the legacy module contains
       # an unrelated CartPage assertion for an old checkout surface.
