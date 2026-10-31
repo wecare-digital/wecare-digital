@@ -3418,6 +3418,26 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
     }))
 
 
+def _is_paid_vault_checkout(reference_id: str) -> bool:
+    """Only real server-bound Vault native payments receive the fixed 1s status gap."""
+    if not reference_id:
+        return False
+    try:
+        payref = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        attempt_id = str(payref.get('paymentAttemptId') or '')
+        if not attempt_id:
+            return False
+        attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+            Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+        return (attempt.get('nativeCatalogService') is True
+                and str(attempt.get('serviceKind') or '') == 'VAULT')
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'vault_order_status_kind_unavailable',
+                                   'reason': type(error).__name__}))
+        return False
+
+
 def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
                              request_id: str, *, invoice_id: str = '') -> None:
     """Finish the payment-only Meta lifecycle: pending -> processing -> completed.
@@ -3458,10 +3478,12 @@ def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number
             }))
             return
 
-        # Send completed immediately after processing is accepted/already current.
-        # No Vault-specific sleep is allowed between processing, completed or
-        # the paid invoice. Event-state checks remain mandatory and the two
-        # Meta sends still have distinct, deduplicated provider message IDs.
+        # For the verified Vault service only, give Meta one second between
+        # an accepted Processing and the Completed order-status template. This
+        # is spacing, NOT a customer delivery/read receipt. No timer is added
+        # before Processing, after Completed or before the paid invoice.
+        if processing_status == 200 and _is_paid_vault_checkout(reference_id):
+            time.sleep(1)
         _invoke_order_status(
             invoice_id, 'completed', phone_number_id, request_id,
             event_prefix='order_status_completed',
