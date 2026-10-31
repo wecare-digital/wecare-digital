@@ -34,6 +34,7 @@ const VaultDeliveryTiming: React.FC = () => {
   const [ saving, setSaving ] = React.useState( false );
   const [ message, setMessage ] = React.useState( '' );
   const [ error, setError ] = React.useState( '' );
+  const [ canSave, setCanSave ] = React.useState( true );
   const [ templates, setTemplates ] = React.useState<ServicePaymentTemplates | null>( null );
 
   React.useEffect( () => {
@@ -42,17 +43,23 @@ const VaultDeliveryTiming: React.FC = () => {
       if ( !current ) return;
       if ( !result.ok ) {
         setError( 'Timing settings could not be read; saving is disabled until they load.' );
+        setCanSave( false );
         return;
       }
       const configured = readVaultTiming( result.data.config );
       if ( result.data.config !== null && !configured ) {
         setError( 'Saved timing settings are invalid. Ask an administrator to reconcile them.' );
+        setCanSave( false );
       } else {
         setValue( configured || { ...DEFAULTS } );
+        setCanSave( true );
         setError( '' );
       }
     } ).catch( () => {
-      if ( current ) setError( 'Timing settings could not be read.' );
+      if ( current ) {
+        setCanSave( false );
+        setError( 'Timing settings could not be read.' );
+      }
     } ).finally( () => { if ( current ) setLoading( false ); } );
     void fetchServicePrices().then( prices => {
       if ( current ) setTemplates( prices.vault?.available ? prices.vault.templates || null : null );
@@ -62,13 +69,14 @@ const VaultDeliveryTiming: React.FC = () => {
 
   const update = ( key: keyof Timing, raw: string ) => {
     setMessage( '' );
+    setError( '' );
     const parsed = Number( raw );
     setValue( current => ({ ...current, [key]: raw.trim() === '' ? -1 : parsed }) );
   };
 
   const save = async () => {
     setMessage( '' );
-    if ( loading || saving || error ) return;
+    if ( loading || saving || !canSave ) return;
     if ( !validVaultDelay( value.orderStatusGapSeconds )
       || !validVaultDelay( value.postReceiptAccessGapSeconds ) ) {
       setError( 'Each delay must be a whole number from 0 to 5 seconds.' );
@@ -106,7 +114,7 @@ const VaultDeliveryTiming: React.FC = () => {
           <strong>Between payment updates and receipt (seconds)</strong>
           <input aria-label="Order status and receipt gap in seconds" type="number" min="0" max="5" step="1"
             value={ value.orderStatusGapSeconds }
-            disabled={ loading || saving || !!error }
+            disabled={ loading || saving || !canSave }
             onChange={ event => update( 'orderStatusGapSeconds', event.target.value ) } />
           <small>Applied after processing and after completed, before the paid invoice send.</small>
         </label>
@@ -114,14 +122,14 @@ const VaultDeliveryTiming: React.FC = () => {
           <strong>Between accepted invoice and Access Vault (seconds)</strong>
           <input aria-label="Invoice to access gap in seconds" type="number" min="0" max="5" step="1"
             value={ value.postReceiptAccessGapSeconds }
-            disabled={ loading || saving || !!error }
+            disabled={ loading || saving || !canSave }
             onChange={ event => update( 'postReceiptAccessGapSeconds', event.target.value ) } />
           <small>Access remains owner-bound and requires a verified paid entitlement.</small>
         </label>
       </div>
       { error && <p role="alert" style={ { color: '#b91c1c' } }>{ error }</p> }
       { message && <p role="status">{ message }</p> }
-      <div><button type="button" disabled={ loading || saving || !!error } onClick={ () => { void save(); } }>
+      <div><button type="button" disabled={ loading || saving || !canSave } onClick={ () => { void save(); } }>
         { saving ? 'Saving…' : 'Save delivery timing' }
       </button></div>
       <PaymentTemplateMedia serviceLabel="Vault" templates={ templates } signedPreview />
