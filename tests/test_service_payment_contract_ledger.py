@@ -98,6 +98,8 @@ def test_unlinked_customer_invoice_cannot_fake_a_vault_purchase():
         ("status", "PAYMENT_PENDING"),
         ("verifiedProviderPaymentId", "pay_other"),
         ("verifiedCapturedPaise", 8498),
+        ("verifiedCapturedPaise", Decimal("8497.9")),
+        ("verifiedCapturedPaise", "NaN"),
         ("invoiceId", "inv-other"),
         ("referenceId", "WD-PAY-OTHER"),
         ("currency", "USD"),
