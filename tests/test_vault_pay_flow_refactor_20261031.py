@@ -179,7 +179,7 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
     def test_no_usable_file_or_expired_whatsapp_purchase_single_new_request_reply(self):
         catalog = source("amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py")
         self.assertIn("SUBMIT_NEW_REQUEST_MESSAGE", catalog)
-        self.assertIn("Submit a New Request: open https://wecare.digital/orders/", catalog)
+        self.assertIn("Submit a New Request: https://wecare.digital/submit-request/", catalog)
         self.assertIn("if state in ('UNPAID', 'OPEN', 'READY'):", catalog)
         self.assertIn("_send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)", catalog)
         self.assertIn("return {'outcome': 'VAULT_FILE_NOT_READY'}", catalog)
