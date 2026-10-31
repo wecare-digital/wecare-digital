@@ -143,15 +143,15 @@ function dateLabel ( createdAt: number | null ): string {
  * the styled-jsx rule permits (only JSX may not be hoisted out of the return tree).
  *
  * It is NEVER empty, which is the whole reason it is separate from the invoice map's key: a row
- * with no `orderNumber` and no `referenceId` still has a date, an amount and a status worth
- * reading, so it must still be expandable. Behaviourally identical to the old React key
+ * with no `orderNumber` and no `referenceId` still has a date, an amount and a status
+ * worth reading. Behaviourally identical to the old React key
  * (`referenceId || orderNumber || index`) - only the final fallback differs, and both are unique
  * among siblings, which is all a key must be.
  */
 const rowKey = ( order: OrderRow, index: number ) =>
   order.referenceId || order.orderNumber || `row-${ index }`;
 
-/** Per-row invoice state. Transient; the column carries it, the panel never echoes it. */
+/** Per-row invoice request state, never a second receipt display. */
 type InvoiceState = 'idle' | 'busy' | 'none' | 'failed' | 'rate';
 
 /**
@@ -980,13 +980,8 @@ export default function OrdersPage (): React.ReactElement {
             margin:0;padding:8px 12px;
           }
 
-          /* A TABLE IS CORRECT HERE, and the 280px objection the previous comment raised is
-             answered by the container rather than by avoiding a table: .ord-tablewrap's
-             overflow-x:auto plus the shell's minmax(0,1fr) keep
-             document.documentElement.scrollWidth - vw at 0, which is what
-             tools/browser/devicecheck.js measures. The definition list, which does still
-             collapse to one column for free, is now the DETAIL PANEL's layout - which is why
-             these three rules survive the card markup being deleted. */
+          /* One five-column Orders table at every viewport, with mobile overflow in
+             the table wrapper rather than the page. No detail/receipt rows. */
           .ord-table{
             width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
@@ -995,7 +990,7 @@ export default function OrdersPage (): React.ReactElement {
              children out with align-items:flex-start, so without a cap this wrapper is
              fit-content wide, which for a five-column table is its min-content (about 670px), and
              the overflow lands on the DOCUMENT instead of in here. Measured signed in at 375px:
-             188px of sideways page scroll with every panel closed, 309px with one open. Capped,
+             188px of sideways page scroll without this cap. Capped,
              the wrapper is never wider than its column, and at desktop widths, where the table
              fits, nothing changes. */
           .ord-tablewrap{overflow-x:auto;max-inline-size:100%;border:0;border-block-start:1px solid var(--public-hairline);border-radius:0;background:transparent}
@@ -1030,51 +1025,13 @@ export default function OrdersPage (): React.ReactElement {
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
           .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;overflow-wrap:anywhere}
 
-          /* The 14px/400/rgba(0,0,0,.54) sub-line rung, shared by all three sub-lines below the
-             identifier. Not 13px: a one-pixel "table cells are tighter" exception is not a
-             reason to leave the ladder. */
-          .ord-ref{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
-          /* The order-source tag. The SAME sub-line rung as .ord-ref, deliberately: the tag is
-             metadata about the row and promoting it with a pill, a background or a brand colour
-             would make a label compete with the order number for attention. 700 rather than 400
-             is the only departure, so it reads as a label and not as a second reference line -
-             and because the weight is doing that work, the tag is never distinguished by colour
-             alone, which is what keeps it legible to a reader who cannot tell these two greys
-             apart. Page-local on purpose: the shared control CSS under src/styles/ belongs to
-             another worktree and this rule has one consumer. */
-          .ord-src{display:block;font-size:14px;font-weight:700;color:var(--public-muted)}
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
              here, ahead of every media query, and flipped in the SAME query that hides the
              column it replaces - separating the two is what once rendered the date twice above
              767px, and a test that checked only the column would have passed on it. */
           .ord-subdate{display:none;font-size:14px;font-weight:400;color:var(--public-muted)}
-          .ord-invnote{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
 
-          .ord-ordbtn{
-            display:inline-flex;align-items:center;gap:8px;min-height:44px;
-            margin:0;padding:0;border:0;background:none;cursor:pointer;
-            font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            text-align:start;color:#1a1a1a;
-            text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;
-          }
-          /* 1px at rest, 2px on hover and focus - the hairline split applied to a TEXT
-             affordance rather than to a border, so the "2px means hoverable" signal still holds
-             without inventing a boxed control inside a table cell. The vocabulary is
-             .ord-link's, reused rather than coined. */
-          .ord-ordbtn:hover,.ord-ordbtn:focus-visible{text-decoration-thickness:2px}
-          .ord-ordbtn:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          .ord-caret{font-size:12px;color:var(--public-brand-green)}
-
-          .ord-tr-open{background:var(--public-lime-tint)}
-          .ord-detailcell{
-            padding:4px 16px 20px;border-block-end:1px solid var(--public-hairline);
-            background:var(--public-lime-tint);
-          }
-
-          .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
-          .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
-          .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
           .ord-amount{font-weight:700}
           .ord-status{
             display:inline-flex;flex-direction:column;gap:2px;
@@ -1104,22 +1061,19 @@ export default function OrdersPage (): React.ReactElement {
              "Show more orders" at rest. align-self:flex-start comes along from this body and is
              inert inside a <td>, which is not a flex container - noted so it is not read as a
              mistake. */
-          .ord-quiet,.ord-inv,.ord-copy,.ord-view{
+          .ord-quiet,.ord-inv,.ord-copy{
             align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
             background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled),.ord-view:hover{background:var(--public-lime-tint)}
-          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible,.ord-view:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-lime-tint)}
+          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
 
           /* The only differences, as overrides AFTER the shared body. font-size has to be
              re-stated because that body sets font:inherit, a shorthand that resets it. */
           .ord-inv{font-size:15px;padding:0 16px}
           .ord-copy{font-size:14px;padding:0 12px;margin-inline-start:12px}
-          /* An anchor in the button's clothes: no underline, and it may wrap at 200% text size. */
-          .ord-view{font-size:15px;padding:0 16px;text-decoration:none;text-align:center}
-
           .ord-list{
             width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:18px;
             padding:clamp(24px,3.2vw,32px);border:1px solid var(--public-hairline);
@@ -1210,10 +1164,6 @@ export default function OrdersPage (): React.ReactElement {
             font-family:var(--font-sans);font-size:var(--public-supporting-size);
             line-height:1.4;color:var(--public-body);
           }
-          .ord-ordbtn{
-            min-height:44px;border:0;background:transparent;text-decoration:none;
-            font-family:var(--font-sans);color:var(--public-heading);
-          }
           .ord-ordno{
             font-size:var(--public-supporting-size);font-weight:700;
             color:var(--public-heading);
@@ -1222,14 +1172,10 @@ export default function OrdersPage (): React.ReactElement {
             font-size:var(--public-data-size);font-weight:700;
             color:var(--public-heading);
           }
-          .ord-tr,.ord-tr-open{background:transparent}
-          .ord-tr:hover,.ord-tr-open:hover{
+          .ord-tr{background:transparent}
+          .ord-tr:hover{
             background:transparent;box-shadow:none;
           }
-          .ord-detailcell{
-            padding:12px 16px;background:transparent;
-          }
-
           /* Payment state stays readable as text, with one lime marker instead of
              tinted/grey pills. The firm state remains a weight step. */
           .ord-status,.ord-status-firm{
@@ -1253,34 +1199,6 @@ export default function OrdersPage (): React.ReactElement {
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }
-          .ord-invnote{
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-brand-green);
-          }
-          .ord-detail-inline{
-            display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;
-          }
-          .ord-compact-facts{
-            display:flex;flex-wrap:wrap;gap:8px 20px;margin:0;
-          }
-          .ord-compact-facts>div{display:flex;align-items:baseline;gap:6px}
-          .ord-compact-facts dt{
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            font-weight:700;color:var(--public-brand-green);
-          }
-          .ord-compact-facts dd{
-            margin:0;font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-body);overflow-wrap:anywhere;
-          }
-          .ord-detail-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-          .ord-view{
-            min-height:44px;padding:0 12px;border:0;background:transparent;
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            color:var(--public-brand-green);
-            text-decoration:underline;text-decoration-color:var(--public-brand-lime);
-            text-underline-offset:4px;
-          }
-          .ord-view:hover{background:transparent;text-decoration-thickness:2px}
           .ord-pager{margin:0;padding:10px 18px}
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
@@ -1296,7 +1214,6 @@ export default function OrdersPage (): React.ReactElement {
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
             .ord-verified{margin-inline-start:6px}
-            .ord-facts{grid-template-columns:1fr;gap:4px}
             .ord-col-date{display:none}
             .ord-subdate{display:block}
             .ord-table{min-inline-size:480px}
