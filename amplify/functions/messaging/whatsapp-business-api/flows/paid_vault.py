@@ -1,8 +1,7 @@
-"""Paid Vault access followed by the approved ready and review templates."""
+"""Paid Vault access through one owner-bound dynamic download link (no raw PDF send)."""
 import os
 import json
 import time
-from datetime import datetime
 import boto3
 from lambda_utils import customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.ecommerce import vault_access
@@ -222,18 +221,12 @@ def _prepare_and_send(event, lambda_client):
                      if window_detail == 'no paid access window is available' else {})
             log_event(logger, 'vault_window_open_deferred', level='warning',
                       requestId=row['publicRequestId'], detail=window_detail, **extra)
-    # A PDF attachment is a separate ordinary document message. The approved
-    # share template has an IMAGE header and cannot carry the file itself.
-    last = contact.get('lastInboundMessageAt', 0)
-    if isinstance(last, str):
-        last = datetime.fromisoformat(last.replace('Z', '+00:00')).timestamp()
-    if file.get('deliverable') == 'pdf' and file.get('deliveryKey') and 0 <= time.time() - float(last or 0) < 86400:
-        document = {'contactId': contact['id'], 'recipientPhone': phone,
-                    'phoneNumberId': WABA1_SENDER, 'mediaType': 'document',
-                    'mediaFile': file['deliveryKey'], 'mediaFileName': file.get('originalFilename') or 'document.pdf',
-                    'content': 'Your Vault document'}
-        if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):
-            return {'outcome': 'VAULT_DOCUMENT_PENDING'}
+    # Vault is a paid, owner-bound DOWNLOAD product, not a WhatsApp PDF forwarding
+    # service. The approved Access Vault button above is the only automatic
+    # document-delivery message; customer authentication and the 24-hour
+    # entitlement remain enforced by /vault/ and secure-files. Never send a
+    # raw document attachment as a second message, even when the customer
+    # recently replied (a 24-hour chat window is not a download entitlement).
     log_event(logger, 'vault_ready', requestId=row['publicRequestId'],
               renewal=bool(grant.get('renewal')), windowOpened=window_opened)
     return {'outcome': 'VAULT_READY', 'requestId': row['publicRequestId'],
