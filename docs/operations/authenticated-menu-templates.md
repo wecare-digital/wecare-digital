@@ -122,12 +122,16 @@ and replay/idempotency were not established by that report alone**.
    distinct states. Do not close the end-to-end QA item solely on an accepted
    send or Lambda dispatch probe.
 
-**Toast copy review:** the six editable Orders invitation states (Subscribe and
-Leave Review x pending/accepted/failed) now have one source at
-`src/lib/customerMenuNotices.ts`. The complete source-level Workspace toast
-list is [`docs/audits/toast-message-catalog-20261031.md`](../audits/toast-message-catalog-20261031.md).
-Shared Workspace toasts use `src/contexts/ToastContext.tsx` and
-`src/components/Toast.tsx` instead of the Orders inline rail.
+**Orders toast copy:** Subscribe and Leave Review now use the same three short
+messages from `src/lib/customerMenuNotices.ts`: pending **Processing…**,
+accepted **Sent to WhatsApp.**, and failed **Couldn't confirm. Check WhatsApp.**
+“Sent” describes the provider's acceptance only, not confirmed delivery.
+The other Orders menu actions (Submit Request, Request Amendment, Drop Docs,
+Vault, Track, Pickup Request) currently navigate without sending an invitation;
+they must not show the success toast until backed by an accepted send.
+Shipped Orders is outside this toast-copy change. The historical
+[`toast-message catalog`](../audits/toast-message-catalog-20261031.md) records
+the earlier longer copy. Workspace notifications remain separate.
 
 ## Deployment and verification checklist
 

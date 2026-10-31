@@ -30,30 +30,35 @@ function loadTS(relativePath) {
 const menu = loadTS('src/lib/customerMenuActions.ts');
 const notices = loadTS('src/lib/customerMenuNotices.ts');
 
-test('both menu actions have exact pending, accepted, failed copy', () => {
-  for (const action of ['subscribe', 'leave-review']) {
-    const pending = notices.customerMenuNotice(action, 'pending');
-    const accepted = notices.customerMenuNotice(action, 'accepted');
-    const failed = notices.customerMenuNotice(action, 'failed');
+test('one short toast vocabulary for authenticated WhatsApp invitations', () => {
+  assert.deepEqual(notices.customerMenuNotice('pending'), {
+    message: 'Processing…', error: false,
+  });
+  assert.deepEqual(notices.customerMenuNotice('accepted'), {
+    message: 'Sent to WhatsApp.', error: false,
+  });
+  assert.deepEqual(notices.customerMenuNotice('failed'), {
+    message: "Couldn't confirm. Check WhatsApp.", error: true,
+  });
+  assert.doesNotMatch(notices.customerMenuNotice('accepted').message, /delivered|review submitted/i);
+});
 
-    assert.equal(pending.error, false);
-    assert.equal(accepted.error, false);
-    assert.equal(failed.error, true);
-    assert.match(pending.message, /WhatsApp/);
-    assert.match(accepted.message, /accepted/i);
-    assert.match(accepted.message, /Delivery is not yet confirmed/);
-    assert.doesNotMatch(accepted.message, /was delivered|has been delivered|review submitted/i);
-    assert.match(failed.message, /Check WhatsApp before trying again/);
+test('other Orders actions cannot claim a WhatsApp invitation was sent', () => {
+  assert.equal(menu.menuActionForLabel('Subscribe'), 'subscribe');
+  assert.equal(menu.menuActionForLabel('Leave Review'), 'leave-review');
+  for (const label of ['Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
+    'Track', 'Pickup Request', 'Shipped Orders']) {
+    assert.equal(menu.menuActionForLabel(label), null);
   }
-  assert.match(notices.customerMenuNotice('leave-review', 'accepted').message, /Leave Review/);
-  assert.match(notices.customerMenuNotice('subscribe', 'accepted').message, /profile update/);
+  const actionsMenu = readFileSync(resolve(ROOT, 'src/components/orders/OrderActionsMenu.tsx'), 'utf8');
+  assert.match(actionsMenu, /const sendAction = menuActionForLabel\( action.label \)/);
+  assert.match(actionsMenu, /if \( sendAction \) \{/);
 });
 
 test('Orders uses the same catalog for row and redirected-header invitations', () => {
   const page = readFileSync(resolve(ROOT, 'src/components/orders/OrdersPage.tsx'), 'utf8');
-  assert.match(page, /customerMenuNotice\( action, 'pending' \)/);
-  assert.match(page, /customerMenuNotice\( serviceAction, 'pending' \)/);
-  assert.match(page, /customerMenuNotice\( action, kind \)/);
+  assert.equal((page.match(/customerMenuNotice\( 'pending' \)/g) || []).length, 2);
+  assert.match(page, /customerMenuNotice\( kind \)/);
   assert.doesNotMatch(page, /inviteName\(/);
   assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
 });

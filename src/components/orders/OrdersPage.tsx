@@ -472,8 +472,8 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
-  const presentInviteResult = ( action: CustomerMenuAction, kind: 'accepted' | 'failed' ) => {
-    setInviteNotice( customerMenuNotice( action, kind ) );
+  const presentInviteResult = ( kind: 'accepted' | 'failed' ) => {
+    setInviteNotice( customerMenuNotice( kind ) );
   };
 
   // Orders-row actions must work on the current page without relying on a
@@ -482,7 +482,7 @@ export default function OrdersPage (): React.ReactElement {
     if ( !token || inviteInFlight.current ) return;
     inviteInFlight.current = true;
     setInviteBusy( true );
-    setInviteNotice( customerMenuNotice( action, 'pending' ) );
+    setInviteNotice( customerMenuNotice( 'pending' ) );
     void ( async () => {
       try {
         const result = await sendCustomerMenuAction( action, token );
@@ -493,9 +493,9 @@ export default function OrdersPage (): React.ReactElement {
           expire();
           return;
         }
-        presentInviteResult( action, result.kind );
+        presentInviteResult( result.kind );
       } catch {
-        if ( liveRef.current ) presentInviteResult( action, 'failed' );
+        if ( liveRef.current ) presentInviteResult( 'failed' );
       } finally {
         inviteInFlight.current = false;
         if ( liveRef.current ) setInviteBusy( false );
@@ -552,7 +552,7 @@ export default function OrdersPage (): React.ReactElement {
       // Consume BEFORE sending; refresh/back must never silently resend.
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
-        setInviteNotice( customerMenuNotice( serviceAction, 'pending' ) );
+        setInviteNotice( customerMenuNotice( 'pending' ) );
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) {
@@ -560,7 +560,7 @@ export default function OrdersPage (): React.ReactElement {
           expire();
           return;
         }
-        presentInviteResult( serviceAction, result.kind );
+        presentInviteResult( result.kind );
       }
 
       // Link pre-existing WhatsApp purchases independently of template delivery.
