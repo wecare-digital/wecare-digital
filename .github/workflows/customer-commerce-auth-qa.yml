@@ -13,6 +13,7 @@ on:
       - "amplify/functions/ai/customer-commerce-mcp/**"
       - "tools/customer-commerce/**"
       - ".github/workflows/customer-commerce-auth-qa.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -42,7 +43,10 @@ jobs:
             --runtime-bucket review-only-runtime-bucket
           python tools/customer-commerce/verify_release.py \
             /tmp/customer-commerce-ci/customer-commerce-runtime.zip
-      - name: Public website sign-in routing smoke (no OTP, no payment)
+      # Production availability is not part of the source CI merge gate.
+      # Run this optional smoke only by manual dispatch after a website release.
+      - name: Public website sign-in routing smoke (manual only; no OTP, no payment)
+        if: github.event_name == 'workflow_dispatch'
         env:
           SITE_AUTH_BASE: https://wecare.digital/auth/state
         run: |
