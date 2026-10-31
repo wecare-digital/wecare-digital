@@ -50,6 +50,10 @@ const InvoiceRecords = dynamic(
   () => import('../../../components/workspace/pay/InvoiceRecords'),
   { ssr: false },
 );
+const ShipmentTrackingPanel = dynamic(
+  () => import('../../../components/workspace/service/ShipmentTrackingPanel'),
+  { ssr: false },
+);
 
 const VIEW_LABELS: Record<ServiceWorkspaceView, string> = {
   'submit-request': 'Submit Request',
@@ -191,7 +195,12 @@ export default function ServicePage({ signOut, user }: PageProps) {
     if (active === 'shipments') {
       if (tab === 'pickup-ledger') return serviceLedger('REQUEST_PICKUP');
       if (tab === 'pickup') return pricePanel('request-pickup');
-      return pricePanel('shipments-track');
+      return (
+        <>
+          {pricePanel('shipments-track')}
+          <ShipmentTrackingPanel />
+        </>
+      );
     }
     if (active === 'contribute') {
       if (tab === 'payments') return (
