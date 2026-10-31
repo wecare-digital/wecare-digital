@@ -166,10 +166,34 @@ if (!listingGenerator.includes('"/orders/" if slug in ORDER_HUB_SERVICE_SLUGS'))
 const listingSource = fs.readFileSync(path.join(root, 'src/content/shopProducts.ts'), 'utf8');
 for (const line of listingSource.split('\n')) {
   const slug = line.match(/\bslug:\s*'([^']+)'/);
-  if (!slug || !RETIRED_SHOP_SLUGS.has(slug[1])) continue;
-  const href = line.match(/\bhref:\s*'([^']+)'/);
-  if (!ACTIVE_ORDER_SERVICE_SLUGS.has(slug[1]) || !href || href[1] !== '/orders/') {
-    failures.push('Catalog listing could restore a retired public page: ' + slug[1]);
+  if (slug && RETIRED_SHOP_SLUGS.has(slug[1])) {
+    failures.push('Retired service must not appear on the public Shop shelf: ' + slug[1]);
+  }
+}
+
+// Keep the six Orders payment products in the native catalog, but without
+// public storefront channels or retired canonical page URLs. Exact Vault file
+// links are different from the payment product's landing URL.
+const catalogSnapshot = fs.readFileSync(path.join(root, 'src/content/catalogSnapshot.ts'), 'utf8');
+const liveSnapshot = catalogSnapshot.split('const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [')[1] || '';
+for (const slug of ACTIVE_ORDER_SERVICE_SLUGS) {
+  const marker = `slug:'${slug}'`;
+  const position = liveSnapshot.indexOf(marker);
+  const row = position < 0 ? '' : liveSnapshot.slice(position, position + 400);
+  if (!/websiteEnabled:false, metaEnabled:false, canonicalPath:'\/orders\/'/.test(row)) {
+    failures.push('Retired service public-channel snapshot not disabled: ' + slug);
+  }
+}
+
+const serviceConfig = fs.readFileSync(path.join(root, 'src/config/services.ts'), 'utf8');
+if (/path:'\/(?:submit-request|request-amendment|drop-docs|request-pickup|vault)\/'/.test(serviceConfig)) {
+  failures.push('Staff service navigation still references retired public routes');
+}
+const shelfOrder = listingGenerator.split('SHELF_ORDER: tuple[str, ...] = (')[1]
+  ?.split('OFF_SHELF_SLUGS:')[0] || '';
+for (const slug of ACTIVE_ORDER_SERVICE_SLUGS) {
+  if (shelfOrder.includes(`"${slug}"`)) {
+    failures.push('Service product returned to public Shop generator: ' + slug);
   }
 }
 
