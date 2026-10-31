@@ -63,6 +63,54 @@ class AuthFlowIsolation(unittest.TestCase):
             self.contract.store.get(auth.row_key('auth', oauth_cookie))
         )
 
+    def test_share_tracking_does_not_block_website_sign_in(self) -> None:
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': urlencode({
+                'utm_source': 'chatgpt.com',
+                'utm_campaign': 'orders',
+                'fbclid': 'synthetic-click',
+                'return': '/orders/',
+            }),
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        state = json.loads(result['body'])
+        self.assertEqual(result['statusCode'], 200)
+        self.assertTrue(state['website'])
+        self.assertEqual(state['phase'], 'phone')
+        self.assertEqual(state['returnPath'], '/orders/')
+
+    def test_share_tracking_does_not_break_host_pkce_sign_in(self) -> None:
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': urlencode({
+                **self.contract.params,
+                'utm_medium': 'referral',
+                'gclid': 'synthetic-click',
+            }),
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        state = json.loads(result['body'])
+        self.assertEqual(result['statusCode'], 200)
+        self.assertFalse(state['website'])
+        self.assertEqual(state['clientName'], 'Test host')
+
+    def test_unrecognized_query_still_rejected(self) -> None:
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': 'redirect_uri=https%3A%2F%2Fevil.example',
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        self.assertEqual(result['statusCode'], 400)
+
+    def test_duplicate_return_not_masked_by_tracking(self) -> None:
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': 'utm_source=chatgpt.com&return=%2Forders%2F&return=%2Fvault%2F',
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        self.assertEqual(result['statusCode'], 400)
+
     def test_legacy_get_return_canonicalizes_to_vault(self) -> None:
         result = auth.route({
             'rawPath': '/auth/state',
