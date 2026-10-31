@@ -3,11 +3,13 @@ import { createPortal } from 'react-dom';
 
 import { SUBSCRIBE_CTA_HREF } from '../../content/subscribe';
 import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';
+import { stashPendingOrder } from '../../lib/orderPage';
 
 /**
- * The Orders history's per-row service navigation. This is a navigation surface only:
- * it never sends a request, starts a payment, or treats the displayed order number as
- * authorization. Each destination owns its existing identity/eligibility checks.
+ * The Orders history's per-row service navigation. Request actions return to the
+ * authenticated Orders hub, carrying only the public order selector in sessionStorage
+ * so the existing inline details can reopen. They never send a request, start a
+ * payment, or treat an order number as proof of ownership.
  *
  * Icon paths match the public Header's Request menu (including its indented
  * shipment arrow); the filled Material paths retain their original 960px viewBox.
@@ -17,6 +19,10 @@ const ICONS = {
   submit: {
     path: 'M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h360v80H200v560h560v-360h80v360q0 33-23.5 56.5T760-120H200Zm120-160v-80h320v80H320Zm0-120v-80h320v80H320Zm0-120v-80h320v80H320Zm360-80v-80h-80v-80h80v-80h80v80h80v80h-80v80h-80Z',
     viewBox: '0 -960 960 960', filled: true,
+  },
+  amend: {
+    path: 'M5 19h4l10-10-4-4L5 15Zm8-12 4 4',
+    viewBox: '0 0 24 24', filled: false,
   },
   docs: {
     path: 'M7 3h8l4 4v14H7ZM15 3v5h4M12 17V11m-3 3 3-3 3 3',
@@ -58,18 +64,20 @@ type Action = {
 };
 
 const REQUEST_ACTIONS: readonly Action[] = [
-  { label: 'Submit Request', subtitle: 'Raise a request', href: '/submit-request/',
+  { label: 'Submit Request', subtitle: 'Raise a request', href: '/orders/',
     icon: 'submit', keywords: 'request order product service' },
-  { label: 'Drop Docs', subtitle: 'Upload documents', href: '/drop-docs/',
+  { label: 'Request Amendment', subtitle: 'Change a request', href: '/orders/',
+    icon: 'amend', keywords: 'amend modify edit request' },
+  { label: 'Drop Docs', subtitle: 'Upload documents', href: '/orders/',
     icon: 'docs', keywords: 'documents upload files' },
-  { label: 'Vault', subtitle: 'Access your files', href: '/vault/',
+  { label: 'Vault', subtitle: 'Access your files', href: '/orders/',
     icon: 'vault', keywords: 'secure download files' },
 ];
 
 const SHIPMENT_ACTIONS: readonly Action[] = [
-  { label: 'Track', subtitle: 'Track your shipment', href: '/shipments/track/',
+  { label: 'Track', subtitle: 'Track your shipment', href: '/orders/',
     icon: 'subnav', keywords: 'shipments tracking delivery shipping status' },
-  { label: 'Pickup Request', subtitle: 'Arrange a pickup', href: '/request-pickup/',
+  { label: 'Pickup Request', subtitle: 'Arrange a pickup', href: '/orders/',
     icon: 'subnav', keywords: 'shipments courier pickup collect' },
 ];
 
@@ -164,6 +172,13 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
   const count = requests.length + shipments.length + other.length;
 
   const onNavigate = ( event: React.MouseEvent<HTMLAnchorElement>, action: Action ) => {
+    // A plain, same-tab order action reopens its originating row after navigation.
+    // Modifier-clicks/new tabs remain ordinary anchors; never leak the selection into
+    // the original tab where it could unexpectedly reopen a different order later.
+    if ( !action.external && event.button === 0 && !event.metaKey
+      && !event.ctrlKey && !event.shiftKey && !event.altKey ) {
+      stashPendingOrder( orderNumber );
+    }
     setOpen( false );
     setSearch( '' );
     // Mirror Header's external-link handling in the Capacitor app.

@@ -494,11 +494,17 @@ def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
         "Vault", "Shipments", "Track", "Pickup Request", "Leave Review", "Subscribe",
     ):
         assert f"label: '{label}'" in menu
-    for path in (
-        "/orders/", "/submit-request/", "/request-amendment/", "/drop-docs/",
+    # Only the customer Orders hub is navigated from public Request menu rows.
+    # The original service pages still exist for direct/legacy access and remain noindex.
+    for label in ("Submit Request", "Request Amendment", "Drop Docs",
+                  "Vault", "Track", "Pickup Request"):
+        assert f"label: '{label}', href: '/orders/'" in menu
+    assert menu.count("href: '/orders/'") == 7  # Orders row plus six service links
+    for route in (
+        "/submit-request/", "/request-amendment/", "/drop-docs/",
         "/vault/", "/shipments/track/", "/request-pickup/",
     ):
-        assert f"href: '{path}'" in menu
+        assert f"href: '{route}'" not in menu
     assert "grid-template-columns:repeat(3,minmax(0,1fr))" in header
     assert "const MENU_SEARCH_LINKS = flattenMenuLinks();" in header
 

@@ -87,7 +87,7 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
     header_icons = header.split("const NAV_ICON_PATHS:", 1)[1].split("};", 1)[0]
 
     # These are the actual source paths, not approximate icon-library substitutions.
-    for label in ("Submit Request", "Drop Docs", "Vault", "Shipments",
+    for label in ("Submit Request", "Request Amendment", "Drop Docs", "Vault", "Shipments",
                   "Leave Review", "Subscribe"):
         marker = f"'{label}': '" if " " in label else f"{label}: '"
         assert marker in header_icons
@@ -96,15 +96,18 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
 
     subnav_path = header.split("const SUBNAV_ICON_PATH = '", 1)[1].split("'", 1)[0]
     assert f"path: '{subnav_path}'" in menu
-    for route in ("/submit-request/", "/drop-docs/", "/vault/",
-                  "/shipments/track/", "/request-pickup/"):
-        assert f"href: '{route}'" in menu
+    # Service-specific controls will be added inside /orders/, not public product pages.
+    assert menu.count("href: '/orders/'") == 6
+    for path in ("/submit-request/", "/request-amendment/", "/drop-docs/",
+                 "/vault/", "/shipments/track/", "/request-pickup/"):
+        assert f"href: '{path}'" not in menu
+    assert "stashPendingOrder( orderNumber );" in menu
+    assert "event.button === 0 && !event.metaKey" in menu
     assert "import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';" in menu
     assert "import { SUBSCRIBE_CTA_HREF } from '../../content/subscribe';" in menu
-    for title in ("Submit Request", "Drop Docs", "Vault", "Track",
+    for title in ("Submit Request", "Request Amendment", "Drop Docs", "Vault", "Track",
                   "Pickup Request", "Leave Review", "Subscribe"):
         assert f"label: '{title}'" in menu
-    assert "Request Amendment" not in menu
     assert "Coming soon" not in menu
     assert "?o=" not in menu
 
@@ -136,7 +139,7 @@ def test_orders_backend_failures_render_once_above_table() -> None:
     assert 'className="ord-toast-rail"' in orders
     assert 'className="ord-backend-toast" role="alert" aria-atomic="true"' in orders
     assert orders.index('className="ord-toast-rail"') < orders.index('className="ord-shell"')
-    assert orders.count('className="ord-backend-toast"') == 1
+    assert orders.count('className="ord-backend-toast"') == 2  # Backend alert and copy toast
     assert "role=\"status\"" in orders  # Non-error clipboard feedback remains separate.
 
     # Covers backend history errors (including rate limits), pagination, profile linking,
@@ -191,10 +194,53 @@ def test_orders_alert_matches_auth_error_pixel_values() -> None:
         assert declaration in auth_rule
         assert declaration in orders_rule, declaration
 
-    assert ".ord-toast-rail{display:flex;justify-content:flex-end;inline-size:100%;min-inline-size:0}" in orders
+    assert ".ord-toast-rail{display:flex;flex-direction:column;align-items:flex-end;gap:8px;inline-size:100%;min-inline-size:0}" in orders
     assert "inline-size:min(100%,560px)" in orders_rule
     assert "overflow-wrap:anywhere" in orders_rule
     assert "position:fixed" not in orders_rule
     assert "box-shadow" not in orders_rule
     assert 'colSpan={ 5 }' in orders
     assert ".ord-invoice-actions{display:inline-flex;align-items:center;gap:16px}" in orders
+
+def test_request_menu_routes_via_orders_customer_auth_gate() -> None:
+    header = source("src/components/Header.tsx")
+    orders = source("src/components/orders/OrdersPage.tsx")
+    auth = source("src/pages/auth.tsx")
+    paths = source("src/lib/safeReturnPath.ts")
+    section = header.split("heading: 'Request',", 1)[1].split("heading: 'Refer & Earn',", 1)[0]
+
+    for label in ("Submit Request", "Request Amendment", "Drop Docs", "Vault",
+                  "Track", "Pickup Request"):
+        assert f"label: '{label}', href: '/orders/'" in section
+
+    assert "link.href === '/orders/' && link.label !== 'Orders'" in header
+    assert "const MENU_SEARCH_LINKS = flattenMenuLinks();" in header
+    assert "label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true" in section
+    assert "label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true" in section
+    assert "let session = getSession();" in orders
+    assert "session = await restoreSession();" in orders
+    assert "window.location.replace( '/auth?return=/orders/' );" in orders
+    assert "if ( !session )" in orders
+    assert "window.location.assign( next.redirect );" in auth
+    assert "'/orders/'," in paths
+    assert "return isPublicOrderNumber( value ) ? value : '';" in source("src/lib/orderPage.ts")
+
+
+def test_copy_status_uses_same_right_aligned_toast_instead_of_row_hint() -> None:
+    orders = source("src/components/orders/OrdersPage.tsx")
+    assert "const [ copyNotice, setCopyNotice ] = useState<CopyNotice | null>( null );" in orders
+    assert "await navigator.clipboard.writeText( value );" in orders
+    assert "setCopyNotice( { kind: 'success', message: 'Copied' } );" in orders
+    assert "restartTimer( () => setCopyNotice( null ), 2500 );" in orders
+    assert "selectText( document.getElementById(" in orders
+    assert "message: 'Order ID selected. Copy it with your keyboard.'" in orders
+    assert "{ ( ordersAlert || copyNotice ) && (" in orders
+    assert "role={ copyNotice.kind === 'fallback' ? 'alert' : 'status' }" in orders
+    assert 'aria-atomic="true"' in orders
+    assert 'onClick={ () => copyId( copyValue, index ) }' in orders
+    assert "ord-feedback" not in orders
+    assert "ord-live" not in orders
+    assert "copyFailedKey" not in orders
+    assert "copiedKey" not in orders
+    assert "setLiveMessage" not in orders
+    assert ".ord-th:last-child,.ord-invoice-cell{inline-size:1%;white-space:nowrap}" in orders

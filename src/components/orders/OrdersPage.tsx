@@ -108,6 +108,7 @@ type Failure = 'rate' | 'unavailable';
 
 type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'detail';
 interface OrdersAlert { source: AlertSource; message: string; key?: string; }
+interface CopyNotice { kind: 'success' | 'fallback'; message: string; }
 
 type Outcome =
   | { kind: 'ok'; data: OrdersResponse }
@@ -375,9 +376,7 @@ export default function OrdersPage (): React.ReactElement {
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
   const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
-  const [ copiedKey, setCopiedKey ] = useState<string | null>( null );
-  const [ copyFailedKey, setCopyFailedKey ] = useState<string | null>( null );
-  const [ liveMessage, setLiveMessage ] = useState( '' );
+  const [ copyNotice, setCopyNotice ] = useState<CopyNotice | null>( null );
   // One persistent, accessible failure notice for every backend operation on this page.
   // It is rendered above the table rather than over it, and cleared by a successful retry.
   const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
@@ -396,12 +395,7 @@ export default function OrdersPage (): React.ReactElement {
       typeof navigator !== 'undefined' && !!navigator.clipboard && window.isSecureContext );
   }, [] );
 
-  /**
-   * ONE timer for the whole table, not one per row. Consequence, stated rather than discovered:
-   * copying row B while row A still reads "Copied" clears A's hint immediately. That is wanted -
-   * two rows both claiming "Copied" when only the last one is on the clipboard would be a lie -
-   * but it is a choice, and it is why a ref-per-row map was rejected along with its bookkeeping.
-   */
+  /** One timer for the top-right copy toast, not a timer or feedback label per row. */
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
 
   const restartTimer = ( fn: () => void, ms = 2000 ) => {
@@ -423,37 +417,27 @@ export default function OrdersPage (): React.ReactElement {
     setOpenRows( prev => ( { ...prev, [ rowId ]: !prev[ rowId ] } ) );
 
   /**
-   * WHAT IS COPIED COMES FROM REACT STATE, NEVER FROM THE DOM. SupportWidget rewrites text nodes
-   * for translation, so reading the rendered node could copy a transformed string into a support
-   * ticket. The id span keeps `data-wc-no-translate` for the same reason; the two defences are
-   * independent.
-   *
-   * BOTH ARMS CLEAR THE OTHER KEY. Clearing neither is a compounding bug: one refused write
-   * would leave "Press your copy key" on that row permanently, and a later successful copy would
-   * read "Copied" for two seconds and then REVERT to the failure wording, because the hint's
-   * ternary falls through to `copyFailedKey` the moment `copiedKey` goes back to null.
+   * Only the unmodified order identifier is copied. The top-right toast confirms
+   * clipboard success without exposing the identifier in an accessible announcement.
+   * A denied write selects the text and leaves an actionable instruction until
+   * the next attempt, rather than incorrectly claiming "Copied".
    */
-  const copyId = async ( rowId: string, value: string, index: number ) => {
+  const copyId = async ( value: string, index: number ) => {
+    if ( copyTimer.current ) {
+      clearTimeout( copyTimer.current );
+      copyTimer.current = null;
+    }
     try
     {
       await navigator.clipboard.writeText( value );
-      setCopiedKey( rowId );
-      setCopyFailedKey( null );
-      setLiveMessage( 'Order ID copied' );        // no identifier in the announcement
-      restartTimer( () => { setCopiedKey( null ); setLiveMessage( '' ); } );
+      setCopyNotice( { kind: 'success', message: 'Copied' } );
+      restartTimer( () => setCopyNotice( null ), 2500 );
     }
     catch
     {
-      // A rejected write is normally a denied permission. Saying nothing would leave the
-      // customer pressing a dead button, so the id is SELECTED and they can copy it with the
-      // keyboard - a real recovery rather than an apology.
       selectText( document.getElementById( `ord-id-${ index }` ) );
-      setCopyFailedKey( rowId );
-      setCopiedKey( null );
-      setLiveMessage( 'Order ID selected. Copy it with your keyboard.' );
-      // DELIBERATELY NO TIMER. This hint is an INSTRUCTION about a selection that is still on
-      // screen, so it must last as long as that selection does. It is cleared by the next
-      // successful copy on any row, which is the only event that makes it untrue.
+      setCopyNotice( { kind: 'fallback',
+        message: 'Order ID selected. Copy it with your keyboard.' } );
     }
   };
 
@@ -686,11 +670,19 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { ordersAlert && (
+          { ( ordersAlert || copyNotice ) && (
             <div className="ord-toast-rail">
-              <p className="ord-backend-toast" role="alert" aria-atomic="true">
-                { ordersAlert.message }
-              </p>
+              { ordersAlert && (
+                <p className="ord-backend-toast" role="alert" aria-atomic="true">
+                  { ordersAlert.message }
+                </p>
+              ) }
+              { copyNotice && (
+                <p className="ord-backend-toast" role={ copyNotice.kind === 'fallback' ? 'alert' : 'status' }
+                  aria-atomic="true">
+                  { copyNotice.message }
+                </p>
+              ) }
             </div>
           ) }
 
@@ -884,37 +876,18 @@ export default function OrdersPage (): React.ReactElement {
                                   { isOpen ? '\u25be' : '\u25b8' }
                                 </span>
                               </button>
-                              { /* THE CONTROL AND ITS HINT ARE GATED TOGETHER, inside ONE
-                                   fragment. A fragment emits no element, so .ord-tip stays the
-                                   IMMEDIATE FOLLOWING SIBLING of .ord-copy, which the `~` reveal
-                                   selectors require - wrapping the pair in a span, or nesting
-                                   the hint inside the button, would silently kill the hover and
-                                   focus reveals while leaving .ord-tip-on working, so the bug
-                                   would show up only on pointer and keyboard.
-
-                                   Gated together and not just the button, because
-                                   visibility:hidden KEEPS the box: an unconditional hint would
-                                   leave a permanently invisible 14px line on every row that can
-                                   never reveal it - a row with neither identifier, and every row
-                                   in a non-secure context. Reserving space for an unreachable
-                                   element is not a layout guarantee, it is a blank line. */ }
+                              { /* Copy is available only when Clipboard API and a stable
+                                   identifier exist. Feedback stays in the shared top-right toast. */ }
                               { canCopy && copyValue && (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="ord-copy"
-                                    aria-label={ `Copy order ID ${ copyValue }` }
-                                    title={ copiedKey === rowId ? 'Copied' : 'Copy order ID' }
-                                    onClick={ () => copyId( rowId, copyValue, index ) }
-                                  >
-                                    <OrderActionIcon name="copy_all" />
-                                  </button>
-                                  { ( copiedKey === rowId || copyFailedKey === rowId ) && (
-                                    <span className="ord-feedback" role="status">
-                                      { copiedKey === rowId ? 'Copied' : 'Press your copy key' }
-                                    </span>
-                                  ) }
-                                </>
+                                <button
+                                  type="button"
+                                  className="ord-copy"
+                                  aria-label={ `Copy order ID ${ copyValue }` }
+                                  title="Copy order ID"
+                                  onClick={ () => copyId( copyValue, index ) }
+                                >
+                                  <OrderActionIcon name="copy_all" />
+                                </button>
                               ) }
                               <span className="ord-subdate">{ date }</span>
                             </th>
@@ -1020,11 +993,6 @@ export default function OrdersPage (): React.ReactElement {
                   </tbody>
                 </table>
               </div>
-
-              { /* ONE page-level polite region, not one per row. It is VISIBLE prose, because
-                   §6.4's source gates leave no visually-hidden utility available on this page;
-                   it is empty at rest, carries no identifier, and translates. */ }
-              <span className="ord-live" role="status" aria-live="polite">{ liveMessage }</span>
 
               { !!cursor && (
                 <div className="ord-pager">
@@ -1154,7 +1122,7 @@ export default function OrdersPage (): React.ReactElement {
              is never the only cue, because every one of these states is also stated in words. */
           /* Match the /auth sign-in error treatment pixel for pixel, but right-align
              the notice above Orders. No fixed overlay, timer, or duplicate row alert. */
-          .ord-toast-rail{display:flex;justify-content:flex-end;inline-size:100%;min-inline-size:0}
+          .ord-toast-rail{display:flex;flex-direction:column;align-items:flex-end;gap:8px;inline-size:100%;min-inline-size:0}
           .ord-backend-toast{
             box-sizing:border-box;inline-size:min(100%,560px);
             margin:14px 0 0;padding:11px 13px;
@@ -1256,7 +1224,6 @@ export default function OrdersPage (): React.ReactElement {
             padding:4px 16px 20px;border-block-end:1px solid var(--public-hairline);
             background:var(--public-lime-tint);
           }
-          .ord-live{font-size:14px;color:var(--public-muted)}
 
           .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
           .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
@@ -1439,11 +1406,10 @@ export default function OrdersPage (): React.ReactElement {
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }
-          .ord-feedback,.ord-invnote{
+          .ord-invnote{
             font-family:var(--font-sans);font-size:var(--public-meta-size);
             color:var(--public-brand-green);
           }
-          .ord-feedback{display:inline-block;margin-inline-start:6px}
           .ord-detail-inline{
             display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;
           }
@@ -1469,8 +1435,6 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-view:hover{background:transparent;text-decoration-thickness:2px}
           .ord-pager{margin:0;padding:10px 18px}
-          .ord-live:empty{display:none}
-          .ord-live:not(:empty){padding:8px 18px}
 
           /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
           @media(min-width:1024px){
