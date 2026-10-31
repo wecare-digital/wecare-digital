@@ -106,6 +106,8 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
   return (
     <div
       className={`toast toast-${toast.type} ${isExiting ? 'toast-exit' : ''}`}
+      role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+      aria-atomic="true"
       onAnimationEnd={handleAnimationEnd}
     >
       <span className="toast-icon">{icons[toast.type]}</span>

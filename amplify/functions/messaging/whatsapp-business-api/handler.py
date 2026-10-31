@@ -7243,8 +7243,8 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
 
     This is an internal-only door. The caller has already authenticated the customer and
     supplies the session-owned phone. This function owns the provider boundary: it checks that
-    F001 is still published, records a one-use website Flow session before delivery, injects
-    current profile data into the PROFILE screen, and sends the approved Utility template.
+    F001 is still published, records a one-use website Flow session before delivery, and sends
+    the approved Utility template. Profile prefill comes from the authenticated INIT callback.
     """
     from flows import common as flow_common, subscribe_profile
     from lambda_utils import canonical_flows, contact_store, template_media, whatsapp_templates
@@ -7280,7 +7280,7 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
     count('launch_attempted')
     table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
     try:
-        contact_row = contact_store.lookup(table, phone) or {}
+        contact_store.lookup(table, phone)  # Identity-conflict guard; prefill is handled by INIT.
     except contact_store.IdentityConflict:
         count('launch_blocked', reason='identity_conflict')
         return _resp(409, {'error': 'Customer profile identity needs support before it can be updated.'})
@@ -7292,16 +7292,11 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
         count('launch_failed', reason=f'session_{type(exc).__name__}')
         return _resp(503, {'error': 'Could not start a profile update session.'})
 
-    # service_details opens PROFILE. Supplying current screen data preserves the same
-    # prefill/revision contract as F001 INIT while the server-issued token remains the
-    # authorization boundary for every save.
+    # service_details is APPROVED with a DATA_EXCHANGE Flow button. Meta rejects
+    # flow_action_data on DATA_EXCHANGE template sends (HTTP 400, code 131009).
+    # Pass only the one-use token; F001's INIT callback loads the current profile
+    # from the server and returns PROFILE/ADDRESS prefill with revision guards.
     action = {'flow_token': token}
-    try:
-        if contact_row:
-            action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)
-    except Exception as exc:
-        logger.warning(json.dumps({'event': 'customer_profile_prefill_failed',
-                                   'errorType': type(exc).__name__}))
 
     template = whatsapp_templates.PROFILE_DETAILS
     header = template_media.fixed_image_header(template.name)
