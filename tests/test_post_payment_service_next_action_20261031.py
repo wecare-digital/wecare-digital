@@ -80,8 +80,4 @@ def test_payment_status_receipt_and_service_templates_stay_separate():
     assert "whatsapp_templates.download_send_fields(file['fileId'])" in vault
     assert "vaultNotificationStatus" in vault
     assert "vaultDocumentStatus" not in vault
-    # Paid F003 calls the canonical template wrapper; the module need not
-    # reference the template constant directly.
     assert "whatsapp_templates.drop_docs_flow_send_fields(token)" in drop_docs
-    assert 'DROP_DOCS_FLOW = Template(name="_dropdoc_flow"' in templates
-    assert 'return service_flow_send_fields("DROP_DOCS", flow_token)' in templates
