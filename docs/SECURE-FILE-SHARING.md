@@ -248,7 +248,7 @@ and only then generates the short-lived private S3 download session.
 
 ### Bounded operator timing, read-only media verification
 
-Workspace **Pay & Flow → Delivery timing** now edits only one field in the
+Workspace **Pay & Flow → Access delay** now edits only one field in the
 SystemConfig record `vault_delivery_timing_v1` (staff Operator permission):
 `postReceiptAccessGapSeconds`, a whole number from **0–5 seconds**, default
 **4 seconds** if absent, invalid or unreadable. The previous
