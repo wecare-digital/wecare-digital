@@ -186,9 +186,9 @@ def handle(event, client):
     action = event.get('action', 'start')
 
     if action == 'sendVaultOffer':
-        # Staff's manual Vault journey begins with an owner-bound quick-reply template.
-        # Review and Pay follows only after the customer taps Unlock Vault.
-        return _send_offer(event, client, db, keys, contacts, now)
+        # Retired outbound template: legacy inbound Unlock Vault taps remain valid,
+        # but no new offer may be minted through an older caller or Lambda alias.
+        return {'outcome': 'VAULT_OFFER_RETIRED'}
     if action in ('sendPayment', 'sendOffer'):
         # Preserve the existing direct payment route for older and customer callers.
         return _send_native_payment(event, client, db, keys, contacts, now)
