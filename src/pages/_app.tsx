@@ -396,6 +396,16 @@ const PUBLIC_PAGE_META: Record<string, {
   '/terms': { name: 'Terms', type: 'WebPage', description: 'Terms of service.' },
   '/privacy': { name: 'Privacy', type: 'WebPage', description: 'How WECARE.DIGITAL handles your data.' },
   '/orders': { name: 'Orders', type: 'WebPage', description: 'Check the status of an order, delivery, request or booking.' },
+  // Dedicated public front doors. Personal order, file, payment and WhatsApp
+  // actions remain identity-verified in their existing backends.
+  '/submit-request': { name: 'Submit Request', type: 'WebPage', description: 'Raise a request linked to an existing WECARE.DIGITAL order.' },
+  '/request-amendment': { name: 'Request Amendment', type: 'WebPage', description: 'Ask to amend an existing request, including details, dates or scope.' },
+  '/drop-docs': { name: 'Drop Docs', type: 'WebPage', description: 'Provide supporting documents for an existing request through verified channels.' },
+  '/vault': { name: 'Vault', type: 'WebPage', description: 'Learn how to retrieve an owner-verified document using a secure Vault link.' },
+  '/request-pickup': { name: 'Pickup Request', type: 'WebPage', description: 'Request collection of documents associated with a WECARE.DIGITAL service.' },
+  '/shipments/track': { name: 'Shipment Tracking', type: 'WebPage', description: 'Track a shipment linked to your verified service request.' },
+  '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Share feedback with WECARE.DIGITAL through the approved review conversation.' },
+  '/subscribe': { name: 'Subscribe', type: 'WebPage', description: 'Manage your contact details and updates through the verified Subscribe conversation.' },
   // Sehat is an appointment-booking service. Keep structured data limited to that scope.
   '/sehat': { name: 'Sehat', type: 'WebPage', description: 'Appointments with qualified professionals.', serviceType: 'Appointment booking' },
   // Product pages. Elsewhere is a category-only menu family, so there is deliberately no
@@ -421,8 +431,10 @@ const PUBLIC_PAGE_META: Record<string, {
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
-  // Request and tracking actions now live inside /orders/; old public service pages
-  // are retired and redirect. /vault/?file= remains a noindex exact-file handoff only.
+  // Public request-service pages are informational and link to the approved
+  // WhatsApp conversations. Personal actions still require owner identity.
+  // /vault/?file= remains a noindex authenticated exact-file handoff, whereas
+  // bare /vault/ is an indexable public explanation with no automatic redirect.
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
@@ -547,11 +559,13 @@ const getPublicPageSchema = ( pathname: string ) => {
    and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
    mounts across both files. */
 
-// /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
-// Bare /vault/ navigates to Orders. All other former standalone request/tracking
-// pages were retired; their old paths receive 301 redirects to /orders/.
+// All eight public service landing routes are renderable without a customer
+// session. Private /vault/?file= continues to use GetPage's exact-file auth gate.
+// Duplicated as a defensive render allowlist; PUBLIC_PAGE_META owns schema and
+// the sitemap/public-pages generator verifies these entries as public pages.
 const CUSTOMER_SERVICE_ROUTES = new Set( [
-  '/vault',
+  '/submit-request', '/request-amendment', '/drop-docs', '/vault',
+  '/request-pickup', '/shipments/track', '/leave-review', '/subscribe',
 ] );
 
 export default function App ( { Component, pageProps }: AppProps ) {
