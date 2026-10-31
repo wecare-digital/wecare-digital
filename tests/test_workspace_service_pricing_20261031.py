@@ -52,6 +52,21 @@ def test_all_five_services_share_approved_media_but_not_fulfilment():
         assert template["itemThumbnail"] == template_media.DEFAULT_ORDER_ITEM_THUMBNAIL
         assert template["headerImage"] != template["itemThumbnail"]
         assert template["orderStatusStates"] == ["processing", "completed"]
+        # Display-only Meta IDs must come from the same registry as senders.
+        from lambda_utils import whatsapp_templates
+        assert template["templateIds"] == {
+            "nativePay": whatsapp_templates.APPROVED_TEMPLATE_IDS[template["nativePay"]],
+            "orderStatus": whatsapp_templates.APPROVED_TEMPLATE_IDS[template["orderStatus"]],
+            "receipt": whatsapp_templates.APPROVED_TEMPLATE_IDS[template["receipt"]],
+            "delivery": whatsapp_templates.APPROVED_TEMPLATE_IDS[template["delivery"]],
+        }
+    vault_ids = prices["prices"]["vault"]["templates"]["templateIds"]
+    assert vault_ids == {
+        "nativePay": "2714938845570815",
+        "orderStatus": "1754227779211208",
+        "receipt": "1782246473079550",
+        "delivery": "1410998911012572",
+    }
     assert prices["prices"]["vault"]["templates"]["delivery"] != prices["prices"]["drop-docs"]["templates"]["delivery"]
 
 
