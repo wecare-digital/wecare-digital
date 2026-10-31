@@ -93,7 +93,7 @@ const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 export const VAULT_WEBSITE_RETURN_FILE_KEY = 'wecare.vault.websiteCheckoutReturnFile';
 const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 
-type Stage = 'loading' | 'files';
+type Stage = 'loading' | 'files' | 'unavailable' | 'verification-error';
 
 interface FilesPageProps {
     /** Canonical Vault deep-link target. Ownership is still proven server-side. */
@@ -132,21 +132,55 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         window.location.replace( `/auth?return=${ encodeURIComponent( '/vault/' ) }` );
     }, [ targetFileId ] );
 
+    // Missing, revoked, invalid and wrong-owner IDs deliberately share one
+    // safe screen. Never expose storage metadata or offer to charge again.
+    const showUnavailable = useCallback( () => {
+        setFiles( [] );
+        setPaymentWaiting( {} );
+        setFileFeedback( {} );
+        setError( 'This document is not available right now.' );
+        setStage( 'unavailable' );
+    }, [] );
+
+    // Transport/identity outages are not proof the file was revoked. Hide any
+    // stale metadata and payment controls, and let the owner retry verification.
+    const showVerificationError = useCallback( () => {
+        setFiles( [] );
+        setPaymentWaiting( {} );
+        setFileFeedback( {} );
+        setError( 'Unable to verify access. Please try again. If you already paid, do not pay again.' );
+        setStage( 'verification-error' );
+    }, [] );
+
+    const showOwnedFiles = useCallback( ( ownedFiles: SecureFile[] ) => {
+        const visibleFiles = targetFileId
+            ? ownedFiles.filter( file => file.fileId === targetFileId )
+            : ownedFiles;
+        if ( targetFileId && visibleFiles.length === 0 )
+        {
+            showUnavailable();
+            return;
+        }
+        setFiles( visibleFiles );
+        setError( '' );
+        setStage( 'files' );
+    }, [ targetFileId, showUnavailable ] );
+
     const loadFiles = useCallback( async () => {
-        const result = await api.listMySecureFiles();
+        if ( targetFileId && !VAULT_FILE_ID_PATTERN.test( targetFileId ) )
+        {
+            showUnavailable();
+            return;
+        }
+        const result = await api.listMySecureFiles().catch( () => null );
+        if ( !result )
+        {
+            showVerificationError();
+            return;
+        }
         if ( result.ok )
         {
-            const ownedFiles = result.data.files || [];
-            const visibleFiles = targetFileId
-                ? ownedFiles.filter( file => file.fileId === targetFileId )
-                : ownedFiles;
-            setFiles( visibleFiles );
-            setStage( 'files' );
-            setError(
-                targetFileId && visibleFiles.length === 0
-                    ? 'This document is not available right now.'
-                    : ''
-            );
+            showOwnedFiles( result.data.files || [] );
         } else if ( result.failure.status === 401 )
         {
             clearSession();
@@ -154,9 +188,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             return;
         } else
         {
-            setError( result.failure.message || 'Could not load your files' );
+            showVerificationError();
         }
-    }, [ targetFileId, redirectToAuth ] );
+    }, [ targetFileId, redirectToAuth, showOwnedFiles, showUnavailable, showVerificationError ] );
 
     // Vault has no file-local or deploy-local price. This preview is display-only; the native
     // WhatsApp payment backend independently re-prices before a payment attempt exists.
@@ -179,6 +213,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     // server-owned customer session here; when none exists, the file id is kept in same-tab
     // storage and /auth returns to /vault/, which restores the exact file query.
     useEffect( () => {
+        if ( targetFileId && !VAULT_FILE_ID_PATTERN.test( targetFileId ) )
+        {
+            showUnavailable();
+            return;
+        }
         let active = true;
         void restoreSession()
             .then( restored => {
@@ -194,30 +233,21 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 if ( !active || !result ) return;
                 if ( result.ok )
                 {
-                    const ownedFiles = result.data.files || [];
-                    const visibleFiles = targetFileId
-                        ? ownedFiles.filter( file => file.fileId === targetFileId )
-                        : ownedFiles;
-                    setFiles( visibleFiles );
-                    setStage( 'files' );
-                    if ( targetFileId && visibleFiles.length === 0 )
-                    {
-                        setError( 'This document is not available right now.' );
-                    }
+                    showOwnedFiles( result.data.files || [] );
                 } else if ( result.failure.status === 401 )
                 {
                     clearSession();
                     redirectToAuth();
                 } else
                 {
-                    setError( result.failure.message || 'Could not load your files. Please try again.' );
+                    showVerificationError();
                 }
             } )
             .catch( () => {
-                if ( active ) setError( 'Sign-in is temporarily unavailable. Please try again.' );
+                if ( active ) showVerificationError();
             } );
         return () => { active = false; };
-    }, [ targetFileId, redirectToAuth ] );
+    }, [ targetFileId, redirectToAuth, showOwnedFiles, showUnavailable, showVerificationError ] );
 
     // After native Review and Pay is sent, the website stays on this exact file. Refresh while
     // payment is pending or reconciling, and whenever the customer returns from WhatsApp.
@@ -314,6 +344,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     redirectToAuth();
                     return;
                 }
+                if ( code === 'NOT_REGISTERED' || code === 'VAULT_STORAGE_UNAVAILABLE' )
+                {
+                    // Clear stale file metadata/buttons when S3 or ownership fails.
+                    showUnavailable();
+                    return;
+                }
+                if ( code === 'ACCESS_NOT_AUTHORIZED' || result.failure.status >= 500 )
+                {
+                    showVerificationError();
+                    return;
+                }
                 if ( code === 'ACCESS_WINDOW_CLOSED' )
                 {
                     setFiles( current => current.map( row => row.fileId === file.fileId
@@ -330,24 +371,20 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 feedback(
                     'error',
-                    code === 'NOT_REGISTERED'
-                        ? 'This file is not registered to your verified number.'
-                        : code === 'ACCESS_NOT_AUTHORIZED'
-                            ? 'We could not confirm paid access for this file. If you already paid, do not pay again.'
-                            : ( result.failure.message || 'Could not prepare the download.' )
+                    'Could not prepare this download. If you already paid, do not pay again.'
                 );
                 return;
             }
             if ( !result.data.downloadUrl )
             {
-                feedback( 'error', 'The download URL was not returned. Please try again.' );
+                showVerificationError();
                 return;
             }
             // Only the approved private S3 bucket is a valid transport destination.
             let destination: URL;
             try { destination = new URL( result.data.downloadUrl ); }
             catch {
-                feedback( 'error', 'The secure file link is invalid. Please try downloading again.' );
+                showVerificationError();
                 return;
             }
             // SigV4 in us-east-1 legitimately uses either regional or legacy
@@ -358,13 +395,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             ] );
             if ( destination.protocol !== 'https:' || destination.port || destination.username
                 || destination.password || !approvedS3Hosts.has( destination.hostname ) ) {
-                feedback( 'error', 'The file was not hosted at the expected secure location. Please contact support.' );
+                showVerificationError();
                 return;
             }
             window.location.assign( destination.href );
-        } catch ( err: any )
+        } catch
         {
-            feedback( 'error', err?.message || 'Could not prepare the download.' );
+            showVerificationError();
         } finally
         {
             setWorking( '' );
@@ -588,6 +625,32 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                         onClick={ () => { window.location.reload(); } }>Try again</button>
                                 </div>
                             ) }
+                        </div>
+                    ) }
+                    { stage === 'unavailable' && (
+                        <div className="sf-empty-state" role="status" aria-live="polite">
+                            <div className="sf-file-action">
+                                <button type="button"
+                                    className="sf-file-action-button sf-download-button sf-expired-button"
+                                    disabled>
+                                    Document unavailable
+                                </button>
+                            </div>
+                            <p className="sf-empty">{ error }</p>
+                            <p className="sf-state-note">If you already paid, do not pay again.
+                                Check your order or contact WECARE.DIGITAL support.</p>
+                            <a className="sf-back-link" href="/orders/">Back to Orders</a>
+                        </div>
+                    ) }
+                    { stage === 'verification-error' && (
+                        <div className="sf-empty-state" role="alert">
+                            <p className="sf-file-error">{ error }</p>
+                            <div className="sf-file-action">
+                                <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                    onClick={ () => { setStage( 'loading' ); void loadFiles(); } }>
+                                    Try again
+                                </button>
+                            </div>
                         </div>
                     ) }
                     { stage === 'files' && (
