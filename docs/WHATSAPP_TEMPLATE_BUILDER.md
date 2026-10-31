@@ -43,6 +43,11 @@ Meta's [order details template (India)](https://developers.facebook.com/document
 ## Flow buttons
 `validate_flow_button()` requires `text` and one of `flow_id | flow_name | flow_json`;
 `flow_action` ∈ {navigate, data_exchange}; `navigate` requires `navigate_screen`.
+The Workspace builder now explicitly selects the action. The default for a new Flow button is
+`data_exchange` (to match the current approved WECARE.DIGITAL templates), which omits
+`navigate_screen` and requires a server-issued Flow token at send time. Choose `navigate`
+only for a Flow that intentionally starts on a specified screen and does not need INIT.
+The builder only creates/submits a template; it never updates a production Flow launch policy.
 
 ## TTL rules (`message_send_ttl_seconds`)
 - AUTHENTICATION: 30–900s, `-1` allowed (30 days). Recommend ≤ OTP/code expiry.
