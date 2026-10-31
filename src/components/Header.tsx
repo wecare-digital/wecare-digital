@@ -567,7 +567,7 @@ const Header: React.FC = () => {
     const sendAction = menuActionForLabel( link.label );
     if ( sendAction && isPrimaryMenuActivation( event ) ) {
       // A real menu click is the only way to queue one authenticated template.
-      // The URL is deliberately /orders/ with no ?service= send trigger.
+      // The clean /orders/ URL cannot trigger a template send on its own.
       stashCustomerMenuAction( sendAction );
     }
     const capacitor = typeof window !== 'undefined'
