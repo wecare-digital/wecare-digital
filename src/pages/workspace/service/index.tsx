@@ -127,7 +127,7 @@ const SERVICE_OPERATIONS = {
     label: 'Vault',
     summary: 'Secure access to an existing private file. Payment must be bound to its verified owner and file ID; Vault is NOT the Drop Docs upload Flow.',
     fulfilment: 'Owner-bound secure download link',
-    actions: [ { label: 'Open Vault documents', href: '/workspace/service?view=vault' } ],
+    actions: [ { label: 'Open Vault in Pay & Flow', href: '/workspace/payments?view=vault' } ],
   },
   'request-pickup': {
     label: 'Pickup Request',
@@ -151,6 +151,16 @@ export default function ServicePage({ signOut, user }: PageProps) {
   const tab = serviceWorkspaceTab(active, router.query.tab);
   const [prices, setPrices] = React.useState<Record<string, ServicePrice>>({});
   const [loadingPrices, setLoadingPrices] = React.useState(true);
+
+  // Preserve old bookmarks, but Vault's only new operating tab is Pay & Flow.
+  React.useEffect(() => {
+    if (!router.isReady || router.query.view !== 'vault') return;
+    const oldTab = Array.isArray(router.query.tab) ? router.query.tab[0] : router.query.tab;
+    const destination = oldTab === 'ledger'
+      ? '/workspace/payments?view=ledger&ledger=vault'
+      : '/workspace/payments?view=vault';
+    void router.replace(destination);
+  }, [router.isReady, router.query.view, router.query.tab]);
 
   React.useEffect(() => {
     let alive = true;
@@ -233,7 +243,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
       <SEO title="Service" description="Request operations, customer Drop Docs upload review, staff Vault upload, shipment tracking, pickup, contributions, and WhatsApp service logs." noindex />
 
       <nav className="service-switch" aria-label="Service workspace">
-        {SERVICE_WORKSPACE_VIEWS.map(view => (
+        {SERVICE_WORKSPACE_VIEWS.filter(view => view !== 'vault').map(view => (
           <button key={view} type="button" aria-pressed={active === view}
             className={active === view ? 'active' : ''}
             onClick={() => go(view)}>
