@@ -87,9 +87,9 @@ def _send_access(client, row, file_id):
 
 
 def readiness(graph):
-    """Live Meta readback of the approved Vault-ready, payment and delivery templates."""
+    """Live Meta readback of the current native payment and download templates."""
     templates = {}
-    for name, ident in {'wecare_vault_request_ready': '29124703577146420',
+    for name, ident in {
                         'wecare_whatapp_native_pay_template': '2714938845570815',
                         'wecare_default_download': '1410998911012572',
                         '_dropdoc_flow': '1041974032198332'}.items():
