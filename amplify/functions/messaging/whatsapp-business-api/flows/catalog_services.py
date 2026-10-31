@@ -61,6 +61,13 @@ OFFER_FILE_PREFIX = 'VAULTOFFERFILE#'
 OFFER_TTL_SECONDS = 7 * 24 * 3600
 OFFER_RESEND_GUARD_SECONDS = 60
 DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
+# A missing, revoked or expired Vault document cannot be sold by the general
+# WhatsApp Vault chooser. One signed-inbound service reply, never a payable
+# ORDER_DETAILS request or an unauthorized paid Submit Request Flow.
+SUBMIT_NEW_REQUEST_MESSAGE = (
+    'No document is currently available for Vault download. '
+    'Submit a New Request: https://wecare.digital/orders/'
+)
 
 
 def _invoke(client, function, payload):
@@ -304,12 +311,15 @@ def handle(event, client):
                     or file.get('ownerCustomerId') != identity.customer_id):
                 continue
             state = _file_state(db, file, identity.customer_id, now)
-            if state:
+            # Do not offer a new purchase for an expired paid document from
+            # the general WhatsApp Vault chooser. Existing owner-bound renewal
+            # and historical paid entitlements are preserved in their own paths.
+            if state in ('UNPAID', 'OPEN', 'READY'):
                 choices.append((file, state))
         if not choices:
             row['status'] = 'AWAITING_FILE'
             keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-            _send(client, row, content=DOCUMENT_UNAVAILABLE)
+            _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
             return {'outcome': 'VAULT_FILE_NOT_READY'}
         # At most ten choices per native list. Paid rows remain visible as refresh actions and
         # used-up rows as renewals.
@@ -348,8 +358,10 @@ def handle(event, client):
     state = _file_state(db, file, identity.customer_id, now)
     if state in ('OPEN', 'READY'):
         return _send_access(client, row, file['fileId'])
-    if state not in ('UNPAID', 'EXPIRED'):
-        _send(client, row, content=NOT_REQUESTED)
+    if state != 'UNPAID':
+        # The document may have expired since the interactive list was sent.
+        # Answer with exactly one actionable service message; no payment.
+        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     row['vaultFileId'] = file['fileId']
     return _prepare_payment(client, db, keys, row, identity, state, notify=True)
@@ -488,6 +500,10 @@ def _send_offer(event, client, db, keys, contacts, now):
     else:
         offer_body_text = whatsapp_templates.vault_offer_document_name(
             file.get('displayName') or 'Document')
+    description = event.get(
+        'paymentItemDescription', catalog.VAULT_ITEM_DESCRIPTION_DEFAULT)
+    if not catalog.valid_vault_item_description(description):
+        return {'outcome': 'VAULT_ITEM_DESCRIPTION_INVALID'}
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
@@ -647,6 +663,7 @@ def _send_native_payment(event, client, db, keys, contacts, now):
         'vaultFileId': file_id,
         'origin': 'STAFF_VAULT',
         'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
+        'paymentItemDescription': description,
     }
     try:
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
