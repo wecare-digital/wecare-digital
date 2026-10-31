@@ -3026,6 +3026,7 @@ def _vault_schedule_public(row: Dict[str, Any]) -> Dict[str, Any]:
         "fileId": str(row.get("fileId") or ""),
         "action": str(row.get("vaultAction") or ""),
         "offerBodyText": str(row.get("offerBodyText") or ""),
+        "paymentItemDescription": str(row.get("paymentItemDescription") or ""),
         "scheduledAt": str(row.get("scheduledAt") or ""),
         "status": str(row.get("status") or ""),
         "createdAt": str(row.get("createdAt") or ""),
@@ -3070,6 +3071,11 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
     action = body.get("action")
     if action not in VAULT_SCHEDULE_ACTIONS:
         return cors_response(400, {"error": "ACTION_NOT_SCHEDULABLE"}, origin)
+    description = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT
+    if action == "payment":
+        description = body.get("paymentItemDescription", description)
+        if not catalog_service_checkout.valid_vault_item_description(description):
+            return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     try:
         when = _schedule_time(body.get("scheduledAt"))
     except ValueError as error:
@@ -3137,6 +3143,7 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
             "access": "wecare_default_download",
         }[action],
         "offerBodyText": text,
+        "paymentItemDescription": description if action == "payment" else "",
     }
     values = {
         ":owner": _ddb_encoded(item["ownerCustomerId"]),
@@ -3285,6 +3292,11 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
         internal_event["body"] = json.dumps({"offerBodyText": row.get("offerBodyText") or ""})
         answer = _admin_send_vault_offer(file_id, internal_event, "")
     elif action == "payment":
+        # Store and dispatch the exact wording chosen when scheduled; never
+        # pick up a later UI edit or change a previously issued invoice.
+        internal_event["body"] = json.dumps({"paymentItemDescription":
+            row.get("paymentItemDescription")
+            or catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT})
         answer = _admin_request_payment(file_id, internal_event, "")
     else:
         answer = _admin_send_access(file_id, internal_event, "")
