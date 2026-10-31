@@ -201,7 +201,10 @@ def test_vault_browser_uses_owner_bound_website_cart_and_native_whatsapp():
     assert "session.accessToken, 'VAULT', undefined, file.fileId" in source
     assert "setServiceLine( service.variantId, response.intent.intentId, vaultLinePrice )" in source
     assert "serviceIntentFor( lineItems ) === response.intent.intentId" in source
-    assert "Add 24-hour renewal to cart" in source
+    assert "Add 24-hour Vault access to cart" in source
+    assert "Add 24-hour renewal to cart" not in source
+    assert "state === 'UNPAID' ? (" in source
+    assert ") : state === 'EXPIRED' ? (" in source
     assert "window.location.assign( '/checkout/' )" in source
     assert "router.push" not in source
     assert "sf-note-bad" not in source
