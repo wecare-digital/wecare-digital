@@ -15,6 +15,7 @@ import {
 } from '../../../lib/servicePricing';
 import styles from './VaultJourneyPreview.module.css';
 import VaultMessageTimeline from './VaultMessageTimeline';
+import PaymentTemplateMedia from '../pay/PaymentTemplateMedia';
 
 export interface VaultRegistryStep {
   step: number;
@@ -203,6 +204,10 @@ export default function VaultJourneyPreview ( props: Props ) {
           { activeStage === 4 && <span className={ styles.bubbleButton }>Leave Review · existing Flow</span> }
           { activeStage === 5 && <span className={ styles.bubbleButton }>Access Vault · URL</span> }
         </div>
+
+        { activeStage === 2 && (
+          <PaymentTemplateMedia serviceLabel="Vault" templates={ props.templates } />
+        ) }
 
         <details className={ styles.technical }>
           <summary className={ styles.disclosureTitle }>Template variables and technical send gates</summary>
