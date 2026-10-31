@@ -4,7 +4,9 @@ Only pure AWS-native price resolvers are exercised; every catalog row is a
 synthetic fixture. No production payment, WhatsApp, DynamoDB or S3 calls.
 """
 import sys
+from decimal import Decimal
 from pathlib import Path
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
@@ -71,6 +73,32 @@ def test_contribute_has_distinct_fee_exempt_contract_no_flow():
     assert contribution["breakdown"]["totalPayablePaise"] == 25000
     assert contribution["breakdown"]["convenienceFeePaise"] == 0
     assert contribution["breakdown"]["supplyGstPaise"] == 0
+
+
+def test_decimal_catalog_price_minor_never_truncates_or_guesses():
+    valid = {"priceMinor": Decimal("4900"), "currency": "INR", "status": "active"}
+    assert service_pricing_native._variant_paise(valid) == 4900
+    for invalid in (Decimal("4900.9"), Decimal("4900.01"),
+                    Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")):
+        with pytest.raises(ValueError):
+            service_pricing_native._variant_paise({
+                "priceMinor": invalid, "currency": "INR", "status": "active",
+            })
+    catalog = _catalog()
+    catalog[service_pricing_native.SHIPMENT_TRACK_SKU]["priceMinor"] = Decimal("4900.5")
+    result = service_pricing_native.resolve_all(catalog.get)["prices"]
+    assert result["shipments-track"] == {"available": False}
+    assert result["vault"]["available"] is True
+
+
+def test_frontend_price_read_retains_pristine_all_unavailable_fallback():
+    source = (ROOT / "src/lib/servicePricing.ts").read_text()
+    block = source[source.index("export async function fetchServiceWorkspacePrices"):
+                   source.index("export async function fetchContributionPrice")]
+    assert "const out = { ...unavailable }" in block
+    assert "out[ key ] = readPrice( rows[ key ] )" in block
+    assert "return unavailable;" in block
+    assert "unavailable[ key ] = readPrice" not in block
 
 
 def test_missing_track_does_not_hide_other_service_prices():
