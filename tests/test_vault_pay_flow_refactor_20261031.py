@@ -31,7 +31,7 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         payments = source("src/pages/workspace/payments/index.tsx")
         service = source("src/pages/workspace/service/index.tsx")
         self.assertIn("{ id: 'vault', label: 'Vault · Review & Pay' }", payments)
-        self.assertIn("{ id: 'timing', label: 'Delivery timing' }", payments)
+        self.assertIn("{ id: 'timing', label: 'Access delay' }", payments)
         self.assertIn("view=vault", service)
         self.assertIn("router.replace(destination)", service)
         self.assertIn("view !== 'vault'", service)
