@@ -218,6 +218,43 @@ def test_vault_uses_one_customer_sign_in_surface_and_auth_card():
         assert retired_css not in source
 
 
+def test_exact_file_vault_design_prioritizes_secure_status_without_changing_payment_gates():
+    page = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    route = (ROOT / "src/pages/vault.tsx").read_text()
+
+    # One purpose-specific hero and accessible document hierarchy, inside the
+    # existing shared chrome. No new public file browsing surface.
+    assert 'frame="Your secure"' in page
+    assert "word: 'document'" in page
+    assert "mobileFoundation\n                compact" in page
+    assert '<h2 className="sf-card-title">Your file access</h2>' in page
+    assert '<h3 className="sf-file-name">{ file.displayName }</h3>' in page
+    assert "fileStatusLabel( state )" in page
+    assert "case 'OPEN': return 'Ready to download'" in page
+    assert "case 'READY': return 'Payment verified'" in page
+    assert "case 'PAID_UNVERIFIED': return 'Verifying payment'" in page
+    assert "case 'EXPIRED': return 'Access expired'" in page
+    assert "sf-download-button" in page
+    assert "Download securely" in page
+    assert "sf-choice-tag" in page
+    assert "Estimated total:" in page
+    assert "Final total and tax are calculated at checkout." in page
+    assert "Website estimate unavailable. WhatsApp Review & Pay will show the verified amount" in page
+    assert 'className="sf-file-status-row" role="status" aria-live="polite"' in page
+
+    # A cosmetic treatment must not accidentally turn a paid-but-unverified
+    # entitlement into a download, or generate a new payment while confirming.
+    assert "const isPaid = state === 'OPEN' || state === 'READY';" in page
+    assert "state === 'PAID_UNVERIFIED' ? (" in page
+    assert "Do not pay again." in page
+    assert "api.redeemSecureFileDownload( file.fileId, accessId )" in page
+    assert "requestMySecureFilePayment( file.fileId )" in page
+    assert "postRequestIntent(" in page
+    assert "targetFileId" in route and "<GetPage targetFileId={ targetFileId } />" in route
+    assert "noindex" in page
+    assert "VAULT_AUTH_RETURN_FILE_KEY" in route
+
+
 def test_public_vault_inherits_the_shared_public_chrome():
     app = (ROOT / "src/pages/_app.tsx").read_text()
     customer_routes = app[

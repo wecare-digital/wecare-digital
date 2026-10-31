@@ -3,10 +3,10 @@
  *
  * Design
  * ------
- * Home is the typography source of truth. The shared RotatingHero consumes the canonical
- * public hero/body tokens directly. The file block stays left-aligned on the 560px public
- * copy measure. File actions preserve the established Vault treatment: lime-tint surface,
- * dark-green underlined label, 10px radius and 48px minimum height.
+ * Home is the typography source of truth. Exact-file Vault uses a compact, static
+ * RotatingHero, an accessible ownership/status summary, and one clear primary action.
+ * The file stays on the canonical 560px public-copy measure. Only presentation changes
+ * here; all checkout, entitlement and download decisions remain server-owned.
  *
  * Route ownership
  * ---------------
@@ -75,20 +75,20 @@ function windowEndLabel ( epochSeconds?: number ): string {
     }
 }
 
-/**
- * The hero's rotating nouns, TRUE OF THIS PAGE rather than borrowed from the home page's
- * marketing audiences. This is the collection point for files someone has shared with you, so the
- * rotation names what arrives here. The pill sits on its own line (.rh-head-line is
- * display:block) so the headline's line count cannot change as the word changes. Tints/dots are
- * the four per-subject pairs the Grahak OS hero established and the home page reuses verbatim; no
- * new colour is introduced.
- */
+/** One calm, stationary hero word for a private, single-file download task. */
 const GET_WORDS: CycleWord[] = [
-    { word: 'files', tint: '#dbeafe', dot: '#2563eb' },
-    { word: 'docs', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'records', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'papers', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'document', tint: '#e0f7c8', dot: '#3da35a' },
 ];
+
+function fileStatusLabel ( state: SecureFileAccessState ): string {
+    switch ( state ) {
+        case 'OPEN': return 'Ready to download';
+        case 'READY': return 'Payment verified';
+        case 'PAID_UNVERIFIED': return 'Verifying payment';
+        case 'EXPIRED': return 'Access expired';
+        default: return 'Access locked';
+    }
+}
 
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 export const VAULT_WEBSITE_RETURN_FILE_KEY = 'wecare.vault.websiteCheckoutReturnFile';
@@ -515,34 +515,59 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 <h1>, and the panel below is its child. The former <main className="sf-shell"> and
                 <h1 className="sf-title"> are therefore GONE - keeping either would produce two
                 mains and two h1s, which fails htmlcheck's MANY-MAIN and H1-MANY at once. The
-                stage-dependent heading is now an <h2> inside the panel, styled by the same class,
-                so nothing moves visually.
+                document-access heading is an <h2> inside the panel, while the file name
+                is its subordinate <h3>. No duplicate page landmark is introduced.
 
                 NO badgeLabel, matching the home page and /blog/: the label here would just be the
                 company name again, 109px under the header's own lockup, which is exactly what the
                 home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
                 the same reason. */}
             <RotatingHero
-                frame="Collect your"
+                frame="Your secure"
                 words={ GET_WORDS }
-                sub="Your shared files are right here."
-                ariaLabel="Collect your files"
+                sub="View your access and download the file shared with you."
+                ariaLabel="Your secure document"
                 mobileFoundation
+                compact
             >
                 <div className="sf-card">
+                    <div className="sf-card-overview">
+                        <span className="sf-vault-icon" aria-hidden="true">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="5" y="10" width="14" height="11" rx="2" />
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3M12 15v2" />
+                            </svg>
+                        </span>
+                        <div className="sf-card-overview-copy">
+                            <p className="sf-card-kicker">PRIVATE VAULT</p>
+                            <h2 className="sf-card-title">Your file access</h2>
+                            <p className="sf-card-description">Protected by your verified account.</p>
+                        </div>
+                    </div>
                     { stage === 'loading' && (
                         <div className="sf-loading" role="status" aria-live="polite">
                             <span className="sf-loading-mark" aria-hidden="true">V</span>
                             <strong>Opening your Vault…</strong>
                             <span>Checking your verified customer session.</span>
+                            { error && (
+                                <div className="sf-load-error">
+                                    <p role="alert" className="sf-file-error">{ error }</p>
+                                    <button type="button" className="sf-file-action-button sf-secondary-btn"
+                                        onClick={ () => { window.location.reload(); } }>Try again</button>
+                                </div>
+                            ) }
                         </div>
                     ) }
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
-                                <p className="sf-empty" role={ error ? 'alert' : undefined }>
-                                    { error || 'There are no files shared with your number right now.' }
-                                </p>
+                                <div className="sf-empty-state">
+                                    <p className="sf-empty" role={ error ? 'alert' : undefined }>
+                                        { error || 'There are no files shared with your number right now.' }
+                                    </p>
+                                    <a className="sf-back-link" href="/orders/">Back to Orders</a>
+                                </div>
                             ) }
 
                             { files.map( file => {
@@ -555,8 +580,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                 return (
                                     <div key={ file.fileId } className="sf-file">
                                         <div className="sf-file-head">
+                                            <span className="sf-file-icon" aria-hidden="true">
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z" />
+                                                    <path d="M13 3v7h7M8 15h8M8 18h5" />
+                                                </svg>
+                                            </span>
                                             <div className="sf-file-copy">
-                                                <div className="sf-file-name">{ file.displayName }</div>
+                                                <h3 className="sf-file-name">{ file.displayName }</h3>
                                                 <div className="sf-file-meta">
                                                     { formatBytes( file.sizeBytes ) }
                                                     { file.contentType === 'application/pdf' ? ' · PDF' : '' }
@@ -565,6 +597,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
+                                        <div className="sf-file-status-row" role="status" aria-live="polite">
+                                            <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
+                                                : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
+                                                <span className="sf-status-dot" aria-hidden="true" />
+                                                { fileStatusLabel( state ) }
+                                            </span>
+                                        </div>
                                         <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (
@@ -572,12 +611,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <div className="sf-file-action">
                                                     <button
                                                         type="button"
-                                                        className="sf-file-action-button"
+                                                        className="sf-file-action-button sf-download-button"
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
                                                     >
-                                                        { working === file.fileId ? 'Preparing…' : 'Download' }
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"
+                                                            strokeLinejoin="round" aria-hidden="true">
+                                                            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+                                                        </svg>
+                                                        { working === file.fileId ? 'Preparing…' : 'Download securely' }
                                                     </button>
                                                 </div>
                                                 <p className="sf-state-note">
@@ -609,9 +653,18 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                                 ? 'Your previous 24-hour access expired. Renew this same document for another 24-hour window.'
                                                                 : 'Choose how to unlock this private file for 24 hours.' }
                                                         </p>
+                                                        <p className="sf-payment-total">
+                                                            { payablePrice !== null
+                                                                ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
+                                                                    + '. Final total and tax are calculated at checkout.'
+                                                                : 'Website estimate unavailable. WhatsApp Review & Pay will show the verified amount before you approve.' }
+                                                        </p>
                                                         <div className="sf-payment-option sf-payment-option-primary">
-                                                            <strong>Website checkout</strong>
-                                                            <span>Use your cart and secure Razorpay checkout · recommended for quick renewal</span>
+                                                            <div className="sf-payment-choice-head">
+                                                                <strong>Website checkout</strong>
+                                                                <span className="sf-choice-tag">Recommended</span>
+                                                            </div>
+                                                            <span>Use your cart and secure Razorpay checkout. Review the final amount before paying.</span>
                                                             <button type="button" className="sf-file-action-button"
                                                                 onClick={ () => { void handleWebsiteCheckout( file ); } }
                                                                 disabled={ working === file.fileId || vaultLinePrice === null }
@@ -633,12 +686,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                                     : 'Pay on WhatsApp instead' }
                                                             </button>
                                                         </div>
-                                                        <p className="sf-payment-total">
-                                                            { payablePrice !== null
-                                                                ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
-                                                                    + '. Final total and tax are calculated at checkout.'
-                                                                : 'The current amount is being verified. No payment can begin until it is available.' }
-                                                        </p>
                                                     </div>
                                                 ) }
                                                 <p className="sf-state-note">
@@ -685,7 +732,20 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
                   box-sizing:border-box;
                 }
+                .sf-card-overview{display:flex;align-items:center;gap:14px;padding-bottom:20px;margin-bottom:24px;
+                  border-bottom:1px solid var(--public-hairline)}
+                .sf-vault-icon{display:grid;place-items:center;flex:0 0 auto;width:50px;height:50px;
+                  border-radius:16px;background:var(--public-lime-tint);color:var(--public-brand-green)}
+                .sf-card-overview-copy{min-width:0;flex:1}
+                .sf-card-kicker{margin:0 0 4px;font-size:11px;letter-spacing:.13em;font-weight:800;
+                  color:var(--public-brand-green)}
+                .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
+                  letter-spacing:-.04em;color:var(--public-heading)}
+                .sf-card-description{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--public-muted)}
                 .sf-loading{display:grid;gap:8px;justify-items:start;color:var(--public-text)}
+                .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
+                .sf-load-error .sf-file-error{margin:0}
+                .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
                 .sf-loading-mark{
                   display:grid;place-items:center;width:48px;height:48px;margin-bottom:10px;
                   border-radius:12px;background:var(--public-brand-lime);color:var(--public-brand-green);
@@ -698,21 +758,29 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 /* The auth-inspired outer card owns the surface; the exact file is its content,
                    not a second nested card. */
                 .sf-file{padding:0;margin:0;background:transparent;border:0;border-radius:0;box-shadow:none}
-                .sf-file-head{display:flex;gap:11px;align-items:flex-start}
+                .sf-file-head{display:flex;gap:14px;align-items:flex-start}
                 .sf-file-icon{
-                  width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
+                  width:46px;height:46px;border-radius:13px;background:var(--public-lime-tint);
                   color:var(--public-brand-green);display:flex;align-items:center;justify-content:center;flex:0 0 auto;
                 }
                 .sf-file-copy{min-width:0;flex:1}
                 .sf-file-name{
-                  font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+                  margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);
                   line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
                   color:var(--public-heading);overflow-wrap:anywhere;
                 }
                 .sf-file-meta{
                   margin:8px 0 0;font-size:var(--public-supporting-size);line-height:1.4;color:var(--public-muted);
                 }
-                .sf-file-divider{height:1px;background:#eef0e6;margin:24px 0}
+                .sf-file-status-row{margin:16px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+                .sf-status-chip{display:inline-flex;align-items:center;gap:8px;max-width:100%;
+                  padding:8px 12px;border-radius:999px;border:1px solid var(--public-hairline);
+                  font-size:13px;font-weight:750;line-height:1.3;overflow-wrap:anywhere}
+                .sf-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+                .sf-status-ready{color:var(--public-brand-green);background:var(--public-lime-tint);border-color:#cce7ae}
+                .sf-status-pending{color:#6d531c;background:#fff8e5;border-color:#ead9aa}
+                .sf-status-locked{color:var(--public-muted);background:var(--public-bg)}
+                .sf-file-divider{height:1px;background:var(--public-hairline);margin:22px 0}
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
                 .sf-file-action-button{
@@ -724,6 +792,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
                   transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
                 }
+                .sf-download-button{width:100%;min-height:54px;justify-content:center;gap:10px;
+                  border-radius:14px;background:var(--public-brand-lime);text-decoration:none}
                 .sf-file-action-button:hover:not(:disabled){
                   background:var(--public-brand-lime);transform:translateY(-1px);
                   box-shadow:0 5px 14px rgba(26,58,42,.10);text-decoration-color:transparent;
@@ -741,11 +811,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-expired-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
                 .sf-payment-option-primary{background:#f6fbf0;border-color:#bedcac}
+                .sf-payment-choice-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
                 .sf-payment-option strong{font-weight:800;color:var(--public-brand-green);font-size:var(--public-supporting-size)}
                 .sf-payment-option span{font-size:var(--public-supporting-size);color:var(--public-muted);line-height:1.5}
+                .sf-payment-option .sf-choice-tag{display:inline-flex;align-items:center;border-radius:999px;
+                  padding:4px 9px;background:var(--public-brand-lime);color:var(--public-brand-green);
+                  font-size:12px;line-height:1.3;font-weight:750}
                 .sf-payment-option .sf-file-action-button{justify-content:center;width:100%;text-align:center}
                 .sf-payment-option .sf-secondary-btn,.sf-pay-waiting .sf-secondary-btn{border:1px solid #d0e0c8;background:#fff;color:var(--public-brand-green)}
-                .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-muted);margin:2px 0 0;line-height:1.5}
+                .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-heading);
+                  padding:12px 14px;margin:0;line-height:1.5;background:var(--public-lime-tint);
+                  border-radius:12px;border:1px solid #dce8d6}
                 .sf-pay-waiting{display:grid;gap:12px}
                 .sf-confirming-note{
                   margin:0;padding:12px 14px;border-inline-start:4px solid var(--public-brand-lime);
@@ -761,9 +837,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   font-size:var(--public-supporting-size);font-weight:600;line-height:1.45;
                 }
 
+                .sf-empty-state{display:grid;justify-items:start;gap:16px}
                 .sf-empty{
                   font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
                 }
+                .sf-back-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;
+                  border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
+                  font-weight:700;text-decoration:underline;text-underline-offset:3px}
+                .sf-back-link:hover{background:var(--public-brand-lime)}
+                .sf-back-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
@@ -773,7 +855,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
                   }
-                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}
+                  .sf-card-overview{align-items:flex-start;gap:12px}
+                  .sf-vault-icon{width:44px;height:44px;border-radius:13px}
+                  .sf-card-title{font-size:22px}
+                  .sf-file-head{gap:12px}
+                  .sf-file-icon{width:42px;height:42px}
+                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size);
+                    width:100%;justify-content:center;text-align:center}
                 }
                 @media(prefers-reduced-motion:reduce){
                   .sf-file-action-button{transition:none}
