@@ -45,9 +45,9 @@ const ARGS = process.argv.slice( 2 ).filter( a => !a.startsWith( '--' ) );
  */
 const ROUTES = ARGS.length ? ARGS : [
   '/checkout/', '/orders/', '/checkout/status/', '/checkout/success/',
-  '/get/', '/shop/kiosk/', '/blog/', '/contact/', '/vayulok/',
-'/submit-request/', '/request-amendment/',
-  '/drop-docs/', '/terms/', '/privacy/', '/404/',
+  '/shop/kiosk/', '/blog/', '/contact/', '/vayulok/',
+  // Retired service pages are redirects, and /get/ is a redirect-only signpost.
+  '/terms/', '/privacy/', '/404/',
 ];
 
 /** The two viewports where the geometry differs: the compact scrollbar step is at 767px. */
