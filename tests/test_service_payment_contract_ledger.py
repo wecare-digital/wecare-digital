@@ -154,6 +154,8 @@ def test_workspace_shares_real_ledger_and_blocks_unbound_service_invoices():
     assert 'serviceKind="VAULT"' in service
     assert 'serviceKind="VAULT"' in pay
     assert "serviceKind ? { serviceKind }" in ledger
+    assert "rows.some( row => row.serviceKind !== serviceKind )" in ledger
+    assert "setScopeError(" in ledger
     assert "query.set( 'serviceKind', params.serviceKind )" in client
     assert "service_invoice_ledger.verified_service_kind" in engine
     assert "if ( choice.needsTarget )" in preset
