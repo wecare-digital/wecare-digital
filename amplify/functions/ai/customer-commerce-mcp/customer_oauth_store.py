@@ -45,8 +45,11 @@ class Store:
             return None
 STORE = Store()
 
-def capsule(data: dict, client_id: str, key: str) -> str:
-    context = {'app': 'wecare-customer-commerce', 'resource': resource(), 'client': client_id, 'record': key}
+def capsule(data: dict, client_id: str, key: str, token_resource: str | None = None) -> str:
+    audience = token_resource or resource()
+    if audience not in accepted_resources():
+        raise AuthError('Invalid encryption audience')
+    context = {'app': 'wecare-customer-commerce', 'resource': audience, 'client': client_id, 'record': key}
     plain = json.dumps(data).encode()
     if len(plain) > 32768:
         raise AuthError('Custody payload too large')
@@ -57,8 +60,11 @@ def capsule(data: dict, client_id: str, key: str) -> str:
     result = aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'], EncryptionContext=context, Plaintext=plain)
     return base64.b64encode(result['CiphertextBlob']).decode()
 
-def uncapsule(cipher: str, client_id: str, key: str) -> dict:
-    context = {'app': 'wecare-customer-commerce', 'resource': resource(), 'client': client_id, 'record': key}
+def uncapsule(cipher: str, client_id: str, key: str, token_resource: str | None = None) -> dict:
+    audience = token_resource or resource()
+    if audience not in accepted_resources():
+        raise AuthError('Invalid encryption audience')
+    context = {'app': 'wecare-customer-commerce', 'resource': audience, 'client': client_id, 'record': key}
     if cipher.startswith('kms2:'):
         parts = json.loads(cipher[5:])
         if not isinstance(parts, list) or not 2 <= len(parts) <= 11 or any((not isinstance(part, str) or len(part) > 12000 for part in parts)):
@@ -108,12 +114,12 @@ def issue(grant: dict, auth: dict) -> dict:
     access = 'wca_' + secrets.token_urlsafe(32)
     refresh = 'wcr_' + secrets.token_urlsafe(32)
     for kind, token, expiry in (('access', access, now + lifetime), ('refresh', refresh, grant['absoluteExpiresAt'])):
-        STORE.put({'sidHash': row_key(kind, token), 'kind': kind, 'client': grant['client'], 'resource': resource(), 'grant': grant['sidHash'], 'scope': grant['scope'], 'absoluteExpiresAt': expiry})
+        STORE.put({'sidHash': row_key(kind, token), 'kind': kind, 'client': grant['client'], 'resource': grant['resource'], 'grant': grant['sidHash'], 'scope': grant['scope'], 'absoluteExpiresAt': expiry})
     return {'access_token': access, 'refresh_token': refresh, 'token_type': 'Bearer', 'expires_in': lifetime, 'scope': grant['scope']}
 
 def token_exchange(params: dict) -> dict:
     client(params.get('client_id', ''))
-    if params.get('resource') != resource():
+    if params.get('resource') not in accepted_resources():
         raise AuthError('Invalid resource')
     if params.get('grant_type') == 'authorization_code':
         if set(params) != {'grant_type', 'client_id', 'resource', 'code', 'redirect_uri', 'code_verifier'}:
@@ -128,10 +134,8 @@ def token_exchange(params: dict) -> dict:
             raise AuthError('Invalid grant')
         if STORE.take(key) is None:
             raise AuthError('Authorization code already used')
-        grant = STORE.get(row['grant'])
-        if not grant:
-            raise AuthError('Expired session')
-        cognito = uncapsule(grant['cipher'], grant['client'], grant['sidHash'])
+        grant = bound(STORE.get(row['grant']), params)
+        cognito = uncapsule(grant['cipher'], grant['client'], grant['sidHash'], grant['resource'])
         checked_cognito(cognito)
         return issue(grant, cognito)
     if params.get('grant_type') == 'refresh_token':
@@ -144,30 +148,34 @@ def token_exchange(params: dict) -> dict:
         grant = STORE.take(row['grant'])
         if not grant:
             raise AuthError('Expired session')
-        previous = uncapsule(grant['cipher'], grant['client'], grant['sidHash'])
+        previous = uncapsule(grant['cipher'], grant['client'], grant['sidHash'], grant['resource'])
         result = aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT, AuthFlow='REFRESH_TOKEN_AUTH', AuthParameters={'REFRESH_TOKEN': previous['RefreshToken']})
         cognito = {**result.get('AuthenticationResult', {}), 'RefreshToken': previous['RefreshToken']}
         _, subject = checked_cognito(cognito)
         if subject != grant['subject']:
             raise AuthError('Customer changed')
-        grant['cipher'] = capsule(cognito, grant['client'], grant['sidHash'])
+        grant['cipher'] = capsule(cognito, grant['client'], grant['sidHash'], grant['resource'])
         STORE.put(grant)
         return issue(grant, cognito)
     raise AuthError('Unsupported grant')
 
 def customer_event(event: dict, scope: str) -> dict:
+    # One Lambda serves two explicit resources. A token for one cannot be
+    # presented at the other endpoint, even though both use the same customer.
+    expected_resource = (BRANDED_RESOURCE if event.get('rawPath') == '/mcp-branded'
+                         else resource())
     headers = {str(key).lower(): str(value) for key, value in (event.get('headers') or {}).items()}
     authorization = headers.get('authorization', '')
     if not authorization.startswith('Bearer wca_'):
         raise AuthError('Resource-bound customer session required')
     row = STORE.get(row_key('access', authorization[7:]))
-    if not row or row.get('resource') != resource() or scope not in row.get('scope', '').split():
+    if not row or row.get('resource') != expected_resource or scope not in row.get('scope', '').split():
         raise AuthError('Customer scope required')
     client(row['client'])
     grant = STORE.get(row['grant'])
-    if not grant or grant.get('resource') != resource() or grant.get('client') != row['client']:
+    if not grant or grant.get('resource') != expected_resource or grant.get('client') != row['client']:
         raise AuthError('Revoked customer session')
-    cognito = uncapsule(grant['cipher'], grant['client'], grant['sidHash'])
+    cognito = uncapsule(grant['cipher'], grant['client'], grant['sidHash'], grant['resource'])
     _, subject = checked_cognito(cognito)
     if subject != grant['subject']:
         raise AuthError('Customer changed')
