@@ -1,8 +1,8 @@
 /**
  * Read-only message and hand-off ledger. Never infer handset delivery from Meta
  * acceptance or from a paid entitlement. Only authenticated, file-scoped audit fields
- * supplied by SecureFiles API may appear here. The five templates are NOT five automatic
- * sends: customer tap and verified capture are required between stages.
+ * supplied by SecureFiles API may appear here. The current four stages are
+ * trigger-gated; historical offers remain in the backend audit but are not sent.
  */
 import React from 'react';
 import * as api from '../../../api/client';
@@ -25,9 +25,8 @@ export interface VaultMessageStep {
   subEvents?: { label: string; status: string; timestamp: string }[];
 }
 
-const TITLE = [ 'Unlock Vault offer', 'Review & Pay', 'Order updates ×2', 'Paid invoice', 'Access Vault' ];
+const TITLE = [ 'Review & Pay', 'Order updates ×2', 'Paid invoice', 'Access Vault' ];
 const FALLBACK = [
-  'wecare_vault_request_ready',
   'wecare_whatapp_native_pay_template',
   'wecare_order_status_v3',
   'wecare_default_invoice_image_template',
@@ -94,10 +93,8 @@ export function vaultMessageSteps (
   const paid = file?.vaultPaymentStatus === 'PAID'
     || file?.accessState === 'READY' || file?.accessState === 'OPEN'
     || file?.accessState === 'EXPIRED';
-  const offer = String( file?.lastOfferOutcome || '' );
   const payment = String( file?.lastPaymentRequestOutcome || '' );
   const access = String( file?.lastAccessSendOutcome || '' );
-  const offerProof = providerStatus( log?.evidence.offer );
   const nativePayProof = providerStatus( log?.evidence.nativePay );
   const processingProof = providerStatus( log?.evidence.processing );
   const completedProof = providerStatus( log?.evidence.completed );
@@ -122,11 +119,11 @@ export function vaultMessageSteps (
     status: entry.proof?.label || 'Not verified',
     timestamp: timeLabel( entry.data?.observedAt || undefined ),
   }) );
-  const offerState = offerProof?.state || outcomeState( offer, 'VAULT_OFFER_SENT' );
   const payState = outcomeState( payment, 'PAYMENT_REQUEST_SENT' );
   const accessState = automaticAccessProof?.state || accessProof?.state || outcomeState( access, 'VAULT_LINK_SENT' );
   const stage = ( i: number, gapDefault: string ) => {
-    const record = journey?.steps[ i ];
+    const roles = [ 'native_payment', 'order_status', 'receipt', 'access' ];
+    const record = journey?.steps.find( step => step.role === roles[ i ] );
     return {
       template: record?.templateName || FALLBACK[ i ],
       templateId: record?.templateId || '',
@@ -137,27 +134,17 @@ export function vaultMessageSteps (
   };
   return [
     {
-      index: 1, title: TITLE[ 0 ], ...stage( 0, 'Staff-triggered' ),
-      event: 'Staff explicitly confirms send',
-      state: offerState, stateLabel: offerProof?.label || stateText( offerState ),
-      delivery: offerProof?.delivery || 'Handset delivery/read not independently linked',
-      at: timeLabel( file?.lastOfferRequestedAt ),
-      detail: offer
-        ? 'Last result: ' + offer + ( file?.lastOfferRequestedBy ? ' · by ' + file.lastOfferRequestedBy : '' )
-        : 'No staff offer attempt in this file audit. Uploaded documents do not send messages.',
-    },
-    {
-      index: 2, title: TITLE[ 1 ], ...stage( 1, 'Customer-triggered' ),
-      event: 'Only after customer taps Unlock Vault',
+      index: 1, title: TITLE[ 0 ], ...stage( 0, 'Staff/customer-triggered' ),
+      event: 'Staff or customer requests a native Review & Pay; customer approves the payment',
       state: nativePayProof?.state || ( paid ? 'accepted' : payState ),
-      stateLabel: nativePayProof?.label || ( paid ? 'Payment captured · WA unverified' : payState === 'waiting' ? 'Customer action required' : stateText( payState ) ),
+      stateLabel: nativePayProof?.label || ( paid ? 'Payment captured · WA unverified' : payState === 'waiting' ? 'Ready for customer payment' : stateText( payState ) ),
       delivery: nativePayProof?.delivery || 'Native payment message delivery not linked to this file audit',
       at: timeLabel( log?.evidence.nativePay?.observedAt || file?.lastPaymentRequestedAt ),
       detail: paid ? 'Payment evidence recorded; this does not itself prove WhatsApp delivery'
-        : payment ? 'Staff request outcome: ' + payment : 'Customer-triggered checkout is not a scheduled blast',
+        : payment ? 'Staff request outcome: ' + payment : 'No automatic charge; the customer must approve this exact-file request',
     },
     {
-      index: 3, title: TITLE[ 2 ], ...stage( 2, 'After verified capture' ),
+      index: 2, title: TITLE[ 1 ], ...stage( 1, 'After verified capture' ),
       event: 'Processing → completed (two separate messages)',
       state: completedProof?.state || processingProof?.state || 'waiting',
       stateLabel: completedProof ? 'Completed · ' + completedProof.label
@@ -169,7 +156,7 @@ export function vaultMessageSteps (
       subEvents: orderEvents,
     },
     {
-      index: 4, title: TITLE[ 3 ], ...stage( 3, 'After order update' ),
+      index: 3, title: TITLE[ 2 ], ...stage( 2, 'After order update' ),
       event: 'Verified paid invoice image',
       state: invoiceProof?.state || 'waiting',
       stateLabel: invoiceProof?.label || ( paid ? 'Invoice delivery not verified' : 'Waiting for paid invoice' ),
@@ -178,7 +165,7 @@ export function vaultMessageSteps (
       detail: 'The invoice image is sent after payment confirmation. A paid entitlement alone never proves handset receipt.',
     },
     {
-      index: 5, title: TITLE[ 4 ], ...stage( 4, 'After invoice acceptance' ),
+      index: 4, title: TITLE[ 3 ], ...stage( 3, 'After invoice acceptance' ),
       event: 'Paid entitlement + invoice required',
       state: accessState,
       stateLabel: automaticAccessProof
@@ -228,7 +215,7 @@ export default function VaultMessageTimeline ( {
   const scopedLog = log?.fileId === file?.fileId ? log : null;
   const steps = vaultMessageSteps( file, journey, scopedLog );
   return (
-    <section className={ styles.ledger } aria-label="Five-stage Vault message status and timing">
+    <section className={ styles.ledger } aria-label="Four-stage Vault payment and access status">
       <div className={ styles.legend }>
         <strong>Message order &amp; delivery log</strong>
         <span className={ styles.refreshGroup }>
