@@ -472,8 +472,8 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
-  const presentInviteResult = ( action: CustomerMenuAction, kind: 'accepted' | 'failed' ) => {
-    setInviteNotice( customerMenuNotice( action, kind ) );
+  const presentInviteResult = ( kind: 'accepted' | 'failed' ) => {
+    setInviteNotice( customerMenuNotice( kind ) );
   };
 
   // Orders-row actions must work on the current page without relying on a
@@ -482,7 +482,7 @@ export default function OrdersPage (): React.ReactElement {
     if ( !token || inviteInFlight.current ) return;
     inviteInFlight.current = true;
     setInviteBusy( true );
-    setInviteNotice( customerMenuNotice( action, 'pending' ) );
+    setInviteNotice( customerMenuNotice( 'pending' ) );
     void ( async () => {
       try {
         const result = await sendCustomerMenuAction( action, token );
@@ -493,9 +493,9 @@ export default function OrdersPage (): React.ReactElement {
           expire();
           return;
         }
-        presentInviteResult( action, result.kind );
+        presentInviteResult( result.kind );
       } catch {
-        if ( liveRef.current ) presentInviteResult( action, 'failed' );
+        if ( liveRef.current ) presentInviteResult( 'failed' );
       } finally {
         inviteInFlight.current = false;
         if ( liveRef.current ) setInviteBusy( false );
@@ -552,7 +552,7 @@ export default function OrdersPage (): React.ReactElement {
       // Consume BEFORE sending; refresh/back must never silently resend.
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
-        setInviteNotice( customerMenuNotice( serviceAction, 'pending' ) );
+        setInviteNotice( customerMenuNotice( 'pending' ) );
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) {
@@ -560,7 +560,7 @@ export default function OrdersPage (): React.ReactElement {
           expire();
           return;
         }
-        presentInviteResult( serviceAction, result.kind );
+        presentInviteResult( result.kind );
       }
 
       // Link pre-existing WhatsApp purchases independently of template delivery.
@@ -664,7 +664,7 @@ export default function OrdersPage (): React.ReactElement {
           { ( ordersAlert || inviteNotice || copyNotice ) && (
             <div className="ord-toast-rail">
               { inviteNotice && (
-                <p className="ord-backend-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
+                <p className="ord-backend-toast ord-invite-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
                   { inviteNotice.message }
                 </p>
               ) }
@@ -989,6 +989,11 @@ export default function OrdersPage (): React.ReactElement {
           }
           /* Clipboard success is a short, content-width toast. Backend failures keep
              their larger readable banner; lengthy clipboard fallback text wraps. */
+          /* A short WhatsApp confirmation should be a compact notice, not a 560px banner.
+             Keep invoice/order failures readable in their existing wider alerts. */
+          .ord-backend-toast.ord-invite-toast{
+            inline-size:fit-content;max-inline-size:100%;
+          }
           .ord-backend-toast.ord-copy-toast{
             inline-size:fit-content;max-inline-size:min(100%,320px);
             margin:0;padding:8px 12px;
