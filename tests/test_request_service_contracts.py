@@ -242,6 +242,14 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "{ working === file.fileId ? 'Preparing…' : 'Download' }" in download_button
     assert "<svg" not in download_button
     assert "onClick={ () => { void handleDownload( file ); } }" in download_button
+    # The download button must use the small, underlined lime-tint button
+    # already used by the original Get Code action, on desktop and mobile.
+    assert ".sf-download-button{" not in page  # No full-width bright-green override
+    assert "display:inline-flex;align-items:center;width:max-content;max-width:100%;" in page
+    assert "min-height:48px;padding:8px 14px;border:0;border-radius:10px;" in page
+    assert "background:var(--public-lime-tint);color:var(--public-brand-green);" in page
+    assert "text-decoration:underline;text-decoration-thickness:1.5px;" in page
+    assert ".sf-file-action-button{font-size:var(--public-mobile-cta-font-size)" in page
     assert "{ vaultLinePrice !== null && <span className=\"sf-choice-tag\">Recommended</span> }" in page
     assert "Estimated total:" in page
     assert "Final total and tax are calculated at checkout." in page
