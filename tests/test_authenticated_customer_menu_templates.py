@@ -141,7 +141,8 @@ def test_untrusted_url_cannot_create_a_customer_template_send() -> None:
     assert "sendCustomerMenuAction( serviceAction, session.accessToken )" in orders
     assert "stashCustomerMenuAction( sendAction );" in header
     assert "stashCustomerMenuAction( sendAction );" in row_menu
-    assert "stashPendingOrder( orderNumber );" in row_menu
+    assert "stashPendingOrder" not in row_menu
+    assert "stashCustomerMenuAction( sendAction );" in row_menu
     assert "params.has( 'service' )" in orders
     assert "window.history.replaceState( window.history.state, '', '/orders/' );" in orders
     assert "?service=" not in header
