@@ -14,8 +14,7 @@ Meta is the authority on whether a template is APPROVED. This module is the auth
 template each business step uses and what components that step must supply. Senders still prove
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
-The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback, plus
-`wecare_vault_request_ready` read back APPROVED on 2026-10-28; 15 `en` template versions verified on 2026-10-30).
+The WABA1 live set has 14 approved `en` templates as of 2026-10-31. The retired Vault offer has no current Meta approval.
 `scripts/check_whatsapp_template_payloads_live.py` builds each send with
 the production code and checks it against these live definitions:
 
@@ -30,8 +29,6 @@ the production code and checks it against these live definitions:
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
     PDF_DOWNLOAD   wecare_pdf_direct_download             DOCUMENT header, FLOW button index 0; manual only
-    VAULT_OFFER    wecare_vault_request_ready             Manual Vault stage 1: IMAGE header and
-                                                          bound QUICK_REPLY "Unlock Vault"
     SUBMIT_REQUEST_FLOW     submit_request_flow           UTILITY, IMAGE header, FLOW button index 0
     REQUEST_AMENDMENT_FLOW request_amendment_flow          UTILITY, IMAGE header, FLOW button index 0
     DROP_DOCS_FLOW          _dropdoc_flow                  UTILITY, IMAGE header, FLOW button index 0
@@ -115,11 +112,9 @@ PDF_DOWNLOAD = Template(name="wecare_pdf_direct_download", language="en", catego
                         header="document", buttons=("flow",), automated=False)
 PROFILE_DETAILS = Template(name="service_details", language="en", category="UTILITY",
                            header="image", buttons=("flow",))
-#: Manual staff Vault publication sends this approved, document-bound IMAGE quick-reply first.
-#: The customer taps Unlock Vault to begin native Review & Pay. Keep legacy offer taps working,
-#: and do not emit this notification from the authenticated customer direct-checkout endpoint.
+#: Historical signed-tap definition only. Do not send new Vault offers.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
-                       header="image", buttons=("quick_reply",))
+                       header="image", buttons=("quick_reply",), automated=False)
 SUBMIT_REQUEST_FLOW = Template(name="submit_request_flow", language="en", category="UTILITY",
                                header="image", buttons=("flow",))
 REQUEST_AMENDMENT_FLOW = Template(name="request_amendment_flow", language="en", category="UTILITY",
@@ -140,7 +135,7 @@ SERVICE_FLOW_TEMPLATES: Mapping[str, Template] = {
 }
 
 ALL: Tuple[Template, ...] = (
-    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PDF_DOWNLOAD, PROFILE_DETAILS, VAULT_OFFER,
+    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PDF_DOWNLOAD, PROFILE_DETAILS,
     SUBMIT_REQUEST_FLOW, REQUEST_AMENDMENT_FLOW, DROP_DOCS_FLOW, REQUEST_PICKUP_FLOW,
     TRACK_SHIPPING_FLOW,
 )
@@ -162,7 +157,6 @@ APPROVED_TEMPLATE_IDS: Mapping[str, str] = {
     "wecare_leave_review": "1801972550682516",
     "wecare_default_invoice_image_template": "1782246473079550",
     "wecare_order_status_v3": "1754227779211208",
-    "wecare_vault_request_ready": "29124703577146420",
     "wecare_otp": "1292079089453029",
 }
 
