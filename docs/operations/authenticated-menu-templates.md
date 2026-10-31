@@ -2,9 +2,13 @@
 
 PR #2012 merged the authenticated sender and workspace logs into `wecare.digital`.
 The exact template versions were independently confirmed APPROVED on 2026-10-31.
-Production Lambdas `wecare-customer-profile:live` (v42) and
-`wecare-whatsapp-business-api:live` (v401) are active with the
-customer-profile invoke/audit IAM grants, and FlowRegistry marks F001/F002 PUBLISHED.
+The original PR recorded production `wecare-customer-profile:live` v42 and
+`wecare-whatsapp-business-api:live` v401. **Those were historical values, not the current release.**
+On 2026-10-31, the corrected two-function deployment moved
+`wecare-customer-profile:live` to **v45** and
+`wecare-whatsapp-business-api:live` to **v405**; the sender now recognizes the
+F002 internal action. The customer-profile invoke/audit IAM grants remain part
+of the contract, and FlowRegistry marks F001/F002 PUBLISHED.
 The customer-facing menu must be published through a separate pinned Amplify
 release; automated source/registry checks are NOT a substitute for a handset QA send.
 
@@ -75,6 +79,55 @@ or alter payment state; it sends only after an explicit customer click.
 
 A Meta API acknowledgment is not proof of WhatsApp delivery, nor proof that
 the customer finished the Flow. Those are separate webhook/submission facts.
+
+
+## 2026-10-31 release verification and stale-checkout incident
+
+**Deployment confirmed:** an old CloudShell checkout at
+`f2a9e8c3783754c385ea8f8a8798a7cfc61ac076` omitted both
+`sendLeaveReview` and `customerLeaveReviewTemplate`. A fleet-wide
+`deploy_all_lambdas.py` run restored old packages under new version numbers
+(v44 for customer-profile and v404 for WhatsApp API). After a clean
+fast-forward to reviewed source commit `8761328a1`, a **two-function-only**
+deployment published customer-profile v45 (CodeSha256 beginning `U/cykcFF`)
+and WhatsApp API v405 (beginning `QkAQ1kQC`). A no-recipient invoke returned
+400 `Invalid customer phone` for both internal actions, proving dispatch
+recognition without sending a WhatsApp message. The customer reported that
+the Leave Review button works; **Meta delivery status, completion persistence
+and replay/idempotency were not established by that report alone**.
+
+**Read-only QA and release gate:**
+
+1. Before packaging, require a clean worktree at a reviewed commit and verify
+   `sendLeaveReview`, `customerLeaveReviewTemplate`, `includeTemplateMappings`,
+   and `syncTemplateFlowMappings` are present. Compare to the intended reviewed
+   commit; do not substitute a stale local branch for a newer approved release.
+2. Run `node --test tests/customer_menu_notice_contract.test.mjs` for the
+   synthetic one-use-intent, no-recipient-field, ambiguous-failure, exact-copy
+   and sender-dispatch regression checks.
+3. Run a **named-function** dry run, then a reviewed named-function deployment
+   for only `wecare-customer-profile` and `wecare-whatsapp-business-api`.
+   Never run the fleet-wide publisher merely to fix a customer-menu action.
+   Deploy via a least-privilege release role, not everyday Root credentials.
+4. Confirm `:live` aliases and code hashes after publication. Check the
+   allowed F001/F002 FlowRegistry mappings and published Meta templates;
+   don't relax canonical Flow publication checks.
+5. With an authorized test account only, perform one intentional customer
+   click and inspect the response, outbound record and webhook status.
+   Complete and submit the F002 Flow to verify FlowSubmission/Reviews and Inbox.
+   Replay a **captured test webhook in a controlled test harness**, not against
+   live customer messaging, to verify idempotency. Do not resend invitations
+   automatically after a timeout.
+6. Report **accepted**, **sent/delivered/read** and **Flow submitted** as
+   distinct states. Do not close the end-to-end QA item solely on an accepted
+   send or Lambda dispatch probe.
+
+**Toast copy review:** the six editable Orders invitation states (Subscribe and
+Leave Review x pending/accepted/failed) now have one source at
+`src/lib/customerMenuNotices.ts`. The complete source-level Workspace toast
+list is [`docs/audits/toast-message-catalog-20261031.md`](../audits/toast-message-catalog-20261031.md).
+Shared Workspace toasts use `src/contexts/ToastContext.tsx` and
+`src/components/Toast.tsx` instead of the Orders inline rail.
 
 ## Deployment and verification checklist
 
