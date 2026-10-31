@@ -128,7 +128,7 @@ export function vaultMessageSteps (
     // Only the access link has a configurable wait in the sending runtime.
     const gaps = [
       'Customer-approved · no timer',
-      'No added wait · event-gated',
+      '1s Processing → Completed · Vault only',
       'No added wait · paid capture required',
       'Access delay · Pay & Flow settings',
     ];
@@ -158,7 +158,7 @@ export function vaultMessageSteps (
           : paid ? 'Order updates not verified' : 'Waiting for captured payment',
       delivery: completedProof?.delivery || processingProof?.delivery || 'No verified order-update webhook linked to this paid file',
       at: timeLabel( log?.evidence.completed?.observedAt || log?.evidence.processing?.observedAt ),
-      detail: 'Payment captured → processing → completed; each send has its own provider message ID.',
+      detail: 'Payment captured → Processing; fixed 1s after accepted Processing → Completed for Vault only, and 0s before the paid invoice. Both sends have different provider message IDs.',
       subEvents: orderEvents,
     },
     {
