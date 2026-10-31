@@ -304,7 +304,9 @@ The other rules are handled separately and none is dismissed on a pattern:
 ```bash
 python scripts/triage_codeql_logging.py --report   # classification, no changes
 python scripts/triage_codeql_logging.py --apply    # dismiss only the provable ones
-python -m pytest tests/test_log_phone_masking.py   # the three gates
 ```
 
-The gates are the durable part. Triage closes a backlog once; a gate stops it coming back.
+The former Python regression gates under `tests/` have been retired. For log-masking
+changes, review the current source, follow `docs/operations/repository-validation.md`
+for manual checks, and inspect fresh CodeQL findings. Do not treat historical
+pytest results as current passing gates. Apply alert dismissals only after review.

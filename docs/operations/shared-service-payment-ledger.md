@@ -78,8 +78,9 @@ closed and tell the operator to open the service first.
 
 ### Release / acceptance
 
-1. Run payment-safe PR CI, new `test_service_payment_contract_ledger.py` tests,
-   and the hermetic Meta + Razorpay capture/refusal suite.
+1. Run the manual payment-safe Meta + Razorpay capture/refusal verification
+   and release-scoped typecheck/build checks. GitHub Actions and the deleted
+   regression suite are not part of this release path.
 2. Backend invoice filtering and media data need a new **reviewed** immutable
    Commerce Lambda bundle; a front-end deployment alone cannot activate them.
 3. Verify `wecare-commerce:live` version, source and `CodeSha256` against
@@ -118,8 +119,8 @@ and paid Track SKU must not be advertised as request service Flows.
 ### URL and release contract
 
 - `/workspace/service?view=vault&tab=ledger` must route to **Ledger**,
-  never `tab=logs`. `scripts/test-workspace-service-routes.mjs` tests the
-  actual TypeScript route helper at runtime for every combination.
+  never `tab=logs`. Verify the route in `src/lib/serviceWorkspaceRoutes.ts`
+  and the built authenticated workspace during manual release validation.
 - `/workspace/service?view=drop-docs` opens the authenticated **customer F003 submission review**; it does not offer staff file upload.
   `/workspace/service?view=vault` opens staff SecureFiles upload/publish and customer-bound download offer operations. The two product journeys remain distinct.
 - `/workspace/service?view=shipments&tab=track` shows existing-order tracking

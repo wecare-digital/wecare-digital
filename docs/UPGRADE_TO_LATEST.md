@@ -22,4 +22,4 @@ Run npm ci, npm run typecheck, npm run build, npm run lint and npm audit in the 
 
 Commit only the reviewed files on the intended branch. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See [the deployment procedure](operations.md#deploying) and [repository ownership](execution/repository-layout.md).
 
-Runtime or architecture migrations are separate changes requiring compatible dependency layers and exact-package handler tests. Do not infer current Lambda counts or provider availability from a dated upgrade document.
+Runtime or architecture migrations are separate changes requiring compatible dependency layers and manual exact-package handler verification. Do not infer current Lambda counts or provider availability from a dated upgrade document.
