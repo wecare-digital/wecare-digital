@@ -37,7 +37,7 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; serviceKind?: string; }
 
 const PER_PAGE = 25;
 
@@ -75,7 +75,7 @@ function money ( amount?: number, currency?: string ): string {
   }
 }
 
-const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, serviceKind } ) => {
   const toast = useToastContext();
   const router = useRouter();
   const [ invoices, setInvoices ] = useState<api.Invoice[]>( [] );
@@ -99,19 +99,23 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
     {
       // No status passed: filtering happens client-side so switching filters does
       // not re-hit the API on every keystroke of a 2,000-row ledger.
-      const r = await api.listInvoicesEngine( { limit: 2000 } );
+      const r = await api.listInvoicesEngine( {
+        limit: 2000,
+        ...( serviceKind ? { serviceKind } : {} ),
+      } );
       setInvoices( r.invoices || [] );
     } catch
     {
+      setInvoices( [] );
       toast.error( 'Could not load invoice records' );
     } finally
     {
       setLoading( false );
     }
-  }, [ toast ] );
+  }, [ serviceKind, toast ] );
 
   useEffect( () => { load(); }, [ load ] );
-  useEffect( () => { setPage( 1 ); }, [ statusFilter, search ] );
+  useEffect( () => { setPage( 1 ); }, [ statusFilter, search, serviceKind ] );
 
   const statuses = useMemo( () => {
     const set = new Set<string>();
@@ -187,7 +191,13 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
   const content = (
     <div className="ir-page">
       <div className="ir-inner">
-        { !embedded && (
+        { serviceKind && (
+          <header className="ir-head">
+            <h2>{ serviceKind === 'VAULT' ? 'Vault payment ledger' : serviceKind.replace( /_/g, ' ' ) + ' ledger' }</h2>
+            <p className="ir-sub">Verified payments for this service. Invoices and delivery proof come from the same read-only Payments ledger.</p>
+          </header>
+        ) }
+        { !embedded && !serviceKind && (
           <header className="ir-head">
             <h1 className="ir-h1">Invoice records</h1>
             <p className="ir-sub">
