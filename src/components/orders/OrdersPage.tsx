@@ -76,17 +76,6 @@ interface OrderRow {
   currencyUnexpected: boolean;
   /** payment_status canonical. '' when unmappable. Never a raw provider spelling. */
   status: string;
-  /** On the wire for a future filter. Deliberately not read here. */
-  statusRank: number;
-  /**
-   * `'website' | 'whatsapp'`, canonicalised server-side by `lambda_utils.ecommerce.order_channel`
-   * so the browser never sees a third spelling. Typed `string` rather than a union because the
-   * value arrives from the network: a union would be a claim about untrusted input, and the one
-   * read below already treats anything that is not `'whatsapp'` as the website.
-   */
-  channel: string;
-  /** Stable compact customer-facing support label (C-…), derived server-side. */
-  customerDisplayId: string;
 }
 
 interface OrdersResponse {

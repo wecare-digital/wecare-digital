@@ -99,7 +99,7 @@ Staff route: `/workspace/service`. Top-level sections now include:
 | --- | --- | --- | --- |
 | Submit Request | `SUBMIT_REQUEST`, `RSR7M2P9` | Existing owned order, paid Submit Request Meta Flow | Server catalog item price, verified service invoices |
 | Request Amendment | `REQUEST_AMENDMENT`, `RAM5Q8K4` | Amend verified existing-order request in paid Flow | Same |
-| Drop Docs | `DROP_DOCS`, `RDD9P3M7` | Document manager for **upload**; F003 after paid authorization | Same; separate upload fulfilment template |
+| Drop Docs | `DROP_DOCS`, `RDD9P3M7` | **Customer** uploads via owner-bound paid F003; staff reviews received files only | Same; separate upload fulfilment template |
 | Vault | `VAULT`, `RVT6K4Q8` | Staff SecureFiles and private **download** entitlement, no F003 | Same; separate download fulfilment template |
 | Shipments → Track | Catalog product `SHT8M5P3` | Existing owned-order tracking in Commerce Orders; separate paid SKU exists | Catalog price only, not a sixth service-Flow ledger |
 | Shipments → Pickup Request | `REQUEST_PICKUP`, `SHP7Q4N9` | Paid pickup Flow; separate published-asset + availability gate | Server price and verified pickup invoice ledger |
@@ -120,8 +120,8 @@ and paid Track SKU must not be advertised as request service Flows.
 - `/workspace/service?view=vault&tab=ledger` must route to **Ledger**,
   never `tab=logs`. `scripts/test-workspace-service-routes.mjs` tests the
   actual TypeScript route helper at runtime for every combination.
-- `/workspace/service?view=drop-docs` opens the authenticated upload manager.
-  `/workspace/service?view=vault` opens SecureFiles; no shared file-send action.
+- `/workspace/service?view=drop-docs` opens the authenticated **customer F003 submission review**; it does not offer staff file upload.
+  `/workspace/service?view=vault` opens staff SecureFiles upload/publish and customer-bound download offer operations. The two product journeys remain distinct.
 - `/workspace/service?view=shipments&tab=track` shows existing-order tracking
   entry and a separate, read-only Track catalog SKU price.
 - `/workspace/service?view=shipments&tab=pickup` shows Pickup catalog price;
