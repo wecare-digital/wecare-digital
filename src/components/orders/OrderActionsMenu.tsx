@@ -1,11 +1,5 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/router';
-
-import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
-import { setContribution } from '../../lib/cart';
-import { CHECKOUT_PATH, goToServiceAction } from '../../lib/serviceEntry';
-
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 
@@ -99,9 +93,9 @@ const OTHER_ACTIONS: readonly Action[] = [
     icon: 'review', keywords: 'review feedback rating' },
   { label: 'Subscribe', subtitle: 'Update your profile', href: CUSTOMER_MENU_HREFS.subscribe,
     icon: 'subscribe', keywords: 'profile address account' },
-  { label: 'Referral', subtitle: 'Refer & earn', href: 'https://wa.me/message/S6A2QEXZSYXTG1',
-    icon: 'referral', keywords: 'refer referral partner earn reward', external: true },
-  { label: 'Contribute', subtitle: 'Give back', href: CHECKOUT_PATH,
+  { label: 'Referral', subtitle: 'Refer & earn', href: '/orders/',
+    icon: 'referral', keywords: 'refer referral partner earn reward' },
+  { label: 'Contribute', subtitle: 'Give back', href: '/orders/',
     icon: 'rupee', keywords: 'contribute give back voluntary payment' },
 ];
 
@@ -112,7 +106,6 @@ type Props = {
 };
 
 export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }: Props ): React.ReactElement {
-  const router = useRouter();
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>( null );
   const panelRef = useRef<HTMLDivElement>( null );
@@ -120,8 +113,6 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
   const [ open, setOpen ] = useState( false );
   const [ search, setSearch ] = useState( '' );
   const [ position, setPosition ] = useState<React.CSSProperties | null>( null );
-  const [ contributionBusy, setContributionBusy ] = useState( false );
-  const [ contributionError, setContributionError ] = useState( false );
 
   // A portal is intentional: the Orders table scrolls horizontally on mobile.
   // An absolutely positioned menu inside its cell would be clipped by overflow-x:auto.
@@ -221,38 +212,6 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
       .catch( () => { window.location.href = action.href; } );
   };
 
-  // Use the same customer checkout entry as PublicShare. A contribution is a
-  // cart action, not a WhatsApp template invitation; never show "Sent to WhatsApp".
-  const onContribute = () => {
-    if ( contributionBusy ) return;
-    const [ choice ] = CONTRIBUTION_CHOICES;
-    setContributionError( false );
-    setContributionBusy( true );
-    void ( async () => {
-      try {
-        if ( !choice || !CONTRIBUTION_PRODUCT_ID ) throw new Error( 'Contribution unavailable' );
-        const cart = setContribution( choice.variantId );
-        if ( !cart.some( item => item.productId === CONTRIBUTION_PRODUCT_ID && item.variantId === choice.variantId ) ) {
-          throw new Error( 'Contribution unavailable' );
-        }
-        await goToServiceAction( router, {
-          destination: CHECKOUT_PATH,
-          action: {
-            kind: 'checkout',
-            channel: 'whatsapp',
-            productId: CONTRIBUTION_PRODUCT_ID,
-            variantId: choice.variantId,
-            label: 'Contribute',
-          },
-        } );
-      } catch {
-        setContributionError( true );
-      } finally {
-        setContributionBusy( false );
-      }
-    } )();
-  };
-
   return (
     <>
       <button
@@ -345,23 +304,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                 ) ) }
               </div>
             ) }
-            { other.map( action => action.label === 'Contribute' ? (
-              <button key={ action.label } type="button"
-                className="orm-item orm-contribute-item" onClick={ onContribute }
-                disabled={ contributionBusy } aria-busy={ contributionBusy ? true : undefined }>
-                <svg className="orm-icon" viewBox={ ICONS[ action.icon ].viewBox }
-                  aria-hidden="true" focusable="false">
-                  <path d={ ICONS[ action.icon ].path } />
-                </svg>
-                <span className="orm-copy">
-                  <span className="orm-title">{ action.label }</span>
-                  <span className="orm-sub">{ action.subtitle }</span>
-                </span>
-                <svg className="orm-next" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d={ CHEVRON_PATH } />
-                </svg>
-              </button>
-            ) : (
+            { other.map( action => (
               <a key={ action.label } href={ action.href } className="orm-item"
                 onClick={ event => onNavigate( event, action ) }>
                 <svg className="orm-icon" viewBox={ ICONS[ action.icon ].viewBox }
@@ -377,9 +320,6 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                 </svg>
               </a>
             ) ) }
-            { contributionError && (
-              <p className="orm-error" role="alert">Couldn't open checkout. Try again.</p>
-            ) }
             { count === 0 && (
               <p className="orm-empty" role="status">No matching actions.</p>
             ) }
@@ -447,13 +387,6 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
           min-block-size:50px;padding:7px 12px;border-radius:8px;
           color:var(--public-brand-green);text-decoration:none;
         }
-        .orm-contribute-item{
-          inline-size:100%;border:0;background:transparent;
-          font:inherit;text-align:start;cursor:pointer;
-        }
-        .orm-contribute-item:disabled{cursor:wait;opacity:.7}
-        .orm-error{margin:4px 12px 10px;font-size:13px;color:var(--public-brand-green);
-          border-inline-start:3px solid var(--public-brand-lime);padding-inline-start:9px}
         .orm-item:hover{background:var(--public-lime-tint)}
         .orm-item:focus-visible{
           background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);
