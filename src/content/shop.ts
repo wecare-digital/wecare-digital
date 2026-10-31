@@ -169,6 +169,9 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
 const ORDER_HUB_SERVICE_SLUGS = new Set( [
   'submit-request', 'request-amendment', 'drop-docs', 'vault',
   'shipments-track', 'request-pickup',
+  // Historical or retired public slugs must never be revived via /shop/[slug].
+  // Do not confuse a catalog/payment identity with a public page.
+  'bharat-rx', 'leave-review', 'subscribe', 'get', 'request-services',
 ] );
 const isServicesRow = ( raw: RawProduct ): boolean =>
   SERVICE_PRODUCT_IDS.has( String( raw.id || '' ).trim().toLowerCase() )
