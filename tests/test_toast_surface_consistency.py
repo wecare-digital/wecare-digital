@@ -8,15 +8,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_orders_whatsapp_feedback_is_inline_lime_and_transient():
-    source = (ROOT / "src/components/orders/OrdersPage.tsx").read_text()
-    style = source.split(".ord-profile-toast{", 1)[1].split(".ord-profile-toast-icon{", 1)[0]
-    assert "position:static;" in style
-    assert "position:fixed;" not in style
-    assert "background:var(--public-brand-lime);color:var(--public-brand-green)" in style
-    assert ".ord-profile-toast-error{background:var(--public-brand-lime);color:var(--public-brand-green)}" in source
-    assert "window.setTimeout( () => setProfileAction( 'idle' ), 4000 )" in source
-    assert "profileAction === 'failed' ? 'alert' : 'status'" in source
+def test_orders_uses_canonical_subscribe_without_obsolete_profile_toast():
+    orders = (ROOT / "src/components/orders/OrdersPage.tsx").read_text()
+    menu = (ROOT / "src/components/orders/OrderActionsMenu.tsx").read_text()
+    assert "sendProfileUpdate" not in orders
+    assert "profileAction" not in orders
+    assert "ord-profile-toast" not in orders
+    assert 'OrderActionIcon name="person"' not in orders
+    # The customer-link bootstrap still uses the authenticated profile endpoint.
+    assert "fetch( PROFILE_URL" in orders
+    assert "SUBSCRIBE_CTA_HREF" in menu
 
 
 def test_workspace_toasts_use_lime_and_quiet_fade():

@@ -27,21 +27,24 @@ registry row that says otherwise, and the generic keyword loop refuses to open F
 other trigger key. The previous generic `feedback_survey_form_1` template was deleted on 2026-10-25 because its
 NAVIGATE button bypassed INIT and had no verified Flow session. Its definition is preserved in
 `docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
-The authenticated Orders-page profile icon is a separate, session-backed website launch,
-described below; it must not bypass INIT when using the data-exchange template.
+The former authenticated Orders-page profile icon was retired from the customer UI on
+2026-10-31. Customers now use the canonical Subscribe WhatsApp destination from the public
+navigation or their Orders actions menu. The backend's session-backed profile-update action
+remains implemented for controlled callers; it must not bypass INIT.
 
 A staff send is the controlled QA/support door, not a second entry mode: Operator or Admin,
 one customer at a time, recorded with the sender's identity, available before keyword launch
 is switched on. It uses the same published Flow, copy and session rules.
 
-## Authenticated Orders-page profile update
+## Former authenticated Orders-page profile update (legacy backend action)
 
-The public `/orders/` page requires a verified customer session before sending. Its profile
-icon calls `POST /customer/profile` with `action: sendProfileUpdate`. The profile Lambda
-passes only the session-owned phone to the internal WhatsApp sender. The sender checks that
-F001 is PUBLISHED, mints a 24-hour one-use F001 session, and sends an approved Utility
-template containing a Flow button. The website shows a brief lime toast only when Meta
-accepts that send; it does **not** claim that the customer saved their profile.
+Before the icon was removed from `/orders/` on 2026-10-31, its authenticated button invoked
+`POST /customer/profile` with `action: sendProfileUpdate`. The profile Lambda passed only
+the session-owned phone to the internal WhatsApp sender. The sender checks that F001 is
+PUBLISHED, mints a 24-hour one-use F001 session, and sends the approved Utility template
+with a Flow button. That backend action remains available but the Orders page no longer
+invokes it or shows the old lime response toast; the customer-facing Subscribe entry now
+uses the verified WhatsApp link. Message acceptance never proves a saved profile.
 
 The existing `service_details` template (Utility, English, image header,
 "View Details" button) was originally approved with a `NAVIGATE` action. The
@@ -70,7 +73,7 @@ or rejected template. No Lambda template-name switch is needed. Verify a signed
 `flow_endpoint_signature`, a `flow_funnel init_received` and `init_success`,
 optional-value prefill, and a successful REVIEW save from a controlled handset.
 If it fails, inspect the Data Exchange logs before changing any customer data.
-The website's lime success toast confirms message acceptance, not completion of
+The former Orders-page success toast confirmed message acceptance, not completion of
 the customer's profile update.
 
 ## Launch controls

@@ -64,16 +64,17 @@ def test_customer_checkout_dropdown_menu_is_branded_not_workspace_grey():
     assert "background-color: var(--public-brand-lime);" in css
 
 
-def test_orders_profile_feedback_is_a_transient_brand_toast():
+def test_orders_signout_moves_into_card_and_profile_update_stays_in_subscribe():
     orders = (ROOT / "src/components/orders/OrdersPage.tsx").read_text()
-    assert "'Sent on WhatsApp'" in orders
-    assert "'Couldn’t send. Try again.'" in orders
-    assert "window.setTimeout( () => setProfileAction( 'idle' ), 4000 )" in orders
-    assert "profileAction === 'failed' ? 'alert' : 'status'" in orders
-    assert "onClick={ () => setProfileAction( 'idle' ) }" in orders
-    assert ".ord-profile-toast{" in orders
-    assert "background:var(--public-brand-lime);color:var(--public-brand-green)" in orders
-    assert "Profile update sent on WhatsApp." not in orders
+    menu = (ROOT / "src/components/orders/OrderActionsMenu.tsx").read_text()
+    assert '<div className="ord-list-head">' in orders
+    assert 'id="ord-history">Orders</h2>' in orders
+    assert orders.count('className="ord-account-action ord-signout"') == 2
+    assert orders.count('onClick={ signOut }') == 2
+    assert 'className="ord-empty-head"' in orders
+    assert 'OrderActionIcon name="person"' not in orders
+    assert "profileAction" not in orders
+    assert "href: SUBSCRIBE_CTA_HREF" in menu
 
 
 def test_website_profile_template_uses_data_exchange_init_for_optional_prefill():

@@ -367,15 +367,6 @@ export default function OrdersPage (): React.ReactElement {
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
   const [ moreFailed, setMoreFailed ] = useState( false );
-  const [ profileAction, setProfileAction ] = useState<'idle' | 'busy' | 'sent' | 'failed'>( 'idle' );
-
-  // Public /orders is outside the authenticated ToastProvider. Keep the feedback local,
-  // inline with the profile action, transient and screen-reader accessible.
-  useEffect( () => {
-    if ( profileAction !== 'sent' && profileAction !== 'failed' ) return;
-    const timer = window.setTimeout( () => setProfileAction( 'idle' ), 4000 );
-    return () => window.clearTimeout( timer );
-  }, [ profileAction ] );
   /** Historical or post-checkout order to open within this table, never on another page. */
   const [ requestedOrder, setRequestedOrder ] = useState( '' );
 
@@ -511,31 +502,6 @@ export default function OrdersPage (): React.ReactElement {
     setOrders( [] );
     setCursor( '' );
     window.location.replace( '/auth?return=/orders/' );
-  };
-
-  const sendProfileUpdate = async () => {
-    if ( !token || profileAction === 'busy' ) return;
-    setProfileAction( 'busy' );
-    try {
-      const response = await fetch( PROFILE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Bearer ${ token }`,
-        },
-        body: JSON.stringify( { action: 'sendProfileUpdate' } ),
-      } );
-      if ( response.status === 401 ) { expire(); return; }
-      const reply = await response.json().catch( () => ( {} ) );
-      if ( !response.ok || reply.status !== 'PROFILE_UPDATE_SENT' ) {
-        setProfileAction( 'failed' );
-        return;
-      }
-      setProfileAction( 'sent' );
-    } catch {
-      setProfileAction( 'failed' );
-    }
   };
 
   const signOut = () => {
@@ -686,52 +652,6 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { token && ( view === 'ready' || view === 'empty' ) && (
-            <div className="ord-account-bar" aria-label="Account actions">
-              <div className="ord-account-actions">
-                <button
-                  type="button"
-                  className="ord-account-action ord-update"
-                  aria-label="Update profile on WhatsApp"
-                  title="Update profile on WhatsApp"
-                  onClick={ sendProfileUpdate }
-                  disabled={ profileAction === 'busy' }
-                  aria-busy={ profileAction === 'busy' ? 'true' : undefined }
-                >
-                  <OrderActionIcon name="person" />
-                </button>
-                <button
-                  type="button"
-                  className="ord-account-action ord-signout"
-                  aria-label="Sign out"
-                  title="Sign out"
-                  onClick={ signOut }
-                >
-                  <OrderActionIcon name="logout" />
-                </button>
-              </div>
-              { ( profileAction === 'sent' || profileAction === 'failed' ) && (
-                <div
-                  className={ `ord-profile-toast${ profileAction === 'failed' ? ' ord-profile-toast-error' : '' }` }
-                  role={ profileAction === 'failed' ? 'alert' : 'status' }
-                >
-                  <span className="ord-profile-toast-icon" aria-hidden="true">
-                    { profileAction === 'sent' ? '✓' : '!' }
-                  </span>
-                  <span className="ord-profile-toast-text">
-                    { profileAction === 'sent' ? 'Sent on WhatsApp' : 'Couldn’t send. Try again.' }
-                  </span>
-                  <button
-                    className="ord-profile-toast-close"
-                    type="button"
-                    aria-label="Dismiss notification"
-                    onClick={ () => setProfileAction( 'idle' ) }
-                  >×</button>
-                </div>
-              ) }
-            </div>
-          ) }
-
           { ( view === 'ready' || view === 'empty' ) && token && requestedOrder
             && !orders.some( item => item.orderNumber === requestedOrder ) && (
             <section className="ord-requested-order" aria-label="Requested order details in your Orders list">
@@ -768,8 +688,7 @@ export default function OrdersPage (): React.ReactElement {
 
           { signedIn && (
             <div className="ord-shell">
-              { /* Account/address details are intentionally hidden in this overview.
-                   The existing profile action remains available above; stored data is untouched. */ }
+              { /* Account details stay private; Subscribe remains in the actions menu. */ }
 
               { /* RIGHT: the order history. The list and the empty state are alternatives and
                    never render together. */ }
@@ -778,6 +697,10 @@ export default function OrdersPage (): React.ReactElement {
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
                 <h2 className="ord-h2" id="ord-history">Orders</h2>
+                <button type="button" className="ord-account-action ord-signout"
+                  aria-label="Sign out" title="Sign out" onClick={ signOut }>
+                  <OrderActionIcon name="logout" />
+                </button>
               </div>
 
               { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
@@ -1088,7 +1011,13 @@ export default function OrdersPage (): React.ReactElement {
 
           { view === 'empty' && (
             <section className="ord-empty" aria-labelledby="ord-empty-title">
-              <h2 className="ord-h2" id="ord-empty-title">No orders yet</h2>
+              <div className="ord-empty-head">
+                <h2 className="ord-h2" id="ord-empty-title">No orders yet</h2>
+                <button type="button" className="ord-account-action ord-signout"
+                  aria-label="Sign out" title="Sign out" onClick={ signOut }>
+                  <OrderActionIcon name="logout" />
+                </button>
+              </div>
               { checking
                 ? (
                   // A SUB-STATE, not a sixth state: only the body is replaced, and it resolves
@@ -1349,49 +1278,19 @@ export default function OrdersPage (): React.ReactElement {
             border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);
             box-shadow:0 14px 38px rgba(26,58,42,.08);
           }
-          .ord-list-head{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
-          .ord-account-bar{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
-          .ord-account-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+          .ord-list-head,.ord-empty-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
           .ord-account-action{
             display:inline-flex;align-items:center;justify-content:center;min-height:44px;
             padding:8px 16px;border:2px solid var(--public-brand-green);border-radius:11px;
             color:var(--public-brand-green);font:inherit;font-size:16px;font-weight:700;line-height:1.35;
             cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s;
           }
-          .ord-update{background:var(--public-brand-lime)}
-          .ord-signout{background:var(--public-accent-amber)}
           .ord-account-action:hover:not(:disabled){background:#fff;transform:translateY(-1px);box-shadow:var(--public-lift-shadow)}
           .ord-account-action:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           .ord-account-action:disabled{opacity:.55;cursor:default}
           .ord-account-action[aria-busy='true']{cursor:progress}
-          .ord-profile-toast{
-            position:static;
-            box-sizing:border-box;display:flex;align-items:center;gap:10px;
-            max-inline-size:min(360px,calc(100vw - 24px));padding:8px 10px 8px 14px;
-            border:1px solid var(--public-brand-lime);border-radius:14px;
-            background:var(--public-brand-lime);color:var(--public-brand-green);
-            box-shadow:none;
-            font-size:14px;font-weight:650;line-height:1.4;
-          }
-          .ord-profile-toast-icon{
-            display:inline-flex;align-items:center;justify-content:center;flex:0 0 25px;
-            block-size:25px;border-radius:50%;background:var(--public-brand-green);
-            color:var(--public-brand-lime);font-size:15px;font-weight:800;
-          }
-          .ord-profile-toast-text{min-inline-size:0;flex:1;overflow-wrap:anywhere}
-          .ord-profile-toast-close{
-            display:inline-flex;align-items:center;justify-content:center;
-            min-inline-size:40px;min-block-size:40px;padding:0;border:0;
-            background:transparent;color:inherit;border-radius:10px;
-            font:inherit;font-size:22px;cursor:pointer;
-          }
-          .ord-profile-toast-close:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-          .ord-profile-toast-error{background:var(--public-brand-lime);color:var(--public-brand-green)}
-          .ord-profile-toast-error .ord-profile-toast-icon{background:var(--public-brand-green);color:var(--public-brand-lime)}
-          @media(max-width:480px){
-            .ord-profile-toast{max-inline-size:100%}
-          }
           .ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
+          .ord-empty-head{inline-size:100%}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
 
@@ -1403,14 +1302,11 @@ export default function OrdersPage (): React.ReactElement {
             font-family:var(--font-sans);
           }
           .ord-shell,.ord-main{gap:12px}
-          .ord-account-bar{align-items:flex-end;align-self:flex-end;gap:6px}
-          .ord-account-actions{display:flex;gap:8px;align-items:center}
 
           /* Match HeaderCart's lime + forest-green pairing, but show the lime surface
              at rest on Orders as requested. Keep 44px targets and a 10px radius,
              with no grey fills or icon badges. */
-          .ord-account-action,.ord-copy,.ord-inv,
-          .ord-update,.ord-signout{
+          .ord-account-action,.ord-copy,.ord-inv{
             box-sizing:border-box;inline-size:44px;min-inline-size:44px;block-size:44px;
             min-height:44px;display:inline-flex;align-items:center;justify-content:center;
             padding:0;margin:0;border:0;border-radius:10px;
@@ -1441,7 +1337,7 @@ export default function OrdersPage (): React.ReactElement {
             border-block-start:2px solid var(--public-brand-lime);
             border-radius:16px;background:var(--public-bg);box-shadow:none;
           }
-          .ord-list-head{padding:14px 18px}
+          .ord-list-head{padding:10px 14px}
           .ord-list .ord-h2{
             font-family:var(--font-sans);font-size:var(--public-card-size);
             font-weight:var(--public-card-weight);line-height:var(--public-card-leading);
@@ -1462,7 +1358,7 @@ export default function OrdersPage (): React.ReactElement {
             font-weight:700;
           }
           .ord-td{
-            padding:7px 12px;vertical-align:middle;
+            padding:4px 12px;vertical-align:middle;
             font-family:var(--font-sans);font-size:var(--public-supporting-size);
             line-height:1.4;color:var(--public-body);
           }
@@ -1503,8 +1399,9 @@ export default function OrdersPage (): React.ReactElement {
             font-weight:600;white-space:nowrap;
           }
           .ord-status-firm .ord-status-label{font-weight:700}
-          .ord-invoice-cell{white-space:nowrap}
-          .ord-invoice-actions{display:inline-flex;align-items:center;gap:8px}
+          /* Intrinsic-width invoice column keeps the action buttons close to the right edge. */
+          .ord-th:last-child,.ord-invoice-cell{inline-size:1%;white-space:nowrap}
+          .ord-invoice-actions{display:inline-flex;align-items:center;gap:16px}
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }
@@ -1552,15 +1449,14 @@ export default function OrdersPage (): React.ReactElement {
             .ord-p,.ord-aside{font-size:18px}
             .ord-list{padding:0;border-radius:14px}
             .ord-summary-head{align-items:flex-start;flex-direction:column;gap:6px}
-            .ord-account-actions{display:flex;width:auto}
-            .ord-account-action{width:44px}
             .ord-summary-rows>div{grid-template-columns:1fr;gap:4px;padding:14px 0}
             .ord-verified{margin-inline-start:6px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
             .ord-col-date{display:none}
             .ord-subdate{display:block}
             .ord-table{min-inline-size:480px}
-            .ord-th,.ord-td{padding:12px 8px}
+            .ord-th{padding:10px 8px}
+            .ord-td{padding:5px 8px}
             .ord-th:first-child,.ord-td:first-child{padding-inline-start:10px}
             .ord-tablewrap{overflow-x:auto;border-inline:0;border-radius:0}
             .ord-pager-copy{font-size:13px}
