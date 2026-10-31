@@ -14,7 +14,7 @@ from . import service_requests, whatsapp_basket
 # This exact label is frozen into PaymentAttempt.invoiceLines and rendered on
 # the paid GST invoice PNG, so later edits cannot rewrite issued documents.
 VAULT_ITEM_DESCRIPTION_DEFAULT = 'Secure document download (24-hour access)'
-_VAULT_ITEM_DESCRIPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,'()&/-]{11,59}\\Z")
+_VAULT_ITEM_DESCRIPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,'()&/-]{11,59}")
 
 
 def valid_vault_item_description(raw: Any) -> bool:
