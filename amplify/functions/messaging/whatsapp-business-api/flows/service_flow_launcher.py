@@ -87,7 +87,13 @@ def _send_outcome(response: Any) -> str:
         if isinstance(body, dict) and str(body.get("whatsappMessageId") or "").strip():
             return "ACCEPTED"
         return "SEND_UNKNOWN"
-    if code in (400, 401, 403, 404, 409, 413, 415, 422):
+    # Outbound returns 409 MESSAGE_SEND_IN_FLIGHT when a keyed send may
+    # already be on its way to Meta. This is NOT proof of a terminal refusal:
+    # releasing the durable claim or minting a new Flow token can double-send.
+    # Hold it for reconciliation, the same as the legacy Drop Docs launcher.
+    if code == 409:
+        return "SEND_UNKNOWN"
+    if code in (400, 401, 403, 404, 413, 415, 422):
         return "SEND_REJECTED"
     return "SEND_UNKNOWN"
 
