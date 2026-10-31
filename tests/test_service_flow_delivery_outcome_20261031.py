@@ -7,6 +7,7 @@ Razorpay, customer, invoice or WhatsApp operation is made.
 import ast
 import json
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = {
@@ -26,7 +27,7 @@ def _actual_classifier(path, symbol):
     root = ast.parse(source.read_text(encoding="utf-8"))
     func = next(x for x in root.body
                 if isinstance(x, ast.FunctionDef) and x.name == symbol)
-    namespace = {"json": json}
+    namespace = {"json": json, "Any": Any}
     exec(compile(ast.Module(body=[func], type_ignores=[]),
                  str(source), "exec"), namespace)
     return namespace[symbol]
