@@ -481,9 +481,9 @@ def test_workspace_vault_shows_download_template_variable_mapping():
     assert "Server-created file ID after publish" in preview
 
 
-def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
-    # Owner's contract: the complete Request menu MUST remain in the public header,
-    # while service URLs remain noindex, nofollow and out of search discovery.
+def test_request_services_remain_visible_in_public_menu_but_use_orders_only():
+    # Preserve every Request menu label and icon. The old marketing pages are now
+    # retired and 301 to Orders; only exact-file Vault still needs a noindex route.
     header = (ROOT / "src/components/Header.tsx").read_text()
     menu = header.split("const COLUMNS: NavColumn[] = [", 1)[1].split(
         "\nconst flattenMenuLinks", 1
@@ -494,8 +494,8 @@ def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
         "Vault", "Shipments", "Track", "Pickup Request", "Leave Review", "Subscribe",
     ):
         assert f"label: '{label}'" in menu
-    # Only the customer Orders hub is navigated from public Request menu rows.
-    # The original service pages still exist for direct/legacy access and remain noindex.
+    # No request/tracking item opens a standalone public service page.
+    # Existing links are caught by explicit 301 rules without touching service APIs.
     for label in ("Submit Request", "Request Amendment", "Drop Docs",
                   "Vault", "Track", "Pickup Request"):
         assert f"label: '{label}', href: '/orders/'" in menu
@@ -512,11 +512,10 @@ def test_request_services_remain_visible_in_public_menu_and_noindex_routes():
     service_routes = app.split("const CUSTOMER_SERVICE_ROUTES = new Set( [", 1)[1].split(
         "] );", 1
     )[0]
-    for path in (
-        "/submit-request", "/request-amendment", "/drop-docs", "/vault",
-        "/request-pickup", "/shipments/track",
-    ):
-        assert f"'{path}'" in service_routes
+    assert "'/vault'" in service_routes
+    for path in ("/submit-request", "/request-amendment", "/drop-docs",
+                 "/request-pickup", "/shipments/track"):
+        assert f"'{path}'" not in service_routes
     assert "'noindex, nofollow'" in app
 
 

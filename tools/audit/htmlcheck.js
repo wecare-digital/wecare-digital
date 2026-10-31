@@ -42,10 +42,9 @@ const ROUTES = [
   '/orders/', '/sehat/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
-  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/blog/',
-  // The five Customer service pages, added when the header's six labels stopped all resolving
-  // to /contact/. Same shape as the product pages: rotating hero plus one content section.
-  '/submit-request/', '/request-amendment/', '/drop-docs/',
+  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/blog/',
+  // Request, amendment, document, Vault and shipment actions now open /orders/.
+  // Their retired marketing pages must not be audited as standalone content.
   // Staff-only commerce pages are intentionally outside this public-page markup harness.
 ];
 

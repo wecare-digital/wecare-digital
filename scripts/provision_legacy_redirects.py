@@ -6,8 +6,8 @@ Authority: this script writes ONE thing, the 30x redirect rules of Amplify app d
 the list back afterwards. Without a flag it reports; --verify is read-only (AWS read plus public
 HTTP GETs).
 
-What it manages: the approved blog post merges in config/blog-merges.json, the same file the
-static build reads to stop emitting a merged-away post. Only approved merges may redirect here; no
+What it manages: the approved blog post merges in config/blog-merges.json and the five
+retired public service page routes, which now 301 to /orders/. Only those approved routes may redirect here; no
 legacy SEO, workspace or frozen-template destination may be recreated, and the retired /access
 entry stays unavailable. Host canonicalisation (www -> apex) is NOT an Amplify rule: www resolves
 to the wildcard CloudFront distribution, whose function in amplify/infra/home-fallback.json owns
@@ -48,6 +48,19 @@ SNAPSHOT = ROOT / "docs/execution/snapshots/amplify-custom-rules-before-8.4.json
 REDIRECT_STATUSES = frozenset({"301", "302", "307", "308"})
 NOT_FOUND_STATUSES = frozenset({"404", "404-200"})
 CATCH_ALL_SOURCE = "/<*>"
+# These marketing pages are removed. A legacy link must reach the authenticated
+# Orders hub, not a 404 or an obsolete product checkout. Do NOT redirect /vault:
+# /vault/?file=<id> is an approved exact-file link and the hosting rules cannot
+# distinguish it from /vault/ by path alone.
+RETIRED_SERVICE_PAGE_ROUTES = (
+    "/submit-request",
+    "/request-amendment",
+    "/drop-docs",
+    "/request-pickup",
+    "/shipments/track",
+    # Shipment Track also had a separate /shop/<slug>/ product page.
+    "/shop/shipments-track",
+)
 
 
 def amplify():
@@ -69,7 +82,7 @@ def blog_merges() -> list[tuple[str, str]]:
 
 
 def desired_redirects() -> list[dict]:
-    """The approved permanent redirects: each approved blog merge, twice.
+    """The approved permanent redirects: retired services, then each blog merge, twice.
 
     Both the slashless and the trailing-slash source are listed so neither falls through to
     the not-found catch-all.
@@ -83,6 +96,9 @@ def desired_redirects() -> list[dict]:
     www -> apex redirect is owned by the CloudFront function in amplify/infra/home-fallback.json.
     """
     rules: list[dict] = []
+    for route in RETIRED_SERVICE_PAGE_ROUTES:
+        for source in (route, route + "/"):
+            rules.append({"source": source, "target": "/orders/", "status": "301"})
     for source_slug, target_slug in blog_merges():
         for source in (f"/post/{source_slug}", f"/post/{source_slug}/"):
             rules.append({"source": source, "target": f"/post/{target_slug}/", "status": "301"})
@@ -166,8 +182,14 @@ def _no_follow_status(url: str) -> tuple[int, str]:
 
 
 def verify_live_merges() -> list[str]:
-    """Every merge source must 301 to its target, and every target must answer 200."""
+    """Both retired service routes and approved blog merges must redirect to real targets."""
     failures = []
+    for route in RETIRED_SERVICE_PAGE_ROUTES:
+        for source in (route, route + "/"):
+            status, location = _no_follow_status(f"{SITE}{source}")
+            if status != 301 or location.removeprefix(SITE) != "/orders/":
+                failures.append(f"{source} answered {status} -> {location or '-'}, "
+                                "expected 301 -> /orders/")
     for source_slug, target_slug in blog_merges():
         target_path = f"/post/{target_slug}/"
         status, location = _no_follow_status(f"{SITE}/post/{source_slug}/")

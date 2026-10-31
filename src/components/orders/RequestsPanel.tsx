@@ -59,10 +59,10 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
         <p className="rqp-p">
           No requests yet.{ ' ' }
           { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
-          <a className="rqp-link" href="/submit-request/">Submit a request</a>
+          <a className="rqp-link" href="/orders/">Submit a request</a>
           { ' or ' }
           { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
-          <a className="rqp-link" href="/request-amendment/">request an amendment</a>.
+          <a className="rqp-link" href="/orders/">request an amendment</a>.
         </p>
       ) }
       { state === 'ready' && rows.length > 0 && (

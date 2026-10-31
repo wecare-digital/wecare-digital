@@ -421,10 +421,8 @@ const PUBLIC_PAGE_META: Record<string, {
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
-  // Request-service and tracking routes are deliberately NOT marketing pages. They remain
-  // reachable for authenticated/deep-link customer journeys, but are registered separately in
-  // CUSTOMER_SERVICE_ROUTES below so they carry public chrome without indexable schema/sitemap
-  // exposure.
+  // Request and tracking actions now live inside /orders/; old public service pages
+  // are retired and redirect. /vault/?file= remains a noindex exact-file handoff only.
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
@@ -549,16 +547,11 @@ const getPublicPageSchema = ( pathname: string ) => {
    and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
    mounts across both files. */
 
-// Customer-session service routes: reachable, share the public shell, but never advertised to
-// crawlers or machine page catalogues. Keeping this separate from PUBLIC_PAGE_META is the
-// distinction between "customer can open the service" and "this is a public marketing page".
+// /vault/?file= is an authenticated exact-file handoff, never a public marketing page.
+// Bare /vault/ navigates to Orders. All other former standalone request/tracking
+// pages were retired; their old paths receive 301 redirects to /orders/.
 const CUSTOMER_SERVICE_ROUTES = new Set( [
-  '/submit-request',
-  '/request-amendment',
-  '/drop-docs',
   '/vault',
-  '/request-pickup',
-  '/shipments/track',
 ] );
 
 export default function App ( { Component, pageProps }: AppProps ) {
