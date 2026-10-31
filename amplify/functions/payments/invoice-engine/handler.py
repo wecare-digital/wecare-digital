@@ -3984,6 +3984,27 @@ def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
             return 'reference_unavailable'
         if str((payref or {}).get('checkoutMode') or '').strip() not in _ORDER_PAGE_LINK_CHECKOUT_MODES:
             return 'not_a_whatsapp_order'
+
+        # A paid service needs its ONE service-specific next action directly
+        # after the accepted invoice: Submit, Amendment, Drop Docs *upload*,
+        # Vault *download*, or Pickup (when its Meta release gate is open).
+        # The generic "View your order" CTA previously arrived first and made
+        # the buyer scroll past an unrelated message to find their actual task.
+        #
+        # The classification is server-owned PAYREF metadata, recorded BEFORE
+        # payment. Do not trust invoice display labels, browser claims or an
+        # incoming webhook's notes. Also do not touch Meta's frozen processing
+        # and completed ORDER_STATUS or the approved GST invoice template.
+        # For the service intent, its dedicated launcher owns retry, sending,
+        # paid-session verification and idempotency.
+        service_line = (payref or {}).get('serviceLine')
+        service_code = (str(service_line.get('kind') or '').strip().upper()
+                        if isinstance(service_line, dict) else '')
+        if (str(invoice.get('status') or '').lower() == 'paid'
+                and (service_code in service_invoice_ledger.SERVICE_KINDS
+                     or (payref or {}).get('nativeCatalogService') is True)):
+            return 'service_next_action_priority'
+
         if not contact_id:
             return 'no_contact'
         try:
@@ -5787,8 +5808,11 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'toNumber': mask_phone(to_phone), 'requestId': request_id,
     }))
 
-    # The buyer's order page, as the last message of a WhatsApp payment: only after the invoice
-    # was accepted, and not again on a staff re-send (`force`).
+    # Non-service WhatsApp buyers still receive the canonical Orders URL after
+    # the accepted invoice. For paid service purchases _send_order_page_link
+    # leaves the next message slot for the dedicated, idempotent Flow/download
+    # launcher rather than placing a generic CTA ahead of the customer's task.
+    # Never repeat this on a staff re-send (`force`).
     if delivered and not force:
         link_outcome = _send_order_page_link(invoice_id, contact_id, to_phone, phone_number_id,
                                              keys_table, request_id)
