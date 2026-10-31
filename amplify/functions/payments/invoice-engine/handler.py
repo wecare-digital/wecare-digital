@@ -4006,104 +4006,27 @@ def _verified_paid_track_next_action(invoice: Dict, payref: Dict) -> bool:
 
 def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
                           phone_number_id: str, keys_table: Any, request_id: str) -> str:
-    """Send a WhatsApp buyer their order page once the paid invoice was accepted.
+    """Retired: paid WhatsApp messages use approved templates, not free-form CTAs.
 
-    One interactive `cta_url` message, "View your order", opening
-    `https://wecare.digital/orders/`. The single Orders table requires sign-in and only
-    shows customer-owned orders. The message body retains the public Order Number so buyers
-    can identify the correct purchase. Older ?o= messages still resolve in the website. Added by owner approval on 2026-10-26 as the last message of the
-    WhatsApp payment sequence (docs/operations/whatsapp-payment-collection-stack.md, section 2).
+    The native payment's Review and Pay button is an ORDER_DETAILS component
+    in the APPROVED `wecare_whatapp_native_pay_template` (wire type=template).
+    Captured payments still advance Meta processing -> completed using the
+    APPROVED `wecare_order_status_v3`, then send the paid invoice IMAGE template
+    with its Leave Review Flow button. Vault and other paid services get their
+    separate, owner-bound APPROVED service-action templates after the receipt.
 
-    It cannot touch the invoice or the money. It runs only after the invoice template was
-    accepted, it never raises, and it goes out at most once per invoice: the `order-page-link`
-    delivery claim is kept on every outcome, so a failure is never retried into a duplicate. It is
-    free-form, so it reaches the buyer only inside the 24-hour service window; outside it outbound
-    refuses it and nothing else is sent. Returns an outcome word for the log.
+    A standalone interactive `cta_url` ("View your order") is not a template.
+    No approved general Orders URL template currently exists; do NOT substitute
+    another template, alter the native payment order, or send a free-form
+    message inside the 24-hour chat window. Customers can view their orders
+    at the authenticated /orders/ page independently of WhatsApp delivery.
+
+    Preserve this function's signature for compatibility with the existing
+    invoice send caller and audit logs. It is deliberately side-effect-free:
+    no DynamoDB lookups, delivery claims, Lambda calls or WhatsApp sends.
+    Historical order-page-link claims are retained as audit evidence only.
     """
-    try:
-        invoice = dynamodb.Table(INVOICES_TABLE).get_item(
-            Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
-        order_number = str(invoice.get('orderNumber') or '').strip()
-        if not order_keys.is_public_order_number(order_number):
-            return 'no_order_number'
-        reference_id = str(invoice.get('referenceId') or '')
-        if not reference_id:
-            return 'no_reference'
-        try:
-            payref = order_keys.resolve_payment_reference(keys_table, reference_id)
-        except order_keys.OrderIdentityUnavailable:
-            return 'reference_unavailable'
-        if str((payref or {}).get('checkoutMode') or '').strip() not in _ORDER_PAGE_LINK_CHECKOUT_MODES:
-            return 'not_a_whatsapp_order'
-
-        # A paid service needs its ONE service-specific next action directly
-        # after the accepted invoice: Submit, Amendment, Drop Docs *upload*,
-        # Vault *download*, or Pickup (when its Meta release gate is open).
-        # The generic "View your order" CTA previously arrived first and made
-        # the buyer scroll past an unrelated message to find their actual task.
-        #
-        # The classification is server-owned PAYREF metadata, recorded BEFORE
-        # payment. Do not trust invoice display labels, browser claims or an
-        # incoming webhook's notes. Also do not touch Meta's frozen processing
-        # and completed ORDER_STATUS or the approved GST invoice template.
-        # For the service intent, its dedicated launcher owns retry, sending,
-        # paid-session verification and idempotency.
-        service_line = (payref or {}).get('serviceLine')
-        service_code = (str(service_line.get('kind') or '').strip().upper()
-                        if isinstance(service_line, dict) else '')
-        if (str(invoice.get('status') or '').lower() == 'paid'
-                and (service_code in service_invoice_ledger.SERVICE_KINDS
-                     or (payref or {}).get('nativeCatalogService') is True)):
-            return 'service_next_action_priority'
-
-        # Track Shipping is a separate paid catalog SKU with its own
-        # track_ship_flow next action. Do not place the generic Orders CTA
-        # ahead of it when captured payment + invoice amounts match exactly.
-        if (str(invoice.get('status') or '').lower() == 'paid'
-                and _verified_paid_track_next_action(invoice, payref)):
-            return 'paid_track_next_action_priority'
-
-        if not contact_id:
-            return 'no_contact'
-        try:
-            if not order_keys.claim_invoice_delivery(
-                    keys_table, invoice_id=invoice_id, channel=_ORDER_PAGE_LINK_CHANNEL,
-                    extra={'requestId': request_id}):
-                return 'already_sent'
-        except order_keys.OrderIdentityUnavailable:
-            return 'claim_unavailable'
-        payload = {'body': json.dumps({
-            'contactId': contact_id,
-            'recipientPhone': to_phone,
-            'phoneNumberId': phone_number_id,
-            'idempotencyKey': f'order-page-link:{invoice_id}',
-            'isInteractive': True,
-            'interactiveType': 'cta_url',
-            'interactiveData': {
-                'body': (f'Your order {order_number} is confirmed. Open your order page for the '
-                         'details and the latest status.'),
-                'buttonText': 'View your order',
-                'url': _ORDER_PAGE_URL,
-                'footer': 'WECARE.DIGITAL',
-            },
-        })}
-        response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
-                                        InvocationType='RequestResponse',
-                                        Payload=json.dumps(payload))
-        result = json.loads(response['Payload'].read() or b'{}')
-        raw_body = result.get('body')
-        body = json.loads(raw_body) if isinstance(raw_body, str) and raw_body else {}
-        status = int(result.get('statusCode') or 0)
-        wa_message_id = str(body.get('whatsappMessageId') or '') if isinstance(body, dict) else ''
-        if response.get('FunctionError') or status >= 300 or not wa_message_id:
-            return f'not_sent_{status or "error"}'
-        order_keys.confirm_invoice_delivery(keys_table, invoice_id=invoice_id,
-                                            channel=_ORDER_PAGE_LINK_CHANNEL,
-                                            wa_message_id=wa_message_id)
-        return 'sent'
-    except Exception as error:  # noqa: BLE001 - must never fail the invoice delivery above it
-        return f'error_{type(error).__name__}'
-
+    return 'template_only_policy'
 
 def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
     """The REAL Order id for an invoice, via the commerce claim, else `invoice.orderId`.
@@ -5866,11 +5789,11 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'toNumber': mask_phone(to_phone), 'requestId': request_id,
     }))
 
-    # Non-service WhatsApp buyers still receive the canonical Orders URL after
-    # the accepted invoice. For paid service purchases _send_order_page_link
-    # leaves the next message slot for the dedicated, idempotent Flow/download
-    # launcher rather than placing a generic CTA ahead of the customer's task.
-    # Never repeat this on a staff re-send (`force`).
+    # Template-only payment follow-up: never send a free-form interactive
+    # order-page CTA after a paid invoice. The compatibility helper is a
+    # side-effect-free no-op; the approved service-specific template launcher
+    # separately owns Vault download / Drop Docs upload / other paid flows.
+    # The invoice IMAGE + Leave Review template above is unchanged.
     if delivered and not force:
         link_outcome = _send_order_page_link(invoice_id, contact_id, to_phone, phone_number_id,
                                              keys_table, request_id)
