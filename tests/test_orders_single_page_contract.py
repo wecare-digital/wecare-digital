@@ -107,3 +107,21 @@ def test_order_action_destinations_and_icons_match_homepage() -> None:
     assert "Request Amendment" not in menu
     assert "Coming soon" not in menu
     assert "?o=" not in menu
+
+
+def test_orders_table_stays_compact_and_signout_is_inside_card() -> None:
+    orders = source("src/components/orders/OrdersPage.tsx")
+    assert ".ord-th:last-child,.ord-invoice-cell{inline-size:1%;white-space:nowrap}" in orders
+    assert ".ord-invoice-actions{display:inline-flex;align-items:center;gap:16px}" in orders
+    assert "padding:4px 12px;vertical-align:middle;" in orders
+    assert ".ord-td{padding:5px 8px}" in orders
+    assert ".ord-list-head,.ord-empty-head{display:flex;align-items:center;justify-content:space-between;gap:12px}" in orders
+    assert ".ord-list-head{padding:10px 14px}" in orders
+    assert ".ord-empty-head{inline-size:100%}" in orders
+    assert orders.count('className="ord-account-action ord-signout"') == 2
+    assert orders.count('<OrderActionIcon name="logout" />') == 2
+    assert 'OrderActionIcon name="person"' not in orders
+    assert "sendProfileUpdate" not in orders
+    assert "fetch( PROFILE_URL" in orders
+    assert "featureFlags.invoiceDownload" in orders
+    assert 'colSpan={ 5 }' in orders
