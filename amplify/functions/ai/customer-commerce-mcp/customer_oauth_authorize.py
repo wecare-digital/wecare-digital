@@ -304,6 +304,14 @@ def route(event: dict) -> dict | None:
             return redirect(connect_origin() + '/auth?' + urlencode(params), 302)
         if path == '/auth/state' and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
+            # Website referral links may have attribution fields, but the
+            # authentication protocol accepts only its own query parameters.
+            # Drop known marketing fields without loosening OAuth validation
+            # or the strict return-path checks (and without collapsing duplicates).
+            tracking_fields = {'gclid', 'gbraid', 'wbraid', 'fbclid',
+                               'msclkid', 'mc_cid', 'mc_eid'}
+            params = {key: value for key, value in params.items()
+                      if not (key.startswith('utm_') or key in tracking_fields)}
             pending = resume_authorization(event, params)
             if pending is not None:
                 return pending
