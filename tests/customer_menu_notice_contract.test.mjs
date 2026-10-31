@@ -58,6 +58,18 @@ test('Orders uses the same catalog for row and redirected-header invitations', (
   assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
 });
 
+test('both Lambda dispatchers and template-to-Flow mapping hooks are present in source', () => {
+  const profile = readFileSync(resolve(ROOT, 'amplify/functions/auth/customer-profile/handler.py'), 'utf8');
+  const sender = readFileSync(resolve(ROOT, 'amplify/functions/messaging/whatsapp-business-api/handler.py'), 'utf8');
+
+  assert.match(profile, /sendLeaveReview/);
+  assert.match(profile, /customerLeaveReviewTemplate/);
+  assert.match(sender, /internalAction'\) == 'customerLeaveReviewTemplate'/);
+  assert.match(sender, /return _customer_leave_review_template\(event\)/);
+  assert.match(sender, /includeTemplateMappings/);
+  assert.match(sender, /syncTemplateFlowMappings/);
+});
+
 test('one-time intent is consumed before any possible refresh, including expired intents', () => {
   const oldWindow = globalThis.window;
   const oldNow = Date.now;
