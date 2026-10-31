@@ -45,7 +45,12 @@ def test_new_checkout_and_whatsapp_links_use_only_orders() -> None:
     assert "export function orderPagePath ( _orderNumber: string ): string {\n  return '/orders/';" in helpers
     assert "stashPendingOrder( orderNumber );" in checkout
     assert "router.replace( orderPagePath( orderNumber ) )" in checkout
-    assert "'url': _ORDER_PAGE_URL," in invoice
+    # The public Orders page remains canonical. After a paid WhatsApp invoice,
+    # the system no longer sends an ordinary interactive Orders URL message:
+    # only Meta-approved templates may be sent automatically.
+    assert "_ORDER_PAGE_URL = 'https://wecare.digital/orders/'" in invoice
+    assert "return 'template_only_policy'" in invoice
+    assert "'url': _ORDER_PAGE_URL," not in invoice
     assert "'url': f'{_ORDER_PAGE_URL}?o={order_number}'" not in invoice
 
 
