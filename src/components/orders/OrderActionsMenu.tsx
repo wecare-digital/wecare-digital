@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { SUBSCRIBE_CTA_HREF } from '../../content/subscribe';
-import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';
+import { CUSTOMER_MENU_HREFS } from '../../lib/customerMenuActions';
 import { stashPendingOrder } from '../../lib/orderPage';
 
 /**
@@ -82,10 +81,10 @@ const SHIPMENT_ACTIONS: readonly Action[] = [
 ];
 
 const OTHER_ACTIONS: readonly Action[] = [
-  { label: 'Leave Review', subtitle: 'Share feedback', href: REVIEW_ENTRY_URL,
-    icon: 'review', keywords: 'review feedback rating', external: true },
-  { label: 'Subscribe', subtitle: 'Update your profile', href: SUBSCRIBE_CTA_HREF,
-    icon: 'subscribe', keywords: 'profile address account', external: true },
+  { label: 'Leave Review', subtitle: 'Share feedback', href: CUSTOMER_MENU_HREFS['leave-review'],
+    icon: 'review', keywords: 'review feedback rating' },
+  { label: 'Subscribe', subtitle: 'Update your profile', href: CUSTOMER_MENU_HREFS.subscribe,
+    icon: 'subscribe', keywords: 'profile address account' },
 ];
 
 type Props = { orderNumber: string };
