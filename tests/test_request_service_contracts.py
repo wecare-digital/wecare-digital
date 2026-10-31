@@ -272,6 +272,23 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "VAULT_AUTH_RETURN_FILE_KEY" in route
 
 
+def test_vault_unknown_file_uses_existing_notice_style_not_expired_button():
+    page = (ROOT / "src/components/get/GetPage.tsx").read_text()
+    empty = page.split("{ files.length === 0 && (", 1)[1].split(
+        "{ files.map( file => {", 1)[0]
+    assert "This document is not available right now." in page
+    assert "targetFileId && visibleFiles.length === 0" in page
+    assert "error ? 'sf-file-error sf-unavailable-notice' : 'sf-empty'" in empty
+    assert "role={ error ? 'alert' : undefined }" in empty
+    assert 'href="/orders/"' in empty
+    assert "Access expired" not in empty
+    assert ".sf-empty-state .sf-unavailable-notice{inline-size:100%;margin:0}" in page
+    # Preserve the 4px lime edge, 10px radius, and Auth/Orders supporting typography.
+    assert ".sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{" in page
+    assert "border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;" in page
+    assert "background:var(--public-lime-tint);color:var(--public-text);" in page
+
+
 def test_expired_vault_shows_only_disabled_status_action_without_checkout():
     page = (ROOT / "src/components/get/GetPage.tsx").read_text()
 
