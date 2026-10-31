@@ -594,7 +594,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         <div className="sf-form">
                             { files.length === 0 && (
                                 <div className="sf-empty-state">
-                                    <p className="sf-empty" role={ error ? 'alert' : undefined }>
+                                    <p className={ error ? 'sf-file-error sf-unavailable-notice' : 'sf-empty' }
+                                        role={ error ? 'alert' : undefined }>
                                         { error || 'There are no files shared with your number right now.' }
                                     </p>
                                     <a className="sf-back-link" href="/orders/">Back to Orders</a>
@@ -863,6 +864,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-pay-waiting{display:grid;gap:12px}
 
                 .sf-empty-state{display:grid;justify-items:start;gap:16px}
+                /* The no-file refusal uses the same lime-accent notice as Vault/Auth errors,
+                   at full card width instead of unstyled body copy. */
+                .sf-empty-state .sf-unavailable-notice{inline-size:100%;margin:0}
                 .sf-empty{
                   font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
                 }
