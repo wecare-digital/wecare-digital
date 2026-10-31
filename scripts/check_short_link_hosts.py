@@ -74,10 +74,10 @@ DEFAULT_CODE = "wa"
 # handled rather than 404ing or serving the SPA shell.
 ABSENT_CODE = "zz-no-such-code-probe"
 
-# Must match url-shortener.FALLBACK_URL exactly, including the trailing slash. Moved off
-# `[retired public path]` on 2026-09-27: that URL had 404'd since 2026-09-24, so this gate was
-# asserting that unknown codes land on an error page.
-FALLBACK = "https://wecare.digital/contact/"
+# Must match url-shortener.FALLBACK_URL exactly. Unknown, expired, and
+# inactive codes must fall back to the canonical homepage, not Contact or Orders.
+# This check does not change active codes: they keep their saved destinations.
+FALLBACK = "https://wecare.digital/"
 TIMEOUT = 20
 
 
