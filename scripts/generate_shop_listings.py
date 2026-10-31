@@ -63,8 +63,6 @@ SHELF_ORDER: tuple[str, ...] = (
     "guided-resolution", "file-assist", "paperwork",
     "ritual-guru-puja-guidance", "ritual-guru-diy-puja-kit", "ritual-guru-ritva",
     "anew", "hunar-kaushal", "hunar-prastuti", "niji-setu",
-    "submit-request", "request-amendment", "drop-docs", "vault",
-    "shipments-track", "request-pickup",
     "merchandise", "kiosk",
     "contribute",
 )
@@ -72,11 +70,10 @@ SHELF_ORDER: tuple[str, ...] = (
 #: Live, purchasable rows kept off the horizontal image rail (owner rule: Contribute).
 OFF_SHELF_SLUGS: frozenset[str] = frozenset({"contribute"})
 
-# These six items remain live paid products in ProductsTable (SKU, pricing and
-# fulfilment are unchanged), but the five standalone service pages are retired.
-# Website browsing must always take customers to the authenticated Orders hub.
-# This frontend-only override is necessary until the ProductsTable canonicalPath
-# values are reconciled; otherwise regenerating shopProducts.ts resurrects old URLs.
+# These remain active paid-service identities for Orders, not standalone pages.
+# They are intentionally absent from SHELF_ORDER. Re-enabling websiteEnabled
+# alone must fail publication rather than recreate an old Shop entry.
+# Keep the defensive Orders URL mapping for any reviewed future migration.
 ORDER_HUB_SERVICE_SLUGS: frozenset[str] = frozenset({
     "submit-request", "request-amendment", "drop-docs", "vault",
     "shipments-track", "request-pickup",
