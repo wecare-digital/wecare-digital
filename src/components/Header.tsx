@@ -134,17 +134,19 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Request',
         links: [
+          // Service controls will live on the authenticated order history. Preserve
+          // original service URLs for direct file/legacy access; menu clicks open /orders/.
           { label: 'Orders', href: '/orders/', match: '/orders' },
-          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request' },
-          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
-          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
-          { label: 'Vault', href: '/vault/', match: '/vault' },
+          { label: 'Submit Request', href: '/orders/', match: '/orders', searchTerms: [ 'submit request' ] },
+          { label: 'Request Amendment', href: '/orders/', match: '/orders', searchTerms: [ 'amend request' ] },
+          { label: 'Drop Docs', href: '/orders/', match: '/orders', searchTerms: [ 'upload documents' ] },
+          { label: 'Vault', href: '/orders/', match: '/orders', searchTerms: [ 'files' ] },
           {
             label: 'Shipments',
             searchTerms: [ 'track', 'pickup' ],
             children: [
-              { label: 'Track', href: '/shipments/track/', match: '/shipments/track', searchTerms: [ 'shipments', 'tracking' ] },
-              { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
+              { label: 'Track', href: '/orders/', match: '/orders', searchTerms: [ 'shipments', 'tracking' ] },
+              { label: 'Pickup Request', href: '/orders/', match: '/orders', searchTerms: [ 'shipments', 'pickup' ] },
             ],
           },
           { label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true },
@@ -491,6 +493,8 @@ const Header: React.FC = () => {
   const currentPath = concretePath || normalizePath( router.pathname );
   const isActive = ( link: NavLink ) => {
     if ( !link.href ) return false;
+    // Six service rows now share the Orders destination; only Orders itself is current.
+    if ( link.href === '/orders/' && link.label !== 'Orders' ) return false;
     const destination = normalizePath( link.href );
     if ( !destination ) return false;
     if ( concretePath ) return destination === currentPath;
