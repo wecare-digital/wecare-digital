@@ -1000,7 +1000,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 </Button>
               ) }
               { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
-                <Button variant="primary" loading={ actionLoading } onClick={ () => handlePublishAndSend( selected ) }>
+                <Button variant="primary" loading={ actionLoading } onClick={ () => { void handlePublishAndRequestPayment( selected ); } }>
                   Publish & send Review & Pay
                 </Button>
               ) }
