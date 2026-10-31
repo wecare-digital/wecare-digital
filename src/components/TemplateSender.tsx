@@ -680,7 +680,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           : name === ORDER_STATUS_TEMPLATE
             ? 'Send order status from Payments / the paid invoice so the authoritative order state is included.'
             : name === VAULT_OFFER_TEMPLATE
-              ? 'Send the Vault request-ready message from Service → Documents → Secure files, so its Unlock Vault button opens payment for that document.'
+              ? 'This retired template cannot be sent. Open Pay & Flow → Vault and send the file-bound Review & Pay request instead.'
               : 'OTP is sent only by the customer verification/sign-in flow; staff cannot generate authentication codes here.';
       onError( message );
       return;
