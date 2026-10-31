@@ -618,12 +618,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
                                                     >
-                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                                            stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"
-                                                            strokeLinejoin="round" aria-hidden="true">
-                                                            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
-                                                        </svg>
-                                                        { working === file.fileId ? 'Preparing…' : 'Download securely' }
+                                                        { working === file.fileId ? 'Preparing…' : 'Download' }
                                                     </button>
                                                 </div>
                                                 <p className="sf-state-note">
@@ -794,8 +789,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
                   transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
                 }
-                .sf-download-button{width:100%;min-height:54px;justify-content:center;gap:10px;
-                  border-radius:14px;background:var(--public-brand-lime);text-decoration:none}
                 .sf-file-action-button:hover:not(:disabled){
                   background:var(--public-brand-lime);transform:translateY(-1px);
                   box-shadow:0 5px 14px rgba(26,58,42,.10);text-decoration-color:transparent;
