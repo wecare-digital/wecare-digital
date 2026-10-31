@@ -281,7 +281,7 @@ export default function VaultJourneyPreview ( props: Props ) {
 
       <VaultMessageTimeline file={ currentFile } journey={ props.journey } />
 
-      <details className={ styles.invoice } aria-label="Invoice breakdown preview">
+      <details open className={ styles.invoice } aria-label="Invoice builder preview (server-priced, read-only)">
         <summary className={ styles.disclosureTitle }>
           <span>Estimated invoice &amp; pricing</span>
           <strong>{ currency( props.breakdown?.totalPayablePaise ) }</strong>
@@ -290,7 +290,8 @@ export default function VaultJourneyPreview ( props: Props ) {
           <strong>WECARE.DIGITAL</strong>
           <span>PREVIEW · NOT ISSUED</span>
         </div>
-        <h3>Vault access invoice</h3>
+        <h3>Vault access invoice · fixed amount</h3>
+        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. The selected file, quantity 1 and live catalogue amount are read-only; the actual receipt image and invoice are issued after verified payment, never from this preview.</p>
         <p className={ styles.customer }>{ owner } · { mobile }</p>
         <div className={ styles.billRow }><span>Vault · one file / one access window</span><strong>{ currency( props.pricePaise ) }</strong></div>
         <div className={ styles.billRow }><span>GST on supply</span><strong>{ currency( props.breakdown?.supplyGstPaise ) }</strong></div>
