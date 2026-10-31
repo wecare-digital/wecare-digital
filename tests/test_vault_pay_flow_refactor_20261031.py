@@ -5,7 +5,6 @@ The integration/runtime tests must still run before any production deployment.
 """
 
 from pathlib import Path
-import re
 import unittest
 
 
