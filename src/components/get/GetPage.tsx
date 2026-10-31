@@ -663,7 +663,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         <div className="sf-payment-option sf-payment-option-primary">
                                                             <div className="sf-payment-choice-head">
                                                                 <strong>Website checkout</strong>
-                                                                <span className="sf-choice-tag">Recommended</span>
+                                                                { vaultLinePrice !== null && <span className="sf-choice-tag">Recommended</span> }
                                                             </div>
                                                             <span>Use your cart and secure Razorpay checkout. Review the final amount before paying.</span>
                                                             <button type="button" className="sf-file-action-button"
