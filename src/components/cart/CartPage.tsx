@@ -20,7 +20,7 @@ import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
+  readCart, addItem, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
@@ -28,6 +28,7 @@ import {
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
 import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
 import type { CartItem, CheckoutLineItem } from '../../lib/cart';
+import type { ShopProduct } from '../../content/shop';
 import { parseCheckoutQuote, type CheckoutQuote } from '../../lib/checkoutQuote';
 import { formatPaiseINR } from '../../lib/money';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
@@ -63,6 +64,55 @@ const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
 // send a quote request at all. This switch is compile-time, default OFF.
 const WEBSITE_FULL_CART_QUOTE_ENABLED =
   process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED === 'true';
+
+/**
+ * One directly linked commerce QA item. It is intentionally absent from
+ * catalogSnapshot, SHOP_PRODUCTS, SHOP_LISTINGS, /shop/ and Meta: those are
+ * publication surfaces, not the ProductsTable payment authority.
+ *
+ * The static cart page already exists and is noindex,nofollow; this creates
+ * neither a product page nor a public shop listing. The browser carries only
+ * product/variant IDs to checkout, where ProductsTable supplies the price.
+ */
+const COMMERCE_TEST_VARIANT_ID = 'WCTEST2R26';
+const COMMERCE_TEST_PRODUCT: ShopProduct = {
+  id: 'native:commerce-test-2',
+  name: 'Commerce Test - Rs 2',
+  slug: '', // No /shop/commerce-test-2/ page exists.
+  formattedPrice: '₹2.00', // Display only, NEVER transmitted to checkout.
+  price: '2.00',
+  currency: 'INR',
+  inStock: true,
+  tagline: 'Internal commerce verification only',
+  body: [],
+  variants: [ { id: COMMERCE_TEST_VARIANT_ID, label: 'Standard', inStock: true } ],
+};
+
+/**
+ * A one-time direct cart-prefill link, not a payment link or a second checkout.
+ * It is an allowlist of exactly one product/variant, not a caller-supplied
+ * product ID or price. A saved cart stays intact; an existing QA line is not
+ * incremented on refresh, React StrictMode remount or link re-open.
+ */
+function cartFromDirectTestLink (): CartItem[] {
+  const existing = readCart();
+  if ( typeof window === 'undefined' ) return existing;
+  const query = new URLSearchParams( window.location.search );
+  if ( query.get( 'test' ) !== COMMERCE_TEST_VARIANT_ID || query.has( 'basket' ) )
+    return existing;
+
+  const present = existing.some( item =>
+    item.productId === COMMERCE_TEST_PRODUCT.id
+    && item.variantId === COMMERCE_TEST_VARIANT_ID );
+  const items = present ? existing : addItem( COMMERCE_TEST_PRODUCT, 1, COMMERCE_TEST_VARIANT_ID );
+
+  // The link is consumed once. A reload must never add a second unit.
+  query.delete( 'test' );
+  const remaining = query.toString();
+  window.history?.replaceState?.( null, '', window.location.pathname
+    + ( remaining ? '?' + remaining : '' ) + window.location.hash );
+  return items;
+}
 
 /**
  * Every hand-off to /checkout/status/. The attempt is recorded first, so that screen empties this
@@ -519,7 +569,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ basketClaim, setBasketClaim ] = useState<string | null>( null );
 
   useEffect( () => {
-    setItems( readCart() );
+    setItems( cartFromDirectTestLink() );
     setReady( true );
 
     // ASK THE READINESS QUESTION ONCE, ON ARRIVAL, so a returning customer is shown what we
