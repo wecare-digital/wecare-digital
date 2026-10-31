@@ -224,8 +224,11 @@ def tool_result(data: dict, text: str = '', *, error: bool = False) -> dict:
             'structuredContent': data, 'isError': error}
 
 
-def needs_auth() -> dict:
-    challenge = f'Bearer resource_metadata="{public_origin()}/.well-known/oauth-protected-resource"'
+def needs_auth(event: dict) -> dict:
+    path = str(event.get('rawPath') or '')
+    metadata = (customer_oauth.BRANDED_METADATA_URL if path == '/mcp-branded'
+                else public_origin() + '/.well-known/oauth-protected-resource')
+    challenge = f'Bearer resource_metadata="{metadata}"'
     return {**tool_result({'status': 'SIGN_IN_REQUIRED'},
                          'Connect your WECARE customer account using the host sign-in flow. Do not paste an OTP or token into chat.', error=True),
             '_meta': {'mcp/www_authenticate': [challenge]}}
@@ -256,7 +259,7 @@ def checked_lines(items: list[dict]) -> tuple[list[dict], list[dict], int]:
 def customer_call(function: str, body: dict, event: dict, path: str) -> dict:
     response = delegate(function, body, event, path)
     if response['statusCode'] in {401, 403}:
-        return needs_auth()
+        return needs_auth(event)
     if not 200 <= response['statusCode'] < 300:
         return tool_result({'status': 'UNAVAILABLE'}, 'WECARE could not complete this step. No success is confirmed. Please try again.', error=True)
     data = json.loads(response['body'])
@@ -272,12 +275,12 @@ def call_tool(name: str, args: dict, event: dict) -> dict:
     private = descriptor['securitySchemes'][0]['type'] == 'oauth2'
     headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
     if private and not headers.get('authorization', '').startswith('Bearer '):
-        return needs_auth()
+        return needs_auth(event)
     if private:
         try:
             event = customer_oauth.customer_event(event, descriptor['securitySchemes'][0]['scopes'][0])
         except customer_oauth.AuthError:
-            return needs_auth()
+            return needs_auth(event)
     if name == 'browse_products':
         query = args.get('query', '').casefold()
         return tool_result({'products': [p for p in catalog() if query in p['name'].casefold()], 'currency': 'INR'})
@@ -374,13 +377,20 @@ def handler(event: dict, context: Any) -> dict:
         auth_response = customer_oauth.route(event)
         if auth_response is not None:
             return auth_response
-        if headers.get('origin') and headers['origin'] != origin:
+        allowed_origins = {origin, customer_oauth.WEBSITE_ORIGIN} if path == '/mcp-branded' else {origin}
+        if headers.get('origin') and headers['origin'] not in allowed_origins:
             return reply(403, {'error': 'ORIGIN_DENIED'})
+        if method == 'GET' and path == '/mcp-branded-metadata':
+            return reply(200, {'resource': customer_oauth.BRANDED_RESOURCE,
+                               'authorization_servers': [origin],
+                               'scopes_supported': sorted(customer_oauth.SCOPES),
+                               'bearer_methods_supported': ['header'],
+                               'resource_name': 'WECARE customer commerce'})
         if method == 'GET' and path == '/.well-known/oauth-protected-resource':
             return reply(200, {'resource': origin + '/mcp', 'authorization_servers': [origin],
                                'scopes_supported': sorted(customer_oauth.SCOPES),
                                'bearer_methods_supported': ['header'], 'resource_name': 'WECARE customer commerce'})
-        if path != '/mcp':
+        if path not in {'/mcp', '/mcp-branded'}:
             return reply(404, {'error': 'NOT_FOUND'})
         if method != 'POST':
             return reply(405, {'error': 'METHOD_NOT_ALLOWED'})
