@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
+import { isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 
 /**
@@ -63,27 +63,27 @@ type Action = {
 };
 
 const REQUEST_ACTIONS: readonly Action[] = [
-  { label: 'Submit Request', subtitle: 'Raise a request', href: '/orders/',
+  { label: 'Submit Request', subtitle: 'Raise a request', href: '/submit-request/',
     icon: 'submit', keywords: 'request order product service' },
-  { label: 'Request Amendment', subtitle: 'Change a request', href: '/orders/',
+  { label: 'Request Amendment', subtitle: 'Change a request', href: '/request-amendment/',
     icon: 'amend', keywords: 'amend modify edit request' },
-  { label: 'Drop Docs', subtitle: 'Upload documents', href: '/orders/',
+  { label: 'Drop Docs', subtitle: 'Upload documents', href: '/drop-docs/',
     icon: 'docs', keywords: 'documents upload files' },
-  { label: 'Vault', subtitle: 'Access your files', href: '/orders/',
+  { label: 'Vault', subtitle: 'Access your files', href: '/vault/',
     icon: 'vault', keywords: 'secure download files' },
 ];
 
 const SHIPMENT_ACTIONS: readonly Action[] = [
-  { label: 'Track', subtitle: 'Track your shipment', href: '/orders/',
+  { label: 'Track', subtitle: 'Track your shipment', href: '/shipments/track/',
     icon: 'subnav', keywords: 'shipments tracking delivery shipping status' },
-  { label: 'Pickup Request', subtitle: 'Arrange a pickup', href: '/orders/',
+  { label: 'Pickup Request', subtitle: 'Arrange a pickup', href: '/request-pickup/',
     icon: 'subnav', keywords: 'shipments courier pickup collect' },
 ];
 
 const OTHER_ACTIONS: readonly Action[] = [
-  { label: 'Leave Review', subtitle: 'Share feedback', href: CUSTOMER_MENU_HREFS['leave-review'],
+  { label: 'Leave Review', subtitle: 'Share feedback', href: '/leave-review/',
     icon: 'review', keywords: 'review feedback rating' },
-  { label: 'Subscribe', subtitle: 'Update your profile', href: CUSTOMER_MENU_HREFS.subscribe,
+  { label: 'Subscribe', subtitle: 'Update your profile', href: '/subscribe/',
     icon: 'subscribe', keywords: 'profile address account' },
 ];
 
@@ -178,12 +178,13 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
     // This row already has an authenticated customer token. Dispatch the
     // invitation on the deliberate click, not by reloading /orders/ and hoping
     // a sessionStorage handoff survives. All other actions retain their links.
-    if ( !action.external && action.href === '/orders/' && isPrimaryMenuActivation( event ) ) {
-      const sendAction = menuActionForLabel( action.label );
-      if ( sendAction ) {
-        event.preventDefault();
-        onInvite( sendAction );
-      }
+    // Retain the existing explicit authenticated per-order invite behavior
+    // for Review and Subscribe; every other Orders menu item now opens its
+    // own public service page. New-tab navigation to those pages never sends.
+    const sendAction = menuActionForLabel( action.label );
+    if ( !action.external && sendAction && isPrimaryMenuActivation( event ) ) {
+      event.preventDefault();
+      onInvite( sendAction );
     }
     setOpen( false );
     setSearch( '' );
