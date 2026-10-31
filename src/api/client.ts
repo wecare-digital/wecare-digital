@@ -990,6 +990,7 @@ export interface Message {
   s3Key?: string;
   mediaUrl?: string;
   messageType?: string;
+  templateName?: string;
   senderPhone?: string;
   senderName?: string;
   senderBsuid?: string;
@@ -1092,6 +1093,7 @@ function normalizeMessage ( item: any ): Message {
     s3Key: item.s3Key,
     mediaUrl: item.mediaUrl,  // Use pre-signed URL from API
     messageType: item.messageType,  // image, video, audio, document, text
+    templateName: item.templateName, // approved WhatsApp template, when recorded at send
     senderPhone: item.senderPhone,
     senderName: item.senderName,
     senderBsuid: item.senderBsuid,
