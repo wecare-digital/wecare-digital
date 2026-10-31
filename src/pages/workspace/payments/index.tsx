@@ -14,6 +14,8 @@ import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
 import PaymentsActivity from '../../../components/workspace/pay/PaymentsActivity';
+import InvoiceRecords from '../../../components/workspace/pay/InvoiceRecords';
+import PaymentTemplateMedia from '../../../components/workspace/pay/PaymentTemplateMedia';
 import { SERVICE_CHOICES, type ServiceChoice } from '../../../config/services';
 import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../../lib/servicePricing';
 
@@ -26,7 +28,7 @@ const TABS: ShellTab[] = [
 ];
 
 type PaymentsView = 'collect' | 'defaults' | 'ledger';
-type LedgerView = 'invoices' | 'activity';
+type LedgerView = 'invoices' | 'activity' | 'vault';
 
 function one ( raw: string | string[] | undefined ): string {
   return Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
@@ -41,6 +43,7 @@ function mode ( raw: string | string[] | undefined ): PaymentsView {
 
 function ledgerMode ( rawView: string | string[] | undefined, rawLedger: string | string[] | undefined ): LedgerView {
   if ( one( rawView ) === 'activity' || one( rawLedger ) === 'activity' ) return 'activity';
+  if ( one( rawLedger ) === 'vault' ) return 'vault';
   return 'invoices';
 }
 
@@ -68,7 +71,7 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
         <div>
           <div className="default-items-kicker">Server-priced presets</div>
           <h2>Default invoice items</h2>
-          <p>Vault, Drop Docs and request services use live server pricing. Use a row to open Collect with that service already loaded.</p>
+          <p>All amounts come from live server pricing. File-bound services open their own verified service workflow; a generic invoice cannot unlock a Vault file.</p>
         </div>
         <span>{ loading ? 'Loading live prices' : 'Live pricing' }</span>
       </div>
@@ -91,7 +94,7 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
                   <td>{ b ? money( b.totalPayablePaise ) : 'Preview after use' }</td>
                   <td>
                     <button type="button" disabled={ !price?.available } onClick={ () => onUse( choice ) }>
-                      Use
+                      { choice.needsTarget ? 'Open service' : 'Use in Collect' }
                     </button>
                   </td>
                 </tr>
@@ -100,6 +103,13 @@ const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }
           </tbody>
         </table>
       </div>
+      <details className="default-media-preview">
+        <summary>Approved WhatsApp Review &amp; Pay header and item icon</summary>
+        <PaymentTemplateMedia
+          serviceLabel="Vault and Drop Docs"
+          templates={ prices.vault?.available ? prices.vault.templates : null }
+        />
+      </details>
       </div>
     </section>
   );
@@ -145,6 +155,14 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
             { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
             { tab === 'defaults' && (
               <DefaultInvoiceItems onUse={ choice => {
+                // A service requiring a file/request target cannot be settled by
+                // a free-form invoice: enter its owned service workflow first.
+                if ( choice.needsTarget ) {
+                  void router.push( choice.kind === 'VAULT'
+                    ? '/workspace/service?view=vault'
+                    : choice.path );
+                  return;
+                }
                 void router.push( {
                   pathname: '/workspace/payments',
                   query: { view: 'collect', preset: choice.slug },
@@ -162,10 +180,16 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
                     aria-pressed={ ledgerView === 'activity' } onClick={ () => goLedger( 'activity' ) }>
                     Activity
                   </button>
+                  <button type="button" className={ ledgerView === 'vault' ? 'active' : '' }
+                    aria-pressed={ ledgerView === 'vault' } onClick={ () => goLedger( 'vault' ) }>
+                    Vault ledger
+                  </button>
                 </div>
                 { ledgerView === 'invoices'
                   ? <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" />
-                  : <PaymentsActivity /> }
+                  : ledgerView === 'vault'
+                    ? <InvoiceRecords signOut={ signOut } user={ user } embedded serviceKind="VAULT" />
+                    : <PaymentsActivity /> }
               </section>
             ) }
           </>
