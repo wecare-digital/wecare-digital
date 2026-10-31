@@ -377,7 +377,9 @@ def handler(event: dict, context: Any) -> dict:
         auth_response = customer_oauth.route(event)
         if auth_response is not None:
             return auth_response
-        allowed_origins = {origin, customer_oauth.WEBSITE_ORIGIN} if path == '/mcp-branded' else {origin}
+        branded_path = path in {'/mcp-branded', '/mcp-branded-metadata'}
+        allowed_origins = ({origin, customer_oauth.WEBSITE_ORIGIN}
+                           if branded_path else {origin})
         if headers.get('origin') and headers['origin'] not in allowed_origins:
             return reply(403, {'error': 'ORIGIN_DENIED'})
         if method == 'GET' and path == '/mcp-branded-metadata':
