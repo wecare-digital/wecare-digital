@@ -76,17 +76,6 @@ interface OrderRow {
   currencyUnexpected: boolean;
   /** payment_status canonical. '' when unmappable. Never a raw provider spelling. */
   status: string;
-  /** On the wire for a future filter. Deliberately not read here. */
-  statusRank: number;
-  /**
-   * `'website' | 'whatsapp'`, canonicalised server-side by `lambda_utils.ecommerce.order_channel`
-   * so the browser never sees a third spelling. Typed `string` rather than a union because the
-   * value arrives from the network: a union would be a claim about untrusted input, and the one
-   * read below already treats anything that is not `'whatsapp'` as the website.
-   */
-  channel: string;
-  /** Stable compact customer-facing support label (C-…), derived server-side. */
-  customerDisplayId: string;
 }
 
 interface OrdersResponse {
@@ -538,10 +527,10 @@ export default function OrdersPage (): React.ReactElement {
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) { expire(); return; }
-        const name = serviceAction === 'subscribe' ? 'Subscribe' : 'Leave Review';
+        const actionName = serviceAction === 'subscribe' ? 'Subscribe' : 'Review';
         setOrdersAlert( { source: 'service', message: result.kind === 'accepted'
-          ? `WhatsApp accepted your ${ name } invitation. Open your chat to continue. Delivery and form completion are tracked separately.`
-          : `Could not send the ${ name } invitation. Please try again from the menu.` } );
+          ? `${ actionName } invite accepted.`
+          : `${ actionName } invite failed. Try again.` } );
       }
 
       setView( 'loading' );
@@ -738,6 +727,9 @@ export default function OrdersPage (): React.ReactElement {
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
                       const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      const note = order.status
+                        ? ( STATUS_NOTE[ order.status ] || '' )
+                        : 'Contact us and we will check.';
                       // FIRST MATCH WINS, and the gate plus the three structural refusals are
                       // all evaluated BEFORE any state is consulted. Computed as a word so the
                       // ladder stays readable and the JSX stays one short chain over one value.
