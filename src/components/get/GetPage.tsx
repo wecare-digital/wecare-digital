@@ -735,7 +735,20 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
                   box-sizing:border-box;
                 }
+                .sf-card-overview{display:flex;align-items:center;gap:14px;padding-bottom:20px;margin-bottom:24px;
+                  border-bottom:1px solid var(--public-hairline)}
+                .sf-vault-icon{display:grid;place-items:center;flex:0 0 auto;width:50px;height:50px;
+                  border-radius:16px;background:var(--public-lime-tint);color:var(--public-brand-green)}
+                .sf-card-overview-copy{min-width:0;flex:1}
+                .sf-card-kicker{margin:0 0 4px;font-size:11px;letter-spacing:.13em;font-weight:800;
+                  color:var(--public-brand-green)}
+                .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
+                  letter-spacing:-.04em;color:var(--public-heading)}
+                .sf-card-description{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--public-muted)}
                 .sf-loading{display:grid;gap:8px;justify-items:start;color:var(--public-text)}
+                .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
+                .sf-load-error .sf-file-error{margin:0}
+                .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
                 .sf-loading-mark{
                   display:grid;place-items:center;width:48px;height:48px;margin-bottom:10px;
                   border-radius:12px;background:var(--public-brand-lime);color:var(--public-brand-green);
@@ -748,21 +761,29 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 /* The auth-inspired outer card owns the surface; the exact file is its content,
                    not a second nested card. */
                 .sf-file{padding:0;margin:0;background:transparent;border:0;border-radius:0;box-shadow:none}
-                .sf-file-head{display:flex;gap:11px;align-items:flex-start}
+                .sf-file-head{display:flex;gap:14px;align-items:flex-start}
                 .sf-file-icon{
-                  width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
+                  width:46px;height:46px;border-radius:13px;background:var(--public-lime-tint);
                   color:var(--public-brand-green);display:flex;align-items:center;justify-content:center;flex:0 0 auto;
                 }
                 .sf-file-copy{min-width:0;flex:1}
                 .sf-file-name{
-                  font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+                  margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);
                   line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
                   color:var(--public-heading);overflow-wrap:anywhere;
                 }
                 .sf-file-meta{
                   margin:8px 0 0;font-size:var(--public-supporting-size);line-height:1.4;color:var(--public-muted);
                 }
-                .sf-file-divider{height:1px;background:#eef0e6;margin:24px 0}
+                .sf-file-status-row{margin:16px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+                .sf-status-chip{display:inline-flex;align-items:center;gap:8px;max-width:100%;
+                  padding:8px 12px;border-radius:999px;border:1px solid var(--public-hairline);
+                  font-size:13px;font-weight:750;line-height:1.3;overflow-wrap:anywhere}
+                .sf-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+                .sf-status-ready{color:var(--public-brand-green);background:var(--public-lime-tint);border-color:#cce7ae}
+                .sf-status-pending{color:#6d531c;background:#fff8e5;border-color:#ead9aa}
+                .sf-status-locked{color:var(--public-muted);background:var(--public-bg)}
+                .sf-file-divider{height:1px;background:var(--public-hairline);margin:22px 0}
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
                 .sf-file-action-button{
@@ -774,6 +795,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
                   transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
                 }
+                .sf-download-button{width:100%;min-height:54px;justify-content:center;gap:10px;
+                  border-radius:14px;background:var(--public-brand-lime);text-decoration:none}
                 .sf-file-action-button:hover:not(:disabled){
                   background:var(--public-brand-lime);transform:translateY(-1px);
                   box-shadow:0 5px 14px rgba(26,58,42,.10);text-decoration-color:transparent;
@@ -791,11 +814,17 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-expired-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
                 .sf-payment-option-primary{background:#f6fbf0;border-color:#bedcac}
+                .sf-payment-choice-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
                 .sf-payment-option strong{font-weight:800;color:var(--public-brand-green);font-size:var(--public-supporting-size)}
                 .sf-payment-option span{font-size:var(--public-supporting-size);color:var(--public-muted);line-height:1.5}
+                .sf-payment-option .sf-choice-tag{display:inline-flex;align-items:center;border-radius:999px;
+                  padding:4px 9px;background:var(--public-brand-lime);color:var(--public-brand-green);
+                  font-size:12px;line-height:1.3;font-weight:750}
                 .sf-payment-option .sf-file-action-button{justify-content:center;width:100%;text-align:center}
                 .sf-payment-option .sf-secondary-btn,.sf-pay-waiting .sf-secondary-btn{border:1px solid #d0e0c8;background:#fff;color:var(--public-brand-green)}
-                .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-muted);margin:2px 0 0;line-height:1.5}
+                .sf-payment-total{font-size:var(--public-supporting-size);color:var(--public-heading);
+                  padding:12px 14px;margin:0;line-height:1.5;background:var(--public-lime-tint);
+                  border-radius:12px;border:1px solid #dce8d6}
                 .sf-pay-waiting{display:grid;gap:12px}
                 .sf-link-help{margin:16px 0 0;border-top:1px solid #e9eee5;padding-top:12px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.55}
                 .sf-confirming-note{
@@ -824,7 +853,13 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
                   }
-                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size)}
+                  .sf-card-overview{align-items:flex-start;gap:12px}
+                  .sf-vault-icon{width:44px;height:44px;border-radius:13px}
+                  .sf-card-title{font-size:22px}
+                  .sf-file-head{gap:12px}
+                  .sf-file-icon{width:42px;height:42px}
+                  .sf-file-action-button{font-size:var(--public-mobile-cta-font-size);
+                    width:100%;justify-content:center;text-align:center}
                 }
                 @media(prefers-reduced-motion:reduce){
                   .sf-file-action-button{transition:none}
