@@ -130,18 +130,20 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   lifecycle; it is not exposed as this WhatsApp payment-order lifecycle and never re-sends the
   paid invoice.
 - Order page (updated 2026-10-31): `https://wecare.digital/orders/` is the **only**
-  customer-visible Orders destination. Selecting a row expands its lines, amounts, frozen
-  delivery address and payment/order status inside the authenticated history. Checkout's
-  `order` API still rechecks ownership, returning the same 404 for missing or foreign orders.
-  The website rail navigates from `/checkout/status/` to `/orders/`, carrying the selected
-  order only in one-use session storage. A WhatsApp cart or catalog-service buyer gets
-  one "View your order" `cta_url` message after the paid invoice
-  (invoice engine `_send_order_page_link`; inside the 24-hour window only, once per invoice); the
-  order_status templates themselves carry no link, and their wording is fixed by
-  `docs/operations/whatsapp-payment-collection-stack.md`. For a WhatsApp-paid order the page shows
-  no fulfilment status, because that row holds the payment-order state (`completed` at capture).
-  The delivery address shown is the one frozen on the PaymentAttempt at checkout and copied to
-  the order by `accept_paid` (`order_delivery`), never the contact's current address.
+  customer-visible Orders destination. It shows an authenticated, compact history:
+  Order #, Date, Amount, Status, Invoice download and More actions. **Never restore**
+  a click-to-expand receipt, itemized lines, GST/fees, delivery address,
+  payment reference, source/channel label, invoice sequence or separate public
+  per-order page. The old authenticated checkout `action: "order"` is retired
+  with HTTP 410 `ORDER_DETAILS_RETIRED` (before any payment-create fallback).
+  Legacy `?o=` URLs normalize to `/orders/` without opening an individual
+  order, and `/checkout/status/` links directly to `/orders/` with no selected-row
+  session storage. WhatsApp cart/catalog-service buyers get a canonical
+  "View your order" `cta_url` after the paid invoice (invoice engine
+  `_send_order_page_link`; within the 24-hour window, once per invoice).
+  WhatsApp payment-order status is not a fulfilment tracker. Frozen delivery
+  snapshots remain in internal payment/order records for statutory invoices
+  and fulfilment; they must not appear in the customer history view.
 - Delivery address (2026-10-26): every WhatsApp catalog cart confirms where it ships before the
   payment request. Once the cart prices and payments are ready, checkout answers
   `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the
