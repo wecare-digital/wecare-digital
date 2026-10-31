@@ -43,6 +43,11 @@ const LTO_TEXT_MAX = 16;
 const ORDER_DETAILS_BUTTON_TEXT = 'Review and Pay';
 const ORDER_DETAILS_DISPLAY_FORMAT = 'order_details';
 const ORDER_DETAILS_CATEGORIES = [ 'UTILITY', 'MARKETING' ];
+// These are Meta template button launch actions, not runtime authorization choices.
+const FLOW_ACTION_OPTIONS: SelectOption[] = [
+    { value: 'data_exchange', label: 'Data exchange (INIT)' },
+    { value: 'navigate', label: 'Navigate to a screen' },
+];
 
 const hint: React.CSSProperties = { fontSize: 'var(--text-xs)', color: '#666', lineHeight: 1.5, marginBottom: 10 };
 
@@ -77,6 +82,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
     // Flow button
     const [ flowEnabled, setFlowEnabled ] = useState( false );
     const [ flowName, setFlowName ] = useState( '' );
+    const [ flowAction, setFlowAction ] = useState<'data_exchange' | 'navigate'>( 'data_exchange' );
     const [ flowScreen, setFlowScreen ] = useState( 'WELCOME' );
     const [ flowCtaText, setFlowCtaText ] = useState( 'Open' );
     // TTL
@@ -104,13 +110,16 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         const btns: any[] = isOrderDetails
             ? [ { type: 'ORDER_DETAILS', text: ORDER_DETAILS_BUTTON_TEXT } ]
             : buttons.map( b => ( { ...b } ) );
-        if ( flowEnabled && flowName && !isOrderDetails ) btns.push( { type: 'FLOW', text: flowCtaText, flow_name: flowName, flow_action: 'navigate', navigate_screen: flowScreen } );
+        if ( flowEnabled && flowName && !isOrderDetails ) btns.push( {
+            type: 'FLOW', text: flowCtaText, flow_name: flowName, flow_action: flowAction,
+            ...( flowAction === 'navigate' ? { navigate_screen: flowScreen } : {} ),
+        } );
         if ( btns.length ) components.push( { type: 'BUTTONS', buttons: btns } );
         const def: any = { name, language, category, components };
         if ( isOrderDetails && category === 'MARKETING' ) def.display_format = ORDER_DETAILS_DISPLAY_FORMAT;
         if ( ttl !== '' ) def.message_send_ttl_seconds = Number( ttl );
         return def;
-    }, [ name, language, category, isOrderDetails, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, offerEnabled, offerText, offerHasExpiration, flowEnabled, flowName, flowScreen, flowCtaText, ttl ] );
+    }, [ name, language, category, isOrderDetails, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, offerEnabled, offerText, offerHasExpiration, flowEnabled, flowName, flowAction, flowScreen, flowCtaText, ttl ] );
 
     const runValidate = useCallback( async () => {
         try { setResult( await api.validateTemplateDefinition( templateDef ) ); }
@@ -281,8 +290,15 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                                 <input style={ inp } value={ flowName } onChange={ e => setFlowName( e.target.value ) } placeholder="lead-generation-flow" />
                                 <label style={ lbl }>CTA text</label>
                                 <input style={ inp } value={ flowCtaText } onChange={ e => setFlowCtaText( e.target.value ) } />
-                                <label style={ lbl }>Navigate screen</label>
-                                <input style={ inp } value={ flowScreen } onChange={ e => setFlowScreen( e.target.value ) } />
+                                <label style={ lbl }>Flow action</label>
+                                <Select ariaLabel="Flow action" value={ flowAction }
+                                    onChange={ v => setFlowAction( v === 'navigate' ? 'navigate' : 'data_exchange' ) }
+                                    options={ FLOW_ACTION_OPTIONS } />
+                                { flowAction === 'navigate' && ( <>
+                                    <label style={ lbl }>Navigate screen</label>
+                                    <input style={ inp } value={ flowScreen } onChange={ e => setFlowScreen( e.target.value ) } />
+                                </> ) }
+                                <p style={ hint }>Data exchange starts with INIT. Sending still requires an authorized Flow token from the server.</p>
                             </div> ) }
                         </div>
                     ) }
