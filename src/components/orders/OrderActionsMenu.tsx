@@ -174,7 +174,7 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
     // A plain, same-tab order action reopens its originating row after navigation.
     // Modifier-clicks/new tabs remain ordinary anchors; never leak the selection into
     // the original tab where it could unexpectedly reopen a different order later.
-    if ( !action.external && event.button === 0 && !event.metaKey
+    if ( !action.external && action.href === '/orders/' && event.button === 0 && !event.metaKey
       && !event.ctrlKey && !event.shiftKey && !event.altKey ) {
       stashPendingOrder( orderNumber );
     }
