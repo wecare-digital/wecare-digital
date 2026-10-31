@@ -50,6 +50,10 @@ def test_retired_routes_redirect_permanently_without_intercepting_vault_files():
     for route in RETIRED:
         assert f'"{route}"' in redirect_block
     assert '"/vault"' not in redirect_block
+    assert '"/shop/shipments-track"' in redirect_block
+    shop = source("src/content/shop.ts")
+    assert "|| ORDER_HUB_SERVICE_SLUGS.has( String( raw.slug || '' ) );" in shop
+    assert "'shipments-track'" in shop
     assert 'for source in (route, route + "/"):' in source_code
     assert 'rules.append({"source": source, "target": "/orders/", "status": "301"})' in source_code
     assert "return desired_redirects() + [dict(rule) for rule in existing if not is_ours(rule)]" in source_code
