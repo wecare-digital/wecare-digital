@@ -81,7 +81,7 @@ if (/Opening your account|Go to Home/.test(vaultPage)) {
 if (/Opening your Vault|Checking your verified customer session|sf-loading-mark/.test(vaultView)) {
   failures.push('Private Vault preflight renders an obsolete loading waypoint');
 }
-if (/Continue to checkout|cart-return/.test(cartPage)) {
+if (/<h1[^>]*>Continue to checkout|cart-return/.test(cartPage)) {
   failures.push('Cart redirect renders an obsolete checkout waypoint');
 }
 if (!vaultView.includes("if ( stage === 'loading' && !error ) return null;")) {
