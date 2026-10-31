@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
-import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../lib/customerMenuActions';
+
 import { PLAY_STORE } from '../config/analytics';
 import type { MaterialSymbol } from '../config/materialSymbols';
 
@@ -133,23 +133,23 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Request',
         links: [
-          // Service controls will live on the authenticated order history. Preserve
-          // original service URLs for direct file/legacy access; menu clicks open /orders/.
+          // Each service has its own public front door. Personal actions still
+          // require explicit entry into the approved WhatsApp/customer flow.
           { label: 'Orders', href: '/orders/', match: '/orders' },
-          { label: 'Submit Request', href: '/orders/', match: '/orders', searchTerms: [ 'submit request' ] },
-          { label: 'Request Amendment', href: '/orders/', match: '/orders', searchTerms: [ 'amend request' ] },
-          { label: 'Drop Docs', href: '/orders/', match: '/orders', searchTerms: [ 'upload documents' ] },
-          { label: 'Vault', href: '/orders/', match: '/orders', searchTerms: [ 'files' ] },
+          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request', searchTerms: [ 'submit request' ] },
+          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment', searchTerms: [ 'amend request' ] },
+          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs', searchTerms: [ 'upload documents' ] },
+          { label: 'Vault', href: '/vault/', match: '/vault', searchTerms: [ 'files' ] },
           {
             label: 'Shipments',
             searchTerms: [ 'track', 'pickup' ],
             children: [
-              { label: 'Track', href: '/orders/', match: '/orders', searchTerms: [ 'shipments', 'tracking' ] },
-              { label: 'Pickup Request', href: '/orders/', match: '/orders', searchTerms: [ 'shipments', 'pickup' ] },
+              { label: 'Track', href: '/shipments/track/', match: '/shipments/track', searchTerms: [ 'shipments', 'tracking' ] },
+              { label: 'Pickup Request', href: '/request-pickup/', match: '/request-pickup', searchTerms: [ 'shipments', 'pickup' ] },
             ],
           },
-          { label: 'Leave Review', href: CUSTOMER_MENU_HREFS['leave-review'], match: '/orders' },
-          { label: 'Subscribe', href: CUSTOMER_MENU_HREFS.subscribe, match: '/orders' },
+          { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
+          { label: 'Subscribe', href: '/subscribe/', match: '/subscribe' },
         ],
       },
     ],
@@ -564,12 +564,9 @@ const Header: React.FC = () => {
   // Internal destinations stay inside the site/WebView. In a Capacitor shell an external
   // destination is handed to the native browser instead of being trapped inside the WebView.
   const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
-    const sendAction = menuActionForLabel( link.label );
-    if ( sendAction && isPrimaryMenuActivation( event ) ) {
-      // A real menu click is the only way to queue one authenticated template.
-      // The clean /orders/ URL cannot trigger a template send on its own.
-      stashCustomerMenuAction( sendAction );
-    }
+    // Navigation is navigation only. In particular, visiting the new public
+    // Review/Subscribe pages must never queue a WhatsApp invitation. Existing
+    // authenticated per-order sends stay explicit in OrdersPage.
     const capacitor = typeof window !== 'undefined'
       ? ( window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } } ).Capacitor
       : undefined;
