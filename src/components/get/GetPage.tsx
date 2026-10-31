@@ -789,8 +789,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
                   transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
                 }
-                .sf-download-button{width:100%;min-height:54px;justify-content:center;
-                  border-radius:14px;background:var(--public-brand-lime);text-decoration:none}
                 .sf-file-action-button:hover:not(:disabled){
                   background:var(--public-brand-lime);transform:translateY(-1px);
                   box-shadow:0 5px 14px rgba(26,58,42,.10);text-decoration-color:transparent;
