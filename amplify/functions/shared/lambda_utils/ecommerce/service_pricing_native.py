@@ -22,7 +22,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from lambda_utils import whatsapp_templates
+from lambda_utils import template_media, whatsapp_templates
 from lambda_utils.ecommerce import blog_contribution, checkout_pricing, default_coupon, service_requests
 from lambda_utils.ecommerce.money import positive_paise
 
@@ -119,6 +119,10 @@ def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
         "orderStatusStates": ["processing", "completed"],
         "delivery": delivery.name,
         "receipt": whatsapp_templates.INVOICE.name,
+        # The same immutable send-time media the production outbound sender uses.
+        # Presentation only: clients do not construct payment templates or amounts.
+        "headerImage": template_media.PAYMENT_TEMPLATE_HEADER,
+        "itemThumbnail": template_media.DEFAULT_ORDER_ITEM_THUMBNAIL,
     }
 
 
