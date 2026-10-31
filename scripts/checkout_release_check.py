@@ -56,7 +56,7 @@ def check_html(path, html):
         if any(tag in page.tags for tag in ('header', 'footer', 'h1', 'main')):
             failures.append('/cart/: redirect-only HTML must have no visible page chrome')
         if not any('name="robots"' in tag and 'noindex' in tag.lower()
-                   for tag in re.findall(r'<meta\\b[^>]*>', html, re.I)):
+                   for tag in re.findall('<meta[^>]*>', html, re.I)):
             failures.append('/cart/: redirect-only HTML must remain noindex')
         return failures
     failures = [f'{path}: missing {tag}' for tag in ('header', 'footer', 'h1', 'main')
