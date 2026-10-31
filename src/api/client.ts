@@ -5720,6 +5720,17 @@ export async function resendSubmitRequestPayment ( invoiceId: string ): Promise<
 // FLOW MANAGEMENT ENGINE
 // ============================================================================
 
+/** Snapshot mapping verified against Meta at lastVerifiedAt; not a send-readiness grant. */
+export interface TemplateFlowMappingItem {
+  templateId: string;
+  templateName: string;
+  flowId: string;
+  buttonLabel: string;
+  flowButtonAction: string;
+  metaTemplateStatus: string;
+  lastVerifiedAt: number;
+}
+
 export interface FlowRegistryItem {
   flowId: string;
   flowCode: string;
@@ -5752,6 +5763,8 @@ export interface FlowRegistryItem {
   lastSyncedAt?: number;
   validationErrorsJson?: string;
   healthStatusJson?: string;
+  /** Read-only mappings from the dedicated table; included only when requested. */
+  templateFlowMappings?: TemplateFlowMappingItem[];
 }
 
 /** One launch decision computed server-side by lambda_utils.flow_launch. */
@@ -5892,8 +5905,9 @@ export interface FlowSubmissionStats {
   pendingAmount: number;
 }
 
-export async function listFlowRegistry (): Promise<FlowRegistryItem[]> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-registry` );
+export async function listFlowRegistry ( includeTemplateMappings = false ): Promise<FlowRegistryItem[]> {
+  const suffix = includeTemplateMappings ? '?includeTemplateMappings=true' : '';
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-registry${suffix}` );
   return data?.flows || [];
 }
 
