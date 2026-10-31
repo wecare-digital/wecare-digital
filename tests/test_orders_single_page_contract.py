@@ -33,7 +33,7 @@ def test_legacy_link_reopens_an_inline_order_after_sign_in() -> None:
     assert "window.history.replaceState( window.history.state, '', '/orders/' );" in orders
     assert "orders.findIndex( item => item.orderNumber === requestedOrder )" in orders
     assert "setOpenRows" in orders
-    assert "requestedOrder && !orders.some" in orders
+    assert "!orders.some( item => item.orderNumber === requestedOrder )" in orders
     assert "export function orderNumberFromUrl" in helpers
     assert "return isPublicOrderNumber( trimmed ) ? trimmed : '';" in helpers
 
