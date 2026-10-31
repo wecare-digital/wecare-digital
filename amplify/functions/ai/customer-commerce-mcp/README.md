@@ -3,6 +3,40 @@
 Customer commerce MCP and OAuth protocol service behind `POST /mcp` on HTTP API
 `mtx59syrt6`.
 
+## Branded commerce MCP audience (review before release)
+
+The legacy resource `https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/mcp`
+and its OAuth issuer remain unchanged for connected ChatGPT and Claude clients.
+An additional explicit backend route `POST /mcp-branded` (the destination of
+`https://wecare.digital/api/mcp`) accepts **only** bearer tokens issued for the
+new resource `https://wecare.digital/api/mcp`. The matching
+`GET /mcp-branded-metadata` advertises that exact resource, with the **existing**
+API Gateway OAuth authorization server. This is a resource alias, **not** an
+issuer migration or token rekey. KMS encryption contexts and session rows retain
+the resource of their original grant.
+
+After the exact packaged code, CloudFormation change set, source/alias and
+customer-isolation tests are verified, the hosting release must map these exact
+rewrites *before* `/api/<*>`, without changing the read-only `/mcp`:
+
+```text
+/api/mcp                                   -> https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/mcp-branded
+/api/mcp/                                  -> https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/mcp-branded
+/.well-known/oauth-protected-resource/api/mcp -> https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/mcp-branded-metadata
+/api/.well-known/oauth-protected-resource  -> https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/mcp-branded-metadata
+```
+
+All four hosting rewrites must use status `200`. Do **not** deploy the new
+routing before the two new API Gateway routes and Lambda source are live.
+Old endpoint, issuer, callback allowlist, website `/auth`, pending sessions,
+and token refresh must remain functional, not just the public initialization.
+Test both consumers with distinct synthetic/safe customers and verify old
+tokens fail at the branded resource and new tokens fail at the old resource.
+A real host OAuth connection and a live order read with a dedicated test
+customer remain release gates; do not claim production verification from
+offline unit tests.
+
+
 ## Ownership boundary
 
 - **Website presentation:** `src/pages/auth.tsx`, wrapped by the shared public shell.
@@ -98,7 +132,7 @@ For every production deployment:
 4. require the change set to contain only intended function/version/alias and
    route changes;
 5. execute it with a new `DeploymentRevision`;
-6. verify alias `live`, the exact eight API routes, OAuth metadata, `/auth/state`,
+6. verify alias `live`, all ten API routes, both resource metadata documents, OAuth metadata, `/auth/state`,
    `/auth/step`, and the shared website `/auth` page;
 7. run `scripts/generate_release_manifest.py` to join the Git commit, Lambda
    version, route hash and Amplify job in one release record.

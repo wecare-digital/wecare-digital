@@ -58,7 +58,7 @@ def registration_call(
 
 
 def auth_state(row: dict, csrf: str, message: str = '') -> dict:
-    login = uncapsule(row['cipher'], row['client'], row['sidHash'])
+    login = uncapsule(row['cipher'], row['client'], row['sidHash'], row.get('resource'))
     website = row.get('kind') == 'web-auth'
     return response(
         200,
@@ -82,7 +82,7 @@ def save_pending(row: dict, login: dict, message: str = '') -> dict:
     csrf = secrets.token_urlsafe(32)
     row['csrfHash'] = digest(csrf)
     row['notice'] = message
-    row['cipher'] = capsule(login, row['client'], row['sidHash'])
+    row['cipher'] = capsule(login, row['client'], row['sidHash'], row.get('resource'))
     STORE.put(row)
     if row.get('transport') == 'json':
         return auth_state(row, csrf, message)
@@ -126,15 +126,21 @@ def resume_authorization(
     }
     if row.get('kind') == 'oauth-auth':
         client(row['client'])
-        if row.get('resource') != resource():
+        if row.get('resource') not in accepted_resources():
             raise AuthError('Invalid authorization resource')
         if requested:
             if not oauth_fields.intersection(requested):
                 return None
             expected = validate_authorize(requested)
+            # A pending grant must never be resumed under a different MCP
+            # audience. The caller must restart explicitly, rather than the
+            # server silently turning an old-resource cookie into a new flow.
+            if row.get('resource') != expected['resource']:
+                raise AuthError('Authorization resource changed')
             if any(
                 (
                     row.get('client') != expected['client_id'],
+                    row.get('resource') != expected['resource'],
                     row.get('redirect') != expected['redirect_uri'],
                     row.get('state') != expected['state'],
                     row.get('scope') != expected['scope'],
@@ -151,7 +157,7 @@ def resume_authorization(
             != row.get('return')
         ):
             return None
-    login = uncapsule(row['cipher'], row['client'], key)
+    login = uncapsule(row['cipher'], row['client'], key, row.get('resource'))
     if STORE.take(key) is None:
         return website_recovery()
     row['transport'] = 'json'

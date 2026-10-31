@@ -18,6 +18,8 @@ CUSTOMER_CLIENT = '4avmt9n4gpmkvkdk88qbtit33o'
 SCOPES = {'commerce:read', 'commerce:write'}
 WEBSITE_CLIENT = 'wecare-website'
 WEBSITE_ORIGIN = 'https://wecare.digital'
+BRANDED_RESOURCE = WEBSITE_ORIGIN + '/api/mcp'
+BRANDED_METADATA_URL = WEBSITE_ORIGIN + '/.well-known/oauth-protected-resource/api/mcp'
 WEBSITE_RETURNS = {
     '/',
     '/checkout/',
@@ -55,6 +57,11 @@ def origin() -> str:
 
 def resource() -> str:
     return origin() + '/mcp'
+
+
+def accepted_resources() -> set[str]:
+    # The original AWS audience remains valid for existing KMS-bound sessions.
+    return {resource(), BRANDED_RESOURCE}
 
 
 def connect_origin() -> str:
@@ -247,7 +254,7 @@ def validate_authorize(params: dict) -> dict:
     registered = client(params['client_id'])
     if (
         params['redirect_uri'] not in registered['redirect_uris']
-        or params['resource'] != resource()
+        or params['resource'] not in accepted_resources()
     ):
         raise AuthError('Invalid resource or redirect')
     scopes = params['scope'].split()
