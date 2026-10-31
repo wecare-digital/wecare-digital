@@ -11,6 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Spinner from '../../../components/ui/Spinner';
@@ -670,7 +671,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         ) : (
                             <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
                                 <h3 className="sf-h2" id="sf-pick-title">Reuse a published Vault file</h3>
-                                <p className="sf-note">Reuse a published file for its existing owner—no second S3 upload. The selected file's customer cannot be changed.</p>
+                                <p className="sf-note">Reuse a published file for its existing owner—no second S3 upload. The selected file&apos;s customer cannot be changed.</p>
                                 <div className="sf-lookup">
                                     <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
                                         placeholder="Customer mobile" inputMode="tel"
@@ -816,9 +817,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     ) ) }
                                 </section>
                             ) }
-                            <a href="/workspace/communications?view=manage&section=scheduled" className="sf-other-messages">
+                            <Link href="/workspace/communications?view=manage&section=scheduled" className="sf-other-messages">
                                 Schedule other approved WhatsApp messages in Communications
-                            </a>
+                            </Link>
                         </div>
                     </div>
                     <VaultJourneyPreview
