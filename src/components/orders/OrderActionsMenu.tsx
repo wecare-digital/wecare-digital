@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { CUSTOMER_MENU_HREFS } from '../../lib/customerMenuActions';
+import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../../lib/customerMenuActions';
 import { stashPendingOrder } from '../../lib/orderPage';
 
 /**
@@ -174,9 +174,14 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
     // A plain, same-tab order action reopens its originating row after navigation.
     // Modifier-clicks/new tabs remain ordinary anchors; never leak the selection into
     // the original tab where it could unexpectedly reopen a different order later.
-    if ( !action.external && action.href === '/orders/' && event.button === 0 && !event.metaKey
-      && !event.ctrlKey && !event.shiftKey && !event.altKey ) {
+    if ( !action.external && action.href === '/orders/' && isPrimaryMenuActivation( event ) ) {
       stashPendingOrder( orderNumber );
+      const sendAction = menuActionForLabel( action.label );
+      if ( sendAction ) {
+        // Carry only the user's deliberate menu choice through /auth/.
+        // The server selects the phone from the verified customer session.
+        stashCustomerMenuAction( sendAction );
+      }
     }
     setOpen( false );
     setSearch( '' );
