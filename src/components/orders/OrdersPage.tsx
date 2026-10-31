@@ -12,6 +12,7 @@ import { featureFlags } from '../../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import { stashCustomerMenuAction, takeCustomerMenuAction, sendCustomerMenuAction } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
+import { customerMenuNotice } from '../../lib/customerMenuNotices';
 import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import OrderActionIcon from './OrderActionIcon';
@@ -471,17 +472,8 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
-  const inviteName = ( action: CustomerMenuAction ) =>
-    action === 'subscribe' ? 'Subscribe' : 'Review';
-
   const presentInviteResult = ( action: CustomerMenuAction, kind: 'accepted' | 'failed' ) => {
-    const name = inviteName( action );
-    setInviteNotice( {
-      message: kind === 'accepted'
-        ? `${ name } invitation accepted by WhatsApp. Delivery is not yet confirmed.`
-        : `${ name } invitation could not be confirmed. Check WhatsApp before trying again.`,
-      error: kind === 'failed',
-    } );
+    setInviteNotice( customerMenuNotice( action, kind ) );
   };
 
   // Orders-row actions must work on the current page without relying on a
@@ -490,7 +482,7 @@ export default function OrdersPage (): React.ReactElement {
     if ( !token || inviteInFlight.current ) return;
     inviteInFlight.current = true;
     setInviteBusy( true );
-    setInviteNotice( { message: `Requesting ${ inviteName( action ) } invitation…`, error: false } );
+    setInviteNotice( customerMenuNotice( action, 'pending' ) );
     void ( async () => {
       try {
         const result = await sendCustomerMenuAction( action, token );
@@ -560,7 +552,7 @@ export default function OrdersPage (): React.ReactElement {
       // Consume BEFORE sending; refresh/back must never silently resend.
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
-        setInviteNotice( { message: `Requesting ${ inviteName( serviceAction ) } invitation…`, error: false } );
+        setInviteNotice( customerMenuNotice( serviceAction, 'pending' ) );
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) {
