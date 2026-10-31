@@ -1751,6 +1751,10 @@ def _start_native_vault_payment(
     ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF reservation and the Meta ORDER_DETAILS
     send. There is no website cart, no browser amount and no Meta Flow in this Vault path.
     """
+    # A published row is not proof that the requested private S3 bytes are
+    # actually available. No customer should receive a charge for a dead link.
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
     try:
         response = _lambda_client().invoke(
             FunctionName=BUSINESS_API_FUNCTION,
