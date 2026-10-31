@@ -82,7 +82,7 @@ const GET_WORDS: CycleWord[] = [
 
 function fileStatusLabel ( state: SecureFileAccessState ): string {
     switch ( state ) {
-        case 'OPEN': return 'Ready to download';
+        case 'OPEN': return '';
         case 'READY': return 'Payment verified';
         case 'PAID_UNVERIFIED': return 'Verifying payment';
         case 'EXPIRED': return 'Access expired';
@@ -597,13 +597,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="sf-file-status-row" role="status" aria-live="polite">
-                                            <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
-                                                : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
-                                                <span className="sf-status-dot" aria-hidden="true" />
-                                                { fileStatusLabel( state ) }
-                                            </span>
-                                        </div>
+                                        { state !== 'OPEN' && (
+                                            <div className="sf-file-status-row" role="status" aria-live="polite">
+                                                <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
+                                                    : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
+                                                    <span className="sf-status-dot" aria-hidden="true" />
+                                                    { fileStatusLabel( state ) }
+                                                </span>
+                                            </div>
+                                        ) }
                                         <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (

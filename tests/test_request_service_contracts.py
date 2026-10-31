@@ -230,7 +230,9 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert '<h2 className="sf-card-title">Your file access</h2>' in page
     assert '<h3 className="sf-file-name">{ file.displayName }</h3>' in page
     assert "fileStatusLabel( state )" in page
-    assert "case 'OPEN': return 'Ready to download'" in page
+    assert "case 'OPEN': return ''" in page
+    assert "Ready to download" not in page
+    assert "{ state !== 'OPEN' && (" in page
     assert "case 'READY': return 'Payment verified'" in page
     assert "case 'PAID_UNVERIFIED': return 'Verifying payment'" in page
     assert "case 'EXPIRED': return 'Access expired'" in page
@@ -253,6 +255,20 @@ def test_exact_file_vault_design_prioritizes_secure_status_without_changing_paym
     assert "targetFileId" in route and "<GetPage targetFileId={ targetFileId } />" in route
     assert "noindex" in page
     assert "VAULT_AUTH_RETURN_FILE_KEY" in route
+
+
+def test_auth_action_copy_and_shared_mobile_button_style():
+    page = (ROOT / "src/pages/auth.tsx").read_text()
+    assert "{ step.phase === 'phone' ? 'Sign in' : 'Verify' }" in page
+    assert "Get Code" not in page
+    assert 'className="auth-action auth-primary"' in page
+    assert page.count('className="auth-action"') == 2  # Resend and Edit
+    assert ".auth-actions{display:flex;align-items:stretch;" in page
+    assert ".auth-action{" in page and "display:inline-flex;align-items:center;justify-content:center" in page
+    assert "font:700 var(--public-cta-font-size)" in page
+    assert ".auth-action{font-size:var(--public-mobile-cta-font-size);min-height:52px}" in page
+    assert ".auth-primary{grid-column:1/-1}" in page
+    assert ".auth-action{width:100%;min-width:0}" in page
 
 
 def test_public_vault_inherits_the_shared_public_chrome():
