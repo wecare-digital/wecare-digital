@@ -60,6 +60,23 @@ def test_declined_vs_ambiguous_outcomes_are_not_conflated():
             assert classify({"statusCode": code}) == "SEND_REJECTED", (label, code)
 
 
+def test_409_in_flight_cannot_become_retryable_rejection():
+    # The real outbound WhatsApp Lambda returns 409 MESSAGE_SEND_IN_FLIGHT
+    # when a stable idempotency key already has SENDING / SEND_UNKNOWN state.
+    # The earlier send might have reached Meta; do not mint a fresh Flow token.
+    for label, (path, function) in SOURCES.items():
+        classify = _actual_classifier(path, function)
+        for response in (
+            {"statusCode": 409},
+            {"statusCode": 409, "body": {"error": "MESSAGE_SEND_IN_FLIGHT"}},
+            {"statusCode": 409, "body": json.dumps({
+                "error": "MESSAGE_SEND_IN_FLIGHT",
+                "message": "This message is already sending or awaiting reconciliation",
+            })},
+        ):
+            assert classify(response) == "SEND_UNKNOWN", (label, response)
+
+
 def test_paid_flow_callers_reconcile_unknown_not_blindly_retry():
     shared = (ROOT / SOURCES["shared"][0]).read_text(encoding="utf-8")
     legacy = (ROOT / SOURCES["legacy-drop-docs"][0]).read_text(encoding="utf-8")
