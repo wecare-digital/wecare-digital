@@ -1,0 +1,37 @@
+name: Customer commerce OAuth and sign-in safety
+
+on:
+  pull_request:
+    branches: [wecare.digital]
+    paths:
+      - "amplify/functions/ai/customer-commerce-mcp/**"
+      - "tools/customer-commerce/**"
+      - ".github/workflows/customer-commerce-auth-qa.yml"
+  push:
+    branches: [wecare.digital]
+    paths:
+      - "amplify/functions/ai/customer-commerce-mcp/**"
+      - "tools/customer-commerce/**"
+      - ".github/workflows/customer-commerce-auth-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  auth-contract:
+    name: Auth and commerce contract (no AWS writes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile customer-commerce source
+        run: python -m compileall -q amplify/functions/ai/customer-commerce-mcp
+      - name: Verify commerce tool safety
+        run: python tools/customer-commerce/verify.py
+      - name: Verify OAuth and web sign-in
+        run: python tools/customer-commerce/verify_oauth.py
+      - name: Verify website and OAuth session isolation
+        run: python tools/customer-commerce/verify_auth_isolation.py
