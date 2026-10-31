@@ -11,7 +11,7 @@
     "  node scripts/generate-public-pages.js          rewrites it from the tree",
     "  node scripts/generate-public-pages.js --check   fails if it is stale (runs in CI)",
     "It is derived from PUBLIC_EXACT in scripts/generate-sitemap.js, PUBLIC_PAGE_META and the",
-    "render chains in src/pages/_app.tsx, src/content/products.ts, src/content/customerservice.ts and",
+    "render chains in src/pages/_app.tsx, src/content/products.ts and",
     "src/content/legal/, plus the presence of a real file under src/pages/. Add a page, delete a",
     "page or reword its description and this array follows on the next build. The one field no",
     "scan can infer is `group` - that is a positioning decision - so a new public route with no",
@@ -41,7 +41,7 @@
     "name": "WECARE.DIGITAL",
     "url": "https://wecare.digital",
     "tagline": "Customer operations for Bharat, run over the channels people already use.",
-    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe the business and its services; paid requests, amendments, documents, Vault, pickup and tracking use customer-session routes that are not part of the public catalogue.",
+    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe the business and its services; requests, amendments, documents, Vault, pickup and tracking use Orders and authenticated actions, not standalone public pages.",
     "language": "en-IN",
     "country": "IN",
     "sitemap": "https://wecare.digital/sitemap.xml"
