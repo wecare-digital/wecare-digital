@@ -598,7 +598,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="sf-file-status-row">
+                                        <div className="sf-file-status-row" role="status" aria-live="polite">
                                             <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
                                                 : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
                                                 <span className="sf-status-dot" aria-hidden="true" />
@@ -658,7 +658,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             { payablePrice !== null
                                                                 ? 'Estimated total: ₹' + rupeesFromPaise( payablePrice )
                                                                     + '. Final total and tax are calculated at checkout.'
-                                                                : 'The current amount is being verified. No payment can begin until it is available.' }
+                                                                : 'Website estimate unavailable. WhatsApp Review & Pay will show the verified amount before you approve.' }
                                                         </p>
                                                         <div className="sf-payment-option sf-payment-option-primary">
                                                             <div className="sf-payment-choice-head">
