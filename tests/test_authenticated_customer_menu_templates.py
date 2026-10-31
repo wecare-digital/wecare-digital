@@ -69,6 +69,11 @@ def test_exact_approved_templates_and_provider_delivery_audit() -> None:
 
     assert 'PROFILE_DETAILS = Template(name="service_details"' in templates
     assert 'LEAVE_REVIEW = Template(name="wecare_leave_review"' in templates
+    assert '"service_details": "2419125382263851"' in templates
+    assert '"wecare_leave_review": "1801972550682516"' in templates
+    canonical = src("amplify/functions/shared/lambda_utils/canonical_flows.py")
+    assert "'subscribe':      ('2413873616105042', 'PUBLISHED'" in canonical
+    assert "'leave_review':   ('993862443003108',  'PUBLISHED'" in canonical
     assert "if event.get('internalAction') == 'customerLeaveReviewTemplate':" in sender
     assert "return _customer_leave_review_template(event)" in sender
     assert "flow_sessions.mint_token('leave', phone, waba='1')" in sender
