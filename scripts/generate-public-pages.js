@@ -153,16 +153,11 @@ const STRUCTURAL = [
   // generate-sitemap.js lists both in PUBLIC_EXACT with no group rule to place them.
   { path: '/hunar/kaushal', group: 'services' },
   { path: '/hunar/prastuti', group: 'services' },
+  // Public service-action front doors without catalogue product offers.
+  { path: '/shipments/track', group: 'services' },
+  { path: '/leave-review', group: 'services' },
+  { path: '/subscribe', group: 'services' },
 ];
-
-const NON_INDEXABLE_CUSTOMER_ROUTES = new Set( [
-  '/submit-request',
-  '/request-amendment',
-  '/drop-docs',
-  '/vault',
-  '/request-pickup',
-  '/shipments/track',
-] );
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );
 
@@ -296,8 +291,11 @@ function buildPages ( catalog ) {
   // groups themselves are declared rather than alphabetically.
   for ( const entry of STRUCTURAL ) assign( entry, entry.group );
   for ( const entry of contentModule( PRODUCTS_PATH, 'PRODUCTS' ) ) assign( entry, 'services' );
+  // The five existing customer-service ProductDef entries are restored as
+  // stand-alone public pages. They belong in the existing Services group,
+  // not a new or invented group, and must be advertised in PUBLIC_EXACT.
   for ( const entry of contentModule( CUSTOMERSERVICE_PATH, 'CUSTOMERSERVICE' ) ) {
-    if ( !NON_INDEXABLE_CUSTOMER_ROUTES.has( entry.path ) ) assign( entry, 'customerservice' );
+    assign( entry, 'services' );
   }
   for ( const entry of legalPages() ) assign( entry, 'legal' );
 
