@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
-import { orderPagePath } from '../../lib/orderPage';
+import { orderPagePath, stashPendingOrder } from '../../lib/orderPage';
 import { settlePaidCheckout } from '../../lib/checkoutHandoff';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
@@ -140,6 +140,7 @@ export default function CheckoutStatus (): React.ReactElement {
     // above and Vault verifies owner/entitlement independently on entry.
     if ( view !== 'paid' || !orderNumber || handedOffRef.current || vaultReturnFile ) return;
     handedOffRef.current = true;
+    stashPendingOrder( orderNumber );
     void router.replace( orderPagePath( orderNumber ) ).catch( () => undefined );
   }, [ orderNumber, router, view, vaultReturnFile ] );
 
