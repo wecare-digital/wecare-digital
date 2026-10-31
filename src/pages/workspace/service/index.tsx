@@ -240,7 +240,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
         {content()}
       </Suspense>
 
-      <style jsx>{\`
+      <style jsx>{`
         .service-switch,.service-tabs{display:flex;max-width:100%;width:max-content;min-width:0;gap:5px;padding:5px;border:1px solid var(--border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-inline:contain}
         .service-switch::-webkit-scrollbar,.service-tabs::-webkit-scrollbar{display:none}
         .service-switch{margin:0 0 13px;border-radius:14px;background:var(--surface)}
@@ -257,7 +257,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
         .service-contribute-records p{line-height:1.6;color:var(--text-muted);margin:0 0 22px}
         .service-contribute-records a{display:inline-flex;margin:0 10px 10px 0;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--accent);font-weight:750;text-decoration:none}
         @media(max-width:760px){.service-switch,.service-tabs{width:100%}.service-switch button{padding:0 12px}}
-      \`}</style>
+      `}</style>
     </>
   );
 }
