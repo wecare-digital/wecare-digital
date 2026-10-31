@@ -24,8 +24,10 @@ SOURCES = {
 def _actual_classifier(path, symbol):
     source = ROOT / path
     root = ast.parse(source.read_text(encoding="utf-8"))
-    func = next(x for x in root.body
-                if isinstance(x, ast.FunctionDef) and x.name == symbol)
+    func = next((x for x in root.body
+                 if isinstance(x, ast.FunctionDef) and x.name == symbol), None)
+    if func is None:
+        raise AssertionError(f"Required production classifier {symbol!r} missing in {source}")
     namespace = {"json": json}
     exec(compile(ast.Module(body=[func], type_ignores=[]),
                  str(source), "exec"), namespace)
