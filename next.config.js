@@ -1,10 +1,15 @@
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { assertCustomerOrdersHistoryOnly } from './scripts/guard_customer_orders_history_only.mjs';
 
 // Resolve this file's directory reliably. `import.meta.dirname` can be
 // undefined depending on how Next evaluates the config, whereas
 // `import.meta.url` is always present in an ES module.
 const projectRoot = dirname( fileURLToPath( import.meta.url ) );
+
+// Fail closed for every Next build, including direct builds and Amplify's
+// npm run build. No deleted customer receipt/expand UI can silently return.
+assertCustomerOrdersHistoryOnly( projectRoot );
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
