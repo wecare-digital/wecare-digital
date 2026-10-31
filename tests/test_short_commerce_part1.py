@@ -94,7 +94,7 @@ def test_authenticated_order_table_and_real_invoice_download():
     assert "downloadInvoice( order )" in ORDER
     assert 'const MY_INVOICE_URL = ' in ORDER
     assert "format: 'png'" in ORDER
-    assert "isSignedInvoiceUrl" in ORDER
+    assert "isSignedHttpsUrl( body.url )" in ORDER
     assert "X-Amz-Signature" in ORDER
     assert "featureFlags.invoiceDownload" in ORDER
     assert "OrderDetail" not in ORDER
