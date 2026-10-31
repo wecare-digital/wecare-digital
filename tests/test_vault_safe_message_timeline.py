@@ -19,7 +19,13 @@ def test_vault_delivery_order_and_spacing_are_bounded_and_guarded():
     assert "if not delivered_before:" in paid
     assert "time.sleep(_POST_RECEIPT_ACCESS_GAP_SECONDS)" in paid
     assert "if not _send_once(requests, row, 'vaultNotificationStatus'" in paid
-    assert "if not _send_once(requests, row, 'vaultDocumentStatus'" in paid
+    assert "whatsapp_templates.download_send_fields(file['fileId'])" in paid
+    # A verified paid Vault file must be downloaded through the owner-bound
+    # dynamic link; the 24-hour WhatsApp chat window does not authorize
+    # forwarding the raw document attachment.
+    assert "vaultDocumentStatus" not in paid
+    assert "'mediaType': 'document'" not in paid
+    assert "file.get('deliveryKey')" not in paid
     assert "status = 'ACCEPTED' if whatsapp_message_id else 'SEND_UNKNOWN'" in paid
     assert "whatsapp_message_id" in paid
     assert "grant_access" in paid
