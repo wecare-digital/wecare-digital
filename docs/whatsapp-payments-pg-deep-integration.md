@@ -129,12 +129,13 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 - Physical/service fulfilment (`partially-shipped`, `shipped`, etc.) is a separate operational
   lifecycle; it is not exposed as this WhatsApp payment-order lifecycle and never re-sends the
   paid invoice.
-- Order page (2026-10-26): `https://wecare.digital/orders/?o=<orderNumber>` shows one order:
-  lines, amounts, the delivery address and the payment and order status. It is session-gated:
-  checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
-  404 for a missing order and someone else's. The website rail lands there from
-  `/checkout/status/` once the attempt carries its order number. A WhatsApp cart or
-  catalog-service buyer gets one "View your order" `cta_url` message after the paid invoice
+- Order page (updated 2026-10-31): `https://wecare.digital/orders/` is the **only**
+  customer-visible Orders destination. Selecting a row expands its lines, amounts, frozen
+  delivery address and payment/order status inside the authenticated history. Checkout's
+  `order` API still rechecks ownership, returning the same 404 for missing or foreign orders.
+  The website rail navigates from `/checkout/status/` to `/orders/`, carrying the selected
+  order only in one-use session storage. A WhatsApp cart or catalog-service buyer gets
+  one "View your order" `cta_url` message after the paid invoice
   (invoice engine `_send_order_page_link`; inside the 24-hour window only, once per invoice); the
   order_status templates themselves carry no link, and their wording is fixed by
   `docs/operations/whatsapp-payment-collection-stack.md`. For a WhatsApp-paid order the page shows
