@@ -72,6 +72,8 @@ def test_live_server_owns_amount_template_ids_images_and_sequence():
 def test_customer_upload_not_relabelled_as_vault_delivery():
     page = src("src/pages/workspace/service/index.tsx")
     assert "'drop-docs': 'Drop Docs'" in page
-    assert "'vault':" not in page or "vault:" in page
+    assert "if (active === 'drop-docs')" in page
+    assert "if (active === 'vault')" in page
+    assert "router.replace('/workspace/service?view=vault')" in src("src/pages/workspace/docs/index.tsx")
     assert "customer-upload F003" in page
     assert "staff file intake" in page
