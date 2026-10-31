@@ -8,6 +8,7 @@ import Link from 'next/link';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { fetchServicePrices, type ServicePaymentTemplates } from '../../../lib/servicePricing';
+import { parseVaultJourney, type VaultRegistryJourney } from '../service/VaultJourneyPreview';
 import PaymentTemplateMedia from './PaymentTemplateMedia';
 
 const CONFIG_KEY = 'vault_delivery_timing_v1';
@@ -33,23 +34,32 @@ const VaultDeliveryTiming: React.FC = () => {
   const [ saving, setSaving ] = React.useState( false );
   const [ message, setMessage ] = React.useState( '' );
   const [ error, setError ] = React.useState( '' );
-  const [ canSave, setCanSave ] = React.useState( true );
+  const [ canSave, setCanSave ] = React.useState( false );
   const [ settingSource, setSettingSource ] = React.useState<'saved' | 'default' | 'unavailable'>( 'unavailable' );
   const [ templates, setTemplates ] = React.useState<ServicePaymentTemplates | null>( null );
+  const [ registry, setRegistry ] = React.useState<VaultRegistryJourney | null>( null );
+  const [ retryRead, setRetryRead ] = React.useState( 0 );
 
   React.useEffect( () => {
     let current = true;
+    setLoading( true );
+    setCanSave( false );
+    setSettingSource( 'unavailable' );
     void api.getSystemConfigResult( CONFIG_KEY ).then( result => {
       if ( !current ) return;
       if ( !result.ok ) {
-        setError( 'Timing settings could not be read; saving is disabled until they load.' );
-        setCanSave( false );
+        const status = result.failure.status;
+        setError( status === 400
+          ? 'The live settings API does not recognize Vault access timing yet (HTTP 400). Update wecare-ai-config-management before saving.'
+          : status === 401 || status === 403
+            ? 'Staff authorization is required to read and save Vault access timing. Check your session and permissions.'
+            : 'Vault timing read failed' + ( status ? ' (HTTP ' + status + ')' : '' )
+              + '. Saving is disabled until the server confirms the current value.' );
         return;
       }
       const configured = readVaultTiming( result.data.config );
       if ( result.data.config !== null && !configured ) {
-        setError( 'Saved timing settings are invalid. Ask an administrator to reconcile them.' );
-        setCanSave( false );
+        setError( 'The saved access delay is invalid. Ask an administrator to reconcile it before editing.' );
       } else {
         setValue( configured || { ...DEFAULTS } );
         setSettingSource( configured ? 'saved' : 'default' );
@@ -57,16 +67,40 @@ const VaultDeliveryTiming: React.FC = () => {
         setError( '' );
       }
     } ).catch( () => {
-      if ( current ) {
-        setCanSave( false );
-        setError( 'Timing settings could not be read.' );
-      }
+      if ( current ) setError( 'Unable to reach the settings API. Saving remains disabled.' );
     } ).finally( () => { if ( current ) setLoading( false ); } );
+    return () => { current = false; };
+  }, [ retryRead ] );
+
+  React.useEffect( () => {
+    let current = true;
     void fetchServicePrices().then( prices => {
       if ( current ) setTemplates( prices.vault?.available ? prices.vault.templates || null : null );
-    } ).catch( () => { /* Keep the image preview safely unavailable. */ } );
+    } ).catch( () => { /* Do not invent a catalogue price or template. */ } );
+    // v71 can read this historical WABA1 registry even when service-prices
+    // omits templateIds. Use IDs only when they match the named template.
+    void api.getSystemConfigResult( 'vault_whatsapp_template_journey_v1' ).then( result => {
+      if ( current && result.ok ) setRegistry( parseVaultJourney( result.data.config ) );
+    } ).catch( () => { /* No unverified ID fallback on a failed read. */ } );
     return () => { current = false; };
   }, [] );
+
+  const templateIdFor = ( role: string, expectedName: string, liveId?: string ) => {
+    if ( liveId && /^[0-9]{10,25}$/.test( liveId ) )
+      return { id: liveId, source: 'Service-pricing registry' };
+    const recorded = registry?.steps.find( step => step.role === role );
+    if ( recorded?.templateName === expectedName && /^[0-9]{10,25}$/.test( recorded.templateId ) )
+      return { id: recorded.templateId, source: 'Saved journey reference · verify with Meta' };
+    return { id: '', source: 'Template ID unavailable' };
+  };
+  const paymentName = templates?.nativePay || 'wecare_whatapp_native_pay_template';
+  const statusName = templates?.orderStatus || 'wecare_order_status_v3';
+  const invoiceName = templates?.receipt || 'wecare_default_invoice_image_template';
+  const accessName = templates?.delivery || 'wecare_default_download';
+  const paymentId = templateIdFor( 'native_payment', paymentName, templates?.templateIds?.nativePay );
+  const statusId = templateIdFor( 'order_status', statusName, templates?.templateIds?.orderStatus );
+  const invoiceId = templateIdFor( 'receipt', invoiceName, templates?.templateIds?.receipt );
+  const accessId = templateIdFor( 'access', accessName, templates?.templateIds?.delivery );
 
   const update = ( raw: string ) => {
     setMessage( '' );
@@ -140,7 +174,15 @@ const VaultDeliveryTiming: React.FC = () => {
           The send still waits for verified payment, the invoice and delivery gates.
           This is not a timer for payment collection.
         </p>
-        { error && <p className="vdt-error" role="alert">{ error }</p> }
+        { error && (
+          <div className="vdt-read-error" role="alert">
+            <p className="vdt-error">{ error }</p>
+            <button type="button" className="vdt-retry" disabled={ loading || saving }
+              onClick={ () => { setError( '' ); setRetryRead( n => n + 1 ); } }>
+              Retry settings read
+            </button>
+          </div>
+        ) }
         { message && <p className="vdt-success" role="status">{ message }</p> }
         <button className="vdt-save" type="button" disabled={ loading || saving || !canSave }
           onClick={ () => { void save(); } }>
@@ -150,27 +192,29 @@ const VaultDeliveryTiming: React.FC = () => {
       <section className="vdt-template-section" aria-label="Read-only Vault WhatsApp send sequence">
         <div className="vdt-template-head">
           <h3>WhatsApp message sequence · read only</h3>
-          <p>Names and Meta IDs come from the service-pricing registry.
-            Open the Vault workbench for the actual Meta message body and per-file delivery evidence.</p>
+          <p>Service-pricing IDs are preferred. When unavailable, a read-only saved WABA1
+            journey reference is shown and clearly marked for verification with Meta.
+            Open the Vault workbench for actual template bodies and per-file delivery evidence.</p>
         </div>
         <div className="vdt-template-grid">
           { [
-            { step: '1', title: 'Review & Pay', name: templates?.nativePay,
-              id: templates?.templateIds?.nativePay, when: 'Native ORDER_DETAILS · customer approval' },
-            { step: '2', title: 'Processing', name: templates?.orderStatus,
-              id: templates?.templateIds?.orderStatus, when: 'After verified capture · no added wait' },
-            { step: '3', title: 'Completed', name: templates?.orderStatus,
-              id: templates?.templateIds?.orderStatus, when: 'Fixed 1 second after accepted Processing' },
-            { step: '4', title: 'Paid GST invoice', name: templates?.receipt,
-              id: templates?.templateIds?.receipt, when: 'When issued · no added wait · Leave Review Flow button' },
-            { step: '5', title: 'Access Vault', name: templates?.delivery,
-              id: templates?.templateIds?.delivery, when: value.postReceiptAccessGapSeconds >= 0
+            { step: '1', title: 'Review & Pay', name: paymentName, ...paymentId,
+              when: 'Native ORDER_DETAILS · customer approval' },
+            { step: '2', title: 'Processing', name: statusName, ...statusId,
+              when: 'After verified capture · no added wait' },
+            { step: '3', title: 'Completed', name: statusName, ...statusId,
+              when: 'Fixed 1 second after accepted Processing' },
+            { step: '4', title: 'Paid GST invoice', name: invoiceName, ...invoiceId,
+              when: 'When issued · no added wait · Leave Review Flow button' },
+            { step: '5', title: 'Access Vault', name: accessName, ...accessId,
+              when: value.postReceiptAccessGapSeconds >= 0
                 ? value.postReceiptAccessGapSeconds + 's after accepted invoice' : 'Set a valid access delay' },
           ].map( item => (
             <article className="vdt-template-card" key={ item.step }>
               <header><span>{ item.step }</span><strong>{ item.title }</strong></header>
               <code>{ item.name || 'Registry unavailable' }</code>
               <small>Meta ID: { item.id || 'Not verified' }</small>
+              <small className="vdt-source">{ item.source }</small>
               <p>{ item.when }</p>
             </article>
           ) ) }
@@ -204,6 +248,8 @@ const VaultDeliveryTiming: React.FC = () => {
         .vdt-input-row span{font-size:12px;color:#4b6652}
         .vdt-editor p{margin:0;max-width:700px;font-size:12px;line-height:1.55;color:#506957}
         .vdt-editor .vdt-error{color:#9c3327;font-weight:700}
+        .vdt-read-error{display:grid;gap:9px;justify-items:start}
+        .vdt-retry{min-height:44px;padding:8px 14px;border:1px solid #bcad8d;border-radius:9px;background:#fff;color:#7d5024;font:700 12px var(--font-sans);cursor:pointer}
         .vdt-editor .vdt-success{color:#256036;font-weight:700}
         .vdt-save{min-height:48px;border:1px solid #a9d17d;border-radius:10px;background:var(--lime,#d2f476);color:#21452b;font:750 13px var(--font-sans);padding:10px 20px;cursor:pointer}
         .vdt-save:disabled{opacity:.55;cursor:default}
@@ -217,20 +263,21 @@ const VaultDeliveryTiming: React.FC = () => {
         .vdt-template-card header strong{font-size:13px;color:#244c30}
         .vdt-template-card code{font-size:11px;line-height:1.45;overflow-wrap:anywhere}
         .vdt-template-card small{font-size:11px;color:#607968;overflow-wrap:anywhere}
+        .vdt-template-card .vdt-source{font-weight:700;color:#456d4c}
         .vdt-template-card p{margin:0;font-size:12px;line-height:1.5;color:#3d5a44}
         .vdt-template-note{font-size:12px;line-height:1.6;color:#526c5a;overflow-wrap:anywhere;margin:0}
         .vdt-template-note code{overflow-wrap:anywhere}
         .vdt-media{border:1px solid #dbe8d5;border-radius:12px;background:#fff;padding:13px}
         .vdt-media summary{display:flex;align-items:center;min-height:44px;font-size:13px;font-weight:750;color:#31563a;cursor:pointer}
         .vdt-media p{font-size:12px;color:#5c7460;line-height:1.5}
-        .vdt-back:focus-visible,.vdt-save:focus-visible,.vdt-media summary:focus-visible{outline:3px solid #2d6b36;outline-offset:2px}
+        .vdt-back:focus-visible,.vdt-save:focus-visible,.vdt-retry:focus-visible,.vdt-media summary:focus-visible{outline:3px solid #2d6b36;outline-offset:2px}
         .vdt-input-row input:focus-visible{outline:3px solid #2d6b36;outline-offset:2px}
         @media(max-width:660px){
           .vdt-shell{padding:12px 0 24px;gap:13px}
           .vdt-back{width:100%;box-sizing:border-box;justify-content:center}
           .vdt-summary,.vdt-template-grid{grid-template-columns:1fr}
           .vdt-editor,.vdt-template-section{padding:13px}
-          .vdt-save{width:100%}
+          .vdt-save,.vdt-retry{width:100%}
           .vdt-input-row input{font-size:18px}
         }
       `}</style>
