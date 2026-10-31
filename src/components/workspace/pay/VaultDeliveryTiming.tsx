@@ -1,7 +1,7 @@
 /**
- * Operator-editable, bounded Vault WhatsApp spacing (not a delivery-order guarantee).
- * Payment capture, paid invoice issuance and the private-file entitlement are
- * event/ownership gated by the backend; these intervals cannot change that.
+ * Operator-editable delay only between the paid invoice and Access Vault.
+ * Native Review & Pay, processing, completed and receipt have no added wait.
+ * Payment capture and exact-file entitlement remain mandatory event gates.
  */
 import React from 'react';
 import * as api from '../../../api/client';
@@ -10,8 +10,8 @@ import { fetchServicePrices, type ServicePaymentTemplates } from '../../../lib/s
 import PaymentTemplateMedia from './PaymentTemplateMedia';
 
 const CONFIG_KEY = 'vault_delivery_timing_v1';
-const DEFAULTS = { orderStatusGapSeconds: 2, postReceiptAccessGapSeconds: 4 } as const;
-type Timing = { orderStatusGapSeconds: number; postReceiptAccessGapSeconds: number };
+const DEFAULTS = { postReceiptAccessGapSeconds: 4 } as const;
+type Timing = { postReceiptAccessGapSeconds: number };
 
 export const validVaultDelay = ( value: unknown ): value is number =>
   typeof value === 'number' && Number.isInteger( value ) && value >= 0 && value <= 5;
@@ -19,12 +19,10 @@ export const validVaultDelay = ( value: unknown ): value is number =>
 export function readVaultTiming( raw: unknown ): Timing | null {
   if ( !raw || typeof raw !== 'object' ) return null;
   const value = raw as Record<string, unknown>;
-  if ( !validVaultDelay( value.orderStatusGapSeconds )
-    || !validVaultDelay( value.postReceiptAccessGapSeconds ) ) return null;
-  return {
-    orderStatusGapSeconds: value.orderStatusGapSeconds,
-    postReceiptAccessGapSeconds: value.postReceiptAccessGapSeconds,
-  };
+  // Older records may also contain orderStatusGapSeconds. Ignore that
+  // retired setting; every new write contains only the access delay.
+  if ( !validVaultDelay( value.postReceiptAccessGapSeconds ) ) return null;
+  return { postReceiptAccessGapSeconds: value.postReceiptAccessGapSeconds };
 }
 
 const VaultDeliveryTiming: React.FC = () => {
@@ -67,24 +65,23 @@ const VaultDeliveryTiming: React.FC = () => {
     return () => { current = false; };
   }, [] );
 
-  const update = ( key: keyof Timing, raw: string ) => {
+  const update = ( raw: string ) => {
     setMessage( '' );
     setError( '' );
     const parsed = Number( raw );
-    setValue( current => ({ ...current, [key]: raw.trim() === '' ? -1 : parsed }) );
+    setValue( { postReceiptAccessGapSeconds: raw.trim() === '' ? -1 : parsed } );
   };
 
   const save = async () => {
     setMessage( '' );
     if ( loading || saving || !canSave ) return;
-    if ( !validVaultDelay( value.orderStatusGapSeconds )
-      || !validVaultDelay( value.postReceiptAccessGapSeconds ) ) {
-      setError( 'Each delay must be a whole number from 0 to 5 seconds.' );
+    if ( !validVaultDelay( value.postReceiptAccessGapSeconds ) ) {
+      setError( 'The Access Vault delay must be a whole number from 0 to 5 seconds.' );
       return;
     }
     const approved = await confirm( {
-      title: 'Save Vault WhatsApp timing?',
-      message: 'Changes affect later payment messages only. Payment capture, invoice and access gates remain mandatory. WhatsApp delivery order is not guaranteed.',
+      title: 'Save Access Vault delivery delay?',
+      message: 'This changes only the pause after the paid invoice is accepted and before Access Vault. Processing, completed and receipt have no added wait. Payment capture and owner-bound access remain mandatory.',
       confirmText: 'Save timing',
     } );
     if ( !approved ) return;
@@ -106,27 +103,22 @@ const VaultDeliveryTiming: React.FC = () => {
   return (
     <section style={ { display: 'grid', gap: 18, maxWidth: 980, padding: '12px 0 32px' } } aria-label="Vault delivery timing and media">
       <div>
-        <h2 style={ { margin: '0 0 8px' } }>Vault WhatsApp delivery timing</h2>
-        <p style={ { margin: 0 } }>Only operators can save. These short delays space accepted WhatsApp sends; they do not replace payment confirmation or delivered/read webhooks.</p>
+        <h2 style={ { margin: '0 0 8px' } }>Access Vault delivery delay</h2>
+        <p style={ { margin: 0 } }>The only adjustable WhatsApp delay is after the paid receipt. Native Review &amp; Pay, processing, completed and invoice have no artificial wait. The customer still authorizes payment, and a paid entitlement is required to send access.</p>
       </div>
-      <div style={ { display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))' } }>
+      <div style={ { display: 'grid', gap: 14, maxWidth: 530 } }>
         <label style={ { display: 'grid', gap: 6 } }>
-          <strong>Between payment updates and receipt (seconds)</strong>
-          <input aria-label="Order status and receipt gap in seconds" type="number" min="0" max="5" step="1"
-            value={ value.orderStatusGapSeconds }
-            disabled={ loading || saving || !canSave }
-            onChange={ event => update( 'orderStatusGapSeconds', event.target.value ) } />
-          <small>Applied after processing and after completed, before the paid invoice send.</small>
-        </label>
-        <label style={ { display: 'grid', gap: 6 } }>
-          <strong>Between accepted invoice and Access Vault (seconds)</strong>
-          <input aria-label="Invoice to access gap in seconds" type="number" min="0" max="5" step="1"
+          <strong>Accepted paid invoice → Access Vault (seconds)</strong>
+          <input aria-label="Paid invoice to Access Vault delay in seconds" type="number" min="0" max="5" step="1"
             value={ value.postReceiptAccessGapSeconds }
             disabled={ loading || saving || !canSave }
-            onChange={ event => update( 'postReceiptAccessGapSeconds', event.target.value ) } />
-          <small>Access remains owner-bound and requires a verified paid entitlement.</small>
+            onChange={ event => update( event.target.value ) } />
+          <small>Default 4 seconds; editable 0–5 seconds. This is not a delivered/read acknowledgment or a second payment.</small>
         </label>
       </div>
+      <p style={ { margin: 0, fontSize: 13 } }>
+        <strong>Other steps:</strong> Review &amp; Pay → customer approval → processing → completed → paid invoice: event-gated and sent without an added timer.
+      </p>
       { error && <p role="alert" style={ { color: '#b91c1c' } }>{ error }</p> }
       { message && <p role="status">{ message }</p> }
       <div><button type="button" disabled={ loading || saving || !canSave } onClick={ () => { void save(); } }>
