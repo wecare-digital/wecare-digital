@@ -11,7 +11,7 @@
  *   src/pages/*.tsx                          the pages that actually exist
  *   src/pages/_app.tsx   PUBLIC_PAGE_META    the render allowlist + the schema description
  *   scripts/generate-sitemap.js PUBLIC_EXACT the crawl allowlist
- *   src/content/products.ts, customerservice.ts  the product and request definitions
+ *   src/content/products.ts              the currently published product definitions
  *   config/public-pages.json                 what a machine reader is told
  *
  * A hand-kept fifth copy fails in one direction silently and in the other direction
@@ -26,10 +26,10 @@
  * WHAT IS DERIVED AND WHAT IS NOT - the honest split
  * -------------------------------------------------
  *   path         PUBLIC_EXACT, intersected with a real file under src/pages   derived
- *   name         PUBLIC_PAGE_META, else products.ts / customerservice.ts          derived
+ *   name         PUBLIC_PAGE_META, else products.ts                       derived
  *   description  PUBLIC_PAGE_META                                            derived
- *   group        products.ts -> services, customerservice.ts -> customerservice,
- *                content/legal -> legal, else STRUCTURAL below               declared
+ *   group        products.ts -> services, content/legal -> legal,
+ *                else STRUCTURAL below                                        declared
  *
  * `group` is the one field no scan can infer, because "is this a platform product or a
  * consumer service" is a positioning decision and nothing in the tree records it. It is
@@ -70,7 +70,6 @@ const CATALOG_PATH = path.join( ROOT, 'config', 'public-pages.json' );
 const APP_PATH = path.join( ROOT, 'src', 'pages', '_app.tsx' );
 const SITEMAP_PATH = path.join( ROOT, 'scripts', 'generate-sitemap.js' );
 const PRODUCTS_PATH = path.join( ROOT, 'src', 'content', 'products.ts' );
-const CUSTOMERSERVICE_PATH = path.join( ROOT, 'src', 'content', 'customerservice.ts' );
 const LEGAL_DIR = path.join( ROOT, 'src', 'content', 'legal' );
 const PAGES_DIR = path.join( ROOT, 'src', 'pages' );
 
@@ -154,15 +153,6 @@ const STRUCTURAL = [
   { path: '/hunar/kaushal', group: 'services' },
   { path: '/hunar/prastuti', group: 'services' },
 ];
-
-const NON_INDEXABLE_CUSTOMER_ROUTES = new Set( [
-  '/submit-request',
-  '/request-amendment',
-  '/drop-docs',
-  '/vault',
-  '/request-pickup',
-  '/shipments/track',
-] );
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );
 
@@ -296,9 +286,6 @@ function buildPages ( catalog ) {
   // groups themselves are declared rather than alphabetically.
   for ( const entry of STRUCTURAL ) assign( entry, entry.group );
   for ( const entry of contentModule( PRODUCTS_PATH, 'PRODUCTS' ) ) assign( entry, 'services' );
-  for ( const entry of contentModule( CUSTOMERSERVICE_PATH, 'CUSTOMERSERVICE' ) ) {
-    if ( !NON_INDEXABLE_CUSTOMER_ROUTES.has( entry.path ) ) assign( entry, 'customerservice' );
-  }
   for ( const entry of legalPages() ) assign( entry, 'legal' );
 
   const claimed = new Map();
@@ -321,8 +308,8 @@ function buildPages ( catalog ) {
       ...unplaced.map( route => `    ${route}` ),
       '',
       'A group cannot be inferred from the tree - it is a positioning decision. Either add the',
-      'route to a content module (src/content/products.ts -> services,',
-      'src/content/customerservice.ts -> customerservice), or add a line to STRUCTURAL in this file:',
+      'route to the active product module (src/content/products.ts -> services),',
+      'or add a line to STRUCTURAL in this file:',
       ...unplaced.map( route => `    { path: '${route}', group: 'services' },` ),
       '',
       'Guessing one would file the page under the wrong heading in /llms.txt and in every',

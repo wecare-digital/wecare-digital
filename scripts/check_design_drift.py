@@ -182,9 +182,8 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/CheckoutAction.tsx": (
         "--tap-min", "--public-brand-green", "--public-accent-amber", "--public-cta-font-size",
     ),
-    # ProductBuyBox and ServiceBuyBox delegate the compact Activity-style action to CheckoutAction.
+    # ProductBuyBox delegates the compact purchase action to CheckoutAction.
     SRC / "components/ProductBuyBox.tsx": ("--public-card-size",),
-    SRC / "components/ServiceBuyBox.tsx": ("--public-card-size",),
     SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),
     SRC / "components/Pager.tsx": ("--public-brand-green", "--public-hairline"),
     # Dynamic shop pages delegate the compact paid action to CheckoutAction; the page

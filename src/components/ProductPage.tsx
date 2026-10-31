@@ -168,7 +168,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* Commerce checkout slot. ServiceBuyBox / ProductBuyBox render the one compact Checkout
+        {/* Commerce checkout slot. ProductBuyBox renders the one compact Checkout
             action plus its price rail. Routes without commerce omit belowCta and keep the
             route-specific conversation CTA above. */}
         { belowCta }
