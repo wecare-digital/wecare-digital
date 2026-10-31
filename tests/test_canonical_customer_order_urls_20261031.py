@@ -69,7 +69,7 @@ def test_checkout_and_request_menus_use_only_orders_page():
     header = read("src/components/Header.tsx")
     menu = read("src/components/orders/OrderActionsMenu.tsx")
     assert "return '/orders/';" in helper
-    assert "stashPendingOrder( orderNumber );" in checkout
+    assert "stashPendingOrder" not in checkout
     assert "router.replace( orderPagePath( orderNumber ) )" in checkout
     assert "href={ orderPagePath( orderNumber ) }" in checkout
     request_section = header.split("heading: 'Request',", 1)[1].split(
@@ -82,10 +82,10 @@ def test_checkout_and_request_menus_use_only_orders_page():
         assert f"label: '{label}', href: '/orders/'" in request_section
         assert f"label: '{label}', subtitle:" in menu
     assert menu.count("href: '/orders/'") == 6
-    assert "stashPendingOrder( orderNumber );" in menu
+    assert "stashPendingOrder" not in menu
 
 
-def test_single_order_details_remain_inline_and_owner_checked():
+def test_order_history_retires_detail_exposure_at_ui_and_backend():
     pages = ROOT / "src/pages"
     assert (pages / "orders.tsx").is_file()
     assert not (pages / "orders").exists()
@@ -94,16 +94,33 @@ def test_single_order_details_remain_inline_and_owner_checked():
 
     orders = read("src/components/orders/OrdersPage.tsx")
     helper = read("src/lib/orderPage.ts")
-    details = read("src/components/orders/OrderDetail.tsx")
-    checkout_backend = read("amplify/functions/ecommerce/checkout/handler.py")
-
-    # Previously delivered WhatsApp URLs still open an owned inline row and are
-    # immediately cleaned to /orders/; they must not 404 or become a second route.
-    assert "const fromUrl = orderNumberFromUrl();" in orders
+    backend = read("amplify/functions/ecommerce/checkout/handler.py")
+    assert not (ROOT / "src/components/orders/OrderDetail.tsx").exists()
+    assert "OrderDetail" not in orders
+    assert "setOpenRows" not in orders
+    assert "aria-expanded={ isOpen }" not in orders
+    assert 'colSpan={ 5 }' not in orders
+    assert 'className="ord-detailrow' not in orders
+    assert 'className="ord-compact-facts"' not in orders
+    assert "invoiceNumber" not in orders
+    assert "charges.supplyGstPaise" not in orders
+    assert "Via WhatsApp" not in orders
+    assert "orderNumberFromUrl" not in orders
+    assert "takePendingOrder" not in orders
+    assert "stashPendingOrder" not in orders
     assert "window.history.replaceState( window.history.state, '', '/orders/' );" in orders
-    assert "orders.findIndex( item => item.orderNumber === requestedOrder )" in orders
-    assert "new URLSearchParams( window.location.search ).get( ORDER_PARAM )" in helper
-    assert "return isPublicOrderNumber( trimmed ) ? trimmed : '';" in helper
-    assert "POST /ecommerce/checkout/status" in details
-    assert 'str(order.get("customerId") or "") != identity.customer_id' in checkout_backend
-    assert "window.location.replace( '/auth?return=/orders/' );" in orders
+    assert "window.sessionStorage.removeItem( 'wecare.pendingOrderView' );" in orders
+    assert "orderPagePath ( _orderNumber: string )" in helper
+    assert "return '/orders/';" in helper
+    assert "orderNumberFromUrl" not in helper
+    assert "stashPendingOrder" not in helper
+
+    # Old action=order is rejected BEFORE any payable fallback, without exposing
+    # GST lines, invoice numbering, delivery address, or payment attempt details.
+    assert 'if action == "order":' in backend
+    assert 'return _hardened(cors_response(410, {"error": "ORDER_DETAILS_RETIRED"}, origin))' in backend
+    assert "_order_detail(" not in backend
+    assert "_order_view(" not in backend
+    assert "_order_lines(" not in backend
+    assert "_send_order_details(" in backend  # native WhatsApp payment rail remains
+    assert "customer_auth.require_customer(event)" in backend
