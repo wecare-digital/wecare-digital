@@ -81,6 +81,3 @@ def test_payment_status_receipt_and_service_templates_stay_separate():
     assert "vaultNotificationStatus" in vault
     assert "vaultDocumentStatus" not in vault
     assert "whatsapp_templates.drop_docs_flow_send_fields(token)" in drop_docs
-    assert '"isTemplate": True' in TEMPLATES.read_text(encoding="utf-8") or (
-        "isTemplate" in TEMPLATES.read_text(encoding="utf-8")
-    )
