@@ -921,6 +921,15 @@ def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
         merchandise_paise += unit_paise * quantity
     if not lines:
         return None
+    # This public item wording is not the catalog SKU and never affects price.
+    # The same frozen invoice line is used for Meta Review & Pay and for the
+    # actual paid GST invoice image, including website-origin Vault checkout.
+    if (len(lines) == 1
+            and lines[0]["variantId"] == service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+            and lines[0]["productId"] == service_requests.SERVICE_PRODUCT_BY_VARIANT[
+                service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]]):
+        from lambda_utils.ecommerce.catalog_service_checkout import VAULT_ITEM_DESCRIPTION_DEFAULT
+        lines[0]["name"] = VAULT_ITEM_DESCRIPTION_DEFAULT
     delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
     delivery_paise = int(delivery.get("paise") or 0)
     quote = snapshot.quote
@@ -3042,6 +3051,18 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                        "error": type(error).__name__}))
             invoice_lines = None
         if invoice_lines:
+            if catalog_session is not None and catalog_session.get("kind") == service_requests.VAULT:
+                # The editor's exact wording was frozen into the trusted catalog
+                # session before commerce reserved a payable attempt. Verify the
+                # known one-item Vault SKU and copy ONLY the name, not any price.
+                from lambda_utils.ecommerce.catalog_service_checkout import vault_item_description
+                lines = invoice_lines.get("lines") or []
+                vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+                if (len(lines) == 1 and lines[0].get("variantId") == vault_variant
+                        and lines[0].get("productId") == service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]):
+                    label = vault_item_description(catalog_session.get("paymentItemDescription"))
+                    lines[0]["name"] = label
+                    attempt["vaultItemDescription"] = label
             attempt["invoiceLines"] = invoice_lines
 
     attempt = payment_attempt.transition(
