@@ -47,7 +47,7 @@ The first column is the actual source file to change. “Shared toast” means t
 | Source file | Feedback mechanism |
 | --- | --- |
 | [`src/components/orders/OrderDetail.tsx`](https://github.com/wecare-digital/wecare-digital/blob/fix/lime-toasts-surface-audit-20261031/src/components/orders/OrderDetail.tsx) | Inline status |
-| [`src/components/orders/OrdersPage.tsx`](https://github.com/wecare-digital/wecare-digital/blob/fix/lime-toasts-surface-audit-20261031/src/components/orders/OrdersPage.tsx) | Inline status |
+| [`src/components/orders/OrdersPage.tsx`](https://github.com/wecare-digital/wecare-digital/blob/fix/lime-toasts-surface-audit-20261031/src/components/orders/OrdersPage.tsx) | Local Orders toast (sent/failed); inline status |
 | [`src/components/orders/RequestsPanel.tsx`](https://github.com/wecare-digital/wecare-digital/blob/fix/lime-toasts-surface-audit-20261031/src/components/orders/RequestsPanel.tsx) | Inline status |
 
 ### Dashboard (2 files)
