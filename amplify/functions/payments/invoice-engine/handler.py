@@ -3936,9 +3936,9 @@ def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
     """Send a WhatsApp buyer their order page once the paid invoice was accepted.
 
     One interactive `cta_url` message, "View your order", opening
-    `https://wecare.digital/orders/?o=<orderNumber>`. The page is session-gated: it reads the order
-    through checkout's `order` action, which answers only for the signed-in owner, so the number
-    selects and never authorises. Added by owner approval on 2026-10-26 as the last message of the
+    `https://wecare.digital/orders/`. The single Orders table requires sign-in and only
+    shows customer-owned orders. The message body retains the public Order Number so buyers
+    can identify the correct purchase. Older ?o= messages still resolve in the website. Added by owner approval on 2026-10-26 as the last message of the
     WhatsApp payment sequence (docs/operations/whatsapp-payment-collection-stack.md, section 2).
 
     It cannot touch the invoice or the money. It runs only after the invoice template was
@@ -3982,7 +3982,7 @@ def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
                 'body': (f'Your order {order_number} is confirmed. Open your order page for the '
                          'details and the latest status.'),
                 'buttonText': 'View your order',
-                'url': f'{_ORDER_PAGE_URL}?o={order_number}',
+                'url': _ORDER_PAGE_URL,
                 'footer': 'WECARE.DIGITAL',
             },
         })}
