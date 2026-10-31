@@ -80,3 +80,48 @@ details[open]>.disclosureTitle:after{content:'−'}
 .templateCatalogRow small{font-size:10px;color:#5f7965;overflow-wrap:anywhere}
 .templateNote{font-size:10px;line-height:1.45;color:var(--text-muted);margin:2px 0 11px}
 @media(max-width:600px){.templateCatalog{grid-template-columns:1fr}}
+
+
+/* Vault UX refresh: timing and real message copy before large media assets. */
+.preview{position:static;gap:14px}
+.quickFlow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;border:1px solid #d9e8d1;border-radius:13px;background:#f4faef}
+.quickFlow>div{min-width:0;display:grid;align-content:start;gap:5px;padding:10px;border-radius:9px;border:1px solid #deebd6;background:#fff}
+.quickFlow small{font-size:11px;line-height:1.35;color:#5f7362}
+.quickFlow strong{font-size:12px;line-height:1.45;color:#204f2b;overflow-wrap:anywhere}
+.quickFlow>a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:9px;box-sizing:border-box;border:1px solid #97be7a;border-radius:9px;background:#e7f7cf;color:#214b33;font-size:12px;line-height:1.4;font-weight:750;text-decoration:none}
+.quickFlow>a:hover{background:#d8f1ad}
+.quickFlow>a:focus-visible,.itemNamePreview a:focus-visible{outline:3px solid #326a37;outline-offset:2px}
+.sectionTitle{align-items:flex-start;flex-wrap:wrap}
+.sectionTitle h3{margin:0}
+.sectionTitle span{white-space:normal;text-align:right}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;gap:7px;padding:3px 0 9px}
+.stepButton{min-width:0;flex:auto;min-height:52px;font-size:12px;line-height:1.3;white-space:normal}
+.messageMeta{flex-wrap:wrap;align-items:center}
+.copySource{font-size:12px;font-weight:800;color:#205f36;line-height:1.4;overflow-wrap:anywhere}
+.metaFooter{font-size:11px!important;font-weight:600!important;line-height:1.5;color:#506d56!important}
+.metaButtons{display:flex;gap:7px;flex-wrap:wrap}
+.metaButtons .bubbleButton{flex:1 1 120px}
+.mediaDetails,.historyDetails{border:1px solid #dce9d9;border-radius:11px;padding:12px;background:#fbfdfb;min-width:0}
+.mediaDetails>.disclosureTitle,.historyDetails>.disclosureTitle{min-height:44px;align-items:center;font-size:12px}
+.mediaDetails>div,.historyDetails>div{min-width:0}
+.itemNamePreview{display:grid;gap:7px;border:1px solid #c9e0be;background:#f4fbef;border-radius:10px;padding:12px;margin:14px 0 16px}
+.itemNamePreview small{font-size:11px;color:#4f6755;line-height:1.45}
+.itemNamePreview strong{font-size:14px;color:#203d29;line-height:1.4;overflow-wrap:anywhere}
+.itemNamePreview a{display:inline-flex;align-items:center;min-height:40px;font-size:12px;font-weight:750;color:#1b632d;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:600px){
+  .preview{padding:12px;gap:11px;border-radius:12px}
+  .header{flex-wrap:wrap}
+  .quickFlow{grid-template-columns:1fr;padding:10px}
+  .quickFlow>div{padding:9px}
+  .sectionTitle span{text-align:left}
+  .steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stepButton{min-height:48px}
+  .templateCatalog{grid-template-columns:1fr}
+  .messageMeta{gap:6px}
+  .billRow,.billTotal{align-items:flex-start}
+  .billRow strong,.billTotal strong{white-space:normal;text-align:right}
+  .variables>div{grid-template-columns:1fr;gap:3px}
+  .invoice,.messages,.delivery{padding:11px}
+  .invoiceTop{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.stepButton,.quickFlow>a{transition:none}}
