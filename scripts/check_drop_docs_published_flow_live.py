@@ -101,7 +101,7 @@ def compare_published_to_source(actual: dict, expected: dict) -> dict:
     valid = (screen_ids == required_screens
              and isinstance(completion, dict) and completion.get("terminal") is True
              and '"flow_key": "wd_f003_drop_docs"' in completion_payload
-             and '"name": "DocumentPicker"' in json.dumps(actual, sort_keys=True)
+             and '"type": "DocumentPicker"' in json.dumps(actual, sort_keys=True)
              and actual == expected)
     def digest(document):
         return hashlib.sha256(json.dumps(
