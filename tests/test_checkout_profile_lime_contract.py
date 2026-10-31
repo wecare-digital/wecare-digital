@@ -76,7 +76,7 @@ def test_orders_profile_feedback_is_a_transient_brand_toast():
     assert "Profile update sent on WhatsApp." not in orders
 
 
-def test_website_profile_template_uses_data_exchange_for_optional_prefill():
+def test_website_profile_template_uses_data_exchange_init_for_optional_prefill():
     templates = (ROOT / "amplify/functions/shared/lambda_utils/whatsapp_templates.py").read_text()
     sender = (ROOT / "amplify/functions/messaging/whatsapp-business-api/handler.py").read_text()
     media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text()
@@ -91,7 +91,10 @@ def test_website_profile_template_uses_data_exchange_for_optional_prefill():
     assert "WA_PROFILE_UPDATE_TEMPLATE" not in templates
     send = sender.split("def _customer_profile_update_template(", 1)[1].split("\ndef handler(", 1)[0]
     assert "action = {'flow_token': token}" in send
-    assert "action['flow_action_data'] = subscribe_profile._screen_values(contact_row, phone)" in send
+    # Meta rejects send-time flow_action_data with this DATA_EXCHANGE template (131009).
+    # INIT, not the message payload, owns prefill and revision conflict handling.
+    assert "action['flow_action_data']" not in send
+    assert "contact_store.lookup(table, phone)" in send
     assert "template = whatsapp_templates.PROFILE_DETAILS" in send
     assert "return handle_init(payload, flow_token, request_id)" in f001
     assert "values = _screen_values(row, session.phone)" in f001
