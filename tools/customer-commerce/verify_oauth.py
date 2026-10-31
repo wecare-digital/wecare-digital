@@ -648,6 +648,22 @@ class OAuthContract(unittest.TestCase):
             'Bearer ' + self.cognito.access,
         )
 
+    def test_branded_pending_login_cannot_resume_old_oauth_resource(self):
+        self.params['resource'] = auth.BRANDED_RESOURCE
+        cookie, _ = self.begin_oauth()
+        result = auth.route({
+            'rawPath': '/auth/state',
+            'rawQueryString': urlencode({
+                **self.params, 'resource': BASE + '/mcp',
+            }),
+            'cookies': [f'{auth.COOKIE}={cookie}'],
+            'requestContext': {'http': {'method': 'GET'}},
+        })
+        self.assertEqual(result['statusCode'], 400)
+        self.assertIsNotNone(
+            self.store.get(auth.row_key('auth', cookie)),
+        )
+
     def test_unrecognized_resource_still_fails_closed(self):
         params = {**self.params, 'resource': 'https://other.example/mcp'}
         result = auth.route({
