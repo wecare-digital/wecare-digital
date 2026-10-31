@@ -166,12 +166,13 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         self.assertNotIn('paymentItemDescription', customer)
         self.assertNotIn('payment_description=description', customer)
 
-    def test_missing_or_inactive_vault_link_uses_404_home_without_payment(self):
+    def test_missing_or_inactive_vault_link_returns_home_without_payment(self):
         page = source("src/pages/vault.tsx")
         get = source("src/components/get/GetPage.tsx")
         not_found = source("src/pages/404.tsx")
-        self.assertIn("router.replace( '/404' )", page)
-        self.assertIn("window.location.replace( '/404' )", get)
+        # Current product policy is direct silent Home, not a visible intermediate 404.
+        self.assertIn("void router.replace( '/' )", page)
+        self.assertIn("window.location.replace( '/' )", get)
         self.assertIn("file.status === 'active'", get)
         self.assertIn("router.replace( '/' )", not_found)
         self.assertIn("targetFileId", get)
