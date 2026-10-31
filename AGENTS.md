@@ -5,10 +5,12 @@ ChatGPT/Codex-style agents, Kiro, and VS Code/GitHub Copilot.
 
 ## Canonical policy
 
-Before changing code, read and follow every always-on steering file below. They are the
-single source of truth; do not maintain a separate, conflicting copy of their rules here.
+Before changing code, follow the current release-scoped validation policy:
 
-- `.kiro/steering/00-common.md`
+- `docs/operations/repository-validation.md`
+
+The former `.kiro/steering/00-common.md` no longer exists in the default branch.
+Do not restore retired test suites or GitHub Actions workflows to satisfy historical references.
 
 If a future nested `AGENTS.md` exists, its more specific instructions apply within that
 subtree. Otherwise the common steering file above governs repository work.
@@ -17,7 +19,7 @@ subtree. Otherwise the common steering file above governs repository work.
 
 - Match the surrounding file and existing architecture before introducing a new pattern.
 - Do not assume a branch name. Inspect the current/default branch and preserve concurrent work.
-- Run the verification gates required by `.kiro/steering/00-common.md` for the files changed.
+- Run the manual, release-scoped checks in `docs/operations/repository-validation.md` for the files changed.
 - Treat public SEO, permission handling, device compatibility, and the public mobile foundation
   as acceptance criteria, not optional cleanup.
 

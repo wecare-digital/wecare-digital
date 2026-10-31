@@ -13,5 +13,4 @@ node scripts/upgrade-dependencies.mjs --apply
 npm ci
 npm run typecheck
 npm run build
-npm test
 printf '%s\n' 'Review the explicit package.json/package-lock.json diff before committing.'

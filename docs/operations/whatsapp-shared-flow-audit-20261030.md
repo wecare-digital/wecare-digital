@@ -88,9 +88,9 @@ Before enabling Pickup:
   `2408621596338289`). Confirm it is PUBLISHED, decryptable and
   answers INIT with `SELECT_TARGET/targets`; independently inspect
   the actual Meta revision.
-- Run automated tests, then deploy and publish the updated inbound
-  WhatsApp Lambda and the WhatsApp Business Flow Lambda, and move only
-  their verified `live` aliases.
+- Run manual, release-scoped validation, then deploy and publish the updated
+  inbound WhatsApp and WhatsApp Business Flow Lambdas, moving only their
+  verified `live` aliases.
 - Test with an authorized account and finalized **test** purchase:
   Meta template received -> Flow INIT -> bound order shown -> pickup
   inputs -> complete -> signed `nfm_reply` -> exactly one `WD-PU`
@@ -145,7 +145,7 @@ production Lambda gates and one public static-site gate**:
 published asset cannot be updated in place, clone the Flow and republish,
 then rebind the **existing** `pickup_request_flow` template and update the
 canonical Flow ID/registry references. Do not create a duplicate template.
-Run local/CI tests and deploy updated business API + inbound WhatsApp handlers
+Run manual, release-scoped checks and deploy updated business API + inbound WhatsApp handlers
 to verified `live` aliases. Exercise INIT, owned-order dropdown, NOTE,
 CONFIRMATION and exactly-once Pickup submission against an authorized test
 customer and known paid attempt, including negative ownership and retry tests.

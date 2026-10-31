@@ -8,7 +8,7 @@ From the repository root, run `./upgrade-latest.sh --plan` or `node scripts/upgr
 
 ## Upgrade the web root
 
-`./upgrade-latest.sh` upgrades the current root dependencies, updates the existing lockfile in place, then runs npm ci, typecheck, production build and frontend tests. It does not create a branch, force an audit downgrade, commit, push or deploy. Run in an isolated checkout or with ownership of both manifests; active sessions share the same index and installed modules.
+`./upgrade-latest.sh` upgrades the current root dependencies, updates the existing lockfile in place, then runs npm ci, typecheck and the production build. Automated tests are retired for now; follow `docs/operations/repository-validation.md` for release-scoped checks. It does not create a branch, force an audit downgrade, commit, push or deploy. Run in an isolated checkout or with ownership of both manifests; active sessions share the same index and installed modules.
 
 Dependency upgrades are run explicitly from the repository with `./upgrade-latest.sh --plan` and `scripts/upgrade-dependencies.mjs`; no GitHub workflow owns this operation.
 
@@ -20,6 +20,6 @@ Inspect amplify/package.json and its lock, then perform a separately reviewed `n
 
 Run npm ci, npm run typecheck, npm run build, npm run lint and npm audit in the web root. Retain actual advisory results; a tool with no patched upstream version cannot be declared fixed by forcing unrelated major downgrades. Preserve the production export/blog/schema/browser gates. Python work uses requirements-dev.txt and Python 3.12; use targeted compile and operational verification for changed handlers.
 
-Commit only owned explicit paths on stack. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See [the deployment procedure](operations.md#deploying) and [repository ownership](execution/repository-layout.md).
+Commit only the reviewed files on the intended branch. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See [the deployment procedure](operations.md#deploying) and [repository ownership](execution/repository-layout.md).
 
-Runtime or architecture migrations are separate changes requiring compatible dependency layers and exact-package handler tests. Do not infer current Lambda counts or provider availability from a dated upgrade document.
+Runtime or architecture migrations are separate changes requiring compatible dependency layers and manual exact-package handler verification. Do not infer current Lambda counts or provider availability from a dated upgrade document.

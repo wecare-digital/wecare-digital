@@ -1,12 +1,12 @@
 # WECARE.DIGITAL repository instructions
 
-Use the repository's common Kiro steering file as the canonical engineering policy for every
-Copilot/VS Code coding task. Read all of these before editing:
+Follow the current repository policy and manual validation guidance before editing:
 
-- `.kiro/steering/00-common.md`
+- `AGENTS.md`
+- `docs/operations/repository-validation.md`
 
-Also follow the repo-wide `AGENTS.md`. Keep this file as a pointer to the canonical
-steering policy rather than duplicating text that can drift.
+GitHub Actions and the root test suite are retired. Do not recreate them to satisfy
+historical references. Keep this file a pointer to the current policies.
 
 Important defaults:
 - Match existing code style and architecture; strict TypeScript rules and repo lint/type gates win.
@@ -15,4 +15,4 @@ Important defaults:
 - Never paste or commit secrets, API keys, OAuth client secrets, tokens, or credential values.
   Use existing environment/secret-store references only.
 - Do not assume a branch name or overwrite concurrent work.
-- Run the verification commands required by `.kiro/steering/00-common.md` before declaring done.
+- Run the manual release-scoped checks in `docs/operations/repository-validation.md` before declaring done.

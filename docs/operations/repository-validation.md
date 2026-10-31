@@ -1,7 +1,11 @@
 # Repository validation after CI/test retirement
 
 As of 2026-10-28, owner direction is to keep this repository without GitHub Actions workflows and
-without the root Python `tests/` regression suite.
+without the root Python `tests/` regression suite. Standalone CI-focused test scripts,
+Android sample tests, and the defunct `npm test` invocation are also retired.
+
+Manual domain checks, typecheck/build, browser measurements, and guarded deployment
+verification remain available; do not bypass them for security-sensitive changes.
 
 Validation is explicit and release-scoped:
 
