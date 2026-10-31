@@ -17,6 +17,7 @@ import { formatPaiseINR } from '../../lib/money';
 import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
+import PublicNotice from '../public/PublicNotice';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -664,20 +665,16 @@ export default function OrdersPage (): React.ReactElement {
           { ( ordersAlert || inviteNotice || copyNotice ) && (
             <div className="ord-toast-rail">
               { inviteNotice && (
-                <p className="ord-backend-toast ord-invite-toast" role={ inviteNotice.error ? 'alert' : 'status' } aria-atomic="true">
-                  { inviteNotice.message }
-                </p>
+                <PublicNotice mode="toast" tone={ inviteNotice.error ? 'error' : inviteBusy ? 'info' : 'success' }
+                  message={ inviteNotice.message } />
               ) }
               { ordersAlert && (
-                <p className="ord-backend-toast" role="alert" aria-atomic="true">
-                  { ordersAlert.message }
-                </p>
+                <PublicNotice mode="inline" tone="error" message={ ordersAlert.message } />
               ) }
               { copyNotice && (
-                <p className="ord-backend-toast ord-copy-toast" role={ copyNotice.kind === 'fallback' ? 'alert' : 'status' }
-                  aria-atomic="true">
-                  { copyNotice.message }
-                </p>
+                <PublicNotice mode={ copyNotice.kind === 'fallback' ? 'inline' : 'toast' }
+                  tone={ copyNotice.kind === 'fallback' ? 'error' : 'success' }
+                  message={ copyNotice.message } />
               ) }
             </div>
           ) }
@@ -971,33 +968,9 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-gate{display:flex;flex-direction:column;align-items:flex-start;gap:20px}
 
-          /* The state treatment, lifted from .cart-status: a lime tint behind a solid lime
-             inline-start edge with #1a3a2a type. A luminance and weight step rather than a hue,
-             which is what survives forced-colors and reduced colour discrimination - and colour
-             is never the only cue, because every one of these states is also stated in words. */
-          /* Match the /auth sign-in error treatment pixel for pixel, but right-align
-             the notice above Orders. No fixed overlay, timer, or duplicate row alert. */
+          /* Only the rail controls placement. PublicNotice owns shape, tone and ARIA.
+             Backend errors stay inline; compact invitation/copy feedback stays in the rail. */
           .ord-toast-rail{display:flex;flex-direction:column;align-items:flex-end;gap:8px;inline-size:100%;min-inline-size:0}
-          .ord-backend-toast{
-            box-sizing:border-box;inline-size:min(100%,560px);
-            margin:14px 0 0;padding:11px 13px;
-            border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
-            background:var(--public-lime-tint);color:var(--public-text);
-            font-family:var(--font-sans);
-            font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
-            overflow-wrap:anywhere;
-          }
-          /* Clipboard success is a short, content-width toast. Backend failures keep
-             their larger readable banner; lengthy clipboard fallback text wraps. */
-          /* A short WhatsApp confirmation should be a compact notice, not a 560px banner.
-             Keep invoice/order failures readable in their existing wider alerts. */
-          .ord-backend-toast.ord-invite-toast{
-            inline-size:fit-content;max-inline-size:100%;
-          }
-          .ord-backend-toast.ord-copy-toast{
-            inline-size:fit-content;max-inline-size:min(100%,320px);
-            margin:0;padding:8px 12px;
-          }
 
           /* One five-column Orders table at every viewport, with mobile overflow in
              the table wrapper rather than the page. No detail/receipt rows. */

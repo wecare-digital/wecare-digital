@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PublicNotice from './public/PublicNotice';
 
 import AddressFields, {
   AddressDraft, EMPTY_ADDRESS_DRAFT, StoredAddress,
@@ -210,7 +211,7 @@ const CheckoutProfile: React.FC<Props> = ( {
       ) }
 
       { message && (
-        <p className="checkout-profile-status" role="status" aria-live="polite">{ message }</p>
+        <PublicNotice mode="inline" tone="error" message={ message } />
       ) }
 
       <div className="checkout-profile-actions">
@@ -251,11 +252,6 @@ const CheckoutProfile: React.FC<Props> = ( {
         .checkout-profile-grid input:focus{
           border-bottom-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);
-        }
-        .checkout-profile-status{
-          margin:16px 0 0;padding:11px 13px;border-inline-start:4px solid var(--public-brand-lime);
-          border-radius:10px;background:var(--public-lime-tint);color:var(--public-text);
-          font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
         }
         .checkout-profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
         .checkout-profile-action{

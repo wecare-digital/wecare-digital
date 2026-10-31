@@ -60,7 +60,8 @@ test('Orders uses the same catalog for row and redirected-header invitations', (
   assert.equal((page.match(/customerMenuNotice\( 'pending' \)/g) || []).length, 2);
   assert.match(page, /customerMenuNotice\( kind \)/);
   assert.doesNotMatch(page, /inviteName\(/);
-  assert.match(page, /role=\{ inviteNotice\.error \? 'alert' : 'status' \}/);
+  assert.match(page, /<PublicNotice mode="toast" tone=\{ inviteNotice\.error \? 'error'/);
+  assert.match(page, /<PublicNotice mode="inline" tone="error" message=\{ ordersAlert\.message \}/);
   assert.match(page, /className="ord-backend-toast ord-invite-toast"/);
   assert.match(page, /\.ord-backend-toast\.ord-invite-toast\s*\{\s*inline-size:fit-content;max-inline-size:100%/);
 });

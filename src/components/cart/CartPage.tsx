@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
 import CheckoutProfile from '../CheckoutProfile';
+import PublicNotice from '../public/PublicNotice';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
 import type { StoredAddress } from '../AddressFields';
@@ -1965,14 +1966,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   written inline here any more. */}
               { basketClaimLine }
 
-              {/* role is chosen by severity, not by colour: 'status' is polite for a state the
-                  shopper can simply retry, 'alert' interrupts for one they cannot. Neither relies
-                  on the tint to carry the meaning - the sentence does. */}
+              {/* PublicNotice keeps both states inline until the checkout issue is resolved.
+                  Error announcements stay assertive; no timer hides payment uncertainty. */}
               {notice.kind === 'quiet' && (
-                <p className="cart-status" role="status">{ notice.message }</p>
+                <PublicNotice mode="inline" tone="info" message={ notice.message } />
               )}
               {notice.kind === 'error' && (
-                <p className="cart-status cart-status-firm" role="alert">{ notice.message }</p>
+                <PublicNotice mode="inline" tone="error" message={ notice.message } />
               )}
 
               {/* THE MIXED-BASKET NOTICE AND ITS "Keep only the contribution" BUTTON WERE HERE.
