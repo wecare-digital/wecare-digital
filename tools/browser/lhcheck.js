@@ -66,7 +66,9 @@ const ALL_ROUTES = [
   // The two routes added on 2026-09-30. Every other ProductPage route scores 100 on the four
   // categories, so these are here to prove the two new ones do too rather than to sample a
   // shape already covered - a new page is exactly where a regression would hide.
-  '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/',
+  '/hunar/kaushal/', '/hunar/prastuti/',
+  // Shipment and request actions are no longer standalone public pages.
+  // /vault/?file= remains a secure link, not a public Lighthouse route.
   // Machine-readable discovery is covered by the generated discovery files and MCP.
   // The catalogue. '/shop/' - the grid - was removed on 2026-10-04 when the owner withdrew the
   // index: it 301s to the home page, and Lighthouse auditing a redirect measures the home page a
