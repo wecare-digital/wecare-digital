@@ -70,3 +70,13 @@ details[open]>.disclosureTitle:after{content:'−'}
 .technical>.disclosureTitle{font-size:11px}
 .technical .variables{margin-top:10px}
 @media(max-width:600px){.preview{position:static}.bubble{padding:12px}.steps{overflow-x:auto}}
+
+/* Paid Vault: keep all four configured Meta IDs visible without opening details. */
+.templateCatalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.templateCatalogRow{min-width:0;padding:10px;border:1px solid #dce9d9;border-radius:9px;background:#f8fcf6}
+.templateCatalogRow dt{font-size:11px;font-weight:800;color:#244b2c;margin-bottom:5px}
+.templateCatalogRow dd{display:grid;gap:4px;margin:0;min-width:0}
+.templateCatalogRow code{font:600 10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;color:#315d3e}
+.templateCatalogRow small{font-size:10px;color:#5f7965;overflow-wrap:anywhere}
+.templateNote{font-size:10px;line-height:1.45;color:var(--text-muted);margin:2px 0 11px}
+@media(max-width:600px){.templateCatalog{grid-template-columns:1fr}}
