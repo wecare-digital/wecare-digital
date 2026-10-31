@@ -196,8 +196,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
     if (active === 'drop-docs') {
       if (tab === 'ledger') return serviceLedger('DROP_DOCS');
       if (tab === 'pricing') return pricePanel('drop-docs');
-      // The existing Documents component owns authenticated staff upload and
-      // document review. Do not use Vault's secure-download send as an uploader.
+      // Customer F003 owns uploads. Staff review them here; Vault owns staff upload and publish.
       return <CustomerDropDocs />;
     }
     if (active === 'shipments') {
