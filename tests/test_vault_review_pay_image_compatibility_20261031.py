@@ -24,7 +24,11 @@ def _payment_details():
     module = ast.parse(source)
     builder = next(node for node in module.body if
                    isinstance(node, ast.FunctionDef) and node.name == "payment_details")
-    namespace = {"re": re, "Any": Any}
+    namespace = {
+        "re": re, "Any": Any,
+        "template_media": SimpleNamespace(
+            DEFAULT_ORDER_ITEM_THUMBNAIL=_media_constant("DEFAULT_ORDER_ITEM_THUMBNAIL")),
+    }
     exec(compile(ast.Module(body=[builder], type_ignores=[]), str(CATALOG), "exec"),
          namespace)
     return namespace["payment_details"]
