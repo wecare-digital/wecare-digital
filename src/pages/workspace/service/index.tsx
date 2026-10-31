@@ -5,7 +5,7 @@
  * PaymentAttempts / invoice evidence and Meta Review & Pay images. Their
  * fulfilment is NOT interchangeable:
  * - Submit Request and Request Amendment: paid owner-bound Meta Flows
- * - Drop Docs: paid upload Flow and staff document management
+ * - Drop Docs: paid customer-upload F003 Flow and staff review (never staff file intake)
  * - Vault: private secure download entitlement; NEVER Drop Docs upload Flow
  * - Shipments: owned-order tracking and separately gated paid Pickup Request
  * - Contribute: voluntary catalog purchase, not a request-service Flow
@@ -35,8 +35,8 @@ const SecureFiles = dynamic(
   () => import('../../../components/workspace/service/SecureFiles'),
   { ssr: false },
 );
-const Documents = dynamic(
-  () => import('../../../components/workspace/service/Documents'),
+const CustomerDropDocs = dynamic(
+  () => import('../../../components/workspace/service/CustomerDropDocs'),
   { ssr: false },
 );
 const Contribute = dynamic(
@@ -80,7 +80,7 @@ const TABS: Record<ServiceWorkspaceView, readonly { id: string; label: string }[
     { id: 'ledger', label: 'Ledger' },
   ],
   'drop-docs': [
-    { id: 'upload', label: 'Upload documents' },
+    { id: 'upload', label: 'Customer uploads' },
     { id: 'pricing', label: 'Price & workflow' },
     { id: 'ledger', label: 'Ledger' },
   ],
@@ -119,9 +119,9 @@ const SERVICE_OPERATIONS = {
   },
   'drop-docs': {
     label: 'Drop Docs',
-    summary: 'Upload supporting documents through the existing document storage and paid F003 upload Flow. This is NOT Vault download.',
+    summary: 'Customers upload documents through their paid, owner-bound F003 Flow; staff review received files. Staff upload/publish belongs to Vault.',
     fulfilment: 'Paid document upload Flow',
-    actions: [ { label: 'Open staff document uploads', href: '/workspace/service?view=drop-docs' } ],
+    actions: [ { label: 'Review customer uploads', href: '/workspace/service?view=drop-docs' } ],
   },
   vault: {
     label: 'Vault',
@@ -196,9 +196,8 @@ export default function ServicePage({ signOut, user }: PageProps) {
     if (active === 'drop-docs') {
       if (tab === 'ledger') return serviceLedger('DROP_DOCS');
       if (tab === 'pricing') return pricePanel('drop-docs');
-      // The existing Documents component owns authenticated staff upload and
-      // document review. Do not use Vault's secure-download send as an uploader.
-      return <Documents signOut={signOut} user={user} embedded />;
+      // Customer F003 owns uploads. Staff review them here; Vault owns staff upload and publish.
+      return <CustomerDropDocs />;
     }
     if (active === 'shipments') {
       if (tab === 'pickup-ledger') return serviceLedger('REQUEST_PICKUP');
@@ -231,7 +230,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
 
   return (
     <>
-      <SEO title="Service" description="Request operations, document uploads, Vault, shipment tracking, pickup, contributions, and WhatsApp service logs." noindex />
+      <SEO title="Service" description="Request operations, customer Drop Docs upload review, staff Vault upload, shipment tracking, pickup, contributions, and WhatsApp service logs." noindex />
 
       <nav className="service-switch" aria-label="Service workspace">
         {SERVICE_WORKSPACE_VIEWS.map(view => (

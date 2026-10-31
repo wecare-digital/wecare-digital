@@ -135,7 +135,8 @@ def test_workspace_targets_are_distinct_and_read_only():
         assert word in route
     assert "serviceWorkspaceQuery(view, nextTab)" in page
     assert "if (tab === 'ledger') return serviceLedger('VAULT')" in page
-    assert "return <Documents signOut={signOut} user={user} embedded />" in page
+    assert "return <CustomerDropDocs />" in page
+    assert "return <Documents signOut={signOut} user={user} embedded />" not in page
     assert "return <SecureFiles signOut={signOut} user={user} embedded />" in page
     assert "serviceLedger('DROP_DOCS')" in page
     assert "serviceLedger('SUBMIT_REQUEST')" in page
