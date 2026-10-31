@@ -206,7 +206,7 @@ export default function VaultMessageTimeline ( {
       setLogError( 'Delivery evidence unavailable. No status has been inferred.' );
     }
     setLoading( false );
-  }, [ file?.fileId ] );
+  }, [ file ] );
   React.useEffect( () => {
     // Load on selecting one file; staff can refresh to see webhook updates.
     let active = true;

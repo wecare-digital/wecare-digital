@@ -15,6 +15,7 @@
  * private Vault file, upload a document, or issue a pickup request.
  */
 import React, { Suspense } from 'react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import SEO from '../../../components/SEO';
@@ -226,8 +227,8 @@ export default function ServicePage({ signOut, user }: PageProps) {
           <p>New catalog contributions use the shared commerce payment and invoice records.
             Legacy standalone contributions are provider-verified payments with no order or
             GST invoice. They must not be counted as paid request-service invoices.</p>
-          <a href="/workspace/payments?view=ledger&ledger=invoices">Open all invoice records</a>
-          <a href="/workspace/payments?view=ledger&ledger=activity">Open payment activity</a>
+          <Link href="/workspace/payments?view=ledger&ledger=invoices">Open all invoice records</Link>
+          <Link href="/workspace/payments?view=ledger&ledger=activity">Open payment activity</Link>
         </section>
       );
       return <Contribute />;

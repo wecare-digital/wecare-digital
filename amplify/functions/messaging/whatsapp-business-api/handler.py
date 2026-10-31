@@ -7530,6 +7530,35 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'syncTemplateFlowMappings':
+        # EventBridge scheduled invocation only. Never expose this write through
+        # API Gateway or any user-supplied HTTP request.
+        expected_rule = ('arn:aws:events:us-east-1:775261844268:rule/'
+                         'wecare-whatsapp-template-flow-meta-sync')
+        if (any(event.get(key) for key in ('requestContext', 'rawPath', 'path', 'httpMethod'))
+                or event.get('source') != 'aws.events'
+                or event.get('detail-type') != 'Scheduled Event'
+                or expected_rule not in (event.get('resources') or [])):
+            return _resp(403, {'error': 'Scheduled invocation required'})
+        from flows.template_flow_sync import reconcile
+        try:
+            result = reconcile(
+                lambda edge, params: _graph_api(edge, params=params, waba_id=WABA1_ID),
+                dynamodb,
+                boto3.client('dynamodb', region_name='us-east-1'),
+                str(WABA1_ID),
+                TEMPLATE_FLOW_MAPPING_TABLE,
+                _is_retained_customer_flow,
+                '382642103987922',
+            )
+            logger.info(json.dumps({'event': 'template_flow_meta_sync_complete', **result}))
+            return result
+        except Exception:
+            # Raise, rather than return HTTP 500: EventBridge retries and Lambda
+            # error monitoring must see this invocation as failed.
+            logger.exception('Template-to-Flow scheduled reconciliation failed')
+            raise
+
     if event.get('internalAction') == 'customerProfileUpdateTemplate':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
