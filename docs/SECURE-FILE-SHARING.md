@@ -282,6 +282,38 @@ pass ownership and paid-entitlement checks on the Vault page, then receive a
 separate 60-second private S3 download URL. Staff never insert a presigned
 customer document URL into an outbound WhatsApp template.
 
+### Exact-file 404 fallback, ₹49 one-line description and no-file WhatsApp reply
+
+- `/vault/` with no document, an invalid `?file=` identifier, or an authenticated
+  user with no matching **active** owner-bound file uses the site's existing
+  `/404` → homepage redirect. A valid paid file is not redirected simply
+  because its **24-hour access window** ended: the page may show expired access,
+  but cannot issue a private URL or charge for an unauthorized file.
+  A lookup error does not masquerade as a missing file; a 401 first allows
+  customer authentication, and ownership is never inferred from the URL.
+- The **only editable field** in the Vault payment/invoice workbench is the
+  **name/description of exactly one ₹49 (`4900` paise) Vault service line**.
+  Default: `Vault Access - Secure document download (24 hours)`.
+  Operators may enter a **single line of 12–60 safe characters**. Server
+  recomputes the price from ProductsTable and rechecks the one-line ₹49 SKU;
+  quantity, GST, Delight, Express, convenience fees, total, owner and file ID
+  remain non-editable. A mismatched price refuses custom wording.
+  That exact validated description is frozen onto the native PaymentAttempt's
+  `invoiceLines`, consumed by WhatsApp ORDER_DETAILS and reused by the paid
+  GST invoice PNG; no one can modify an issued invoice's item price or label.
+  Customer-initiated purchases cannot author the item wording.
+  Scheduled manual Vault payment sends persist their chosen wording.
+- A WhatsApp Vault **catalog purchase** with no usable customer-owned active
+  document or only expired documents sends one service-window message:
+  `No document is available for Vault download, or its access has expired.
+  Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.`
+  It creates **no payable ORDER_DETAILS message, no payment attempt and no
+  false paid Submit Request Flow**. Already-paid OPEN/READY files get the same
+  Access Vault link again without charge. Historical Unlock Vault quick-reply
+  tokens still resolve safely, but expired/revoked files take the single
+  new-request fallback rather than a fresh payment from that old message.
+  Explicit staff file-bound renewal is a separate guarded operation.
+
 Staff may request a **60-second presigned S3 GET preview** of two exact owner-approved,
 non-customer PNG assets from `GET /secure-files/payment-media-preview`:
 the native WhatsApp IMAGE header `whatsapp-header.png` and the original

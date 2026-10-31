@@ -1943,6 +1943,17 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
             "error": "PAID_UNVERIFIED", "outcome": "PAID_UNVERIFIED",
             "fileId": file_id, "accessState": state, "message": message,
         }, origin)
+    if description != catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT:
+        # Staff-customized text is allowed only while the ProductsTable Vault
+        # variant is exactly ₹49. Revalidate here as well as during checkout.
+        try:
+            if not _vault_offer_catalog_price_valid():
+                return cors_response(409, {"error": "VAULT_ITEM_NOT_49",
+                    "message": "Only the ₹49 Vault item description is editable. Refresh pricing."}, origin)
+        except Exception as error:
+            logger.warning(json.dumps({"event": "vault_item_price_read_failed",
+                                       "reason": type(error).__name__}))
+            return cors_response(503, {"error": "VAULT_PRICE_UNAVAILABLE"}, origin)
     return _start_native_vault_payment(
         item, state, origin,
         requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
@@ -3081,6 +3092,16 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
         description = body.get("paymentItemDescription", description)
         if not catalog_service_checkout.valid_vault_item_description(description):
             return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
+    if (action == "payment"
+            and description != catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT):
+        try:
+            if not _vault_offer_catalog_price_valid():
+                return cors_response(409, {"error": "VAULT_ITEM_NOT_49",
+                    "message": "Only the ₹49 Vault item description is editable. Refresh pricing."}, origin)
+        except Exception as error:
+            logger.warning(json.dumps({"event": "vault_schedule_item_price_read_failed",
+                                       "reason": type(error).__name__}))
+            return cors_response(503, {"error": "VAULT_PRICE_UNAVAILABLE"}, origin)
     try:
         when = _schedule_time(body.get("scheduledAt"))
     except ValueError as error:

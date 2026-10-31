@@ -65,8 +65,8 @@ DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
 # WhatsApp Vault chooser. One signed-inbound service reply, never a payable
 # ORDER_DETAILS request or an unauthorized paid Submit Request Flow.
 SUBMIT_NEW_REQUEST_MESSAGE = (
-    'No document is currently available for Vault download. '
-    'Submit a New Request: https://wecare.digital/orders/'
+    'No document is available for Vault download, or its access has expired. '
+    'Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.'
 )
 
 
@@ -321,8 +321,8 @@ def handle(event, client):
             keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
             _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
             return {'outcome': 'VAULT_FILE_NOT_READY'}
-        # At most ten choices per native list. Paid rows remain visible as refresh actions and
-        # used-up rows as renewals.
+        # At most ten choices per native list. Already-paid OPEN/READY rows
+        # refresh the same Access Vault link free; EXPIRED is not a new sale here.
         row['fileChoices'] = [file['fileId'] for file, _state in choices[:10]]
         row['fileChoiceStates'] = [state for _file, state in choices[:10]]
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
@@ -352,7 +352,8 @@ def handle(event, client):
     try:
         file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, row['fileChoices'][index])
     except customer_auth.CustomerNotAuthorized:
-        _send(client, row, content=DOCUMENT_UNAVAILABLE)
+        # File was revoked or ownership changed after a list was issued.
+        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     # Decided now, not from the list: a window may have closed (or been paid) since it was sent.
     state = _file_state(db, file, identity.customer_id, now)
@@ -419,7 +420,7 @@ def _unlock(event, client, db, keys, contact, identity, offer, now):
         # Revoked or reassigned since the offer went out.
         row['status'] = 'FILE_UNAVAILABLE'
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        _send(client, row, content=DOCUMENT_UNAVAILABLE)
+        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     # Decided now, not when the offer was sent: it may have been paid (or a window may have
     # closed) in between.
@@ -428,8 +429,10 @@ def _unlock(event, client, db, keys, contact, identity, offer, now):
     keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
     if state in ('OPEN', 'READY'):
         return _send_access(client, row, file['fileId'])
-    if state not in ('UNPAID', 'EXPIRED'):
-        _send(client, row, content=NOT_REQUESTED)
+    if state != 'UNPAID':
+        # Historical Unlock Vault taps remain accepted for their original owner,
+        # but do not resell an expired paid window via an old WhatsApp template.
+        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
         return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
     row['vaultFileId'] = file['fileId']
     return _prepare_payment(client, db, keys, row, identity, state, notify=True)
