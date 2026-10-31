@@ -186,6 +186,7 @@ function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
       || !row.orderStatusStates.every( x => typeof x === 'string' && x.length > 0 )
       || typeof row.delivery !== 'string' || !row.delivery
       || typeof row.receipt !== 'string' || !row.receipt ) return undefined;
+  const templateIds = readTemplateIds( row.templateIds );
   return {
     nativePay: row.nativePay,
     orderStatus: row.orderStatus,
@@ -194,7 +195,7 @@ function readTemplates ( raw: unknown ): ServicePaymentTemplates | undefined {
     receipt: row.receipt,
     // Accept only a complete, numeric, server-supplied Meta template ID set.
     // Never let these display-only IDs drive payment or message sends.
-    ...( readTemplateIds( row.templateIds ) ? { templateIds: readTemplateIds( row.templateIds ) } : {} ),
+    ...( templateIds ? { templateIds } : {} ),
     ...( trustedPaymentMedia( row.headerImage ) && trustedPaymentMedia( row.itemThumbnail )
       ? {
           headerImage: trustedPaymentMedia( row.headerImage ),
