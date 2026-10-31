@@ -2,8 +2,8 @@
 
 This is a **read-only release plan**, not production sign-off or permission to
 charge customers. The issue bodies remain the authority on their acceptance
-criteria. The script shipped with this plan makes the **new invoice template**
-gate reproducible without editing or sending the existing approved template.
+criteria. The owner has chosen the **existing approved English invoice template
+only**; no new Meta invoice template is proposed or authorized.
 
 ## Independent checks performed today
 
@@ -35,47 +35,32 @@ prove which exact Git tree built each Lambda, that the Meta asset completes
 successfully on a handset, that a captured payment settled to the bank, or that
 staff finished authenticated UI acceptance.
 
-## #2016: fix repeated invoice copy without touching the frozen rail
+## #2016: retain approved invoice, remove unrelated generic follow-up
 
-**Proposed NEW template, not an edit of the current approved one:**
+**Owner decision:** use `wecare_default_invoice_image_template` (English
+`en`, Meta template ID `1782246473079550`, APPROVED) unchanged. The
+invoice retains its dynamic PNG IMAGE header, approved body, business footer
+and Leave Review F002 `DATA_EXCHANGE` Flow button `993862443003108`.
 
-| Component | Reviewed proposal |
-| --- | --- |
-| Name | `wecare_invoice_receipt_v2` |
-| Category/language | `UTILITY` / `en` |
-| Header | `IMAGE`, reuse the existing approved invoice-image sample |
-| Body | 🧾 Your GST invoice is ready. The invoice image above contains your transaction details. |
-| Footer | `WECARE.DIGITAL` |
-| One FLOW button | `Leave Review`, `DATA_EXCHANGE`, `993862443003108` |
+Do not create, edit, submit, or configure a `wecare_invoice_receipt_v2`
+template. The prior proposal/checker was superseded and was never approved by
+Meta. The current approved body ("Payment received") necessarily repeats
+the processing ORDER_STATUS wording; do not claim this exact copy can be
+changed without a Meta template edit.
 
-**Editorial reconciliation:** Merged PR #2020 documented a different proposed
-v2 body ("Your GST invoice is attached. Please keep it for your records.").
-This checklist deliberately tests the alternative copy above. Neither proposal
-is provider-approved; the payment/editorial owner must choose the exact final
-copy before Meta submission. Passing this gate alone is not approval.
+Merged source PR [#2033](https://github.com/wecare-digital/wecare-digital/pull/2033)
+removes the separate free-form "View your order" message from automatic
+post-invoice WhatsApp delivery; customers still have the authenticated
+`/orders/` page. Required ORDER_DETAILS Review & Pay, processing →
+completed ORDER_STATUS, one signed GST invoice IMAGE/Leave Review template,
+and the one owner-bound service-specific next action are unchanged.
+The source merge needs a reviewed production ZIP/alias release before this
+can be called live. No new customer payment or message is authorized by
+this checklist.
 
-This copy refers to the actual issued invoice instead of repeating the payment
-status. It preserves the review Flow and the paid invoice PNG. The existing
-template remains active until Meta **approves a distinct, pinned template ID**
-and the payment-rail owner approves a code release. The template submission
-requires explicit user confirmation; preparing this Git change did not submit
-it for review.
-
-To audit a future single-template Meta GET export (without network access):
-
-```sh
-python scripts/check_invoice_copy_candidate.py \
-  --file reviewed-invoice-template.json \
-  --expected-id THE_NEW_META_TEMPLATE_ID
-python -m unittest discover -s tests -p test_invoice_copy_candidate.py
-```
-
-A passing copy gate does **not** authorize a send. A separate reviewed
-release must switch only the invoice template identity after capture and
-invoice generation, retain processing -> completed state, owner-bound service
-CTA, one-send idempotency and the existing refund/rollback behavior. Validate
-on an owner-authorized handset with sent/delivered/read evidence. Never
-retroactively resend completed transactions.
+Verify on an authorized handset that invoice accepted/sent/delivered/read
+evidence is distinct, that only the purchased service template arrives after
+the invoice, and that replay cannot duplicate invoice or service action.
 
 ## #2008: Vault backend/settlement/Collect sign-off
 
