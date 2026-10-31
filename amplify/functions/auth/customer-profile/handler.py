@@ -94,21 +94,49 @@ def _lambda_client():
     return _lambda
 
 
-def _send_profile_update(phone: str, origin: str) -> Dict[str, Any]:
-    """Ask the internal WhatsApp boundary to send the approved F001 profile template."""
+def _send_customer_menu_template(phone: str, origin: str, *, action: str,
+                                 customer_id: str) -> Dict[str, Any]:
+    """Send one explicitly requested WhatsApp template to the authenticated number.
+
+    Only this handler can select the recipient: the request body has no recipient field.
+    The first audit write is mandatory BEFORE attempting an irreversible Meta send.
+    A failed provider call is not retried automatically; a transport timeout can be
+    ambiguous and a retry could send the customer a duplicate invitation.
+    """
+    allowed = {
+        "sendProfileUpdate": (
+            "customerProfileUpdateTemplate", "service_details",
+            "PROFILE_UPDATE_SENT", "PROFILE_UPDATE_UNAVAILABLE"),
+        "sendLeaveReview": (
+            "customerLeaveReviewTemplate", "wecare_leave_review",
+            "REVIEW_REQUEST_SENT", "REVIEW_REQUEST_UNAVAILABLE"),
+    }
+    internal_action, template_name, expected_status, unavailable = allowed[action]
+    attempt_id = record_audit(
+        action="customer.template_send.requested",
+        actor=customer_id,
+        resource_type="whatsapp_template",
+        resource_id=template_name,
+        details={"source": "authenticated_customer_menu", "action": action},
+    )
+    if not attempt_id:
+        logger.error(json.dumps({"event": "customer_menu_template_audit_unavailable",
+                                 "action": action}))
+        return _no_store(cors_response(503, {"error": "AUDIT_UNAVAILABLE"}, origin))
+
     try:
         response = _lambda_client().invoke(
             FunctionName=PROFILE_UPDATE_SENDER_FUNCTION,
             InvocationType="RequestResponse",
             Payload=json.dumps({
-                "internalAction": "customerProfileUpdateTemplate",
+                "internalAction": internal_action,
                 "phone": phone,
             }).encode("utf-8"),
         )
         raw = response.get("Payload").read()
         result = json.loads(raw.decode("utf-8")) if raw else {}
         if response.get("FunctionError"):
-            raise RuntimeError("profile update sender failed")
+            raise RuntimeError("internal template sender failed")
         status = int(result.get("statusCode") or 500)
         payload = result.get("body")
         if isinstance(payload, str):
@@ -116,15 +144,31 @@ def _send_profile_update(phone: str, origin: str) -> Dict[str, Any]:
                 payload = json.loads(payload)
             except (TypeError, ValueError):
                 payload = {}
-        if status >= 300 or not isinstance(payload, dict) or payload.get("status") != "PROFILE_UPDATE_SENT":
-            raise RuntimeError("profile update sender refused")
+        if status >= 300 or not isinstance(payload, dict) or payload.get("status") != expected_status:
+            raise RuntimeError("internal template sender refused")
     except Exception as exc:  # noqa: BLE001
-        logger.error(json.dumps({"event": "customer_profile_update_send_failed",
-                                 "error": type(exc).__name__}))
-        return _no_store(cors_response(
-            503, {"error": "PROFILE_UPDATE_UNAVAILABLE"}, origin))
-    logger.info(json.dumps({"event": "customer_profile_update_sent"}))
-    return _no_store(cors_response(200, {"status": "PROFILE_UPDATE_SENT"}, origin))
+        record_audit(
+            action="customer.template_send.failed", actor=customer_id,
+            resource_type="whatsapp_template", resource_id=template_name,
+            details={"attemptLogId": attempt_id, "errorType": type(exc).__name__},
+        )
+        logger.error(json.dumps({"event": "customer_menu_template_send_failed",
+                                 "action": action, "errorType": type(exc).__name__}))
+        return _no_store(cors_response(503, {"error": unavailable}, origin))
+
+    message_id = str(payload.get("messageId") or "")
+    # A Meta 200 means accepted for processing, NOT delivered to the handset. The
+    # delivery webhook updates the corresponding outbound message row separately.
+    record_audit(
+        action="customer.template_send.accepted", actor=customer_id,
+        resource_type="whatsapp_template", resource_id=template_name,
+        details={"attemptLogId": attempt_id, "providerMessageId": message_id,
+                 "status": "accepted"},
+    )
+    logger.info(json.dumps({"event": "customer_menu_template_accepted",
+                            "action": action, "hasMessageId": bool(message_id)}))
+    return _no_store(cors_response(
+        200, {"status": expected_status, "messageId": message_id}, origin))
 
 
 def _pepper() -> str:
@@ -862,16 +906,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if denied:
         return _no_store(denied)
 
-    # (1) Shape of the request. `mode` is not accepted and is never sent.
+    # (1) Shape of the request. An action is the whole body; never accept a
+    # caller-supplied phone, contact ID, template name or destination.
     body = _body(event)
     if "action" in body:
-        if body != {"action": "sendProfileUpdate"}:
+        action = str(body.get("action") or "")
+        if len(body) != 1 or action not in ("sendProfileUpdate", "sendLeaveReview"):
             return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
         try:
             phone = identity.normalize_phone_preserving_country(identity_session.phone)
         except identity.InvalidPhoneNumber:
             return _no_store(cors_response(400, {"error": "INVALID_SESSION_PHONE"}, origin))
-        return _send_profile_update(phone, origin)
+        return _send_customer_menu_template(
+            phone, origin, action=action, customer_id=identity_session.customer_id)
 
     allowed = {
         "fullName", "username", "firstName", "lastName",
