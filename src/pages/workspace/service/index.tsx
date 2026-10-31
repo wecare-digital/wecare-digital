@@ -1,12 +1,8 @@
 /**
- * Workspace Service — Vault + Contribute milestone.
+ * Workspace Service — Vault, Contribute and WhatsApp customer-service logs.
  *
- * These are the only two visible Service capabilities in this milestone:
- * - Vault: manual secure-download operations, no customer Meta Flow.
- * - Contribute: voluntary payment, no fulfilment Flow.
- *
- * Requests, Appointments, Drop Docs and other Flow-backed service launchers stay out until their
- * contracts are deliberately added back.
+ * The logs view is a read-only staff projection of the existing canonical Inbox.
+ * It does not create a new message store or a send/approval path.
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
@@ -14,7 +10,7 @@ import { useRouter } from 'next/router';
 import SEO from '../../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
-type ServiceView = 'vault' | 'contribute';
+type ServiceView = 'vault' | 'contribute' | 'whatsapp-logs';
 
 const SecureFiles = dynamic(
   () => import( '../../../components/workspace/service/SecureFiles' ),
@@ -28,13 +24,18 @@ const VaultLogs = dynamic(
   () => import( '../../../components/workspace/service/VaultLogs' ),
   { ssr: false },
 );
+const WhatsAppServiceLogs = dynamic(
+  () => import( '../../../components/workspace/service/WhatsAppServiceLogs' ),
+  { ssr: false },
+);
 
 function one ( raw: string | string[] | undefined ): string {
   return Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
 }
 
 function serviceView ( raw: string | string[] | undefined ): ServiceView {
-  return one( raw ) === 'contribute' ? 'contribute' : 'vault';
+  const value = one( raw );
+  return value === 'contribute' || value === 'whatsapp-logs' ? value : 'vault';
 }
 
 const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
@@ -60,7 +61,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
     <>
       <SEO
         title="Service"
-        description="Vault delivery and voluntary contribution operations."
+        description="Vault delivery, voluntary contributions and WhatsApp service logs."
         noindex
       />
 
@@ -72,6 +73,10 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         <button type="button" aria-pressed={ active === 'contribute' }
           className={ active === 'contribute' ? 'active' : '' } onClick={ () => select( 'contribute' ) }>
           Contribute
+        </button>
+        <button type="button" aria-pressed={ active === 'whatsapp-logs' }
+          className={ active === 'whatsapp-logs' ? 'active' : '' } onClick={ () => select( 'whatsapp-logs' ) }>
+          WhatsApp Logs
         </button>
       </nav>
 
@@ -90,12 +95,12 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         </nav>
       ) }
 
-      <Suspense fallback={ <div className="service-loading">Loading { active === 'vault' ? 'Vault' : 'Contribute' }…</div> }>
+      <Suspense fallback={ <div className="service-loading">Loading { active === 'vault' ? 'Vault' : active === 'contribute' ? 'Contribute' : 'WhatsApp Logs' }…</div> }>
         { active === 'vault'
           ? vaultTab === 'logs'
             ? <VaultLogs />
             : <SecureFiles signOut={ signOut } user={ user } embedded />
-          : <Contribute /> }
+          : active === 'contribute' ? <Contribute /> : <WhatsAppServiceLogs /> }
       </Suspense>
 
       <style jsx>{`
