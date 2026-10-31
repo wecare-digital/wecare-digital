@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import GetPage from '../components/get/GetPage';
+import ProductPage from '../components/ProductPage';
+import { customerserviceBySlug } from '../content/customerservice';
 
 /**
- * Vault is NOT a standalone public product page. Ordinary /vault/ entries
- * return to the authenticated /orders/ hub.
- *
- * Preserve /vault/?file=<fileId> as the ONE exact-file download route used by
- * approved WhatsApp templates and the website's paid Vault return journey.
- * That URL is owner-checked by GetPage and must never be redirected by an
- * Amplify path-only rule, because such a rule would also consume ?file= links.
+ * One route, two deliberately separate presentations:
+ * - /vault/ is the public explanatory page. It must never redirect to Orders.
+ * - /vault/?file=<fileId> remains the owner-authenticated, exact-file download
+ *   surface. GetPage performs all server-backed paid-entitlement checks.
+ * Missing, invalid or revoked exact-file links use the existing 404 -> Home
+ * fallback. Do not install any host-level redirect on /vault/: Amplify rules
+ * cannot differentiate a bare path from the approved WhatsApp ?file= button.
  */
 const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
 const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
@@ -19,57 +20,54 @@ const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 const VaultPage: React.FC = () => {
   const router = useRouter();
   const fileParam = router.query.file;
-  const queryFileId = Array.isArray( fileParam ) ? fileParam[ 0 ] : fileParam;
+  const hasFileParam = fileParam !== undefined;
+  // Duplicate file parameters are invalid; never silently choose an ID.
+  const queryFileId = typeof fileParam === 'string' ? fileParam : '';
   const [ restoredFileId, setRestoredFileId ] = useState( '' );
 
   useEffect( () => {
     if ( !router.isReady ) return;
-    if ( queryFileId ) {
+    if ( hasFileParam ) {
       if ( !VAULT_FILE_ID_PATTERN.test( queryFileId ) ) {
-        // Invalid links use the site's existing 404 → homepage rule.
-        // Do not send someone to authentication for an invalid file identifier.
+        // The same missing-document fallback the authenticated file reader uses.
         void router.replace( '/404' );
       }
       return;
     }
-    // Sign-in can return here with the exact file id saved out of band. Restore
-    // that file BEFORE considering the ordinary bare-route redirect.
-    try
-    {
+
+    // A verified sign-in can return without the query, with the original exact
+    // file bound in sessionStorage in this tab. Restore it before showing the
+    // generic public entry to the customer. No file id is trusted as ownership.
+    try {
       const saved = window.sessionStorage.getItem( VAULT_AUTH_RETURN_FILE_KEY ) || '';
       if ( VAULT_FILE_ID_PATTERN.test( saved ) ) {
         window.sessionStorage.removeItem( VAULT_AUTH_RETURN_FILE_KEY );
         setRestoredFileId( saved );
-        void router.replace( { pathname: '/vault/', query: { file: saved } }, undefined,
-          { shallow: true } );
+        void router.replace( { pathname: '/vault/', query: { file: saved } },
+          undefined, { shallow: true } );
         return;
       }
-    } catch
-    {
-      // Storage can be unavailable; no target means 404 → homepage.
+    } catch {
+      // Public landing remains available even when storage is blocked.
     }
-    void router.replace( '/404' );
-  }, [ router, router.isReady, queryFileId ] );
+  }, [ router, router.isReady, hasFileParam, queryFileId ] );
 
   const targetFileId = queryFileId || restoredFileId;
-  if ( router.isReady && VAULT_FILE_ID_PATTERN.test( targetFileId ) ) {
+  if ( router.isReady && hasFileParam ) {
+    if ( VAULT_FILE_ID_PATTERN.test( queryFileId ) ) {
+      return <GetPage targetFileId={ queryFileId } />;
+    }
+    // An invalid query never renders a payment/file page while Home fallback runs.
+    return <Head><meta name="robots" content="noindex, nofollow" /></Head>;
+  }
+  if ( router.isReady && VAULT_FILE_ID_PATTERN.test( restoredFileId ) ) {
     return <GetPage targetFileId={ targetFileId } />;
   }
 
-  // No meta-refresh: static export generates this SAME HTML for ?file= URLs.
-  // Meta refresh would hijack a valid file link before React reads its query.
-  return (
-    <>
-      <Head>
-        <meta name="robots" content="noindex, nofollow" />
-        <link rel="canonical" key="canonical" href="https://wecare.digital/" />
-      </Head>
-      <main style={ { maxWidth: '1100px', margin: '50px auto', padding: '0 24px' } }>
-        <p>Opening your account…</p>
-        <Link href="/">Go to Home</Link>
-      </main>
-    </>
-  );
+  // Build-time static HTML is the actual public landing page. Private file
+  // requests hydrate into GetPage ONLY after the query is available in router.
+  return <ProductPage product={ customerserviceBySlug( 'vault' ) }
+    canonicalPath="/vault/" mobileFoundation />;
 };
 
 export default VaultPage;
