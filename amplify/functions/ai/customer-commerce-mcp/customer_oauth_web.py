@@ -132,6 +132,11 @@ def resume_authorization(
             if not oauth_fields.intersection(requested):
                 return None
             expected = validate_authorize(requested)
+            # A pending grant must never be resumed under a different MCP
+            # audience. The caller must restart explicitly, rather than the
+            # server silently turning an old-resource cookie into a new flow.
+            if row.get('resource') != expected['resource']:
+                raise AuthError('Authorization resource changed')
             if any(
                 (
                     row.get('client') != expected['client_id'],
