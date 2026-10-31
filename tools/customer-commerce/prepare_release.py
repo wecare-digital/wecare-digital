@@ -91,10 +91,11 @@ def canonical_return_paths() -> list[str]:
     service_paths = set(
         re.findall(r"\bpath\s*:\s*'([^']+)'", services_text)
     )
-    if not service_paths or not service_paths <= frontend:
+    disallowed_service_returns = (service_paths - {'/vault/'}) & frontend
+    if not service_paths or disallowed_service_returns:
         raise ValueError(
-            'Service return paths missing from auth allowlist: '
-            f'{sorted(service_paths - frontend)}'
+            'Retired public service page returns must not be allowlisted: '
+            + ', '.join(sorted(disallowed_service_returns))
         )
     required = {'/', '/checkout/', '/orders/', '/blog/', '/vault/'}
     if not required <= frontend:

@@ -604,9 +604,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // page to the menu and the sitemap while forgetting this one - which renders an empty body
   // with HTTP 200 and is invisible until someone loads the route. Deriving the allowlist from
   // the metadata map means a product cannot exist for structured data but not for rendering.
-  // /get is no longer a customer file surface. It is a redirect-only legacy signpost
-  // to Home and is handled before the public chrome branch below, so it renders no second
-  // header/body/footer while the redirect fires. /get/<*> remains the unrelated media namespace.
+  // Bare /get is retired; the generic not-found rule sends it Home.
+  // /get/<*> remains the necessary CloudFront media namespace.
   // '/contact-test' WAS LISTED HERE AND HAD TO COME OFF. It was the only route that was
   // both in this allowlist AND wrapped in the authenticated <Layout> by its own page file,
   // and the combination leaked the dashboard into public HTML: because the export is
@@ -766,9 +765,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // suppressHydrationWarning on that element is the targeted answer - blanking the
   // document is not.
 
-  // Legacy /get/ is redirect-only. Render its Head stub without public chrome so it can never
-  // appear as a second customer file/download page before the redirect completes.
-  if ( router.pathname === '/get' )
+  // Redirect-only and private handoff routes must never render public chrome,
+  // translations, sharing controls or a loading waypoint while navigating.
+  // /404 and /cart render Head only. /vault displays its actual file content
+  // only after an owner-scoped verification, or silently navigates Home.
+  if ( router.pathname === '/404' || router.pathname === '/cart'
+    || router.pathname === '/vault' )
   {
     return (
       <ErrorBoundary>

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import GetPage from '../components/get/GetPage';
 
@@ -55,19 +54,14 @@ const VaultPage: React.FC = () => {
     return <GetPage targetFileId={ targetFileId } />;
   }
 
-  // No meta-refresh: static export generates this SAME HTML for ?file= URLs.
-  // Meta refresh would hijack a valid file link before React reads its query.
+  // A bare or malformed link is a silent redirect, not another page.
+  // Never meta-refresh /vault/: the static export also serves valid ?file= URLs.
+  // Keep noindex on its blank HTML, while the client resolves the exact file.
   return (
-    <>
-      <Head>
-        <meta name="robots" content="noindex, nofollow" />
-        <link rel="canonical" key="canonical" href="https://wecare.digital/" />
-      </Head>
-      <main style={ { maxWidth: '1100px', margin: '50px auto', padding: '0 24px' } }>
-        <p>Opening your account…</p>
-        <Link href="/">Go to Home</Link>
-      </main>
-    </>
+    <Head>
+      <meta name="robots" content="noindex, nofollow" />
+      <link rel="canonical" key="canonical" href="https://wecare.digital/" />
+    </Head>
   );
 };
 

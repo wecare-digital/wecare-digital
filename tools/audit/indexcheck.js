@@ -64,8 +64,6 @@ const ALLOWED_NOINDEX = {
     + 'page. Indexing it would put a redirect in the index; Google reports those as "Page '
     + 'with redirect". It exists only because deleting it restores Next\'s built-in 404, '
     + 'which ships zero links.',
-  '/get/': 'a redirect-only legacy signpost to Home. It is not a customer file surface and '
-    + 'must stay out of search; exact-file Vault links are under /vault/?file=.',
   // Static customer-session screens stay out of PUBLIC_PAGE_META, the sitemap and the AI manifest.
   // Customer sign-in is not static anymore: /auth is the backend-routed, noindex canonical entry.
   '/cart/': 'a noindex legacy handoff to /checkout/ for old basket links, not a payment surface.',
