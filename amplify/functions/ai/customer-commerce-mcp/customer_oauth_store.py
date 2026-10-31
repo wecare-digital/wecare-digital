@@ -145,9 +145,7 @@ def token_exchange(params: dict) -> dict:
         row = bound(STORE.get(key), params)
         if STORE.take(key) is None:
             raise AuthError('Refresh token already used')
-        grant = STORE.take(row['grant'])
-        if not grant:
-            raise AuthError('Expired session')
+        grant = bound(STORE.take(row['grant']), params)
         previous = uncapsule(grant['cipher'], grant['client'], grant['sidHash'], grant['resource'])
         result = aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT, AuthFlow='REFRESH_TOKEN_AUTH', AuthParameters={'REFRESH_TOKEN': previous['RefreshToken']})
         cognito = {**result.get('AuthenticationResult', {}), 'RefreshToken': previous['RefreshToken']}
