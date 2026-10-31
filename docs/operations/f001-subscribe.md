@@ -60,6 +60,8 @@ reads the canonical contact and returns PROFILE and ADDRESS values, including
 optional username, organization, job title and address fields. The published Flow
 already has the required `init-values` bindings.
 
+**Production send mismatch observed 2026-10-31:** The existing `service_details` template was read live and is APPROVED / UTILITY with a `DATA_EXCHANGE` Flow button. At 02:08:15 and 02:08:24 UTC, Meta rejected the Orders-triggered send with 400 / 131009. The website sender had been adding `flow_action_data` for an existing contact; this is incompatible with the template's DATA_EXCHANGE entry behavior, where INIT owns prefill. The draft fix retains only the one-use `flow_token` in the outgoing template button and keeps the identity-conflict guard. Verify a controlled send and F001 INIT after deployment before claiming resolution.
+
 **Activation gate:** inspect `service_details` again in Meta after approval:
 the template must be APPROVED and its FLOW button must use
 `DATA_EXCHANGE`. Review its category; a separate test template was reclassified
