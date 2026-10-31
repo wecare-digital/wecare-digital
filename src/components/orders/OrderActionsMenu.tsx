@@ -2,13 +2,12 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../../lib/customerMenuActions';
-import { stashPendingOrder } from '../../lib/orderPage';
 
 /**
- * The Orders history's per-row service navigation. Request actions return to the
- * authenticated Orders hub, carrying only the public order selector in sessionStorage
- * so the existing inline details can reopen. They never send a request, start a
- * payment, or treat an order number as proof of ownership.
+ * The Orders history's per-row service navigation. Actions open the
+ * authenticated Orders hub, without opening any individual order/receipt UI.
+ * Subscribe and Review use a one-time explicit-click intent; no order ID or
+ * phone is sent from the browser. Payment and ownership decisions remain server-owned.
  *
  * Icon paths match the public Header's Request menu (including its indented
  * shipment arrow); the filled Material paths retain their original 960px viewBox.
@@ -171,15 +170,12 @@ export default function OrderActionsMenu ( { orderNumber }: Props ): React.React
   const count = requests.length + shipments.length + other.length;
 
   const onNavigate = ( event: React.MouseEvent<HTMLAnchorElement>, action: Action ) => {
-    // A plain, same-tab order action reopens its originating row after navigation.
-    // Modifier-clicks/new tabs remain ordinary anchors; never leak the selection into
-    // the original tab where it could unexpectedly reopen a different order later.
+    // Only a real click on Subscribe/Leave Review queues the authenticated
+    // WhatsApp template. No row selection or receipt is opened in Orders.
     if ( !action.external && action.href === '/orders/' && isPrimaryMenuActivation( event ) ) {
-      stashPendingOrder( orderNumber );
       const sendAction = menuActionForLabel( action.label );
       if ( sendAction ) {
-        // Carry only the user's deliberate menu choice through /auth/.
-        // The server selects the phone from the verified customer session.
+        // The server selects the recipient from the verified customer session.
         stashCustomerMenuAction( sendAction );
       }
     }
