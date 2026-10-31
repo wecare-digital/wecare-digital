@@ -2682,6 +2682,12 @@ def _native_cart_invoice_fields(reference_id: str, checkout_mode: str,
             lines = attempt.get('invoiceLines')
             if isinstance(lines, dict) and lines.get('lines'):
                 fields['nativeCartInvoice'] = json.loads(json.dumps(lines, default=_plain_number))
+            if attempt.get('serviceKind') == 'VAULT':
+                # Fail-safe single-line fallback when legacy itemisation is
+                # unavailable: still name the actual paid document-download
+                # service, not a provider's generic payment description.
+                from lambda_utils.ecommerce.catalog_service_checkout import vault_item_description
+                fields['itemName'] = vault_item_description(attempt.get('vaultItemDescription'))
         return fields
     except Exception as error:  # noqa: BLE001 - itemisation never fails a settled capture
         logger.warning(json.dumps({'event': 'native_cart_invoice_fields_unavailable',
