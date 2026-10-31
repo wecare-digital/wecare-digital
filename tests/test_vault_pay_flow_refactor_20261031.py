@@ -67,19 +67,35 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         self.assertNotIn("Unlock Vault offer", timeline)
         self.assertIn("Four-stage Vault payment and access", timeline)
 
-    def test_bounded_timing_has_backend_validation_and_payment_gates(self):
+    def test_only_access_delay_is_editable_and_status_messages_have_no_sleep(self):
         editor = source("src/components/workspace/pay/VaultDeliveryTiming.tsx")
         ai_config = source("amplify/functions/ai/ai-config-management/handler.py")
         webhook = source("amplify/functions/payments/razorpay-webhook/handler.py")
         access = source("amplify/functions/messaging/whatsapp-business-api/flows/paid_vault.py")
-        for text in (editor, ai_config, webhook, access):
+        for text in (editor, ai_config, access):
             self.assertIn("vault_delivery_timing_v1", text)
+            self.assertIn("postReceiptAccessGapSeconds", text)
+        self.assertNotIn("vault_delivery_timing_v1", webhook)
         self.assertIn("value <= 5", editor)
-        self.assertIn("proposed[key] > 5", ai_config)
-        self.assertIn("0 <= value <= 5", webhook)
+        self.assertIn("required = {'postReceiptAccessGapSeconds'}", ai_config)
+        self.assertNotIn("required = {'orderStatusGapSeconds',", ai_config)
+        self.assertIn("not 0 <= proposed['postReceiptAccessGapSeconds'] <= 5", ai_config)
         self.assertIn("0 <= gap <= 5", access)
-        self.assertIn("_is_paid_vault_checkout(reference_id)", webhook)
+        self.assertIn("_post_receipt_access_gap_seconds()", access)
         self.assertIn("vaultNotificationStatus", access)
+        self.assertNotIn("_vault_status_gap_seconds", webhook)
+        self.assertNotIn("_VAULT_STATUS_GAP_SECONDS", webhook)
+        self.assertNotIn("_is_paid_vault_checkout", webhook)
+        fulfilment = webhook.split("def _start_native_fulfilment(")[1].split(
+            "_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS", 1
+        )[0]
+        self.assertNotIn("time.sleep(", fulfilment)
+        self.assertIn("invoice_id, 'processing'", fulfilment)
+        self.assertIn("invoice_id, 'completed'", fulfilment)
+        preview = source("src/components/workspace/service/VaultJourneyPreview.tsx")
+        timeline = source("src/components/workspace/service/VaultMessageTimeline.tsx")
+        self.assertIn("No artificial wait", preview)
+        self.assertNotIn("record.defaultDelaySeconds", timeline)
 
     def test_media_endpoint_is_fixed_and_staff_only(self):
         handler = source("amplify/functions/core/secure-files/handler.py")
