@@ -160,14 +160,19 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
   || raw.slug === CONTRIBUTION_SLUG;
 
 /**
- * The services product (Submit Request / Request Amendment, Phase O-1) is a payment VEHICLE too,
- * excluded from `/shop/` by product id for the same reason as the contribution: its catalog product
- * carries four variants, two of which (Drop Docs, Vault) are not offered yet, and a shop page
- * would add a line with no service intent - which checkout refuses. The services are bought from
- * /submit-request/ and /request-amendment/. It stays in KNOWN_CATALOGUE_PRODUCT_IDS.
+ * Paid request products remain valid catalogue/payment identities, not separate public
+ * `/shop/<slug>/` checkout pages. Every service starts from the customer's Orders hub.
+ * Exclude by product identity AND by known service slug: Shipment Track has a distinct
+ * product id but must not accidentally generate /shop/shipments-track/ in the sitemap.
+ * Keep excluded identities in KNOWN_CATALOGUE_PRODUCT_IDS for existing cart receipts.
  */
+const ORDER_HUB_SERVICE_SLUGS = new Set( [
+  'submit-request', 'request-amendment', 'drop-docs', 'vault',
+  'shipments-track', 'request-pickup',
+] );
 const isServicesRow = ( raw: RawProduct ): boolean =>
-  SERVICE_PRODUCT_IDS.has( String( raw.id || '' ).trim().toLowerCase() );
+  SERVICE_PRODUCT_IDS.has( String( raw.id || '' ).trim().toLowerCase() )
+  || ORDER_HUB_SERVICE_SLUGS.has( String( raw.slug || '' ) );
 
 /** The one projection, so the excluded entry is a real `ShopProduct` and not a raw snapshot row. */
 const project = ( raw: RawProduct ): ShopProduct => {

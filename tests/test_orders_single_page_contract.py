@@ -140,7 +140,8 @@ def test_orders_backend_failures_render_once_above_table() -> None:
     assert 'className="ord-toast-rail"' in orders
     assert 'className="ord-backend-toast" role="alert" aria-atomic="true"' in orders
     assert orders.index('className="ord-toast-rail"') < orders.index('className="ord-shell"')
-    assert orders.count('className="ord-backend-toast"') == 2  # Backend alert and copy toast
+    assert orders.count('className="ord-backend-toast"') == 1  # Backend error banner
+    assert orders.count('className="ord-backend-toast ord-copy-toast"') == 1  # Compact copy toast
     assert "role=\"status\"" in orders  # Non-error clipboard feedback remains separate.
 
     # Covers backend history errors (including rate limits), pagination, profile linking,

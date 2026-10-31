@@ -42,6 +42,16 @@ on:
       - 'tests/test_short_commerce_part1.py'
       - 'tests/test_orders_single_page_contract.py'
       - 'tests/test_canonical_customer_order_urls_20261031.py'
+      - 'tests/test_retired_customer_service_pages_20261031.py'
+      - 'src/pages/vault.tsx'
+      - 'src/pages/submit-request.tsx'
+      - 'src/pages/request-amendment.tsx'
+      - 'src/pages/drop-docs.tsx'
+      - 'src/pages/shipments/track.tsx'
+      - 'src/pages/request-pickup.tsx'
+      - 'src/content/shopProducts.ts'
+      - 'scripts/generate_shop_listings.py'
+      - 'scripts/provision_legacy_redirects.py'
       - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
@@ -89,6 +99,16 @@ on:
       - 'tests/test_short_commerce_part1.py'
       - 'tests/test_orders_single_page_contract.py'
       - 'tests/test_canonical_customer_order_urls_20261031.py'
+      - 'tests/test_retired_customer_service_pages_20261031.py'
+      - 'src/pages/vault.tsx'
+      - 'src/pages/submit-request.tsx'
+      - 'src/pages/request-amendment.tsx'
+      - 'src/pages/drop-docs.tsx'
+      - 'src/pages/shipments/track.tsx'
+      - 'src/pages/request-pickup.tsx'
+      - 'src/content/shopProducts.ts'
+      - 'scripts/generate_shop_listings.py'
+      - 'scripts/provision_legacy_redirects.py'
       - 'tests/test_vault_review_pay_image_compatibility_20261031.py'
       - 'tests/test_short_purchase_policy.py'
       - 'scripts/deploy_all_lambdas.py'
@@ -118,9 +138,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --quiet pytest
-      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
-      # This checkout legacy test file includes an unrelated stale CartPage assertion;
-      # run only the two source contracts touched by authenticated menu/template wiring.
+      - run: python -m pytest -q tests/test_short_commerce_part1.py tests/test_orders_single_page_contract.py tests/test_canonical_customer_order_urls_20261031.py tests/test_retired_customer_service_pages_20261031.py tests/test_vault_review_pay_image_compatibility_20261031.py tests/test_drop_docs_published_flow_audit.py tests/test_payment_collect_alarm_contract.py tests/test_authenticated_customer_menu_templates.py tests/test_toast_surface_consistency.py
+      # Unrelated legacy CartPage assertion predates full-cart checkout; keep
+      # only the two currently relevant authenticated-menu source contracts.
       - run: python -m pytest -q tests/test_checkout_profile_lime_contract.py::test_orders_signout_moves_into_card_and_profile_update_stays_in_subscribe tests/test_checkout_profile_lime_contract.py::test_website_profile_template_uses_data_exchange_init_for_optional_prefill
       - run: python -m unittest discover -s tests -p test_short_purchase_policy.py
       - name: Release attestation checker (offline, no AWS access)

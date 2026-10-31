@@ -72,6 +72,16 @@ SHELF_ORDER: tuple[str, ...] = (
 #: Live, purchasable rows kept off the horizontal image rail (owner rule: Contribute).
 OFF_SHELF_SLUGS: frozenset[str] = frozenset({"contribute"})
 
+# These six items remain live paid products in ProductsTable (SKU, pricing and
+# fulfilment are unchanged), but the five standalone service pages are retired.
+# Website browsing must always take customers to the authenticated Orders hub.
+# This frontend-only override is necessary until the ProductsTable canonicalPath
+# values are reconciled; otherwise regenerating shopProducts.ts resurrects old URLs.
+ORDER_HUB_SERVICE_SLUGS: frozenset[str] = frozenset({
+    "submit-request", "request-amendment", "drop-docs", "vault",
+    "shipments-track", "request-pickup",
+})
+
 HEADER = """/** Generated Shop publication projection from the live ProductsTable catalog fields.
  *
  * DO NOT EDIT BY HAND. Regenerate with scripts/generate_shop_listings.py, which runs the same
@@ -230,7 +240,7 @@ def listing_for(row: dict[str, Any], projection: ModuleType) -> dict[str, Any]:
         "blurb": item["description"],
         # The same variant identity Meta's retailer id carries (sku, else id).
         "sku": shaped["variants"][0]["id"],
-        "href": url[len(ORIGIN):],
+        "href": "/orders/" if slug in ORDER_HUB_SERVICE_SLUGS else url[len(ORIGIN):],
         "formattedPrice": inr(item["price"]),
     }
     image = str(item.get("image_url") or "")

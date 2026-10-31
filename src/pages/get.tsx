@@ -13,15 +13,15 @@ const GetRedirect: React.FC = () => {
   const router = useRouter();
 
   useEffect( () => {
-    void router.replace( '/vault/' );
+    void router.replace( '/orders/' );
   }, [ router ] );
 
   return (
     <Head>
       <title>{ buildPageTitle( 'Vault' ) }</title>
       <meta name="robots" content="noindex, follow" />
-      <meta httpEquiv="refresh" content="0; url=/vault/" />
-      <link rel="canonical" key="canonical" href="https://wecare.digital/vault/" />
+      <meta httpEquiv="refresh" content="0; url=/orders/" />
+      <link rel="canonical" key="canonical" href="https://wecare.digital/orders/" />
     </Head>
   );
 };

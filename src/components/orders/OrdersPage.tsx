@@ -697,7 +697,7 @@ export default function OrdersPage (): React.ReactElement {
                 </p>
               ) }
               { copyNotice && (
-                <p className="ord-backend-toast" role={ copyNotice.kind === 'fallback' ? 'alert' : 'status' }
+                <p className="ord-backend-toast ord-copy-toast" role={ copyNotice.kind === 'fallback' ? 'alert' : 'status' }
                   aria-atomic="true">
                   { copyNotice.message }
                 </p>
@@ -1150,6 +1150,12 @@ export default function OrdersPage (): React.ReactElement {
             font-family:var(--font-sans);
             font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;
             overflow-wrap:anywhere;
+          }
+          /* Clipboard success is a short, content-width toast. Backend failures keep
+             their larger readable banner; lengthy clipboard fallback text wraps. */
+          .ord-backend-toast.ord-copy-toast{
+            inline-size:fit-content;max-inline-size:min(100%,320px);
+            margin:0;padding:8px 12px;
           }
 
           /* A TABLE IS CORRECT HERE, and the 280px objection the previous comment raised is
