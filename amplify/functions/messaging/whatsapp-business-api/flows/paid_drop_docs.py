@@ -30,7 +30,10 @@ FLOW_CODE = "WD_F003_DROP_DOCS"
 def _outcome(response):
     if not isinstance(response, dict):
         return "SEND_UNKNOWN"
-    code = int(response.get("statusCode") or 0)
+    try:
+        code = int(response.get("statusCode") or 0)
+    except (TypeError, ValueError):
+        return "SEND_UNKNOWN"
     if 200 <= code < 300:
         # 2xx alone is not provider acceptance. Require the same durable
         # WhatsApp message ID as the shared sender; otherwise retain an
