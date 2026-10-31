@@ -58,6 +58,7 @@ for (const page of catalogue.pages || []) {
   }
 }
 
+const approvedPublicRoutes = new Set();
 const sitemapSource = fs.readFileSync(path.join(root, 'scripts/generate-sitemap.js'), 'utf8');
 const block = sitemapSource.match(/const PUBLIC_EXACT\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
 if (!block) {
@@ -66,7 +67,109 @@ if (!block) {
   const withoutComments = block[1].split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
   const routes = [...withoutComments.matchAll(/['"]((?:\/)[a-z0-9/-]*)['"]/g)].map(x => x[1]);
   for (const route of routes) {
+    approvedPublicRoutes.add(route);
     if (denied.has(route)) failures.push('Retired route in sitemap allowlist: ' + route);
+  }
+}
+
+// Every standalone public page must either appear on the approved crawl list or
+// be an explicitly documented non-indexable flow. This closes a loophole where
+// someone could add src/pages/old-page.tsx without putting it in the sitemap:
+// Next would still export a public HTML page, but the old guard would not notice.
+// Workspace/admin pages and API handlers are authenticated operational routes,
+// not orphaned public pages; they are intentionally audited separately.
+const ALLOWED_NONINDEXABLE_PAGES = new Set([
+  '/_app', '/_document', '/404', '/auth', '/cart', '/vault',
+  '/checkout', '/checkout/status', '/checkout/success', '/checkout/whatsapp',
+  '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
+  '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
+]);
+
+function listFiles (directory) {
+  if (!exists(directory)) return [];
+  const visit = relative => fs.readdirSync(path.join(root, relative), { withFileTypes: true })
+    .flatMap(entry => {
+      const next = path.posix.join(relative, entry.name);
+      if (entry.isDirectory()) return visit(next);
+      return entry.isFile() ? [ next ] : [];
+    });
+  return visit(directory);
+}
+
+function nextPageRoute (file) {
+  const relative = file.slice('src/pages/'.length)
+    .replace(/\.(tsx|ts|jsx|js)$/, '')
+    .replace(/(^|\/)index$/, '')
+    .replace(/\/$/, '');
+  return '/' + relative;
+}
+
+const publicPageFiles = listFiles('src/pages')
+  .filter(file => /\.(tsx|ts|jsx|js)$/.test(file))
+  .filter(file => !file.startsWith('src/pages/workspace/')
+    && !file.startsWith('src/pages/api/'));
+for (const file of publicPageFiles) {
+  const route = nextPageRoute(file);
+  if (!approvedPublicRoutes.has(route) && !ALLOWED_NONINDEXABLE_PAGES.has(route)) {
+    failures.push('Unregistered/orphaned public page: ' + file + ' (' + route + ')');
+  }
+}
+
+// Unlike Next page source, public/*.html is served directly even if nothing
+// links to it. Only the existing verification and embedded VayuLok page are
+// permitted. A new HTML file needs an explicit review/exception.
+const ALLOWED_PUBLIC_HTML = new Set([
+  'public/google907ae7b9233a31c5.html',
+  'public/vayulok-globe.html',
+]);
+for (const file of listFiles('public').filter(file => /\.html?$/i.test(file))) {
+  if (!ALLOWED_PUBLIC_HTML.has(file)) {
+    failures.push('Unregistered standalone public HTML file: ' + file);
+  }
+}
+
+// The dynamic /shop/[slug] route emits one public page per SHOP_PRODUCTS row.
+// A catalog payment SKU is not authorization to recreate a former public page.
+// Guard the filtered projection, every retired slug and the generated shelf URLs.
+const RETIRED_SHOP_SLUGS = new Set([
+  'bharat-rx', 'submit-request', 'request-amendment', 'drop-docs', 'vault',
+  'shipments-track', 'request-pickup', 'leave-review', 'subscribe', 'get',
+  'request-services',
+]);
+const ACTIVE_ORDER_SERVICE_SLUGS = new Set([
+  'submit-request', 'request-amendment', 'drop-docs', 'vault',
+  'shipments-track', 'request-pickup',
+]);
+const shopSource = fs.readFileSync(path.join(root, 'src/content/shop.ts'), 'utf8');
+const excluded = shopSource.match(/const ORDER_HUB_SERVICE_SLUGS\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+if (!excluded) {
+  failures.push('Dynamic Shop retired-slug exclusion is missing');
+} else {
+  const blocked = new Set([...excluded[1].matchAll(/'([a-z0-9-]+)'/g)].map(match => match[1]));
+  for (const slug of RETIRED_SHOP_SLUGS) {
+    if (!blocked.has(slug)) {
+      failures.push('Dynamic Shop may republish retired slug: ' + slug);
+    }
+  }
+}
+if (!shopSource.includes('.filter( raw => !isServicesRow( raw ) )')) {
+  failures.push('SHOP_PRODUCTS must exclude Orders/service payment vehicles');
+}
+const shopDetails = fs.readFileSync(path.join(root, 'src/pages/shop/[slug].tsx'), 'utf8');
+if (!shopDetails.includes('paths: SHOP_PRODUCTS.map(')) {
+  failures.push('Dynamic Shop page generation must use the filtered SHOP_PRODUCTS');
+}
+const listingGenerator = fs.readFileSync(path.join(root, 'scripts/generate_shop_listings.py'), 'utf8');
+if (!listingGenerator.includes('"/orders/" if slug in ORDER_HUB_SERVICE_SLUGS')) {
+  failures.push('Generated service catalogue links must use the Orders hub');
+}
+const listingSource = fs.readFileSync(path.join(root, 'src/content/shopProducts.ts'), 'utf8');
+for (const line of listingSource.split('\n')) {
+  const slug = line.match(/\bslug:\s*'([^']+)'/);
+  if (!slug || !RETIRED_SHOP_SLUGS.has(slug[1])) continue;
+  const href = line.match(/\bhref:\s*'([^']+)'/);
+  if (!ACTIVE_ORDER_SERVICE_SLUGS.has(slug[1]) || !href || href[1] !== '/orders/') {
+    failures.push('Catalog listing could restore a retired public page: ' + slug[1]);
   }
 }
 
