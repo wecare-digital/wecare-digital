@@ -1818,30 +1818,14 @@ def run(root: Path) -> int:
               (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
               and web_attempt.get("deliveryRecipient") == "Buyer 62",
               (web_attempt.get("deliveryAddress") or {}).get("postalCode"))
-        order_view = checkout._order_view(
-            {"orderNumber": "WD-ORD-22222223", "currency": "INR", "amountPaise": Decimal(100),
-             "paymentStatus": "PAYMENT_PAID", "orderStatus": "shipped", "createdAt": Decimal(1),
-             "checkoutDeliveryAddress": {"addressLine1": "x"}},
-            {"invoiceLines": {"lines": [{"name": "A", "quantity": 1, "unitPricePaise": 100}],
-                              "deliveryPaise": 0, "discountPaise": 0, "convenienceFeePaise": 1,
-                              "convenienceGstPaise": 0, "totalPaise": 101}})
-        check("PAGE", "an unreconciled breakdown or an unusable stored address is omitted, not shown",
-              order_view["charges"] is None and order_view["delivery"] is None
-              and order_view["items"][0]["totalPaise"] == 100 and order_view["fulfilmentStatus"] == "shipped",
-              {k: order_view[k] for k in ("charges", "delivery", "fulfilmentStatus")})
-        # A website order's row is fulfilment, set by staff, so it is shown; the same word on a
-        # WhatsApp-paid row is the payment-order state and is not.
-        website_view = checkout._order_view(
-            {"orderNumber": "WD-ORD-22222224", "currency": "INR", "amountPaise": Decimal(100),
-             "paymentStatus": "PAYMENT_PAID", "orderStatus": "completed",
-             "checkoutMode": "WEBSITE_RAZORPAY_STANDARD", "createdAt": Decimal(1)}, {})
-        whatsapp_view = checkout._order_view(
-            {"orderNumber": "WD-ORD-22222225", "currency": "INR", "amountPaise": Decimal(100),
-             "paymentStatus": "PAYMENT_PAID", "orderStatus": "completed",
-             "checkoutMode": "WHATSAPP_NATIVE_CART", "createdAt": Decimal(1)}, {})
-        check("PAGE", "'completed' is fulfilment on a website order and not on a WhatsApp-paid one",
-              website_view["fulfilmentStatus"] == "completed" and whatsapp_view["fulfilmentStatus"] == "",
-              (website_view["fulfilmentStatus"], whatsapp_view["fulfilmentStatus"]))
+        # Individual-order views have been retired. The paid website checkout
+        # still freezes its delivery address, tested above; it must never
+        # surface a GST or fulfilment breakdown through an old view helper.
+        check("PAGE", "customer detail projection is absent from the checkout handler",
+              not hasattr(checkout, "_order_view")
+              and not hasattr(checkout, "_order_detail")
+              and not hasattr(checkout, "_order_lines"),
+              "retired order helpers not exposed")
     finally:
         checkout.razorpay_orders.create_order = real_create
         checkout.razorpay_orders.find_order_by_receipt = real_find
