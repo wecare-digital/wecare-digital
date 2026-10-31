@@ -99,6 +99,12 @@ def test_workspace_targets_are_distinct_and_read_only():
     assert "serviceLedger('REQUEST_AMENDMENT')" in page
     assert "serviceLedger('REQUEST_PICKUP')" in page
     assert "pricePanel('shipments-track')" in page
+    assert "<ShipmentTrackingPanel />" in page
+    tracking = (ROOT / "src/components/workspace/service/ShipmentTrackingPanel.tsx").read_text()
+    assert "api.listOrders({limit: 150})" in tracking
+    assert "api.getTrackingData(order.orderId)" in tracking
+    assert "api.createOrder(" not in tracking
+    assert "api.updateOrder(" not in tracking
     assert "pricePanel('request-pickup')" in page
     assert "<Contribute />" in page
     assert "PaymentTemplateMedia" in pricing
