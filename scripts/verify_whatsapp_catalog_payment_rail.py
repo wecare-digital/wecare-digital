@@ -1720,6 +1720,33 @@ def run(root: Path) -> int:
             {"catalogReference": {"catalogItemId": shop.kit,
                                   "options": {"variantId": "KIT1"}}, "quantity": 1},
         ]
+        # Issue #1998: the read-only quote arm must refuse malformed and
+        # unauthenticated requests WITHOUT calling the Razorpay order creator,
+        # writing PaymentAttempts, or emitting a WhatsApp message. Exercise
+        # both the direct quote helper and the real pre-auth handler seam.
+        before_malformed = W.mark()
+        for invalid_lines in (None, [], "untrusted-lines", {}):
+            result = checkout._website_quote(
+                multi_who, {"action": "quote", "lineItems": invalid_lines},
+                "https://wecare.digital")
+            check("WEB", "malformed quote is a no-charge 400 refusal",
+                  result.get("statusCode") == 400
+                  and not _attempts_for(multi_customer["sub"])
+                  and not created_orders
+                  and not _pay_sends(W.since(before_malformed, "meta_sends")),
+                  {"status": result.get("statusCode"), "type": type(invalid_lines).__name__})
+        anonymous_quote = checkout.handler(
+            {"requestContext": {"http": {"method": "POST", "path": "/ecommerce/checkout"}},
+             "rawPath": "/ecommerce/checkout", "headers": {},
+             "body": json.dumps({"action": "quote", "lineItems": multi_lines})},
+            FakeContext("wecare-checkout"))
+        check("WEB", "anonymous full-cart quote requires customer auth with zero side effects",
+              anonymous_quote.get("statusCode") == 401
+              and not _attempts_for(multi_customer["sub"])
+              and not created_orders
+              and not _pay_sends(W.since(before_malformed, "meta_sends")),
+              anonymous_quote.get("statusCode"))
+
         before_multi = len(created_orders)
         preview_response = checkout._website_quote(
             multi_who, {"action": "quote", "lineItems": multi_lines},
