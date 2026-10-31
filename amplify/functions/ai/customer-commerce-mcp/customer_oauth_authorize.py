@@ -23,7 +23,7 @@ def authorize_get(params: dict) -> dict:
         'sidHash': key,
         'kind': 'oauth-auth',
         'client': params['client_id'],
-        'resource': resource(),
+        'resource': params['resource'],
         'redirect': params['redirect_uri'],
         'state': params['state'],
         'scope': params['scope'],
@@ -70,7 +70,7 @@ def authorize_post(params: dict, event: dict) -> dict:
             return website_recovery(return_hint)
         raise AuthError('Invalid authorization session')
 
-    login = uncapsule(row['cipher'], row['client'], key)
+    login = uncapsule(row['cipher'], row['client'], key, row.get('resource'))
     website = row.get('kind') == 'web-auth'
     if website != website_form:
         raise AuthError('Invalid authorization session')
@@ -214,11 +214,11 @@ def authorize_post(params: dict, event: dict) -> dict:
             'sidHash': grant_key,
             'kind': 'grant',
             'client': row['client'],
-            'resource': resource(),
+            'resource': row['resource'],
             'scope': row['scope'],
             'subject': subject,
             'absoluteExpiresAt': now + 30 * 86400,
-            'cipher': capsule(cognito, row['client'], grant_key),
+            'cipher': capsule(cognito, row['client'], grant_key, row['resource']),
         }
         STORE.put(grant)
 
@@ -229,7 +229,7 @@ def authorize_post(params: dict, event: dict) -> dict:
                 'sidHash': row_key('code', code),
                 'kind': 'code',
                 'client': row['client'],
-                'resource': resource(),
+                'resource': row['resource'],
                 'redirect': row['redirect'],
                 'challenge': row['challenge'],
                 'grant': grant_key,
@@ -353,14 +353,14 @@ def route(event: dict) -> dict | None:
             if set(params) != {'client_id', 'resource', 'token'}:
                 raise AuthError('Invalid revoke request')
             client(params['client_id'])
-            if params['resource'] != resource():
+            if params['resource'] not in accepted_resources():
                 raise AuthError('Invalid resource')
             kind = 'refresh' if params['token'].startswith('wcr_') else 'access'
             row = STORE.get(row_key(kind, params['token']))
             if (
                 row
                 and row.get('client') == params['client_id']
-                and row.get('resource') == resource()
+                and row.get('resource') == params['resource']
             ):
                 STORE.take(row['grant'])
                 STORE.take(row['sidHash'])
