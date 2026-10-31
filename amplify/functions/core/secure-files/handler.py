@@ -71,7 +71,8 @@ from botocore.exceptions import ClientError
 
 from lambda_utils import customer_auth, media_paths, whatsapp_templates
 from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
-from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
+from lambda_utils.ecommerce import (catalog_service_checkout, document_errors,
+                                  dropdocs_storage, service_request_store)
 from lambda_utils.ecommerce import vault_window
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
@@ -1742,6 +1743,7 @@ def _file_access_state(item: Dict[str, Any], now: int) -> str:
 
 def _start_native_vault_payment(
     item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
+    payment_description: str = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT,
 ) -> Dict[str, Any]:
     """Ask the existing native WhatsApp rail for ONE exact-file Review and Pay.
 
@@ -1755,6 +1757,8 @@ def _start_native_vault_payment(
     # actually available. No customer should receive a charge for a dead link.
     if not _vault_file_storage_ready(item):
         return _vault_storage_unavailable(origin)
+    if not catalog_service_checkout.valid_vault_item_description(payment_description):
+        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     try:
         response = _lambda_client().invoke(
             FunctionName=BUSINESS_API_FUNCTION,
@@ -1765,6 +1769,7 @@ def _start_native_vault_payment(
                 "ownerCustomerId": str(item["ownerCustomerId"]),
                 "ownerPhone": str(item["ownerPhone"]),
                 "requestedBy": str(requested_by or "")[:64],
+                "paymentItemDescription": payment_description,
             }).encode("utf-8"),
         )
         answer = json.loads(response["Payload"].read() or b"{}")
@@ -1822,6 +1827,13 @@ def _customer_request_payment(
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+    body = json.loads(event.get("body") or "{}")
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    description = body.get(
+        "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
+    if not catalog_service_checkout.valid_vault_item_description(description):
+        return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
     state = _file_access_state(item, int(time.time()))
     if state in ("OPEN", "READY"):
         code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
@@ -1928,7 +1940,8 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
         }, origin)
     return _start_native_vault_payment(
         item, state, origin,
-        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64])
+        requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
+        payment_description=description)
 
 
 def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
