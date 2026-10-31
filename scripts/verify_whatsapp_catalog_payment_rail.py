@@ -11,8 +11,10 @@
     -> ONE order (internal fulfilment starts at processing) + ONE paid invoice
     -> exactly TWO template-only WhatsApp payment-order status messages: processing -> completed
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
-    -> the order page (`/orders/`, with checkout's owner-checked inline `order` action): the delivery address
-    frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
+    -> the compact, owner-bound `/orders/` payment history: order number, date, amount,
+    status, invoice download and service actions only. No expandable receipt, line items,
+    GST/fee breakdown, delivery address or order-source label. The former checkout
+    `action: "order"` is retired (HTTP 410); invoice and fulfilment records stay internal.
     Section 9d covers the website prepare's own address gate. Section 13 runs one ₹49 Vault
     purchase the same way: the `wecare_vault_request_ready` offer, the Unlock Vault tap, Review and Pay, the
     capture, the durable entitlement, the Access Vault link, the customer's Vault list and
@@ -1821,6 +1823,25 @@ def run(root: Path) -> int:
         # Individual-order views have been retired. The paid website checkout
         # still freezes its delivery address, tested above; it must never
         # surface a GST or fulfilment breakdown through an old view helper.
+        # Source contract for customer-facing Orders. Keep this in the existing
+        # manual verifier; root tests/ and GitHub Actions are intentionally retired.
+        orders_file = root / "src/components/orders/OrdersPage.tsx"
+        order_path_file = root / "src/lib/orderPage.ts"
+        orders_source = orders_file.read_text(encoding="utf-8") if orders_file.is_file() else ""
+        path_source = order_path_file.read_text(encoding="utf-8") if order_path_file.is_file() else ""
+        detail_file = root / "src/components/orders/OrderDetail.tsx"
+        check("PAGE", "customer Orders remains compact with no detail or row expansion",
+              bool(orders_source)
+              and not detail_file.exists()
+              and "OrderDetail" not in orders_source
+              and "expandedOrder" not in orders_source
+              and "setExpanded" not in orders_source
+              and not re.search(r"<tr\b[^>]*\bonClick\s*=", orders_source)
+              and "<OrderActionsMenu" in orders_source
+              and "params.has( 'o' )" in orders_source
+              and "window.history.replaceState" in orders_source
+              and "return '/orders/';" in path_source,
+              "compact history, no row selector/detail component, legacy link normalized")
         check("PAGE", "customer detail projection is absent from the checkout handler",
               not hasattr(checkout, "_order_view")
               and not hasattr(checkout, "_order_detail")
