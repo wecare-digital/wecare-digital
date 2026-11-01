@@ -7525,6 +7525,91 @@ def _customer_leave_review_template(event: Dict[str, Any]) -> Dict[str, Any]:
     })
 
 
+
+def _customer_referral_template(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Send the approved F008 referral Flow to the authenticated referrer's own phone.
+
+    Identical explicit-click provider rail to Leave Review. Neither this launcher nor
+    the Flow INIT creates a referral, contacts the referred person, or sets marketing
+    consent; only the signed terminal nfm_reply can save a consented submission.
+    """
+    from lambda_utils import canonical_flows, contact_store, template_media, whatsapp_templates
+    from flows import common as flow_common
+
+    phone = contact_store.digits(event.get('phone'))
+    if not phone:
+        return _resp(400, {'error': 'Invalid customer phone'})
+
+    record = canonical_flows.published_flow('referral')
+    if not record:
+        return _resp(409, {'error': flow_launch.explain('canonical_not_published'),
+                           'reason': 'canonical_not_published'})
+    try:
+        registry = flow_launch.read_registry_row(
+            dynamodb.Table(FLOW_REGISTRY_TABLE), str(record.get('flowId') or ''))
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'customer_referral_registry_failed',
+                                 'errorType': type(exc).__name__}))
+        return _resp(503, {'error': flow_launch.explain('registry_unreadable'),
+                           'reason': 'registry_unreadable'})
+    decision = flow_launch.publication_decision(capability='referral', registry_row=registry)
+    if not decision.allowed:
+        return _resp(409, {'error': flow_launch.explain(decision.reason),
+                           'reason': decision.reason})
+
+    flow_code = str((canonical_flows.canonical_contract('referral') or {}).get('flowCode') or '')
+    funnel_table = dynamodb.Table(flow_funnel.table_name())
+
+    def count(stage: str, **fields: Any) -> None:
+        flow_funnel.record(funnel_table, flow_code, stage, logger=logger,
+                           launchChannel=flow_sessions.LAUNCH_WEB, **fields)
+
+    count('launch_attempted')
+    try:
+        contact_row = contact_store.lookup(
+            flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE), phone) or {}
+    except contact_store.IdentityConflict:
+        count('launch_blocked', reason='identity_conflict')
+        return _resp(409, {'error': 'Customer identity needs support before a referral can be sent.'})
+
+    # DATA_EXCHANGE uses only a token, never flow_action_data. F008's INIT
+    # returns the static REFER screen; the terminal nfm_reply is persisted
+    # through the existing referral_response handler, not from this endpoint.
+    token = flow_sessions.mint_token('referral', phone, waba='1')
+    template = whatsapp_templates.REFERRAL
+    header = template_media.fixed_image_header(template.name)
+    if not header:
+        count('launch_failed', reason='header_missing')
+        return _resp(409, {'error': 'Referral header image is unavailable.'})
+    components = [
+        {'type': 'header',
+         'parameters': [{'type': 'image', 'image': {'link': header}}]},
+        {'type': 'button', 'sub_type': 'flow', 'index': '0',
+         'parameters': [{'type': 'action', 'action': {'flow_token': token}}]},
+    ]
+    response = _send_template_msg({
+        'to': phone, 'phoneId': PHONE1_META_ID,
+        'templateName': template.name, 'language': template.language,
+        'components': components,
+    }, internal=True)
+    if response.get('statusCode') != 200:
+        count('launch_failed', reason='graph_error')
+        return response
+
+    message_id = _track_customer_menu_template_send(
+        phone=phone, contact=contact_row, template_name=template.name,
+        content=('📋 Your referral request has been received. Please use the button '
+                 'below to complete or update the details of this request.'),
+        response=response)
+    count('launch_sent')
+    return _resp(200, {
+        'success': True, 'status': 'REFERRAL_REQUEST_SENT',
+        'messageId': message_id,
+        'flowCode': flow_code,
+        'launchChannel': flow_sessions.LAUNCH_WEB,
+    })
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
@@ -7567,6 +7652,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
         return _customer_leave_review_template(event)
+    if event.get('internalAction') == 'customerReferralTemplate':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _customer_referral_template(event)
     if event.get('internalAction') == 'ensurePrimaryFlowEncryption':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
