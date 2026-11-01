@@ -16,6 +16,13 @@ interface Props {
   signedPreview?: boolean;
 }
 
+/** Canonical, owner-approved SOURCE media. These URLs are display references only;
+ * the outbound Lambda owns the actual Meta media payload and must validate it. */
+export const PAYMENT_HEADER_SOURCE_URL =
+  'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png';
+export const ORDER_DETAILS_ITEM_SOURCE_URL =
+  'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png';
+
 const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signedPreview = false } ) => {
   const [ signed, setSigned ] = React.useState<api.VaultPaymentMediaPreview | null>( null );
   const [ loading, setLoading ] = React.useState( false );
@@ -105,8 +112,26 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
           This screen cannot replace or upload a payment image.
         </p>
       ) }
+      <div className="payment-media-source-links" aria-label="Read-only payment image source URLs">
+        <strong>Approved source image references</strong>
+        <a href={ PAYMENT_HEADER_SOURCE_URL } target="_blank" rel="noopener noreferrer">
+          Header: { PAYMENT_HEADER_SOURCE_URL }
+        </a>
+        <a href={ ORDER_DETAILS_ITEM_SOURCE_URL } target="_blank" rel="noopener noreferrer">
+          ORDER_DETAILS item: { ORDER_DETAILS_ITEM_SOURCE_URL }
+        </a>
+        <small>These links do not send WhatsApp or create payment. S3 presence does not by itself verify public CDN delivery.</small>
+        { ( templates?.headerImage && templates.headerImage !== PAYMENT_HEADER_SOURCE_URL
+            || templates?.itemThumbnail && templates.itemThumbnail !== ORDER_DETAILS_ITEM_SOURCE_URL ) && (
+          <small role="alert">Live pricing media URL differs from the canonical approved reference; verify the sender contract.</small>
+        ) }
+      </div>
       <small>Visual reference only. The existing payment backend applies these images and the live service quote.</small>
       <style jsx>{`
+        .payment-media-source-links{display:grid;gap:6px;padding:10px;margin-top:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary,#f8faf9)}
+        .payment-media-source-links strong{font-size:11px}
+        .payment-media-source-links a{font-size:10px;line-height:1.45;color:var(--accent);overflow-wrap:anywhere}
+        .payment-media-source-links small{margin:0}
         .payment-media-signed{margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
         .payment-media-signed button{border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface,#fff);font-weight:700;cursor:pointer}
         .payment-media-signed button:disabled{opacity:.6;cursor:wait}

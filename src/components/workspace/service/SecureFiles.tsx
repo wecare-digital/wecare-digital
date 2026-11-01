@@ -708,7 +708,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 { loadError && <p role="alert" className="sf-note">{ loadError }</p> }
                                 { loading ? <p className="sf-note"><Spinner /> Loading files…</p> : (
                                     <div className="sf-file-choices" role="group" aria-label="Current Vault files">
-                                        { files.length === 0 && <p className="sf-note">No Vault files found. Use Upload new.</p> }
+                                        { files.length === 0 && <p className="sf-note">No saved Vault file is available for this customer. Use Upload new, then select the server-confirmed file. No payment, invoice or Access Vault message can be created without a verified file.</p> }
                                         { files.slice( 0, 12 ).map( item => (
                                             <button type="button" key={ item.fileId }
                                                 className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
@@ -940,7 +940,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                     ) }
 
                     { !loading && !loadError && files.length === 0 && (
-                        <p className="sf-note sf-note-pad">No current Vault documents yet. Historical records are in Logs.</p>
+                        <p className="sf-note sf-note-pad" role="status">No current Vault documents for this filter. Upload a private file to Vault S3 before requesting payment; no WhatsApp message, invoice or customer download is generated from an empty Vault. Historical records remain in Logs.</p>
                     ) }
 
                     { !loading && truncated && (
