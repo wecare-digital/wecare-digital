@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import PublicNotice from './public/PublicNotice';
+import { useOptionalPublicToast } from './public/PublicToastProvider';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
 import {
   CONTRIBUTION_AMOUNT_LABEL,
@@ -55,6 +56,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   label = 'Share',
 } ) => {
   const router = useRouter();
+  const publicToast = useOptionalPublicToast();
+  const showToast = publicToast?.showToast;
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
   const [ resolvedTitle, setResolvedTitle ] = useState( title || '' );
   const [ openMenu, setOpenMenu ] = useState<OpenMenu>( null );
@@ -159,11 +162,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     try {
       await navigator.clipboard.writeText( resolvedUrl );
       setCopied( true );
+      showToast?.( 'Link copied.', { tone: 'success', durationMs: 2500 } );
       window.setTimeout( () => setCopied( false ), 1800 );
     } catch {
       setCopied( false );
+      showToast?.( "Couldn't copy link.", { tone: 'error', durationMs: 3500 } );
     }
-  }, [ resolvedUrl ] );
+  }, [ resolvedUrl, showToast ] );
 
   const shareMenuClass = 'ps-menu ps-share-menu has-contribute';
 
@@ -322,8 +327,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         </div>
       </div>
 
-      <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
-        message={ copied ? 'Link copied.' : '' } />
+      {/* Workspace also mounts PublicShare but has its own notification
+          system. Keep its original copy feedback; public pages use the single
+          shared toast host and must never render a second local toast. */}
+      { !publicToast && (
+        <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
+          message={ copied ? 'Link copied.' : '' } />
+      ) }
 
       <style jsx>{`
         .public-share{

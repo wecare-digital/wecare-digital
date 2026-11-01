@@ -98,6 +98,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PublicShare from '../components/PublicShare';
+import PublicToastProvider from '../components/public/PublicToastProvider';
 import WorkspaceShell from '../components/WorkspaceShell';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
@@ -784,6 +785,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   {
     return (
       <ErrorBoundary>
+        <PublicToastProvider>
         {/* THE ICON IS OUTSIDE THE `!isContentPublic` GATE BELOW, DELIBERATELY.
             These two tags used to sit inside that gate, and the gate itself is correct: /blog,
             its three paginated variants and /post/[slug] declare their own title, description,
@@ -1086,6 +1088,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             makes that safe. Three mounts total, all in this file: here, AuthGate, and the
             authenticated branch. PublicWidgets.test.tsx counts them. */}
         <SupportWidget />
+        </PublicToastProvider>
       </ErrorBoundary>
     );
   }

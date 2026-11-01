@@ -18,6 +18,7 @@ import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatus
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
 import PublicNotice from '../public/PublicNotice';
+import { usePublicToast } from '../public/PublicToastProvider';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -90,9 +91,8 @@ interface OrdersResponse {
 type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
-type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'service';
+type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'service' | 'copy';
 interface OrdersAlert { source: AlertSource; message: string; key?: string; }
-interface CopyNotice { kind: 'success' | 'fallback'; message: string; }
 
 type Outcome =
   | { kind: 'ok'; data: OrdersResponse }
@@ -344,12 +344,11 @@ export default function OrdersPage (): React.ReactElement {
   const [ loadingMore, setLoadingMore ] = useState( false );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
   const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
-  const [ copyNotice, setCopyNotice ] = useState<CopyNotice | null>( null );
-  // One persistent, accessible failure notice for every backend operation on this page.
-  // It is rendered above the table rather than over it, and cleared by a successful retry.
+  const { showToast, hideToast } = usePublicToast();
+  const inviteToastId = useRef( 0 );
+  // One actionable inline failure across invoices, Orders, invitations and copy
+  // fallback. Passive refresh failures cannot bury a direct WhatsApp action error.
   const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
-  // A review invitation must not disappear behind a later order-list error.
-  const [ inviteNotice, setInviteNotice ] = useState<{ message: string; error: boolean } | null>( null );
   const [ inviteBusy, setInviteBusy ] = useState( false );
   const inviteInFlight = useRef( false );
   const [ canCopy, setCanCopy ] = useState( false );
@@ -367,40 +366,22 @@ export default function OrdersPage (): React.ReactElement {
       typeof navigator !== 'undefined' && !!navigator.clipboard && window.isSecureContext );
   }, [] );
 
-  /** One timer for the top-right copy toast, not a timer or feedback label per row. */
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
-
-  const restartTimer = ( fn: () => void, ms = 2000 ) => {
-    if ( copyTimer.current ) clearTimeout( copyTimer.current );
-    copyTimer.current = setTimeout( fn, ms );
-  };
-
-  // The expiry path unmounts the table while a timer may still be pending, and setState on an
-  // unmounted tree is the warning this cleanup exists to avoid.
-  useEffect( () => () => { if ( copyTimer.current ) clearTimeout( copyTimer.current ); }, [] );
-
   /**
-   * Only the unmodified order identifier is copied. The top-right toast confirms
-   * clipboard success without exposing the identifier in an accessible announcement.
-   * A denied write selects the text and leaves an actionable instruction until
-   * the next attempt, rather than incorrectly claiming "Copied".
+   * Only a successful user copy gets a brief global toast. An unsupported
+   * clipboard action selects the order ID and leaves ONE inline instruction.
+   * The identifier itself never appears in the feedback.
    */
   const copyId = async ( value: string, index: number ) => {
-    if ( copyTimer.current ) {
-      clearTimeout( copyTimer.current );
-      copyTimer.current = null;
-    }
+    setOrdersAlert( current => current?.source === 'copy' ? null : current );
     try
     {
       await navigator.clipboard.writeText( value );
-      setCopyNotice( { kind: 'success', message: 'Copied' } );
-      restartTimer( () => setCopyNotice( null ), 2500 );
+      showToast( 'Copied.', { tone: 'success', durationMs: 2500 } );
     }
     catch
     {
       selectText( document.getElementById( `ord-id-${ index }` ) );
-      setCopyNotice( { kind: 'fallback',
-        message: 'Order ID selected. Copy it with your keyboard.' } );
+      setOrdersAlert( { source: 'copy', message: 'Selected. Copy with keyboard.' } );
     }
   };
 
@@ -474,7 +455,17 @@ export default function OrdersPage (): React.ReactElement {
   };
 
   const presentInviteResult = ( kind: 'accepted' | 'failed' ) => {
-    setInviteNotice( customerMenuNotice( kind ) );
+    const notice = customerMenuNotice( kind );
+    if ( notice.error ) {
+      // A failed/ambiguous send is important enough to remain inline. Clear
+      // only this invitation's pending toast, not a newer user copy toast.
+      hideToast( inviteToastId.current );
+      setOrdersAlert( { source: 'service', message: notice.message } );
+    } else {
+      dismissAlertFor( 'service' );
+      inviteToastId.current = showToast( notice.message,
+        { tone: 'success', durationMs: 2800 } );
+    }
   };
 
   // Orders-row actions must work on the current page without relying on a
@@ -483,7 +474,9 @@ export default function OrdersPage (): React.ReactElement {
     if ( !token || inviteInFlight.current ) return;
     inviteInFlight.current = true;
     setInviteBusy( true );
-    setInviteNotice( customerMenuNotice( 'pending' ) );
+    dismissAlertFor( 'service' );
+    inviteToastId.current = showToast( customerMenuNotice( 'pending' ).message,
+      { tone: 'info', durationMs: 0 } );
     void ( async () => {
       try {
         const result = await sendCustomerMenuAction( action, token );
@@ -513,9 +506,12 @@ export default function OrdersPage (): React.ReactElement {
   };
 
   const applyFailure = ( kind: Failure ) => {
-    setOrdersAlert( { source: 'orders', message: kind === 'rate'
-      ? 'Too many requests. Wait a moment and try again.'
-      : 'We could not load your orders just now. Try again shortly.' } );
+    setOrdersAlert( current => current?.source === 'service' ? current : {
+      source: 'orders',
+      message: kind === 'rate'
+        ? 'Too many requests. Wait a moment and try again.'
+        : 'We could not load your orders just now. Try again shortly.',
+    } );
     setView( 'error' );
   };
 
@@ -553,7 +549,9 @@ export default function OrdersPage (): React.ReactElement {
       // Consume BEFORE sending; refresh/back must never silently resend.
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
-        setInviteNotice( customerMenuNotice( 'pending' ) );
+        dismissAlertFor( 'service' );
+        inviteToastId.current = showToast( customerMenuNotice( 'pending' ).message,
+          { tone: 'info', durationMs: 0 } );
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) {
@@ -570,8 +568,9 @@ export default function OrdersPage (): React.ReactElement {
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
       if ( linkOutcome === 'ignored' ) {
-        setOrdersAlert( { source: 'link',
-          message: 'Some linked purchases could not be refreshed right now.' } );
+        setOrdersAlert( current => current?.source === 'service' ? current : {
+          source: 'link', message: 'Couldn't refresh linked purchases.',
+        } );
       }
 
       setView( 'loading' );
@@ -662,20 +661,11 @@ export default function OrdersPage (): React.ReactElement {
               the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
           <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
 
-          { ( ordersAlert || inviteNotice || copyNotice ) && (
-            <div className="ord-toast-rail">
-              { inviteNotice && (
-                <PublicNotice mode="toast" tone={ inviteNotice.error ? 'error' : inviteBusy ? 'info' : 'success' }
-                  message={ inviteNotice.message } />
-              ) }
-              { ordersAlert && (
-                <PublicNotice mode="inline" tone="error" message={ ordersAlert.message } />
-              ) }
-              { copyNotice && (
-                <PublicNotice mode={ copyNotice.kind === 'fallback' ? 'inline' : 'toast' }
-                  tone={ copyNotice.kind === 'fallback' ? 'error' : 'success' }
-                  message={ copyNotice.message } />
-              ) }
+          {/* Exactly one persistent, contextual error. The single global
+              WhatsApp-style toast belongs to PublicToastProvider, not each page. */}
+          { ordersAlert && (
+            <div className="ord-inline-rail">
+              <PublicNotice mode="inline" tone="error" message={ ordersAlert.message } />
             </div>
           ) }
 
@@ -968,9 +958,9 @@ export default function OrdersPage (): React.ReactElement {
           }
           .ord-gate{display:flex;flex-direction:column;align-items:flex-start;gap:20px}
 
-          /* Only the rail controls placement. PublicNotice owns shape, tone and ARIA.
-             Backend errors stay inline; compact invitation/copy feedback stays in the rail. */
-          .ord-toast-rail{display:flex;flex-direction:column;align-items:flex-end;gap:8px;inline-size:100%;min-inline-size:0}
+          /* The ONE persistent error belongs to the affected Orders page, not
+             the single global transient toast. */
+          .ord-inline-rail{display:flex;justify-content:flex-end;inline-size:100%;min-inline-size:0}
 
           /* One five-column Orders table at every viewport, with mobile overflow in
              the table wrapper rather than the page. No detail/receipt rows. */
