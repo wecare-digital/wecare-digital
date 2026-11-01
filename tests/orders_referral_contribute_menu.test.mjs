@@ -45,7 +45,7 @@ test('Contribute dock subtitle is Give back; entry opens Orders without cart or 
   assert.match(publicShare, /className="ps-menu-title contribute-label">Contribute<\/div>/);
   assert.match(publicShare, /href="\/orders\/"\s+aria-label="Open Orders to continue with Contribute"/);
   assert.match(publicShare, /<span className="ps-menu-name">Open Orders<\/span>/);
-  assert.match(publicShare, /<span className="ps-menu-note">Sign in to continue<\/span>/);
+  assert.match(publicShare, /<span className="ps-menu-note">Give back<\/span>/);
   assert.match(publicShare, /symbol\( 'currency_rupee' \)/);
   assert.doesNotMatch(publicShare, /Review it in your cart|Review, then pay on WhatsApp/);
   assert.doesNotMatch(publicShare, /setContribution\(|goToServiceAction\(|onCheckout/);
