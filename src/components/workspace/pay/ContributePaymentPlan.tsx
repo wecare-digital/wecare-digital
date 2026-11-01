@@ -1,9 +1,9 @@
 /**
- * Contribute in Pay & Flow: a proposal-only, staff readback.
+ * Contribute in Pay & Flow: Admin-controlled, purpose-bound payment review.
  *
- * Do not turn this screen into a generic invoice or native WhatsApp sender.
- * Contributions use BLOG_CONTRIBUTION settlement, not a Vault service grant.
- * Only a backend-frozen, purpose-bound quote may enable an eventual payment action.
+ * No direct template sends or free-form invoices. The customer pays a single
+ * server-priced catalog Contribute item after explicitly approving Review & Pay.
+ * A ₹15 Express amount is an INTERNAL accounting allocation, not a charge.
  */
 import React from 'react';
 import Link from 'next/link';
@@ -81,10 +81,11 @@ const ContributePaymentPlan: React.FC = () => {
       </header>
 
       <div className="contribute-notice" role="status">
-        <strong>Planning preview only — payment sending is not enabled.</strong>
-        <p>The live Contribute catalogue still sets its own price and uses a voluntary-contribution,
-          fee-exempt checkout. These worked examples do not change the catalog, freeze a quote,
-          reserve a payment, generate an invoice, or send a WhatsApp message.</p>
+        <strong>Send only after a fresh server quote, verified recipient and final Admin confirmation.</strong>
+        <p>Contribute is a single voluntary payment, priced from the live catalog. Its checkout has
+          no supply GST, Delight, added Express fee, convenience fee or GST on fees.
+          The ₹15 Express allocation is internal to ₹300. The native payment request is created
+          only when an authorized staff member explicitly clicks Send in the reviewed draft.</p>
       </div>
 
       <ContributeStaffControls
@@ -135,7 +136,7 @@ const ContributePaymentPlan: React.FC = () => {
           <div><dt>Server-listed template</dt><dd><code>{templates?.nativePay || 'Not verified by pricing API'}</code></dd></div>
           <div><dt>Server-listed Meta ID</dt><dd><code>{templates?.templateIds?.nativePay || 'Not verified by pricing API'}</code></dd></div>
           <div><dt>Live Contribute catalog item</dt><dd>{loading ? 'Loading…' : price.available ? money(price.paise) : 'Unavailable'}</dd></div>
-          <div><dt>Proposed customer payable</dt><dd>{money(TARGET_TOTAL_PAISE)} · not yet quoted by backend</dd></div>
+          <div><dt>Expected customer payable</dt><dd>{money(TARGET_TOTAL_PAISE)} · exact match required at send time</dd></div>
         </dl>
         <details>
           <summary>View shared payment header and order-item image</summary>
@@ -144,11 +145,11 @@ const ContributePaymentPlan: React.FC = () => {
       </section>
 
       <div className="contribute-footer">
-        <p>Before enabling Send: agree the contribution tax classification; update the live
-          catalog and purpose-specific frozen quote; verify exact {money(TARGET_TOTAL_PAISE)}
-          in the payment request, capture ledger and customer receipt; preserve the existing
-          contribution settlement and duplicate-send protections. No customer should receive
-          a payment request from this preview.</p>
+        <p>Every Send is checked again by the backend against the exact {money(TARGET_TOTAL_PAISE)}
+          fee-exempt catalog quote, staff Admin role, approved payment configuration and verified
+          customer identity. A message accepted by Meta is not proof of delivery or payment.
+          Check the ledger and paid receipt before marking a contribution completed. An ambiguous
+          send remains locked; never manually send a substitute payment template.</p>
         <Link href="/workspace/service?view=contribute">See current Contribute catalog and payments</Link>
       </div>
 
