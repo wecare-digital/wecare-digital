@@ -775,7 +775,7 @@
   position: fixed;
   top: auto;
   bottom: max(20px, env(safe-area-inset-bottom));
-  inset-inline-end: max(96px, calc(50vw - 608px));
+  inset-inline-end: max(96px, calc(50vw - 607px));
   z-index: 10002;
   display: flex;
   flex-direction: column;
@@ -798,7 +798,7 @@
   border-radius: var(--wc-toast-radius);
   font-family: var(--font-sans);
   font-size: var(--wc-toast-type-size);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
   box-shadow: none;
   animation: toast-enter 0.2s ease;
