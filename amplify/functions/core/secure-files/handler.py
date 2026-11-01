@@ -100,6 +100,8 @@ DELIVER_PREFIX = SECURE_PREFIX + "d/"
 # three constants above are left hand-built on purpose: rewriting them would change keys
 # that are already persisted in SecureFilesTable.
 DROPDOCS_PREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX
+# Operator-selected Vault-only storage, protected by the edge private-prefix list.
+VAULT_UPLOAD_PREFIX = media_paths.VAULT_UPLOAD_PREFIX
 
 # Types WhatsApp recipients can open inline. Documents may be up to 100MB, images
 # 5MB, which is why the two are distinguished rather than lumped together.
@@ -793,7 +795,18 @@ def _safe_extension(filename: str) -> str:
     return ""
 
 
+def _vault_direct_upload_enabled() -> bool:
+    """Fail closed until the exact S3 prefix is blocked by deployed Lambda@Edge."""
+    return str(os.environ.get("VAULT_DIRECT_UPLOAD_ENABLED", "false")).strip().lower() == "true"
+
+
 def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Staff-only Vault intake, independent of the Drop Docs customer service."""
+    if not _vault_direct_upload_enabled():
+        return cors_response(503, {
+            "error": "VAULT_UPLOAD_NOT_READY",
+            "message": "Vault uploads remain disabled until private CDN access has been verified.",
+        }, origin)
     body = json.loads(event.get("body") or "{}")
     name = str(body.get("name") or "").strip()
     display_name = str(body.get("displayName") or "").strip()
@@ -854,7 +867,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
 
     file_id = f"{uuid.uuid4().hex}-{uuid.uuid4().hex}"
     basename = f"wecare-digital-{file_id}{_safe_extension(filename)}"
-    key = UPLOAD_PREFIX + basename
+    key = VAULT_UPLOAD_PREFIX + basename
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     _table(FILES_TABLE).put_item(
@@ -877,6 +890,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             # pending until the object is actually in the bucket, so a failed
             # browser upload cannot leave a file the customer can be charged for
             "status": "pending",
+            "workspaceRecordVersion": WORKSPACE_VAULT_RECORD_VERSION,
             "downloadCount": 0,
             "uploadedBy": (event.get("_auth") or {}).get("username", ""),
             "createdAt": now,
@@ -892,7 +906,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     logger.info(
         json.dumps(
             {
-                "event": "secure_file_upload_init",
+                "event": "vault_direct_upload_init",
                 "fileId": file_id,
                 "ownerPhone": mask_phone(phone),
                 "sizeBytes": size,
@@ -903,6 +917,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         201,
         {
             "fileId": file_id,
+            "displayName": basename,
             "uploadUrl": upload_url,
             "expiresInSeconds": UPLOAD_URL_TTL,
             "contentType": content_type,
@@ -929,11 +944,9 @@ def _classify_delivery(content_type: str, size: int) -> str:
 
 
 def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
-    """Flip pending -> active, but only after proving the object is really there.
-
-    Also creates the ``d/`` rendition when the file can be delivered over WhatsApp.
-    That copy is server-side, so the bytes never travel through this function.
-    """
+    """Confirm staff-owned Vault bytes only after S3 HEAD proves they exist."""
+    if not _vault_direct_upload_enabled():
+        return cors_response(503, {"error": "VAULT_UPLOAD_NOT_READY"}, origin)
     table = _table(FILES_TABLE)
     item = table.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item")
     if not item:
@@ -953,7 +966,9 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
         return cors_response(409, {"error": "FILE_NOT_PENDING",
                                    "message": "This file is not awaiting an upload."}, origin)
 
-    upload_key = item["s3Key"]
+    upload_key = str(item.get("s3Key") or "")
+    if not upload_key.startswith(VAULT_UPLOAD_PREFIX) or upload_key.endswith("/"):
+        return cors_response(409, {"error": "NOT_A_DIRECT_VAULT_UPLOAD"}, origin)
     try:
         head = _s3_client().head_object(Bucket=BUCKET, Key=upload_key)
     except ClientError:
@@ -974,33 +989,15 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
             ExpressionAttributeValues={":rejected": "rejected", ":pending": "pending",
                                        ":size": size, ":why": "META_MEDIA_LIMIT"},
         )
-        logger.warning(json.dumps({"event": "secure_file_rejected_meta_media", "fileId": file_id,
+        logger.warning(json.dumps({"event": "vault_upload_rejected_media", "fileId": file_id,
                                    "sizeBytes": size}))
         return cors_response(
             413 if media_limit else 415,
             {"error": "FILE_TOO_LARGE" if media_limit else "UNSUPPORTED_MEDIA_TYPE"},
             origin)
-    deliverable = _classify_delivery(content_type, size)
-
+    # Vault sends only an owner-bound paid URL. Never copy to a public rendition.
+    deliverable = "link"
     delivery_key = ""
-    if deliverable in ("pdf", "image"):
-        delivery_key = DELIVER_PREFIX + upload_key.split("/")[-1]
-        try:
-            _s3_client().copy_object(
-                Bucket=BUCKET,
-                Key=delivery_key,
-                CopySource={"Bucket": BUCKET, "Key": upload_key},
-                ContentType=content_type,
-                MetadataDirective="REPLACE",
-            )
-        except ClientError as exc:
-            # Not fatal: the file is still sellable as a download link. Record the
-            # downgrade rather than failing an upload that otherwise succeeded.
-            logger.warning(
-                json.dumps({"event": "delivery_copy_failed", "fileId": file_id,
-                            "error": exc.response["Error"]["Code"]})
-            )
-            deliverable, delivery_key = "link", ""
 
     try:
         table.update_item(
@@ -1023,7 +1020,7 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
         return cors_response(409, {"error": "FILE_NOT_PENDING",
                                    "message": "This file is not awaiting an upload."}, origin)
     logger.info(
-        json.dumps({"event": "secure_file_active", "fileId": file_id,
+        json.dumps({"event": "vault_direct_upload_active", "fileId": file_id,
                     "deliverable": deliverable, "sizeBytes": size})
     )
     return cors_response(
@@ -1356,7 +1353,8 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "truncated": truncated or len(collected) > ADMIN_LOG_MAX_ITEMS,
             "storage": {
                 "bucket": BUCKET,
-                "sourcePrefix": DROPDOCS_PREFIX,
+                "sourcePrefix": VAULT_UPLOAD_PREFIX,
+                "legacySourcePrefix": DROPDOCS_PREFIX,
                 "deliveryPrefix": DELIVER_PREFIX,
             },
         }, origin)
@@ -1382,7 +1380,8 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         "truncated": truncated,
         "storage": {
             "bucket": BUCKET,
-            "sourcePrefix": DROPDOCS_PREFIX,
+            "sourcePrefix": VAULT_UPLOAD_PREFIX,
+            "legacySourcePrefix": DROPDOCS_PREFIX,
             "deliveryPrefix": DELIVER_PREFIX,
         },
     }, origin)
@@ -1724,6 +1723,19 @@ def _owned_file_for_admin(file_id: str) -> Tuple[Optional[Dict[str, Any]], Optio
         # A legacy ownerless file: a matching phone must never establish its owner.
         return None, "FILE_OWNER_UNBOUND"
     return item, None
+
+
+def _admin_staff_download(file_id: str, origin: str) -> Dict[str, Any]:
+    """Operator-only short-lived preview; bypasses customer payment, not staff auth."""
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(404 if refusal == "UNKNOWN_FILE" else 409,
+                             {"error": refusal}, origin)
+    if not _vault_file_storage_ready(item):
+        return _vault_storage_unavailable(origin)
+    logger.info(json.dumps({"event": "vault_staff_download_authorized", "fileId": file_id[:120]}))
+    return _no_store(cors_response(
+        200, {"url": _download_url(item), "expiresInSeconds": DOWNLOAD_URL_TTL}, origin))
 
 
 def _file_access_state(item: Dict[str, Any], now: int) -> str:
@@ -3479,24 +3491,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _admin_publish_document(event, origin)
         if tail == ["payment-media-preview"] and method == "GET":
             return _admin_payment_media_preview(origin)
-        # Retired 2026-10-28: Vault no longer accepts a direct upload path.
-        # Drop Docs is the only intake store; Vault rows are created only by publish-document.
-        # Keep an explicit 410 during rollout so an old client cannot silently mint a second
-        # file store even before API Gateway route deletion reaches production.
+        # Vault-only staff upload; default-off until the private CDN gate is verified.
         if tail == ["upload-init"] and method == "POST":
-            return cors_response(
-                410,
-                {"error": "VAULT_DIRECT_UPLOAD_RETIRED",
-                 "message": "Upload through Drop Docs, then publish the document to Vault."},
-                origin,
-            )
+            return _upload_init(event, origin)
         if len(tail) == 2 and tail[1] == "confirm" and method == "POST":
-            return cors_response(
-                410,
-                {"error": "VAULT_DIRECT_UPLOAD_RETIRED",
-                 "message": "Upload through Drop Docs, then publish the document to Vault."},
-                origin,
-            )
+            return _upload_confirm(tail[0], origin)
+        if len(tail) == 2 and tail[1] == "staff-download" and method == "GET":
+            return _admin_staff_download(tail[0], origin)
         if len(tail) == 2 and tail[1] == "revoke" and method == "POST":
             return _admin_revoke(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "schedules":
