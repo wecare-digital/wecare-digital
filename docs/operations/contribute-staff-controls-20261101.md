@@ -43,13 +43,17 @@ shipping/tax/Delight values, or recipient.
 
 ## Last audited release state (read-only 2026-11-01)
 
-- Frontend source PR #2092 now says ₹300.
+- Frontend source PR #2092 now says ₹300. Amplify production website
+  build #428 at commit `7367737af451cdebbfe10bbd38ef1ead9669c1a7` **SUCCEEDED**.
 - The live DynamoDB `ProductsTable` row, product
-  `24fa0f39-330b-5365-b7eb-9caf27ad37f1`, variant `CNT5Q2M8`, still
-  recorded `priceMinor = 25000` paise in the last read.
-- Production `wecare-commerce:live` version 178 was published
-  before PR #2092 merged. Its backend contribution preset cannot be assumed
-  to match the new source.
+  `24fa0f39-330b-5365-b7eb-9caf27ad37f1`, variant `CNT5Q2M8`,
+  now reads `priceMinor = 30000` paise, updated
+  `2026-11-01T00:44:47Z`. An earlier audit read ₹250 before that cutover.
+- Production `wecare-commerce:live` remains version 178, published
+  2026-11-01 00:10 UTC, before PR #2092 merged at 00:41 UTC.
+  Its packaged contribution preset has not been independently verified
+  against the new ₹300 source. Website and catalog synchronization alone
+  do not authorize a native WhatsApp contribution payment.
 - Source media keys were verified present in S3 and the payment template
   was independently read as APPROVED with an IMAGE header and ORDER_DETAILS.
   These facts do **not** establish readiness for a new ₹300 send.
