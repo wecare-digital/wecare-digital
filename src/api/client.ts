@@ -1087,6 +1087,38 @@ export type StaffContributeSendResult =
   | { state: 'UNCONFIRMED'; code: string; message: string }
   | { state: 'REFUSED'; code: string; message: string };
 
+/**
+ * Read-only Admin capability check. The backend defaults OFF; a successful
+ * website build alone must never enable a real customer payment request.
+ * No retries, no payment or WhatsApp side effects.
+ */
+export type StaffContributionSendReadiness = {
+  sendEnabled: boolean;
+  amountPaise: number;
+  reason: string;
+};
+export async function getStaffContributionSendReadiness (): Promise<StaffContributionSendReadiness> {
+  const blocked = (reason: string): StaffContributionSendReadiness =>
+    ({ sendEnabled: false, amountPaise: 0, reason });
+  try {
+    const response = await authFetch(`${API_BASE}/ecommerce/checkout`, {
+      method: 'POST',
+      cache: 'no-store',
+      body: JSON.stringify({ action: 'staff-contribute-readiness' }),
+    });
+    const raw: unknown = await response.json().catch(() => null);
+    const row = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    if (response.ok && row.status === 'STAFF_CONTRIBUTE_READY'
+        && row.sendEnabled === true && row.amountPaise === 30000
+        && row.currency === 'INR' && row.reason === 'READY') {
+      return { sendEnabled: true, amountPaise: 30000, reason: 'READY' };
+    }
+    return blocked(typeof row.reason === 'string' ? row.reason : 'BACKEND_NOT_RELEASED');
+  } catch {
+    return blocked('BACKEND_UNAVAILABLE');
+  }
+}
+
 export async function sendStaffContributionPaymentOnce (
   contactId: string,
 ): Promise<StaffContributeSendResult> {
