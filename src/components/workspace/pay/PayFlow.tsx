@@ -17,7 +17,11 @@ import {
   contactDeliveryAddress, formatAddress, type AddressFormFields,
 } from '../../../lib/address-format';
 
-interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
+interface PP {
+  signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices';
+  /** Only Collect -> Create -> Saved invoices may send existing Collect invoices. */
+  allowSendInInvoices?: boolean;
+}
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
 interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; hsnSac: string; }
 
@@ -289,7 +293,7 @@ const AddressFieldGroup: React.FC<{
 };
 
 /* ── Component ── */
-const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' } ) => {
+const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect', allowSendInInvoices = false } ) => {
   const router = useRouter();
   const [ flowTab, setFlowTab ] = useState( mode === 'invoices' ? 'invoices' : 'create' );
   const activeFlowTab = embedded ? ( mode === 'invoices' ? 'invoices' : 'create' ) : flowTab;
@@ -313,6 +317,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
+  // Create's saved-invoice picker never offers Vault/Contribute invoice send.
+  const visibleInvoices = allowSendInInvoices
+    ? invoices.filter( row => row.entryPoint === 'pay_flow' ) : invoices;
   const [ invLoading, setInvLoading ] = useState( false );
   const [ statusFilter, setStatusFilter ] = useState( 'active' );
   const [ selInvoice, setSelInvoice ] = useState<Invoice | null>( null );
@@ -741,6 +748,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
      could only ever offer one brand and a placeholder. `config.purposes` is still read by the
      settings tab, so the state it comes from is untouched. */
   const doSendPaymentLink = async ( inv: Invoice ) => {
+    // Create is the only embedded surface allowed to send a saved invoice.
+    // Other service invoices must use their own verified payment workflow.
+    if ( mode === 'invoices' && ( !allowSendInInvoices || inv.entryPoint !== 'pay_flow' ) ) {
+      showMsg( 'This invoice cannot be sent from Collect Create.', 'error' );
+      return;
+    }
+    const approved = await confirm( {
+      title: 'Send this invoice payment request?',
+      message: 'Confirm the invoice, saved customer and amount. WhatsApp acceptance does not mean payment. If an earlier send is uncertain, check delivery evidence before retrying.',
+      confirmText: 'Send payment request',
+    } );
+    if ( !approved ) return;
     setActionLoading( 'send' );
     try
     {
@@ -912,7 +931,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try {
       await router.push( {
         pathname: '/workspace/payments',
-        query: { view: 'invoices', invoice: redemption.invoiceId },
+        query: { view: 'collect', tab: 'create', invoices: 'saved', invoice: redemption.invoiceId },
       } );
     } catch { showMsg( 'Could not open Invoices. The saved invoice remains available there.', 'error' ); }
     finally { setOpeningCreated( false ); }
@@ -1308,8 +1327,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <table className="inner-table">
                       <thead><tr><th>#</th><th>Ref</th><th>Customer</th><th>Amount</th><th>Status</th><th>Source</th><th>Date</th><th></th></tr></thead>
                       <tbody>
-                        { invoices.length === 0 && <tr className="empty-row"><td colSpan={ 8 }>No invoices</td></tr> }
-                        { invoices.map( ( inv, i ) => (
+                        { visibleInvoices.length === 0 && <tr className="empty-row"><td colSpan={ 8 }>No matching invoices</td></tr> }
+                        { visibleInvoices.map( ( inv, i ) => (
                           <tr key={ inv.invoiceId } onClick={ () => selectInvoice( inv ) } style={ { cursor: 'pointer' } } className={ selInvoice?.invoiceId === inv.invoiceId ? 'pf-row-selected' : '' }>
                             <td>{ i + 1 }</td>
                             <td style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ inv.referenceId || '\u2014' }</td>
@@ -1402,7 +1421,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                            delivery logs, remarks and image/PDF export below stay, because none of
                            them send a payment request. In Collect/standalone mode this block is
                            rendered exactly as before. */ }
-                      { mode !== 'invoices' && ( selInvoice.status === 'created' || selInvoice.status === 'pending_payment' ) && (
+                      { ( mode !== 'invoices' || ( allowSendInInvoices && selInvoice.entryPoint === 'pay_flow' ) )
+                        && ( selInvoice.status === 'created' || selInvoice.status === 'pending_payment' ) && (
                         <>
                           { /* The two choosers above the Send button. Their inline objects
                                carried APPEARANCE - a 1.5px dark-green border, an 8px radius,
@@ -1419,7 +1439,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                               options={ phoneSelectOptions } style={ DETAIL_SELECT_STYLE } />
                           </div>
                           <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( selInvoice ) }>
-                            { selInvoice.status === 'pending_payment' ? 'Retry payment request' : 'Send payment request' }
+                            { selInvoice.status === 'pending_payment' ? 'Review delivery & request payment' : 'Send payment request' }
                           </Button>
                         </>
                       ) }
