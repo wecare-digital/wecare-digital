@@ -109,7 +109,7 @@ from lambda_utils.ecommerce.blog_contribution import (
 from lambda_utils.ecommerce import service_requests, request_service_contracts
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
-from lambda_utils.ecommerce import service_pricing_native
+from lambda_utils.ecommerce import service_pricing_native, staff_contribution
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -2713,7 +2713,8 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
             native_contact: Optional[Dict[str, Any]] = None,
-            verified_service_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            verified_service_context: Optional[Dict[str, Any]] = None,
+            required_staff_contribution: bool = False) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -2804,6 +2805,17 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
                                    "message": "We could not price this cart. Please try "
                                               "again."}, origin)
+
+    if required_staff_contribution:
+        # Last-before-write check: even if the staff preflight saw ₹300,
+        # refuse a concurrent catalog or fee-policy change before PAYREF/attempt.
+        variants = list(CONTRIBUTION_CHOICES_PAISE)
+        if (len(variants) != 1 or not staff_contribution.valid_staff_contribution_snapshot(
+                snapshot, product_id=CONTRIBUTION_PRODUCT_ID, variant_id=variants[0])):
+            return cors_response(409, {
+                "error": "CONTRIBUTION_PRICE_MISMATCH",
+                "message": "The ₹300 contribution quote changed. Nothing was sent.",
+            }, origin)
 
     if service_requests.has_service_line(line_items):
         # The authoritative per-line price, read from the FROZEN native quote (never a client
@@ -2964,6 +2976,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 extra[customer_uuid.ATTRIBUTE] = public_uuid
             if public_contact_id:
                 extra["contactId"] = public_contact_id
+        if required_staff_contribution:
+            # Provenance only. Do NOT write legacy Razorpay notes.purpose,
+            # which would divert the normal SKU-first capture settlement.
+            extra["staffContribute"] = True
         if service_requests.has_service_line(line_items):
             extra.update(**service_requests.payref_extra(
                 line_items, body, line_paise=native_service_paise,
@@ -2988,6 +3004,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = checkout_mode
+    if required_staff_contribution:
+        attempt["staffContribute"] = True
     if verified_service_context is not None:
         single = service_requests._single_order_context(verified_service_context)
         if single is None:
