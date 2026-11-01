@@ -21,7 +21,7 @@ interface ToastProps {
 
 const Toast: React.FC<ToastProps> = ({ toasts, onRemove }) => {
   return (
-    <div className="toast-container">
+    <div className="toast-container wc-action-toast-host wc-action-toast-host--workspace">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -98,7 +98,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
 
   return (
     <div
-      className={`toast toast-${toast.type} ${isExiting ? 'toast-exit' : ''}`}
+      className={`toast wc-action-toast toast-${toast.type} ${isExiting ? 'toast-exit' : ''}`}
       role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
       aria-atomic="true"
       onAnimationEnd={handleAnimationEnd}

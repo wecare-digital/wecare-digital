@@ -103,21 +103,25 @@
   --public-muted: var(--text-secondary);
   --public-lime-tint: var(--lime-tint);
   /*
-   * Unified slim action-toast appearance, updated at customer request.
-   * Shared across public and Workspace toast renderers; not applied to inline
-   * payment/field errors or screen-reader-only statuses.
+   * One small, mobile-safe action-toast design shared by public and Workspace.
+   * Only explicit action feedback uses these tokens; inline/payment errors and
+   * screen-reader statuses keep their original presentation.
    */
   --wc-toast-surface: #f6fce4;
   --wc-toast-stripe: #d8f382;
   --wc-toast-ink: #1a1a1a;
-  --wc-toast-radius: 10px;
-  --wc-toast-stripe-width: 4px;
-  --wc-toast-padding: 8px 12px;
-  --wc-toast-type-size: 14px;
-  --wc-toast-mobile-radius: 10px;
-  --wc-toast-mobile-stripe-width: 4px;
-  --wc-toast-mobile-padding: 8px 12px;
-  --wc-toast-mobile-type-size: 14px;
+  --wc-toast-radius: 8px;
+  --wc-toast-stripe-width: 3px;
+  --wc-toast-padding: 6px 10px;
+  --wc-toast-type-size: 13px;
+  --wc-toast-max-width: 288px;
+  --wc-toast-edge-gap: 12px;
+  --wc-toast-top-gap: 8px;
+  --wc-toast-header-height: 108px;
+  --wc-toast-mobile-radius: 8px;
+  --wc-toast-mobile-stripe-width: 3px;
+  --wc-toast-mobile-padding: 6px 10px;
+  --wc-toast-mobile-type-size: 13px;
   --public-lift-shadow: 0 4px 12px rgba(26, 58, 42, 0.12);
 
   --public-accent-blue: #2563eb;

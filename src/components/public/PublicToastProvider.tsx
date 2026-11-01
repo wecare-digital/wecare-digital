@@ -99,36 +99,12 @@ export default function PublicToastProvider ( { children }: { children: React.Re
   return (
     <Context.Provider value={ value }>
       { children }
-      <div className="wc-public-toast-host" data-wc-public-toast-host="true">
+      <div className="wc-public-toast-host wc-action-toast-host" data-wc-public-toast-host="true">
         { active && (
           <PublicNotice key={ active.id } mode="toast" tone={ active.tone } message={ active.message } />
         ) }
       </div>
-      <style jsx>{`
-        /* Slim notification at the upper-right of the content, immediately
-           below the fixed 108px public header to avoid blocking navigation. */
-        .wc-public-toast-host{
-          position:fixed;z-index:1350;
-          top:calc(108px + 12px);bottom:auto;
-          inset-inline-start:auto;
-          inset-inline-end:max(16px,env(safe-area-inset-right));
-          display:flex;justify-content:flex-end;align-items:flex-start;
-          pointer-events:none;
-        }
-        .wc-public-toast-host :global(.wc-public-notice){
-          max-inline-size:min(100%,340px);
-          text-align:start;pointer-events:none;
-        }
-        /* The public header is 96px on phones. Keep the same small toast
-           just underneath it, with safe-area insets and room to wrap. */
-        @media(max-width:767px){
-          .wc-public-toast-host{
-            top:calc(96px + 10px);bottom:auto;
-            inset-inline-start:12px;
-            inset-inline-end:max(12px,env(safe-area-inset-right));
-          }
-        }
-      `}</style>
+
     </Context.Provider>
   );
 }
