@@ -48,6 +48,14 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
+  // Customer sign-in is a no-payment account access step; do not imply that an
+  // OTP verification itself creates an order or any return/refund entitlement.
+  '/auth': {
+    shipping: 'Signing in or verifying your number does not start a delivery. Fulfilment follows only a separately confirmed order.',
+    returns: 'Signing in does not provide a returnable item or service. Any purchased item follows its confirmed return or replacement terms.',
+    refunds: 'No payment is taken by signing in. Cancellation and refund eligibility applies to a separately confirmed purchase.',
+    disclaimer: 'Keep verification codes private. Signing in alone does not confirm an order, booking or payment.',
+  },
   '/contact': {
     shipping: 'No fulfilment starts by visiting or contacting us on this page.',
     returns: 'Nothing submitted on this page is a returnable product.',
