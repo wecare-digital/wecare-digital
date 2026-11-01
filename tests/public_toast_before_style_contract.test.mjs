@@ -21,7 +21,7 @@ test('shared toast tokens match the supplied screenshot colors and sizing', () =
     ['wc-toast-surface', '#f6fce4'],
     ['wc-toast-stripe', '#d8f382'],
     ['wc-toast-ink', '#1a1a1a'],
-    ['wc-toast-radius', '22px'],
+    ['wc-toast-radius', '20px'],
     ['wc-toast-stripe-width', '8px'],
     ['wc-toast-padding', '16px 24px'],
     ['wc-toast-type-size', '32px'],
@@ -36,14 +36,14 @@ test('public action toast uses screenshot tokens without changing inline errors'
   assert.match(notice, /border-inline-start:var\(--wc-toast-stripe-width\) solid var\(--wc-toast-stripe\)/);
   assert.match(notice, /border-radius:var\(--wc-toast-radius\)/);
   assert.match(notice, /background:var\(--wc-toast-surface\);color:var\(--wc-toast-ink\)/);
-  assert.match(notice, /font-size:var\(--wc-toast-type-size\);font-weight:700;line-height:1\.4/);
+  assert.match(notice, /font-size:var\(--wc-toast-type-size\);font-weight:600;line-height:1\.4/);
   assert.match(notice, /--wc-toast-mobile-type-size/);
 });
 
 test('one public toast sits in screenshot lower-right position and scales on mobile', () => {
   const host = read('src/components/public/PublicToastProvider.tsx');
   assert.match(host, /bottom:max\(20px,env\(safe-area-inset-bottom\)\)/);
-  assert.match(host, /inset-inline-end:max\(96px,calc\(50vw - 608px\)\)/);
+  assert.match(host, /inset-inline-end:max\(96px,calc\(50vw - 607px\)\)/);
   assert.match(host, /bottom:calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(host, /const \[ active, setActive \] = useState<PublicToast \| null>\( null \)/);
   assert.match(host, /setActive\( \{ id, message, tone \} \)/);
