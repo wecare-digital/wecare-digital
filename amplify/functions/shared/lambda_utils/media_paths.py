@@ -75,6 +75,9 @@ SECURE_ROOT = "secure/"
 #: Public-delivery subtree inside the deliverable root. CloudFront serves this
 #: subtree directly with no authentication; every other secure/ key remains gated.
 PUBLIC_DELIVERABLE_ROOT = "secure/d/public/"
+# Exact Vault-only staff upload prefix. The spelling is an intentional S3 contract.
+# This path MUST be on the edge private-prefix list before any files are uploaded.
+VAULT_UPLOAD_PREFIX = PUBLIC_DELIVERABLE_ROOT + "valut/"
 
 # Canonical application-owned prefixes. New writes must use these names rather than
 # recomposing path strings at call sites. Historical reads may still use canonical().
@@ -113,6 +116,7 @@ WHATSAPP_TEMPLATE_STICKER_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "stk/"
 #: public URL for them to Meta, Plivo, Sinch or a browser (checked 2026-10-25), so gating
 #: them broke no consumer. `verify_media_prefixes.py` keeps the edge copy identical.
 PRIVATE_DELIVERABLE_PREFIXES: tuple[str, ...] = (
+    VAULT_UPLOAD_PREFIX,
     INVOICE_CUSTOMER_IMAGE_PREFIX,
     RECEIPT_PREFIX,
     WHATSAPP_INCOMING_PREFIX,
