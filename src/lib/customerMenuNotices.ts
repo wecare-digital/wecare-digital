@@ -1,7 +1,7 @@
 /**
  * One short toast vocabulary for authenticated WhatsApp invitations on /orders.
  *
- * Only Subscribe and Leave Review currently send actual WhatsApp messages.
+ * Subscribe, Leave Review and Referral use the same authenticated template-send rail.
  * Contribute uses the same authenticated handoff but remains blocked until
  * its template is configured. Reuse the generic failure copy without ever
  * claiming that a message was sent or delivered.
