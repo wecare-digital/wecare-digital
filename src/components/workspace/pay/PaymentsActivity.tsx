@@ -72,7 +72,7 @@ function latestState ( invoice: api.Invoice ): ActivityRow {
     label,
     amount: Number( invoice.total ) || 0,
     currency: invoice.currency || 'INR',
-    timestamp: epochMs( invoice.paidAt ) || epochMs( invoice.updatedAt ) || epochMs( invoice.createdAt ),
+    timestamp: epochMs( invoice.refundAt ) || epochMs( invoice.paidAt ) || epochMs( invoice.updatedAt ) || epochMs( invoice.createdAt ),
     paymentStatus: invoice.paymentStatus || '',
     status: invoice.status || '',
     source: invoice.serviceKind || invoice.entryPoint || 'Invoice',
