@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import PublicNotice from './public/PublicNotice';
 import { publicActionText } from '../lib/publicActionNotices';
 import { useOptionalPublicToast } from './public/PublicToastProvider';
 import { useOptionalToastContext } from '../contexts/ToastContext';
@@ -53,7 +52,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   const [ openMenu, setOpenMenu ] = useState<OpenMenu>( null );
   const [ canNativeShare, setCanNativeShare ] = useState( false );
   const [ canCopy, setCanCopy ] = useState( false );
-  const [ copied, setCopied ] = useState( false );
 
   const rootRef = useRef<HTMLElement | null>( null );
   const contributeTriggerRef = useRef<HTMLButtonElement | null>( null );
@@ -107,7 +105,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   }, [ openMenu ] );
 
   const toggleMenu = useCallback( ( menu: Exclude<OpenMenu, null> ) => {
-    setCopied( false );
     setOpenMenu( current => current === menu ? null : menu );
   }, [] );
 
@@ -127,14 +124,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     if ( !resolvedUrl || typeof navigator === 'undefined' || !navigator.clipboard ) return;
     try {
       await navigator.clipboard.writeText( resolvedUrl );
-      setCopied( true );
+      // Copy feedback has one owner: the mounted public or Workspace toast host.
+      // Do not also replace the button label, icon or accessible name with "Copied".
       if ( showToast ) showToast( 'success', { durationMs: 2500 } );
-      else workspaceSuccess?.( 'Link copied.' );
-      window.setTimeout( () => setCopied( false ), 1800 );
+      else workspaceSuccess?.( publicActionText( 'success' ) );
     } catch {
-      setCopied( false );
       if ( showToast ) showToast( 'failure', { durationMs: 3500 } );
-      else workspaceError?.( "Couldn't copy link." );
+      else workspaceError?.( publicActionText( 'failure' ) );
     }
   }, [ resolvedUrl, showToast, workspaceSuccess, workspaceError ] );
 
@@ -280,29 +276,22 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           { canCopy && (
             <button
               type="button"
-              className={ copied ? 'ps-menu-item is-copied' : 'ps-menu-item' }
+              className="ps-menu-item"
               onClick={ onCopy }
-              aria-label={ copied ? 'Link copied' : 'Copy link to this page' }
+              aria-label="Copy link to this page"
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( copied ? 'check' : 'link' ) }</span>
+                <span className="ps-material">{ symbol( 'link' ) }</span>
               </span>
               <span className="ps-menu-copy">
-                <span className="ps-menu-name">{ copied ? 'Copied' : 'Copy link' }</span>
-                <span className="ps-menu-note">{ copied ? 'Link copied' : 'Copy page link' }</span>
+                <span className="ps-menu-name">Copy link</span>
+                <span className="ps-menu-note">Copy page link</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </button>
           ) }
         </div>
       </div>
-
-      {/* A stand-alone fallback is needed only without either toast provider.
-          Public and Workspace otherwise share their own one-at-a-time host. */}
-      { !publicToast && !workspaceToast && (
-        <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
-          message={ copied ? publicActionText( 'success' ) : '' } />
-      ) }
 
       <style jsx>{`
         .public-share{
@@ -414,7 +403,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
         .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
         .ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
-        .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
         .ps-sr-only{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
