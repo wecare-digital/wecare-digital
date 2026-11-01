@@ -1,8 +1,8 @@
 ## Backend hardening
 
-- **One intake path:** direct Vault upload/confirm is retired. Drop Docs remains the only intake store; explicit Publish to Vault now copies the immutable document version into the edge-gated `s3://wecare-digital-get/secure/d/public/valut/` prefix, verifies S3 HEAD, and only then creates the owner-bound Vault row pointing to that independent copy.
-- `POST /secure-files/upload-init` and `POST /secure-files/{fileId}/confirm` return `410 VAULT_DIRECT_UPLOAD_RETIRED` during rollout and are explicitly deleted by `scripts/provision_secure_files_api.py --apply`.
-- `--verify` fails if either retired route is still present in API Gateway.
+- **Two independent services:** Drop Docs accepts customer-supplied documents into `secure/u/dropdocs/` and records them in `DocumentTable`. Vault is a staff-managed file delivery service: authenticated staff upload directly to `s3://wecare-digital-get/secure/d/public/valut/`, with owner-bound rows in `SecureFilesTable`. A Drop Docs upload does not create a Vault file or a Vault payment request.
+- Staff Vault uses `POST /secure-files/upload-init` for a short-lived, exact-key presigned S3 upload and `POST /secure-files/{fileId}/confirm` for server-side HEAD/size/MIME verification. `GET /secure-files/{fileId}/staff-download` is staff-only. The upload capability is gated by `VAULT_DIRECT_UPLOAD_ENABLED` and must not be enabled until the live private-CDN controls, API routes and reviewed backend package are verified.
+- The old `POST /secure-files/publish-document` Drop Docs-to-Vault bridge returns `410 DROP_DOCS_VAULT_PUBLISH_RETIRED` after its backend release; previously linked Vault rows and entitlements remain intact. The API provisioner deliberately retains this route as a harmless tombstone for older clients.
 - Paid download `Content-Disposition` uses the system-owned `wecare-digital-...` filename, never the original customer/staff upload filename.
 - `wecare-secure-files` is provisioned with Active X-Ray tracing under its dedicated role; the role receives only the X-Ray write/sampling actions required for tracing.
 - Exhausted asynchronous paid-delivery invocations are sent to `wecare-lambda-async-dlq` after the normal two retries / six-hour event age; the existing DLQ-depth alarm makes the failure durable and visible.
@@ -11,11 +11,11 @@
 ## Vault filenames and links
 
 - Vault customer filenames are system-owned. Staff do not type or rename them.
-- A current Drop Docs manual upload keeps its generated `wecare-digital-<reference>.<ext>` name when published to Vault. Older/non-manual rows are normalized to an opaque `wecare-digital-<file-id>.<ext>` name before a new Vault offer is sent.
+- A new staff Vault upload gets a server-generated opaque `wecare-digital-<file-id>.<ext>` name. Historical Vault entries that originated from the retired document bridge retain their own immutable file IDs and entitlement history.
 - The original upload filename remains internal metadata only.
 - The **literal** S3 prefix is `secure/d/public/valut/` (intentional spelling). Despite the `public/` ancestor, these paid Vault objects must never be served by CloudFront. Production S3 bucket policy `DenyCloudFrontReadPrivateVaultValut` denies OAC `GetObject` to this prefix; the newer edge source also denies the prefix but its CloudFront version must be independently verified before removing the bucket-policy guard.
-- After Publish to Vault, `SecureFilesTable.s3Key` and (for PDF/image) `deliveryKey` refer to the same verified, opaque `valut/` copy. The Drop Docs `DocumentTable.storageKey` remains provenance and is not a paid file transport. Historical S3 versions remain available for repair, not as public URLs.
-- Workspace Vault exposes a staff-authenticated **Download** action through the source Drop Docs document and a **Customer Vault link** at `/vault/?file=<fileId>`; S3 keys never reach the browser.
+- After successful staff upload and S3 confirmation, `SecureFilesTable.s3Key` names only the private `valut/` object. Drop Docs `DocumentTable.storageKey` is independently managed in its own intake storage. Previously migrated Vault copies do not erase or overwrite Drop Docs customer-source records.
+- Workspace Vault exposes a staff-authenticated **Download** action for its own file and a **Customer Vault link** at `/vault/?file=<fileId>`; raw S3 keys never reach the browser.
 - A customer arriving through a one-file Vault link stays on the exact-file Vault surface; the download page does not expose **Back to all Vault files** or **Sign out** controls.
 
 # Secure file sharing — media namespace and Vault delivery
@@ -39,7 +39,7 @@ A link that matches nothing, and anything under `secure/`, redirects to the apex
 
 A new paid Vault publication is saved at:
 
-    secure/d/public/valut/wecare-digital-doc-<opaque-id><ext>
+    secure/d/public/valut/wecare-digital-<opaque-file-id><ext>
 
 Historical file keys may remain in older private prefixes. Vault never exposes
 either key as a public URL.
@@ -221,8 +221,9 @@ generate a free-form invoice to unlock a Vault document. Vault uses an exact-fil
 server-priced native WhatsApp payment request, not editable unit amounts or a
 separate cart. The staff sees a read-only, dynamic item/taxes/Delight/fee preview.
 
-There is one supported staff initiation: a private DocumentTable/S3 upload must be
-confirmed and **published** to Vault, yielding an active owner-bound `fileId`.
+The supported staff initiation is a **direct Vault S3 upload**, confirmed with a
+HEAD on the exact private object and recorded in `SecureFilesTable` as an active,
+owner-bound `fileId`. It does not pass through Drop Docs or `DocumentTable`.
 The backend checks exact-file ownership, durable paid state and existence of the
 nonempty private S3 object before invoking `POST /secure-files/{fileId}/request-payment`.
 An unpaid or expired file may receive a native
@@ -343,14 +344,13 @@ Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`)
 never charges and never opens an unpaid window. Vault remains a secure-download fulfilment and has
 no Meta Flow.
 
-Drop Docs (Service → Documents → **Add Document**) is a different store: managed document
-records live in `DocumentTable` and are not billable merely because they exist there. Staff can
-explicitly **Publish to Vault**, which verifies the customer identity and private object, creates an
-owner-bound `SecureFilesTable` row for that immutable document version, and writes the resulting
-`vaultFileId` back to the document. Repeating Publish for the same version is idempotent. A
-confirmed replacement increments the document version and the next Publish gets a different Vault
-file id, so an older paid entitlement can never authorize replacement bytes. Direct uploads through
-**Workspace Vault** use the same private Documents → S3 verification → Vault publication path.
+Drop Docs (Service → Documents) manages **customer uploads** and their request
+attachments in `DocumentTable`, under the private Drop Docs storage prefix. It
+does **not** publish new files to Vault, create Vault payment requests, or call the
+Vault staff upload API. Existing historical `vaultFileId` links remain visible
+for audit and earlier paid entitlements, but the retired cross-service publish
+route rejects new requests. Staff create and manage new Vault documents directly
+in **Workspace → Pay & Flow → Vault**, using the separate `valut/` prefix.
 
 Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
 counter is the one original purchase) and `accessWindowCount`. A window opens against an unused paid
