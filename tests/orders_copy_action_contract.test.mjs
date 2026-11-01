@@ -48,10 +48,13 @@ test('Copy stays inline and remains a keyboard-focusable touch target on mobile'
 });
 
 test('Copy does not mutate order data, issue payments or add a second transient notice', () => {
-  const start = orders.indexOf('  const copyId = async');
-  const end = orders.indexOf('\n  };', start);
-  assert.ok(start > 0 && end > start);
+  const start = orders.indexOf('  const copyId = async ( value: string, index: number ) => {');
+  // Bound this check by the next named handler, not by the first indented
+  // closing brace (which could belong to a nested arrow function).
+  const end = orders.indexOf('\n  const dismissAlertFor =', start);
+  assert.ok(start > 0 && end > start, 'copyId must end before dismissAlertFor');
   const body = orders.slice(start, end);
+  assert.match(body, /\n  };\s*\/\*\*/, 'copyId must close before the next handler');
   assert.doesNotMatch(body, /fetch\(|window\.location|sendCustomerMenuAction|downloadInvoice/);
   assert.equal((body.match(/showToast\(/g) || []).length, 1);
   assert.match(body, /setOrdersAlert\(/);
