@@ -58,7 +58,7 @@ const PURCHASE_LABELS: Record<SecureFileAccessState, string> = {
     UNPAID: 'Awaiting purchase',
     OPEN: 'Paid · Window open',
     READY: 'Paid · Access ready',
-    EXPIRED: 'Paid · Window used, renewal needed',
+    EXPIRED: 'Paid · Access expired · no further payment',
     PAID_UNVERIFIED: 'Paid · Needs reconciling, do not charge',
 };
 
@@ -286,7 +286,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
 
     const handleSendPayment = async ( target: SecureFile ) => {
         if ( sendingAction.current || acting || uploading || schedulingBusy ) return;
-        if ( target.status !== 'active' || ![ 'UNPAID', 'EXPIRED' ].includes( accessStateOf( target ) ) ) {
+        if ( target.status !== 'active' || accessStateOf( target ) !== 'UNPAID' ) {
             toast.error( 'This file does not need a new payment request.' );
             return;
         }
@@ -324,7 +324,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
         const currentAccess = accessStateOf( target );
         const eligible = action === 'access'
             ? [ 'OPEN', 'READY' ].includes( currentAccess )
-            : [ 'UNPAID', 'EXPIRED' ].includes( currentAccess );
+            : currentAccess === 'UNPAID';
         if ( target.status !== 'active' || !eligible ) {
             toast.error( 'File status changed. Refresh before scheduling.' );
             return;
@@ -744,6 +744,8 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
                                         <small>{ reviewFile.accessWindowStatus || PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</small>
                                         { accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
                                             <p role="status" className="sf-hint">Paid access needs reconciliation. Do not request payment again.</p> }
+                                        { accessStateOf( reviewFile ) === 'EXPIRED' &&
+                                            <p role="status" className="sf-hint">This file's paid 24-hour access has ended. Renewal is not offered; do not request another Vault payment for this file.</p> }
                                     </div>
                                 ) }
                             </section>
@@ -756,7 +758,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
                                 <span>{ vaultPricePaise !== null && !!vaultBreakdown ? 'Live catalogue quote available · amount locked' : 'Waiting for verified service quote' }</span>
                             </div>
                             { mode === 'existing' && reviewFile?.status === 'active'
-                                && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' )
+                                && ( accessStateOf( reviewFile ) === 'UNPAID' )
                                 && vaultPricePaise === VAULT_BASE_ITEM_PAISE && (
                                 <section className="sf-description-editor" aria-label="Vault WhatsApp payment item name">
                                     <div className="sf-description-heading">
@@ -802,7 +804,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
                             { mode === 'existing' && !reviewFile && (
                                 <p className="sf-action-empty">Select one of the existing customer-owned Vault files above to activate Send, Schedule or Resend.</p>
                             ) }
-                            { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' || accessStateOf( reviewFile ) === 'EXPIRED' ) && (
+                            { mode === 'existing' && reviewFile?.status === 'active' && ( accessStateOf( reviewFile ) === 'UNPAID' ) && (
                                 <div className="sf-delivery-buttons">
                                     <button type="button" className="sf-cta sf-send-cta"
                                         onClick={ () => { void handleSendPayment( reviewFile ); } }
@@ -1016,15 +1018,13 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
                                                 </td>
                                                 { workspaceView === 'create' && <td>
                                                     <div className="sf-rowactions">
-                                                        { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
+                                                        { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' ) && (
                                                             <button
                                                                 className="sf-act"
                                                                 onClick={ () => preparePayment( row ) }
                                                                 disabled={ !!acting }
                                                             >
-                                                                { accessStateOf( row ) === 'EXPIRED'
-                                                                    ? 'Review renewal payment'
-                                                                    : 'Review & Pay for this file' }
+                                                                Review &amp; Pay for this file
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
