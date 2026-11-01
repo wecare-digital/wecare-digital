@@ -67,6 +67,8 @@ test('Workspace toasts use same tokens with no status glyph, but keep dismissal'
   assert.doesNotMatch(toast, /toast-icon|const icons =/);
   assert.match(ctx, /setToasts\(\[\{ id, type, message \}\]\)/);
   assert.match(toast, /setToasts\(\[\{ id, type, message, duration \}\]\)/);
+  assert.match(ctx, /String\(\+\+nextToastId\.current\)/);
+  assert.match(toast, /String\(\+\+nextToastId\.current\)/);
 });
 
 test('Orders and PublicShare route their feedback through the common toast', () => {
