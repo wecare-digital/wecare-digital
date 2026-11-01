@@ -460,7 +460,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         </dl>
         { currentFile && (
           <div className={ styles.actions }>
-            <button type="button" onClick={ props.onStaffDownload } disabled={ !currentFile.sourceDocumentId }>Staff download</button>
+            <button type="button" onClick={ props.onStaffDownload } disabled={ currentFile.status !== 'active' }>Staff download</button>
             <button type="button" onClick={ props.onCopyFileId }>Copy file ID</button>
           </div>
         ) }

@@ -7834,8 +7834,52 @@ export function cancelVaultScheduledAction (
   );
 }
 
-/** Direct Vault upload is retired. Staff uploads use the Documents intake helpers below,
- * then publishDocumentToVault after S3 confirmation. */
+/** Staff-only Vault upload, independent of customer-facing Drop Docs.
+ * Server chooses the opaque file name and writes only to the private, edge-gated
+ * s3://wecare-digital-get/secure/d/public/valut/ prefix.
+ * The server feature flag keeps this unavailable until the live edge gate is verified. */
+export interface VaultUploadTicket {
+  fileId: string;
+  displayName: string;
+  uploadUrl: string;
+  contentType: string;
+  expiresInSeconds: number;
+}
+export async function initVaultFileUpload ( input: {
+  name: string;
+  mobile: string;
+  originalFilename: string;
+  contentType: string;
+  sizeBytes: number;
+} ): Promise<ApiResult<VaultUploadTicket>> {
+  return apiCallResult( `${API_BASE}/secure-files/upload-init`, {
+    method: 'POST',
+    body: JSON.stringify( input ),
+  } );
+}
+export async function uploadVaultFileBytes (
+  uploadUrl: string, file: File, contentType: string,
+): Promise<boolean> {
+  return uploadFileToS3( uploadUrl, file, contentType );
+}
+export async function confirmVaultFileUpload ( fileId: string ): Promise<ApiResult<{
+  fileId: string;
+  status: string;
+  sizeBytes: number;
+  deliverable: string;
+}>> {
+  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/confirm`, {
+    method: 'POST',
+  } );
+}
+/** Operator preview, not the customer download route (which requires verified payment). */
+export async function getVaultStaffDownloadUrl ( fileId: string ): Promise<string | null> {
+  const result = await apiCallResult<{ url: string }>(
+    `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/staff-download`,
+    { cache: 'no-store' },
+  );
+  return result.ok && typeof result.data.url === 'string' ? result.data.url : null;
+}
 /** Admin listing. Pass a mobile number to scope it to one customer via the GSI. */
 export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
   files: SecureFile[]; count: number; truncated?: boolean; storage?: SecureFileStorage;

@@ -1,10 +1,9 @@
 /**
- * Vault operations — staff upload, publish, payment and customer access.
+ * Vault operations — staff-only upload, payment and customer access.
  *
- * Vault has one supported intake path: a staff upload is first saved as a private
- * DocumentTable/S3 document, confirmed from S3, then explicitly published into
- * SecureFilesTable. The retired /secure-files/upload-init and /confirm routes are not
- * used here.
+ * New files are stored directly under the exact, edge-gated Vault S3 prefix
+ * secure/d/public/valut/ and confirmed before becoming active in SecureFilesTable.
+ * No customer-facing Drop Docs upload route or DocumentTable is used.
  *
  * The customer-facing /vault/?file=<id> surface owns download/payment presentation.
  * This component is the staff surface and never exposes raw S3 keys.
@@ -415,14 +414,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     };
 
     const handleStaffDownload = async ( target: SecureFile ) => {
-        if ( !target.sourceDocumentId )
-        {
-            toast.error( 'The source Drop Docs record is not available for this Vault file.' );
-            return;
-        }
-        const url = await api.getDocumentDownloadUrl( target.sourceDocumentId );
+        const url = await api.getVaultStaffDownloadUrl( target.fileId );
         if ( url ) void openExternal( url );
-        else toast.error( 'Download not available' );
+        else toast.error( 'Vault staff preview is unavailable' );
     };
 
     const handleCustomerVaultLink = ( target: SecureFile ) => {
@@ -461,53 +455,40 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         setUploading( true );
         try
         {
-            setStep( 'Creating private document record…' );
-            const ticket = await api.initDocumentUpload( {
-                customerName,
-                customerPhone,
-                // Vault no longer asks staff to classify the file. Keep the Documents API's
-                // neutral internal type until that older contract is retired server-side.
-                type: 'other',
-                fileName: file.name,
-                mimeType: contentType,
-                fileSize: file.size,
-                notes: 'Uploaded from Workspace Vault',
+            setStep( 'Preparing private Vault upload…' );
+            const ticket = await api.initVaultFileUpload( {
+                name: customerName,
+                mobile: customerPhone,
+                originalFilename: file.name,
+                contentType,
+                sizeBytes: file.size,
             } );
             if ( !ticket.ok )
             {
-                toast.error( ticket.failure.message || 'Could not start the document upload' );
+                toast.error( ticket.failure.message || 'Vault upload could not start. Check that private storage is enabled.' );
                 return;
             }
 
-            setStep( 'Uploading private document…' );
-            const uploaded = await api.uploadDocumentBytes(
-                ticket.data.uploadUrl,
-                file,
-                ticket.data.contentType || contentType,
+            setStep( 'Uploading directly to Vault S3…' );
+            const uploaded = await api.uploadVaultFileBytes(
+                ticket.data.uploadUrl, file, ticket.data.contentType || contentType,
             );
             if ( !uploaded )
             {
-                toast.error( 'File upload failed. The Vault file was not published.' );
+                toast.error( 'Vault S3 upload failed. No file was activated or charged.' );
                 return;
             }
 
-            setStep( 'Confirming stored bytes…' );
-            const confirmed = await api.confirmDocumentUpload( ticket.data.documentId );
-            if ( !confirmed.ok )
+            setStep( 'Confirming Vault file in S3…' );
+            const confirmed = await api.confirmVaultFileUpload( ticket.data.fileId );
+            if ( !confirmed.ok || confirmed.data.status !== 'active' )
             {
-                toast.error( confirmed.failure.message || 'The uploaded document could not be confirmed' );
+                toast.error( confirmed.ok ? 'Vault storage confirmation did not activate the file.'
+                    : confirmed.failure.message || 'Vault file could not be confirmed' );
                 return;
             }
 
-            setStep( 'Publishing to Vault…' );
-            const published = await api.publishDocumentToVault( confirmed.data.documentId );
-            if ( !published.ok )
-            {
-                toast.warning( 'Document saved privately, but Vault publishing failed. Nothing was charged.' );
-                return;
-            }
-
-            toast.success( `${published.data.displayName || ticket.data.fileName} saved to Vault. No WhatsApp was sent.` );
+            toast.success( `${ticket.data.displayName} saved to Vault. No WhatsApp was sent.` );
             setFile( null );
             
             setName( customerName );
@@ -516,11 +497,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             setSelectedCustomerId( '' );
             const refreshed = await load( customerPhone );
             setFilterMobile( customerPhone );
-            const publishedFile = ( refreshed || [] ).find( item => item.fileId === published.data.fileId ) || null;
+            const publishedFile = ( refreshed || [] ).find( item => item.fileId === ticket.data.fileId ) || null;
             setReviewFile( publishedFile );
             setMode( 'existing' );
             if ( !publishedFile )
-                toast.info( 'File is saved. Use Find to refresh the document list, then review the direct Review & Pay action.' );
+                toast.info( 'Vault file is saved. Use Find to refresh the list, then review the direct Review & Pay action.' );
         } catch ( err: unknown )
         {
             toast.error( err instanceof Error ? err.message : 'Upload failed' );
@@ -565,7 +546,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <span className="sf-private-indicator">Private · Customer-bound</span>
                     </div>
                     <nav className="sf-top-links" aria-label="Vault action shortcuts">
-                        <a href="#sf-add" onClick={ () => setMode( 'upload' ) }>Where to publish a file</a>
+                        <a href="#sf-add" onClick={ () => setMode( 'upload' ) }>Upload to Vault S3</a>
                         <a href="#sf-action-panel" onClick={ () => setMode( 'existing' ) }>Send · Resend · Schedule</a>
                         <Link href="/workspace/payments?view=timing">Access delay settings (0–5s)</Link>
                     </nav>
@@ -649,7 +630,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </div>
                         <p className="sf-hint sf-ownership-note">
                             { mode === 'existing' && reviewFile
-                                ? 'Published file owner is fixed server-side. Changing the upload form cannot transfer access.'
+                                ? 'Saved Vault file owner is fixed server-side. Changing the upload form cannot transfer access.'
                                 : 'New upload: the entered mobile number is bound to the Vault file by the server, not the uploaded filename.' }
                         </p>
                         <div className="sf-document-mode" role="group" aria-label="Choose a document source">
@@ -670,10 +651,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </div>
                         { mode === 'upload' ? (
                 <section className="sf-upload-area" aria-labelledby="sf-add">
-                    <h2 className="sf-h2" id="sf-add">Step 2 · Upload &amp; publish file</h2>
+                    <h2 className="sf-h2" id="sf-add">Step 2 · Upload private Vault file</h2>
                     <p className="sf-note">
-                        The file is saved privately as a Document first, verified in S3, then published to Vault.
-                        Direct Vault upload is retired.
+                        Staff upload goes directly to Vault S3, separate from Drop Docs.
+                        The server confirms the bytes before the file can be offered for paid download.
                     </p>
 
                     <div className="sf-grid">
@@ -698,7 +679,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                     <div className="sf-actions">
                         <button className="sf-cta" type="button" onClick={ () => { void handleUpload(); } } disabled={ uploading }>
-                            { uploading ? 'Saving & publishing…' : 'Save & publish to Vault' }
+                            { uploading ? 'Saving to Vault…' : 'Upload to Vault' }
                         </button>
                         <span className="sf-aside">
                             { uploading && step
@@ -709,8 +690,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 </section>
                         ) : (
                             <section className="sf-existing-picker" aria-labelledby="sf-pick-title">
-                                <h3 className="sf-h2" id="sf-pick-title">Reuse a published Vault file</h3>
-                                <p className="sf-note">Reuse a published file for its existing owner—no second S3 upload. The selected file&apos;s customer cannot be changed.</p>
+                                <h3 className="sf-h2" id="sf-pick-title">Reuse a saved Vault file</h3>
+                                <p className="sf-note">Reuse a saved file for its existing owner—no second S3 upload. The selected file&apos;s customer cannot be changed.</p>
                                 <div className="sf-lookup">
                                     <input className="sf-input" value={ filterMobile } aria-label="Filter by customer mobile"
                                         placeholder="Customer mobile" inputMode="tel"
@@ -727,7 +708,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 { loadError && <p role="alert" className="sf-note">{ loadError }</p> }
                                 { loading ? <p className="sf-note"><Spinner /> Loading files…</p> : (
                                     <div className="sf-file-choices" role="group" aria-label="Current Vault files">
-                                        { files.length === 0 && <p className="sf-note">No published Vault files found. Use Upload new.</p> }
+                                        { files.length === 0 && <p className="sf-note">No Vault files found. Use Upload new.</p> }
                                         { files.slice( 0, 12 ).map( item => (
                                             <button type="button" key={ item.fileId }
                                                 className={ reviewFile?.fileId === item.fileId ? 'selected' : '' }
@@ -759,7 +740,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <div className="sf-review-actions" id="sf-action-panel">
                             <div className="sf-review-checks" aria-live="polite">
                                 <strong>Step 4 · Review &amp; Pay or paid access</strong>
-                                <span>{ reviewFile && mode === 'existing' ? 'File selected · saved in Vault' : 'Save & publish, then select the file' }</span>
+                                <span>{ reviewFile && mode === 'existing' ? 'File selected · saved in Vault' : 'Upload, then select the file' }</span>
                                 <span>{ vaultPricePaise !== null && !!vaultBreakdown ? 'Live catalogue quote available · amount locked' : 'Waiting for verified service quote' }</span>
                             </div>
                             { mode === 'existing' && reviewFile?.status === 'active'
@@ -798,8 +779,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             ) }
                             { mode === 'upload' && (
                                 <div className="sf-action-empty">
-                                    <strong>First, save &amp; publish the selected file above.</strong>
-                                    <p>Publishing never sends WhatsApp. After it is saved, select the published file to unlock Send now, Schedule and Resend.</p>
+                                    <strong>First, upload the selected file to Vault S3.</strong>
+                                    <p>Uploading never sends WhatsApp. After it is saved, select the Vault file to unlock Send now, Schedule and Resend.</p>
                                     <button type="button" className="sf-cta sf-cta-quiet" onClick={ () => {
                                         setMode( 'existing' );
                                         void load( filterMobile || mobile || undefined );
