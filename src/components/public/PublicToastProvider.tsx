@@ -107,13 +107,13 @@ export default function PublicToastProvider ( { children }: { children: React.Re
       <style jsx>{`
         /* The supplied screenshot shows the toast near the lower-right edge,
            inside the public content boundary, clear of the floating WhatsApp
-           control. At 1526px wide the inset computes to 155px, matching the
+           control. At 1526px wide the inset computes to 156px, matching the
            screenshot (1300px max content / 2, with a 42px inner offset). */
         .wc-public-toast-host{
           position:fixed;z-index:1350;top:auto;
           bottom:max(20px,env(safe-area-inset-bottom));
           inset-inline-start:auto;
-          inset-inline-end:max(96px,calc(50vw - 608px));
+          inset-inline-end:max(96px,calc(50vw - 607px));
           display:flex;justify-content:flex-end;align-items:flex-end;
           pointer-events:none;
         }
