@@ -125,9 +125,9 @@ def matrix() -> list[dict]:
                      "must serve 404.html with noindex and the apex canonical",
                      body_contains=('"page":"/404"', 'name="robots"', 'noindex')))
     rows.append(_row("fallback", f"{SITE}/404/", 200, "the exported page itself"))
-    rows.append(_row("public", f"{SITE}/cart/", 200,
-                     "legacy cart handoff is noindex and redirects in the browser to checkout",
-                     terminal_url=f"{SITE}/cart/"))
+    rows.append(_row("fallback", f"{SITE}/cart/", 404,
+                     "retired cart route must use the same not-found fallback as removed pages",
+                     body_contains=('"page":"/404"', 'noindex')))
 
     # ── the staff entry, untouched ──────────────────────────────────────────────────
     # Not hidden and not opened. This task does not touch authorization, and a 200 here is

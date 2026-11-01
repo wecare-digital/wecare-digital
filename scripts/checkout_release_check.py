@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # customer-commerce authorization backend, and scripts/probe_url_host_matrix.py
 # owns its live contract. Requiring out/auth/index.html would make every valid
 # static production build fail.
-CUSTOMER_PAGES = ('/cart/', '/checkout/', '/orders/',
+CUSTOMER_PAGES = ('/checkout/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
@@ -47,18 +47,6 @@ class Page(HTMLParser):
 def check_html(path, html):
     page = Page()
     page.feed(html)
-    # /cart/ is a historical, browser-side redirect to /checkout/. The owner
-    # explicitly removed its splash page and the public translation widget.
-    # Never require a visible header/hero/CTA on that redirect-only waypoint.
-    # The source guard below separately requires its basket-token handoff.
-    if path == '/cart/':
-        failures = []
-        if any(tag in page.tags for tag in ('header', 'footer', 'h1', 'main')):
-            failures.append('/cart/: redirect-only HTML must have no visible page chrome')
-        if not any('name="robots"' in tag and 'noindex' in tag.lower()
-                   for tag in re.findall('<meta[^>]*>', html, re.I)):
-            failures.append('/cart/: redirect-only HTML must remain noindex')
-        return failures
     failures = [f'{path}: missing {tag}' for tag in ('header', 'footer', 'h1', 'main')
                 if tag not in page.tags]
     for href in page.links:
@@ -70,7 +58,7 @@ def check_html(path, html):
             failures.append(f'{path}: public staff link {href}')
     if '/checkout/' not in page.links:
         failures.append(f'{path}: Checkout destination missing')
-    # Existing cart URLs redirect, but customer-facing links must use canonical checkout.
+    # The retired /cart/ URL must not appear in customer-facing links.
     if any(urlsplit(href).path.rstrip('/') == '/cart' for href in page.links):
         failures.append(f'{path}: legacy cart destination linked')
     if any(urlsplit(href).path.rstrip('/') == '/checkout/whatsapp' for href in page.links):
@@ -80,16 +68,17 @@ def check_html(path, html):
     return failures
 
 
-def check_cart_redirect_source():
-    """The legacy basket route silently preserves checkout handoff tokens."""
-    body = (ROOT / 'src/pages/cart.tsx').read_text(encoding='utf-8')
+def check_checkout_basket_source():
+    """Canonical checkout must keep the owner-scoped one-shot basket handoff."""
     failures = []
+    if (ROOT / 'src/pages/cart.tsx').exists():
+        failures.append('cart: retired standalone page reappeared')
+    body = (ROOT / 'src/components/cart/CartPage.tsx').read_text(encoding='utf-8')
     if ('basketTokenFromUrl()' not in body
-            or 'window.location.replace(' not in body
-            or '/checkout/?basket=' not in body):
-        failures.append('cart: legacy basket redirect lost its token-preserving handoff')
-    if '<main' in body or '<h1' in body or '<SupportWidget' in body:
-        failures.append('cart: redirect-only page regained visible intermediate UI')
+            or 'rememberBasketToken( token );' not in body
+            or 'claimBasket( session.accessToken, token )' not in body
+            or "const SIGN_IN_PATH = '/auth?return=/checkout/';" not in body):
+        failures.append('checkout: secure basket claim/sign-in handoff was lost')
     return failures
 
 
@@ -213,7 +202,7 @@ def main():
 
     # Source-only Orders check runs for every Amplify export build, before deploy.
     # --live validates public HTML only and cannot attest an authenticated UI.
-    failures = (check_orders_history_source() + check_cart_redirect_source()
+    failures = (check_orders_history_source() + check_checkout_basket_source()
                 if args.export_dir else [])
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         failures.extend(failure for result in pool.map(check, paths()) for failure in result)

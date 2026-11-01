@@ -693,12 +693,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
    *
    * NO SESSION MEANS SIGN IN FIRST, AND THE TOKEN TRAVELS BESIDE THE URL, NOT INSIDE IT. A link
    * opened in WhatsApp's in-app browser usually has no session, so this is the normal case rather
-   * than an edge. The `return` value is validated by `safeLocalReturnPath`
-   * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
-   * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
-   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
-   * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
-   * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
+   * than an edge. Use the allowlisted `/checkout/` return, without a basket query:
+   * `safeLocalReturnPath` deliberately rejects query strings. `rememberBasketToken`
+   * stashes the token in `sessionStorage` before sign-in and `basketTokenFromUrl()`
+   * reads and CLEARS it on the canonical checkout after return.
    * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
    * in the cart is the confusing outcome this whole effect exists to avoid.
    *
@@ -733,11 +731,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const session = getSession();
     if ( !session )
     {
-      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
-      // token has to be stashed here or it is lost. See the docblock above.
+      // Return to canonical checkout without a basket query; preserve the
+      // single-use token in sessionStorage until the authenticated claim.
       rememberBasketToken( token );
-      window.location.assign( `/auth?return=${ encodeURIComponent(
-        window.location.pathname + window.location.search ) }` );
+      window.location.assign( SIGN_IN_PATH );
       return;
     }
 
@@ -1453,7 +1450,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !session )
     {
-      // Remember the chosen rail across WhatsApp OTP. /auth returns to /cart/,
+      // Remember the chosen rail across WhatsApp OTP. /auth returns to /checkout/,
       // whose one-shot pending checkout resumes this exact channel after sign-in.
       stashPendingAction( { kind: 'checkout', channel: chosenChannel } );
       window.location.assign( SIGN_IN_PATH );
