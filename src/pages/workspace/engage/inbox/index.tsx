@@ -146,14 +146,14 @@ interface PageProps {
 
 // Channel identity (distinct, on-brand) + reply deep-link target.
 const CHANNEL: Record<string, { label: string; fg: string; bg: string; reply: string }> = {
-    whatsapp: { label: 'WhatsApp', fg: '#15803d', bg: '#f0fdf4', reply: '/workspace/engage/whatsapp' },
-    sms: { label: 'SMS', fg: '#1d4ed8', bg: '#eff6ff', reply: '/workspace/engage/sms' },
-    email: { label: 'Email', fg: '#b45309', bg: '#fffbeb', reply: '/workspace/engage/ses' },
-    rcs: { label: 'RCS', fg: '#0f766e', bg: '#f0fdfa', reply: '/workspace/engage/rcs' },
-    voice: { label: 'Voice', fg: '#6d28d9', bg: '#f5f3ff', reply: '/workspace/engage/voice' },
+    whatsapp: { label: 'WhatsApp', fg: '#15803d', bg: '#f0fdf4', reply: '/workspace/communications?view=inbox&channel=whatsapp' },
+    sms: { label: 'SMS', fg: '#1d4ed8', bg: '#eff6ff', reply: '/workspace/engage/channels?tab=sms' },
+    email: { label: 'Email', fg: '#b45309', bg: '#fffbeb', reply: '/workspace/engage/channels?tab=email' },
+    rcs: { label: 'RCS', fg: '#0f766e', bg: '#f0fdfa', reply: '/workspace/engage/channels?tab=rcs' },
+    voice: { label: 'Voice', fg: '#6d28d9', bg: '#f5f3ff', reply: '/workspace/engage/channels?tab=voice' },
 };
 
-const chMeta = ( c?: string ) => CHANNEL[ ( c || 'whatsapp' ).toLowerCase() ] || { label: c || '?', fg: colors.textMuted, bg: colors.bgSecondary, reply: '/workspace/engage' };
+const chMeta = ( c?: string ) => CHANNEL[ ( c || 'whatsapp' ).toLowerCase() ] || { label: c || '?', fg: colors.textMuted, bg: colors.bgSecondary, reply: '/workspace/communications?view=inbox' };
 
 /*
  * The toolbar channel filter's rows. 'ALL' is uppercase here and nowhere else in this file,
