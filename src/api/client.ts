@@ -7841,7 +7841,19 @@ export async function initVaultFileUpload ( input: {
 export async function uploadVaultFileBytes (
   uploadUrl: string, file: File, contentType: string,
 ): Promise<boolean> {
-  return uploadFileToS3( uploadUrl, file, contentType );
+  // Vault-only create-if-absent upload. S3 verifies this header in the
+  // presigned URL; an already-confirmed/paid file cannot be overwritten while
+  // the 15-minute URL is still valid. Do not change generic media uploads.
+  try {
+    const response = await fetch( uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType, 'If-None-Match': '*' },
+      body: file,
+    } );
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 export async function confirmVaultFileUpload ( fileId: string ): Promise<ApiResult<{
   fileId: string;
