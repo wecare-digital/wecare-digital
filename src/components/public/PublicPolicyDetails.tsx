@@ -12,20 +12,10 @@ const PublicPolicyDetails: React.FC = () => {
   const router = useRouter();
   const policy = publicPolicyDetailsForRoute( router.pathname );
   if ( !policy ) return null;
-  // Orders uses the same canonical disclosure, but as compact customer-account
-  // supporting text with direct references to the applicable full legal sections.
-  const onOrdersPage = router.pathname === '/orders';
-
   return (
     <section className="public-policy-tail" aria-label="Policy details">
       <div className="public-policy-inner">
         <PolicyDetails
-          compact={ onOrdersPage }
-          termsLinks={ onOrdersPage ? {
-            shipping: '/terms/#s15',
-            returns: '/terms/#s14',
-            refunds: '/terms/#s14',
-          } : undefined }
           shipping={ policy.shipping }
           returns={ policy.returns }
           refunds={ policy.refunds }
