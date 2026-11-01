@@ -44,6 +44,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
+/** Optional consumer for shared components also rendered outside Workspace. */
+export const useOptionalToastContext = (): ToastContextType | null =>
+  useContext(ToastContext) ?? null;
+
 export const useToastContext = (): ToastContextType => {
   const context = useContext(ToastContext);
   if (!context) {
