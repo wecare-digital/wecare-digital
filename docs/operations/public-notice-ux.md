@@ -128,24 +128,30 @@ internal setup/configuration state. Do not display backend status codes,
 WhatsApp template identifiers, API names, WABA, Lambda, or provider/debug
 errors in a toast.
 
-For Contribute, the internal `CONTRIBUTE_TEMPLATE_NOT_CONFIGURED` response
-must display the same customer-facing failure message as other unconfirmed
-WhatsApp actions: **`Couldn't confirm. Check WhatsApp.`** It is a
-**persistent inline warning**, not a success or an auto-dismissing toast.
-This internal response means **Contribute did not send any message**; the
-generic wording is a consistent customer-facing fallback, not evidence
-that WhatsApp accepted or received anything. Do not retry automatically.
+Contribute's current native payment-request path is **not** a template
+configuration placeholder: it can submit an authenticated, fixed-amount
+WhatsApp Review & Pay request. The exact `PAYMENT_REQUEST_SENT` result with
+the verified ₹300 amount, INR currency and payment-attempt ID is the ONLY
+successful Contribute response. It may display `Sent to WhatsApp.`, which
+means acceptance, never payment or delivery. A 409 release block
+(`AMOUNT_NOT_SETTLED` or `CONTRIBUTION_TAXABLE_NOT_RELEASED`) and any
+uncertain send both show `Couldn't confirm. Check WhatsApp.` as a
+**persistent inline warning**. Neither a 409 nor an unknown outcome may be
+presented as a successful send, and there is no automatic retry.
+
 Keep technical context in staff logs and engineering tools; preserve
 actionable, payment-safe inline error messages.
 
 ## WhatsApp action boundary
 
-Only **Subscribe** and **Leave Review** currently initiate an authenticated
-WhatsApp send in the Orders action menu. Submit Request, Request Amendment,
-Drop Docs, Vault, Shipments > Track, and Shipments > Pickup Request are
-navigation entries there; a click must not invent a `Sent to WhatsApp.`
-success. Shipped Orders is excluded. No WhatsApp sending behavior, provider
-state machine or payment logic is altered by this UI migration.
+**Subscribe** and **Leave Review** can send authenticated WhatsApp
+invitations from the Orders action menu. An explicit **Contribute** action
+can initiate the authenticated native WhatsApp payment-request path described
+above. Submit Request, Request Amendment, Drop Docs, Vault, Shipments >
+Track, and Shipments > Pickup Request are navigation entries; they must not
+invent a `Sent to WhatsApp.` success. Shipped Orders is excluded.
+This UI change does not alter send endpoints, payment amounts, retry rules or
+provider state machines.
 
 ## Testing
 
