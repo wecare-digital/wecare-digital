@@ -85,7 +85,11 @@ VAULT_UPLOAD_PREFIX = PUBLIC_DELIVERABLE_ROOT + "valut/"
 # layout is public, and a name that reads as gated would invite a disclosure.
 SECURE_UPLOAD_ROOT = "secure/u/"
 
-DROP_DOCS_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "dropdocs/"
+# Dedicated customer Drop Docs storage. This is PRIVATE despite its public/ ancestor.
+# The live S3 bucket policy denies CloudFront OAC access to the entire prefix.
+DROP_DOCS_UPLOAD_PREFIX = PUBLIC_DELIVERABLE_ROOT + "drop-docs/"
+# Old keys remain valid for historical reads; never write new documents here.
+LEGACY_DROP_DOCS_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "dropdocs/"
 SERVICE_REQUEST_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "service-requests/"
 
 INVOICE_CUSTOMER_IMAGE_PREFIX = PUBLIC_DELIVERABLE_ROOT + "Invoice/customer_invoice/"
@@ -117,6 +121,7 @@ WHATSAPP_TEMPLATE_STICKER_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "stk/"
 #: them broke no consumer. `verify_media_prefixes.py` keeps the edge copy identical.
 PRIVATE_DELIVERABLE_PREFIXES: tuple[str, ...] = (
     VAULT_UPLOAD_PREFIX,
+    DROP_DOCS_UPLOAD_PREFIX,
     INVOICE_CUSTOMER_IMAGE_PREFIX,
     RECEIPT_PREFIX,
     WHATSAPP_INCOMING_PREFIX,
