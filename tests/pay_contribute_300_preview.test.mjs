@@ -16,7 +16,7 @@ assert.match(component, /EXPRESS_PAISE = 1500/);
 assert.match(component, /Promise\.all\(\[fetchContributionPrice\(\), fetchServicePrices\(\)\]\)/);
 assert.match(component, /Send only after a fresh server quote/);
 assert.match(component, /exact match required at send time/);
-assert.match(component, /BLOG_CONTRIBUTION/);
+assert.match(component, /single voluntary payment/);
 assert.doesNotMatch(component, /sendPaymentLink\(|createInvoice\(|sendWhatsAppPayment\(|prepareCheckout\(|updateSystemConfig\(/);
 
 // Existing Contribute exemption remains untouched.
