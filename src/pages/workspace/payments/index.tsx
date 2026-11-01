@@ -265,10 +265,22 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
                   </>
                 ) : (
                   <>
-                    <div className="pay-context-link">
-                      <Link href="/workspace/payments?view=defaults">Default invoice items and pricing presets</Link>
-                    </div>
-                    <PayFlowPage signOut={signOut} user={user} embedded mode="collect" />
+                    <nav className="pay-collect-create-links" aria-label="Collect creation tools">
+                      <Link href="/workspace/payments?view=collect&tab=create">
+                        Compose new invoice
+                      </Link>
+                      <Link href="/workspace/payments?view=collect&tab=create&invoices=saved">
+                        Saved invoices · Review &amp; send
+                      </Link>
+                      <Link href="/workspace/payments?view=defaults">
+                        Default invoice items and pricing presets
+                      </Link>
+                    </nav>
+                    {one(router.query.invoices) === 'saved'
+                      ? <PayFlowPage key="saved-invoices" signOut={signOut} user={user} embedded
+                          mode="invoices" allowSendInInvoices />
+                      : <PayFlowPage key="create-invoice" signOut={signOut} user={user}
+                          embedded mode="collect" />}
                   </>
                 )}
               </section>
@@ -358,6 +370,9 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
         )}
       </PageShell>
       <style jsx>{`
+        .pay-collect-create-links{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 16px}
+        .pay-collect-create-links :global(a){display:inline-flex;align-items:center;min-height:44px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--surface);color:var(--text-primary);font-size:12px;font-weight:750;text-decoration:none}
+        .pay-collect-create-links :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
         .pay-context-link{display:flex;justify-content:flex-end;margin:5px 0 10px}
         .pay-context-link :global(a){border:1px solid var(--border);border-radius:10px;display:inline-flex;align-items:center;min-height:44px;padding:10px 15px;text-decoration:none;color:var(--text-primary);font-weight:750;font-size:12px}
         .pay-context-link :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
