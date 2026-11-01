@@ -8,6 +8,7 @@
 import React from 'react';
 import Link from 'next/link';
 import PaymentTemplateMedia from './PaymentTemplateMedia';
+import ContributeStaffControls from './ContributeStaffControls';
 import {
   fetchContributionPrice, fetchServicePrices, rupeesFromPaise,
   type ServicePaymentTemplates, type ServicePrice,
@@ -51,6 +52,7 @@ const ContributePaymentPlan: React.FC = () => {
   const [price, setPrice] = React.useState<ServicePrice>(UNAVAILABLE);
   const [templates, setTemplates] = React.useState<ServicePaymentTemplates | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [refreshSeq, setRefreshSeq] = React.useState(0);
 
   React.useEffect(() => {
     let active = true;
@@ -65,7 +67,7 @@ const ContributePaymentPlan: React.FC = () => {
       .catch(() => { if (active) { setPrice(UNAVAILABLE); setTemplates(null); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [refreshSeq]);
 
   return (
     <section className="contribute-pay" aria-label="Contribute native payment proposal">
@@ -81,6 +83,13 @@ const ContributePaymentPlan: React.FC = () => {
           fee-exempt checkout. These worked examples do not change the catalog, freeze a quote,
           reserve a payment, generate an invoice, or send a WhatsApp message.</p>
       </div>
+
+      <ContributeStaffControls
+        price={price}
+        templates={templates}
+        loadingPrice={loading}
+        refreshPrice={() => setRefreshSeq(current => current + 1)}
+      />
 
       <div className="contribute-grid">
         <article>
