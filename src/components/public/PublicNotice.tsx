@@ -48,7 +48,7 @@ export default function PublicNotice ( {
         }
         .wc-public-notice.is-inline{inline-size:min(100%,560px)}
         /* Match the supplied original screenshot: generous light-lime card,
-           bold dark type, 8px lime stripe, rounded 22px corners. Only action
+           semibold dark type, 8px lime stripe, rounded 20px corners. Only action
            toasts use this; inline errors retain their existing readable style. */
         .wc-public-notice.is-toast{
           inline-size:fit-content;max-inline-size:100%;margin:0;
@@ -56,7 +56,7 @@ export default function PublicNotice ( {
           border-inline-start:var(--wc-toast-stripe-width) solid var(--wc-toast-stripe);
           border-radius:var(--wc-toast-radius);
           background:var(--wc-toast-surface);color:var(--wc-toast-ink);
-          font-size:var(--wc-toast-type-size);font-weight:700;line-height:1.4;
+          font-size:var(--wc-toast-type-size);font-weight:600;line-height:1.4;
         }
         .wc-public-notice.tone-error{font-weight:700}
         .wc-public-notice.is-flush{margin:0}
