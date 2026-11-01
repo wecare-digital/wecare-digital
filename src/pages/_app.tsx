@@ -645,7 +645,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
     || router.pathname === '/auth'
     || router.pathname === '/cart'
     || router.pathname === '/checkout'
-    || router.pathname === '/checkout/whatsapp'
     // Checkout status + success are customer-session screens, not marketing pages: they carry the
     // public chrome (header/footer/support widget) but are deliberately kept OUT of
     // PUBLIC_PAGE_META so they are not treated as indexable marketing surfaces. Each page sets

@@ -22,6 +22,7 @@ const retired = [
   '/leave-review',
   '/subscribe',
   '/get', // Legacy customer-file signpost; /get/<*> media stays active.
+  '/checkout/whatsapp', // Inactive payment-channel placeholder removed by owner.
 ];
 const deadModules = [
   'src/content/customerservice.ts',
@@ -80,7 +81,7 @@ if (!block) {
 // not orphaned public pages; they are intentionally audited separately.
 const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/_app', '/_document', '/404', '/auth', '/cart', '/vault',
-  '/checkout', '/checkout/status', '/checkout/success', '/checkout/whatsapp',
+  '/checkout', '/checkout/status', '/checkout/success',
   '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
 ]);
