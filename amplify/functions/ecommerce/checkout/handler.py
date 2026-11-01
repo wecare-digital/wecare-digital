@@ -76,6 +76,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
@@ -348,6 +349,126 @@ def _readiness() -> payment_readiness.PaymentReadiness:
         expected_provider_mid=EXPECTED_PROVIDER_MID,
         fetch_configurations=_fetch_payment_configurations,
     )
+
+
+
+# Admin staff Contribute is a catalog-order payment, NOT a Vault service
+# session, a staff invoice or the historical BLOG_CONTRIBUTION gateway route.
+_STAFF_CONTRIBUTION_ACTION = "staff-contribute-send"
+_STAFF_CONTRIBUTION_CONTACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """One exact ₹300 Meta ORDER_DETAILS request to a verified saved customer.
+
+    Staff never supply the price, SKU, WhatsApp number, media, payment
+    configuration, line details or quote. This reuses _create so the
+    canonical reservation, provider readiness and capture rails stay intact.
+    """
+    if (set(body) != {"action", "contactId"}
+            or type(body.get("contactId")) is not str
+            or not _STAFF_CONTRIBUTION_CONTACT_ID.fullmatch(body["contactId"])):
+        return cors_response(400, {"error": "STAFF_CONTRIBUTION_REQUEST_INVALID"}, origin)
+
+    variants = list(CONTRIBUTION_CHOICES_PAISE.items())
+    if (len(variants) != 1 or len(CONTRIBUTION_PRODUCT_IDS) != 1
+            or CONTRIBUTION_PRODUCT_ID not in CONTRIBUTION_PRODUCT_IDS
+            or variants[0][1] != staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE):
+        return cors_response(409, {"error": "CONTRIBUTION_POLICY_UNAVAILABLE"}, origin)
+    product_id, variant_id = CONTRIBUTION_PRODUCT_ID, variants[0][0]
+
+    try:
+        contact = _table(CONTACTS_TABLE).get_item(
+            Key={"id": body["contactId"]}, ConsistentRead=True).get("Item") or {}
+    except Exception:
+        return cors_response(503, {"error": "CONTRIBUTION_CONTACT_READ_UNAVAILABLE"}, origin)
+    if (not contact_store.is_live(contact) or contact.get("archivedAt")
+            or contact.get("locked") or contact_key.resolve(contact) != body["contactId"]
+            or not customer_auth.is_cognito_subject(str(contact.get("checkoutCustomerId") or ""))
+            or not str(contact.get("name") or "").strip()):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_CUSTOMER_UNVERIFIED",
+            "message": "Select a verified active customer before requesting payment.",
+        }, origin)
+
+    # No staff-supplied sender/phone, no fabricated inbound message.
+    sender_id = wa_payment_request.PHONE_NUMBER_ID_1
+    if sender_id not in wa_payment_request.PAYMENT_SENDERS:
+        return cors_response(409, {"error": "PAYMENT_SENDER_NOT_PERMITTED"}, origin)
+    try:
+        identity, proven = _native_whatsapp_identity(
+            body["contactId"], str(contact.get("phone") or ""), sender_id, "")
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_CUSTOMER_UNVERIFIED",
+            "message": "WhatsApp customer ownership could not be verified. No request was sent.",
+        }, origin)
+    if (identity.customer_id != str(contact["checkoutCustomerId"])
+            or not contact_store.is_live(proven) or proven.get("archivedAt")
+            or proven.get("locked") or not str(proven.get("name") or "").strip()):
+        return cors_response(409, {"error": "CONTRIBUTION_CUSTOMER_UNVERIFIED"}, origin)
+
+    lines = [{
+        "catalogReference": {"catalogItemId": product_id,
+                             "options": {"variantId": variant_id}},
+        "quantity": 1,
+    }]
+    try:
+        preview = _native_quote(identity, lines, int(time.time()))
+    except (ValueError, catalog_pricing.CatalogPricingError):
+        return cors_response(409, {"error": "CONTRIBUTION_QUOTE_UNAVAILABLE"}, origin)
+    if not staff_contribution.valid_staff_contribution_snapshot(
+            preview, product_id=product_id, variant_id=variant_id):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_PRICE_MISMATCH",
+            "message": "The live ₹300 quote does not match the exempt policy. Nothing was sent.",
+        }, origin)
+
+    # Reuse the existing *conditional* WACARTLIVE per-owner/basket slot.
+    # Same customer + SKU sent from native WhatsApp and staff cannot race.
+    now = int(time.time())
+    live_key = _wa_cart_live_key(identity.customer_id, lines)
+    try:
+        token = (_claim_wa_cart(live_key, identity.customer_id, now)
+                 or _take_over_settled_wa_cart(live_key, identity.customer_id, now))
+    except Exception:
+        return cors_response(503, {"error": "CONTRIBUTION_RESERVATION_UNAVAILABLE"}, origin)
+    if not token:
+        return cors_response(409, {
+            "error": "CONTRIBUTION_REQUEST_ALREADY_OPEN",
+            "message": "A payment request is in progress or cannot be safely retried. Check WhatsApp and the ledger.",
+        }, origin)
+
+    # Server-generated request identity, no customer-supplied amount/address.
+    # Contributions never ship, so delivery confirmation is inapplicable.
+    try:
+        result = _create(
+            identity, {"lineItems": lines, "requestKey": uuid4().hex,
+                       "deliveryConfirmed": True},
+            origin, native_contact=proven, required_staff_contribution=True)
+    except Exception as error:
+        logger.error(json.dumps({"event": "staff_contribution_send_unconfirmed",
+                                 "error": type(error).__name__}))
+        # The provider might have accepted the request before an exception.
+        # Keep the slot; do not auto-send again or call this a failed delivery.
+        return cors_response(502, {
+            "error": "CONTRIBUTION_SEND_UNCONFIRMED", "sendUnconfirmed": True,
+            "message": "Delivery status is unknown. Check the ledger and WhatsApp before another attempt.",
+        }, origin)
+
+    try:
+        status = int(result.get("statusCode") or 0)
+        payload = json.loads(result.get("body") or "{}")
+    except (TypeError, ValueError):
+        status, payload = 0, {}
+    accepted = status == 200 and payload.get("status") == "PAYMENT_REQUEST_SENT"
+    uncertain = bool(payload.get("sendUnconfirmed")) or status == 0 or status >= 500
+    if accepted or uncertain:
+        _record_wa_cart(live_key, token,
+                        str(payload.get("paymentAttemptId") or ""), now)
+    else:
+        _release_wa_cart(live_key, token)
+    return result
 
 
 # ── request plumbing ───────────────────────────────────────────────────────────
