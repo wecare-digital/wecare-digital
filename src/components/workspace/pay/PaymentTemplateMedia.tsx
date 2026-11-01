@@ -20,13 +20,18 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
   const [ signed, setSigned ] = React.useState<api.VaultPaymentMediaPreview | null>( null );
   const [ loading, setLoading ] = React.useState( false );
   const [ error, setError ] = React.useState( '' );
+  // A signed URL is not proof that the browser fetched an image. Track each
+  // actual load and show an explicit failure instead of a broken image icon.
+  const [ mediaLoad, setMediaLoad ] = React.useState<Record<string, 'loaded' | 'failed'>>( {} );
+  const markMedia = ( url: string, status: 'loaded' | 'failed' ) =>
+    setMediaLoad( current => ( { ...current, [ url ]: status } ) );
   const refreshSignedPreview = async () => {
     setLoading( true );
     setError( '' );
     setSigned( null );
     try {
     const result = await api.getVaultPaymentMediaPreview();
-    if ( !result.ok ) setError( 'Unable to load a signed S3 preview. The approved public image is shown instead.' );
+    if ( !result.ok ) setError( 'Signed S3 preview unavailable. Public image references are shown without independent verification.' );
     else {
       const data = result.data;
       const signedGet = ( url: string ): boolean => {
@@ -42,7 +47,7 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
       } else setError( 'Signed S3 preview was not validated; no private URL was displayed.' );
     }
     } catch {
-      setError( 'S3 preview status could not be verified; approved source images remain available.' );
+      setError( 'S3 preview could not be verified; check whether the public image references load.' );
     } finally {
       setLoading( false );
     }
@@ -67,15 +72,31 @@ const PaymentTemplateMedia: React.FC<Props> = ( { templates, serviceLabel, signe
       { header && item ? (
         <div className="payment-template-images">
           <figure>
-            {/* Static, server-validated public Meta template asset; no upload or send. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ header } alt="Approved WhatsApp payment template header" loading="lazy" />
-            <figcaption>{ signed ? 'Verified S3 GET · approved template header' : 'Approved header · reused across services' }</figcaption>
+            { mediaLoad[ header ] !== 'failed' ? (
+              <>
+                {/* Display the server-selected media. The preview never changes outbound assets. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ header } alt="WhatsApp payment template header" loading="lazy"
+                  onLoad={ () => markMedia( header, 'loaded' ) }
+                  onError={ () => markMedia( header, 'failed' ) } />
+              </>
+            ) : <p className="payment-template-unavailable" role="status">Header image failed to load. Verify the approved S3 or CDN asset.</p> }
+            <figcaption>{ signed
+              ? mediaLoad[ header ] === 'loaded' ? 'Signed S3 header loaded' : 'Signed S3 header · load not verified'
+              : mediaLoad[ header ] === 'loaded' ? 'Public header image loaded' : 'Public header reference · load not verified' }</figcaption>
           </figure>
           <figure>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ item } alt="Approved ORDER_DETAILS item icon" loading="lazy" />
-            <figcaption>{ signed ? 'Verified S3 GET · approved ORDER_DETAILS item' : 'Same item icon · quantity and price remain server-owned' }</figcaption>
+            { mediaLoad[ item ] !== 'failed' ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ item } alt="ORDER_DETAILS item icon" loading="lazy"
+                  onLoad={ () => markMedia( item, 'loaded' ) }
+                  onError={ () => markMedia( item, 'failed' ) } />
+              </>
+            ) : <p className="payment-template-unavailable" role="status">Item thumbnail failed to load. Verify the approved S3 or CDN asset.</p> }
+            <figcaption>{ signed
+              ? mediaLoad[ item ] === 'loaded' ? 'Signed S3 ORDER_DETAILS icon loaded' : 'Signed S3 item · load not verified'
+              : mediaLoad[ item ] === 'loaded' ? 'Public ORDER_DETAILS icon loaded' : 'Public item reference · load not verified' }</figcaption>
           </figure>
         </div>
       ) : (
