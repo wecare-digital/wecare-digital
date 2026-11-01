@@ -39,6 +39,8 @@ jobs:
           python3 -m compileall -f -q             amplify/functions/core/secure-files             amplify/functions/ecommerce/service-requests             amplify/functions/ecommerce/checkout             amplify/functions/ecommerce/meta-catalog-sync             amplify/functions/payments/invoice-engine             amplify/functions/payments/razorpay-webhook             amplify/functions/messaging/whatsapp-business-api             amplify/functions/messaging/inbound-whatsapp-handler             amplify/functions/shared/lambda_utils
       - name: Vault payments and Collect saved-invoice safety
         run: python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v
+      - name: Verify stale paid Vault website carts cannot renew after expiry
+        run: python3 -m unittest discover -s tests -p 'test_vault_website_no_renew.py' -v
       - name: Vault exact-file ownership and truthful Activity
         run: python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v
       - name: Retired WhatsApp Vault chooser cannot collect payment
