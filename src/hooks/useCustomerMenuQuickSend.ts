@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOptionalPublicToast } from '../components/public/PublicToastProvider';
 import { useOptionalToastContext } from '../contexts/ToastContext';
 import { customerMenuNotice } from '../lib/customerMenuNotices';
-import { sendCustomerMenuAction, stashCustomerMenuAction } from '../lib/customerMenuActions';
+import { sendCustomerMenuAction, stashCustomerMenuAction, takeCustomerMenuAction } from '../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../lib/customerMenuActions';
 
 // Header and Stay connected can coexist in one tree. A second tap anywhere
@@ -56,6 +56,10 @@ export function useCustomerMenuQuickSend () {
           window.location.assign( '/orders/' );
           return;
         }
+        // A newer direct click supersedes any previously queued but unsent
+        // one-use menu intent from an interrupted navigation in this tab.
+        // Otherwise opening Orders later could unexpectedly send the old one.
+        void takeCustomerMenuAction();
         const outcome = await sendCustomerMenuAction( action, session.accessToken );
         if ( !mounted.current ) return;
         if ( outcome.kind === 'expired' ) {
