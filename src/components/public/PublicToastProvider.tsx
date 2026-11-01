@@ -105,20 +105,24 @@ export default function PublicToastProvider ( { children }: { children: React.Re
         ) }
       </div>
       <style jsx>{`
+        /* Restore the original above-content, right-aligned notification
+           placement instead of the later bottom-centred snackbar. This remains
+           one toast at a time on all public routes. */
         .wc-public-toast-host{
-          position:fixed;z-index:1350;inset-inline:16px;
-          bottom:max(24px,env(safe-area-inset-bottom));
-          display:flex;justify-content:center;align-items:flex-end;
+          position:fixed;z-index:1350;
+          top:calc(108px + 12px);
+          inset-inline-start:auto;
+          inset-inline-end:max(16px,env(safe-area-inset-right));
+          display:flex;justify-content:flex-end;align-items:flex-start;
           pointer-events:none;
         }
         .wc-public-toast-host :global(.wc-public-notice){
           max-inline-size:min(100%,420px);
-          text-align:center;pointer-events:none;
+          text-align:start;pointer-events:none;
         }
-        /* The WhatsApp/translation floating control occupies the bottom right
-           on phones. Keep the compact toast above it, not over its tap target. */
+        /* Mobile fixed header is 96px tall; keep the toast below its buttons. */
         @media(max-width:767px){
-          .wc-public-toast-host{bottom:calc(96px + env(safe-area-inset-bottom))}
+          .wc-public-toast-host{top:calc(96px + 12px);inset-inline:16px}
         }
       `}</style>
     </Context.Provider>
