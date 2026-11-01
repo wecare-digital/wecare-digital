@@ -33,8 +33,13 @@ interface PublicToastContextValue {
 
 const Context = createContext<PublicToastContextValue | null>( null );
 
+/** PublicShare also renders inside Workspace, where the public host is absent. */
+export function useOptionalPublicToast (): PublicToastContextValue | null {
+  return useContext( Context );
+}
+
 export function usePublicToast (): PublicToastContextValue {
-  const value = useContext( Context );
+  const value = useOptionalPublicToast();
   if ( !value ) throw new Error( 'usePublicToast requires PublicToastProvider' );
   return value;
 }
