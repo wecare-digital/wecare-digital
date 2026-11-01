@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import { publicActionText } from '../lib/publicActionNotices';
 import { symbol, type MaterialSymbol } from '../config/materialSymbols';
 
 type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
@@ -440,13 +441,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
               <p className="eta-line"><strong>Guide</strong> { config.understanding }</p>
               <div className="eta-loading" role="status">
                 <span className="eta-loading-line" aria-hidden="true" />
-                <span>Comparing options…</span>
+                <span>{ publicActionText( 'processing' ) }</span>
               </div>
             </>
           ) }
 
           { status === 'error' && (
-            <p className="eta-line"><strong>Guide</strong> Provider unavailable. No booking or payment started.</p>
+            <p className="eta-line"><strong>Guide</strong> { publicActionText( 'blocked' ) } No booking or payment started.</p>
           ) }
 
           { status === 'ready' && (

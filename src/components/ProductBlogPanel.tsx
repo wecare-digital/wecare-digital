@@ -5,6 +5,7 @@ import { loadBlogCardIndex } from '../lib/blog-card-index';
 import BlogTags from './BlogTags';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
+import { publicActionText } from '../lib/publicActionNotices';
 
 /**
  * THE RIGHT-HAND BLOG PANEL on a product page (today only /anew/).
@@ -215,8 +216,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       { initialCategories && !allCards && (
         <div className={ failed ? 'pbp-load is-error' : 'pbp-load pbp-sr' } role="status">
           { failed
-            ? <>Couldn't load more posts. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button></>
-            : 'Loading posts…' }
+            ? <>{ publicActionText( 'failure' ) } <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button></>
+            : publicActionText( 'processing' ) }
         </div>
       ) }
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page

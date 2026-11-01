@@ -10,6 +10,44 @@ records **61 original render sites across 16 files**, not 61 unique toasts.
 Its source links and counts describe that audit snapshot; do not replace them
 with claims of current runtime coverage.
 
+## Final public API/action wording (1 November 2026)
+
+All customer-facing **action feedback** now selects a trusted status key from
+`src/lib/publicActionNotices.ts`, never a raw API, Meta or provider message.
+The shared `PublicToastProvider.showToast` accepts *only* a typed status key
+and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** small
+top-right toast is shown at a time.
+
+| Outcome | Exact public text | Where |
+|---|---|---|
+| `processing` | `Processing…` | Low-risk action toast; page-local progress where necessary |
+| `success` | `Done.` | Non-WhatsApp action toast, e.g. copy |
+| `failure` | `Couldn't complete. Try again.` | Low-risk toast or persistent page error |
+| `blocked` | `This action is unavailable right now.` | Low-risk toast or persistent page error |
+| `whatsappAccepted` | `Sent to WhatsApp.` | ONLY when explicit sender acceptance is known |
+| `whatsappFailed` | `Couldn't confirm. Check WhatsApp.` | Persistent inline warning, NEVER an auto-dismissed toast |
+
+For API failures, classify known HTTP statuses / domain outcomes to
+`blocked` or `failure`; do not show `response.message`,
+`failure.message`, HTTP error text, exception strings or configuration
+details. Sign-in uses the already-approved `signInMessages.ts` text for
+recognized code/number states, and generic feedback for unknown API text.
+
+**Vault WhatsApp payments are sensitive:** HTTP `202` is a successful HTTP
+response but can carry `PAYMENT_REQUEST_UNCONFIRMED`. Show
+`Sent to WhatsApp.` only for the **exact**
+`PAYMENT_REQUEST_SENT` outcome; all other successful HTTP outcomes get a
+persistent `Couldn't confirm. Check WhatsApp.` warning and status refresh.
+Do not start a second payment request automatically.
+
+This is **not** permission to replace payment uncertainty, `Do not pay
+again.` guidance, address/OTP field validation, Vault paid-access state or
+weather/search result information with generic fleeting popups. Those stay
+inline/on-panel with the context needed for a safe decision. Unifying action
+language does not mean discarding financial facts or important recovery
+instructions. Workspace has the same toast CSS, but its operational message
+vocabulary is intentionally separate.
+
 ## One small, mobile-safe action toast — Public and Workspace (1 November 2026)
 
 Both apps now use **one global class and one global host rule** from
@@ -60,11 +98,13 @@ completed.
 
 ### First migration
 
-- **Orders:** Subscribe and Leave Review share `Processing…`,
-  `Sent to WhatsApp.`, and `Couldn't confirm. Check WhatsApp.`.
-  The accepted toast describes **provider acceptance**, not delivery.
-  Invoice/order errors stay persistent; copy success clears after 2.5 seconds,
-  while the keyboard-copy fallback persists.
+- **Orders:** Subscribe, Leave Review and explicit Contribute payment requests
+  share `Processing…`, `Sent to WhatsApp.` and
+  `Couldn't confirm. Check WhatsApp.`. Only the endpoint's exact accepted
+  outcome permits the success; acceptance never proves WhatsApp delivery
+  or that a Contribute payment was completed.
+  Invoice/order errors stay persistent; generic copy success `Done.` clears
+  after 2.5 seconds, while the keyboard-copy fallback persists.
 - **Cart/Checkout:** Action notices remain persistent, with error severity
   announced assertively. Quote, price and payment confirmation remain on
   their existing inline screens.
@@ -73,8 +113,9 @@ completed.
 - **Vault:** Access, missing-file and payment-action failures remain persistent
   inline. Paid/unverified access stays visible with its `Do not pay again`
   guidance; no conversion to a disappearing toast.
-- **PublicShare:** Copy shows one brief `Link copied.` toast, while the
-  same live region is visually hidden before copying.
+- **PublicShare:** Public copy shows one brief `Done.` toast, while its
+  screen-reader fallback remains hidden before copying. Workspace wording
+  remains separate.
 
 The other notification locations from the 61-site inventory are **not
 automatically changed**. In particular, header/search counts, translation,
@@ -89,24 +130,30 @@ internal setup/configuration state. Do not display backend status codes,
 WhatsApp template identifiers, API names, WABA, Lambda, or provider/debug
 errors in a toast.
 
-For Contribute, the internal `CONTRIBUTE_TEMPLATE_NOT_CONFIGURED` response
-must display the same customer-facing failure message as other unconfirmed
-WhatsApp actions: **`Couldn't confirm. Check WhatsApp.`** It is a
-**persistent inline warning**, not a success or an auto-dismissing toast.
-This internal response means **Contribute did not send any message**; the
-generic wording is a consistent customer-facing fallback, not evidence
-that WhatsApp accepted or received anything. Do not retry automatically.
+Contribute's current native payment-request path is **not** a template
+configuration placeholder: it can submit an authenticated, fixed-amount
+WhatsApp Review & Pay request. The exact `PAYMENT_REQUEST_SENT` result with
+the verified ₹300 amount, INR currency and payment-attempt ID is the ONLY
+successful Contribute response. It may display `Sent to WhatsApp.`, which
+means acceptance, never payment or delivery. A 409 release block
+(`AMOUNT_NOT_SETTLED` or `CONTRIBUTION_TAXABLE_NOT_RELEASED`) and any
+uncertain send both show `Couldn't confirm. Check WhatsApp.` as a
+**persistent inline warning**. Neither a 409 nor an unknown outcome may be
+presented as a successful send, and there is no automatic retry.
+
 Keep technical context in staff logs and engineering tools; preserve
 actionable, payment-safe inline error messages.
 
 ## WhatsApp action boundary
 
-Only **Subscribe** and **Leave Review** currently initiate an authenticated
-WhatsApp send in the Orders action menu. Submit Request, Request Amendment,
-Drop Docs, Vault, Shipments > Track, and Shipments > Pickup Request are
-navigation entries there; a click must not invent a `Sent to WhatsApp.`
-success. Shipped Orders is excluded. No WhatsApp sending behavior, provider
-state machine or payment logic is altered by this UI migration.
+**Subscribe** and **Leave Review** can send authenticated WhatsApp
+invitations from the Orders action menu. An explicit **Contribute** action
+can initiate the authenticated native WhatsApp payment-request path described
+above. Submit Request, Request Amendment, Drop Docs, Vault, Shipments >
+Track, and Shipments > Pickup Request are navigation entries; they must not
+invent a `Sent to WhatsApp.` success. Shipped Orders is excluded.
+This UI change does not alter send endpoints, payment amounts, retry rules or
+provider state machines.
 
 ## Testing
 
@@ -114,5 +161,8 @@ state machine or payment logic is altered by this UI migration.
 checks the shared compact styles, top-right positions and one-toast behavior.
 `node --test tests/public_customer_notification_copy.test.mjs`
 checks plain-language Contribute messaging and acceptance boundaries.
+`node --test tests/public_action_feedback_contract.test.mjs`
+checks canonical action wording, refusal of raw API strings and the Vault
+HTTP-202 acceptance guard.
 Run browser QA for keyboard, small screens, RTL and long error strings
 before release.
