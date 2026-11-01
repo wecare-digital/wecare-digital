@@ -372,9 +372,8 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
 
     Vault is sold per FILE, so a Vault intent without ``vault_file`` is refused
     (``VAULT_FILE_REQUIRED``): `vault_access.grant_access` could never unlock what it paid for. A
-    file that was paid before is a RENEWAL, minted only when ``vault_entitlement`` is that file's
-    durable entitlement and every paid window on it has been used. Callers that cannot read the
-    entitlement (the service-requests role has no grants-table access) get ``VAULT_ALREADY_PAID``.
+    file that has already been purchased is never sold again, including when its
+    24-hour window has expired. Existing paid grants and fulfilment remain valid.
     """
     kind = str(kind or "").strip().upper()
     if kind in NOT_OFFERED_KINDS:
@@ -402,18 +401,13 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         if (kind != VAULT or target_public_id or vault_file.get('ownerCustomerId') != owner
                 or vault_file.get('status') != 'active' or not vault_file.get('fileId')):
             raise customer_auth.CustomerNotAuthorized('resource does not exist or is not yours')
-        if (vault_file.get('vaultPaymentStatus') == 'PAID' or vault_file.get('vaultAccessGrantId')
-                or vault_file.get('vaultEntitlementId')):
-            entitlement = vault_entitlement or {}
-            if (entitlement.get('recordType') != 'VAULT_ENTITLEMENT'
-                    or entitlement.get('entitlementState') != 'ACTIVE'
-                    or entitlement.get('customerId') != owner
-                    or entitlement.get('fileId') != vault_file.get('fileId')):
-                raise ServiceRejected('VAULT_ALREADY_PAID')
-            if vault_window.access_state(entitlement, _now(clock)) != 'EXPIRED':
-                # An open window, or a paid one not opened yet: charging again would sell
-                # access the customer already has.
-                raise ServiceRejected(VAULT_ACCESS_ACTIVE)
+        if (vault_file.get('vaultPaymentStatus') == 'PAID'
+                or vault_file.get('vaultAccessGrantId')
+                or vault_file.get('vaultEntitlementId')
+                or vault_entitlement is not None):
+            # No new intent, PAYREF or payment reservation for a previously paid
+            # file. Do not delete old entitlements: they prove prior purchases.
+            raise ServiceRejected('VAULT_ALREADY_PAID')
         target = {KEY_ATTR: 'FILE#' + str(vault_file['fileId']),
                   'vaultFileId': str(vault_file['fileId']),
                   'vaultFileName': str(vault_file.get('displayName') or 'Document'),
