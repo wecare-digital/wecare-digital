@@ -15,7 +15,7 @@ with claims of current runtime coverage.
 All customer-facing **action feedback** now selects a trusted status key from
 `src/lib/publicActionNotices.ts`, never a raw API, Meta or provider message.
 The shared `PublicToastProvider.showToast` accepts *only* a typed status key
-and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** readable top-centred toast is shown at a time.
+and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** readable, content-aligned toast is shown at a time.
 
 | Outcome | Exact public text | Where |
 |---|---|---|
@@ -56,22 +56,22 @@ control their presentation. Do not reimplement toast colors/padding/sizing
 inside `PublicNotice.tsx` or an independent Workspace `.toast` rule.
 
 The shared design: pale-lime `#f6fce4` background, dark `#1a1a1a` text,
-lime `#d8f382` **4px** inline-start stripe, **16px** semibold text on
-desktop (**15px** mobile), **11px × 16px** desktop padding, **12px**
-corners, minimum width **264px**, and maximum width **420px**. A quiet
-shadow improves visibility. No status icons, checkmarks, dots, or stacked toasts.
+lime `#d8f382` **4px** inline-start stripe, **16px** semibold text
+on desktop and mobile, **12px × 16px** padding, **12px** corners,
+minimum width **264px**, and maximum width **360px**. A quiet shadow
+improves visibility. No status icons, checkmarks, dots, or stacked toasts.
 
-Both notifications appear **centred below the shared header**, not at the
-extreme top-right:
+Both notifications align with the **right edge of the shared content
+measure**, not the extreme viewport corner:
 - **Public:** below the 108px desktop header (116px from top); below
   the 96px mobile header (104px from top).
 - **Workspace:** below that same header **and its additional action bar**
   (180px desktop; 162px mobile). On extremely narrow devices the Workspace
   action-bar clearance grows to allow the buttons to wrap.
 
-On phones, the centred host uses safe-area-aware horizontal clearance,
+On phones, the host uses safe-area-aware **16px** horizontal clearance,
 wraps long/unbroken text, and constrains height with scrolling when needed.
-Ordinary action success stays visible for **5.5 seconds** (Workspace included);
+Ordinary action success stays visible for **5 seconds** (Workspace included);
 low-risk public copy failures explicitly allow **6.5 seconds**. Processing
 can remain pinned and critical WhatsApp/payment uncertainty stays inline.
 Forced-colors and reduced-motion preferences retain functional feedback.
