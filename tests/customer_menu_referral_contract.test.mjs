@@ -70,7 +70,8 @@ test('The approved referral template has the image and DATA_EXCHANGE Flow action
   assert.match(send, /'type': 'header'/);
   assert.match(send, /'type': 'button', 'sub_type': 'flow', 'index': '0'/);
   assert.match(send, /'flow_token': token/);
-  assert.doesNotMatch(send, /flow_action_data|flowActionData|marketingOptIn/);
+  // Reject only actual object keys; comments documenting the prohibition are safe.
+  assert.doesNotMatch(send, /['"](?:flow_action_data|flowActionData|marketingOptIn)['"]\s*:/);
   assert.match(send, /_track_customer_menu_template_send\(/);
   assert.match(send, /'status': 'REFERRAL_REQUEST_SENT'/);
   assert.doesNotMatch(send, /referral_response\.save_referral|create_contact\(/);
