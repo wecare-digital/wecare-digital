@@ -29,7 +29,7 @@ const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = 
   'awaiting-template': {
     message: "Couldn't confirm. Check WhatsApp.",
     error: true,
-  }
+  },
   failed: {
     message: "Couldn't confirm. Check WhatsApp.",
     error: true,
