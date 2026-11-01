@@ -58,18 +58,19 @@ export default function ContributeWorkspace () {
         </div>
 
         <p className="contribute-note">
-          The amount is read from the live catalog. A contribution is collected separately from
-          products and services, with no convenience fee or GST-on-fee and nothing to fulfil.
+          Contribute uses its own server-authoritative ₹300 pricing. Its Review and Pay
+          breakdown includes supply GST, Delight, ₹15 Express, convenience and fee GST
+          inside that total. WhatsApp sends and payments stay blocked until release checks pass.
         </p>
 
         <div className="contribute-actions">
           <a
             className={ `contribute-cta${ price.available ? '' : ' disabled' }` }
-            href={ price.available ? '/shop/contribute/' : undefined }
+            href={ price.available ? '/orders/' : undefined }
             aria-disabled={ !price.available }
             onClick={ event => { if ( !price.available ) event.preventDefault(); } }
           >
-            Open customer checkout
+            Open customer Orders
           </a>
           <span data-wc-no-translate="true">{ CONTRIBUTION_PRODUCT_ID }</span>
         </div>
