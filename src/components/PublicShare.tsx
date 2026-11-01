@@ -10,10 +10,11 @@ import { symbol } from '../config/materialSymbols';
  * The compact page-tail action dock.
  *
  * _app renders this once for every public HTML surface, including Home.
- * Contribute and Subscribe use one-time authenticated Orders handoffs; Share
- * retains its dropdown. Opening /orders/ directly never creates a send intent.
- * Contribute uses a separate server action that cannot send until its WhatsApp
- * template is configured and approved; no contribution is added to the cart.
+ * Preserve the owner-approved Stay connected layout and Contribute dropdown.
+ * Checkout uses the same one-time authenticated Orders action handoff as Subscribe.
+ * The Orders server hook currently fails closed until the exact native payment
+ * price and invoice policy is aligned; this control does not charge or send itself.
+ * Opening /orders/ or refreshing it never creates a send intent.
  */
 export interface PublicShareProps {
   /** Override the shared URL. Defaults to the clean current URL after hydration. */
@@ -24,7 +25,7 @@ export interface PublicShareProps {
   label?: string;
 }
 
-type OpenMenu = 'share' | null;
+type OpenMenu = 'contribute' | 'share' | null;
 
 const cleanUrl = ( href: string ): string => {
   try {
@@ -50,6 +51,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   const [ copied, setCopied ] = useState( false );
 
   const rootRef = useRef<HTMLElement | null>( null );
+  const contributeTriggerRef = useRef<HTMLButtonElement | null>( null );
   const shareTriggerRef = useRef<HTMLButtonElement | null>( null );
 
   useEffect( () => {
@@ -85,8 +87,10 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
     const onKeyDown = ( event: KeyboardEvent ) => {
       if ( event.key !== 'Escape' ) return;
+      const closing = openMenu;
       setOpenMenu( null );
-      shareTriggerRef.current?.focus();
+      if ( closing === 'contribute' ) contributeTriggerRef.current?.focus();
+      if ( closing === 'share' ) shareTriggerRef.current?.focus();
     };
 
     document.addEventListener( 'pointerdown', onPointerDown );
@@ -140,20 +144,19 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       <span className="ps-kicker">Stay connected</span>
       <div className="ps-row">
         <section className="contribute" aria-labelledby="ps-contribute-heading">
-          <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
-          <a
-            className="ps-action ps-contribute"
-            href={ CUSTOMER_MENU_HREFS.contribute }
-            aria-label={ `Contribute ${CONTRIBUTION_AMOUNT_LABEL} through Orders` }
-            onClick={ event => {
-              // An explicit primary click survives the /auth/ round-trip once.
-              // Opening /orders/ or using a modified click does not send.
-              if ( isPrimaryMenuActivation( event ) ) stashCustomerMenuAction( 'contribute' );
-            } }
-          >
-            <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
-            <span className="ps-tip" aria-hidden="true">Contribute</span>
-          </a>
+            <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
+            <button
+              ref={ contributeTriggerRef }
+              type="button"
+              className="ps-action ps-contribute"
+              aria-label={ `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
+              aria-expanded={ openMenu === 'contribute' }
+              aria-controls="ps-contribute-menu"
+              onClick={ () => toggleMenu( 'contribute' ) }
+            >
+              <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
+              <span className="ps-tip" aria-hidden="true">Contribute</span>
+            </button>
         </section>
 
         <a
@@ -182,6 +185,41 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           <span className="ps-material" aria-hidden="true">{ symbol( 'share' ) }</span>
           <span className="ps-tip" aria-hidden="true">{ label }</span>
         </button>
+      </div>
+
+      <div
+          className={ openMenu === 'contribute' ? 'ps-menu ps-contribute-menu is-open' : 'ps-menu ps-contribute-menu' }
+          id="ps-contribute-menu"
+          hidden={ openMenu !== 'contribute' }
+        >
+          <div className="ps-menu-head">
+            <div className="ps-menu-title contribute-label">
+              { `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
+            </div>
+            <p className="ps-menu-sub">Give back</p>
+          </div>
+
+          <div className="ps-menu-list">
+            <a
+              href={ CUSTOMER_MENU_HREFS.contribute }
+              className="ps-menu-item"
+              onClick={ event => {
+                // Queue only on the deliberate click; Orders owns authentication
+                // and consumes this intent once after the /auth/ round-trip.
+                if ( isPrimaryMenuActivation( event ) ) stashCustomerMenuAction( 'contribute' );
+              } }
+              aria-label="Checkout contribution"
+            >
+              <span className="ps-menu-icon" aria-hidden="true">
+                <span className="ps-material">{ symbol( 'shopping_cart_checkout' ) }</span>
+              </span>
+              <span className="ps-menu-copy">
+                <span className="ps-menu-name">Checkout</span>
+                <span className="ps-menu-note">Review, then pay on WhatsApp</span>
+              </span>
+              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
+            </a>
+          </div>
       </div>
 
       <div
@@ -294,7 +332,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           border-color:var(--public-brand-green);background:var(--public-brand-lime);transform:translateY(-2px);
           box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
-        /* All three icons remain the same size; Contribute now opens authenticated Orders. */
+        /* Keep the round rupee icon consistent with Subscribe and Share. The dropdown
+           intentionally makes no price or checkout promise while fulfillment is pending. */
         .ps-contribute{background:#eef7d6;border-color:var(--public-brand-green)}
         .ps-subscribe{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
         .ps-subscribe:hover{background:#fff}
@@ -340,6 +379,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           background:#fff;border-inline-start:1px solid var(--public-hairline);border-top:1px solid var(--public-hairline);
           transform:rotate(45deg);
         }
+        .ps-contribute-menu::before{inset-inline-start:18px}
         .ps-share-menu::before{inset-inline-start:78px}
         .ps-share-menu.has-contribute::before{inset-inline-start:138px}
         .ps-menu-head{padding:9px 11px 10px;border-bottom:1px solid #f0f1ed}
@@ -355,6 +395,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .ps-menu-item:hover{background:#f7fbe9}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
+        /* The Contribute Checkout action retains the approved dock layout.
+           Authentication and any future payment request belong to Orders. */
         .ps-menu-icon{
           width:38px;height:38px;border-radius:50%;
           display:inline-flex;align-items:center;justify-content:center;
