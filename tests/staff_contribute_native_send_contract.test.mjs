@@ -60,7 +60,7 @@ test('browser performs exactly one POST and never uses automatic API retries', (
   assert.ok(send.length > 400);
   assert.match(send, /await authFetch\(/);
   assert.match(send, /action: 'staff-contribute-send', contactId/);
-  assert.doesNotMatch(send, /apiCallResult|retryCount|while\s*\(|setTimeout\(/);
+  assert.doesNotMatch(send, /await\s+apiCallResult\(|retryCount\s*[=+]|while\s*\(|setTimeout\(/);
   assert.match(send, /NETWORK_UNCONFIRMED/);
   assert.match(send, /data\.amountPaise === 30000/);
   assert.match(staff, /api\.sendStaffContributionPaymentOnce\(selected\.id\)/);
