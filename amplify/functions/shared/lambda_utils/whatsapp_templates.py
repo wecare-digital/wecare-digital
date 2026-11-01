@@ -14,7 +14,7 @@ Meta is the authority on whether a template is APPROVED. This module is the auth
 template each business step uses and what components that step must supply. Senders still prove
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
-The WABA1 live set has 14 approved `en` templates as of 2026-10-31. The retired Vault offer has no current Meta approval.
+The WABA1 live set has 15 approved `en` templates as of 2026-11-01. The retired Vault offer has no current Meta approval.
 `scripts/check_whatsapp_template_payloads_live.py` builds each send with
 the production code and checks it against these live definitions:
 
@@ -25,6 +25,8 @@ the production code and checks it against these live definitions:
     OTP            wecare_otp                             AUTHENTICATION, copy-code URL button index 0
     LEAVE_REVIEW   wecare_leave_review                    IMAGE header, FLOW button index 0 (same Flow);
                                                           manual only: never sent by automation
+    REFERRAL       wecare_referal_update                  IMAGE header, FLOW button index 0 (F008);
+                                                          customer-initiated only
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
@@ -104,6 +106,8 @@ OTP = Template(name=os.environ.get("OTP_TEMPLATE_NAME", "wecare_otp"),
 # through `download_send_fields` below; its IMAGE header must travel with every send.
 LEAVE_REVIEW = Template(name="wecare_leave_review", language="en", category="UTILITY",
                         header="image", buttons=("flow",), automated=False)
+REFERRAL = Template(name="wecare_referal_update", language="en", category="UTILITY",
+                    header="image", buttons=("flow",), automated=False)
 DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTILITY",
                     header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
@@ -135,7 +139,7 @@ SERVICE_FLOW_TEMPLATES: Mapping[str, Template] = {
 }
 
 ALL: Tuple[Template, ...] = (
-    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD, LOCATION_PIN, PDF_DOWNLOAD, PROFILE_DETAILS,
+    PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, REFERRAL, DOWNLOAD, LOCATION_PIN, PDF_DOWNLOAD, PROFILE_DETAILS,
     SUBMIT_REQUEST_FLOW, REQUEST_AMENDMENT_FLOW, DROP_DOCS_FLOW, REQUEST_PICKUP_FLOW,
     TRACK_SHIPPING_FLOW,
 )
@@ -155,6 +159,7 @@ APPROVED_TEMPLATE_IDS: Mapping[str, str] = {
     "wecare_default_download": "1410998911012572",
     "wecare_whatapp_native_pay_template": "2714938845570815",
     "wecare_leave_review": "1801972550682516",
+    "wecare_referal_update": "1596216325046969",
     "wecare_default_invoice_image_template": "1782246473079550",
     "wecare_order_status_v3": "1754227779211208",
     "wecare_otp": "1292079089453029",
@@ -163,7 +168,7 @@ APPROVED_TEMPLATE_IDS: Mapping[str, str] = {
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
-POST_PAYMENT_FORBIDDEN: FrozenSet[str] = frozenset({LEAVE_REVIEW.name})
+POST_PAYMENT_FORBIDDEN: FrozenSet[str] = frozenset({LEAVE_REVIEW.name, REFERRAL.name})
 
 
 def by_name(name: str) -> Optional[Template]:
@@ -254,7 +259,7 @@ def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
                                          "payload": VAULT_OFFER_PAYLOAD_PREFIX + offer_token}}
 
 
-__all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
+__all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "REFERRAL", "DOWNLOAD",
            "LOCATION_PIN", "PDF_DOWNLOAD", "PROFILE_DETAILS", "VAULT_OFFER", "SUBMIT_REQUEST_FLOW", "REQUEST_AMENDMENT_FLOW",
            "DROP_DOCS_FLOW", "REQUEST_PICKUP_FLOW", "TRACK_SHIPPING_FLOW",
            "SERVICE_FLOW_TEMPLATES", "ALL", "APPROVED_TEMPLATE_IDS", "POST_PAYMENT_FORBIDDEN", "by_name",
