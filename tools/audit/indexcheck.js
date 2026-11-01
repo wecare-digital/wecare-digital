@@ -31,9 +31,9 @@
  * src/styles/inner-pages.css, everything under /workspace/. Those must be excluded by ALL
  * THREE mechanisms, not just one, because any single one of them can be edited away.
  *
- * SEVEN PUBLIC PAGES ARE DELIBERATELY NOT INDEXABLE and are allowlisted below with reasons. The
+ * FIVE PUBLIC PAGES ARE DELIBERATELY NOT INDEXABLE and are allowlisted below with reasons. The
  * allowlist is exact and closed: an eighth noindex public page fails this check, which is the
- * point - it should require a decision rather than appearing. The five customer-session screens
+ * point - it should require a decision rather than appearing. The four customer-session screens
  * joined on 2026-10-25, recording a decision src/pages/_app.tsx had already made and documented
  * in its isPublic chain; nothing about those pages changed.
  *
@@ -68,7 +68,6 @@ const ALLOWED_NOINDEX = {
   // Customer sign-in is not static anymore: /auth is the backend-routed, noindex canonical entry.
   '/cart/': 'a noindex legacy handoff to /checkout/ for old basket links, not a payment surface.',
   '/checkout/': 'the one signed-in cart review and direct Razorpay page - session state.',
-  '/checkout/whatsapp/': 'a nonpaying future-channel placeholder, excluded from search.',
   '/checkout/status/': 'the payment-confirmation screen a customer returns to from an in-chat '
     + 'payment - meaningful only for that payment.',
   '/checkout/success/': 'the order-confirmation screen for one order - session state.',
