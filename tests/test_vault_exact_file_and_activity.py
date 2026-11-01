@@ -54,7 +54,7 @@ def runtime_for(rows):
         response["headers"]["Cache-Control"] = "no-store"
         return response
     env = {
-        "Dict": dict, "Any": object, "Optional": None,
+        "Dict": dict, "Any": object, "Optional": __import__("typing").Optional,
         "re": re, "time": time,
         "_table": lambda _: table, "FILES_TABLE": "TEST",
         "_no_store": no_store, "cors_response": cors_response,
