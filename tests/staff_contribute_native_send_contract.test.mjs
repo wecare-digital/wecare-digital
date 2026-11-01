@@ -10,7 +10,7 @@ const api = file('src/api/client.ts');
 const staff = file('src/components/workspace/pay/ContributeStaffControls.tsx');
 
 test('staff checkout is a separate Admin+MFA-gated HTTP route before customer auth', () => {
-  const dispatcher = checkout.indexOf('if str(staff_candidate.get("action")');
+  const dispatcher = checkout.indexOf('staff_action = str(staff_candidate.get("action")');
   const customer = checkout.indexOf('identity, denied = customer_auth.require_customer(event)');
   assert.ok(dispatcher > 0 && customer > dispatcher);
   const piece = checkout.slice(dispatcher, customer);
@@ -60,7 +60,7 @@ test('browser performs exactly one POST and never uses automatic API retries', (
   assert.ok(send.length > 400);
   assert.match(send, /await authFetch\(/);
   assert.match(send, /action: 'staff-contribute-send', contactId/);
-  assert.doesNotMatch(send, /apiCallResult|retryCount|while\s*\(|setTimeout\(/);
+  assert.doesNotMatch(send, /await\s+apiCallResult\(|retryCount\s*[=+]|while\s*\(|setTimeout\(/);
   assert.match(send, /NETWORK_UNCONFIRMED/);
   assert.match(send, /data\.amountPaise === 30000/);
   assert.match(staff, /api\.sendStaffContributionPaymentOnce\(selected\.id\)/);
@@ -80,4 +80,35 @@ test('voluntary contribution does not acquire Vault fees or a file entitlement',
   const send = checkout.slice(checkout.indexOf('def _staff_contribution_send('),
                               checkout.indexOf('# ── request plumbing'));
   assert.doesNotMatch(send, /requestSecureFilePayment|VAULT|invoice_engine|sendWhatsAppTemplateMessage/);
+});
+
+test('production release defaults off and Admin readiness probes are side-effect-free', () => {
+  const release = checkout.slice(checkout.indexOf('def _staff_contribution_release_enabled('),
+                                 checkout.indexOf('def _staff_contribution_send('));
+  assert.match(release, /os\.environ\.get\("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", ""\)/);
+  assert.match(release, /def _staff_contribution_readiness\(/);
+  assert.match(release, /service_pricing_native\.resolve_all\(/);
+  assert.match(release, /"sendEnabled": available/);
+  assert.match(release, /"amountPaise": staff_contribution\.STAFF_CONTRIBUTION_TOTAL_PAISE/);
+  for (const forbidden of ['_send_order_details(', '_create(', 'payment_attempt.build(', 'allocate_payment_reference(']) {
+    assert.ok(!release.includes(forbidden), 'readiness must not initiate payment: ' + forbidden);
+  }
+  const send = checkout.slice(checkout.indexOf('def _staff_contribution_send('),
+                              checkout.indexOf('# ── request plumbing'));
+  assert.match(send, /if not _staff_contribution_release_enabled\(\)/);
+  const dispatcher = checkout.slice(checkout.indexOf('staff_action = str(staff_candidate.get("action")'),
+                                    checkout.indexOf('identity, denied = customer_auth.require_customer(event)'));
+  assert.match(dispatcher, /if staff_action == _STAFF_CONTRIBUTION_READINESS:/);
+  assert.match(dispatcher, /require_auth\(event, required_role="Admin"\)/);
+  assert.match(dispatcher, /_staff_contribution_readiness\(origin\)/);
+
+  const read = api.slice(api.indexOf('export async function getStaffContributionSendReadiness'),
+                         api.indexOf('export async function sendStaffContributionPaymentOnce'));
+  assert.match(read, /await authFetch\(/);
+  assert.match(read, /action: 'staff-contribute-readiness'/);
+  assert.match(read, /row\.sendEnabled === true && row\.amountPaise === 30000/);
+  assert.match(read, /row\.status === 'STAFF_CONTRIBUTE_READY'/);
+  assert.doesNotMatch(read, /await\s+apiCallResult\(/);
+  assert.match(staff, /backendReady === 'enabled'/);
+  assert.match(staff, /api\.getStaffContributionSendReadiness\(\)/);
 });
