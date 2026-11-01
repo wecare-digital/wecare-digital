@@ -401,19 +401,24 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
                 CONTRIBUTION_PRODUCT_ID, variants[0][0])
         )
         if quote_matches:
-            # This policy is a fee-exempt voluntary contribution, not a
-            # Vault taxable supply. Any unexpected fee, Delight or Express
-            # blocks readiness even when the SKU is still ₹300.
-            terms = service_pricing_native._contribution_breakdown(
-                staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
-            quote_matches = (
-                terms.get("itemSubtotalPaise") == 30000
-                and terms.get("collectionBeforeConveniencePaise") == 30000
-                and terms.get("totalPayablePaise") == 30000
-                and all(terms.get(k) == 0 for k in (
-                    "supplyGstPaise", "delightPaise", "expressPaise",
-                    "convenienceFeePaise", "convenienceGstPaise"))
-            )
+            # Verify the exact owner-specified native Contribute calculation;
+            # no browser-supplied price, invoice or Vault/Drop Docs amount.
+            try:
+                terms = service_pricing_native._contribution_breakdown(
+                    staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
+                quote_matches = (
+                    terms.get("itemSubtotalPaise") == 23541
+                    and terms.get("catalogGrossPaise") == 30000
+                    and terms.get("supplyGstPaise") == 4237
+                    and terms.get("delightPaise") == 138
+                    and terms.get("expressPaise") == 1500
+                    and terms.get("collectionBeforeConveniencePaise") == 29140
+                    and terms.get("convenienceFeePaise") == 729
+                    and terms.get("convenienceGstPaise") == 131
+                    and terms.get("totalPayablePaise") == 30000
+                )
+            except ValueError:
+                quote_matches = False
     available = enabled and quote_matches
     return cors_response(200, {
         "status": "STAFF_CONTRIBUTE_READY" if available else "STAFF_CONTRIBUTE_BLOCKED",
