@@ -21,6 +21,8 @@ interface PageShellProps {
   defaultTab?: string;
   activeTab?: string;
   actions?: React.ReactNode;
+  /** Optional page-owned navigation below the heading; existing tab bars are unchanged. */
+  navigation?: React.ReactNode;
   children: (activeTab: string) => React.ReactNode;
   className?: string;
   onTabChange?: (tabId: string) => void;
@@ -35,6 +37,7 @@ const PageShell: React.FC<PageShellProps> = ({
   defaultTab,
   activeTab: controlledTab,
   actions,
+  navigation,
   children,
   className = '',
   onTabChange,
@@ -61,7 +64,9 @@ const PageShell: React.FC<PageShellProps> = ({
             {actions && <div className="ps-header-actions">{actions}</div>}
           </div>
 
-          <div className="ps-tabs-wrapper">
+          {navigation && <div className="ps-navigation">{navigation}</div>}
+
+          {tabs.length > 0 && <div className="ps-tabs-wrapper">
             <div className="ps-tabs" role="tablist">
               {tabs.map((tab) => (
                 <button
@@ -77,9 +82,9 @@ const PageShell: React.FC<PageShellProps> = ({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
-          <div className="ps-separator" />
+          {(tabs.length > 0 || navigation) && <div className="ps-separator" />}
         </>
       ) }
 
