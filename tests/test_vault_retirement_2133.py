@@ -76,6 +76,9 @@ class FakeDatabase:
             return self.keys
         if name == 'fake-contacts':
             return FakeContacts()
+        if name == 'files':
+            # The historical offer tests stub bind_file; retired requests never touch this.
+            return types.SimpleNamespace()
         raise AssertionError('retired path must not read file or payment tables: ' + name)
 
 
