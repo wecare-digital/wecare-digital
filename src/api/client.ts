@@ -11,6 +11,7 @@ import { API_BASE, RETRY_CONFIG, DEFAULT_GSTIN } from '../config/constants';
 import '../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { validateWaMediaSize } from '../lib/wa-media';
+import { normalizeWhatsAppTemplateDetails, type NormalizedWhatsAppTemplateDetail } from '../lib/whatsappTemplateDetails';
 
 // Connection status tracking
 let lastConnectionError: string | null = null;
@@ -2989,16 +2990,14 @@ export async function applyCors ( request: { origins: string[] } ): Promise<{ su
  * Get template details
  * API: GetWhatsAppMessageTemplate
  */
-export async function getTemplateDetails ( templateId: string, wabaId?: string ): Promise<any | null> {
+export async function getTemplateDetails ( templateId: string, wabaId?: string ): Promise<NormalizedWhatsAppTemplateDetail | null> {
   let url = `${API_BASE}/whatsapp/templates/${templateId}`;
   if ( wabaId ) url += `?wabaId=${wabaId}`;
 
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return data.template || data;
-  }
-  return null;
+  const data = await apiCall<unknown>( url );
+  // Meta's staff endpoint returns templateStatus/templateName/metaTemplateId, while
+  // callers expect status/name/id. Normalize only matching live template identities.
+  return normalizeWhatsAppTemplateDetails( data, templateId );
 }
 
 /**
