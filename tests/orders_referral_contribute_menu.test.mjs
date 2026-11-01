@@ -2,7 +2,8 @@
  * Public/customer Orders entrypoints: Referral and Contribute navigation,
  * one-time authenticated Subscribe template, and unchanged Leave Review.
  *
- * Static source tests: no WhatsApp sends, payments, or customer data.
+ * Static source tests: no WhatsApp sends, payments, or customer data; Checkout
+ * is verified as a deliberate authenticated action, never an automatic charge.
  * Run: node --test tests/orders_referral_contribute_menu.test.mjs
  */
 import test from 'node:test';
@@ -40,16 +41,37 @@ test('Header and Orders referral navigate to authenticated Orders, not external 
   assert.doesNotMatch(menu, /goToServiceAction\(|CHECKOUT_PATH/);
 });
 
-test('Contribute dock subtitle is Give back; entry opens Orders without cart or checkout', () => {
-  assert.match(publicShare, /<p className="ps-menu-sub">Give back<\/p>/);
-  assert.match(publicShare, /className="ps-menu-title contribute-label">Contribute<\/div>/);
-  assert.match(publicShare, /href="\/orders\/"\s+aria-label="Open Orders to continue with Contribute"/);
-  assert.match(publicShare, /<span className="ps-menu-name">Open Orders<\/span>/);
-  assert.match(publicShare, /<span className="ps-menu-note">Sign in to continue<\/span>/);
-  assert.match(publicShare, /symbol\( 'currency_rupee' \)/);
-  assert.doesNotMatch(publicShare, /Review it in your cart|Review, then pay on WhatsApp/);
-  assert.doesNotMatch(publicShare, /setContribution\(|goToServiceAction\(|onCheckout/);
-  assert.doesNotMatch(publicShare, /<a[^>]+href="\/checkout\//);
+test('Contribute dock keeps Give back and restores the complete Checkout block at bottom', () => {
+  const pop = publicShare.split('id="ps-contribute-menu"')[1].split('id="ps-share-menu"')[0];
+  assert.match(pop, /<p className="ps-menu-sub">Give back<\/p>/);
+  assert.match(pop, /Contribute \$\{CONTRIBUTION_AMOUNT_LABEL\}/);
+  assert.match(pop, /href="\/orders\/"\s+aria-label="Open Orders to continue with Contribute"/);
+  assert.match(pop, /<span className="ps-menu-name">Open Orders<\/span>/);
+  assert.match(pop, /<span className="ps-menu-note">Give back<\/span>/);
+  assert.match(pop, /symbol\( 'currency_rupee' \)/);
+  assert.match(pop, /onClick=\{ onCheckout \}/);
+  assert.match(pop, /symbol\( 'shopping_cart_checkout' \)/);
+  assert.match(pop, /\{ busy \? 'One moment…' : 'Checkout' \}/);
+  assert.match(pop, /<span className="ps-menu-note">Review, then pay on WhatsApp<\/span>/);
+  assert.ok(pop.indexOf('href="/orders/"') < pop.indexOf('onClick={ onCheckout }'),
+    'the entire original Checkout row must sit below Open Orders');
+  assert.doesNotMatch(pop, /Review it in your cart, then pay securely on WhatsApp/);
+});
+
+test('Only explicit Checkout click seeds the original contribution and gated payment', () => {
+  const pop = publicShare.split('id="ps-contribute-menu"')[1].split('id="ps-share-menu"')[0];
+  assert.match(pop, /<a\s+className="ps-menu-item"\s+href="\/orders\/"[\s\S]*?<\/a>/);
+  assert.match(pop, /<button\s+type="button"\s+className="ps-menu-item"\s+onClick=\{ onCheckout \}/);
+  assert.match(publicShare, /setContribution\( SUGGESTED.variantId \)/);
+  assert.match(publicShare, /await goToServiceAction\( router, \{/);
+  assert.match(publicShare, /destination: CHECKOUT_PATH/);
+  assert.match(publicShare, /channel: 'whatsapp'/);
+  assert.match(publicShare, /productId: CONTRIBUTION_PRODUCT_ID/);
+  assert.match(publicShare, /variantId: SUGGESTED.variantId/);
+  assert.match(publicShare, /aria-label=\{ busy \? undefined : 'Checkout contribution' \}/);
+  assert.match(publicShare, /disabled=\{ busy \}/);
+  assert.doesNotMatch(menu, /onContribute|setContribution\(|goToServiceAction\(|CHECKOUT_PATH/);
+  assert.doesNotMatch(publicShare, /sendCustomerMenuAction\(/);
 });
 
 test('Subscribe bell queues the one-time authenticated send only on primary activation', () => {
