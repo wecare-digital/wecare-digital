@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release ONLY the four Vault workbench Lambdas from a pinned repository commit.
+"""Release reviewed Vault and service-payment Lambda subsets from a pinned commit.
 
 Runs inside the dedicated CodeBuild release project. It does not touch environment
 variables, roles, layers, API routes, S3 objects, customers, payment rows, or WhatsApp.
@@ -23,7 +23,7 @@ import boto3
 ROOT = Path(__file__).resolve().parents[1]
 REGION = "us-east-1"
 RELEASE_ORDER = (
-    "wecare-whatsapp-business-api",  # accept optional offer text first
+    "wecare-whatsapp-business-api",  # native exact-file service payment sender
     "wecare-secure-files",           # forward validated offer body {{1}}
     "wecare-service-api",           # UUID file / S3 object names on new uploads
     "wecare-ai-config-management",  # read-only registry reference for workspace
@@ -47,6 +47,9 @@ ALLOWED_EXTRA_FUNCTIONS = (
     "wecare-razorpay-webhook",
     "wecare-service-requests",
     "wecare-checkout",
+    # Same ecommerce/checkout package as wecare-checkout; legacy/native
+    # commerce invokes must enforce the same paid-file guard at runtime.
+    "wecare-commerce",
     "wecare-scheduled-messages",
 )
 
