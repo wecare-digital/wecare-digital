@@ -4,6 +4,7 @@ import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../lib/customerMenuActions';
+import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
 import type { MaterialSymbol } from '../config/materialSymbols';
 
@@ -328,6 +329,7 @@ const Header: React.FC = () => {
   const [ productsOverflowing, setProductsOverflowing ] = useState( false );
   const [ localizedSearchText, setLocalizedSearchText ] = useState<Record<string, string>>( {} );
   const router = useRouter();
+  const quickSend = useCustomerMenuQuickSend();
   const rootRef = useRef<HTMLDivElement | null>( null );
   const triggerRef = useRef<HTMLButtonElement | null>( null );
   const hasOpened = useRef( false );
@@ -567,8 +569,14 @@ const Header: React.FC = () => {
   const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
     const sendAction = menuActionForLabel( link.label );
     if ( sendAction && isPrimaryMenuActivation( event ) ) {
-      // A real menu click is the only way to queue one authenticated template.
-      // The clean /orders/ URL cannot trigger a template send on its own.
+      // For an existing customer session, issue this explicit invitation HERE:
+      // a detour through Orders and its hydration is not required for the send.
+      // The shared hook owns the one-in-flight guard and fails closed on ambiguity.
+      if ( quickSend.start( sendAction ) ) {
+        event.preventDefault();
+        close();
+        return;
+      }
       stashCustomerMenuAction( sendAction );
     }
     const capacitor = typeof window !== 'undefined'
@@ -583,7 +591,7 @@ const Header: React.FC = () => {
       return;
     }
     close();
-  }, [ close ] );
+  }, [ close, quickSend.start ] );
 
   // NO renderLink() HELPER. The anchor markup is duplicated inline in both branches
   // below, on purpose, and it must stay that way.
@@ -898,6 +906,12 @@ const Header: React.FC = () => {
             margin-inline-start:auto that pushes it to the end of this flex row. */}
         <HeaderCart />
       </div>
+      { quickSend.error && (
+        <div className="hdr-send-error" role="alert">
+          <span>{ quickSend.error }</span>
+          <button type="button" onClick={ quickSend.dismissError }>Dismiss</button>
+        </div>
+      ) }
       <style jsx>{`
         /* OPAQUE BY DEFAULT, translucent only where the blur actually works.
            It was rgba(255,255,255,.97) with backdrop-filter:blur(20px) unconditionally.
@@ -926,6 +940,22 @@ const Header: React.FC = () => {
            the bar being anchored to physical sides in a mirrored document. */
         .hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff;
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* Fail closed on an uncertain WhatsApp send: persistent and dismissible,
+           not a transient success toast or an automatic retry. */
+        .hdr-send-error{
+          position:absolute;inset-block-start:calc(100% + 8px);inset-inline-end:16px;
+          display:flex;align-items:center;gap:12px;box-sizing:border-box;
+          width:min(420px,calc(100vw - 32px));padding:12px 14px;
+          border:1px solid var(--public-brand-green);border-inline-start:4px solid var(--public-brand-lime);
+          border-radius:12px;background:#fff;color:var(--public-brand-green);
+          box-shadow:0 10px 30px rgba(26,58,42,.14);font-size:15px;line-height:1.45;
+        }
+        .hdr-send-error span{flex:1;min-inline-size:0;overflow-wrap:anywhere}
+        .hdr-send-error button{
+          flex:none;min-block-size:44px;padding:0 8px;
+          border:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer;
+        }
+        .hdr-send-error button:focus-visible{outline:2px solid var(--public-brand-green);outline-offset:2px}
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
           .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }

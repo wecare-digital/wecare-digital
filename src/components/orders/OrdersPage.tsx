@@ -544,6 +544,12 @@ export default function OrdersPage (): React.ReactElement {
       }
       setToken( session.accessToken );
 
+      // Start the authorised history request FIRST, before either an explicit
+      // Meta invitation or the background profile bootstrap can compete for the
+      // browser's connection/CPU budget. Never prefetch another customer's data.
+      setView( 'loading' );
+      const firstPagePromise = fetchOrders( session.accessToken, '' );
+
       // Consume the one-use intent before sending, without gating order history
       // on the Meta template round-trip or the Flow's data exchange.
       const serviceAction = takeCustomerMenuAction();
@@ -574,8 +580,7 @@ export default function OrdersPage (): React.ReactElement {
       // The bootstrap may promote WhatsApp-first orders; run it concurrently
       // with the first read instead of holding the table behind the profile write.
       const linkPromise = ensureCustomerLink( session.accessToken );
-      setView( 'loading' );
-      const outcome = await fetchOrders( session.accessToken, '' );
+      const outcome = await firstPagePromise;
       if ( !live ) return;
       if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
       else if ( outcome.kind === 'expired' ) { expire(); return; }
