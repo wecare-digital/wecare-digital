@@ -38,6 +38,9 @@ frontend:
         # failed. Standard-library syntax compilation is safe and runs offline:
         # no messages, payments, AWS mutation or runtime import side effects.
         - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils
+        # Read-only executable INR 300 Contribute pricing and frozen-order guards.
+        # No customer data, WhatsApp sends, payment reservation, credentials, or AWS mutations.
+        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_*contribut*.py' -v
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
