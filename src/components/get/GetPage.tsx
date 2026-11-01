@@ -40,6 +40,7 @@ import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import PublicNotice from '../public/PublicNotice';
+import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../api/client';
@@ -167,7 +168,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             return;
         } else
         {
-            setError( result.failure.message || 'Could not load your files' );
+            setError( publicApiFailureText( result.failure.status ) );
         }
     }, [ targetFileId, redirectToAuth ] );
 
@@ -229,7 +230,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     redirectToAuth();
                 } else
                 {
-                    setError( result.failure.message || 'Could not load your files. Please try again.' );
+                    setError( publicApiFailureText( result.failure.status ) );
                 }
             } )
             .catch( () => {
@@ -350,7 +351,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         ? 'This file is not registered to your verified number.'
                         : code === 'ACCESS_NOT_AUTHORIZED'
                             ? 'We could not confirm paid access for this file. If you already paid, do not pay again.'
-                            : ( result.failure.message || 'Could not prepare the download.' )
+                            : publicApiFailureText( result.failure.status )
                 );
                 return;
             }
@@ -380,7 +381,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             window.location.assign( destination.href );
         } catch ( err: any )
         {
-            feedback( 'error', err?.message || 'Could not prepare the download.' );
+            feedback( 'error', publicActionText( 'failure' ) );
         } finally
         {
             setWorking( '' );
@@ -510,20 +511,22 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     ...current,
                     [ file.fileId ]: {
                         kind: 'error',
-                        message: result.failure.message
-                            || 'We could not send the Vault payment request. Nothing has been charged.',
+                        message: publicActionText( 'whatsappFailed' ),
                     },
                 } ) );
                 return;
             }
 
+            // HTTP 202 is also 'ok' at the fetch layer, but a sender outcome
+            // of PAYMENT_REQUEST_UNCONFIRMED (or any non-SENT result) is NOT
+            // provider acceptance. Never show "Sent" based on HTTP 2xx alone.
+            const accepted = result.data.outcome === 'PAYMENT_REQUEST_SENT';
             setPaymentWaiting( current => ( { ...current, [ file.fileId ]: true } ) );
             setFileFeedback( current => ( {
                 ...current,
                 [ file.fileId ]: {
-                    kind: 'status',
-                    message: result.data.message
-                        || 'Review & Pay sent to WhatsApp. Complete it there.',
+                    kind: accepted ? 'status' : 'error',
+                    message: publicActionText( accepted ? 'whatsappAccepted' : 'whatsappFailed' ),
                 },
             } ) );
             void loadFiles();
@@ -532,7 +535,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 ...current,
                 [ file.fileId ]: {
                     kind: 'error',
-                    message: 'We could not send the Vault payment request. Nothing has been charged. Please try again.',
+                    message: publicActionText( 'whatsappFailed' ),
                 },
             } ) );
         } finally {
@@ -689,9 +692,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             <>
                                                 { waitingForPayment ? (
                                                     <div className="sf-pay-waiting">
-                                                        <p className="sf-payment-note" role="status">
+                                                        <p className="sf-payment-note"
+                                                            role={ feedback?.kind === 'error' ? 'alert' : 'status' }>
                                                             { feedback?.message
-                                                                || 'Review & Pay sent to WhatsApp. Check status before retrying.' }
+                                                                || publicActionText( 'whatsappFailed' ) }
                                                         </p>
                                                         <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                             onClick={ () => { void loadFiles(); } }
@@ -742,7 +746,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                         { state !== 'EXPIRED' && feedback?.kind === 'status' && !waitingForPayment && (
                                             <p className="sf-payment-note" role="status">{ feedback.message }</p>
                                         ) }
-                                        { state !== 'EXPIRED' && feedback?.kind === 'error' && (
+                                        { state !== 'EXPIRED' && feedback?.kind === 'error' && !waitingForPayment && (
                                             <PublicNotice mode="inline" tone="error" message={ feedback.message } />
                                         ) }
                                     </div>
