@@ -1,31 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/router';
 import PublicNotice from './public/PublicNotice';
 import { useOptionalPublicToast } from './public/PublicToastProvider';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
-import {
-  CONTRIBUTION_AMOUNT_LABEL,
-  CONTRIBUTION_CHOICES,
-  CONTRIBUTION_PRODUCT_ID,
-} from '../config/contribution';
-import { setContribution } from '../lib/cart';
+import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
 import { symbol } from '../config/materialSymbols';
-import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
 
 /**
  * The compact page-tail action dock.
  *
  * _app renders this once for every public HTML surface, including Home.
- * Contribute and Share reveal short dropdowns; Subscribe retains a direct action icon.
- * Contribute offers exactly one action: the original authenticated Checkout.
- * Clicking Checkout seeds the configured ₹300 contribution product/variant
- * into the cart, then opens payment review. No Orders shortcut is shown here
- * and no payment is charged until the customer confirms it.
- *
- * Subscribe uses the same one-time, explicit-click authenticated Orders handoff as
- * the Header's Subscribe item. Opening /orders/ or refreshing it sends nothing without
- * that intent; the customer-profile backend chooses the verified recipient.
+ * Contribute and Subscribe use one-time authenticated Orders handoffs; Share
+ * retains its dropdown. Opening /orders/ directly never creates a send intent.
+ * Contribute uses a separate server action that cannot send until its WhatsApp
+ * template is configured and approved; no contribution is added to the cart.
  */
 export interface PublicShareProps {
   /** Override the shared URL. Defaults to the clean current URL after hydration. */
@@ -36,7 +24,7 @@ export interface PublicShareProps {
   label?: string;
 }
 
-type OpenMenu = 'contribute' | 'share' | null;
+type OpenMenu = 'share' | null;
 
 const cleanUrl = ( href: string ): string => {
   try {
@@ -47,15 +35,11 @@ const cleanUrl = ( href: string ): string => {
   }
 };
 
-/** The default contribution choice the website checkout seeds into the cart (₹300 / CNT5Q2M8). */
-const [ SUGGESTED ] = CONTRIBUTION_CHOICES;
-
 const PublicShare: React.FC<PublicShareProps> = ( {
   url,
   title,
   label = 'Share',
 } ) => {
-  const router = useRouter();
   const publicToast = useOptionalPublicToast();
   const showToast = publicToast?.showToast;
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
@@ -64,10 +48,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   const [ canNativeShare, setCanNativeShare ] = useState( false );
   const [ canCopy, setCanCopy ] = useState( false );
   const [ copied, setCopied ] = useState( false );
-  const [ busy, setBusy ] = useState( false );
 
   const rootRef = useRef<HTMLElement | null>( null );
-  const contributeTriggerRef = useRef<HTMLButtonElement | null>( null );
   const shareTriggerRef = useRef<HTMLButtonElement | null>( null );
 
   useEffect( () => {
@@ -103,10 +85,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
     const onKeyDown = ( event: KeyboardEvent ) => {
       if ( event.key !== 'Escape' ) return;
-      const closing = openMenu;
       setOpenMenu( null );
-      if ( closing === 'contribute' ) contributeTriggerRef.current?.focus();
-      if ( closing === 'share' ) shareTriggerRef.current?.focus();
+      shareTriggerRef.current?.focus();
     };
 
     document.addEventListener( 'pointerdown', onPointerDown );
@@ -121,29 +101,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     setCopied( false );
     setOpenMenu( current => current === menu ? null : menu );
   }, [] );
-
-  const onCheckout = useCallback( async () => {
-    if ( busy ) return;
-    setBusy( true );
-    try {
-      // The cart stores ids only. ProductsTable remains the price authority at checkout.
-      setContribution( SUGGESTED.variantId );
-      await goToServiceAction( router, {
-        destination: CHECKOUT_PATH,
-        action: {
-          kind: 'checkout',
-          channel: 'whatsapp',
-          productId: CONTRIBUTION_PRODUCT_ID,
-          variantId: SUGGESTED.variantId,
-          label: 'Contribute',
-        },
-      } );
-    } catch {
-      // Stay on the widget when either the cart write or auth/navigation fails; no payment
-      // request has been sent at this point and the customer can safely retry.
-      setBusy( false );
-    }
-  }, [ busy, router ] );
 
   const onNativeShare = useCallback( () => {
     if ( typeof navigator === 'undefined' || typeof navigator.share !== 'function' ) return;
@@ -183,19 +140,20 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       <span className="ps-kicker">Stay connected</span>
       <div className="ps-row">
         <section className="contribute" aria-labelledby="ps-contribute-heading">
-            <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
-            <button
-              ref={ contributeTriggerRef }
-              type="button"
-              className="ps-action ps-contribute"
-              aria-label={ `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
-              aria-expanded={ openMenu === 'contribute' }
-              aria-controls="ps-contribute-menu"
-              onClick={ () => toggleMenu( 'contribute' ) }
-            >
-              <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
-              <span className="ps-tip" aria-hidden="true">Contribute</span>
-            </button>
+          <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
+          <a
+            className="ps-action ps-contribute"
+            href={ CUSTOMER_MENU_HREFS.contribute }
+            aria-label={ `Contribute ${CONTRIBUTION_AMOUNT_LABEL} through Orders` }
+            onClick={ event => {
+              // An explicit primary click survives the /auth/ round-trip once.
+              // Opening /orders/ or using a modified click does not send.
+              if ( isPrimaryMenuActivation( event ) ) stashCustomerMenuAction( 'contribute' );
+            } }
+          >
+            <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
+            <span className="ps-tip" aria-hidden="true">Contribute</span>
+          </a>
         </section>
 
         <a
@@ -224,39 +182,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           <span className="ps-material" aria-hidden="true">{ symbol( 'share' ) }</span>
           <span className="ps-tip" aria-hidden="true">{ label }</span>
         </button>
-      </div>
-
-      <div
-          className={ openMenu === 'contribute' ? 'ps-menu ps-contribute-menu is-open' : 'ps-menu ps-contribute-menu' }
-          id="ps-contribute-menu"
-          hidden={ openMenu !== 'contribute' }
-        >
-          <div className="ps-menu-head">
-            <div className="ps-menu-title contribute-label">
-              { `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
-            </div>
-            <p className="ps-menu-sub">Give back</p>
-          </div>
-
-          <div className="ps-menu-list">
-            <button
-              type="button"
-              className="ps-menu-item"
-              onClick={ onCheckout }
-              disabled={ busy }
-              aria-busy={ busy }
-              aria-label={ busy ? undefined : 'Checkout contribution' }
-            >
-              <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( 'shopping_cart_checkout' ) }</span>
-              </span>
-              <span className="ps-menu-copy">
-                <span className="ps-menu-name">{ busy ? 'One moment…' : 'Checkout' }</span>
-                <span className="ps-menu-note">Review, then pay on WhatsApp</span>
-              </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
-            </button>
-          </div>
       </div>
 
       <div
@@ -369,8 +294,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           border-color:var(--public-brand-green);background:var(--public-brand-lime);transform:translateY(-2px);
           box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
-        /* Keep the round rupee icon consistent with Subscribe and Share. The dropdown
-           intentionally makes no price or checkout promise while fulfillment is pending. */
+        /* All three icons remain the same size; Contribute now opens authenticated Orders. */
         .ps-contribute{background:#eef7d6;border-color:var(--public-brand-green)}
         .ps-subscribe{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
         .ps-subscribe:hover{background:#fff}
@@ -416,7 +340,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           background:#fff;border-inline-start:1px solid var(--public-hairline);border-top:1px solid var(--public-hairline);
           transform:rotate(45deg);
         }
-        .ps-contribute-menu::before{inset-inline-start:18px}
         .ps-share-menu::before{inset-inline-start:78px}
         .ps-share-menu.has-contribute::before{inset-inline-start:138px}
         .ps-menu-head{padding:9px 11px 10px;border-bottom:1px solid #f0f1ed}
@@ -432,8 +355,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .ps-menu-item:hover{background:#f7fbe9}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
-        /* The sole contribution Checkout action follows the dock's white/lime/green
-           style; it opens gated payment review, never a charge on its own. */
         .ps-menu-icon{
           width:38px;height:38px;border-radius:50%;
           display:inline-flex;align-items:center;justify-content:center;
