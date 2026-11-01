@@ -95,6 +95,28 @@ const F004SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = 
   </details>;
 };
 
+const F008ReferralDetails: React.FC<{ submission: api.FlowSubmissionItem }> = ( { submission } ) => {
+  const data = parseFormData( submission.formData );
+  const number = String( data.referred_whatsapp || '' );
+  const shared = data.permission_confirmed === true || data.permission_confirmed === 'true';
+  return <details>
+    <summary style={ { cursor: 'pointer' } }>{ String( data.referred_name || 'Referral details' ) }</summary>
+    <dl style={ { margin: '8px 0 0', display: 'grid', gridTemplateColumns: 'minmax(120px, 0.7fr) minmax(180px, 1.3fr)', gap: '4px 10px' } }>
+      <dt style={ { fontWeight: 600 } }>Their name</dt>
+      <dd style={ { margin: 0, overflowWrap: 'anywhere' } }>{ String( data.referred_name || '—' ) }</dd>
+      <dt style={ { fontWeight: 600 } }>Their WhatsApp number</dt>
+      <dd style={ { margin: 0 } }>{ number ? <MaskedPhone value={ number } allowReveal /> : '—' }</dd>
+      <dt style={ { fontWeight: 600 } }>Anything we should know?</dt>
+      <dd style={ { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }>{ String( data.referral_details || '—' ) }</dd>
+      <dt style={ { fontWeight: 600 } }>Permission to share number</dt>
+      <dd style={ { margin: 0 } }>{ shared ? 'Confirmed by referrer' : 'Not confirmed' }</dd>
+    </dl>
+    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+      Submitted by the WhatsApp sender. Sharing attestation is not marketing or outreach consent.
+    </p>
+  </details>;
+};
+
 /** The per-row Update control. `cancelled` is in this list and in no filter list. */
 const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
   { value: 'awaiting_order_verification', label: 'Awaiting order verification' },
@@ -325,7 +347,9 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         </td>
                         <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ s.submissionNumber || '-' }</td>
                         <td style={ { padding: '8px 10px', maxWidth: 280 } }>
-                          {s.flowType === 'customer_idea' ? (
+                          {s.flowType === 'referral' || s.flowCode === 'WD-F008-REFERRAL' ? (
+                            <F008ReferralDetails submission={ s } />
+                          ) : s.flowType === 'customer_idea' ? (
                             <F002SubmissionDetails submission={ s } />
                           ) : s.flowCode === '01.WD_SR' ? (
                             <F004SubmissionDetails submission={ s } />

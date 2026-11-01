@@ -45,7 +45,7 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
-from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response, pickup_request_response
+from lambda_utils import customer_ideas, request_amendment_response, submit_request_response, track_shipping_response, pickup_request_response, referral_response
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
@@ -2488,6 +2488,20 @@ def _process_message(
     
     # Save endpointless Flow business records before inbox dedup. A retry must repair a
     # failed contact/activity projection even when the transport message already exists.
+    _referral_data = referral_response.referral_payload(message)
+    _referral_contact = None
+    _referral_result = None
+    if _referral_data is not None:
+        _referral_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        _referral_result = referral_response.save_referral(
+            _referral_data,
+            contact_id=_referral_contact.get('contactId') or _referral_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, request_id=request_id,
+            customer_uuid_value=str(_referral_contact.get('customerUuid') or ''))
+
     _idea_data = customer_ideas.idea_payload(message)
     _idea_contact = None
     _idea_result = None
@@ -2584,7 +2598,7 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = (_idea_contact or _track_shipping_contact or _pickup_contact
+    contact = (_referral_contact or _idea_contact or _track_shipping_contact or _pickup_contact
                or _submit_request_contact or _request_amendment_contact
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
@@ -2597,6 +2611,22 @@ def _process_message(
     # `[Flow Response: {...}]` transport preview. The FlowSubmission row remains the
     # durable business record; these fields are the Inbox projection of that same row.
     content = _extract_content(message, msg_type)
+    _referral_inbox = None
+    if _referral_data is not None and _referral_result is not None:
+        _referral_form = referral_response.clean_referral(_referral_data)
+        _referral_inbox = {
+            'flowId': referral_response.FLOW_ID,
+            'flowCode': referral_response.FLOW_CODE,
+            'flowType': 'referral',
+            'flowScreen': 'CONFIRMATION',
+            'flowSubmissionId': _referral_result.submission_id,
+            'flowReference': _referral_result.reference,
+            'flowAnswers': referral_response.response_answers(_referral_form),
+            'flowAttachments': [],
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Referral'
+
     _idea_inbox = None
     if _idea_data is not None and _idea_result is not None:
         _topic = str(_idea_data.get('topic') or 'other')
@@ -2804,6 +2834,8 @@ def _process_message(
         # None values out, so no attribute is added.
         'contactsPayload': _contacts_payload,
     }
+    if _referral_inbox:
+        message_record.update(_referral_inbox)
     if _idea_inbox:
         message_record.update(_idea_inbox)
     if _track_shipping_inbox:
@@ -2820,7 +2852,7 @@ def _process_message(
     from lambda_utils.flow_inbox import from_message as project_flow_message
     _flow_card = (
         project_flow_message(message)
-        if (_idea_data is None and _track_shipping_data is None
+        if (_referral_data is None and _idea_data is None and _track_shipping_data is None
             and _pickup_data is None and _submit_request_data is None
             and _request_amendment_data is None)
         else {})
@@ -2912,6 +2944,7 @@ def _process_message(
         contacts_payload=_contacts_payload,
         **{k: v for k, v in _flow_card.items() if k not in ('content', 'messageType')},
         timestamp=timestamp,
+        **(_referral_inbox or {}),
         **(_idea_inbox or {}),
         **(_track_shipping_inbox or {}),
         **(_pickup_inbox or {}),
@@ -3027,6 +3060,11 @@ def _process_message(
         # Native Flow Message reply — India Address Message submission arrives here
         # as nfm_reply with name='address_message' (also used by flow completions).
         elif interactive_type == 'nfm_reply':
+            if _referral_data is not None:
+                # F008 was durably saved and projected into both inbox stores.
+                # Consent to share a number is NOT consent to contact or market to that person.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
+                return
             if _idea_data is not None:
                 return  # Persisted above; never route a private idea into auto-replies.
             if _track_shipping_data is not None:

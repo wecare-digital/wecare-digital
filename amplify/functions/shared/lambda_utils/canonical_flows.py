@@ -35,6 +35,8 @@ CANONICAL_FLOWS = {
     # F003 Drop Docs replacement, published on Meta 2026-10-28.
     'drop_docs':      ('39581903361452878', 'PUBLISHED', 'WD-F003-DROP-DOCS'),
     'shipments':      ('1804165164183485', 'PUBLISHED', 'WD-F006-Track-Shipping'),
+    # F008 published in Meta on 2026-11-01; response-only for now, no automatic launch.
+    'referral':       ('1933489271340286', 'PUBLISHED', 'WD-F008- Referal'),
     'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),

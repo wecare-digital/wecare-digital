@@ -32,12 +32,14 @@ const CAPABILITY_FILTERS: FilterDef = {
     { value: 'leave_review', label: 'Review' },
     { value: 'orders', label: 'Orders' },
     { value: 'shipments', label: 'Shipments' },
+    { value: 'WD-F008-REFERRAL', label: 'Refer Someone' },
   ],
 };
 const STATUS_FILTER: FilterDef = {
   key: 'status', label: 'Status',
   options: [
     { value: 'new', label: 'New' },
+    { value: 'open', label: 'Open' },
     { value: 'in_progress', label: 'In progress' },
     { value: 'resolved', label: 'Resolved' },
     { value: 'closed', label: 'Closed' },
@@ -69,6 +71,26 @@ const matchesSearch = ( r: FlowSubmissionItem, q: string ): boolean => {
 
 const reference = ( r: FlowSubmissionItem ): string =>
   r.submissionNumber || r.requestId || r.referenceId || r.orderNumber || r.orderId || r.submissionId;
+
+const ReferralDetails: React.FC<{ submission: FlowSubmissionItem }> = ( { submission } ) => {
+  let form: Record<string, unknown> = {};
+  try {
+    const decoded = JSON.parse( submission.formData || '{}' );
+    if ( decoded && typeof decoded === 'object' && !Array.isArray( decoded ) ) form = decoded;
+  } catch { /* Keep the queue available even for historic malformed form data. */ }
+  return (
+    <details style={ { marginTop: 5 } }>
+      <summary style={ { cursor: 'pointer', fontSize: 12 } }>Referral details</summary>
+      <div style={ { marginTop: 6, maxWidth: 260, overflowWrap: 'anywhere', fontSize: 12 } }>
+        <div><strong>Their name:</strong> { String( form.referred_name || '—' ) }</div>
+        <div><strong>WhatsApp:</strong> { maskPhone( String( form.referred_whatsapp || '' ) ) }</div>
+        <div style={ { whiteSpace: 'pre-wrap' } }><strong>Notes:</strong> { String( form.referral_details || '—' ) }</div>
+        <div><strong>Permission to share:</strong> { form.permission_confirmed === true || form.permission_confirmed === 'true' ? 'Confirmed' : 'Unverified' }</div>
+        <small>Referrer is the customer above. Sharing is not marketing consent.</small>
+      </div>
+    </details>
+  );
+};
 
 const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 12, fontWeight: 600, color: '#64748b', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' };
 const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, color: '#1a1a1a', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle' };
@@ -170,7 +192,8 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
                       {maskPhone( r.phone )}{r.customerUuid ? ` · ${r.customerUuid.slice( 0, 8 )}` : ''}
                     </div>
                   </td>
-                  <td style={td}>{( CAPABILITY_FILTERS.options.find( o => o.value === r.flowCode )?.label ) || r.flowCode || '—'}</td>
+                  <td style={td}>{( CAPABILITY_FILTERS.options.find( o => o.value === r.flowCode )?.label ) || r.flowCode || '—'}
+                     {r.flowType === 'referral' && <ReferralDetails submission={r} />}</td>
                   <td style={td}><code style={{ fontSize: 12 }}>{reference( r )}</code></td>
                   <td style={td}><StatusBadge value={r.status} /></td>
                   <td style={td}>{r.paymentRequired || r.paymentStatus ? <PaymentBadge value={r.paymentStatus} /> : <span style={{ color: '#cbd5e1' }}>—</span>}</td>
@@ -219,6 +242,7 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
                   <dd>{ new Date( r.createdAt ).toLocaleDateString() }</dd>
                 </div>
               </dl>
+              {r.flowType === 'referral' && <ReferralDetails submission={r} />}
               <div className="service-response-action">
                 <Select
                   label="Set status"
