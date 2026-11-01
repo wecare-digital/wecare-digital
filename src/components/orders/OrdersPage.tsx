@@ -18,6 +18,8 @@ import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatus
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
 import PublicNotice from '../public/PublicNotice';
+import PolicyDetails from '../public/PolicyDetails';
+import { ORDERS_POLICY_DETAILS } from '../../content/publicPolicyDetails';
 import { publicActionText } from '../../lib/publicActionNotices';
 import { usePublicToast } from '../public/PublicToastProvider';
 
@@ -910,6 +912,25 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
+          { /* Keep the policy disclosure connected to the history in its own compact
+               card. The global public policy tail excludes /orders to avoid duplication. */ }
+          { signedIn && (
+            <section className="ord-policy-section" aria-label="Order policies">
+              <PolicyDetails
+                compact
+                shipping={ ORDERS_POLICY_DETAILS.shipping }
+                returns={ ORDERS_POLICY_DETAILS.returns }
+                refunds={ ORDERS_POLICY_DETAILS.refunds }
+                disclaimer={ ORDERS_POLICY_DETAILS.disclaimer }
+                termsLinks={ {
+                  shipping: '/terms/#s15',
+                  returns: '/terms/#s14',
+                  refunds: '/terms/#s14',
+                } }
+              />
+            </section>
+          ) }
+
           {/* The global Contribute + Subscribe + Share dock is mounted once by _app after policy. */}
         </div>
 
@@ -937,6 +958,8 @@ export default function OrdersPage (): React.ReactElement {
           /* One customer history column. No legacy account/receipt panel layout. */
           .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
           .ord-main{display:flex;flex-direction:column;gap:24px;min-inline-size:0}
+          /* A separate card below the Orders history, inside the same page measure. */
+          .ord-policy-section{inline-size:100%;min-inline-size:0}
           .ord-pager{width:100%;margin-top:4px}
           .ord-pager .ord-quiet{margin-top:12px}
 
