@@ -5932,6 +5932,10 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
     All flow-specific logic lives in flows/ modules.
     This function is ONLY the decrypt → route → encrypt wrapper.
     """
+    # Monotonic measurements of actual signed DATA_EXCHANGE processing. The
+    # existing response log below receives only timings, never customer data.
+    flow_started_at = time.perf_counter()
+
     # Step 1: Decrypt
     encrypted_flow_data = body.get('encrypted_flow_data', '')
     encrypted_aes_key = body.get('encrypted_aes_key', '')
@@ -5947,6 +5951,7 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
         logger.error(f'[{request_id}] Flow decryption failed: {e}')
         return _resp(421, {'error': 'Decryption failed'})
 
+    decrypt_finished_at = time.perf_counter()
     action = decrypted_data.get('action', '')
     screen = decrypted_data.get('screen', '')
     data = decrypted_data.get('data', {})
@@ -6005,6 +6010,7 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
                 'error_code': 'FLOW_ROUTING_FAILED',
             }}
 
+    route_finished_at = time.perf_counter()
     if not response_payload:
         routing_failed = True
         response_payload = {'data': {
@@ -6049,6 +6055,8 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
                 log_data[k] = v[:200] + '...(truncated)'
         logger.info(json.dumps({
             'event': 'flow_response_full', 'action': action,
+            'decryptMs': round((decrypt_finished_at - flow_started_at) * 1000, 2),
+            'routeMs': round((route_finished_at - decrypt_finished_at) * 1000, 2),
             'screen': log_payload.get('screen', ''),
             'data_keys': sorted(log_data.keys()),
             'requestId': request_id,
@@ -6056,6 +6064,8 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
     except Exception:
         logger.info(json.dumps({
             'event': 'flow_response', 'action': action,
+            'decryptMs': round((decrypt_finished_at - flow_started_at) * 1000, 2),
+            'routeMs': round((route_finished_at - decrypt_finished_at) * 1000, 2),
             'screen': response_payload.get('screen', ''),
             'data_keys': list(response_payload.get('data', {}).keys()),
             'requestId': request_id,

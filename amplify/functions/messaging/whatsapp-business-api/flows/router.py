@@ -6,9 +6,10 @@ import json
 import logging
 from typing import Dict, Callable
 
-from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, order_notes, shipments, generic
+# Import a Flow handler only when this request is actually routed to it.
+# The previous eager import pulled every service/checkout module into cold
+# INIT and Meta ping requests, including static Review/Referral opening screens.
 from flows.common import get_phone_from_token, log_flow_event
-from flows.orders import fetch_orders_for_flow as _orders_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     # It verifies the server-issued session first and never answers with a terminal
     # SUCCESS screen, so no request can finish the Flow without a confirmed save.
     if flow_token and flow_token.startswith('subscribe'):
+        from flows import subscribe_profile
         return subscribe_profile.route(action, screen, data, flow_token, request_id)
 
     # Approved invoice and manual Leave Review templates now use DATA_EXCHANGE,
@@ -108,6 +110,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── SUBMIT REQUEST FLOW ──
     if flow_key in ('sr', 'submit_re') or flow_key.startswith('sr'):
+        from flows import submit_request
         flow_config = {}
         flow_code = TOKEN_PREFIX_TO_FLOW_CODE.get(flow_key, '01.WD_SR')
         if get_flow_registry_fn:
@@ -128,6 +131,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── AMEND REQUEST FLOW ──
     if flow_key in ('amend_requ',) or flow_key.startswith('amend'):
+        from flows import amend_request
         # F005 keeps the cloned SELECT_ORDER -> AMENDMENT -> REVIEW UI. INIT supplies the
         # sender-owned orders; SELECT_ORDER data_exchange supplies requests for that order.
         if action == 'INIT':
@@ -148,6 +152,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── TRACK REQUEST FLOW ──
     if flow_key in ('track_requ',) or flow_key.startswith('track'):
+        from flows import track_request
         if action == 'INIT':
             return track_request.handle_init(data, flow_token, request_id)
         if screen == 'ORDER_SELECT':
@@ -157,6 +162,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── F006 TRACK SHIPPING FLOW ──
     if flow_key == 'shipments' or flow_key.startswith('shipments'):
+        from flows import shipments
         if action == 'INIT':
             return shipments.handle_init(data, flow_token, request_id)
         if screen in ('CONFIRMATION', 'SUCCESS'):
@@ -164,6 +170,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── APPOINTMENT FLOW ──
     if flow_key in ('schedule_a',) or flow_key.startswith('schedule') or flow_key.startswith('appoint'):
+        from flows import appointment
         if action == 'INIT':
             return appointment.handle_init(data, flow_token, request_id)
         if screen == 'BOOKING_FORM':
@@ -175,6 +182,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── SEHAT APPOINTMENT FLOW ──
     if flow_key in ('sehat_appointment', 'rx_slot') or flow_key.startswith('sehat') or flow_key.startswith('rx'):
+        from flows import sehat_appointment
         if action == 'INIT':
             return sehat_appointment.handle_init(data, flow_token, request_id)
         if screen == 'SLOT_FORM':
@@ -186,6 +194,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── DROP DOCS FLOW ──
     if flow_key in ('drop_docs',) or flow_key.startswith('drop'):
+        from flows import drop_docs
         if action == 'INIT':
             return drop_docs.handle_init(data, flow_token, request_id)
         if screen == 'UPLOAD' and action == 'data_exchange':
@@ -199,6 +208,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── ENTERPRISE ASSIST FLOW ──
     if flow_key in ('enterprise',) or flow_key.startswith('enterprise'):
+        from flows import enterprise_assist
         if action == 'INIT':
             return enterprise_assist.handle_init(data, flow_token, request_id)
         if screen == 'INTAKE_FORM':
@@ -225,6 +235,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
 
     # ── ORDER NOTES FLOW ──
     if flow_key in ('order_note',) or flow_key.startswith('order_n'):
+        from flows import order_notes
         if action == 'INIT':
             return order_notes.handle_init(data, flow_token, request_id)
         if screen == 'ORDER_SELECT':
@@ -237,6 +248,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     # ── GENERIC FLOWS (fallback only) ──
     is_generic = any(flow_key.startswith(k) for k in GENERIC_FLOW_PREFIXES)
     if is_generic:
+        from flows import generic
         if screen == 'WELCOME':
             return generic.handle_welcome(data, flow_token, request_id)
         if screen == 'FORM':

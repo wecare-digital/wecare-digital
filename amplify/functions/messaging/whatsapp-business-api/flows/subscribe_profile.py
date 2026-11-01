@@ -113,6 +113,17 @@ def _count(stage: str, request_id: str, **fields: Any) -> None:
                        logger=logger, requestId=request_id, **fields)
 
 
+def _count_init_outcome(stage: str, request_id: str, **fields: Any) -> None:
+    """One counted 'received' and one outcome, in a single DynamoDB update.
+
+    These are best-effort observability records, not permission checks: a failed
+    counter update must not delay or reject a valid customer Flow.
+    """
+    flow_funnel.record_stages(
+        common.dynamodb.Table(flow_funnel.table_name()), FLOW_CODE,
+        ('init_received', stage), logger=logger, requestId=request_id, **fields)
+
+
 def _session(flow_token: str, *, allow_consumed: bool) -> flow_sessions.FlowSession:
     table = common.dynamodb.Table(flow_sessions.table_name())
     session = flow_sessions.verify_session(table, capability=CAPABILITY, token=flow_token,
@@ -380,19 +391,26 @@ def route(action: str, screen: str, data: Any, flow_token: str, request_id: str)
 
 def handle_init(data: Mapping[str, Any], flow_token: str, request_id: str) -> Dict[str, Any]:
     """Open PROFILE prefilled from the canonical row; clean defaults for a new customer."""
-    _count('init_received', request_id)
+    # Keep the issued-session check and canonical contact lookup authoritative.
+    # INIT's two best-effort funnel counters are recorded together only AFTER
+    # the outcome is known, avoiding a separate DynamoDB write before identity
+    # verification. No cached customer profile or client-supplied identity.
     try:
         session = _session(flow_token, allow_consumed=False)
     except flow_sessions.FlowSessionRejected as rejected:
-        _count('init_rejected', request_id, reason=rejected.reason)
+        _count_init_outcome('init_rejected', request_id, reason=rejected.reason)
+        raise
+    except Exception as exc:
+        _count_init_outcome('init_failed', request_id, reason=type(exc).__name__)
         raise
     try:
         row = contact_store.lookup(_contacts(), session.phone) or {}
         values = _screen_values(row, session.phone)
     except Exception as exc:
-        _count('init_failed', request_id, reason=type(exc).__name__)
+        _count_init_outcome('init_failed', request_id, reason=type(exc).__name__)
         raise
-    _count('init_success', request_id, launchChannel=session.launch_channel, created=not row)
+    _count_init_outcome('init_success', request_id,
+                        launchChannel=session.launch_channel, created=not row)
     return {'screen': 'PROFILE', 'data': values}
 
 

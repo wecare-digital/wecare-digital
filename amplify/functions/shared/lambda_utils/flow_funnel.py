@@ -91,6 +91,65 @@ def record(table: Any, flow_code: str, stage: str, *, logger: Any = None,
     return written
 
 
+
+def record_stages(table: Any, flow_code: str, stages: tuple[str, ...], *,
+                  logger: Any = None, now: Optional[int] = None,
+                  **fields: Any) -> bool:
+    """Atomically count a small set of stages with ONE DynamoDB write.
+
+    F001 INIT always increments 'init_received' and exactly one terminal INIT
+    outcome. Grouping their writes removes a serial round-trip on the handset
+    opening path while preserving the existing per-stage daily counters, TTL,
+    CloudWatch events and the fail-open telemetry contract. Other Flow stages
+    continue to use the original single-stage record() unchanged.
+    """
+    if (not isinstance(stages, tuple) or not 1 <= len(stages) <= 3
+            or any(stage not in STAGES for stage in stages)
+            or len(set(stages)) != len(stages)
+            or not valid_flow_code(flow_code)):
+        return False
+    stamp = int(time.time() if now is None else now)
+    day = day_of(stamp)
+    written = False
+    error_type = ''
+    try:
+        names = {'#type': 'type', '#code': 'flowCode', '#day': 'day',
+                 '#updated': 'updatedAt', '#ttl': 'ttl'}
+        names.update({f'#count_{i}': f'n_{stage}'
+                      for i, stage in enumerate(stages)})
+        table.update_item(
+            Key={'logId': row_id(flow_code, day)},
+            UpdateExpression=(
+                'SET #type = :type, #code = :code, #day = :day, #updated = :now, '
+                '#ttl = if_not_exists(#ttl, :ttl) ADD ' +
+                ', '.join(f'#count_{i} :one' for i in range(len(stages)))
+            ),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues={
+                ':type': ROW_TYPE, ':code': flow_code, ':day': day,
+                ':now': stamp, ':ttl': stamp + RETENTION_SECONDS,
+                ':one': 1,
+            },
+        )
+        written = True
+    except Exception as exc:  # noqa: BLE001 - telemetry must never break a Flow
+        error_type = type(exc).__name__
+    if logger is not None:
+        for stage in stages:
+            payload: Dict[str, Any] = {'event': 'flow_funnel', 'flowCode': flow_code,
+                                       'stage': stage, 'counted': written}
+            if error_type:
+                payload['counterError'] = error_type
+            for key, value in fields.items():
+                if key in _LOG_FIELDS and isinstance(value, (str, int, bool)) and value != '':
+                    payload[key] = value if not isinstance(value, str) else value[:120]
+            try:
+                logger.info(json.dumps(payload))
+            except Exception:  # noqa: BLE001
+                pass
+    return written
+
+
 def read(table: Any, flow_code: str, *, days: int = 7, now: Optional[int] = None) -> Dict[str, Any]:
     """Daily counters for the last `days` UTC days, newest first. Read errors propagate."""
     if not valid_flow_code(flow_code):
