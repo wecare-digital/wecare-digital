@@ -769,10 +769,10 @@
 /* ========================================
    TOAST (one shared visual and position rule)
    ======================================== */
-/* Public and Workspace both use wc-action-toast and wc-action-toast-host.
-   Center each notice below the common site header rather than hiding
-   action feedback against the extreme top-right edge. Workspace adds its
-   own action-bar clearance. */
+/* Public and Workspace share the same action-toast host and visual tokens.
+   Align the notice with the right edge of the public content measure rather
+   than pinning it to the extreme viewport corner. The header and Workspace
+   action-bar offsets are unchanged. */
 .wc-action-toast-host {
   --wc-toast-action-band-height: 0px;
   position: fixed;
@@ -781,13 +781,17 @@
     calc(var(--wc-toast-header-height) + var(--wc-toast-action-band-height) + var(--wc-toast-top-gap)),
     calc(env(safe-area-inset-top, 0px) + 8px)
   );
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
+  right: max(
+    var(--public-page-gutter, 24px),
+    calc((100vw - var(--public-content-max, 1300px)) / 2 + var(--public-page-gutter, 24px)),
+    env(safe-area-inset-right, 0px)
+  );
+  left: auto;
+  transform: none;
   bottom: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-start;
   gap: 8px;
   max-width: calc(100vw - 24px);
@@ -892,9 +896,9 @@
 @media (max-width: 767px) {
   .wc-action-toast-host {
     --wc-toast-header-height: 96px;
-    left: 50%;
-    right: auto;
-    width: calc(100vw - max(var(--wc-toast-edge-gap), env(safe-area-inset-left, 0px)) - max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px)));
+    left: max(var(--public-mobile-page-gutter, 16px), env(safe-area-inset-left, 0px));
+    right: max(var(--public-mobile-page-gutter, 16px), env(safe-area-inset-right, 0px));
+    width: auto;
     max-width: none;
   }
   .wc-action-toast-host--workspace {

@@ -112,16 +112,16 @@
   --wc-toast-ink: #1a1a1a;
   --wc-toast-radius: 12px;
   --wc-toast-stripe-width: 4px;
-  --wc-toast-padding: 11px 16px;
+  --wc-toast-padding: 12px 16px;
   --wc-toast-type-size: 16px;
-  --wc-toast-max-width: 420px;
+  --wc-toast-max-width: 360px;
   --wc-toast-edge-gap: 16px;
   --wc-toast-top-gap: 8px;
   --wc-toast-header-height: 108px;
   --wc-toast-mobile-radius: 12px;
   --wc-toast-mobile-stripe-width: 4px;
-  --wc-toast-mobile-padding: 10px 14px;
-  --wc-toast-mobile-type-size: 15px;
+  --wc-toast-mobile-padding: 12px 16px;
+  --wc-toast-mobile-type-size: 16px;
   --public-lift-shadow: 0 4px 12px rgba(26, 58, 42, 0.12);
 
   --public-accent-blue: #2563eb;

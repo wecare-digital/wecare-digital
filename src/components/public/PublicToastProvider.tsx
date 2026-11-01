@@ -83,7 +83,7 @@ export default function PublicToastProvider ( { children }: { children: React.Re
     setActive( { id, message, tone } );
     // Action success is brief, pending explicitly stays, and errors never
     // auto-dismiss unless the caller marks a low-risk failure as transient.
-    const ms = options.durationMs === undefined ? ( tone === 'error' ? 0 : 5500 )
+    const ms = options.durationMs === undefined ? ( tone === 'error' ? 0 : 5000 )
       : Math.max( 0, options.durationMs );
     if ( ms > 0 ) {
       timer.current = setTimeout( () => {
