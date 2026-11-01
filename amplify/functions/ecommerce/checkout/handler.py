@@ -362,6 +362,12 @@ _STAFF_CONTRIBUTION_CONTACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> bool:
     """Strongly-consistent price check before any staff payment reservation."""
+    # An unset product id must fail locally, never become a DynamoDB GetItem.
+    # Do not rely on the configured contribution set to exclude empty strings.
+    if (not product_id or not variant_id
+            or product_id not in CONTRIBUTION_PRODUCT_IDS
+            or variant_id not in CONTRIBUTION_CHOICES_PAISE):
+        return False
     try:
         product = _products_table().get_item(
             Key={"id": product_id}, ConsistentRead=True,
