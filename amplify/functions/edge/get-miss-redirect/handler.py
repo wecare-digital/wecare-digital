@@ -78,6 +78,8 @@ CATALOG_GENERATED_MEDIA_PREFIX = CATALOG_DEPLOY_PREFIX + "catalog-media/generate
 PRIVATE_DELIVERABLE_PREFIXES = tuple(PUBLIC_DELIVERABLE_PREFIX + p for p in (
     # Private, paid Vault files: the public/ parent does NOT make this safe to serve.
     "valut/",
+    # Customer Drop Docs uploads are always private despite their public/ ancestor.
+    "drop-docs/",
     "Invoice/customer_invoice/",
     "receipts/",
     "whatsapp/incoming/",
