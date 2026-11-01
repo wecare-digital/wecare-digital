@@ -115,8 +115,11 @@ def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
         service_requests.REQUEST_PICKUP: whatsapp_templates.REQUEST_PICKUP_FLOW,
     }
     delivery = deliveries.get(kind)
-    if delivery is None:
+    # Contribute uses the same native payment and receipt templates, but has
+    # no service-fulfilment/delivery Flow of its own.
+    if delivery is None and kind != "contribute":
         return None
+    delivery_name = delivery.name if delivery is not None else ""
     # Lookups from the SAME approved-name registry the payment sender and
     # invoice engine use. These ids are display/audit metadata, NOT Meta
     # approval status, customer-supplied pay parameters or new send choices.
@@ -128,13 +131,13 @@ def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
         "nativePay": ids.get(whatsapp_templates.PAY.name, ""),
         "orderStatus": ids.get(whatsapp_templates.ORDER_STATUS.name, ""),
         "receipt": ids.get(whatsapp_templates.INVOICE.name, ""),
-        "delivery": ids.get(delivery.name, ""),
+        "delivery": ids.get(delivery_name, "") if delivery_name else "",
     }
     return {
         "nativePay": whatsapp_templates.PAY.name,
         "orderStatus": whatsapp_templates.ORDER_STATUS.name,
         "orderStatusStates": ["processing", "completed"],
-        "delivery": delivery.name,
+        "delivery": delivery_name,
         "receipt": whatsapp_templates.INVOICE.name,
         "templateIds": template_ids,
         "headerImage": template_media.PAYMENT_TEMPLATE_HEADER,
@@ -189,6 +192,7 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
                 "available": True,
                 "paise": paise,
                 "breakdown": _contribution_breakdown(paise),
+                "templates": _payment_templates("contribute"),
             }
         except Exception as error:  # noqa: BLE001 - fail closed like service rows
             logger.warning(json.dumps({"event": "contribution_price_unavailable_native",
