@@ -11,11 +11,14 @@ const pricing = readFileSync('amplify/functions/shared/lambda_utils/ecommerce/se
 // Collect invoice: its purpose and tax policy remain separate.
 assert.match(page, /\{ id: 'vault', label: 'Vault · Review & Pay' \},\s*\{ id: 'contribute', label: 'Contribute' \}/);
 assert.match(plan, /<ContributeStaffControls/);
+assert.match(plan, /setLoading\(true\);\s*setPrice\(UNAVAILABLE\);\s*setTemplates\(null\)/);
 assert.match(plan, /refreshPrice=\{\(\) => setRefreshSeq\(current => current \+ 1\)\}/);
 assert.match(plan, /<PaymentTemplateMedia templates=\{templates\} serviceLabel="Contribute reference" signedPreview\s*\/>/);
 
 // Controls use saved staff Contacts, not browser-typed arbitrary recipients.
 assert.match(controls, /api\.listContacts\(\)/);
+assert.match(controls, /setContacts\(\[\]\); \/\/ No stale recipient/);
+assert.match(controls, /!loadingContacts && !loadingPrice/);
 assert.match(controls, /!c\.deletedAt && !c\.archivedAt && !c\.locked/);
 assert.match(controls, /<select id="contribute-customer-choice" value=\{selectedId\}/);
 assert.match(controls, /Backend identity verification is still required|backend verification required/i);
