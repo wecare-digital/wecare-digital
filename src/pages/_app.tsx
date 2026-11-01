@@ -766,9 +766,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
 
   // Redirect-only and private handoff routes must never render public chrome,
   // translations, sharing controls or a loading waypoint while navigating.
-  // /404 renders Head only. /vault displays its actual file content
+  // /404 and /cart render Head only. /vault displays its actual file content
   // only after an owner-scoped verification, or silently navigates Home.
-  if ( router.pathname === '/404' || router.pathname === '/vault' )
+  if ( router.pathname === '/404' || router.pathname === '/cart'
+    || router.pathname === '/vault' )
   {
     return (
       <ErrorBoundary>
