@@ -72,7 +72,8 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'shipments', label: 'Shipments',
     flowId: '1804165164183485', status: 'PUBLISHED', metaName: 'WD-F006-Track-Shipping',
   },
-  // F008 published in Meta on 2026-11-01. Responses only; no automated send door.
+  // F008 published in Meta on 2026-11-01. Authenticated customer-initiated send only;
+  // no keyword, post-payment or automatic referred-person outreach.
   referral: {
     capability: 'referral', label: 'Refer Someone',
     flowId: '1933489271340286', status: 'PUBLISHED', metaName: 'WD-F008- Referal',
@@ -173,6 +174,20 @@ export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
     wabaId: '2094615664435155',
     tokenPrefix: 'drop_docs',
     defaultKeywords: [ 'drop docs', 'upload documents', 'upload docs', 'send documents', 'send docs', 'documents' ],
+    legacyFlowCodes: [],
+  },
+  referral: {
+    flowNumber: 'F008',
+    flowCode: 'WD-F008-REFERRAL',
+    label: 'Referral',
+    flowType: 'referral',
+    entryMode: 'none',
+    entryTemplateName: '',
+    requiresPayment: false,
+    submissionPrefix: 'WD-REF',
+    wabaId: '2094615664435155',
+    tokenPrefix: 'referral',
+    defaultKeywords: [],
     legacyFlowCodes: [],
   },
   leave_review: {
