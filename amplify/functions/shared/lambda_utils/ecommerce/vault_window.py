@@ -1,29 +1,29 @@
 """Vault 24-hour access-window math — pure, no I/O.
 
-THE RULE (owner): ₹49 buys ONE access window of VAULT_ACCESS_WINDOW_HOURS (default 24) for one
-file. Inside the window every download is free. When it closes it is ₹49 again for a NEW window
-on the SAME durable entitlement — no second entitlement row, `accessWindowCount` increments.
+THE RULE (owner): ₹49 buys ONE access window of VAULT_ACCESS_WINDOW_HOURS (default 24)
+for one exact, owner-bound file. The clock starts at first authenticated download,
+after the private S3 object is verified. Within that window every download is free.
+When it closes no renewal or second payment is offered for that file.
 
 Why a window and not permanent access: the durable VAULT_ENTITLEMENT already survives forever as
 the paid record. The WINDOW is a separate, time-bounded grant of transport ON TOP of it. Keeping
-the two apart means a failed delivery or a rollback never destroys the proof of payment, and a
-renewal never duplicates the entitlement.
+the two apart means a failed delivery or a rollback never destroys the proof of payment, and no future send or download can generate another payment request.
 
 Design points this module encodes:
-  * The window opens AT DELIVERY, not at payment. `open_window` stamps `accessWindowStartedAt`
-    now and `accessWindowEndsAt = now + hours*3600`. A grace of
-    VAULT_ACCESS_WINDOW_GRACE_SECONDS (default 300) is added to the OPEN check only, so a
-    customer mid-download at the boundary is not cut off by clock skew.
+  * The window opens at FIRST AUTHENTICATED DOWNLOAD, not at payment or WhatsApp
+    provider acceptance. `open_window` stamps `accessWindowStartedAt` now and
+    `accessWindowEndsAt = now + hours*3600`. Historical windows already opened
+    before this rule remain bound to their original timestamps.
   * `window_open` is the single predicate the redeem path and the workspace status both read, so
     "ends in Xh" on screen and "free re-download" in the backend can never disagree.
   * Opening is idempotent: if a window is already open, `open_window` returns the entitlement
     unchanged (same count) — this is what stops a duplicate tap / webhook replay from charging or
     double-incrementing.
-  * Windows are paid for one at a time. `paidWindowCount` counts the ₹49 purchases on the
-    entitlement (a missing counter means the one original purchase) and `accessWindowCount`
-    counts the windows opened; a window opens only against an unused paid one. A renewal
-    payment adds one to `paidWindowCount`, so it can never be lost by arriving while a window
-    is still open, and a re-delivery can never open a window nobody paid for.
+  * `paidWindowCount` retains historical purchase counts from the former renewal
+    system (missing means the one original purchase); `accessWindowCount` is the
+    count of previously opened windows. New payment paths refuse paid files.
+    The first download opens only an unused already-paid window; a re-delivery
+    cannot consume or manufacture access.
 """
 from __future__ import annotations
 
