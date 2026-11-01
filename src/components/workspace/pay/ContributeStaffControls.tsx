@@ -65,10 +65,12 @@ const ContributeStaffControls: React.FC<Props> = ({
   const loadContacts = React.useCallback(async () => {
     setLoadingContacts(true);
     setContactsMessage('');
+    setContacts([]); // No stale recipient may be reviewed during a refresh.
     try {
       const records = await api.listContacts();
       const usable = records.filter(usableContact);
       setContacts(usable);
+      setSelectedId(current => usable.some(c => keyOf(c) === current) ? current : '');
       if (!usable.length) setContactsMessage('No usable saved contacts were returned. Check Contacts and retry; no recipient has been selected.');
     } catch {
       setContacts([]);
@@ -120,7 +122,7 @@ const ContributeStaffControls: React.FC<Props> = ({
     ? [selected, ...filtered] : filtered;
   const priceMatches = matchesContributionQuote(price);
   const referenceValid = reference.trim().length >= 3 && reference.trim().length <= 60;
-  const canReview = !!selected && referenceValid;
+  const canReview = !!selected && referenceValid && !loadingContacts && !loadingPrice;
 
   const copiedSummary = [
     'INTERNAL REVIEW DRAFT ONLY — NOT A WHATSAPP PAYMENT REQUEST',
