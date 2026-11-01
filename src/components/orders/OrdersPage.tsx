@@ -1248,6 +1248,10 @@ export default function OrdersPage (): React.ReactElement {
             .ord-table{min-inline-size:480px}
             .ord-th{padding:10px 8px}
             .ord-td{padding:5px 8px}
+            /* The Order # cell has a second-line date on mobile. Without this,
+               table-cell middle alignment shifts Invoice's buttons down by half
+               that date line, leaving Copy higher than the right-side actions. */
+            .ord-invoice-cell{vertical-align:top}
             .ord-th:first-child,.ord-td:first-child{padding-inline-start:10px}
             .ord-tablewrap{overflow-x:auto;border-inline:0;border-radius:0}
           }
