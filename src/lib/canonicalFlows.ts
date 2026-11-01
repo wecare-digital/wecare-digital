@@ -72,6 +72,11 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'shipments', label: 'Shipments',
     flowId: '1804165164183485', status: 'PUBLISHED', metaName: 'WD-F006-Track-Shipping',
   },
+  // F008 published in Meta on 2026-11-01. Responses only; no automated send door.
+  referral: {
+    capability: 'referral', label: 'Refer Someone',
+    flowId: '1933489271340286', status: 'PUBLISHED', metaName: 'WD-F008- Referal',
+  },
   leave_review: {
     capability: 'leave_review', label: 'Leave Review',
     flowId: REVIEW_FLOW_ID, status: 'PUBLISHED', metaName: 'WD-F002-LEAVE-REVIEW',
