@@ -14,8 +14,8 @@ assert.ok(page.includes("tab === 'contribute' && <ContributePaymentPlan />"));
 assert.match(component, /TARGET_TOTAL_PAISE = 30000/);
 assert.match(component, /EXPRESS_PAISE = 1500/);
 assert.match(component, /Promise\.all\(\[fetchContributionPrice\(\), fetchServicePrices\(\)\]\)/);
-assert.match(component, /Planning preview only/);
-assert.match(component, /not yet quoted by backend/);
+assert.match(component, /Send only after a fresh server quote/);
+assert.match(component, /exact match required at send time/);
 assert.match(component, /BLOG_CONTRIBUTION/);
 assert.doesNotMatch(component, /sendPaymentLink\(|createInvoice\(|sendWhatsAppPayment\(|prepareCheckout\(|updateSystemConfig\(/);
 
@@ -41,4 +41,4 @@ assert.deepEqual({ supplyGst, delight, collection, fee, feeGst }, {
 });
 assert.equal(collection + fee + feeGst, target);
 
-console.log('Contribute ₹300 read-only Pay preview contracts passed');
+console.log('Contribute ₹300 Pay proposal and guarded send breakdown contracts passed');
