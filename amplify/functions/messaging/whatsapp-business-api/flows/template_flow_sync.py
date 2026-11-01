@@ -87,7 +87,7 @@ def snapshot(graph_get: Callable, waba_id: str, retained_flow: Callable[[str], b
         if fid in known_flows:
             raise ValueError('Duplicate Meta Flow ID')
         known_flows[fid] = flow
-    if len(known_flows) != 7:
+    if len(known_flows) != 8:
         raise ValueError('Retained Meta Flow inventory changed; review before syncing')
     links = {}
     seen_templates = set()
@@ -136,7 +136,7 @@ def reconcile(graph_get: Callable, dynamodb_resource, dynamodb_client,
     """Atomically replace the mapping snapshot. Does NOT touch other registries.
 
     Fail closed on partial scans, large unexpected removal, or changes to the
-    canonical Flow set. Safe to retry; the full 9 rows are updated as one transaction.
+    canonical Flow set. Safe to retry; the complete mapping snapshot is updated as one transaction.
     """
     links, meta = snapshot(graph_get, waba_id, retained_flow)
     table = dynamodb_resource.Table(table_name)
