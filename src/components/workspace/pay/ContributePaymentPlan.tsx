@@ -41,7 +41,7 @@ const TAXABLE_EXAMPLE_TOTAL_PAISE = TAXABLE_EXAMPLE.itemPaise
 const UNAVAILABLE: ServicePrice = { available: false };
 const money = (paise: number) => '₹' + rupeesFromPaise(paise);
 
-const ContributePaymentPlan: React.FC = () => {
+const ContributePaymentPlan: React.FC<{workspaceView?: 'display' | 'create'}> = ({workspaceView = 'create'}) => {
   const [price, setPrice] = React.useState<ServicePrice>(UNAVAILABLE);
   const [templates, setTemplates] = React.useState<ServicePaymentTemplates | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -69,7 +69,7 @@ const ContributePaymentPlan: React.FC = () => {
     <section className="contribute-pay" aria-label="Contribute native payment proposal">
       <header className="contribute-header">
         <p>PAY &amp; FLOW / CONTRIBUTE</p>
-        <h2>Contribute · Review &amp; Pay</h2>
+        <h2>{workspaceView === 'display' ? 'Contribute · Overview' : 'Contribute · Review & Pay'}</h2>
         <span>Proposed customer total: <strong>{money(TARGET_TOTAL_PAISE)}</strong></span>
       </header>
 
@@ -81,12 +81,20 @@ const ContributePaymentPlan: React.FC = () => {
           Staff must review the live quote and explicitly confirm before sending.</p>
       </div>
 
-      <ContributeStaffControls
-        price={price}
-        templates={templates}
-        loadingPrice={loading}
-        refreshPrice={() => setRefreshSeq(current => current + 1)}
-      />
+      {workspaceView === 'create' ? (
+        <ContributeStaffControls
+          price={price}
+          templates={templates}
+          loadingPrice={loading}
+          refreshPrice={() => setRefreshSeq(current => current + 1)}
+        />
+      ) : (
+        <div className="contribute-notice" role="status">
+          Display is read-only. The customer picker, staff confirmation and native payment
+          sender are available under Contribute → Create.
+          <div><Link href="/workspace/payments?view=contribute&tab=create">Open Contribute Create</Link></div>
+        </div>
+      )}
 
       <div className="contribute-grid">
         <article>

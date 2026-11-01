@@ -69,9 +69,13 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PageProps {
+    signOut?: () => void; user?: any; embedded?: boolean;
+    /** Display is read-only; Create retains every existing Vault action. */
+    workspaceView?: 'display' | 'create';
+}
 
-export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
+export default function SecureFilesPage ( { signOut, user, embedded, workspaceView = 'create' }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
 
@@ -545,6 +549,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         </div>
                         <span className="sf-private-indicator">Private · Customer-bound</span>
                     </div>
+                    { workspaceView === 'display' ? (
+                        <div className="sf-display-intro">
+                            <p>Read-only file register, ownership, purchase and access states.
+                               Payment, resend, scheduling and file actions remain under Create.</p>
+                            <Link href="/workspace/payments?view=vault&tab=create">Open Vault Create</Link>
+                        </div>
+                    ) : <>
                     <nav className="sf-top-links" aria-label="Vault action shortcuts">
                         <a href="#sf-add" onClick={ () => setMode( 'upload' ) }>Upload to Vault S3</a>
                         <a href="#sf-action-panel" onClick={ () => setMode( 'existing' ) }>Send · Resend · Schedule</a>
@@ -556,9 +567,10 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <li><span>3</span> WhatsApp preview</li>
                         <li><span>4</span> Send</li>
                     </ol>
+                    </> }
                 </header>
 
-                <section className="sf-workbench" aria-label="Vault customer and file workspace">
+                { workspaceView === 'create' && <section className="sf-workbench" aria-label="Vault customer and file workspace">
                     <div className="sf-compose">
                         <header className="sf-workbench-heading">
                             <div>
@@ -897,7 +909,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         onCopyFileId={ () => { if ( reviewFile ) void handleCopyId( reviewFile ); } }
                         onStaffDownload={ () => { if ( reviewFile ) void handleStaffDownload( reviewFile ); } }
                     />
-                </section>
+                </section> }
 
                 {/* ── registered files ──────────────────────────────────────────── */ }
                 <section className="sf-panel" aria-labelledby="sf-list">
@@ -954,7 +966,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                             <table className="sf-table">
                                 <thead>
                                     <tr>
-                                        { [ 'File', 'Customer', 'Mobile', 'Uploaded by', 'Size', 'Downloads', 'Vault purchase', 'Access window', 'Status', '' ].map( heading => (
+                                        { [ 'File', 'Customer', 'Mobile', 'Uploaded by', 'Size', 'Downloads', 'Vault purchase', 'Access window', 'Status',
+  ...( workspaceView === 'create' ? [ '' ] : [] ) ].map( heading => (
                                             <th key={ heading } scope="col">{ heading }</th>
                                         ) ) }
                                     </tr>
@@ -1001,7 +1014,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                         { row.status }
                                                     </span>
                                                 </td>
-                                                <td>
+                                                { workspaceView === 'create' && <td>
                                                     <div className="sf-rowactions">
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
                                                             <button
@@ -1067,7 +1080,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                             </button>
                                                         ) }
                                                     </div>
-                                                </td>
+                                                </td> }
                                             </tr>
                                         );
                                     } ) }
@@ -1082,6 +1095,9 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-wrap{width:100%;max-width:1320px;padding:16px 24px;box-sizing:border-box;font-family:var(--font-sans);font-size:var(--public-supporting-size);color:var(--public-text)}
 
                 .sf-heading-line{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+                .sf-display-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:16px 0}
+                .sf-display-intro p{margin:0;max-width:680px;color:var(--public-muted);font-size:13px;line-height:1.5}
+                .sf-display-intro :global(a){min-height:44px;display:inline-flex;align-items:center;border:1px solid var(--public-hairline);border-radius:10px;padding:8px 13px;color:var(--public-brand-green);font-size:13px;font-weight:700;text-decoration:none}
                 .sf-private-indicator{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--public-brand-lime);border-radius:999px;background:var(--public-lime-tint);font-size:var(--public-meta-size);font-weight:700;color:var(--public-brand-green);white-space:nowrap}
                 .sf-private-indicator:before{content:'';width:7px;height:7px;border-radius:50%;background:#5eaf73}
                 .sf-progress{display:flex;flex-wrap:wrap;list-style:none;padding:0;margin:20px 0 0;gap:9px}
