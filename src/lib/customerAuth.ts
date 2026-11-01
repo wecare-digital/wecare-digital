@@ -259,27 +259,37 @@ export async function submitOtp (
    * profile/index outage must never turn a correct OTP into a failed sign-in. Customer-profile
    * save and the scheduled reconciler remain idempotent fallbacks.
    */
-  try {
-    await fetch( PROFILE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${ token }`,
-      },
-      body: JSON.stringify( {} ),
-    } );
-  } catch {
-    // Authentication succeeded. Linking can retry on profile save / scheduled reconciliation.
-  }
+  // Profile ownership linking and remember-device exchange both require the
+  // already-valid Cognito access token, but neither needs the other's result.
+  // Start linking now; let the secure refresh-token exchange run alongside it.
+  // We still await linking before a successful return, so existing checkout and
+  // WhatsApp-first ownership behavior remains intact.
+  const profileLinkPromise = ( async () => {
+    try {
+      await fetch( PROFILE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${ token }`,
+        },
+        body: JSON.stringify( {} ),
+      } );
+    } catch {
+      // Authentication succeeded. Linking can retry on profile save / scheduled reconciliation.
+    }
+  } )();
 
   if ( refreshToken )
   {
+    // Launch the exchange before awaiting the independent profile bootstrap:
+    // latency after OTP is the slower operation, not the sum of both.
     const response = await fetch( SESSION_ENDPOINT, {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify( { action: 'exchange', refreshToken, persistent } ),
     } );
+    await profileLinkPromise;
     if ( !response.ok ) return { accessToken: token, expiresAt, remembered: false };
     // A 200 with an unreadable body is the same class of failure as a non-ok response and must
     // not be allowed to throw either - otherwise the one path this change exists to protect
@@ -290,7 +300,8 @@ export async function submitOtp (
     return { accessToken: token, expiresAt, remembered: true };
   }
 
-  // No refresh token: nothing to exchange, so there is no device-level session to remember.
+  // No refresh token: preserve the same profile-link completion guarantee.
+  await profileLinkPromise;
   return { accessToken: token, expiresAt, remembered: false };
 }
 
