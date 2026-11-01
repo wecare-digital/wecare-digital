@@ -51,7 +51,11 @@ test('Display is read-only, while scoped ledgers reuse existing authoritative re
   assert.match(page, /<CollectOverview \/>/);
   assert.match(page, /workspaceView="display"/);
   assert.match(page, /serviceKind="VAULT"/);
-  assert.match(page, /serviceKind="CONTRIBUTE"/);
+  // Contribute is a catalog order, not a request-service ledger filter.
+  assert.doesNotMatch(page, /serviceKind="CONTRIBUTE"/);
+  assert.match(page, /Existing Contribute records/);
+  assert.match(page, /view=contribute&tab=payments/);
+  assert.match(page, /view=ledger&ledger=invoices/);
   assert.match(page, /<PaymentsActivity \/>/);
   assert.match(page, /mode="invoices"/);
   assert.match(vault, /workspaceView === 'create' && <td>/);
