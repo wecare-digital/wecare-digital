@@ -47,9 +47,8 @@ export default function PublicNotice ( {
           font-weight:600;line-height:1.4;overflow-wrap:anywhere;
         }
         .wc-public-notice.is-inline{inline-size:min(100%,560px)}
-        /* Match the supplied original screenshot: generous light-lime card,
-           semibold dark type, 8px lime stripe, rounded 20px corners. Only action
-           toasts use this; inline errors retain their existing readable style. */
+        /* Compact top-right action toast. The shared tokens also style
+           Workspace toasts; inline errors keep their own persistent layout. */
         .wc-public-notice.is-toast{
           inline-size:fit-content;max-inline-size:100%;margin:0;
           padding:var(--wc-toast-padding);

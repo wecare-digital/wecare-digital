@@ -769,13 +769,13 @@
 /* ========================================
    TOAST (Unified)
    ======================================== */
-/* Share the exact screenshot palette/type/shape with PublicNotice.is-toast.
-   Only toast surfaces change: inline validation and payment messages do not. */
+/* Keep Workspace action toasts small, slim and lime like public action
+   toasts. Inline validation/payment messages retain their existing styles. */
 .toast-container {
   position: fixed;
-  top: auto;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  inset-inline-end: max(96px, calc(50vw - 607px));
+  top: max(16px, env(safe-area-inset-top));
+  bottom: auto;
+  inset-inline-end: max(16px, env(safe-area-inset-right));
   z-index: 10002;
   display: flex;
   flex-direction: column;
@@ -804,7 +804,7 @@
   animation: toast-enter 0.2s ease;
   pointer-events: auto;
   box-sizing: border-box;
-  max-width: min(100%, 480px);
+  max-width: min(100%, 340px);
   overflow-wrap: anywhere;
 }
 
@@ -860,10 +860,10 @@
 }
 @media(max-width:767px){
   .toast-container {
-    top: auto;
-    bottom: calc(96px + env(safe-area-inset-bottom));
-    inset-inline-start: 16px;
-    inset-inline-end: 16px;
+    top: max(12px, env(safe-area-inset-top));
+    bottom: auto;
+    inset-inline-start: 12px;
+    inset-inline-end: max(12px, env(safe-area-inset-right));
     max-width: none;
   }
   .toast {
@@ -880,7 +880,7 @@
     background: Canvas;
     color: CanvasText;
     border: 1px solid CanvasText;
-    border-inline-start-width: 8px;
+    border-inline-start-width: 4px;
   }
 }
 
