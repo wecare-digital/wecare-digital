@@ -379,7 +379,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
   const continueWith = ( result: TravelResult ) => {
     const safeTarget = safeHttpsUrl( result.websiteUrl || result.whatsappUrl );
     if ( !checkoutAvailable( result ) || !safeTarget ) {
-      setContinuationNote( 'This offer needs fresh provider confirmation before checkout.' );
+      setContinuationNote( 'Provider confirmation required before checkout.' );
       return;
     }
     window.location.assign( safeTarget );
@@ -440,13 +440,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
               <p className="eta-line"><strong>Guide</strong> { config.understanding }</p>
               <div className="eta-loading" role="status">
                 <span className="eta-loading-line" aria-hidden="true" />
-                <span>Comparing the strongest matches…</span>
+                <span>Comparing options…</span>
               </div>
             </>
           ) }
 
           { status === 'error' && (
-            <p className="eta-line"><strong>Guide</strong> I could not reach the provider source just now. No booking or payment was started.</p>
+            <p className="eta-line"><strong>Guide</strong> Provider unavailable. No booking or payment started.</p>
           ) }
 
           { status === 'ready' && (
