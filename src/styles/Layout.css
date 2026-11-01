@@ -1775,14 +1775,9 @@ input, textarea, select {
   border: 1px solid var(--border);
 }
 
-/* Toast Container */
-.toast-container {
-  position: fixed;
-  top: 20px;
-  inset-inline-end: 20px;
-  z-index: 10002;
-  max-width: calc(100vw - 40px);
-}
+/* Toast position and surface live in inner-ux.css (.wc-action-toast-host).
+   Do not reinstate .toast-container insets: they fight the shared centred host
+   through logical vs physical right/left CSS properties. */
 
 /* Prevent text selection on UI elements */
 .nav-item, .btn-primary, .btn-secondary, .stat-card {
@@ -1923,12 +1918,6 @@ input, textarea, select {
     height: 44px;
   }
   
-  .toast-container {
-    top: 12px;
-    inset-inline-end: 12px;
-    inset-inline-start: 12px;
-    max-width: none;
-  }
 }
 
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
