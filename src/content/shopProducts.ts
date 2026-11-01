@@ -42,7 +42,7 @@ export const SHOP_LISTINGS: ShopListing[] = [
   { slug:'niji-setu', name:'Niji Setu', blurb:'A private QR bridge for masked calls without exposing your personal number. Availability depends on supported calling and telecom services.', sku:'NJS5K8Q3', href:'/niji-setu/', formattedPrice:'₹299.00', image:'https://wecare.digital/api/catalog-media/niji-setu-4096.png', source:'product' },
   { slug:'merchandise', name:'Partner · Merchandise', blurb:'WECARE.DIGITAL merchandise for partner use. Availability, variant details and fulfilment are those confirmed for the order.', sku:'PMD9Q3P6', href:'/shop/merchandise/', formattedPrice:'₹1,999.00', image:'https://wecare.digital/api/catalog-media/merchandise-4096.png', source:'product' },
   { slug:'kiosk', name:'Partner · Kiosk', blurb:'A WECARE.DIGITAL kiosk setup for a supported location. Hardware availability, installation requirements and connectivity are confirmed for the order.', sku:'PKS7K5M4', href:'/shop/kiosk/', formattedPrice:'₹26,999.00', image:'https://wecare.digital/api/catalog-media/kiosk-4096.png', source:'product' },
-  { slug:'contribute', name:'Contribute', blurb:'Contribute from WECARE.DIGITAL.', sku:'CNT5Q2M8', href:'/shop/contribute/', formattedPrice:'₹250.00', showOnShopShelf:false, source:'product' },
+  { slug:'contribute', name:'Contribute', blurb:'Contribute from WECARE.DIGITAL.', sku:'CNT5Q2M8', href:'/shop/contribute/', formattedPrice:'₹300.00', showOnShopShelf:false, source:'product' },
 ];
 
 export const SHOP_LISTINGS_PER_PAGE = 6;
