@@ -518,7 +518,7 @@ def _staff_contribution_send(
             preview, product_id=product_id, variant_id=variant_id):
         return cors_response(409, {
             "error": "CONTRIBUTION_PRICE_MISMATCH",
-            "message": "The live ₹300 quote does not match the exempt policy. Nothing was sent.",
+            "message": "The live ₹300 quote does not match the taxable Contribute policy. Nothing was sent.",
         }, origin)
 
     if not _staff_contribution_catalog_is_current(product_id, variant_id):
