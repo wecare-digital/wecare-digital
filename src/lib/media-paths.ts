@@ -77,7 +77,7 @@ export function canonical ( key?: string | null ): string {
  * conversation media); these are only ever handed out as presigned URLs.
  */
 const PRIVATE_DELIVERABLE_PREFIXES: ReadonlyArray<string> = [
-    'Invoice/customer_invoice/', 'receipts/',
+    'valut/', 'Invoice/customer_invoice/', 'receipts/',
     'whatsapp/incoming/', 'whatsapp/outgoing/', 'whatsapp/voice/', 'whatsapp/transcriptions/',
     'whatsapp/downloads/', 'whatsapp/calling-ai/', 'whatsapp/resumable/',
 ].map( p => PUBLIC_DELIVERABLE_ROOT + p );
