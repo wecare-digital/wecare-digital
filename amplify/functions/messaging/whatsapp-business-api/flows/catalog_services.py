@@ -115,7 +115,7 @@ def _entitlement(db, file, customer_id):
 def _file_state(db, file, customer_id, now):
     """`vault_window.access_state` for one owned file, or '' when it can be neither sold nor sent.
 
-    ``UNPAID`` and ``EXPIRED`` may be sold; ``OPEN`` and ``READY`` get the link again for free.
+    Only ``UNPAID`` can start payment; ``OPEN`` and ``READY`` resend access for free.
     A paid file whose entitlement row is missing is a legacy grant the Vault page migrates on
     open, so it is ``READY`` rather than sold twice. A grant pointer with no payment is
     inconsistent state that staff reconcile, so it is offered as neither.
@@ -452,7 +452,9 @@ def _send_offer(event, client, db, keys, contacts, now):
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
-    if state not in ('UNPAID', 'EXPIRED'):
+    if state != 'UNPAID' or (file.get('vaultPaymentStatus') == 'PAID'
+                                   or file.get('vaultAccessGrantId')
+                                   or file.get('vaultEntitlementId')):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
     phone = '+' + owner_phone
     try:
@@ -509,7 +511,7 @@ def _send_offer(event, client, db, keys, contacts, now):
                              ExpressionAttributeValues={':now': now})
         except Exception:  # noqa: BLE001 - a newer offer owns the guard now
             pass
-    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED',
+    return {'outcome': outcome, 'fileId': file_id, 'renewal': False,
             'detail': detail, 'whatsappMessageId': wamid if outcome == 'VAULT_OFFER_SENT' else ''}
 
 
@@ -540,7 +542,9 @@ def _send_native_payment(event, client, db, keys, contacts, now):
     state = _file_state(db, file, owner, now)
     if state in ('OPEN', 'READY'):
         return {'outcome': 'VAULT_ACCESS_ACTIVE'}
-    if state not in ('UNPAID', 'EXPIRED'):
+    if state != 'UNPAID' or (file.get('vaultPaymentStatus') == 'PAID'
+                                   or file.get('vaultAccessGrantId')
+                                   or file.get('vaultEntitlementId')):
         return {'outcome': 'VAULT_FILE_UNAVAILABLE'}
 
     phone = '+' + owner_phone
@@ -734,10 +738,12 @@ def _prepare_payment(client, db, keys, row, identity, state, *, notify):
         raise
     try:
         file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, row['vaultFileId'])
-        # A renewal is sold only against the durable entitlement proving every paid window used.
-        entitlement = _entitlement(db, file, identity.customer_id) if state == 'EXPIRED' else None
+        # A historic signed offer can complete an original unpaid file.
+        # An expired paid file is not resold, even through a stale button.
+        if state != 'UNPAID' or file.get('vaultPaymentStatus') == 'PAID' or file.get('vaultEntitlementId'):
+            raise service_requests.ServiceRejected('VAULT_ALREADY_PAID')
         intent = store.request_intent(db.Table(REQUESTS_TABLE), identity, row['kind'],
-                                      vault_file=file, vault_entitlement=entitlement)
+                                      vault_file=file)
         keys.update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET serviceIntentId=:intent',
                          ExpressionAttributeValues={':intent': intent['intentId']})
     except (service_requests.ServiceRejected, customer_auth.CustomerNotAuthorized,
@@ -767,4 +773,4 @@ def _prepare_payment(client, db, keys, row, identity, state, *, notify):
         _close(keys, row, identity.customer_id)
         if notify:
             _send(client, row, content=NOT_REQUESTED)
-    return {'outcome': outcome, 'fileId': row['vaultFileId'], 'renewal': state == 'EXPIRED'}
+    return {'outcome': outcome, 'fileId': row['vaultFileId'], 'renewal': False}
