@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from lambda_utils import template_media, whatsapp_templates
@@ -176,7 +177,11 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     # server-authoritative price read. Keep it as a separate row rather than adding it to
     # SERVICE_KIND_BY_SLUG, because it has no service fulfilment / Meta Flow contract.
     contribution_variants = sorted(blog_contribution.CONTRIBUTION_VARIANT_IDS)
-    if len(contribution_variants) == 1:
+    # Do not advertise a payable taxable Contribute quote before the
+    # independently reviewed tax/capture release is enabled.
+    if os.environ.get("CONTRIBUTE_TAXABLE_NATIVE_PAYMENT_ENABLED", "") != "true":
+        prices["contribute"] = {"available": False}
+    elif len(contribution_variants) == 1:
         variant = contribution_variants[0]
         try:
             paise = _variant_paise(product_reader(variant))
