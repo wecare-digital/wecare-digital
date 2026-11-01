@@ -40,14 +40,15 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
     </div>
 
     <style jsx>{`
-      /* Keep the existing light-lime disclosure button and four lime-ruled paragraphs.
-         Every public PolicyDetails consumer now uses this single, unboxed style. */
+      /* Use the same Home colour accents on the four policy text rules.
+         Keep the original underlined lime disclosure, without a decorative
+         arrow, and retain the shared unboxed layout on all policy pages. */
       .wc-policy{
         margin:8px 0 0;max-inline-size:700px;min-inline-size:0;
         font-family:var(--font-sans);
       }
       .wc-policy summary{
-        display:inline-flex;align-items:center;gap:12px;
+        display:inline-flex;align-items:center;
         inline-size:max-content;max-inline-size:100%;
         min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;
         padding:6px 12px;border-radius:9px;cursor:pointer;
@@ -61,13 +62,6 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
       }
       .wc-policy summary::-webkit-details-marker{display:none}
-      .wc-policy summary::after{
-        content:'';display:inline-block;flex:none;
-        inline-size:8px;block-size:8px;margin-inline-end:3px;
-        border-inline-end:2px solid currentColor;border-block-end:2px solid currentColor;
-        transform:rotate(45deg);transition:transform .18s;
-      }
-      .wc-policy[open] summary::after{transform:rotate(225deg)}
       .wc-policy summary:hover{
         background:var(--public-brand-lime);
         text-decoration-color:transparent;
@@ -80,8 +74,8 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       }
       .wc-policy-body{padding:4px 0 0}
       .wc-policy p{
-        max-inline-size:680px;margin:10px 0 0;
-        padding:8px 0 8px 12px;
+        max-inline-size:680px;margin:14px 0 0;
+        padding:9px 0 9px 14px;
         border-inline-start:3px solid var(--public-brand-lime);
         /* Match Home's 20px narrative type scale while preserving the softer
            secondary grey from the original policy design, not near-black copy. */
@@ -92,13 +86,19 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         color:var(--public-muted);
         overflow-wrap:break-word;text-wrap:pretty;
       }
+      /* As on Home: green, blue and purple accent rules, followed by
+         forest green for the disclaimer. Hues are decorative, not status. */
+      .wc-policy p:nth-of-type(1){border-inline-start-color:var(--public-accent-green)}
+      .wc-policy p:nth-of-type(2){border-inline-start-color:var(--public-accent-blue)}
+      .wc-policy p:nth-of-type(3){border-inline-start-color:var(--public-accent-purple)}
+      .wc-policy p.wc-policy-disclaimer{border-inline-start-color:var(--public-brand-green)}
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
       .wc-policy p.wc-policy-disclaimer{
-        margin-block-start:14px;padding-block-start:12px;
+        margin-block-start:20px;padding-block-start:13px;
         border-block-start:1px solid var(--public-hairline);
       }
       @media(prefers-reduced-motion:reduce){
-        .wc-policy summary,.wc-policy summary::after{transition:none}
+        .wc-policy summary{transition:none}
         .wc-policy summary:hover{transform:none;box-shadow:none}
       }
     `}</style>
