@@ -47,7 +47,7 @@ export function useCustomerMenuQuickSend () {
       try {
         // Dynamic import keeps customer Cognito/auth code out of every public
         // page's initial JS. Only this real click can load the helper.
-        const { getSession } = await import( '../lib/customerAuth' );
+        const { getSession, clearSession } = await import( '../lib/customerAuth' );
         const session = getSession();
         if ( !session ) {
           // No API request has happened: the original one-use handoff is safe.
@@ -59,11 +59,14 @@ export function useCustomerMenuQuickSend () {
         const outcome = await sendCustomerMenuAction( action, session.accessToken );
         if ( !mounted.current ) return;
         if ( outcome.kind === 'expired' ) {
-          // 401 means the server did not authorize a send. Reauthenticate
-          // through the existing consumed-once Orders intent, never retry here.
+          // A 401 is a definitive *authorization refusal*, not Meta acceptance.
+          // Clear the unusable token BEFORE the auth handoff: going to Orders
+          // with the same token would immediately replay this one-use action.
+          // No send occurs again until the customer completes fresh sign-in.
           publicToast?.hideToast( pendingToast );
+          clearSession();
           stashCustomerMenuAction( action );
-          window.location.assign( '/orders/' );
+          window.location.assign( '/auth?return=/orders/' );
           return;
         }
         if ( outcome.kind === 'accepted' ) {
