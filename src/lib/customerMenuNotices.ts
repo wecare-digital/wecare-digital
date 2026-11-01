@@ -3,7 +3,8 @@
  *
  * Only Subscribe and Leave Review currently send actual WhatsApp messages.
  * Contribute uses the same authenticated handoff but remains blocked until
- * its template is configured. Never claim "Sent to WhatsApp" for that state. Keep this separate from Workspace ToastContext.
+ * its template is configured. Never claim "Sent to WhatsApp" for that state.
+ * Keep this separate from Workspace ToastContext.
  *
  * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
  * or Flow completion is confirmed. Never automatically retry an ambiguous send.
