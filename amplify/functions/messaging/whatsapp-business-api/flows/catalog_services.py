@@ -1,27 +1,18 @@
-"""Paid WhatsApp services: Vault document access and F003 Drop Docs checkout.
+"""Paid WhatsApp services: owner-bound Vault and F003 Drop Docs.
 
 Internal invocation only; rollout defaults off (WHATSAPP_CATALOG_SERVICES_ENABLED).
 
-Entry points
-------------
-* ``start``  - the inbound worker, for a cart that is exactly one Vault line or for the "vault"
-  keyword. Both are signed inbound messages, so commerce's identity bridge can prove the
-  customer from them. Lists the customer's documents.
-* ``select`` - the customer's pick from that list. A paid file with access left gets the Access
-  Vault link again at no charge; an unpaid file, or a paid one whose every window has been used,
-  gets ONE priced Review and Pay.
-* ``sendVaultOffer`` - staff manual workflow: send the approved request-ready template
-  with a document-bound Unlock Vault quick reply; payment is created only on tap.
-* ``sendPayment`` - secure-files, when staff ask for payment on one Vault file. It creates a
-  one-file native service session and sends the existing WhatsApp Review and Pay ORDER_DETAILS
-  message directly. No separate Vault offer template is created or sent.
-* ``unlock`` - handles a document-bound Unlock Vault quick reply from staff offers,
-  including messages sent before this change. It validates owner and token before checkout.
+* Customer Vault catalog carts, Vault keywords and legacy ``vaultpick:`` list taps are
+  retired. Their signed inbound messages can receive one audited, generic refusal.
+  They never list files, create an identity or initiate a customer-selected checkout.
+* ``start`` still serves signed Drop Docs catalogue purchases.
+* ``sendVaultOffer`` refuses newly minted legacy offer templates.
+* ``unlock`` preserves the owner-bound behaviour of ALREADY-ISSUED historical
+  Vault quick replies; invalid or revoked files do not create payment.
+* ``sendPayment`` keeps staff-initiated, exact-file native Review and Pay intact.
 
-It never prices, reserves or sends a payment itself: it hands ONE session to `wecare-commerce`
-`prepareNativeCatalogService`. See `catalog_service_checkout.ALLOWED` for why only Vault is sold
-here.
-"""
+Only the existing commerce Lambda owns pricing, payment and fulfilment.
+"""import hashlib
 import json
 import os
 import re
@@ -31,7 +22,7 @@ import uuid
 import boto3
 from lambda_utils import contact_key, contact_store, customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.identity import customer as customer_identity
-from flows import vault_file_picker
+from flows import vault_retirement
 from lambda_utils.ecommerce import (catalog_service_checkout as catalog, service_request_store as store,
                                     service_requests, vault_access as vault, vault_window)
 
@@ -50,28 +41,21 @@ _NOT_PREPARED = frozenset({
 _NOT_SENT = _NOT_PREPARED | {'PAYMENT_REQUEST_NOT_SENT', 'PAYMENT_REQUEST_REFUSED',
                              'PAYMENT_INITIATION_DISABLED'}
 
-_TITLE_PREFIX = {'OPEN': 'Paid · ', 'READY': 'Paid · ', 'EXPIRED': 'Renew · ', 'UNPAID': ''}
-
 #: One Vault offer per row, keyed by its token. The token is what the quick reply returns; the
 #: row binds it to one file, its owner and the number it was sent to.
 OFFER_PREFIX = 'VAULTOFFER#'
 #: Per-file guard row, so a double click does not send the same customer two offers in a row.
 OFFER_FILE_PREFIX = 'VAULTOFFERFILE#'
-#: An offer older than this is answered with the document list instead, which is still a path to
-#: the same Review and Pay.
+#: Historical token expiry; no new offer may be sent.
 OFFER_TTL_SECONDS = 7 * 24 * 3600
 OFFER_RESEND_GUARD_SECONDS = 60
 DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
-# A missing, revoked or expired Vault document cannot be sold by the general
-# WhatsApp Vault chooser. One signed-inbound service reply, never a payable
-# ORDER_DETAILS request or an unauthorized paid Submit Request Flow.
-SUBMIT_NEW_REQUEST_MESSAGE = (
-    'No document is available for Vault download, or its access has expired. '
-    'Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.'
-)
-VAULT_LOOKUP_UNAVAILABLE_MESSAGE = (
-    'We could not confirm your Vault documents right now. '
-    'No payment has been requested. Please try again later or contact support.'
+# Generic by design: do not expose which documents exist, their ownership, or payment state.
+# No bare /vault/ link: customer access requires the staff-issued exact-file URL.
+VAULT_CHOOSER_RETIRED_MESSAGE = (
+    'Vault files are accessed through the individual Access Vault link sent for '
+    'your document. This WhatsApp file chooser is no longer available. '
+    'Please use your existing link or contact support.'
 )
 
 
@@ -186,6 +170,45 @@ def _close(keys, row, customer_id):
         pass
 
 
+def _retire_vault_chooser(event, client, keys, sender):
+    """Refuse a retired customer Vault choice once, with durable send evidence.
+
+    This does not resolve a file, create an identity or call the commerce payment rail.
+    The immutable inbound WAMID identifies a single send intent; concurrent/replayed
+    events and unknown sender results are never sent again automatically.
+    """
+    source_message_id = str(event.get('sourceMessageId') or '')
+    if (not source_message_id or len(source_message_id) > 512
+            or not sender.get('contactId') or not sender.get('phone')
+            or not sender.get('phoneNumberId')):
+        return {'outcome': 'VAULT_CHOOSER_RETIRED_NO_REPLY'}
+    digest = hashlib.sha256(source_message_id.encode('utf-8')).hexdigest()
+    row = {
+        'orderId': 'VAULTRETIREDNOTICE#' + digest,
+        'contactId': sender['contactId'],
+        'phone': sender['phone'],
+        'phoneNumberId': sender['phoneNumberId'],
+        'sourceMessageId': source_message_id,
+        'createdAt': int(time.time()),
+    }
+    try:
+        audited = vault_retirement.send_once_with_audit(
+            keys, row,
+            lambda idem: _send(client, row, content=VAULT_CHOOSER_RETIRED_MESSAGE,
+                               idempotencyKey=idem),
+            row_status='VAULT_CHOOSER_RETIRED',
+        )
+    except Exception as error:
+        if _conditional_failed(error):
+            return {'outcome': 'VAULT_CHOOSER_RETIRED_REPLAY'}
+        raise
+    status = audited['replyStatus']
+    outcome = ('VAULT_CHOOSER_RETIRED' if status == 'ACCEPTED'
+               else 'VAULT_CHOOSER_RETIRED_REPLY_NOT_SENT' if status == 'REJECTED'
+               else 'VAULT_CHOOSER_RETIRED_REPLY_UNCONFIRMED')
+    return {'outcome': outcome, **audited}
+
+
 def handle(event, client):
     if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
         return {'statusCode': 403, 'error': 'Internal invocation required'}
@@ -198,182 +221,94 @@ def handle(event, client):
     action = event.get('action', 'start')
 
     if action == 'sendVaultOffer':
-        # Retired outbound template: legacy inbound Unlock Vault taps remain valid,
-        # but no new offer may be minted through an older caller or Lambda alias.
+        # Newly minted offers are retired; existing signed taps are handled below.
         return {'outcome': 'VAULT_OFFER_RETIRED'}
     if action in ('sendPayment', 'sendOffer'):
-        # Preserve the existing direct payment route for older and customer callers.
+        # Never change the staff exact-file Review & Pay rail.
         return _send_native_payment(event, client, db, keys, contacts, now)
-    # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
-    # customer action without its contact used to reach `get_item` with an empty key and crash.
-    if action not in ('start', 'select', 'unlock'):
+    if action not in ('start', 'select', 'retiredVault', 'unlock'):
         return {'outcome': 'CATALOG_ACTION_UNAVAILABLE'}
     if not event.get('contactId'):
         return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
 
-    contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-    # Outbound resolves only our Direct-API sender ids; the bare Meta phone id is refused.
+    contact = contacts.get_item(Key={'id': event['contactId']},
+                                ConsistentRead=True).get('Item') or {}
     sender = {'contactId': contact.get('id', ''), 'phone': event.get('senderPhone', ''),
               'phoneNumberId': event.get('phoneNumberId') or os.environ.get(
                   'WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')}
 
-    if action == 'select':
-        # Selection is authorized by the already-created, high-entropy session token. Identity
-        # provisioning happened only on the signed cart message that created this session.
-        token = str(event.get('token') or '')
-        session = keys.get_item(
-            Key={'orderId': catalog.SESSION_PREFIX + token}, ConsistentRead=True
-        ).get('Item') or {}
-        owner = str(session.get('customerId') or '')
-        number = str(session.get('phone') or '')
+    # These are all dead customer chooser paths. In particular, an old list tap
+    # cannot re-open a saved SELECTING session or prepare a payment.
+    if action in ('select', 'retiredVault'):
+        return _retire_vault_chooser(event, client, keys, sender)
+
+    choice = None
+    if action == 'start':
         try:
-            # senderPhone is Meta's bare wa_id (country code, no `+`); see
-            # checkout._native_whatsapp_identity for why canonicalising it guesses nothing.
-            event_phone = customer_identity.normalize_phone_preserving_country(
-                contact_store.canonical_phone(event.get('senderPhone')))
-            session_phone = customer_identity.normalize_phone_preserving_country(
-                contact_store.canonical_phone(number))
-        except customer_identity.InvalidPhoneNumber:
-            event_phone = session_phone = ''
-        if (not customer_auth.is_cognito_subject(owner)
-                or not event_phone or event_phone != session_phone
-                or str(session.get('contactId') or '') != str(contact.get('id') or '')
-                or str(contact.get('checkoutCustomerId') or '') != owner):
-            _send(client, sender, content=IDENTITY_NOT_READY)
-            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
-        identity = customer_auth.CustomerIdentity(
-            customer_id=owner, subject=owner, phone=session_phone, phone_verified=True)
-    else:
-        # Native WhatsApp payment identity is established from the signed cart message, not a
-        # browser session. Commerce owns the bridge to the dedicated registration function, so
-        # this shared business-api role never gains customer-pool provisioning rights.
-        try:
-            resolved = _invoke(client, 'wecare-commerce:live', {
-                'internalAction': 'ensureNativeWhatsAppIdentity',
-                'contactId': contact.get('id', ''),
-                'senderPhone': event.get('senderPhone', ''),
-                'sourceMessageId': event.get('sourceMessageId', ''),
-                'phoneNumberId': sender['phoneNumberId'],
-            })
-        except Exception:
-            resolved = {}
-        if resolved.get('outcome') != 'WHATSAPP_IDENTITY_READY':
-            _send(client, sender, content=IDENTITY_NOT_READY)
-            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
-        owner = str(resolved.get('customerId') or '')
-        number = str(resolved.get('phone') or '')
-        if not customer_auth.is_cognito_subject(owner) or not number:
-            _send(client, sender, content=IDENTITY_NOT_READY)
-            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
-        identity = customer_auth.CustomerIdentity(
-            customer_id=owner, subject=owner, phone=number, phone_verified=True)
-        # Re-read because the bridge may have attached checkoutCustomerId to this row.
-        contact = contacts.get_item(
-            Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-        if str(contact.get('checkoutCustomerId') or '') != owner:
-            _send(client, sender, content=IDENTITY_NOT_READY)
-            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+            choice = catalog.service_from_lines(event.get('lines') or [])
+        except ValueError:
+            return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+        if not choice or not event.get('sourceMessageId'):
+            return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+        if choice['kind'] == service_requests.VAULT:
+            return _retire_vault_chooser(event, client, keys, sender)
+        if choice['kind'] != service_requests.DROP_DOCS:
+            return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+
+    # Only Drop Docs and already-issued, signed Vault offer taps need the
+    # established native WhatsApp customer identity. Retired chooser traffic
+    # never invokes this provisioning bridge or reads an owner's file list.
+    try:
+        resolved = _invoke(client, 'wecare-commerce:live', {
+            'internalAction': 'ensureNativeWhatsAppIdentity',
+            'contactId': contact.get('id', ''),
+            'senderPhone': event.get('senderPhone', ''),
+            'sourceMessageId': event.get('sourceMessageId', ''),
+            'phoneNumberId': sender['phoneNumberId'],
+        })
+    except Exception:
+        resolved = {}
+    if resolved.get('outcome') != 'WHATSAPP_IDENTITY_READY':
+        _send(client, sender, content=IDENTITY_NOT_READY)
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    owner = str(resolved.get('customerId') or '')
+    number = str(resolved.get('phone') or '')
+    if not customer_auth.is_cognito_subject(owner) or not number:
+        _send(client, sender, content=IDENTITY_NOT_READY)
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    identity = customer_auth.CustomerIdentity(
+        customer_id=owner, subject=owner, phone=number, phone_verified=True)
+    contact = contacts.get_item(
+        Key={'id': event['contactId']}, ConsistentRead=True).get('Item') or {}
+    if str(contact.get('checkoutCustomerId') or '') != owner:
+        _send(client, sender, content=IDENTITY_NOT_READY)
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
 
     if action == 'unlock':
         offer = _live_offer(keys, event.get('offerToken'), identity, now)
         if offer:
             return _unlock(event, client, db, keys, contact, identity, offer, now)
-        _send(client, sender, content=DOCUMENT_UNAVAILABLE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
+        return _retire_vault_chooser(
+            event, client, keys, {**sender, 'phone': identity.phone})
 
-    if action == 'start':
-        choice = catalog.service_from_lines(event.get('lines') or [])
-        if not choice or not event.get('sourceMessageId'):
-            return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
-        # Source message owns exactly one session. Replay never creates another payment.
-        index_key = 'CATALOGSERVICEMSG#' + event['sourceMessageId']
-        token = secrets.token_urlsafe(24)
-        try:
-            keys.put_item(Item={'orderId': index_key, 'token': token},
-                          ConditionExpression='attribute_not_exists(orderId)')
-        except Exception as error:
-            if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-                return {'outcome': 'CATALOG_SERVICE_REPLAY'}
-            raise
-        row = {'orderId': catalog.SESSION_PREFIX + token, 'token': token, **choice,
-               'contactId': contact['id'], 'phone': identity.phone, 'customerId': identity.customer_id,
-               'phoneNumberId': event['phoneNumberId'], 'sourceMessageId': event['sourceMessageId'],
-               'createdAt': now, 'expiresAt': now + 3600, 'status': 'SELECTING'}
-        if choice['kind'] == service_requests.DROP_DOCS:
-            keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-            return _prepare_drop_docs_payment(client, db, keys, row, identity, notify=True)
-        files = db.Table(vault.FILES_TABLE)
-        try:
-            choices, index_exhausted = vault_file_picker.eligible_owner_files(
-                files, identity.phone.lstrip('+'), identity.customer_id,
-                lambda file: _file_state(db, file, identity.customer_id, now),
-            )
-        except Exception:
-            # DynamoDB failure/partial evidence is not proof of an empty Vault.
-            # The signed inbound session still gets one recorded, safe reply.
-            choices, index_exhausted = [], False
-
-        if not choices:
-            row_status = 'AWAITING_FILE' if index_exhausted else 'FILE_LOOKUP_INCOMPLETE'
-            message = (SUBMIT_NEW_REQUEST_MESSAGE if index_exhausted
-                       else VAULT_LOOKUP_UNAVAILABLE_MESSAGE)
-            audited = vault_file_picker.send_once_with_audit(
-                keys, row, lambda idem: _send(
-                    client, row, content=message, idempotencyKey=idem),
-                row_status=row_status,
-            )
-            base = ('VAULT_FILE_NOT_READY' if index_exhausted
-                    else 'VAULT_FILE_LOOKUP_UNAVAILABLE')
-            status = audited['replyStatus']
-            outcome = (base if status == 'ACCEPTED'
-                       else base + ('_REPLY_NOT_SENT' if status == 'REJECTED'
-                                    else '_REPLY_UNCONFIRMED'))
-            return {'outcome': outcome, **audited}
-
-        # At most ten choices per native list. Already-paid OPEN/READY rows
-        # refresh the same Access Vault link free; EXPIRED is not a new sale here.
-        row['fileChoices'] = [file['fileId'] for file, _state in choices[:10]]
-        row['fileChoiceStates'] = [state for _file, state in choices[:10]]
-        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        _send(client, row, isInteractive=True, interactiveType='list', interactiveData={
-            'body': ('Choose a document. Paid documents with active access '
-                     'download again at no charge.'),
-            'button': 'Choose document', 'sections': [{'title': 'Your documents', 'rows': [
-                {'id': 'vaultpick:' + token + ':' + str(i),
-                 'title': (_TITLE_PREFIX.get(state, '') + str(file.get('displayName') or file.get('originalFilename') or 'Document'))[:24]}
-                for i, (file, state) in enumerate(choices[:10])]}]})
-        return {'outcome': 'VAULT_FILE_SELECTION_SENT'}
-    if action != 'select':
-        return {'outcome': 'CATALOG_ACTION_UNAVAILABLE'}
-
+    # Drop Docs keeps its current service-specific, native checkout path.
+    index_key = 'CATALOGSERVICEMSG#' + event['sourceMessageId']
+    token = secrets.token_urlsafe(24)
     try:
-        row = catalog.selected_session(keys, event.get('token', ''), contact['id'], identity.phone, now)
-    except customer_auth.CustomerNotAuthorized:
-        # A tap on a list whose session expired (one hour) or belongs to someone else.
-        _send(client, {**sender, 'phone': identity.phone}, content=DOCUMENT_UNAVAILABLE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
-    index = event.get('fileIndex')
-    if (row.get('customerId') != identity.customer_id or row['kind'] != 'VAULT' or row.get('status') != 'SELECTING' or type(index) is not int
-            or not 0 <= index < len(row.get('fileChoices') or [])):
-        _send(client, row, content=DOCUMENT_UNAVAILABLE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
-    try:
-        file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, row['fileChoices'][index])
-    except customer_auth.CustomerNotAuthorized:
-        # File was revoked or ownership changed after a list was issued.
-        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
-    # Decided now, not from the list: a window may have closed (or been paid) since it was sent.
-    state = _file_state(db, file, identity.customer_id, now)
-    if state in ('OPEN', 'READY'):
-        return _send_access(client, row, file['fileId'])
-    if state != 'UNPAID':
-        # The document may have expired since the interactive list was sent.
-        # Answer with exactly one actionable service message; no payment.
-        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
-    row['vaultFileId'] = file['fileId']
-    return _prepare_payment(client, db, keys, row, identity, state, notify=True)
+        keys.put_item(Item={'orderId': index_key, 'token': token},
+                      ConditionExpression='attribute_not_exists(orderId)')
+    except Exception as error:
+        if _conditional_failed(error):
+            return {'outcome': 'CATALOG_SERVICE_REPLAY'}
+        raise
+    row = {'orderId': catalog.SESSION_PREFIX + token, 'token': token, **choice,
+           'contactId': contact['id'], 'phone': identity.phone,
+           'customerId': identity.customer_id,
+           'phoneNumberId': sender['phoneNumberId'],
+           'sourceMessageId': event['sourceMessageId'],
+           'createdAt': now, 'expiresAt': now + 3600, 'status': 'SELECTING'}
+    keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+    return _prepare_drop_docs_payment(client, db, keys, row, identity, notify=True)
 
 
 def _conditional_failed(error):
@@ -428,8 +363,9 @@ def _unlock(event, client, db, keys, contact, identity, offer, now):
         # Revoked or reassigned since the offer went out.
         row['status'] = 'FILE_UNAVAILABLE'
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
+        return _retire_vault_chooser(
+            event, client, keys, {'contactId': contact['id'], 'phone': identity.phone,
+                                  'phoneNumberId': row['phoneNumberId']})
     # Decided now, not when the offer was sent: it may have been paid (or a window may have
     # closed) in between.
     state = _file_state(db, file, identity.customer_id, now)
@@ -440,8 +376,9 @@ def _unlock(event, client, db, keys, contact, identity, offer, now):
     if state != 'UNPAID':
         # Historical Unlock Vault taps remain accepted for their original owner,
         # but do not resell an expired paid window via an old WhatsApp template.
-        _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
-        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
+        return _retire_vault_chooser(
+            event, client, keys, {'contactId': contact['id'], 'phone': identity.phone,
+                                  'phoneNumberId': row['phoneNumberId']})
     row['vaultFileId'] = file['fileId']
     return _prepare_payment(client, db, keys, row, identity, state, notify=True)
 
