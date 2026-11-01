@@ -2049,7 +2049,11 @@ def _verify_vault_website_renewal(identity: customer_auth.CustomerIdentity,
             or file_row.get("ownerCustomerId") != identity.customer_id
             or file_row.get("ownerPhone") != intent.get("vaultOwnerPhone")):
         raise website_checkout.CheckoutRejected("VAULT_FILE_UNAVAILABLE")
-    from lambda_utils.ecommerce import vault_window
+    # A paid 24-hour entitlement can no longer be renewed. A stale website
+    # intent created before the original capture must not be charged again,
+    # regardless of whether the existing access is READY, OPEN or EXPIRED.
+    # Read the durable grant rather than trusting only a possibly delayed
+    # SecureFilesTable pointer.
     entitlement = _table("stack-wecare-digital-DownloadGrantsTable").get_item(
         Key={"grantId": "vault-entitlement#" + identity.customer_id + "#" + file_id},
         ConsistentRead=True,
@@ -2061,12 +2065,11 @@ def _verify_vault_website_renewal(identity: customer_auth.CustomerIdentity,
                 or entitlement.get("fileId") != file_id
                 or entitlement.get("ownerPhone") != file_row.get("ownerPhone")):
             raise website_checkout.CheckoutRejected("VAULT_ENTITLEMENT_UNVERIFIED")
-        if vault_window.access_state(entitlement, int(time.time())) != "EXPIRED":
-            raise website_checkout.CheckoutRejected("VAULT_ACCESS_ACTIVE")
-    elif (file_row.get("vaultPaymentStatus") == "PAID"
-          or file_row.get("vaultEntitlementId")
-          or file_row.get("vaultAccessGrantId")):
-        raise website_checkout.CheckoutRejected("VAULT_ENTITLEMENT_UNVERIFIED")
+        raise website_checkout.CheckoutRejected("VAULT_ALREADY_PAID")
+    if (file_row.get("vaultPaymentStatus") == "PAID"
+            or file_row.get("vaultEntitlementId")
+            or file_row.get("vaultAccessGrantId")):
+        raise website_checkout.CheckoutRejected("VAULT_ALREADY_PAID")
 
 
 def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
@@ -2149,8 +2152,8 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     refusal = service_requests.checkout_preflight(line_items, body)
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
-    # A Vault intent may have been minted while expired, then paid through WhatsApp
-    # before this website checkout. Recheck the file's *current* paid window here.
+    # A Vault intent minted before an original capture must not be renewed,
+    # even if the customer's paid access window has since expired.
     try:
         _verify_vault_website_renewal(identity, body, line_items)
     except website_checkout.CheckoutRejected as rejected:
