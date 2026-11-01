@@ -10,8 +10,6 @@ export interface PolicyDetailsCopy {
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
   refunds?: string;
-  /** Set null on the Terms page itself to avoid linking to the current page. */
-  termsHref?: string | null;
 }
 
 /**
@@ -27,7 +25,6 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   disclaimer,
   className,
   refunds = PRODUCT_REFUNDS,
-  termsHref = '/terms/',
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
@@ -40,9 +37,6 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
           { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
         </p>
       ) ) }
-      { termsHref && (
-        <a className="wc-policy-terms" href={ termsHref }>Read full Terms of Service</a>
-      ) }
     </div>
 
     <style jsx>{`
@@ -89,27 +83,19 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         max-inline-size:680px;margin:10px 0 0;
         padding:8px 0 8px 12px;
         border-inline-start:3px solid var(--public-brand-lime);
-        font-size:var(--public-supporting-size);font-weight:400;
-        line-height:1.55;letter-spacing:normal;
-        color:#505852;overflow-wrap:break-word;text-wrap:pretty;
+        /* Match Home's 20px narrative type scale while preserving the softer
+           secondary grey from the original policy design, not near-black copy. */
+        font-size:var(--public-body-size);
+        font-weight:var(--public-body-weight);
+        line-height:var(--public-body-leading);
+        letter-spacing:var(--public-body-tracking);
+        color:var(--public-muted);
+        overflow-wrap:break-word;text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
       .wc-policy p.wc-policy-disclaimer{
         margin-block-start:14px;padding-block-start:12px;
         border-block-start:1px solid var(--public-hairline);
-      }
-      /* One quiet legal destination beneath the content, not a boxed footer
-         or several links interrupting the statement labels. */
-      .wc-policy-terms{
-        display:inline-flex;align-items:center;min-height:var(--tap-min);
-        box-sizing:border-box;margin-block-start:10px;padding:6px 0;
-        color:var(--public-brand-green);font-family:inherit;
-        font-size:var(--public-meta-size);font-weight:600;
-        text-decoration:underline;text-underline-offset:3px;
-      }
-      .wc-policy-terms:hover{text-decoration-thickness:2px}
-      .wc-policy-terms:focus-visible{
-        outline:2px solid var(--public-brand-green);outline-offset:3px;
       }
       @media(prefers-reduced-motion:reduce){
         .wc-policy summary,.wc-policy summary::after{transition:none}
