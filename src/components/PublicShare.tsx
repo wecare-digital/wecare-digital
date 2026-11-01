@@ -126,10 +126,10 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       await navigator.clipboard.writeText( resolvedUrl );
       // Copy feedback has one owner: the mounted public or Workspace toast host.
       // Do not also replace the button label, icon or accessible name with "Copied".
-      if ( showToast ) showToast( 'success', { durationMs: 2500 } );
+      if ( showToast ) showToast( 'success' );
       else workspaceSuccess?.( publicActionText( 'success' ) );
     } catch {
-      if ( showToast ) showToast( 'failure', { durationMs: 3500 } );
+      if ( showToast ) showToast( 'failure', { durationMs: 6500 } );
       else workspaceError?.( publicActionText( 'failure' ) );
     }
   }, [ resolvedUrl, showToast, workspaceSuccess, workspaceError ] );

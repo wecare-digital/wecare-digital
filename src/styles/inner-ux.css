@@ -770,8 +770,9 @@
    TOAST (one shared visual and position rule)
    ======================================== */
 /* Public and Workspace both use wc-action-toast and wc-action-toast-host.
-   Workspace has a separate action bar beneath the common site header,
-   so its host adds only that extra vertical clearance. */
+   Center each notice below the common site header rather than hiding
+   action feedback against the extreme top-right edge. Workspace adds its
+   own action-bar clearance. */
 .wc-action-toast-host {
   --wc-toast-action-band-height: 0px;
   position: fixed;
@@ -780,12 +781,13 @@
     calc(var(--wc-toast-header-height) + var(--wc-toast-action-band-height) + var(--wc-toast-top-gap)),
     calc(env(safe-area-inset-top, 0px) + 8px)
   );
-  right: max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px));
-  left: auto;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: auto;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-start;
   gap: 8px;
   max-width: calc(100vw - 24px);
@@ -806,7 +808,9 @@
   align-items: center;
   gap: 0;
   width: fit-content;
-  max-width: min(var(--wc-toast-max-width), calc(100vw - 24px));
+  min-width: min(264px, calc(100vw - 32px));
+  min-height: 48px;
+  max-width: min(var(--wc-toast-max-width), calc(100vw - 32px));
   margin: 0;
   padding: var(--wc-toast-padding);
   border: 0;
@@ -826,7 +830,7 @@
   max-height: 180px;
   max-height: min(180px, 40vh, calc(100vh - var(--wc-toast-header-height) - var(--wc-toast-action-band-height, 0px) - 20px));
   max-height: min(180px, 40dvh, calc(100dvh - var(--wc-toast-header-height) - var(--wc-toast-action-band-height, 0px) - 20px));
-  box-shadow: none;
+  box-shadow: 0 8px 24px rgba(26, 58, 42, 0.14);
   pointer-events: none;
 }
 
@@ -888,8 +892,9 @@
 @media (max-width: 767px) {
   .wc-action-toast-host {
     --wc-toast-header-height: 96px;
-    left: max(var(--wc-toast-edge-gap), env(safe-area-inset-left, 0px));
-    right: max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px));
+    left: 50%;
+    right: auto;
+    width: calc(100vw - max(var(--wc-toast-edge-gap), env(safe-area-inset-left, 0px)) - max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px)));
     max-width: none;
   }
   .wc-action-toast-host--workspace {

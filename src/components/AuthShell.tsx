@@ -49,6 +49,8 @@ import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws
 import AuthBrandHeader from './AuthBrand';
 import Header from './Header';
 import Footer from './Footer';
+import PublicShare from './PublicShare';
+import PublicToastProvider from './public/PublicToastProvider';
 import SupportWidget from './SupportWidget';
 
 // Custom Amplify UI Theme - Lime + Dark Green matching site design
@@ -176,17 +178,17 @@ const authTheme: Theme = {
  * This is the THIRD place chrome is mounted, and it is easy to forget because it is not
  * a route: any visitor who opens a staff URL without a session lands here, including
  * every mistyped path that does not match the allowlist. So it is a page the public
- * genuinely sees, and it gets the same three pieces as a public page - Header, Footer and
- * SupportWidget.
+ * genuinely sees, and it gets the public Header, PublicShare, Footer and
+ * SupportWidget without adding a second authenticated Workspace shell.
  *
  * SupportWidget was missing here until now, and the gap mattered in exactly the situation
  * this screen exists for: someone who cannot get in had no way to reach us from the screen
  * telling them they cannot get in. It is mounted below, outside .ag-shell, because the
  * widget is position:fixed and does not belong in a flex column.
  *
- * Once authenticated this returns children directly. Header and Footer are deliberately
- * NOT carried into the dashboard: Layout.tsx has its own top bar and sidebar and no footer
- * at all, and adding a second fixed header would collide with both.
+ * Once authenticated this returns children directly. WorkspaceShell supplies
+ * its own shared Header, actions, PublicShare and Footer, so AuthGate must not
+ * mount a second copy when the session becomes authenticated.
  */
 const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
   const { authStatus } = useAuthenticator( ( ctx ) => [ ctx.authStatus ] );
@@ -195,12 +197,13 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
   if ( isAuthed ) return <>{ children }</>;
 
   return (
-    <>
+    <PublicToastProvider>
       <Header />
       <div className="ag-shell">
         <div className="ag-centre">
           { children }
         </div>
+        <div className="ag-public-share"><PublicShare /></div>
         <Footer />
       </div>
       <SupportWidget />
@@ -215,7 +218,14 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
            a media query, so the two-height fix is not expressible inline. */
         .ag-shell{display:flex;flex-direction:column;min-height:100vh;padding-top:108px}
         .ag-centre{flex:1;display:flex;align-items:center;justify-content:center}
-        @media(max-width:767px){.ag-shell{padding-top:96px}}
+        .ag-public-share{
+          width:100%;max-width:var(--public-content-max);margin-inline:auto;
+          padding:0 var(--public-page-gutter) 28px;box-sizing:border-box;
+        }
+        @media(max-width:767px){
+          .ag-shell{padding-top:96px}
+          .ag-public-share{padding-inline:16px;padding-bottom:24px}
+        }
       `}</style>
       {/* GLOBAL, deliberately: this styles the Amplify Authenticator's own card,
           which is rendered inside a composite component that styled-jsx cannot
@@ -322,7 +332,7 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
           }
         }
       `}</style>
-    </>
+    </PublicToastProvider>
   );
 };
 

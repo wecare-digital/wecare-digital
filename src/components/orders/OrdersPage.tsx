@@ -376,7 +376,7 @@ export default function OrdersPage (): React.ReactElement {
     {
       if ( !navigator.clipboard?.writeText ) throw new Error( 'Clipboard unavailable' );
       await navigator.clipboard.writeText( value );
-      showToast( 'success', { durationMs: 2500 } );
+      showToast( 'success' );
     }
     catch
     {
@@ -468,7 +468,7 @@ export default function OrdersPage (): React.ReactElement {
       setOrdersAlert( { source: 'service', message: notice.message } );
     } else {
       dismissAlertFor( 'service' );
-      inviteToastId.current = showToast( 'whatsappAccepted', { durationMs: 2800 } );
+      inviteToastId.current = showToast( 'whatsappAccepted' );
     }
   };
 
@@ -818,7 +818,6 @@ export default function OrdersPage (): React.ReactElement {
                                     onClick={ () => copyId( copyValue, index ) }
                                   >
                                     <OrderActionIcon name="copy_all" />
-                                    <span className="ord-copy-label">Copy</span>
                                   </button>
                                 ) }
                               </span>
@@ -1051,7 +1050,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
           /* Keep the order reference and its copy control as one non-wrapping unit;
              smaller viewports scroll the existing table wrapper instead. */
-          .ord-id-line{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
+          .ord-id-line{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
           .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;white-space:nowrap}
 
           /* Same rung, but it is the Date column's understudy: hidden while that column is
@@ -1144,16 +1143,9 @@ export default function OrdersPage (): React.ReactElement {
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
           }
-          /* A visible action label makes the copy control identifiable, while
-             preserving the >=44px tap target and inline order-number grouping. */
-          .ord-copy{
-            flex:none;align-self:center;inline-size:auto;min-inline-size:44px;
-            padding-inline:10px;gap:5px;
-          }
-          .ord-copy-label{
-            font-family:var(--font-sans);font-size:var(--public-meta-size);
-            font-weight:700;line-height:1;white-space:nowrap;
-          }
+          /* Icon-only 44px tap target beside the ID. Aria-label and title keep
+             the action named without widening the first table column. */
+          .ord-copy{flex:none;align-self:center;inline-size:44px;min-inline-size:44px;padding:0}
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
             background:var(--lime-hover);color:var(--public-brand-green);
@@ -1232,7 +1224,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-status-firm .ord-status-label{font-weight:700}
           /* Intrinsic-width invoice column keeps the action buttons close to the right edge. */
           .ord-th:last-child,.ord-invoice-cell{inline-size:1%;white-space:nowrap}
-          .ord-invoice-actions{display:inline-flex;align-items:center;gap:16px}
+          .ord-invoice-actions{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
           .ord-unavailable{
             font-size:var(--public-card-size);color:var(--public-brand-green);
           }

@@ -22,7 +22,7 @@ export function useCopyFeedback () {
     try {
       await navigator.clipboard.writeText( value );
       setFailedKey( null );
-      showToast( 'success', { durationMs: 2500 } );
+      showToast( 'success' );
     } catch {
       let selected = false;
       try {
@@ -39,7 +39,7 @@ export function useCopyFeedback () {
       } catch { /* Clipboard recovery is best-effort. */ }
       // This is a local keyboard instruction, never a second success popup.
       setFailedKey( selected ? key : null );
-      if ( !selected ) showToast( 'failure', { durationMs: 3500 } );
+      if ( !selected ) showToast( 'failure', { durationMs: 6500 } );
     }
   };
 

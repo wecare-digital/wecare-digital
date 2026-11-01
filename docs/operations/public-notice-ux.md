@@ -15,8 +15,7 @@ with claims of current runtime coverage.
 All customer-facing **action feedback** now selects a trusted status key from
 `src/lib/publicActionNotices.ts`, never a raw API, Meta or provider message.
 The shared `PublicToastProvider.showToast` accepts *only* a typed status key
-and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** small
-top-right toast is shown at a time.
+and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** readable top-centred toast is shown at a time.
 
 | Outcome | Exact public text | Where |
 |---|---|---|
@@ -48,7 +47,7 @@ language does not mean discarding financial facts or important recovery
 instructions. Workspace has the same toast CSS, but its operational message
 vocabulary is intentionally separate.
 
-## One small, mobile-safe action toast — Public and Workspace (1 November 2026)
+## One readable, mobile-safe action toast — Public and Workspace (1 November 2026)
 
 Both apps now use **one global class and one global host rule** from
 `src/styles/inner-ux.css`: `.wc-action-toast` and
@@ -57,23 +56,27 @@ control their presentation. Do not reimplement toast colors/padding/sizing
 inside `PublicNotice.tsx` or an independent Workspace `.toast` rule.
 
 The shared design: pale-lime `#f6fce4` background, dark `#1a1a1a` text,
-bright lime `#d8f382` **3px** inline-start stripe, **13px** semibold text,
-**6px × 10px** padding, **8px** corners, and maximum width **288px**.
-No status icons, checkmarks, dots, or stacked toasts.
+lime `#d8f382` **4px** inline-start stripe, **16px** semibold text on
+desktop (**15px** mobile), **11px × 16px** desktop padding, **12px**
+corners, minimum width **264px**, and maximum width **420px**. A quiet
+shadow improves visibility. No status icons, checkmarks, dots, or stacked toasts.
 
-Both notifications appear at the **physical top-right** of the available
-page content, with 12px safe-area-aware right spacing:
-- **Public:** below the shared 108px desktop header (116px from top); below
+Both notifications appear **centred below the shared header**, not at the
+extreme top-right:
+- **Public:** below the 108px desktop header (116px from top); below
   the 96px mobile header (104px from top).
 - **Workspace:** below that same header **and its additional action bar**
   (180px desktop; 162px mobile). On extremely narrow devices the Workspace
   action-bar clearance grows to allow the buttons to wrap.
 
-On phones, the host uses safe-area-aware left/right insets, keeps the toast
-right-aligned, wraps long/unbroken text, and constrains height with
-scrolling when needed. Forced-colors and reduced-motion preferences retain
-functional feedback. Inline/payment/authentication/Vault errors are **not**
-changed into transient toasts.
+On phones, the centred host uses safe-area-aware horizontal clearance,
+wraps long/unbroken text, and constrains height with scrolling when needed.
+Ordinary action success stays visible for **5.5 seconds** (Workspace included);
+low-risk public copy failures explicitly allow **6.5 seconds**. Processing
+can remain pinned and critical WhatsApp/payment uncertainty stays inline.
+Forced-colors and reduced-motion preferences retain functional feedback.
+Inline/payment/authentication/Vault errors are **not** changed into
+transient toasts.
 
 The PublicShare Copy-link action routes through the public toast host on
 public routes and the Workspace toast host inside Workspace. Its label,
