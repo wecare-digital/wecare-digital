@@ -45,10 +45,10 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     disclaimer: 'Submitting a request does not confirm acceptance, price, timing or scope; the later confirmed request or order controls.',
   },
   '/orders': {
-    shipping: 'Fulfilment follows the underlying order and any courier or provider terms.',
-    returns: 'Returns or replacements follow the underlying item or service terms.',
-    refunds: 'Refunds and cancellations follow the underlying transaction.',
-    disclaimer: 'The latest confirmed order record controls status.',
+    shipping: 'Delivery or service fulfilment follows your confirmed order and any applicable courier or provider terms.',
+    returns: 'Return or replacement eligibility depends on the purchased item or service, its confirmed terms and applicable law.',
+    refunds: 'Cancellation and refund eligibility depends on the confirmed transaction and applicable terms.',
+    disclaimer: 'The latest confirmed order record controls the status shown here. If a paid order is missing or looks incorrect, contact us.',
   },
   // VayuLok Standard is listed at ₹99.00 in the catalog (owner-approved in #1449), so this copy
   // must not call VayuLok itself free. What stays true is page-scoped: the live data here is free
