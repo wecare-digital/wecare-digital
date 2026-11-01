@@ -775,22 +775,24 @@ export default function OrdersPage (): React.ReactElement {
                           <tr key={ rowId } className="ord-tr">
                             { /* Static order label: no hidden receipt/individual-order trigger. */ }
                             <th scope="row" className="ord-td" aria-label={ displayId }>
-                              <span className="ord-ordno" id={ `ord-id-${ index }` } data-wc-no-translate>
-                                { displayId }
+                              <span className="ord-id-line">
+                                <span className="ord-ordno" id={ `ord-id-${ index }` } data-wc-no-translate>
+                                  { displayId }
+                                </span>
+                                { /* Copy is available only when Clipboard API and a stable
+                                     identifier exist. Feedback stays in the shared top-right toast. */ }
+                                { canCopy && copyValue && (
+                                  <button
+                                    type="button"
+                                    className="ord-copy"
+                                    aria-label={ `Copy order ID ${ copyValue }` }
+                                    title="Copy order ID"
+                                    onClick={ () => copyId( copyValue, index ) }
+                                  >
+                                    <OrderActionIcon name="copy_all" />
+                                  </button>
+                                ) }
                               </span>
-                              { /* Copy is available only when Clipboard API and a stable
-                                   identifier exist. Feedback stays in the shared top-right toast. */ }
-                              { canCopy && copyValue && (
-                                <button
-                                  type="button"
-                                  className="ord-copy"
-                                  aria-label={ `Copy order ID ${ copyValue }` }
-                                  title="Copy order ID"
-                                  onClick={ () => copyId( copyValue, index ) }
-                                >
-                                  <OrderActionIcon name="copy_all" />
-                                </button>
-                              ) }
                               <span className="ord-subdate">{ date }</span>
                             </th>
                             { /* Deliberately TRANSLATABLE: a localised month name is an
@@ -1002,7 +1004,10 @@ export default function OrdersPage (): React.ReactElement {
             text-align:start;font-weight:400;
           }
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
-          .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;overflow-wrap:anywhere}
+          /* Keep the order reference and its copy control as one non-wrapping unit;
+             smaller viewports scroll the existing table wrapper instead. */
+          .ord-id-line{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
+          .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;white-space:nowrap}
 
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
@@ -1051,7 +1056,7 @@ export default function OrdersPage (): React.ReactElement {
           /* The only differences, as overrides AFTER the shared body. font-size has to be
              re-stated because that body sets font:inherit, a shorthand that resets it. */
           .ord-inv{font-size:15px;padding:0 16px}
-          .ord-copy{font-size:14px;padding:0 12px;margin-inline-start:12px}
+          .ord-copy{font-size:14px;padding:0 12px}
           .ord-list{
             width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:18px;
             padding:clamp(24px,3.2vw,32px);border:1px solid var(--public-hairline);
@@ -1094,7 +1099,8 @@ export default function OrdersPage (): React.ReactElement {
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
           }
-          .ord-copy{margin-inline-start:8px}
+          /* The flex gap provides spacing; keep the 44px tap target centered and unshrunk. */
+          .ord-copy{flex:none;align-self:center}
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
             background:var(--lime-hover);color:var(--public-brand-green);
