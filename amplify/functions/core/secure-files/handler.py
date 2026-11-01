@@ -1182,22 +1182,43 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         return cors_response(415, {"error": "UNSUPPORTED_MEDIA_TYPE"}, origin)
     if size <= 0 or size > media_limit:
         return cors_response(413, {"error": "FILE_TOO_LARGE", "limitBytes": media_limit}, origin)
+    # Vault owns an immutable private copy of each published Drop Docs version.
+    # Drop Docs remains the intake and provenance store, not the paid download key.
+    # This exact prefix is CDN-denied by S3 bucket policy and Lambda@Edge. Never
+    # publish a row pointing to Drop Docs or to a copy whose bytes were not verified.
+    vault_key = VAULT_UPLOAD_PREFIX + "wecare-digital-" + file_id + _safe_extension(original_name)
+    try:
+        copy_args = {
+            "Bucket": BUCKET, "Key": vault_key,
+            "CopySource": {"Bucket": BUCKET, "Key": source_key},
+            "ContentType": content_type, "MetadataDirective": "REPLACE",
+        }
+        # The document might be replaced between HEAD and copy. Do not
+        # sell a different version under the same paid file identity.
+        if head.get("ETag"):
+            copy_args["CopySourceIfMatch"] = head["ETag"]
+        _s3_client().copy_object(**copy_args)
+        copied = _s3_client().head_object(Bucket=BUCKET, Key=vault_key)
+        if (int(copied.get("ContentLength") or 0) != size
+                or copied.get("ContentType") != content_type):
+            return cors_response(503, {
+                "error": "VAULT_STORAGE_VERIFICATION_FAILED",
+                "message": "The Vault copy could not be verified. Nothing was published or charged.",
+            }, origin)
+    except ClientError as exc:
+        logger.warning(json.dumps({
+            "event": "vault_publish_private_copy_failed", "fileId": file_id,
+            "error": exc.response.get("Error", {}).get("Code"),
+        }))
+        return cors_response(503, {
+            "error": "VAULT_STORAGE_COPY_FAILED",
+            "message": "Vault storage is unavailable. Nothing was published or charged.",
+        }, origin)
+
     deliverable = _classify_delivery(content_type, size)
-    original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
-    delivery_key = ""
-    if deliverable in ("pdf", "image"):
-        delivery_key = DELIVER_PREFIX + "vault-" + file_id + _safe_extension(original_name)
-        try:
-            _s3_client().copy_object(
-                Bucket=BUCKET, Key=delivery_key,
-                CopySource={"Bucket": BUCKET, "Key": source_key},
-                ContentType=content_type, MetadataDirective="REPLACE",
-            )
-        except ClientError as exc:
-            logger.warning(json.dumps({"event": "vault_publish_delivery_copy_failed",
-                                       "fileId": file_id,
-                                       "error": exc.response.get("Error", {}).get("Code")}))
-            deliverable, delivery_key = "link", ""
+    # One verified file serves paid downloads and any approved file rendition;
+    # never create another untracked PDF outside the owner-bound Vault prefix.
+    delivery_key = vault_key if deliverable in ("pdf", "image") else ""
 
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     item = {
@@ -1205,7 +1226,7 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         "sourceDocumentId": document_id,
         "sourceDocumentVersion": document_version,
         "sourceOrderId": str(document.get("orderId") or ""),
-        "s3Key": source_key,
+        "s3Key": vault_key,
         "ownerPhone": phone,
         "ownerCustomerId": owner_customer_id,
         "ownerName": name,
