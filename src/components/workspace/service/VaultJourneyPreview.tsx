@@ -220,13 +220,10 @@ export default function VaultJourneyPreview ( props: Props ) {
   // Read the CURRENT Meta template BODY by the backend-provided ID. This API is
   // staff-only and read-only; nothing here creates a message or alters a template.
   React.useEffect( () => {
-    const requested = [
-      { id: metaIds?.nativePay, name: props.templates?.nativePay || stages[ 0 ].fallback },
-      { id: metaIds?.orderStatus, name: props.templates?.orderStatus || stages[ 1 ].fallback },
-      { id: metaIds?.receipt, name: props.templates?.receipt || stages[ 2 ].fallback },
-      { id: metaIds?.delivery, name: props.templates?.delivery || stages[ 3 ].fallback },
-    ].filter( ( item ): item is { id: string; name: string } =>
-      typeof item.id === 'string' && /^[0-9]+$/.test( item.id ) && Boolean( item.name ) );
+    // Check every visible row against live Meta. If pricing has not supplied an
+    // ID yet, use the saved registry's ID as a lookup HINT, never as proof of approval.
+    const requested = paidTemplateRows.map( item => ( { id: item.metaId, name: item.name } ) )
+      .filter( item => /^[0-9]+$/.test( item.id ) && Boolean( item.name ) );
     if ( requested.length === 0 ) {
       setCopies( {} );
       setCopyLoading( false );
@@ -254,9 +251,10 @@ export default function VaultJourneyPreview ( props: Props ) {
       setCopyLoading( false );
     } );
     return () => { active = false; };
-  }, [ metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery,
-    props.templates?.nativePay, props.templates?.orderStatus,
-    props.templates?.receipt, props.templates?.delivery ] );
+  }, [ paidTemplateRows[ 0 ].metaId, paidTemplateRows[ 0 ].name,
+    paidTemplateRows[ 1 ].metaId, paidTemplateRows[ 1 ].name,
+    paidTemplateRows[ 2 ].metaId, paidTemplateRows[ 2 ].name,
+    paidTemplateRows[ 3 ].metaId, paidTemplateRows[ 3 ].name ] );
 
   React.useEffect( () => {
     let active = true;
@@ -293,15 +291,25 @@ export default function VaultJourneyPreview ( props: Props ) {
         </div>
       </div>
 
+      { !fileId && (
+        <p className={ styles.hint } role="status">
+          { draftFile
+            ? 'File selected locally, not yet saved. Upload to Vault S3 and select the published file before any Review & Pay or Access Vault action.'
+            : 'No published Vault file selected. Payment, paid invoice and Access Vault cannot start. Upload a new private file or select an existing customer-owned file.' }
+        </p>
+      ) }
+
       <section className={ styles.quickFlow } aria-label="Vault message timing settings">
-        <div><small>After payment capture</small><strong>Processing → Completed: 1s fixed</strong></div>
-        <div><small>After Completed</small><strong>Paid invoice: 0s added</strong></div>
+        <div><small>Review &amp; Pay</small><strong>Customer-approved · no timer</strong></div>
+        <div><small>Verified capture → Processing</small><strong>No artificial wait</strong></div>
+        <div><small>Processing → Completed</small><strong>1s fixed · Vault only</strong></div>
+        <div><small>Completed → paid invoice</small><strong>0s added · required conditions still apply</strong></div>
         <div>
-          <small>Invoice accepted → Access link</small>
+          <small>Paid invoice accepted → Access Vault</small>
           <strong>{ accessDelay.seconds }s { accessDelay.source === 'saved'
             ? 'saved' : accessDelay.source === 'default' ? 'default' : 'default · unverified' }</strong>
         </div>
-        <Link href="/workspace/payments?view=timing">View / edit Access delay</Link>
+        <Link href="/workspace/payments?view=timing">View / edit Access delay (0–5s)</Link>
       </section>
 
       <section className={ styles.messages } aria-label="WhatsApp journey preview">
