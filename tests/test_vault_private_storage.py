@@ -28,6 +28,14 @@ class VaultPrivateStorageTests(unittest.TestCase):
     def test_exact_customer_selected_prefix(self):
         self.assertEqual(paths.VAULT_UPLOAD_PREFIX, "secure/d/public/valut/")
 
+    def test_vault_upload_presigned_put_is_create_only(self):
+        handler = (ROOT / "amplify/functions/core/secure-files/handler.py").read_text()
+        client = (ROOT / "src/api/client.ts").read_text()
+        self.assertIn('"IfNoneMatch": "*"', handler)
+        # The signed header must be supplied by the browser on that Vault-only PUT.
+        self.assertIn("'If-None-Match': '*'", client)
+        self.assertIn("export async function uploadVaultFileBytes", client)
+
     def test_python_public_url_never_exposes_vault_objects(self):
         key = paths.VAULT_UPLOAD_PREFIX + "wecare-digital-test.pdf"
         self.assertTrue(paths.is_gated(key))
