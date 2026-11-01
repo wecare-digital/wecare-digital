@@ -96,7 +96,7 @@ def readiness(graph):
 
 IDENTITY_NOT_READY = (
     'We could not verify this WhatsApp checkout safely. Nothing has been charged. '
-    'Please send the catalog item again or contact support.'
+    'Please contact support for help with the specific service request.'
 )
 NOT_REQUESTED = DOCUMENT_UNAVAILABLE
 
