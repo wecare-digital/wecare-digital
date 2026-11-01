@@ -460,16 +460,14 @@ def _not_registered(origin: str) -> Dict[str, Any]:
 
 
 def _window_closed(entitlement: Optional[Dict[str, Any]], origin: str) -> Dict[str, Any]:
-    """Every paid window on this file has been used. Distinct from not-paid and not-yours, so
-    the Vault page can offer the renewal instead of telling a paying customer to contact
-    support."""
+    """Paid 24-hour access has ended. No renewal or second payment is offered."""
     return cors_response(
         403,
         {
             "error": "ACCESS_WINDOW_CLOSED",
-            "message": "Your 24-hour access has ended. Renew on the website or through WhatsApp to download again.",
+            "message": "Your paid 24-hour Vault access has ended. No further payment is offered for this file.",
             "windowCount": vault_window.window_count(entitlement),
-            "renewable": True,
+            "renewable": False,
         },
         origin,
     )
@@ -1574,10 +1572,17 @@ def _start_native_vault_payment(
 
     The only values passed across the internal boundary are re-read from the owner-bound file row.
     The business-api re-checks the file and customer again, creates the file-bound service intent
-    including the durable entitlement proof for EXPIRED renewal, then commerce owns authoritative
-    ProductsTable pricing, GST/fees, PaymentAttempt/PAYREF reservation and the Meta ORDER_DETAILS
+    only for a never-paid file; commerce owns authoritative ProductsTable pricing,
+    GST/fees, PaymentAttempt/PAYREF reservation and the Meta ORDER_DETAILS
     send. There is no website cart, no browser amount and no Meta Flow in this Vault path.
     """
+    # Defense in depth: no caller may sell a second window on an expired file.
+    # The business API and intent store independently re-check before reservation.
+    if state != "UNPAID" or _paid_marks(item):
+        return _no_store(cors_response(409, {
+            "error": "VAULT_ALREADY_PAID",
+            "message": "This Vault file has already been purchased. No renewal payment is offered.",
+        }, origin))
     # A published row is not proof that the requested private S3 bytes are
     # actually available. No customer should receive a charge for a dead link.
     if not _vault_file_storage_ready(item):
@@ -1624,7 +1629,7 @@ def _start_native_vault_payment(
                                    "error": type(exc).__name__}))
     logger.info(json.dumps({"event": "vault_native_payment_requested",
                             "fileId": str(item.get("fileId") or ""),
-                            "outcome": outcome, "renewal": state == "EXPIRED",
+                            "outcome": outcome, "renewal": False,
                             "requestedBy": str(requested_by or "")[:32]}))
     code, message = _PAYMENT_REQUEST_REPLIES.get(
         outcome, (502, "Vault payment could not be started. Nothing was charged."))
@@ -1632,7 +1637,7 @@ def _start_native_vault_payment(
         "outcome": outcome,
         "fileId": str(item.get("fileId") or ""),
         "message": message,
-        "renewal": state == "EXPIRED",
+        "renewal": False,
         "accessState": state,
     }
     if code >= 400:
@@ -1667,6 +1672,11 @@ def _customer_request_payment(
             "error": "PAID_UNVERIFIED", "outcome": "PAID_UNVERIFIED",
             "fileId": file_id, "accessState": state, "message": message,
         }, origin)
+    if state != "UNPAID" or _paid_marks(item):
+        return _no_store(cors_response(409, {
+            "error": "VAULT_ALREADY_PAID",
+            "message": "No additional payment is available for this Vault file.",
+        }, origin))
     return _start_native_vault_payment(
         item, state, origin, requested_by="customer")
 
@@ -1768,6 +1778,11 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
             "error": "PAID_UNVERIFIED", "outcome": "PAID_UNVERIFIED",
             "fileId": file_id, "accessState": state, "message": message,
         }, origin)
+    if state != "UNPAID" or _paid_marks(item):
+        return _no_store(cors_response(409, {
+            "error": "VAULT_ALREADY_PAID",
+            "message": "This file has already been purchased. No renewal payment is available.",
+        }, origin))
     if description != catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT:
         # Staff-customized text is allowed only while the ProductsTable Vault
         # variant is exactly ₹49. Revalidate here as well as during checkout.
@@ -1797,7 +1812,7 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
                              origin)
     if state == "EXPIRED":
         return cors_response(409, {"error": "WINDOW_EXPIRED",
-                                   "message": "The paid access window has ended. Send a renewal payment request instead."}, origin)
+                                   "message": "The paid access window has ended. No renewal payment is offered."}, origin)
     if state == "PAID_UNVERIFIED":
         return cors_response(409, {"error": "PAID_UNVERIFIED",
                                    "message": "A payment is recorded for this file but its access "
@@ -1959,7 +1974,7 @@ def _active_entitlement(access_id: str, file_id: str,
 
 
 def _open_access_window(entitlement: Dict[str, Any], now: Optional[int] = None) -> Dict[str, Any]:
-    """Open (or renew) the 24h access window on a durable entitlement, at delivery.
+    """Open an already-paid 24h access window on a durable entitlement, at delivery.
 
     ₹49 buys one window of ``VAULT_ACCESS_WINDOW_HOURS``; inside it every download is free. This
     is the only place the window is opened. It is idempotent: if a window is already open,
@@ -2528,9 +2543,8 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
             origin)
 
     # The access window governs free re-download. The FIRST redeem after a paid entitlement opens
-    # the window (delivery is when the clock starts, per the owner rule); redeems inside the
-    # window are free; once it closes, access needs a fresh ₹49 (feat-006 renewal), so we refuse
-    # here rather than hand out transport the customer has not paid for.
+    # the window (delivery is when the clock starts); redeems inside it are
+    # free. Once it closes, access ends without a renewal or new payment.
     # Storage must exist BEFORE we open a paid window, otherwise a missing object
     # consumes an entire 24-hour purchase on a failed download.
     if not _vault_file_storage_ready(item):
@@ -2539,7 +2553,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     if vault_window.window_open(entitlement, now):
         pass  # inside an open window — free re-download
     elif vault_window.unused_paid_windows(entitlement) > 0:
-        # A paid window not opened yet (the first purchase, or a renewal): this download opens it.
+        # An already-paid unused window opens at first authenticated download.
         entitlement = _open_access_window(entitlement, now)
     if not vault_window.window_open(entitlement, now):
         return _window_closed(entitlement, origin)
@@ -2966,7 +2980,7 @@ def _admin_create_vault_schedule(file_id: str, event: Dict[str, Any], origin: st
         return cors_response(409 if refusal != "UNKNOWN_FILE" else 404,
                              {"error": refusal}, origin)
     state = _file_access_state(item, int(time.time()))
-    if action in ("offer", "payment") and state not in ("UNPAID", "EXPIRED"):
+    if action in ("offer", "payment") and (state != "UNPAID" or _paid_marks(item)):
         return cors_response(409, {"error": "NO_PAYMENT_REQUEST_NEEDED"}, origin)
     if action == "access" and state not in ("OPEN", "READY"):
         return cors_response(409, {"error": "PAID_ACCESS_REQUIRED"}, origin)
@@ -3128,7 +3142,7 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"result": "FAILED", "reason": "OWNER_OR_FILE_CHANGED"}
     action = row["vaultAction"]
     state = _file_access_state(file_row, int(time.time()))
-    if action in ("offer", "payment") and state not in ("UNPAID", "EXPIRED"):
+    if action in ("offer", "payment") and (state != "UNPAID" or _paid_marks(file_row)):
         return {"result": "FAILED", "reason": "ALREADY_PAID_OR_UNAVAILABLE"}
     if action == "access" and state not in ("OPEN", "READY"):
         return {"result": "FAILED", "reason": "ACCESS_WINDOW_NOT_ACTIVE"}
