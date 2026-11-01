@@ -204,7 +204,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Open Orders</span>
-                <span className="ps-menu-note">Sign in to continue</span>
+                <span className="ps-menu-note">Give back</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </a>
