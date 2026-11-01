@@ -27,6 +27,9 @@ CloudTrail trail in another account cannot write here (the confused-deputy patte
     python scripts/provision_cloudtrail.py --plan
     python scripts/provision_cloudtrail.py --apply
     python scripts/provision_cloudtrail.py --verify
+    # After cost, privacy and operational review only:
+    python scripts/provision_cloudtrail.py --enable-dropdocs-delete-audit
+    python scripts/provision_cloudtrail.py --verify-dropdocs-delete-audit
 """
 
 from __future__ import annotations
@@ -75,7 +78,7 @@ MANAGEMENT_SELECTOR = {
     "FieldSelectors": [{"Field": "eventCategory", "Equals": ["Management"]}],
 }
 
-#: Data events stay OFF: S3/Lambda data events on ~76 tables and ~70 functions would
+#: Data events stay OFF by default: S3/Lambda data events on ~76 tables and ~70 functions would
 #: dominate the bill and the signal. To log one function's callers temporarily, add a
 #: selector with eventCategory=Data, resources.type=AWS::Lambda::Function and
 #: resources.ARN StartsWith the function ARN. StartsWith also matches `:live` and version
@@ -83,6 +86,49 @@ MANAGEMENT_SELECTOR = {
 #: `wecare-catalog-management` was identified on 2026-10-25: root, from an operator
 #: machine, smoke-testing `:live` right after a fleet deploy. It has no production caller.
 ADVANCED_SELECTORS = [MANAGEMENT_SELECTOR]
+
+# Opt-in only: CloudTrail S3 data-event logging has an incremental cost. This
+# narrowly scopes future DeleteObject events to the customer Drop Docs source
+# prefix; it does NOT recover or attribute deletions that occurred before
+# the selector was enabled. Audit event details can include opaque object keys,
+# so review 400-day trail retention and bucket access before enabling it.
+DROP_DOCS_DELETE_SELECTOR = {
+    "Name": "Drop Docs source deletion audit",
+    "FieldSelectors": [
+        {"Field": "eventCategory", "Equals": ["Data"]},
+        {"Field": "resources.type", "Equals": ["AWS::S3::Object"]},
+        {"Field": "resources.ARN", "StartsWith": [
+            "arn:aws:s3:::wecare-digital-get/secure/u/dropdocs/",
+        ]},
+        {"Field": "eventName", "Equals": ["DeleteObject", "DeleteObjects"]},
+        {"Field": "readOnly", "Equals": ["false"]},
+    ],
+}
+
+
+def has_dropdocs_delete_audit(response: dict) -> bool:
+    """Check that the exact scoped delete-only selector is enabled."""
+    return DROP_DOCS_DELETE_SELECTOR in (response.get("AdvancedEventSelectors") or [])
+
+
+def desired_advanced_selectors(existing: dict, *, enable_dropdocs: bool = False) -> list[dict]:
+    """Retain other advanced selectors when renewing the management trail.
+
+    PutEventSelectors REPLACES the entire selector set. Do not silently drop
+    other configured data-event audit rules, or convert basic data selectors.
+    """
+    if any(s.get("DataResources") for s in existing.get("EventSelectors") or []):
+        raise ValueError("Refusing to replace existing basic data-event selectors")
+    selectors = [MANAGEMENT_SELECTOR]
+    for selector in existing.get("AdvancedEventSelectors") or []:
+        if selector.get("Name") == MANAGEMENT_SELECTOR["Name"]:
+            continue
+        if enable_dropdocs and selector.get("Name") == DROP_DOCS_DELETE_SELECTOR["Name"]:
+            continue
+        selectors.append(selector)
+    if enable_dropdocs:
+        selectors.append(DROP_DOCS_DELETE_SELECTOR)
+    return selectors
 
 
 def logs_all_management_events(response: dict) -> bool:
@@ -233,14 +279,37 @@ def apply() -> int:
         )
         print(f"updated trail {TRAIL}")
 
-    ct.put_event_selectors(TrailName=TRAIL, AdvancedEventSelectors=ADVANCED_SELECTORS)
+    current_selectors = ct.get_event_selectors(TrailName=TRAIL)
+    ct.put_event_selectors(
+        TrailName=TRAIL,
+        AdvancedEventSelectors=desired_advanced_selectors(current_selectors),
+    )
     ct.start_logging(Name=TRAIL)
     print("logging started")
     time.sleep(5)
     return verify()
 
 
-def verify() -> int:
+def enable_dropdocs_delete_audit() -> int:
+    """Explicit, cost-bearing opt-in for future Drop Docs S3 deletions."""
+    ct = _ct()
+    if not _trail_exists(ct):
+        raise ValueError("CloudTrail trail is absent; provision it first")
+    current = ct.get_event_selectors(TrailName=TRAIL)
+    if not has_dropdocs_delete_audit(current):
+        ct.put_event_selectors(
+            TrailName=TRAIL,
+            AdvancedEventSelectors=desired_advanced_selectors(
+                current, enable_dropdocs=True,
+            ),
+        )
+        print("enabled scoped Drop Docs deletion auditing (billable S3 data events)")
+    else:
+        print("scoped Drop Docs deletion auditing was already enabled")
+    return verify(require_dropdocs_delete_audit=True)
+
+
+def verify(*, require_dropdocs_delete_audit: bool = False) -> int:
     ct, s3 = _ct(), _s3()
     failures = []
 
@@ -261,6 +330,8 @@ def verify() -> int:
 
     selectors = ct.get_event_selectors(TrailName=TRAIL)
     checks["IncludeManagementEvents"] = logs_all_management_events(selectors)
+    if require_dropdocs_delete_audit:
+        checks["DropDocsDeleteAudit"] = has_dropdocs_delete_audit(selectors)
     for selector in selectors.get("AdvancedEventSelectors") or []:
         if selector.get("Name") != MANAGEMENT_SELECTOR["Name"]:
             print(f"  ..    data-event selector: {selector.get('Name')}")
@@ -300,11 +371,17 @@ def main() -> int:
     group.add_argument("--plan", action="store_true")
     group.add_argument("--apply", action="store_true")
     group.add_argument("--verify", action="store_true")
+    group.add_argument("--enable-dropdocs-delete-audit", action="store_true")
+    group.add_argument("--verify-dropdocs-delete-audit", action="store_true")
     args = parser.parse_args()
     if args.apply:
         return apply()
     if args.verify:
         return verify()
+    if args.enable_dropdocs_delete_audit:
+        return enable_dropdocs_delete_audit()
+    if args.verify_dropdocs_delete_audit:
+        return verify(require_dropdocs_delete_audit=True)
     return plan()
 
 
