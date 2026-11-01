@@ -8069,6 +8069,19 @@ export async function listMySecureFiles (): Promise<ApiResult<{
 }
 
 /**
+ * Look up ONLY the exact owner-bound Vault document from the unique customer link.
+ * The same customer-pool token used for /secure-files/mine is checked server-side.
+ * Never search through the first 100 results to authorize a direct file link.
+ */
+export async function getMySecureFile ( fileId: string ): Promise<ApiResult<{
+  files: SecureFile[]; count: number;
+}>> {
+  return customerApiCall(
+    `${API_BASE}/secure-files/mine?file=${encodeURIComponent( fileId )}`,
+  );
+}
+
+/**
  * Redeem paid Vault entitlement for a short-lived download URL.
  *
  * The paid entitlement is durable. The backend issues renewable short-lived
