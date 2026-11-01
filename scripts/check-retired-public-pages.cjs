@@ -212,7 +212,21 @@ if (/Opening your Vault|Checking your verified customer session|sf-loading-mark/
 if (!vaultView.includes("if ( stage === 'loading' && !error ) return null;")) {
   failures.push('Vault preflight must remain silent until owner-scoped verification');
 }
-if (!shell.includes("router.pathname === '/404' || router.pathname === '/vault'")) {
+// Inspect the immediate private-route render, not fragile route-order substrings.
+// Additional or retired redirect-only routes must not break this release check.
+const handoffSource = shell.split('// Redirect-only and private handoff routes must never render public chrome,')[1]
+  ?.split('// Public page')[0] || '';
+const handoffBranch = handoffSource.match(
+  /if\s*\(([^)]*)\)\s*\{\s*return\s*\(\s*<ErrorBoundary>\s*<Component\s*\{\s*\.\.\.pageProps\s*\}\s*\/>/
+);
+const handoffCondition = handoffBranch?.[1]?.trim() || '';
+const singleRoute = "router\\.pathname\\s*===\\s*'([^']+)'";
+const routeCondition = new RegExp('^' + singleRoute + '(?:\\s*\\|\\|\\s*' + singleRoute + ')*$');
+const actualBypassRoutes = new Set(
+  [...handoffCondition.matchAll(/router\.pathname\s*===\s*'([^']+)'/g)].map(m => m[1])
+);
+if (!routeCondition.test(handoffCondition)
+    || !actualBypassRoutes.has('/404') || !actualBypassRoutes.has('/vault')) {
   failures.push('404 and private Vault routes must bypass public chrome and translation');
 }
 
