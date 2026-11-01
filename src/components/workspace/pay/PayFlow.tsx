@@ -395,6 +395,38 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   }, [] );
   useEffect( () => { loadCustomers(); loadInvoices(); }, [ loadCustomers, loadInvoices ] );
 
+  // After creating an invoice, the new Collect -> Create -> Saved invoices link
+  // carries the exact invoice id. The summary list may not contain it because
+  // lists are paged. Fetch the authoritative detail directly, then select only
+  // an actual Collect-created invoice. Never open another service's payment
+  // record as a sendable Collect invoice. This is a read-only lookup.
+  useEffect( () => {
+    if ( !router.isReady || mode !== 'invoices' || !allowSendInInvoices ) return;
+    const raw = router.query.invoice;
+    const invoiceId = ( Array.isArray( raw ) ? raw[ 0 ] || '' : raw || '' ).trim();
+    if ( !invoiceId ) return;
+    let active = true;
+    void api.getInvoiceEngine( invoiceId )
+      .then( invoice => {
+        if ( !active ) return;
+        if ( !invoice || invoice.entryPoint !== 'pay_flow' ) {
+          setSelInvoice( null );
+          setMsg( { text: 'This invoice is not available for Collect Review & Pay.', type: 'error' } );
+          return;
+        }
+        setSelInvoice( invoice );
+        setInvoices( previous => [ invoice, ...previous.filter( row => row.invoiceId !== invoice.invoiceId ) ] );
+        void loadDeliveryLogs( invoice.invoiceId );
+      } )
+      .catch( () => {
+        if ( active ) {
+          setSelInvoice( null );
+          setMsg( { text: 'Saved invoice could not be opened. Check the invoice ledger before sending.', type: 'error' } );
+        }
+      } );
+    return () => { active = false; };
+  }, [ router.isReady, router.query.invoice, mode, allowSendInInvoices, loadDeliveryLogs ] );
+
   useEffect( () => {
     const raw = router.query.customer;
     const wanted = Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
