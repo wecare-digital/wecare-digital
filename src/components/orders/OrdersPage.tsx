@@ -345,6 +345,7 @@ export default function OrdersPage (): React.ReactElement {
   const [ cursor, setCursor ] = useState( '' );
   const [ rechecked, setRechecked ] = useState( false );
   const [ loadingMore, setLoadingMore ] = useState( false );
+  const hasPaginatedRef = useRef( false );
   /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
   const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
   const { showToast, hideToast } = usePublicToast();
@@ -543,41 +544,65 @@ export default function OrdersPage (): React.ReactElement {
       }
       setToken( session.accessToken );
 
-      // Deliver an explicit header-menu click as soon as authentication is ready.
-      // Do not hold it behind the unrelated customer/order-link bootstrap: that
-      // request can stall even when the review template sender is healthy.
-      // Consume BEFORE sending; refresh/back must never silently resend.
+      // Consume the one-use intent before sending, without gating order history
+      // on the Meta template round-trip or the Flow's data exchange.
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
         dismissAlertFor( 'service' );
+        inviteInFlight.current = true;
+        setInviteBusy( true );
         inviteToastId.current = showToast( 'processing', { durationMs: 0 } );
-        const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
-        if ( !live ) return;
-        if ( result.kind === 'expired' ) {
-          stashCustomerMenuAction( serviceAction );
-          expire();
-          return;
-        }
-        presentInviteResult( result.kind );
+        void sendCustomerMenuAction( serviceAction, session.accessToken )
+          .then( result => {
+            if ( !live ) return;
+            if ( result.kind === 'expired' ) {
+              stashCustomerMenuAction( serviceAction );
+              expire();
+              return;
+            }
+            presentInviteResult( result.kind );
+          } )
+          .catch( () => {
+            if ( live ) presentInviteResult( 'failed' );
+          } )
+          .finally( () => {
+            inviteInFlight.current = false;
+            if ( live ) setInviteBusy( false );
+          } );
       }
 
-      // Link pre-existing WhatsApp purchases independently of template delivery.
-      // A failure here must not prevent the previously requested invitation.
-      const linkOutcome = await ensureCustomerLink( session.accessToken );
+      // The bootstrap may promote WhatsApp-first orders; run it concurrently
+      // with the first read instead of holding the table behind the profile write.
+      const linkPromise = ensureCustomerLink( session.accessToken );
+      setView( 'loading' );
+      const outcome = await fetchOrders( session.accessToken, '' );
+      if ( !live ) return;
+      if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
+      else if ( outcome.kind === 'expired' ) { expire(); return; }
+      else applyFailure( outcome.kind );
+
+      const linkOutcome = await linkPromise;
       if ( !live ) return;
       if ( linkOutcome === 'expired' ) { expire(); return; }
-      if ( linkOutcome === 'ignored' ) {
+      if ( linkOutcome === 'ignored' && outcome.kind === 'ok' ) {
         setOrdersAlert( current => current?.source === 'service' ? current : {
           source: 'link', message: publicActionText( 'failure' ),
         } );
       }
 
-      setView( 'loading' );
-      const outcome = await fetchOrders( session.accessToken, '' );
-      if ( !live ) return;
-      if ( outcome.kind === 'ok' ) applyFirstPage( outcome.data );
-      else if ( outcome.kind === 'expired' ) expire();
-      else applyFailure( outcome.kind );
+      // Link promotion can change the list. Refresh once, but never reset a
+      // customer who has started paging through older orders.
+      if ( linkOutcome !== 'ok' || outcome.kind !== 'ok' || hasPaginatedRef.current ) return;
+      const linkedOutcome = await fetchOrders( session.accessToken, '' );
+      if ( !live || hasPaginatedRef.current ) return;
+      if ( linkedOutcome.kind === 'expired' ) { expire(); return; }
+      if ( linkedOutcome.kind !== 'ok' ) return;
+      const before = outcome.data;
+      const after = linkedOutcome.data;
+      if ( ( before.cursor || '' ) !== ( after.cursor || '' )
+        || JSON.stringify( before.orders || [] ) !== JSON.stringify( after.orders || [] ) ) {
+        applyFirstPage( after );
+      }
     } )();
     return () => { live = false; };
   }, [] );
@@ -608,6 +633,7 @@ export default function OrdersPage (): React.ReactElement {
 
   const loadMore = async () => {
     if ( !token || !cursor || loadingMore ) return;
+    hasPaginatedRef.current = true;
     setLoadingMore( true );
     dismissAlertFor( 'pagination' );
     const outcome = await fetchOrders( token, cursor );
