@@ -1,9 +1,9 @@
 /**
- * Staff-only read-only view of authenticated website Subscribe / Leave Review sends
+ * Staff-only read-only view of authenticated website Subscribe / Leave Review / Referral sends
  * and their Flow replies. Uses the SAME canonical MessagesTable as Unified Inbox.
  *
  * Meta acceptance is stored as pending. Only signed delivery webhooks may advance
- * sent/delivered/read/failed. Completed F001/F002 responses are the existing
+ * sent/delivered/read/failed. Completed F001/F002/F008 responses are the existing
  * FlowSubmission -> flow_response projection, never an inferred send success.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,9 +11,9 @@ import Link from 'next/link';
 import * as api from '../../../api/client';
 import FlowResponseDetails from '../../FlowResponseDetails';
 
-const TEMPLATE_NAMES = new Set( [ 'service_details', 'wecare_leave_review' ] );
+const TEMPLATE_NAMES = new Set( [ 'service_details', 'wecare_leave_review', 'wecare_referal_update' ] );
 const FLOW_CODES = new Set( [
-  'WD-F001-SUBSCRIBE-PROFILE', 'WD-F002-LEAVE-REVIEW', 'WD_IDEA', 'WD_REV',
+  'WD-F001-SUBSCRIBE-PROFILE', 'WD-F002-LEAVE-REVIEW', 'WD-F008-REFERRAL', 'WD_IDEA', 'WD_REV',
 ] );
 
 function kind ( message: api.Message ): 'send' | 'response' | null {
@@ -28,9 +28,14 @@ function kind ( message: api.Message ): 'send' | 'response' | null {
 function title ( message: api.Message ): string {
   if ( message.templateName === 'service_details'
     || message.flowCode === 'WD-F001-SUBSCRIBE-PROFILE' ) return 'Subscribe';
+  if ( message.templateName === 'wecare_referal_update'
+    || message.flowCode === 'WD-F008-REFERRAL'
+    || message.flowType === 'referral' ) return 'Referral';
   if ( message.templateName === 'wecare_leave_review'
     || message.flowType === 'customer_idea'
-    || FLOW_CODES.has( message.flowCode || '' ) ) return 'Leave Review';
+    || message.flowCode === 'WD-F002-LEAVE-REVIEW'
+    || message.flowCode === 'WD_IDEA'
+    || message.flowCode === 'WD_REV' ) return 'Leave Review';
   return 'WhatsApp service';
 }
 
@@ -70,7 +75,7 @@ export default function WhatsAppServiceLogs (): React.ReactElement {
       <div className="sl-head">
         <div>
           <h2>WhatsApp Logs</h2>
-          <p>Subscribe and Leave Review template sends, delivery updates and submitted Flow answers.</p>
+          <p>Subscribe, Leave Review and Referral sends, delivery updates and submitted Flow answers.</p>
         </div>
         <div className="sl-actions">
           <button type="button" onClick={ () => void reload() } disabled={ loading }>
