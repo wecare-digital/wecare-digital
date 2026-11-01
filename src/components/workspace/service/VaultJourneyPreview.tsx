@@ -474,7 +474,7 @@ export default function VaultJourneyPreview ( props: Props ) {
         <dl className={ styles.variables }>
           <div><dt>Generated stored filename</dt><dd>{ fileName }</dd></div>
           <div><dt>Customer transport</dt><dd>Exact-file Vault link; never a raw private S3 key</dd></div>
-          <div><dt>Access</dt><dd>One paid 24-hour window; renewal required after expiry</dd></div>
+          <div><dt>Access</dt><dd>One paid 24-hour window; access ends at expiry, no renewal</dd></div>
           <div><dt>Media variants</dt><dd>PDFs, images and other supported documents: one approved Access Vault download-link template. No additional raw WhatsApp document attachment is sent by automatic paid Vault delivery.</dd></div>
           <div><dt>Invoice header</dt><dd>Dynamic PNG generated only after payment</dd></div>
         </dl>
