@@ -1,3 +1,14 @@
+/* The old dashboard Layout.css constrains .main-content to height:100vh
+   with overflow-y:auto. In the canonical no-sidebar shell that creates a
+   second viewport: the Vault upload field/button sit below its scroll edge
+   while Stay connected and the footer appear to end the page. Keep one
+   document scrollbar by allowing the workspace main to grow with its content. */
+.workspace-shell .main-content.workspace-main{
+  display:block;
+  height:auto;
+  overflow-y:visible;
+}
+
 .workspace-shell{
   --workspace-measure:var(--public-content-max,1300px);
   --workspace-page-x:0px;
