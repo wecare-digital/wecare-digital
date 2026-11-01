@@ -523,7 +523,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 [ file.fileId ]: {
                     kind: 'status',
                     message: result.data.message
-                        || 'Payment request sent to your registered WhatsApp number. Complete Review and Pay there.',
+                        || 'Review & Pay sent to WhatsApp. Complete it there.',
                 },
             } ) );
             void loadFiles();
@@ -669,8 +669,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                                 <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
-                                                        ? `Access active${ ends ? ` until ${ ends }` : '' }. Download again before it expires.`
-                                                        : 'Payment verified. Your 24-hour access starts on delivery or first download.' }
+                                                        ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
+                                                        : 'Payment verified. 24-hour access starts on delivery or first download.' }
                                                 </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
@@ -683,7 +683,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
-                                                Your payment is recorded and access is being confirmed. Do not pay again.
+                                                Payment recorded. Confirming access. Do not pay again.
                                             </p>
                                         ) : state === 'UNPAID' ? (
                                             <>
@@ -691,7 +691,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                     <div className="sf-pay-waiting">
                                                         <p className="sf-payment-note" role="status">
                                                             { feedback?.message
-                                                                || 'Review & Pay was sent to WhatsApp. Complete it or check the status before starting another checkout.' }
+                                                                || 'Review & Pay sent to WhatsApp. Check status before retrying.' }
                                                         </p>
                                                         <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                             onClick={ () => { void loadFiles(); } }

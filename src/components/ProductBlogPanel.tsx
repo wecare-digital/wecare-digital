@@ -215,8 +215,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       { initialCategories && !allCards && (
         <div className={ failed ? 'pbp-load is-error' : 'pbp-load pbp-sr' } role="status">
           { failed
-            ? <>More posts could not be loaded. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button></>
-            : 'Loading more posts…' }
+            ? <>Couldn't load more posts. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button></>
+            : 'Loading posts…' }
         </div>
       ) }
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page

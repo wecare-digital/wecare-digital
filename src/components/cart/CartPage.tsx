@@ -602,7 +602,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuote( null );
       setQuoteFor( '' );
       setQuoteLoading( false );
-      setQuoteNotice( 'Secure full-cart checkout is being prepared. Payment is not available yet.' );
+      setQuoteNotice( 'Checkout not ready. Payment unavailable.' );
       return () => { live = false; };
     }
     if ( !ready || items.length === 0 ) {
@@ -614,7 +614,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( items.some( needsVariantSelection ) ) {
       setQuote( null );
       setQuoteFor( '' );
-      setQuoteNotice( 'Choose an option for each product to see the total.' );
+      setQuoteNotice( 'Choose product options to see total.' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
@@ -624,7 +624,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     catch {
       setQuote( null );
       setQuoteFor( '' );
-      setQuoteNotice( 'Review the products and quantities in your cart.' );
+      setQuoteNotice( 'Check cart items and quantities.' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
@@ -637,7 +637,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       try {
         const session = getSession() || await restoreSession();
         if ( !session ) {
-          if ( live ) setQuoteNotice( 'Sign in to review the final price before paying.' );
+          if ( live ) setQuoteNotice( 'Sign in to view final price.' );
           return;
         }
         const serviceIntent = serviceIntentFor( lines );
@@ -661,11 +661,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             setProfileStatus( 'required' );
             setShowProfile( true );
           }
-          setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Complete your name to review the price.'
-            : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm your delivery address to see the final price.'
-              : error === 'CART_NOT_PAYABLE' ? 'Review your cart; one of its items cannot be priced.'
-                : response.status === 401 ? 'Sign in again to review the price.'
-                  : 'A verified price breakdown is not available yet. Payment is disabled.' );
+          setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Enter your name to view price.'
+            : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm address to view final price.'
+              : error === 'CART_NOT_PAYABLE' ? 'Item price unavailable. Review cart.'
+                : response.status === 401 ? 'Sign in again to view price.'
+                  : 'Verified price unavailable. Payment disabled.' );
           return;
         }
         // A stale response must never price a different basket selected meanwhile.
@@ -674,7 +674,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         setQuoteFor( fingerprint );
         setQuoteNotice( '' );
       } catch {
-        if ( live ) setQuoteNotice( 'The price service is unavailable. Payment is disabled.' );
+        if ( live ) setQuoteNotice( 'Price service unavailable. Payment disabled.' );
       } finally {
         if ( live ) setQuoteLoading( false );
       }
@@ -1852,7 +1852,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     Refresh prices
                   </button>
                 </div>
-                { quoteLoading && <p className="cart-body" role="status">Checking current prices…</p> }
+                { quoteLoading && <p className="cart-body" role="status">Checking prices…</p> }
                 { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
                 { quoteNotice.startsWith( 'Sign in' ) && (
                   <Link className="cart-auth-action" href="/auth?return=/checkout/">

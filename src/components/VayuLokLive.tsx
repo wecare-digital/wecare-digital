@@ -3247,7 +3247,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           {/* "Searching…" is announced to screen readers (aria-live) but visually hidden, so the
               field stays light and uncluttered while typing. Only genuine end states - no result,
               or an actual failure - show visible helper text. */}
-          { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching worldwide…</p> }
+          { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching places…</p> }
           { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
           { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Search unavailable.</p> }
         </div>
@@ -3583,10 +3583,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </div>
                         ) : airForecastStatus === 'error' ? (
                           // ERROR: concise user-facing fallback; technical detail is logged in dev.
-                          <p className="vl-live-air-history-empty" role="status">Air forecast is temporarily unavailable.</p>
+                          <p className="vl-live-air-history-empty" role="status">Air forecast unavailable.</p>
                         ) : airForecastStatus === 'empty' ? (
                           // EMPTY: a valid Google response with no usable forecast rows.
-                          <p className="vl-live-air-history-empty" role="status">Forecast unavailable for this location.</p>
+                          <p className="vl-live-air-history-empty" role="status">No air forecast for this place.</p>
                         ) : airForecast.length ? (
                           <>
                             <VayuLokHorizontalRail ref={ airForecastStripRef } className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
@@ -3872,7 +3872,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     </div>
                   ) : (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
-                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? 'Air quality is temporarily unavailable.' : 'Select a place to view air quality.' }</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? 'Air quality unavailable.' : 'Choose a place for air quality.' }</p>
                     </div>
                   )
                 ) }
@@ -4205,7 +4205,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
                     ) : (
-                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? 'Weather is temporarily unavailable.' : 'Select a place to view weather.' }</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? 'Weather unavailable.' : 'Choose a place for weather.' }</p>
                     ) }
                   </div>
                 ) }
@@ -4225,7 +4225,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <div className="vl-live-map-placeholder" role="status">
                   <strong>{ previewPlace.name || 'Shillong' }</strong>
                   { previewPlace.addr && <span>{ previewPlace.addr }</span> }
-                  <p>{ mapActive ? 'Interactive map could not load' : 'Interactive map unavailable' }</p>
+                  <p>{ mapActive ? 'Couldn't load map' : 'Map unavailable' }</p>
                   { mapActive && mapFailed && (
                     <button
                       type="button"
@@ -4433,7 +4433,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </ul>
                       ) }
                       { currencyOpenSide === 'base' && !currencySuggestions.length && (
-                        <span className="vl-live-utility-empty" role="status">Currency not available.</span>
+                        <span className="vl-live-utility-empty" role="status">Currency unavailable.</span>
                       ) }
                     </div>
 
@@ -4480,7 +4480,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </ul>
                       ) }
                       { currencyOpenSide === 'quote' && !currencySuggestions.length && (
-                        <span className="vl-live-utility-empty" role="status">Currency not available.</span>
+                        <span className="vl-live-utility-empty" role="status">Currency unavailable.</span>
                       ) }
                     </div>
                   </div>
@@ -4591,9 +4591,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { routeLoading ? 'Checking route…' : 'Check route' }
                     </button>
                     { !ROUTE_REQUEST_ENABLED ? (
-                      <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                      <span className="vl-live-route-unavailable" role="status">Route unavailable.</span>
                     ) : routeError ? (
-                      <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                      <span className="vl-live-route-unavailable" role="status">Route unavailable.</span>
                     ) : null }
                     { routeResult && routeFrom && routeTo && (
                       <div className="vl-live-route-metrics">

@@ -639,7 +639,7 @@ const SupportWidget: React.FC = () => {
       // would leave English running right-to-left after a visitor tried Arabic and
       // changed their mind.
       applyDirection( 'en' );
-      setStatus( 'Showing the original English text.' );
+      setStatus( 'English restored.' );
       return;
     }
 
@@ -649,7 +649,7 @@ const SupportWidget: React.FC = () => {
     currentRef.current = code;
     setBusy( true );
     const label = langs.find( lang => lang.code === code )?.name || code;
-    setStatus( `Translating to ${label}.` );
+    setStatus( `Translating to ${label}…` );
 
     try {
       // Translate text nodes AND the allowlisted attributes (placeholder/aria-label/title).
@@ -663,7 +663,7 @@ const SupportWidget: React.FC = () => {
       // Now watch for content inserted AFTER this pass (VayuLok's live panels, search
       // results, later API responses) and translate it incrementally.
       startObserver();
-      setStatus( `Page translated to ${label}.` );
+      setStatus( `Translated to ${label}.` );
     } catch {
       stopObserver();
       restore();
@@ -671,7 +671,7 @@ const SupportWidget: React.FC = () => {
       currentRef.current = 'en';
       applyDirection( 'en' );
       setCurrent( 'en' );
-      setStatus( 'Translation is unavailable right now.' );
+      setStatus( 'Translation unavailable.' );
     } finally { setBusy( false ); }
   }, [ busy, contentRoot, langs, restore, translateInto, startObserver, stopObserver ] );
 
