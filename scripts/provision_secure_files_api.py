@@ -97,7 +97,8 @@ ROUTES = [
     ("POST", "/secure-files/upload-init"),
     ("POST", "/secure-files/{fileId}/confirm"),
     ("GET", "/secure-files/{fileId}/staff-download"),
-    # Retained for historical published document rows, not used by new Vault uploads.
+    # Historical clients get a 410 tombstone from the handler. Never publish
+    # customer Drop Docs uploads as new staff Vault files.
     ("POST", "/secure-files/publish-document"),
     ("POST", "/secure-files/{fileId}/revoke"),
     # Direct owner-bound native Review & Pay, staff-only media preview and paid access resend.
