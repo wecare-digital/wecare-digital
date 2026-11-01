@@ -841,7 +841,7 @@ def list_for_customer(table: Any, identity: customer_auth.CustomerIdentity, *,
 # the destination; this function refuses to trust its answer without re-checking the key.
 #
 # A ``storageKey`` IS NOT AN ENTITLEMENT, AND CANNOT BECOME ONE. The destination key is a
-# pure function of the bytes (``secure/u/dropdocs/wecare-digital-<sha256><ext>``), which is
+# pure function of the bytes (``secure/d/public/drop-docs/wecare-digital-<sha256><ext>``), which is
 # what makes a replay converge instead of duplicating -- but it also means two different
 # customers who attach identical bytes land on ONE shared S3 object, reachable from both of
 # their ``DOC#`` rows. Authorization is therefore on the ROW and never on the key: both
