@@ -31,6 +31,7 @@ import uuid
 import boto3
 from lambda_utils import contact_key, contact_store, customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.identity import customer as customer_identity
+from flows import vault_file_picker
 from lambda_utils.ecommerce import (catalog_service_checkout as catalog, service_request_store as store,
                                     service_requests, vault_access as vault, vault_window)
 
@@ -67,6 +68,10 @@ DOCUMENT_UNAVAILABLE = 'This document is not available right now.'
 SUBMIT_NEW_REQUEST_MESSAGE = (
     'No document is available for Vault download, or its access has expired. '
     'Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.'
+)
+VAULT_LOOKUP_UNAVAILABLE_MESSAGE = (
+    'We could not confirm your Vault documents right now. '
+    'No payment has been requested. Please try again later or contact support.'
 )
 
 
@@ -298,38 +303,41 @@ def handle(event, client):
             keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
             return _prepare_drop_docs_payment(client, db, keys, row, identity, notify=True)
         files = db.Table(vault.FILES_TABLE)
-        projected = files.query(IndexName='owner-created-index',
-            KeyConditionExpression='ownerPhone=:p', ExpressionAttributeValues={':p': identity.phone.lstrip('+')},
-            Limit=100, ScanIndexForward=False).get('Items') or []
-        choices = []
-        for item in projected:
-            file = files.get_item(Key={'fileId': item['fileId']}, ConsistentRead=True).get('Item') or {}
-            # Only files already bound to this customer. `vault.bind_file` refuses an ownerless
-            # legacy file (a reassigned phone must not inherit it), so listing one offered a
-            # choice that could only fail after the customer picked it.
-            if (file.get('status') != 'active' or file.get('ownerPhone') != identity.phone.lstrip('+')
-                    or file.get('ownerCustomerId') != identity.customer_id):
-                continue
-            state = _file_state(db, file, identity.customer_id, now)
-            # Do not offer a new purchase for an expired paid document from
-            # the general WhatsApp Vault chooser. Existing owner-bound renewal
-            # and historical paid entitlements are preserved in their own paths.
-            if state in ('UNPAID', 'OPEN', 'READY'):
-                choices.append((file, state))
+        try:
+            choices, index_exhausted = vault_file_picker.eligible_owner_files(
+                files, identity.phone.lstrip('+'), identity.customer_id,
+                lambda file: _file_state(db, file, identity.customer_id, now),
+            )
+        except Exception:
+            # DynamoDB failure/partial evidence is not proof of an empty Vault.
+            # The signed inbound session still gets one recorded, safe reply.
+            choices, index_exhausted = [], False
+
         if not choices:
-            row['status'] = 'AWAITING_FILE'
-            keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-            _send(client, row, content=SUBMIT_NEW_REQUEST_MESSAGE)
-            return {'outcome': 'VAULT_FILE_NOT_READY'}
+            row_status = 'AWAITING_FILE' if index_exhausted else 'FILE_LOOKUP_INCOMPLETE'
+            message = (SUBMIT_NEW_REQUEST_MESSAGE if index_exhausted
+                       else VAULT_LOOKUP_UNAVAILABLE_MESSAGE)
+            audited = vault_file_picker.send_once_with_audit(
+                keys, row, lambda idem: _send(
+                    client, row, content=message, idempotencyKey=idem),
+                row_status=row_status,
+            )
+            base = ('VAULT_FILE_NOT_READY' if index_exhausted
+                    else 'VAULT_FILE_LOOKUP_UNAVAILABLE')
+            status = audited['replyStatus']
+            outcome = (base if status == 'ACCEPTED'
+                       else base + ('_REPLY_NOT_SENT' if status == 'REJECTED'
+                                    else '_REPLY_UNCONFIRMED'))
+            return {'outcome': outcome, **audited}
+
         # At most ten choices per native list. Already-paid OPEN/READY rows
         # refresh the same Access Vault link free; EXPIRED is not a new sale here.
         row['fileChoices'] = [file['fileId'] for file, _state in choices[:10]]
         row['fileChoiceStates'] = [state for _file, state in choices[:10]]
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        hours = vault_window.window_hours()
         _send(client, row, isInteractive=True, interactiveType='list', interactiveData={
-            'body': ('Choose a document. Paid documents download again at no charge. '
-                     f'Renew opens a new {hours}-hour access window.'),
+            'body': ('Choose a document. Paid documents with active access '
+                     'download again at no charge.'),
             'button': 'Choose document', 'sections': [{'title': 'Your documents', 'rows': [
                 {'id': 'vaultpick:' + token + ':' + str(i),
                  'title': (_TITLE_PREFIX.get(state, '') + str(file.get('displayName') or file.get('originalFilename') or 'Document'))[:24]}
