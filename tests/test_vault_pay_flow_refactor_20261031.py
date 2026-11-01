@@ -143,8 +143,10 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         catalog = source("amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py")
         invoice = source("amplify/functions/payments/invoice-engine/handler.py")
         self.assertIn("pricePaise === 4900", ui)
-        self.assertIn('id="sf-vault-item-description"', ui)
-        self.assertIn("onPaymentItemDescriptionChange", ui)
+        # The single editor moved next to Send; invoice preview is a read-only mirror.
+        self.assertIn('id="sf-vault-item-description"', workbench)
+        self.assertNotIn('id="sf-vault-item-description"', ui)
+        self.assertIn("onPaymentItemDescriptionChange={ setPaymentItemDescription }", workbench)
         self.assertIn("props.breakdown?.totalPayablePaise", ui)
         self.assertIn("vaultPricePaise === VAULT_BASE_ITEM_PAISE", workbench)
         self.assertIn("VAULT_EDITABLE_ITEM_PAISE = 4900", service)
@@ -164,12 +166,13 @@ class VaultPayFlowMigrationTests(unittest.TestCase):
         self.assertNotIn('paymentItemDescription', customer)
         self.assertNotIn('payment_description=description', customer)
 
-    def test_missing_or_inactive_vault_link_uses_404_home_without_payment(self):
+    def test_missing_or_inactive_vault_link_returns_home_without_payment(self):
         page = source("src/pages/vault.tsx")
         get = source("src/components/get/GetPage.tsx")
         not_found = source("src/pages/404.tsx")
-        self.assertIn("router.replace( '/404' )", page)
-        self.assertIn("window.location.replace( '/404' )", get)
+        # Current product policy is direct silent Home, not a visible intermediate 404.
+        self.assertIn("void router.replace( '/' )", page)
+        self.assertIn("window.location.replace( '/' )", get)
         self.assertIn("file.status === 'active'", get)
         self.assertIn("router.replace( '/' )", not_found)
         self.assertIn("targetFileId", get)
