@@ -682,7 +682,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
                                                         ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : 'Payment verified. 24-hour access starts on delivery or first download.' }
+                                                        : 'Payment verified. Your 24-hour access begins on your first authenticated download.' }
                                                 </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
