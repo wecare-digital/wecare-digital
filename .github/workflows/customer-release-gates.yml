@@ -33,4 +33,4 @@ jobs:
           node --test tests/customer_menu_referral_contract.test.mjs tests/public_toast_before_style_contract.test.mjs tests/public_action_feedback_contract.test.mjs tests/public_single_action_feedback_contract.test.mjs tests/public_customer_notification_copy.test.mjs tests/amplify_customer_lambda_syntax_gate.test.mjs
       - name: Compile customer-facing Python Lambda source without execution
         run: |
-          python3 -m compileall -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils
+          python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils
