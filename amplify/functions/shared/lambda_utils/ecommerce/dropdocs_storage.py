@@ -1,11 +1,11 @@
-"""Move a Drop Docs document out of the public tree BEFORE anything calls it a document.
+"""Promote a Drop Docs document to gated customer storage before registering it.
 
 The problem this exists to close
 --------------------------------
 A Drop Docs document can arrive two ways, and only one of them is already private:
 
 * **Browser upload** -- the locker's presigned PUT targets ``secure/u/``, which the
-  ``wecare-get-miss-redirect`` Lambda@Edge denies wholesale. Nothing to do.
+  S3 bucket policy and reviewed edge rules protect. Nothing to do.
 * **WhatsApp** -- ``inbound-whatsapp-handler`` writes to the canonical
   ``media_paths.WHATSAPP_INCOMING_PREFIX``
   (``secure/d/public/whatsapp/incoming/``). That public-deliverable subtree is
@@ -13,7 +13,7 @@ A Drop Docs document can arrive two ways, and only one of them is already privat
   a private Drop Docs document.
 
 So an object that arrived over WhatsApp is readable by anyone holding its URL. This
-module promotes it into ``secure/`` and returns the gated key. The enforcement itself is
+module promotes it into the protected Drop Docs prefix and returns the gated key. The enforcement itself is
 NOT here -- it is at registration, in ``service_request_store.attach_document``, which
 refuses to write a ``DOC#`` row for a key that is not ``media_paths.is_gated``. Putting
 the gate at the write means a failed promotion leaves no customer-document row at all,
@@ -21,8 +21,8 @@ rather than a row pointing at a public object.
 
 The key is the content hash
 ---------------------------
-``secure/u/dropdocs/wecare-digital-<sha256><ext>``, composed only through
-``media_paths.secure`` -- never a hand-built string, because a key one level off the data
+``secure/d/public/drop-docs/wecare-digital-<sha256><ext>``, composed only through
+``media_paths.DROP_DOCS_UPLOAD_PREFIX`` -- never a hand-built string, because a key one level off the data
 still returns HTTP 200 on the apex host and so fails silently (see ``media_paths``).
 
 Hashing the content, rather than naming the file, buys three things:
@@ -108,10 +108,9 @@ from lambda_utils.ecommerce.document_errors import (
 
 logger = logging.getLogger(__name__)
 
-#: Where a promoted document lands, relative to the gated root. ``u/`` is the existing
-#: "upload as received" child; a third top-level ``secure/`` child would fragment a
-#: two-prefix contract that the role policy and a migration already encode.
-DROPDOCS_SUBPREFIX = "u/dropdocs"
+#: Relative Drop Docs prefix kept for compatibility with older imports.
+#: Canonical writes derive from media_paths.DROP_DOCS_UPLOAD_PREFIX below.
+DROPDOCS_SUBPREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX.removeprefix(media_paths.SECURE_ROOT).rstrip("/")
 
 #: The ONE prefix a Drop Docs document may be promoted FROM, composed rather than written
 #: out so it cannot drift from the key `inbound-whatsapp-handler` actually writes and from
@@ -225,8 +224,7 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str],
     digest = hashlib.sha256(raw).hexdigest()
     content_type = read["contentType"] or FALLBACK_CONTENT_TYPE
 
-    destination = media_paths.secure(
-        DROPDOCS_SUBPREFIX, f"wecare-digital-{digest}{safe_extension(source)}")
+    destination = media_paths.DROP_DOCS_UPLOAD_PREFIX + f"wecare-digital-{digest}{safe_extension(source)}"
     if not media_paths.is_gated(destination):
         # Unreachable while `secure()` roots what it composes, and kept because the whole
         # feature rests on this one property holding.
