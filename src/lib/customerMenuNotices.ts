@@ -26,7 +26,7 @@ const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = 
     error: false,
   },
   'awaiting-template': {
-    message: 'Contribute WhatsApp message is not configured yet.',
+    message: 'Contribute on WhatsApp is unavailable.',
     error: false,
   },
   failed: {
