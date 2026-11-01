@@ -55,7 +55,7 @@ test('public action call sites send approved keys, never raw API messages', () =
   assert.ok(orders.includes("showToast( 'processing'"));
   assert.ok(share.includes("showToast( 'success'"));
   assert.ok(share.includes("showToast( 'failure'"));
-  assert.ok(share.includes("else workspaceSuccess?.( 'Link copied.' )"));
+  assert.ok(share.includes("else workspaceSuccess?.( publicActionText( 'success' ) )"));
   assert.ok(orders.includes("setOrdersAlert( { source: 'service', message: notice.message } )"));
 });
 

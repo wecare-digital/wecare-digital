@@ -1,54 +1,47 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePublicToast } from '../components/public/PublicToastProvider';
 
 /**
- * The /orders copy-id behaviour, as a hook, for the Requests panel (Phase O-1).
+ * Clipboard support for the dormant Requests panel.
  *
- * Behaviour is identical to src/pages/orders.tsx's own copy control, which is deliberately NOT
- * refactored onto this: the value comes from React state (never the DOM, which the translator
- * rewrites); the control exists only where `navigator.clipboard && window.isSecureContext`,
- * computed in an effect so the server render and first paint agree; success reads "Copied" for
- * 2s; a refused write SELECTS the id and leaves "Press your copy key" until the next success.
+ * This is only a copy helper, NOT another notification system. Successful
+ * copies use the same one-at-a-time public toast as Orders and Share.
+ * On clipboard refusal, keep one contextual keyboard-copy instruction
+ * alongside the selected ID so recovery does not vanish after a timer.
  */
-export function useCopyFeedback ( successMessage: string, refusedMessage: string ) {
-  const [ copiedKey, setCopiedKey ] = useState<string | null>( null );
+export function useCopyFeedback () {
+  const { showToast } = usePublicToast();
   const [ failedKey, setFailedKey ] = useState<string | null>( null );
-  const [ liveMessage, setLiveMessage ] = useState( '' );
   const [ canCopy, setCanCopy ] = useState( false );
-  const timer = useRef<ReturnType<typeof setTimeout> | null>( null );
 
   useEffect( () => {
     setCanCopy( typeof navigator !== 'undefined' && !!navigator.clipboard && window.isSecureContext );
   }, [] );
-  useEffect( () => () => { if ( timer.current ) clearTimeout( timer.current ); }, [] );
 
   const copy = async ( key: string, value: string, element: HTMLElement | null ) => {
-    try
-    {
+    try {
       await navigator.clipboard.writeText( value );
-      setCopiedKey( key );
       setFailedKey( null );
-      setLiveMessage( successMessage );
-      if ( timer.current ) clearTimeout( timer.current );
-      timer.current = setTimeout( () => { setCopiedKey( null ); setLiveMessage( '' ); }, 2000 );
-    }
-    catch
-    {
-      try
-      {
-        if ( element )
-        {
+      showToast( 'success', { durationMs: 2500 } );
+    } catch {
+      let selected = false;
+      try {
+        if ( element ) {
           const range = document.createRange();
           range.selectNodeContents( element );
           const selection = window.getSelection?.();
-          if ( selection ) { selection.removeAllRanges(); selection.addRange( range ); }
+          if ( selection ) {
+            selection.removeAllRanges();
+            selection.addRange( range );
+            selected = true;
+          }
         }
-      }
-      catch { /* selection unavailable; the hint still carries the recovery */ }
-      setFailedKey( key );
-      setCopiedKey( null );
-      setLiveMessage( refusedMessage );
+      } catch { /* Clipboard recovery is best-effort. */ }
+      // This is a local keyboard instruction, never a second success popup.
+      setFailedKey( selected ? key : null );
+      if ( !selected ) showToast( 'failure', { durationMs: 3500 } );
     }
   };
 
-  return { canCopy, copiedKey, failedKey, liveMessage, copy };
+  return { canCopy, failedKey, copy };
 }

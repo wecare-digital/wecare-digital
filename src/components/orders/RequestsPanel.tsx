@@ -12,7 +12,7 @@ import { colors, fontSize, radius, space } from '../../lib/design-tokens';
  * of them that bought a service before it lists, so a request whose webhook hint was missed still
  * appears here (the self-heal). The list itself is the caller's own partition, read server-side.
  *
- * Copy behaves exactly like the order-ID copy on the same page (see useCopyFeedback).
+ * Copy uses the same global public toast as Orders; clipboard recovery stays inline.
  */
 interface Props {
   accessToken: string;
@@ -31,8 +31,7 @@ function dateLabel ( createdAt: number | null ): string {
 const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpired } ) => {
   const [ state, setState ] = useState<State>( 'loading' );
   const [ rows, setRows ] = useState<ServiceRequestRow[]>( [] );
-  const { canCopy, copiedKey, failedKey, liveMessage, copy } =
-    useCopyFeedback( 'Request ID copied', 'Request ID selected. Copy it with your keyboard.' );
+  const { canCopy, failedKey, copy } = useCopyFeedback();
   const referenceKey = paidReferenceIds.join( '|' );
 
   useEffect( () => {
@@ -80,15 +79,14 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
                         type="button"
                         className="rqp-copy"
                         aria-label={ `Copy request ID ${ row.requestId }` }
+                        aria-describedby={ `rqp-copy-hint-${ index }` }
                         onClick={ () => copy( row.requestId, row.requestId,
                           document.getElementById( idElement ) ) }
                       >
                         Copy
                       </button>
-                      <span className="rqp-hint">
-                        { copiedKey === row.requestId ? 'Copied'
-                          : failedKey === row.requestId ? 'Press your copy key'
-                            : 'Copy request ID' }
+                      <span className="rqp-hint" id={ `rqp-copy-hint-${ index }` } aria-live="polite">
+                        { failedKey === row.requestId ? 'Selected. Copy with keyboard.' : 'Copy request ID' }
                       </span>
                     </span>
                   ) }
@@ -110,7 +108,6 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
           } ) }
         </ul>
       ) }
-      <p className="rqp-live" aria-live="polite">{ liveMessage }</p>
       <style jsx>{ `
         .rqp{display:flex;flex-direction:column;gap:${ space[ 3 ] }px;padding:${ space[ 5 ] }px;
           border:1px solid ${ colors.border };border-radius:${ radius.lg }px}
@@ -127,7 +124,6 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
         .rqp-copy:focus-visible,.rqp-link:focus-visible{outline:3px solid ${ colors.primary };outline-offset:2px}
         .rqp-hint{font-size:${ fontSize.xs }px;color:${ colors.textSecondary }}
         .rqp-link{color:${ colors.primary };text-decoration:underline}
-        .rqp-live{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0)}
       ` }</style>
     </section>
   );

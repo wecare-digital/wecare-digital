@@ -6,6 +6,7 @@ import type { ShopProduct } from '../content/shop';
 import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 import CheckoutAction from './CheckoutAction';
+import PublicNotice from './public/PublicNotice';
 import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } from '../lib/metaPixel';
 
 /**
@@ -94,7 +95,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       </p>
       <p className="pbb-offer-note">{ offerNote }</p>
 
-      { error && <p className="pbb-error" role="alert">{ error }</p> }
+      { error && <PublicNotice mode="inline" tone="error" message={ error } /> }
 
       <style jsx>{`
         /* The action itself is CheckoutAction: the same compact treatment used by Elsewhere
@@ -110,7 +111,6 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
           color:var(--public-muted);text-wrap:balance;
         }
 
-        .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
       `}</style>
     </div>
   );

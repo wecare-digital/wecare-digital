@@ -76,10 +76,13 @@ functional feedback. Inline/payment/authentication/Vault errors are **not**
 changed into transient toasts.
 
 The PublicShare Copy-link action routes through the public toast host on
-public routes and the Workspace toast host inside Workspace. Its old
-local fallback is used only if **neither** provider is available.
-Both hosts keep only the latest action toast; lifecycle and ARIA roles
-remain distinct where they serve different authentication scopes.
+public routes and the Workspace toast host inside Workspace. Its label,
+icon and accessible name stay "Copy link" instead of becoming a second
+"Copied" confirmation. No independent share-local toast or live region
+is mounted. The Workspace host receives the same canonical "Done." /
+"Couldn't complete. Try again." copy outcome, rather than separate
+"Link copied." wording. Both hosts replace the previous toast: only the
+host appropriate to the current route is mounted, never both at once.
 The Workspace dismiss button stays keyboard-accessible and unobtrusive.
 
 ## Three public modes
@@ -113,9 +116,16 @@ completed.
 - **Vault:** Access, missing-file and payment-action failures remain persistent
   inline. Paid/unverified access stays visible with its `Do not pay again`
   guidance; no conversion to a disappearing toast.
-- **PublicShare:** Public copy shows one brief `Done.` toast, while its
-  screen-reader fallback remains hidden before copying. Workspace wording
-  remains separate.
+- **PublicShare:** Public and Workspace copy actions show one brief
+  canonical `Done.` toast via the already-mounted host, with no
+  second changing "Copied" button label or local toast fallback.
+- **Requests panel (dormant):** The clipboard helper now delegates
+  success/failure to the public toast. The selected-ID keyboard-copy
+  instruction remains next to the affected control if Clipboard API
+  rejects the write; its legacy success live region was removed.
+- **Product checkout CTA:** The "No charge made" recovery error now uses
+  the common `PublicNotice` inline renderer instead of bespoke alert
+  styling. No checkout, cart or payment logic changed.
 
 The other notification locations from the 61-site inventory are **not
 automatically changed**. In particular, header/search counts, translation,
@@ -164,5 +174,10 @@ checks plain-language Contribute messaging and acceptance boundaries.
 `node --test tests/public_action_feedback_contract.test.mjs`
 checks canonical action wording, refusal of raw API strings and the Vault
 HTTP-202 acceptance guard.
-Run browser QA for keyboard, small screens, RTL and long error strings
-before release.
+`node --test tests/public_single_action_feedback_contract.test.mjs`
+checks duplicate Share/Requests success texts were retired, Product
+checkout uses the existing inline notice surface, and payment/OTP/Vault
+safety instructions remain visible.
+Run full TypeScript build, tests, and browser QA for keyboard, Clipboard
+API failure, small screens, RTL and long error strings before release.
+These checks are not replaced by CodeQL or a source-only audit.
