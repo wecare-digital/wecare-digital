@@ -19,10 +19,10 @@ large, bottom-right card with **no status icon or checkmark**.
 
 All toast renderers take their appearance from `src/styles/tokens.css`:
 `--wc-toast-surface: #f6fce4`, `--wc-toast-stripe: #d8f382`,
-`--wc-toast-ink: #1a1a1a`, 22px radius, 8px inline-start lime stripe,
-32px bold type, and 16px × 24px padding (with mobile-responsive reductions).
+`--wc-toast-ink: #1a1a1a`, 20px radius, 8px inline-start lime stripe,
+32px semibold type, and 16px × 24px padding (with mobile-responsive reductions).
 The card sits at the lower-right within the page content boundary; at the
-reference 1526px width, the CSS's 155px right inset and 20px bottom inset
+reference 1526px width, the CSS's 156px right inset and 20px bottom inset
 match the image. On small screens it rises above the WhatsApp floating widget.
 
 **One toast at a time**, with the latest explicit action replacing the last.
