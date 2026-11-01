@@ -69,7 +69,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       await router.push( CHECKOUT_PATH );
     } catch {
       if ( alive.current ) {
-        setError( 'Something went wrong. Nothing has been charged. Please try again.' );
+        setError( 'Checkout couldn't start. No charge made. Try again.' );
         setBusy( false );
       }
     }
