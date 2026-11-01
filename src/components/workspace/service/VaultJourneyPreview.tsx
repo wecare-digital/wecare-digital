@@ -220,23 +220,31 @@ export default function VaultJourneyPreview ( props: Props ) {
   // Read the CURRENT Meta template BODY by the backend-provided ID. This API is
   // staff-only and read-only; nothing here creates a message or alters a template.
   React.useEffect( () => {
-    const ids = Array.from( new Set( [
-      metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery,
-    ].filter( ( id ): id is string => typeof id === 'string' && /^[0-9]+$/.test( id ) ) ) );
-    if ( ids.length === 0 ) {
+    const requested = [
+      { id: metaIds?.nativePay, name: props.templates?.nativePay || stages[ 0 ].fallback },
+      { id: metaIds?.orderStatus, name: props.templates?.orderStatus || stages[ 1 ].fallback },
+      { id: metaIds?.receipt, name: props.templates?.receipt || stages[ 2 ].fallback },
+      { id: metaIds?.delivery, name: props.templates?.delivery || stages[ 3 ].fallback },
+    ].filter( ( item ): item is { id: string; name: string } =>
+      typeof item.id === 'string' && /^[0-9]+$/.test( item.id ) && Boolean( item.name ) );
+    if ( requested.length === 0 ) {
       setCopies( {} );
       setCopyLoading( false );
       return;
     }
     let active = true;
+    setCopies( {} ); // Do not show an old approval while checking a changed mapping.
     setCopyLoading( true );
-    void Promise.all( ids.map( async id => {
+    void Promise.all( requested.map( async item => {
       try {
-        // WABA1 owns the approved Vault journey. Never substitute WABA2 text.
-        const data = await getTemplateDetails( id, '2094615664435155' );
-        return { id, copy: parseMetaTemplateCopy( data ) };
+        // Read by exact Meta ID from the production messaging account.
+        // A different name, language or category is not a verified Vault step.
+        const data = await getTemplateDetails( item.id, '2094615664435155' );
+        const copy = data?.name === item.name && data.language === 'en'
+          && data.category === 'UTILITY' ? parseMetaTemplateCopy( data ) : null;
+        return { id: item.id, copy };
       } catch {
-        return { id, copy: null };
+        return { id: item.id, copy: null };
       }
     } ) ).then( results => {
       if ( !active ) return;
@@ -246,7 +254,9 @@ export default function VaultJourneyPreview ( props: Props ) {
       setCopyLoading( false );
     } );
     return () => { active = false; };
-  }, [ metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery ] );
+  }, [ metaIds?.nativePay, metaIds?.orderStatus, metaIds?.receipt, metaIds?.delivery,
+    props.templates?.nativePay, props.templates?.orderStatus,
+    props.templates?.receipt, props.templates?.delivery ] );
 
   React.useEffect( () => {
     let active = true;
@@ -306,6 +316,8 @@ export default function VaultJourneyPreview ( props: Props ) {
               <dd>
                 <code>{ item.name }</code>
                 <small>Meta Template ID: { item.metaId || 'Not available from backend' }</small>
+                { item.metaId && <small>Meta approval: { copyLoading ? 'Checking live Meta…'
+                  : copies[ item.metaId ]?.status || 'Not confirmed' }</small> }
               </dd>
             </div>
           ) ) }
