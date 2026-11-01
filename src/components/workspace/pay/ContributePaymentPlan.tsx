@@ -136,7 +136,7 @@ const ContributePaymentPlan: React.FC = () => {
         </dl>
         <details>
           <summary>View shared payment header and order-item image</summary>
-          <PaymentTemplateMedia templates={templates} serviceLabel="Contribute reference" />
+          <PaymentTemplateMedia templates={templates} serviceLabel="Contribute reference" signedPreview />
         </details>
       </section>
 
