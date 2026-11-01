@@ -13,11 +13,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 test('Amplify checks customer-facing Lambda Python syntax before npm/build', () => {
   const pipeline = readFileSync(resolve(root, 'amplify.yml'), 'utf8');
-  const start = pipeline.indexOf('        - python3 -m compileall -q ');
-  const install = pipeline.indexOf('        - npm ci --cache ');
-  assert.ok(start >= 0, 'expected standard-library syntax compilation');
+  const lines = pipeline.split('\n');
+  const start = lines.findIndex(line => /^\s*- python3 -m compileall -f -q /.test(line));
+  const install = lines.findIndex(line => /^\s*- npm ci --cache /.test(line));
+  assert.ok(start >= 0, 'expected force-compiled Python syntax gate');
   assert.ok(install > start, 'catch invalid Lambda syntax before dependency install');
-  const line = pipeline.slice(start, pipeline.indexOf('\n', start));
+  const line = lines[start];
   for (const path of [
     'amplify/functions/auth/customer-profile',
     'amplify/functions/messaging/whatsapp-business-api',
@@ -30,8 +31,8 @@ test('Amplify checks customer-facing Lambda Python syntax before npm/build', () 
 
 test('Release gate keeps backend deployment separate from static frontend', () => {
   const pipeline = readFileSync(resolve(root, 'amplify.yml'), 'utf8');
-  assert.ok(pipeline.includes('No `backend:` phase.'));
-  assert.ok(pipeline.includes('backend artifacts.'));
+  assert.match(pipeline, /^frontend:/m);
+  assert.doesNotMatch(pipeline, /^backend:/m);
 });
 
 test('GitHub PR gate runs the same TypeScript and Lambda syntax safeguards', () => {
@@ -42,7 +43,7 @@ test('GitHub PR gate runs the same TypeScript and Lambda syntax safeguards', () 
   assert.match(workflow, /npm ci --no-audit --no-fund/);
   assert.match(workflow, /npx tsc --noEmit/);
   assert.match(workflow, /node --test tests\/customer_menu_referral_contract\.test\.mjs/);
-  assert.match(workflow, /python3 -m compileall -q /);
+  assert.match(workflow, /python3 -m compileall -f -q /);
   assert.match(workflow, /permissions:\n  contents: read/);
   assert.doesNotMatch(workflow, /update-function-code|lambda invoke|deploy_all_lambdas\.py/);
 });
