@@ -47,10 +47,17 @@ export default function PublicNotice ( {
           font-weight:600;line-height:1.4;overflow-wrap:anywhere;
         }
         .wc-public-notice.is-inline{inline-size:min(100%,560px)}
-        /* The same ORIGINAL lime/dark-text notice design across all public
-           toasts: 10px radius, 4px lime stripe, 8px x 12px compact padding.
-           Inherit the normal PublicNotice typography and colors. */
-        .wc-public-notice.is-toast{inline-size:fit-content;margin:0;padding:8px 12px}
+        /* Match the supplied original screenshot: generous light-lime card,
+           semibold dark type, 8px lime stripe, rounded 20px corners. Only action
+           toasts use this; inline errors retain their existing readable style. */
+        .wc-public-notice.is-toast{
+          inline-size:fit-content;max-inline-size:100%;margin:0;
+          padding:var(--wc-toast-padding);
+          border-inline-start:var(--wc-toast-stripe-width) solid var(--wc-toast-stripe);
+          border-radius:var(--wc-toast-radius);
+          background:var(--wc-toast-surface);color:var(--wc-toast-ink);
+          font-size:var(--wc-toast-type-size);font-weight:600;line-height:1.4;
+        }
         .wc-public-notice.tone-error{font-weight:700}
         .wc-public-notice.is-flush{margin:0}
         .wc-public-notice.is-screen-reader{
@@ -59,6 +66,12 @@ export default function PublicNotice ( {
         }
         @media(max-width:767px){
           .wc-public-notice{font-size:var(--public-mobile-supporting-size)}
+          .wc-public-notice.is-toast{
+            font-size:var(--wc-toast-mobile-type-size);
+            padding:var(--wc-toast-mobile-padding);
+            border-inline-start-width:var(--wc-toast-mobile-stripe-width);
+            border-radius:var(--wc-toast-mobile-radius);
+          }
         }
         @media(forced-colors:active){
           .wc-public-notice:not(.is-screen-reader){

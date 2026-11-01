@@ -769,35 +769,47 @@
 /* ========================================
    TOAST (Unified)
    ======================================== */
+/* Share the exact screenshot palette/type/shape with PublicNotice.is-toast.
+   Only toast surfaces change: inline validation and payment messages do not. */
 .toast-container {
   position: fixed;
-  top: var(--space-5);
-  inset-inline-end: var(--space-5);
+  top: auto;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  inset-inline-end: max(96px, calc(50vw - 607px));
   z-index: 10002;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
-  max-width: calc(100vw - 40px);
+  max-width: calc(100vw - 32px);
   pointer-events: none;
 }
 
 .toast {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--public-brand-lime);
-  color: var(--public-brand-green);
-  border-radius: var(--radius-md);
+  gap: 0;
+  padding: var(--wc-toast-padding);
+  background: var(--wc-toast-surface);
+  color: var(--wc-toast-ink);
+  border: 0;
+  border-inline-start: var(--wc-toast-stripe-width) solid var(--wc-toast-stripe);
+  border-radius: var(--wc-toast-radius);
+  font-family: var(--font-sans);
+  font-size: var(--wc-toast-type-size);
+  font-weight: 600;
+  line-height: 1.4;
   box-shadow: none;
   animation: toast-enter 0.2s ease;
-  border: 1px solid var(--public-brand-lime);
   pointer-events: auto;
   box-sizing: border-box;
+  max-width: min(100%, 480px);
+  overflow-wrap: anywhere;
 }
 
 .toast.toast-error {
-  border-color: var(--public-brand-lime);
+  border-inline-start-color: var(--wc-toast-stripe);
 }
 
 .toast-exit {
@@ -814,62 +826,62 @@
   to { opacity: 0; }
 }
 
-.toast-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.toast-success .toast-icon {
-  background: var(--public-brand-green);
-  color: var(--public-brand-lime);
-}
-
-.toast-error .toast-icon {
-  background: var(--public-brand-green);
-  color: var(--public-brand-lime);
-}
-
-.toast-warning .toast-icon {
-  background: var(--public-brand-green);
-  color: var(--public-brand-lime);
-}
-
-.toast-info .toast-icon {
-  background: var(--public-brand-green);
-  color: var(--public-brand-lime);
-}
-
 .toast-message {
   flex: 1;
-  font-size: var(--font-body);
-  color: var(--public-brand-green);
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
+/* The reference screenshot has no status icon or visible dismiss glyph.
+   Keep keyboard/screen-reader dismissal available: reveal only on hover
+   or focus without changing the default card's content-width geometry. */
 .toast-close {
-  background: none;
-  border: none;
-  padding: var(--space-1);
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 4px;
+  background: transparent;
+  border: 0;
+  padding: 4px;
   cursor: pointer;
-  color: var(--public-brand-green);
-  font-size: 16px;
+  color: var(--wc-toast-ink);
+  font-size: 15px;
   line-height: 1;
+  opacity: 0;
 }
-
-.toast-close:hover {
-  color: var(--public-brand-green);
-  opacity: 0.75;
+.toast:hover .toast-close,
+.toast:focus-within .toast-close {
+  opacity: 1;
 }
-
 .toast-close:focus-visible {
-  outline: 2px solid var(--public-brand-green);
+  outline: 2px solid var(--wc-toast-ink);
   outline-offset: 2px;
+}
+@media(max-width:767px){
+  .toast-container {
+    top: auto;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    inset-inline-start: 16px;
+    inset-inline-end: 16px;
+    max-width: none;
+  }
+  .toast {
+    width: fit-content;
+    max-width: 100%;
+    padding: var(--wc-toast-mobile-padding);
+    border-inline-start-width: var(--wc-toast-mobile-stripe-width);
+    border-radius: var(--wc-toast-mobile-radius);
+    font-size: var(--wc-toast-mobile-type-size);
+  }
+}
+@media(forced-colors:active){
+  .toast {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    border-inline-start-width: 8px;
+  }
 }
 
 
@@ -907,17 +919,6 @@
   }
 
   .btn-lg {
-    width: 100%;
-  }
-
-  .toast-container {
-    top: var(--space-3);
-    inset-inline-end: var(--space-3);
-    inset-inline-start: var(--space-3);
-    max-width: none;
-  }
-
-  .toast {
     width: 100%;
   }
 

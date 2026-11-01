@@ -1,11 +1,39 @@
 # Public/customer notification system
 
 Public pages do not mount the authenticated Workspace `ToastProvider`.
-Use the small `src/components/public/PublicNotice.tsx` component instead.
+They use `src/components/public/PublicNotice.tsx` and the one-at-a-time
+`PublicToastProvider` instead. **Both toast renderers now share the same
+screenshot-verified style tokens**, but their inline messages and application
+lifecycle remain separate.
 The [31 October 2026 inventory](../audits/public-notification-surface-inventory-20261031.md)
 records **61 original render sites across 16 files**, not 61 unique toasts.
 Its source links and counts describe that audit snapshot; do not replace them
 with claims of current runtime coverage.
+
+## Approved screenshot-matched action-toast design (1 November 2026)
+
+The customer's original screenshot (1526 × 440 pixels) is the visual reference
+for **all action toasts**, including public Orders WhatsApp/copy, PublicShare
+copy, and authenticated Workspace `ToastContext` messages. It shows a single,
+large, bottom-right card with **no status icon or checkmark**.
+
+All toast renderers take their appearance from `src/styles/tokens.css`:
+`--wc-toast-surface: #f6fce4`, `--wc-toast-stripe: #d8f382`,
+`--wc-toast-ink: #1a1a1a`, 20px radius, 8px inline-start lime stripe,
+32px semibold type, and 16px × 24px padding (with mobile-responsive reductions).
+The card sits at the lower-right within the page content boundary; at the
+reference 1526px width, the CSS's 156px right inset and 20px bottom inset
+match the image. On small screens it rises above the WhatsApp floating widget.
+
+**One toast at a time**, with the latest explicit action replacing the last.
+Keep the existing timers, ARIA roles, and honest WhatsApp provider-acceptance
+wording. Workspace keeps a keyboard-accessible dismiss action that appears on
+hover or focus; it does not render a permanent icon.
+
+**Do not** apply the big screenshot toast to inline authentication errors,
+address validation, checkout/payment uncertainty, Vault access warnings,
+search results, air-quality readings, or other passive status text. Those stay
+in place, with their original persistent/assistive semantics.
 
 ## Three public modes
 

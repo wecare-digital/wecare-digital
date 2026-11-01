@@ -105,24 +105,29 @@ export default function PublicToastProvider ( { children }: { children: React.Re
         ) }
       </div>
       <style jsx>{`
-        /* Restore the original above-content, right-aligned notification
-           placement instead of the later bottom-centred snackbar. This remains
-           one toast at a time on all public routes. */
+        /* The supplied screenshot shows the toast near the lower-right edge,
+           inside the public content boundary, clear of the floating WhatsApp
+           control. At 1526px wide the inset computes to 156px, matching the
+           screenshot (1300px max content / 2, with a 42px inner offset). */
         .wc-public-toast-host{
-          position:fixed;z-index:1350;
-          top:calc(108px + 12px);
+          position:fixed;z-index:1350;top:auto;
+          bottom:max(20px,env(safe-area-inset-bottom));
           inset-inline-start:auto;
-          inset-inline-end:max(16px,env(safe-area-inset-right));
-          display:flex;justify-content:flex-end;align-items:flex-start;
+          inset-inline-end:max(96px,calc(50vw - 607px));
+          display:flex;justify-content:flex-end;align-items:flex-end;
           pointer-events:none;
         }
         .wc-public-toast-host :global(.wc-public-notice){
-          max-inline-size:min(100%,420px);
+          max-inline-size:min(100%,480px);
           text-align:start;pointer-events:none;
         }
-        /* Mobile fixed header is 96px tall; keep the toast below its buttons. */
+        /* On narrow screens lift above the floating WhatsApp/language widget
+           rather than covering its tap target; scale the card without clipping. */
         @media(max-width:767px){
-          .wc-public-toast-host{top:calc(96px + 12px);inset-inline:16px}
+          .wc-public-toast-host{
+            bottom:calc(96px + env(safe-area-inset-bottom));
+            inset-inline-start:16px;inset-inline-end:16px;
+          }
         }
       `}</style>
     </Context.Provider>

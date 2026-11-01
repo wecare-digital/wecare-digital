@@ -1,9 +1,9 @@
 /**
  * Toast Context - Global Toast Management
- * Provides toast notifications across the entire app
+ * Provides one action toast at a time across the authenticated Workspace
  */
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import Toast, { ToastMessage, ToastType } from '../components/Toast';
 
 interface ToastContextType {
@@ -17,10 +17,12 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const nextToastId = useRef(0);
 
   const addToast = useCallback((type: ToastType, message: string) => {
-    const id = Date.now().toString();
-    setToasts(prev => [...prev, { id, type, message }]);
+    const id = String(++nextToastId.current);
+    // Show the latest action, never stack competing notifications.
+    setToasts([{ id, type, message }]);
   }, []);
 
   const removeToast = useCallback((id: string) => {
