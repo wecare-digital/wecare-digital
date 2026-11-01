@@ -33,3 +33,16 @@ test('Release gate keeps backend deployment separate from static frontend', () =
   assert.ok(pipeline.includes('No `backend:` phase.'));
   assert.ok(pipeline.includes('backend artifacts.'));
 });
+
+test('GitHub PR gate runs the same TypeScript and Lambda syntax safeguards', () => {
+  const workflow = readFileSync(
+    resolve(root, '.github/workflows/customer-release-gates.yml'), 'utf8');
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /branches: \[wecare\.digital\]/);
+  assert.match(workflow, /npm ci --no-audit --no-fund/);
+  assert.match(workflow, /npx tsc --noEmit/);
+  assert.match(workflow, /node --test tests\/customer_menu_referral_contract\.test\.mjs/);
+  assert.match(workflow, /python3 -m compileall -q /);
+  assert.match(workflow, /permissions:\n  contents: read/);
+  assert.doesNotMatch(workflow, /update-function-code|lambda invoke|deploy_all_lambdas\.py/);
+});
