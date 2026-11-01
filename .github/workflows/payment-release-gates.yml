@@ -49,5 +49,7 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v
       - name: Retired WhatsApp Vault chooser cannot collect payment
         run: python3 -m unittest discover -s tests -p 'test_vault_retirement_2133.py' -v
+      - name: Verify dual-alias Meta catalog source safety release
+        run: python3 -m unittest discover -s tests -p 'test_meta_catalog_safe_dual_alias_release.py' -v
       - name: Fail-closed Meta inventory and anti-duplication guard
         run: python3 -m unittest discover -s tests -p 'test_meta_catalog_inventory_read_2152.py' -v
