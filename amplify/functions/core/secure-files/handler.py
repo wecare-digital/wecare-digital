@@ -898,9 +898,13 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         }
     )
 
+    # Signed create-only PUT: a presigned URL stays valid for up to 15 minutes.
+    # A second PUT must never overwrite an already-confirmed or paid Vault file.
+    # The browser must send If-None-Match: * exactly as signed.
     upload_url = _s3_client().generate_presigned_url(
         "put_object",
-        Params={"Bucket": BUCKET, "Key": key, "ContentType": content_type},
+        Params={"Bucket": BUCKET, "Key": key, "ContentType": content_type,
+                "IfNoneMatch": "*"},
         ExpiresIn=UPLOAD_URL_TTL,
     )
 
