@@ -4225,7 +4225,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <div className="vl-live-map-placeholder" role="status">
                   <strong>{ previewPlace.name || 'Shillong' }</strong>
                   { previewPlace.addr && <span>{ previewPlace.addr }</span> }
-                  <p>{ mapActive ? 'Couldn't load map' : 'Map unavailable' }</p>
+                  <p>{ mapActive ? 'Could not load map' : 'Map unavailable' }</p>
                   { mapActive && mapFailed && (
                     <button
                       type="button"
