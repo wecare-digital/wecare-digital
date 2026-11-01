@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PublicNotice from './public/PublicNotice';
+import { publicActionText } from '../lib/publicActionNotices';
 
 import AddressFields, {
   AddressDraft, EMPTY_ADDRESS_DRAFT, StoredAddress,
@@ -108,7 +109,7 @@ const CheckoutProfile: React.FC<Props> = ( {
         } else if ( reply.error === 'NAME_REQUIRED' ) {
           setMessage( 'Enter your full name.' );
         } else {
-          setMessage( 'We could not save your details. Please try again.' );
+          setMessage( publicActionText( 'failure' ) );
         }
         return;
       }
@@ -131,7 +132,7 @@ const CheckoutProfile: React.FC<Props> = ( {
       } );
       setMessage( '' );
     } catch {
-      setMessage( 'We could not reach the server. Please try again.' );
+      setMessage( publicActionText( 'failure' ) );
     } finally {
       setSaving( false );
     }

@@ -455,10 +455,10 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
-  const presentInviteResult = ( kind: 'accepted' | 'failed' | 'awaiting-template' ) => {
+  const presentInviteResult = ( kind: 'accepted' | 'failed' | 'blocked' ) => {
     const notice = customerMenuNotice( kind );
     if ( notice.error ) {
-      // Both a blocked Contribute attempt and an uncertain send share the
+      // Both a blocked Contribute payment request and an uncertain send share the
       // same customer-facing failure text and persistent inline warning.
       // Never report an unavailable Contribute send as accepted. Clear only
       // this invitation's pending toast, not a newer user copy toast.

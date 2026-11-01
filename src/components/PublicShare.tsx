@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PublicNotice from './public/PublicNotice';
+import { publicActionText } from '../lib/publicActionNotices';
 import { useOptionalPublicToast } from './public/PublicToastProvider';
 import { useOptionalToastContext } from '../contexts/ToastContext';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
@@ -127,12 +128,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     try {
       await navigator.clipboard.writeText( resolvedUrl );
       setCopied( true );
-      if ( showToast ) showToast( 'Link copied.', { tone: 'success', durationMs: 2500 } );
+      if ( showToast ) showToast( 'success', { durationMs: 2500 } );
       else workspaceSuccess?.( 'Link copied.' );
       window.setTimeout( () => setCopied( false ), 1800 );
     } catch {
       setCopied( false );
-      if ( showToast ) showToast( "Couldn't copy link.", { tone: 'error', durationMs: 3500 } );
+      if ( showToast ) showToast( 'failure', { durationMs: 3500 } );
       else workspaceError?.( "Couldn't copy link." );
     }
   }, [ resolvedUrl, showToast, workspaceSuccess, workspaceError ] );
@@ -300,7 +301,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           Public and Workspace otherwise share their own one-at-a-time host. */}
       { !publicToast && !workspaceToast && (
         <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
-          message={ copied ? 'Link copied.' : '' } />
+          message={ copied ? publicActionText( 'success' ) : '' } />
       ) }
 
       <style jsx>{`

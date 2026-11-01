@@ -62,7 +62,7 @@ export function takeCustomerMenuAction (): CustomerMenuAction | null {
 }
 
 type SendResult = { kind: 'accepted'; messageId: string } | { kind: 'expired' }
-  | { kind: 'awaiting-template' } | { kind: 'failed' };
+  | { kind: 'blocked' } | { kind: 'failed' };
 
 /** Never includes a recipient field. Only the server's authenticated session may choose it. */
 export async function sendCustomerMenuAction ( action: CustomerMenuAction, accessToken: string ): Promise<SendResult> {
@@ -111,7 +111,7 @@ export async function sendCustomerMenuAction ( action: CustomerMenuAction, acces
       if ( response.status === 409 && (
         data.error === 'AMOUNT_NOT_SETTLED'
         || data.error === 'CONTRIBUTION_TAXABLE_NOT_RELEASED'
-      ) ) return { kind: 'awaiting-template' };
+      ) ) return { kind: 'blocked' };
       return { kind: 'failed' };
     }
     const response = await fetch( PROFILE_URL, {

@@ -70,6 +70,9 @@ export default function PublicToastProvider ( { children }: { children: React.Re
   }, [ stopTimer ] );
 
   const showToast = useCallback( ( kind: PublicToastKind, options: PublicToastOptions = {} ): number => {
+    // Enforce the safety boundary at runtime too (TypeScript types erase).
+    // WhatsApp failures must stay inline; arbitrary API text has no mapping.
+    if ( String( kind ) === 'whatsappFailed' ) return 0;
     const message = publicActionText( kind );
     if ( !message ) return 0;
     stopTimer();

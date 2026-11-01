@@ -98,8 +98,8 @@ test('one toast replaces older toasts, without glyphs or fake sends', () => {
   assert.doesNotMatch(workspaceToast, /toast-icon|const icons =/);
   assert.match(workspaceToast, /aria-label="Dismiss notification"/);
   assert.match(workspaceToast, /role=\{toast\.type === 'error' \|\| toast\.type === 'warning' \? 'alert' : 'status'\}/);
-  assert.ok(customerNotices.includes('message: "Couldn\'t confirm. Check WhatsApp."'));
-  assert.ok(customerNotices.includes("message: 'Sent to WhatsApp.'"));
+  assert.ok(customerNotices.includes("message: publicActionText( 'whatsappFailed' )"));
+  assert.ok(customerNotices.includes("message: publicActionText( 'whatsappAccepted' )"));
 });
 
 test('PublicShare uses each one-at-a-time host and critical errors stay inline', () => {
@@ -114,7 +114,9 @@ test('PublicShare uses each one-at-a-time host and critical errors stay inline',
   assert.ok(share.includes("else workspaceSuccess?.( 'Link copied.' )"));
   assert.ok(share.includes("else workspaceError?.( \"Couldn't copy link.\" )"));
   assert.ok(share.includes('!publicToast && !workspaceToast && ('));
-  assert.ok(orders.includes("showToast( notice.message"));
+  assert.ok(orders.includes("showToast( 'whatsappAccepted'"));
+  assert.ok(orders.includes("showToast( 'processing'"));
+  assert.ok(share.includes("showToast( 'success'"));
   assert.ok(orders.includes('<PublicNotice mode="inline" tone="error"'));
   assert.ok(cart.includes('<PublicNotice mode="inline" tone="error"'));
   assert.ok(vault.includes('<PublicNotice mode="inline" tone="error"'));

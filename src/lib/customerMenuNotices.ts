@@ -1,10 +1,11 @@
 /**
  * One short toast vocabulary for authenticated WhatsApp invitations on /orders.
  *
- * Only Subscribe and Leave Review currently send actual WhatsApp messages.
- * Contribute uses the same authenticated handoff but remains blocked until
- * its template is configured. Reuse the generic failure copy without ever
- * claiming that a message was sent or delivered.
+ * Subscribe and Leave Review send WhatsApp invitations. Contribute can initiate
+ * an authenticated native ORDER_DETAILS/Review & Pay request, but only its
+ * exact verified PAYMENT_REQUEST_SENT outcome counts as accepted. 409 release
+ * refusals and uncertain results always use the generic inline failure copy.
+ * Never claim that a message was sent or delivered without server acceptance.
  * Keep this separate from Workspace ToastContext.
  *
  * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
@@ -12,7 +13,7 @@
  */
 import { publicActionText } from './publicActionNotices';
 
-export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'awaiting-template' | 'failed';
+export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'blocked' | 'failed';
 
 export type CustomerMenuNotice = Readonly<{
   message: string;
@@ -28,7 +29,7 @@ const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = 
     message: publicActionText( 'whatsappAccepted' ),
     error: false,
   },
-  'awaiting-template': {
+  blocked: {
     message: publicActionText( 'whatsappFailed' ),
     error: true,
   },
