@@ -264,26 +264,26 @@ function triggerDownload ( url: string ) {
 }
 
 /**
- * The refused-clipboard recovery, and IT CANNOT THROW - it runs inside `copyId`'s catch arm, so
- * an exception here would break the only recovery that path has. jsdom implements
- * createRange/getSelection only partially and a real browser can return null from
- * getSelection() in a detached context, so every step is optional-chained inside one try. The
- * worst case is that the text is not selected, which still leaves the hint and the announcement.
+ * Best-effort keyboard-copy recovery for browsers without a Clipboard API or
+ * when writeText is denied. Report success ONLY when the identifier was
+ * actually selected; do not claim "Selected" after a failed selection.
+ * This helper never throws, even when selection APIs are unavailable.
  */
-function selectText ( el: HTMLElement | null ) {
-  if ( !el ) return;
+function selectText ( el: HTMLElement | null ): boolean {
+  if ( !el?.textContent?.trim() ) return false;
   try
   {
     const range = document.createRange();
     range.selectNodeContents( el );
     const selection = window.getSelection?.();
-    if ( !selection ) return;
+    if ( !selection ) return false;
     selection.removeAllRanges();
     selection.addRange( range );
+    return selection.toString().trim() === el.textContent.trim();
   }
   catch
   {
-    /* Selection is unavailable. The hint and the live region still carry the recovery. */
+    return false;
   }
 }
 
@@ -354,37 +354,36 @@ export default function OrdersPage (): React.ReactElement {
   const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
   const [ inviteBusy, setInviteBusy ] = useState( false );
   const inviteInFlight = useRef( false );
-  const [ canCopy, setCanCopy ] = useState( false );
 
   const liveRef = useRef( true );
   useEffect( () => () => { liveRef.current = false; }, [] );
 
-  /**
-   * A clipboard write needs a secure context, and the button must not exist where it cannot
-   * work. Computed in an EFFECT and never during render, so the server-rendered signedOut shell
-   * and the first client paint agree.
-   */
-  useEffect( () => {
-    setCanCopy(
-      typeof navigator !== 'undefined' && !!navigator.clipboard && window.isSecureContext );
-  }, [] );
+  // Copy stays visible for every real order identifier. Clipboard availability
+  // differs across browsers; hiding the button was hiding the fallback too.
+  // This page renders customer orders only after client-side authentication,
+  // so no session or private data is exposed in the static first render.
 
   /**
-   * Only a successful user copy gets a brief global toast. An unsupported
-   * clipboard action selects the order ID and leaves ONE inline instruction.
-   * The identifier itself never appears in the feedback.
+   * A real clipboard write shows ONE short global toast. If the Clipboard API
+   * is unavailable or permission is denied, try selecting only the actual
+   * identifier and leave a persistent keyboard-copy instruction. Never claim
+   * the text was selected if the browser refused selection too.
    */
   const copyId = async ( value: string, index: number ) => {
     setOrdersAlert( current => current?.source === 'copy' ? null : current );
     try
     {
+      if ( !navigator.clipboard?.writeText ) throw new Error( 'Clipboard unavailable' );
       await navigator.clipboard.writeText( value );
       showToast( 'success', { durationMs: 2500 } );
     }
     catch
     {
-      selectText( document.getElementById( `ord-id-${ index }` ) );
-      setOrdersAlert( { source: 'copy', message: 'Selected. Copy with keyboard.' } );
+      const selected = selectText( document.getElementById( `ord-id-${ index }` ) );
+      setOrdersAlert( {
+        source: 'copy',
+        message: selected ? 'Selected. Copy with keyboard.' : publicActionText( 'failure' ),
+      } );
     }
   };
 
@@ -781,9 +780,10 @@ export default function OrdersPage (): React.ReactElement {
                                 <span className="ord-ordno" id={ `ord-id-${ index }` } data-wc-no-translate>
                                   { displayId }
                                 </span>
-                                { /* Copy is available only when Clipboard API and a stable
-                                     identifier exist. Feedback stays in the shared top-right toast. */ }
-                                { canCopy && copyValue && (
+                                { /* The real identifier always gets a visible Copy control.
+                                     A denied or absent Clipboard API uses inline keyboard
+                                     recovery; only successful writes trigger the shared toast. */ }
+                                { copyValue && (
                                   <button
                                     type="button"
                                     className="ord-copy"
@@ -792,6 +792,7 @@ export default function OrdersPage (): React.ReactElement {
                                     onClick={ () => copyId( copyValue, index ) }
                                   >
                                     <OrderActionIcon name="copy_all" />
+                                    <span className="ord-copy-label">Copy</span>
                                   </button>
                                 ) }
                               </span>
@@ -1122,8 +1123,16 @@ export default function OrdersPage (): React.ReactElement {
             font:inherit;cursor:pointer;
             transition:background-color .18s ease,box-shadow .18s ease;
           }
-          /* The flex gap provides spacing; keep the 44px tap target centered and unshrunk. */
-          .ord-copy{flex:none;align-self:center}
+          /* A visible action label makes the copy control identifiable, while
+             preserving the >=44px tap target and inline order-number grouping. */
+          .ord-copy{
+            flex:none;align-self:center;inline-size:auto;min-inline-size:44px;
+            padding-inline:10px;gap:5px;
+          }
+          .ord-copy-label{
+            font-family:var(--font-sans);font-size:var(--public-meta-size);
+            font-weight:700;line-height:1;white-space:nowrap;
+          }
           .ord-account-action:hover:not(:disabled),
           .ord-copy:hover:not(:disabled),.ord-inv:hover:not(:disabled){
             background:var(--lime-hover);color:var(--public-brand-green);
