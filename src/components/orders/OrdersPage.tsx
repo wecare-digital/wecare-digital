@@ -1048,10 +1048,13 @@ export default function OrdersPage (): React.ReactElement {
             text-align:start;font-weight:400;
           }
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
-          /* Keep the order reference and its copy control as one non-wrapping unit;
-             smaller viewports scroll the existing table wrapper instead. */
+          /* Keep the order reference and Copy as one non-wrapping row. The
+             reference lane reserves the same space in every table row, so all
+             Copy icons form one vertical column like the Invoice actions.
+             Longer references may expand the lane (never truncate an ID).
+             On small viewports only the existing table wrapper scrolls. */
           .ord-id-line{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
-          .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;white-space:nowrap}
+          .ord-ordno{flex:none;min-inline-size:210px;font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;white-space:nowrap}
 
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
