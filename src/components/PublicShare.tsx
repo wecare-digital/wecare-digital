@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PublicNotice from './public/PublicNotice';
 import { useOptionalPublicToast } from './public/PublicToastProvider';
+import { useOptionalToastContext } from '../contexts/ToastContext';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
 import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
@@ -42,7 +43,10 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   label = 'Share',
 } ) => {
   const publicToast = useOptionalPublicToast();
+  const workspaceToast = useOptionalToastContext();
   const showToast = publicToast?.showToast;
+  const workspaceSuccess = workspaceToast?.success;
+  const workspaceError = workspaceToast?.error;
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
   const [ resolvedTitle, setResolvedTitle ] = useState( title || '' );
   const [ openMenu, setOpenMenu ] = useState<OpenMenu>( null );
@@ -123,13 +127,15 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     try {
       await navigator.clipboard.writeText( resolvedUrl );
       setCopied( true );
-      showToast?.( 'Link copied.', { tone: 'success', durationMs: 2500 } );
+      if ( showToast ) showToast( 'Link copied.', { tone: 'success', durationMs: 2500 } );
+      else workspaceSuccess?.( 'Link copied.' );
       window.setTimeout( () => setCopied( false ), 1800 );
     } catch {
       setCopied( false );
-      showToast?.( "Couldn't copy link.", { tone: 'error', durationMs: 3500 } );
+      if ( showToast ) showToast( "Couldn't copy link.", { tone: 'error', durationMs: 3500 } );
+      else workspaceError?.( "Couldn't copy link." );
     }
-  }, [ resolvedUrl, showToast ] );
+  }, [ resolvedUrl, showToast, workspaceSuccess, workspaceError ] );
 
   const shareMenuClass = 'ps-menu ps-share-menu has-contribute';
 
@@ -290,10 +296,9 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         </div>
       </div>
 
-      {/* Workspace also mounts PublicShare but has its own notification
-          system. Keep its original copy feedback; public pages use the single
-          shared toast host and must never render a second local toast. */}
-      { !publicToast && (
+      {/* A stand-alone fallback is needed only without either toast provider.
+          Public and Workspace otherwise share their own one-at-a-time host. */}
+      { !publicToast && !workspaceToast && (
         <PublicNotice mode={ copied ? 'toast' : 'screen-reader' } tone="success"
           message={ copied ? 'Link copied.' : '' } />
       ) }
