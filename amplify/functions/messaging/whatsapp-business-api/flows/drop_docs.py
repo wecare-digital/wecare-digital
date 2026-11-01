@@ -4,7 +4,7 @@ Security boundary:
 - identity comes only from a server-issued, expiring Flow session;
 - target choices are re-read from stores owned by that identity;
 - DocumentPicker media is re-read from Meta with the receiving phone id bound;
-- bytes are written only under secure/u/dropdocs/;
+- bytes are written only under the gated secure/d/public/drop-docs/ prefix;
 - staff-facing metadata is written to DocumentTable;
 - the Flow completion record is claimed idempotently before the session is consumed.
 

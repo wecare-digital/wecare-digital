@@ -99,7 +99,9 @@ DELIVER_PREFIX = SECURE_PREFIX + "d/"
 # written by a module that has no business knowing how the locker spells "secure/". The
 # three constants above are left hand-built on purpose: rewriting them would change keys
 # that are already persisted in SecureFilesTable.
-DROPDOCS_PREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX
+# Historical metadata only: already-published Vault rows may still refer to the
+# old Drop Docs intake. Never route any new Vault upload through Drop Docs.
+DROPDOCS_PREFIX = media_paths.LEGACY_DROP_DOCS_UPLOAD_PREFIX
 # Operator-selected Vault-only storage, protected by the edge private-prefix list.
 VAULT_UPLOAD_PREFIX = media_paths.VAULT_UPLOAD_PREFIX
 

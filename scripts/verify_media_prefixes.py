@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import pathlib
 import re
 import socket
@@ -313,6 +314,33 @@ def check_live(r: Result) -> None:
         Bucket=BUCKET, Delimiter="/").get("CommonPrefixes", [])}
     r.add("bucket has exactly the two documented roots",
           roots == {PUBLIC_ROOT, SECURE_ROOT}, f"found {sorted(roots)}")
+
+    # Both customer document prefixes deliberately sit below the otherwise public
+    # deliverable subtree. The edge alone is not an adequate privacy control when
+    # its live numbered version can lag behind GitHub. A targeted bucket-policy
+    # Deny on CloudFront OAC must remain in place independently of rollout order.
+    expected_private_oac_denies = {
+        "DenyCloudFrontReadPrivateDropDocs": "secure/d/public/drop-docs/",
+        "DenyCloudFrontReadPrivateVaultValut": "secure/d/public/valut/",
+    }
+    try:
+        bucket_policy = json.loads(s3.get_bucket_policy(Bucket=BUCKET)["Policy"])
+        statements = bucket_policy.get("Statement") or []
+    except Exception as exc:  # noqa: BLE001
+        r.add("private customer S3 OAC deny policy readable", False,
+              type(exc).__name__)
+    else:
+        for sid, prefix in expected_private_oac_denies.items():
+            allowed = [
+                statement for statement in statements
+                if statement.get("Sid") == sid
+                and statement.get("Effect") == "Deny"
+                and statement.get("Principal") == {"Service": "cloudfront.amazonaws.com"}
+                and statement.get("Action") == "s3:GetObject"
+                and statement.get("Resource") == f"arn:aws:s3:::{BUCKET}/{prefix}*"
+            ]
+            r.add(f"CloudFront OAC denied from private {prefix}", len(allowed) == 1,
+                  f"policy {sid}" if allowed else "missing targeted Deny")
 
     # The legacy host is expected to be RETIRED. Both outcomes below are legitimate
     # states of the world, so neither is hardcoded as the pass condition - what is

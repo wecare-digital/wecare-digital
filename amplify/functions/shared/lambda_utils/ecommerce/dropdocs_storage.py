@@ -1,19 +1,18 @@
-"""Move a Drop Docs document out of the public tree BEFORE anything calls it a document.
+"""Promote a Drop Docs document to gated customer storage before registering it.
 
 The problem this exists to close
 --------------------------------
-A Drop Docs document can arrive two ways, and only one of them is already private:
+A Drop Docs document can arrive two ways:
 
-* **Browser upload** -- the locker's presigned PUT targets ``secure/u/``, which the
-  ``wecare-get-miss-redirect`` Lambda@Edge denies wholesale. Nothing to do.
-* **WhatsApp** -- ``inbound-whatsapp-handler`` writes to the canonical
-  ``media_paths.WHATSAPP_INCOMING_PREFIX``
-  (``secure/d/public/whatsapp/incoming/``). That public-deliverable subtree is
-  intentionally fetchable by Meta, so an arrival must be promoted before it becomes
-  a private Drop Docs document.
+* **Browser/manual upload** -- an authenticated presigned PUT writes directly to
+  ``media_paths.DROP_DOCS_UPLOAD_PREFIX`` (``secure/d/public/drop-docs/``).
+  Its CloudFront OAC read is explicitly denied by S3 bucket policy.
+* **WhatsApp** -- incoming media arrives in ``media_paths.WHATSAPP_INCOMING_PREFIX``
+  (``secure/d/public/whatsapp/incoming/``), a separate source namespace.
+  Promotion is needed to create the dedicated Drop Docs customer-document copy.
 
-So an object that arrived over WhatsApp is readable by anyone holding its URL. This
-module promotes it into ``secure/`` and returns the gated key. The enforcement itself is
+This module copies the WhatsApp attachment into the gated Drop Docs prefix and
+returns that key. Registration must also verify privacy; the enforcement itself is
 NOT here -- it is at registration, in ``service_request_store.attach_document``, which
 refuses to write a ``DOC#`` row for a key that is not ``media_paths.is_gated``. Putting
 the gate at the write means a failed promotion leaves no customer-document row at all,
@@ -21,8 +20,8 @@ rather than a row pointing at a public object.
 
 The key is the content hash
 ---------------------------
-``secure/u/dropdocs/wecare-digital-<sha256><ext>``, composed only through
-``media_paths.secure`` -- never a hand-built string, because a key one level off the data
+``secure/d/public/drop-docs/wecare-digital-<sha256><ext>``, composed only through
+``media_paths.DROP_DOCS_UPLOAD_PREFIX`` -- never a hand-built string, because a key one level off the data
 still returns HTTP 200 on the apex host and so fails silently (see ``media_paths``).
 
 Hashing the content, rather than naming the file, buys three things:
@@ -54,8 +53,8 @@ The canonical `WHATSAPP_INCOMING_PREFIX` is accepted, plus the historical
 `LEGACY_WHATSAPP_INCOMING_PREFIX` for read-only migration compatibility. Everything else
 is `DocumentRejected`, including an already-gated key. Neither prefix is ever written by
 this module; legacy writes are separately denied by IAM. That last one is deliberate rather than
-incidental: a browser upload reached ``secure/u/`` through the locker's own presigned PUT
-and already has a locker row, so it never needed this route. Accepting it bought nothing and
+incidental: a manual upload already reached the private Drop Docs prefix through
+its own presigned PUT and has a DocumentTable row, so it never needed this route. Accepting it bought nothing and
 made this an existence oracle for the private tree -- the 201 body carries the key, its
 content type and its exact byte count.
 
@@ -74,13 +73,12 @@ function. An unbounded ``Body.read()`` here fails as an OOM or a timeout surfaci
 
 The public-delivery original is NOT deleted, deliberately
 ------------------------------------------------
-Neither ``wecare-secure-files-role`` nor ``wecare-digital-lambda-role`` holds
-``s3:DeleteObject``, by design, and this module must never ask for it. The public copy
-therefore survives until the existing ``s3_whatsapp_media_incoming`` TTL in
-``operations/system-cleanup`` expires it. That is residual exposure, so it is reported
-rather than hidden: the result carries ``publicSourceRetained`` and exactly one warning
-is logged carrying the retained public key under the alert
-``DROPDOCS_PUBLIC_SOURCE_RETAINED``. Do not add a delete to get a tidier story.
+This module never deletes source media. Source retention and expiry are handled
+by a separate lifecycle/cleanup workflow and must not be assumed to happen in
+this copy operation. The return value keeps the historical
+``publicSourceRetained`` field and warning ``DROPDOCS_PUBLIC_SOURCE_RETAINED``
+for consumers and audit compatibility. No customer data is returned in logs;
+new Drop Docs copies stay gated through direct S3 authorization.
 
 Two deviations from the brief, and why
 --------------------------------------
@@ -108,10 +106,9 @@ from lambda_utils.ecommerce.document_errors import (
 
 logger = logging.getLogger(__name__)
 
-#: Where a promoted document lands, relative to the gated root. ``u/`` is the existing
-#: "upload as received" child; a third top-level ``secure/`` child would fragment a
-#: two-prefix contract that the role policy and a migration already encode.
-DROPDOCS_SUBPREFIX = "u/dropdocs"
+#: Relative Drop Docs prefix kept for compatibility with older imports.
+#: Canonical writes derive from media_paths.DROP_DOCS_UPLOAD_PREFIX below.
+DROPDOCS_SUBPREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX.removeprefix(media_paths.SECURE_ROOT).rstrip("/")
 
 #: The ONE prefix a Drop Docs document may be promoted FROM, composed rather than written
 #: out so it cannot drift from the key `inbound-whatsapp-handler` actually writes and from
@@ -225,11 +222,10 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str],
     digest = hashlib.sha256(raw).hexdigest()
     content_type = read["contentType"] or FALLBACK_CONTENT_TYPE
 
-    destination = media_paths.secure(
-        DROPDOCS_SUBPREFIX, f"wecare-digital-{digest}{safe_extension(source)}")
+    destination = media_paths.DROP_DOCS_UPLOAD_PREFIX + f"wecare-digital-{digest}{safe_extension(source)}"
     if not media_paths.is_gated(destination):
-        # Unreachable while `secure()` roots what it composes, and kept because the whole
-        # feature rests on this one property holding.
+        # Essential because the destination's parent has public-delivery semantics;
+        # only the precise Drop Docs sub-prefix is deliberately gated.
         raise DocumentNotPrivate("the composed destination is not under the gated root")
 
     try:
@@ -261,7 +257,7 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str],
         logger.warning(json.dumps({"event": "dropdocs_public_source_retained",
                                "alert": "DROPDOCS_PUBLIC_SOURCE_RETAINED",
                                "publicSourceKey": source, "storageKey": destination,
-                               "reason": "no role holds s3:DeleteObject; the original "
-                                         "expires under s3_whatsapp_media_incoming"}))
+                               "reason": "source-retention managed separately; "
+                                         "no delete performed by Drop Docs promotion"}))
     return {"storageKey": destination, "sha256": digest, "contentType": stored_type,
             "sizeBytes": size_bytes, "promoted": True, "publicSourceRetained": not private_arrival}
