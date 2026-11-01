@@ -7773,12 +7773,42 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _resp(404, {'error': 'Not a retained customer Flow'})
             return _get_flow_preview(flow_id)
         elif '/flows/assets' in path:
-            if not _is_retained_customer_flow(params.get('flowId') or body.get('flowId')):
-                return _resp(404, {'error': 'Not a retained customer Flow'})
+            # Operational inventory still exposes only canonical published Flows.
+            # The separate F008 draft exception is Admin-only and is independently
+            # verified against live Meta before any asset read or write.
+            flow_id = str(params.get('flowId') or body.get('flowId') or '').strip()
+            if params.get('flowId') and body.get('flowId') and str(params['flowId']) != str(body['flowId']):
+                return _resp(400, {'error': 'Conflicting flowId values'})
+            canonical = _is_retained_customer_flow(flow_id)
+            if not canonical:
+                from flows.f008_draft_policy import F008_FLOW_ID, is_f008_draft
+                if flow_id != F008_FLOW_ID:
+                    return _resp(404, {'error': 'Not a retained customer Flow'})
+                admin_denied = require_auth(event, required_role='Admin')
+                if admin_denied is not None:
+                    return admin_denied
+                if body.get('wabaId') and str(body['wabaId']) != str(WABA1_ID):
+                    return _resp(400, {'error': 'Draft belongs to the primary WhatsApp account'})
+                meta_flow = _graph_api(
+                    flow_id,
+                    params={'fields': 'id,name,status,whatsapp_business_account,application'},
+                    waba_id=WABA1_ID,
+                )
+                if 'error' in meta_flow:
+                    return _resp(502, {'error': 'Could not verify Meta draft ownership'})
+                if not is_f008_draft(flow_id, meta_flow, str(WABA1_ID), str(META_APP_ID)):
+                    return _resp(403, {'error': 'Not the approved F008 draft in Meta'})
             if method == 'POST':
-                return _upload_flow_asset(params.get('flowId') or body.get('flowId') or '', body)
+                if not canonical:
+                    # Never accept a caller-selected WABA, asset name or type for
+                    # this narrowly authorized draft; publish remains a separate
+                    # Admin-only action with its own explicit route.
+                    if body.get('assetType', 'FLOW_JSON') != 'FLOW_JSON' or body.get('name', 'flow.json') != 'flow.json':
+                        return _resp(400, {'error': 'Only flow.json FLOW_JSON is allowed'})
+                    body = {**body, 'wabaId': str(WABA1_ID), 'assetType': 'FLOW_JSON', 'name': 'flow.json'}
+                return _upload_flow_asset(flow_id, body)
             if method == 'GET':
-                return _get_flow_assets(params.get('flowId') or '', params.get('wabaId'))
+                return _get_flow_assets(flow_id, str(WABA1_ID) if not canonical else params.get('wabaId'))
             return _resp(405, {'error': 'GET or POST only'})
         elif '/flows/migrate' in path:
             if method == 'POST':
