@@ -28,7 +28,7 @@ interface Item {
 
 const CH: Record<string, { label: string; fg: string; bg: string; create: string }> = {
     whatsapp: { label: 'WhatsApp', fg: '#15803d', bg: '#f0fdf4', create: '/workspace/communications?view=manage&section=whatsapp&tool=template-builder' },
-    rcs: { label: 'RCS', fg: '#0f766e', bg: '#f0fdfa', create: '/workspace/engage/rcs' },
+    rcs: { label: 'RCS', fg: '#0f766e', bg: '#f0fdfa', create: '/workspace/engage/channels?tab=rcs' },
 };
 const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     approved: { fg: '#15803d', bg: '#f0fdf4' },
@@ -99,7 +99,7 @@ const ContentLibrary: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                         onChange={ v => setChannelFilter( v ) }
                         options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
                     <Link href="/workspace/communications?view=manage&section=whatsapp&tool=template-builder" className="cl-new">+ WhatsApp template</Link>
-                    <Link href="/workspace/engage/rcs" className="cl-new">+ RCS template</Link>
+                    <Link href="/workspace/engage/channels?tab=rcs" className="cl-new">+ RCS template</Link>
                 </div>
 
                 <div className="cl-grid">

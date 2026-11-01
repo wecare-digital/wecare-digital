@@ -60,11 +60,11 @@ export const useNavigationShortcuts = () => {
   const router = useRouter();
 
   const shortcuts: ShortcutConfig[] = [
-    { key: 'd', ctrl: true, action: () => router.push('/workspace/engage/inbox'), description: 'Go to Messages' },
-    { key: 'm', ctrl: true, action: () => router.push('/workspace/engage/inbox?channel=whatsapp'), description: 'Go to Messages' },
-    { key: 'c', ctrl: true, shift: true, action: () => router.push('/workspace/contacts'), description: 'Go to Contacts' },
-    { key: 'b', ctrl: true, action: () => router.push('/workspace/engage/whatsapp/campaign'), description: 'Go to Campaign' },
-    { key: 'p', ctrl: true, shift: true, action: () => router.push('/workspace/pay'), description: 'Go to Pay' },
+    { key: 'd', ctrl: true, action: () => router.push('/workspace/communications?view=inbox'), description: 'Go to Messages' },
+    { key: 'm', ctrl: true, action: () => router.push('/workspace/communications?view=inbox&channel=whatsapp'), description: 'Go to Messages' },
+    { key: 'c', ctrl: true, shift: true, action: () => router.push('/workspace/customers'), description: 'Go to Contacts' },
+    { key: 'b', ctrl: true, action: () => router.push('/workspace/communications?view=manage&section=whatsapp&tool=campaign'), description: 'Go to Campaign' },
+    { key: 'p', ctrl: true, shift: true, action: () => router.push('/workspace/payments?view=collect'), description: 'Go to Pay' },
   ];
 
   useKeyboardShortcuts(shortcuts);

@@ -130,8 +130,8 @@ const PayTab: React.FC<PayTabProps> = ({ data, onRefresh }) => {
       <div className="section-header">
         <h3>Payment Records</h3>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/workspace/contacts"><Button variant="secondary" size="sm">Add Customer</Button></Link>
-          <Link href="/workspace/pay"><Button variant="primary" size="sm">New Payment</Button></Link>
+          <Link href="/workspace/customers"><Button variant="secondary" size="sm">Add Customer</Button></Link>
+          <Link href="/workspace/payments?view=collect"><Button variant="primary" size="sm">New Payment</Button></Link>
         </div>
       </div>
 

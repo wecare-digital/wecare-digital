@@ -387,49 +387,49 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory snapshot', backend: '(static data)', tables: '-' },
   { path: '/workspace/platform?view=code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
-  { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
-  { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
-  { path: '/workspace/engage/whatsapp/campaign', label: 'WA Campaign', backend: 'outbound-whatsapp, bulk-job-create', tables: 'BulkJob, BulkRecipient, WhatsAppOutbound' },
-  { path: '/workspace/engage/whatsapp/flows', label: 'WA Flows', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission' },
-  { path: '/workspace/engage/whatsapp/flow-hub', label: 'WA Flow Hub', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission, FlowLog' },
-  { path: '/workspace/engage/whatsapp/flow-responses', label: 'WA Flow Responses', backend: 'inbound-whatsapp-handler', tables: 'FlowSubmission, FlowLog, SubmitRequest' },
-  { path: '/workspace/engage/whatsapp/calling', label: 'WA Calling', backend: 'whatsapp-calling', tables: 'WhatsAppCalling' },
-  { path: '/workspace/engage/whatsapp/groups', label: 'WA Groups', backend: 'waba-management', tables: 'WhatsAppGroup' },
-  { path: '/workspace/engage/whatsapp/interactive-lists', label: 'WA Interactive Lists', backend: 'outbound-whatsapp', tables: '-' },
-  { path: '/workspace/engage/whatsapp/scripts', label: 'WA Scripts', backend: 'outbound-whatsapp', tables: '-' },
-  { path: '/workspace/engage/whatsapp/welcome', label: 'WA Welcome', backend: 'outbound-whatsapp', tables: 'Contact' },
-  { path: '/workspace/engage/whatsapp/auto-response', label: 'WA Auto Response', backend: 'ai-generate-response, ai-config-management', tables: 'ConversationHistory, SystemConfig' },
-  { path: '/workspace/engage/whatsapp/ai-config', label: 'WA AI Config', backend: 'ai-config-management', tables: 'SystemConfig' },
-  { path: '/workspace/engage/whatsapp/waba-dashboard', label: 'WABA Dashboard', backend: 'waba-management, meta-analytics', tables: 'MetaAnalyticsLog' },
-  { path: '/workspace/engage/whatsapp/business-profile', label: 'WA Business Profile', backend: 'whatsapp-business-api', tables: '-' },
-  { path: '/workspace/engage/whatsapp/webhooks', label: 'WA Webhooks', backend: 'inbound-whatsapp-handler', tables: 'WebhookDedup, SystemEvent' },
-  { path: '/workspace/engage/whatsapp/migration', label: 'WA Migration', backend: 'waba-management', tables: '-' },
+  { path: '/workspace/communications?view=inbox&channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=campaign', label: 'WA Campaign', backend: 'outbound-whatsapp, bulk-job-create', tables: 'BulkJob, BulkRecipient, WhatsAppOutbound' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=flows', label: 'WA Flows', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission' },
+  { path: '/workspace/communications?view=manage&section=flows', label: 'WA Flow Hub', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission, FlowLog' },
+  { path: '/workspace/communications?view=manage&section=flows', label: 'WA Flow Responses', backend: 'inbound-whatsapp-handler', tables: 'FlowSubmission, FlowLog, SubmitRequest' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'WA Calling', backend: 'whatsapp-calling', tables: 'WhatsAppCalling' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=groups', label: 'WA Groups', backend: 'waba-management', tables: 'WhatsAppGroup' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=lists', label: 'WA Interactive Lists', backend: 'outbound-whatsapp', tables: '-' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'WA Scripts', backend: 'outbound-whatsapp', tables: '-' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=welcome', label: 'WA Welcome', backend: 'outbound-whatsapp', tables: 'Contact' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'WA Auto Response', backend: 'ai-generate-response, ai-config-management', tables: 'ConversationHistory, SystemConfig' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent', label: 'WA AI Config', backend: 'ai-config-management', tables: 'SystemConfig' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=waba', label: 'WABA Dashboard', backend: 'waba-management, meta-analytics', tables: 'MetaAnalyticsLog' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=profile', label: 'WA Business Profile', backend: 'whatsapp-business-api', tables: '-' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=webhooks', label: 'WA Webhooks', backend: 'inbound-whatsapp-handler', tables: 'WebhookDedup, SystemEvent' },
+  { path: '/workspace/communications?view=manage&section=whatsapp&tool=migration', label: 'WA Migration', backend: 'waba-management', tables: '-' },
   { path: '/workspace/engage/logs', label: 'Message Logs (all channels)', backend: 'messages-read', tables: 'MessagesTable' },
   { path: '/workspace/communications?view=manage&section=whatsapp', label: 'WA Management', backend: 'waba-management', tables: 'SystemConfig' },
   // SMS
   // Voice
-  { path: '/workspace/engage/voice', label: 'Voice Out', backend: 'voice-aws', tables: 'VoiceAws' },
+  { path: '/workspace/engage/channels?tab=voice', label: 'Voice Out', backend: 'voice-aws', tables: 'VoiceAws' },
   // Email / RCS / Push
-  { path: '/workspace/engage/ses', label: 'Email', backend: 'outbound-email', tables: '-' },
-  { path: '/workspace/engage/rcs', label: 'RCS', backend: '(planned)', tables: '-' },
-  { path: '/workspace/engage/push', label: 'Push', backend: 'push-notifications', tables: '-' },
+  { path: '/workspace/engage/channels?tab=email', label: 'Email', backend: 'outbound-email', tables: '-' },
+  { path: '/workspace/engage/channels?tab=rcs', label: 'RCS', backend: '(planned)', tables: '-' },
+  { path: '/workspace/engage/channels?tab=push', label: 'Push', backend: 'push-notifications', tables: '-' },
   { path: '/workspace/engage/logs', label: 'Message Logs', backend: 'messages-read', tables: 'WhatsAppInbound, WhatsAppOutbound, SmsAws' },
   // Pay
-  { path: '/workspace/pay', label: 'Payments', backend: 'payments-read, razorpay-webhook, invoice-engine', tables: 'Payment, Invoice, InvoiceItem, RazorpayWebhookLog' },
-  { path: '/workspace/pay/flow', label: 'Pay Flow', backend: 'invoice-engine, razorpay-webhook', tables: 'Invoice, InvoiceItem, InvoicePayment, InvoiceDeliveryLog' },
+  { path: '/workspace/payments?view=collect', label: 'Payments', backend: 'payments-read, razorpay-webhook, invoice-engine', tables: 'Payment, Invoice, InvoiceItem, RazorpayWebhookLog' },
+  { path: '/workspace/payments?view=collect', label: 'Pay Flow', backend: 'invoice-engine, razorpay-webhook', tables: 'Invoice, InvoiceItem, InvoicePayment, InvoiceDeliveryLog' },
 
   // Other
-  { path: '/workspace/contacts', label: 'Contacts', backend: 'contacts', tables: 'Contact' },
+  { path: '/workspace/customers', label: 'Contacts', backend: 'contacts', tables: 'Contact' },
   { path: '/workspace/access', label: 'Access Control', backend: 'auth-middleware', tables: 'User' },
-  { path: '/workspace/link', label: 'URL Shortener', backend: 'url-shortener', tables: '-' },
+  { path: '/workspace/communications?view=manage&section=links', label: 'URL Shortener', backend: 'url-shortener', tables: '-' },
   // '/workspace/link/create' ("Create Link") was listed here. Removed 2026-09-25 with the page: a
   // ComingSoon stub naming four features, never in the nav, and this row was its only
   // reference in the repo.
-  { path: '/workspace/forms', label: 'Forms', backend: 'whatsapp-business-api', tables: 'FlowRegistry' },
-  { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub', backend: 'whatsapp-business-api, inbound-whatsapp-handler', tables: 'FlowRegistry, FlowSubmission, FlowLog, SubmitRequest' },
+  { path: '/workspace/service?view=requests', label: 'Forms', backend: 'whatsapp-business-api', tables: 'FlowRegistry' },
+  { path: '/workspace/service?view=requests', label: 'Customer Service Hub', backend: 'whatsapp-business-api, inbound-whatsapp-handler', tables: 'FlowRegistry, FlowSubmission, FlowLog, SubmitRequest' },
   // Was '[retired public path]'. The public page was deleted on owner instruction; the faq-handler backend
   // and SystemConfig table are unchanged and are driven from the dashboard route.
-  { path: '/workspace/engage/faq', label: 'FAQ', backend: 'faq-handler', tables: 'SystemConfig' },
+  { path: '/workspace/service?view=requests&action=faq', label: 'FAQ', backend: 'faq-handler', tables: 'SystemConfig' },
   { path: '/grahak-os', label: 'Grahak OS', backend: '(public product page)', tables: '-' },
   // '/studio' REMOVED on owner instruction. The slug is retired and no page exists for it
   // in src/pages, so listing it here described a route that 404s - and this table is read
@@ -441,13 +441,13 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 // ─── Data: Code Map ───
 interface CodeFolder { path: string; purpose: string; files: string; linkedTo: string; }
 const CODE_MAP: CodeFolder[] = [
-  { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: '~50 pages', linkedTo: 'Frontend routing' },
+  { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: 'generated routes', linkedTo: 'Frontend routing' },
   { path: 'src/pages/workspace/platform/', purpose: 'Canonical Platform workspace hub', files: '1 page', linkedTo: '/workspace/platform' },
   { path: 'src/components/workspace/platform/', purpose: 'Platform tools embedded by the canonical hub', files: '7 components', linkedTo: '/workspace/platform?view=*' },
-  { path: 'src/pages/workspace/engage/whatsapp/', purpose: 'WhatsApp messaging pages (21 sub-pages)', files: '21 pages', linkedTo: '/workspace/engage/whatsapp/*' },
-  { path: 'src/pages/workspace/engage/', purpose: 'Multi-channel messaging (SMS, Voice, Email, RCS, Push)', files: '~15 pages', linkedTo: '/workspace/engage/*' },
-  { path: 'src/pages/workspace/pay/', purpose: 'Payment pages (overview, flow, link)', files: '3 pages', linkedTo: '/workspace/pay/*' },
-  { path: 'src/pages/workspace/link/', purpose: 'URL shortener (list, create, logs)', files: '3 pages', linkedTo: '/workspace/link/*' },
+  { path: 'src/components/workspace/whatsapp/', purpose: 'WhatsApp tools embedded by Communications', files: 'shared components', linkedTo: '/workspace/communications?view=manage&section=whatsapp' },
+  { path: 'src/pages/workspace/engage/', purpose: 'Remaining channel hubs and compatibility routes', files: 'hubs + redirects', linkedTo: '/workspace/engage/channels?tab=sms' },
+  { path: 'src/pages/workspace/pay/', purpose: 'Retained Pay compatibility redirect', files: '1 route', linkedTo: '/workspace/payments' },
+  { path: 'src/pages/workspace/link/', purpose: 'Retained Short Links compatibility redirect', files: '1 route', linkedTo: '/workspace/communications?view=manage&section=links' },
   { path: 'src/components/', purpose: 'Reusable UI components', files: '~25 components', linkedTo: 'All pages' },
   { path: 'src/components/ui/', purpose: 'Base UI primitives (Button, Modal, Tabs, Table)', files: '~10 components', linkedTo: 'All pages' },
   { path: 'src/components/dashboard/', purpose: 'Shared workspace widgets', files: '~5 components', linkedTo: '/workspace/*' },
@@ -946,7 +946,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       </div>
       <div style={ { display: 'flex', flexDirection: 'column', gap: 8 } }>
         { FRONTEND_ROUTES.map( route => (
-          <div key={ route.path } style={ card() }>
+          <div key={ `${ route.path }:${ route.label }` } style={ card() }>
             <div style={ { display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' } }>
               <div style={ { minWidth: 180 } }>
                 <div style={ label }>Frontend Route</div>
