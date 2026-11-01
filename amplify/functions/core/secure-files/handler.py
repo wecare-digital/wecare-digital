@@ -809,7 +809,6 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         }, origin)
     body = json.loads(event.get("body") or "{}")
     name = str(body.get("name") or "").strip()
-    display_name = str(body.get("displayName") or "").strip()
     # Optional operator label for finding a file later (e.g. "Passport", "Invoice Mar"). Free
     # text, bounded and stripped of control chars; it is display-only and never part of a key.
     tag = "".join(c for c in str(body.get("tag") or "").strip() if c.isprintable())[:60]
@@ -878,7 +877,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "ownerCustomerId": owner_customer_id,
             "ownerName": name,
             "cognitoUsername": username,
-            "displayName": display_name or filename,
+            "displayName": basename,
             "tag": tag,
             "originalFilename": filename,
             "contentType": content_type,
