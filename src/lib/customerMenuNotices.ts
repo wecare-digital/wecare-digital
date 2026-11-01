@@ -1,7 +1,7 @@
 /**
  * One short toast vocabulary for authenticated WhatsApp invitations on /orders.
  *
- * Subscribe and Leave Review send WhatsApp invitations. Contribute can initiate
+ * Subscribe, Leave Review and Referral send WhatsApp invitations. Contribute can initiate
  * an authenticated native ORDER_DETAILS/Review & Pay request, but only its
  * exact verified PAYMENT_REQUEST_SENT outcome counts as accepted. 409 release
  * refusals and uncertain results always use the generic inline failure copy.

@@ -6,7 +6,7 @@ import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 /**
  * The Orders history's per-row service navigation. Actions open the
  * authenticated Orders hub, without opening any individual order/receipt UI.
- * Subscribe and Review use a one-time explicit-click intent; no order ID or
+ * Subscribe, Review and Referral use a one-time explicit-click intent; no order ID or
  * phone is sent from the browser. Payment and ownership decisions remain server-owned.
  *
  * Icon paths match the public Header's Request menu (including its indented
@@ -93,7 +93,7 @@ const OTHER_ACTIONS: readonly Action[] = [
     icon: 'review', keywords: 'review feedback rating' },
   { label: 'Subscribe', subtitle: 'Update your profile', href: CUSTOMER_MENU_HREFS.subscribe,
     icon: 'subscribe', keywords: 'profile address account' },
-  { label: 'Referral', subtitle: 'Refer & earn', href: '/orders/',
+  { label: 'Referral', subtitle: 'Refer & earn', href: CUSTOMER_MENU_HREFS.referral,
     icon: 'referral', keywords: 'refer referral partner earn reward' },
   { label: 'Contribute', subtitle: 'Give back', href: '/orders/',
     icon: 'rupee', keywords: 'contribute give back voluntary payment' },

@@ -14,11 +14,11 @@ release; automated source/registry checks are NOT a substitute for a handset QA 
 
 ## User journey
 
-The public **Subscribe** and **Leave Review** menu rows (plus the same two
+The public **Subscribe**, **Leave Review** and **Referral** menu rows (plus the same three
 per-order menu rows) use clean `/orders/` links, not WhatsApp deep links and
 not phone numbers. Sending is a deliberate user-click effect, not a GET side effect.
 
-1. An unmodified click on one of these two menu items stores its allowlisted
+1. An unmodified click on one of these three menu items stores its allowlisted
    action in same-tab sessionStorage for at most 10 minutes. A modified/new-tab
    navigation, blocked storage, reload, copied link or externally crafted
    `/orders/?service=...` URL **cannot queue a send**. The Orders route strips
@@ -26,16 +26,17 @@ not phone numbers. Sending is a deliberate user-click effect, not a GET side eff
 2. If there is no valid customer Cognito session, the existing
    `/auth?return=/orders/` WhatsApp OTP sign-in runs first. The same-tab
    action survives the redirect, and is consumed **once** after sign-in.
-3. The client POSTs only `{ "action": "sendProfileUpdate" }` or
-   `{ "action": "sendLeaveReview" }` to `/customer/profile` with its access token.
+3. The client POSTs only `{ "action": "sendProfileUpdate" }`,
+   `{ "action": "sendLeaveReview" }` or `{ "action": "sendReferral" }`
+   to `/customer/profile` with its access token.
    It never supplies a phone or selected recipient.
 4. `customer-profile` verifies the customer session, uses
    `identity_session.phone`, refuses unexpected fields, writes a mandatory
    `customer.template_send.requested` audit event, then calls the existing
    `wecare-whatsapp-business-api:live` Lambda internally.
 5. The WhatsApp sender checks the canonical published Flow and compatible
-   FlowRegistry row before sending to the authenticated customer. Both approved
-   templates use their actual IMAGE header, English language and one FLOW button.
+   FlowRegistry row before sending to the authenticated customer. All three approved
+   templates use the shared IMAGE header, English language and one FLOW button.
 6. Meta acceptance creates an outbound message row with status `pending`,
    WhatsApp message ID and template metadata in both
    `WhatsAppOutboundTable` and canonical `MessagesTable`. A success response
@@ -53,20 +54,24 @@ explicit retry, which leaves its own audit trail.
 |---|---|---|---|---|
 | Subscribe | `service_details` | `2419125382263851` | `2413873616105042` | F001 profile/address INIT prefill, optimistic save to Contacts, FlowSubmission response |
 | Leave Review | `wecare_leave_review` | `1801972550682516` | `993862443003108` | F002 FEEDBACK -> REVIEW, signed inbound `nfm_reply`, idempotent FlowSubmission |
+| Referral | `wecare_referal_update` | `1596216325046969` | `1933489271340286` | F008 DATA_EXCHANGE INIT -> REFER, REVIEW -> CONFIRMATION; consent required before signed `nfm_reply` persists one private FlowSubmission |
 
 Subscribe's “View Details” Flow updates profile details. **It is not
 marketing subscription consent**, and no marketing opt-in should be inferred
 from selecting it. Leave Review does not make an automatic post-purchase send
 or alter payment state; it sends only after an explicit customer click.
+Referral also requires the referrer's explicit click and never sends an invitation
+or marketing message to the referred person. It does not create a contact, grant
+marketing consent, or create a payment request.
 
 ## Where staff can see it
 
 - **Workspace > Engage > Inbox** (`/workspace/engage/inbox?channel=whatsapp`):
-  outbound template messages and provider delivery status; F001 and F002
+  outbound template messages and provider delivery status; F001, F002 and F008
   `flow_response` messages show answer fields and attachments via
   `FlowResponseDetails`.
 - **Workspace > Service > WhatsApp Logs** (`/workspace/service?view=whatsapp-logs`):
-  read-only filtered delivery and response history for these two templates,
+  read-only filtered delivery and response history for these three templates,
   including submitted form answers. This view reads the latest 2,000 WhatsApp
   messages and links back to the full Inbox.
 - **Flow Hub**: submission status and existing launch funnel counters.
@@ -122,7 +127,7 @@ and replay/idempotency were not established by that report alone**.
    distinct states. Do not close the end-to-end QA item solely on an accepted
    send or Lambda dispatch probe.
 
-**Orders toast copy:** Subscribe and Leave Review now use the same three short
+**Orders toast copy:** Subscribe, Leave Review and Referral use the same three short
 messages from `src/lib/customerMenuNotices.ts`: pending **Processing…**,
 accepted **Sent to WhatsApp.**, and failed **Couldn't confirm. Check WhatsApp.**
 “Sent” describes the provider's acceptance only, not confirmed delivery.
@@ -160,3 +165,34 @@ the earlier longer copy. Workspace notifications remain separate.
 
 No provider send, data migration, phone number change, template edit, Flow
 publication or runtime webhook update is part of this PR.
+
+## F008 Referral rollout gate (2026-11-01 proposed change)
+
+The new Referral action uses the same explicit website-click, authenticated
+`/customer/profile` action, fail-closed audit, internal Lambda, Meta send,
+pending-Inbox and single-use notification contract as Subscribe / Leave Review.
+It adds the exact Meta-approved English template spelling
+`wecare_referal_update` without renaming it. The image is the existing
+`SHARED_TEMPLATE_HEADER`, and the sole FLOW button is `Update Referral`.
+
+The Meta-approved button declares `DATA_EXCHANGE` even though F008's published
+REFER -> REVIEW -> CONFIRMATION JSON is otherwise endpointless. The new
+`flows.router` route handles the provider's initial `INIT` by returning
+`{ "screen": "REFER", "data": {} }`, as F002's authenticated launcher does for
+FEEDBACK. **Production acceptance, handset opening, and submission delivery are
+not yet verified.** Do not merge or deploy without a controlled test confirming
+the F008 Flow opens, the explicit permission control is enforced, and one
+signed `nfm_reply` generates a single referrer-owned submission even after replay.
+
+**Copy mismatch to review:** the currently approved template states that a
+referral request "has been received" before the customer has submitted F008.
+This is Meta-controlled approved copy, so the integration does not silently edit
+it. Content owners should consider a separately reviewed initial-referral
+template if that wording cannot accurately describe the first click.
+
+Only `wecare-customer-profile` and `wecare-whatsapp-business-api` need a
+reviewed named-function release for the backend implementation, plus the pinned
+frontend Amplify branch deployment. No registry migration or bulk sender,
+post-payment message, unsolicited outreach or automatic retry is part of this
+change. Verify current live aliases and hashes before a release, and report
+"accepted", "delivered" and "Flow submitted" as separate statuses.

@@ -13,7 +13,7 @@ SHARED = ROOT / "amplify/functions/shared"
 if str(SHARED) not in sys.path:
     sys.path.insert(0, str(SHARED))
 
-from lambda_utils import canonical_flows, referral_response as referral  # noqa: E402
+from lambda_utils import canonical_flows, flow_launch, referral_response as referral  # noqa: E402
 
 META_ID = "1933489271340286"
 PAYLOAD = {
@@ -33,6 +33,43 @@ def test_published_identity_in_backend_and_frontend():
     assert "capability: 'referral'" in ts
     assert "flowId: '1933489271340286'" in ts
     assert "status: 'PUBLISHED', metaName: 'WD-F008- Referal'" in ts
+
+
+
+def test_customer_initiated_referral_launch_contract_enforces_published_unpaid_registry():
+    contract = canonical_flows.canonical_contract("referral")
+    assert contract["flowCode"] == "WD-F008-REFERRAL"
+    assert contract["entryMode"] == "none"
+    assert contract["entryTemplateName"] == ""
+    assert contract["requiresPayment"] is False
+    assert contract["defaultKeywords"] == ()
+    assert contract["submissionPrefix"] == "WD-REF"
+    row = {
+        "flowId": META_ID,
+        "flowCode": contract["flowCode"],
+        "flowName": "WD-F008- Referal",
+        "flowType": contract["flowType"],
+        "wabaId": contract["wabaId"],
+        "entryMode": "none",
+        "entryTemplateName": "",
+        "requiresPayment": False,
+        "submissionPrefix": "WD-REF",
+        "status": "PUBLISHED",
+        "metaStatus": "PUBLISHED",
+    }
+    assert flow_launch.publication_decision(
+        capability="referral", registry_row=row).allowed is True
+    for change in (
+        {"status": "DRAFT"},
+        {"metaStatus": "DEPRECATED"},
+        {"requiresPayment": True},
+        {"entryMode": "payment_template"},
+        {"flowCode": "WD-OTHER"},
+    ):
+        decision = flow_launch.publication_decision(
+            capability="referral", registry_row={**row, **change})
+        assert decision.allowed is False
+
 
 
 def test_only_f008_terminal_nfm_reply_matches():

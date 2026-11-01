@@ -35,7 +35,8 @@ CANONICAL_FLOWS = {
     # F003 Drop Docs replacement, published on Meta 2026-10-28.
     'drop_docs':      ('39581903361452878', 'PUBLISHED', 'WD-F003-DROP-DOCS'),
     'shipments':      ('1804165164183485', 'PUBLISHED', 'WD-F006-Track-Shipping'),
-    # F008 published in Meta on 2026-11-01; response-only for now, no automatic launch.
+    # F008 published in Meta on 2026-11-01; explicit authenticated website send only,
+    # no keyword, post-payment or automatic referred-person outreach.
     'referral':       ('1933489271340286', 'PUBLISHED', 'WD-F008- Referal'),
     'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
@@ -150,6 +151,20 @@ CANONICAL_CONTRACTS = {
             'drop docs', 'upload documents', 'upload docs',
             'send documents', 'send docs', 'documents',
         ),
+        'legacyFlowCodes': (),
+    },
+    'referral': {
+        'flowNumber': 'F008',
+        'flowCode': 'WD-F008-REFERRAL',
+        'label': 'Referral',
+        'flowType': 'referral',
+        'entryMode': 'none',
+        'entryTemplateName': '',
+        'requiresPayment': False,
+        'submissionPrefix': 'WD-REF',
+        'wabaId': '2094615664435155',
+        'tokenPrefix': 'referral',
+        'defaultKeywords': (),  # Never trigger from a WhatsApp keyword.
         'legacyFlowCodes': (),
     },
     'leave_review': {

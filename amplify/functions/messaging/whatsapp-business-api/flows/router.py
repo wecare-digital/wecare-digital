@@ -206,6 +206,14 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
+    # F008's approved referral template uses DATA_EXCHANGE to open its static
+    # REFER screen. The terminal signed nfm_reply owns persistence and consent;
+    # the endpoint must never create a submission or message the referred person.
+    if flow_key == 'referral':
+        if action == 'INIT':
+            return {'screen': 'REFER', 'data': {}}
+        return {'data': {'error': 'Unsupported referral Flow action.'}}
+
     # The existing manual Leave Review template uses DATA_EXCHANGE. Its routed
     # leave-* token can open only FEEDBACK (no private data is returned); the
     # signed nfm_reply still belongs to customer_ideas and the actual sender.

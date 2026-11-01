@@ -110,6 +110,9 @@ def _send_customer_menu_template(phone: str, origin: str, *, action: str,
         "sendLeaveReview": (
             "customerLeaveReviewTemplate", "wecare_leave_review",
             "REVIEW_REQUEST_SENT", "REVIEW_REQUEST_UNAVAILABLE"),
+        "sendReferral": (
+            "customerReferralTemplate", "wecare_referal_update",
+            "REFERRAL_REQUEST_SENT", "REFERRAL_REQUEST_UNAVAILABLE"),
     }
     internal_action, template_name, expected_status, unavailable = allowed[action]
     attempt_id = record_audit(
@@ -911,7 +914,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     body = _body(event)
     if "action" in body:
         action = str(body.get("action") or "")
-        if len(body) != 1 or action not in ("sendProfileUpdate", "sendLeaveReview", "sendContribute"):
+        if len(body) != 1 or action not in ("sendProfileUpdate", "sendLeaveReview", "sendReferral", "sendContribute"):
             return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
         try:
             phone = identity.normalize_phone_preserving_country(identity_session.phone)

@@ -164,7 +164,7 @@ const COLUMNS: NavColumn[] = [
             label: 'Partner',
             searchTerms: [ 'refer', 'earn' ],
             children: [
-              { label: 'Referral', href: '/orders/', match: '/orders', searchTerms: [ 'partner', 'refer', 'earn' ] },
+              { label: 'Referral', href: CUSTOMER_MENU_HREFS.referral, match: '/orders', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
             ],
