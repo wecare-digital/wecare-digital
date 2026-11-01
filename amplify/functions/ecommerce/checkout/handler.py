@@ -640,6 +640,36 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if method == "OPTIONS":
         return options_response(origin)
 
+    # Staff/admin and customer OAuth tokens are DIFFERENT Cognito pools.
+    # This explicit staff action must be routed BEFORE require_customer.
+    # It is never reachable via an internal Lambda invoke or another URL,
+    # and requires the staff Admin group plus the existing Admin MFA gate.
+    staff_candidate = _body(event)
+    if str(staff_candidate.get("action") or "").strip().lower() == _STAFF_CONTRIBUTION_ACTION:
+        from lambda_utils.middleware import require_auth
+        staff_path = str(event.get("rawPath") or event.get("path")
+                         or rc.get("http", {}).get("path") or "").rstrip("/").lower()
+        api_gateway = bool(rc.get("apiId") or rc.get("domainName")
+                           or rc.get("http", {}).get("sourceIp"))
+        if (not api_gateway or method != "POST"
+                or not staff_path.endswith("/ecommerce/checkout")):
+            return cors_response(403, {"error": "STAFF_CONTRIBUTE_ROUTE_FORBIDDEN"}, origin)
+        denied = require_auth(event, required_role="Admin")
+        if denied is not None:
+            return denied
+        if (event.get("_auth") or {}).get("role") != "Admin":
+            return cors_response(403, {"error": "STAFF_CONTRIBUTE_FORBIDDEN"}, origin)
+        try:
+            return _staff_contribution_send(staff_candidate, origin)
+        except Exception as error:
+            logger.error(json.dumps({"event": "staff_contribute_unavailable",
+                                     "reason": type(error).__name__}))
+            return cors_response(503, {
+                "error": "CONTRIBUTION_UNAVAILABLE",
+                "sendUnconfirmed": True,
+                "message": "Could not confirm the request. Check the payment ledger before retrying.",
+            }, origin)
+
     # THE ONE PRE-AUTH ARM, and it is deliberately the narrowest shape that can exist: GET only,
     # on one exact path, taking no path parameter, no query string and no body. Nothing a caller
     # supplies reaches a table or a provider, which is what makes an anonymous route safe here.
