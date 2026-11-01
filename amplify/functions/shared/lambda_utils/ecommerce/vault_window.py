@@ -119,10 +119,10 @@ def access_state(entitlement: Optional[Dict[str, Any]], now: int) -> str:
     * ``UNPAID``  - no entitlement: ₹49 buys the first window.
     * ``OPEN``    - a window is open: downloads are free until it closes.
     * ``READY``   - a paid window has not been opened yet: the next download opens it.
-    * ``EXPIRED`` - every paid window has been used: ₹49 buys a new one (renewal).
+    * ``EXPIRED`` - purchased access has ended; no new payment is offered.
 
-    Read by the customer list, the staff list, the WhatsApp document picker and the renewal
-    gate, so all four agree on when another ₹49 may be asked for.
+    Read by customer and staff owner-bound file guards. No new Vault payment
+    may be requested for an expired paid window.
     """
     if not entitlement:
         return "UNPAID"
@@ -140,8 +140,8 @@ def open_window(entitlement: Dict[str, Any], now: int,
     Returns (fields_to_persist, opened). `opened` is False — and the dict carries no changes —
     when a window is ALREADY open, so a duplicate tap / webhook replay neither re-charges nor
     double-increments, and also when every paid window has already been used: a closed window
-    is reopened only by a renewal payment adding to `paidWindowCount`, never by a re-delivery or
-    a retry. Otherwise it returns the new window fields with `accessWindowCount` incremented.
+    cannot be reopened by redelivery or retries. Historical paid-window
+    counts are kept to reconcile prior purchases. Otherwise it returns the new window fields with `accessWindowCount` incremented.
 
     This returns only the attributes to write; the caller owns the conditional DynamoDB update.
     """
@@ -159,7 +159,7 @@ def open_window(entitlement: Dict[str, Any], now: int,
 
 def status_label(entitlement: Optional[Dict[str, Any]], now: int) -> str:
     """Human status: 'Awaiting purchase' / 'Active · ends in Xh' / 'Paid · opens on first
-    download' / 'Expired · renewal needed'."""
+    download' / 'Expired · no further payment'."""
     if not entitlement:
         return "Awaiting purchase"
     if window_open(entitlement, now, grace=0):
@@ -168,4 +168,4 @@ def status_label(entitlement: Optional[Dict[str, Any]], now: int) -> str:
         return f"Active \u00b7 ends in {hrs}h"
     if unused_paid_windows(entitlement) > 0:
         return "Paid \u00b7 opens on first download"
-    return "Expired \u00b7 renewal needed"
+    return "Expired \u00b7 no further payment"
