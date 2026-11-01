@@ -3392,9 +3392,9 @@ def _process_message(
             'senderPhone': mask_phone(sender_phone),
             'requestId': request_id,
         }))
-        # "Unlock Vault" on the ₹49 Vault offer (wecare_valut_49). Its payload names the offer,
-        # so the tap opens Review and Pay for exactly that document; a tap with no offer payload
-        # opens the customer's document list, as the "Vault" keyword does.
+        # Previously issued signed Vault-offer taps remain owner-bound. A button without
+        # its historical offer token receives a generic, audited retirement notice; it
+        # never opens a customer file chooser or initiates a new checkout.
         if _route_vault_offer_tap(message, button_text_lower, contact_id, sender_phone,
                                   aws_phone_number_id, whatsapp_message_id, request_id):
             return
@@ -3478,39 +3478,18 @@ def _process_message(
         # Non-form service doors reuse secure website experiences. No second payment path.
         if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
                               'shipments', 'submit request'}:
-            if (_content_plain in {'vault', 'my vault'} and whatsapp_message_id
-                    and aws_phone_number_id == PHONE_NUMBER_ID_1
-                    and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true'):
-                # The keyword is a signed inbound message, so it opens the same document list a
-                # Vault catalog cart opens (business-api `catalogService.start`): commerce proves
-                # the customer from this message id, and each document is offered as Paid (free
-                # link), Renew or unpaid (one server-priced Review and Pay). WABA1 only, because
-                # only WABA1 may take a payment; anything else keeps the website door below.
-                try:
-                    from lambda_utils.ecommerce import service_requests as _services
-                    _vault_variant = _services.SERVICE_VARIANT_BY_KIND[_services.VAULT]
-                    if _may_send('vault_keyword'):
-                        lambda_client.invoke(
-                            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
-                            Payload=json.dumps({
-                                'internalAction': 'catalogService', 'action': 'start',
-                                'lines': [{'productId': _services.SERVICE_PRODUCT_BY_VARIANT[_vault_variant],
-                                           'variantId': _vault_variant, 'quantity': 1}],
-                                'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
-                                'senderPhone': sender_phone,
-                                'phoneNumberId': aws_phone_number_id}).encode())
-                    return
-                except Exception as error:  # noqa: BLE001 - fall back to the website door
-                    logger.warning(json.dumps({'event': 'vault_keyword_list_unavailable',
-                                               'errorType': type(error).__name__,
-                                               'requestId': request_id}))
+            if _content_plain in {'vault', 'my vault'}:
+                # The customer chooses no document here; only a staff-issued exact-file
+                # Access Vault link is usable. Business-api owns the one-shot send audit.
+                _route_retired_vault_notice(
+                    contact_id, sender_phone, aws_phone_number_id,
+                    whatsapp_message_id, request_id)
+                return
             if (_content_plain == 'drop docs'
                     and _route_paid_drop_docs(contact_id, sender_phone, aws_phone_number_id,
                                               whatsapp_message_id, request_id)):
                 return
             service_doors = {
-                'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
-                'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'request amendment': ('View orders', '/orders/', 'Sign in to select the existing order you want to amend. The WhatsApp amendment checkout is being prepared.'),
                 'drop docs': ('View orders', '/orders/', 'Sign in to select your existing order and its request before attaching documents. The WhatsApp document checkout is being prepared.'),
                 'shipments': ('Orders', '/orders/', 'View your orders and delivery updates with this verified WhatsApp number.'),
@@ -4042,46 +4021,73 @@ def _route_paid_drop_docs(contact_id: str, sender_phone: str, aws_phone_number_i
     return True
 
 
+def _route_retired_vault_notice(contact_id: str, sender_phone: str,
+                                 aws_phone_number_id: str,
+                                 source_message_id: Optional[str], request_id: str) -> bool:
+    """Route one signed inbound Vault event to the audited no-payment refusal.
+
+    Fire-and-forget here only: business-api records its conditional intent before
+    sending, then retains Meta acceptance/provider ID or rejected/unknown state.
+    Never issue a second send locally when invoke status is ambiguous.
+    """
+    if not source_message_id:
+        logger.warning(json.dumps({'event': 'vault_retired_missing_inbound_id',
+                                   'requestId': request_id}))
+        return True
+    if not _may_send('vault_retired_notice'):
+        return True
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'catalogService', 'action': 'retiredVault',
+                'sourceMessageId': source_message_id, 'contactId': contact_id,
+                'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id,
+            }).encode())
+    except Exception as error:  # noqa: BLE001 - may follow Lambda acceptance
+        logger.warning(json.dumps({'event': 'vault_retired_notice_unconfirmed',
+                                   'errorType': type(error).__name__,
+                                   'requestId': request_id}))
+    return True
+
+
 def _route_vault_offer_tap(message: Dict, button_text_lower: str, contact_id: str,
                            sender_phone: str, aws_phone_number_id: str,
                            whatsapp_message_id: Optional[str], request_id: str) -> bool:
-    """Hand an "Unlock Vault" tap to business-api `catalogService`. True when handled.
-
-    The tap is a signed inbound message, so its message id is the identity evidence commerce's
-    bridge checks, exactly as for a Vault catalog cart. WABA1 only, because only WABA1 may take a
-    payment, and only while WHATSAPP_CATALOG_SERVICES_ENABLED is on; otherwise the tap falls
-    through to the ordinary button handling. The payload is never trusted for anything but the
-    lookup of the offer it names: business-api re-proves the customer and the file.
-    """
+    """Preserve signed, already-issued offer tokens; retire tokenless chooser starts."""
     from lambda_utils import whatsapp_templates
     payload = str((message.get('button') or {}).get('payload') or '')
     prefix = whatsapp_templates.VAULT_OFFER_PAYLOAD_PREFIX
     if not payload.startswith(prefix) and button_text_lower != 'unlock vault':
         return False
+    token = payload[len(prefix):] if payload.startswith(prefix) else ''
+    if not token:
+        return _route_retired_vault_notice(
+            contact_id, sender_phone, aws_phone_number_id,
+            whatsapp_message_id, request_id)
+    # Historical offer tokens can still create their one owner-bound obligation,
+    # but only on the original WABA1, with independently signed inbound evidence.
     if (not whatsapp_message_id or aws_phone_number_id != PHONE_NUMBER_ID_1
             or os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true'):
         return False
-    from lambda_utils.ecommerce import service_requests as services
-    variant = services.SERVICE_VARIANT_BY_KIND[services.VAULT]
-    token = payload[len(prefix):] if payload.startswith(prefix) else ''
     if _may_send('vault_offer_tap'):
         try:
             lambda_client.invoke(
                 FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
                 Payload=json.dumps({
-                    'internalAction': 'catalogService', 'action': 'unlock' if token else 'start',
+                    'internalAction': 'catalogService', 'action': 'unlock',
                     'offerToken': token,
-                    'lines': [{'productId': services.SERVICE_PRODUCT_BY_VARIANT[variant],
-                               'variantId': variant, 'quantity': 1}],
                     'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
-                    'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id}).encode())
-        except Exception as error:  # noqa: BLE001 - logged; the tap must not crash the worker
+                    'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id,
+                }).encode())
+        except Exception as error:  # noqa: BLE001 - never retry a maybe-accepted tap
             logger.warning(json.dumps({'event': 'vault_offer_tap_unrouted',
                                        'errorType': type(error).__name__,
                                        'requestId': request_id}))
             return False
-    logger.info(json.dumps({'event': 'vault_offer_tap_routed', 'withOffer': bool(token),
-                            'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
+    logger.info(json.dumps({'event': 'vault_offer_tap_routed', 'withOffer': True,
+                            'contactId': mask_contact_id(contact_id),
+                            'requestId': request_id}))
     return True
 
 
@@ -6770,22 +6776,19 @@ def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
     """Route one tapped list row. Three ways out and no fourth.
 
     Returns a short token naming which way it went ('back', 'list', 'leaf',
-    'unknown') so the behaviour is testable without a live send. The caller has
+    'vault_retired', 'unknown') so behaviour is testable without a live send. The caller has
     already logged `list_reply_received` with the raw id.
 
     Nothing falls through and nothing raises: a stale row from a deleted menu, a
     typo and an empty id all re-open the main menu.
     """
-    if str(list_id or '').startswith('vaultpick:') and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
-        parts = list_id.split(':')
-        if len(parts) != 3 or not parts[2].isdigit():
-            return 'unknown'
-        lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
-            Payload=json.dumps({'internalAction': 'catalogService', 'action': 'select',
-                'token': parts[1], 'fileIndex': int(parts[2]), 'contactId': contact_id,
-                'senderPhone': sender_phone, 'sourceMessageId': source_message_id,
-                'phoneNumberId': aws_phone_number_id}).encode())
-        return 'vault'
+    if str(list_id or '').startswith('vaultpick:') or list_id == 'wd_vault':
+        # Old WhatsApp document rows and the generic Vault menu leaf are retired.
+        # Do not decode token/index, inspect file ownership, or create a payment.
+        _route_retired_vault_notice(
+            contact_id, sender_phone, aws_phone_number_id,
+            source_message_id, request_id)
+        return 'vault_retired'
     if list_id == 'wd_drop_docs':
         if _route_paid_drop_docs(contact_id, sender_phone, aws_phone_number_id,
                                  source_message_id, request_id):
@@ -7375,6 +7378,12 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
             if choice:
                 if basket.dropped or basket.clamped:
                     _reply_cart_refused('partial', contact_id, phone_number_id, request_id)
+                    return
+                if choice['kind'] == 'VAULT':
+                    # Retired customer catalog service: no file lookup or checkout.
+                    _route_retired_vault_notice(
+                        contact_id, sender_phone, phone_number_id,
+                        basket.message_id, request_id)
                     return
                 lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
                     Payload=json.dumps({'internalAction': 'catalogService', 'action': 'start',
