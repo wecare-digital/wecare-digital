@@ -46,7 +46,7 @@ test('checkout, profile, sign-in and Vault errors remain inline, not auto-dismis
   assert.match(auth, /aria-describedby=\{ error \? 'auth-error' : undefined \}/);
   assert.match(vault, /<PublicNotice mode="inline" tone="error" message=\{ error \} flush/);
   assert.match(vault, /<PublicNotice mode="inline" tone="error" message=\{ feedback\.message \}/);
-  assert.match(vault, /Your payment is recorded and access is being confirmed\. Do not pay again\./);
+  assert.match(vault, /Payment recorded\. Confirming access\. Do not pay again\./);
 });
 
 test('copy-link has one polite live region which becomes a compact visible toast', () => {
