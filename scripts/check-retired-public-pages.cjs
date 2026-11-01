@@ -235,6 +235,67 @@ if (!routeCondition.test(handoffCondition)
 if (!exists('src/pages/vault.tsx')) failures.push('Protected exact-file Vault route is missing');
 if (!exists('src/pages/orders.tsx')) failures.push('Customer Orders route is missing');
 
+// Active Workspace UI must not point to deleted pages. Compatibility redirect
+// files can remain for old bookmarks, but current controls must link to the
+// canonical screens. Keep this set narrow: comments and historical backend
+// inventories are not user-facing links.
+const WORKSPACE_LINK_SOURCES = [
+  'src/pages/workspace/engage/settings/index.tsx',
+  'src/hooks/useKeyboardShortcuts.ts',
+  'src/components/workspace/messaging/Content.tsx',
+  'src/components/dashboard/tabs/OverviewTab.tsx',
+  'src/components/dashboard/tabs/PayTab.tsx',
+  'src/pages/workspace/engage/inbox/index.tsx',
+  'src/components/WorkspaceShell.tsx',
+  'src/lib/capacitor.ts',
+];
+
+const workspaceRouteExists = (value) => {
+  const route = value.split(/[?#]/)[0].replace(/\/$/, '');
+  if (!route.startsWith('/workspace')) return true;
+  const base = 'src/pages' + route;
+  return [base + '.tsx', base + '.ts', base + '/index.tsx', base + '/index.ts']
+    .some(exists);
+};
+
+for (const filename of WORKSPACE_LINK_SOURCES) {
+  const body = fs.readFileSync(path.join(root, filename), 'utf8');
+  // JSX href, object-based href/cfg/reply/create, and direct router/navigation calls.
+  const activeLinks = /(?:\bhref\s*[=:]\s*|\b(?:cfg|reply|create)\s*:\s*|\b(?:router\.(?:push|replace)|navigate)\(\s*)['"`](\/workspace\/[^'"`\s]*)/g;
+  for (const match of body.matchAll(activeLinks)) {
+    if (!workspaceRouteExists(match[1])) {
+      failures.push('Broken Workspace UI destination: ' + filename + ' -> ' + match[1]);
+    }
+  }
+}
+
+// The architecture view is an inventory of current frontend destinations,
+// not a history of deleted pages. Every listed Workspace route must resolve.
+const architectureSource = fs.readFileSync(
+  path.join(root, 'src/components/workspace/platform/SystemArchitecture.tsx'), 'utf8');
+const architectureRoutes = architectureSource
+  .split('const FRONTEND_ROUTES: FrontendRoute[] = [')[1]?.split('];')[0] || '';
+if (!architectureRoutes) {
+  failures.push('Workspace architecture route inventory is missing');
+} else {
+  for (const match of architectureRoutes.matchAll(/\bpath:\s*'(\/workspace[^']*)'/g)) {
+    if (!workspaceRouteExists(match[1])) {
+      failures.push('Obsolete Workspace architecture route: ' + match[1]);
+    }
+  }
+}
+
+// Partners must have an actual tenant-scoped page. Never "repair" this by
+// allowing them into the staff-wide Communications shell.
+const partnerPath = '/workspace/engage/whatsapp/my-account';
+const roleSource = fs.readFileSync(path.join(root, 'src/hooks/useUserRole.ts'), 'utf8');
+const wsShellSource = fs.readFileSync(path.join(root, 'src/components/WorkspaceShell.tsx'), 'utf8');
+if (!workspaceRouteExists(partnerPath)
+    || !roleSource.includes("'" + partnerPath + "'")
+    || !wsShellSource.includes("router.replace( '" + partnerPath + "' )")) {
+  failures.push('Tenant-scoped partner account route/redirect/allowlist drift');
+}
+
 if (failures.length) {
   console.error('Retired public page guard FAILED:\n' + failures.map(x => ' - ' + x).join('\n'));
   process.exit(1);
