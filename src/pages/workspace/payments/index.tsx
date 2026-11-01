@@ -297,8 +297,30 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
               </section>
             )}
             {section === 'contribute' && tab === 'ledger' && (
-              <section className="pay-ledger-scoped" aria-label="Contribute ledger">
-                <InvoiceRecords signOut={signOut} user={user} embedded serviceKind="CONTRIBUTE" />
+              <section className="pay-contribute-ledger" aria-labelledby="contribute-ledger-heading">
+                <p className="pay-contribute-kicker">CONTRIBUTE / LEDGER</p>
+                <h2 id="contribute-ledger-heading">Contribution payment records</h2>
+                <p>Contribute is a catalog-order payment, not a Vault-style request-service
+                  purchase. Its money and receipt evidence stay in the existing Commerce
+                  order, payment and invoice records. A name or amount alone is not verified
+                  proof that an invoice belongs to a contribution.</p>
+                <div className="pay-contribute-ledger-links">
+                  <Link href="/workspace/service?view=contribute&tab=payments">
+                    Existing Contribute records
+                  </Link>
+                  <Link href="/workspace/commerce?view=orders">Staff orders</Link>
+                  <Link href="/workspace/payments?view=ledger&ledger=invoices">
+                    All invoice records
+                  </Link>
+                  <Link href="/workspace/payments?view=ledger&ledger=activity">
+                    Payment activity
+                  </Link>
+                </div>
+                <p className="pay-contribute-note">
+                  No separate contribution ledger or unsupported invoice service filter is
+                  created. Verify the catalog order reference and provider capture before
+                  marking a contribution received.
+                </p>
               </section>
             )}
             {section === 'collect' && tab === 'ledger' && (
@@ -340,6 +362,15 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
         .pay-context-link :global(a){border:1px solid var(--border);border-radius:10px;display:inline-flex;align-items:center;min-height:44px;padding:10px 15px;text-decoration:none;color:var(--text-primary);font-weight:750;font-size:12px}
         .pay-context-link :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
         .pay-ledger-scoped{min-width:0}
+        .pay-contribute-ledger{display:grid;gap:13px;max-width:960px;min-width:0;padding:10px 0 32px}
+        .pay-contribute-kicker{color:var(--text-muted);font-weight:800;letter-spacing:.08em;font-size:11px;margin:0}
+        .pay-contribute-ledger h2{font-size:clamp(23px,3vw,30px);color:var(--text-primary);margin:0}
+        .pay-contribute-ledger p:not(.pay-contribute-kicker){color:var(--text-muted);font-size:13px;line-height:1.6;max-width:780px;margin:0}
+        .pay-contribute-ledger-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+        .pay-contribute-ledger-links :global(a){min-height:52px;display:flex;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:12px;color:var(--text-primary);background:var(--surface);font-size:13px;font-weight:750;text-decoration:none}
+        .pay-contribute-ledger-links :global(a:hover){border-color:var(--accent)}
+        .pay-contribute-ledger-links :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
+        @media(max-width:720px){.pay-contribute-ledger-links{grid-template-columns:1fr}}
       `}</style>
     </>
   );
