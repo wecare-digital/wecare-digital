@@ -96,13 +96,6 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExiting, toast.id]);
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '!',
-    info: 'i',
-  };
-
   return (
     <div
       className={`toast toast-${toast.type} ${isExiting ? 'toast-exit' : ''}`}
@@ -110,7 +103,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
       aria-atomic="true"
       onAnimationEnd={handleAnimationEnd}
     >
-      <span className="toast-icon">{icons[toast.type]}</span>
+      {/* Severity remains available in the role and message, not a decorative icon. */}
       <span className="toast-message">{toast.message}</span>
       {/* Closing is immediate and does not wait for the exit animation: the reader has asked for
           it gone, and animating a dismissal they explicitly requested only delays it. */}
@@ -125,7 +118,7 @@ export const useToast = () => {
 
   const addToast = (type: ToastType, message: string, duration?: number) => {
     const id = Date.now().toString();
-    setToasts((prev) => [...prev, { id, type, message, duration }]);
+    setToasts([{ id, type, message, duration }]);
   };
 
   const removeToast = (id: string) => {
