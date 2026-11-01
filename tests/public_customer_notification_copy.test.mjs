@@ -17,7 +17,7 @@ test('Contribute refusal and uncertain WhatsApp sends use exactly one public tex
   const mapping = read('src/lib/customerMenuNotices.ts');
   const vocabulary = read('src/lib/publicActionNotices.ts');
   assert.ok(vocabulary.includes('whatsappFailed: "Couldn\'t confirm. Check WhatsApp."'));
-  assert.match(mapping, /'awaiting-template':\s*\{\s*message: publicActionText\( 'whatsappFailed' \),\s*error: true/);
+  assert.match(mapping, /blocked:\s*\{\s*message: publicActionText\( 'whatsappFailed' \),\s*error: true/);
   assert.match(mapping, /failed:\s*\{\s*message: publicActionText\( 'whatsappFailed' \),\s*error: true/);
   assert.match(mapping, /accepted:\s*\{\s*message: publicActionText\( 'whatsappAccepted' \),\s*error: false/);
   assert.match(mapping, /pending:\s*\{\s*message: publicActionText\( 'processing' \),\s*error: false/);
@@ -30,7 +30,15 @@ test('blocked Contribute never announces success, never auto-retries', () => {
   const orders = read('src/components/orders/OrdersPage.tsx');
   const provider = read('src/components/public/PublicToastProvider.tsx');
 
-  assert.match(actions, /data\.status === 'CONTRIBUTE_TEMPLATE_NOT_CONFIGURED'\s*\)\s*return \{ kind: 'awaiting-template' \}/);
+  // Current Contribute is a native payment request: acceptance is qualified by
+  // the exact sender outcome, fixed amount/currency, and a payment-attempt ID.
+  assert.ok(actions.includes("data.status === 'PAYMENT_REQUEST_SENT'"));
+  assert.ok(actions.includes("data.amountPaise === 30000"));
+  assert.ok(actions.includes("data.currency === 'INR'"));
+  assert.ok(actions.includes("typeof data.paymentAttemptId === 'string'"));
+  assert.ok(actions.includes("data.error === 'AMOUNT_NOT_SETTLED'"));
+  assert.ok(actions.includes("data.error === 'CONTRIBUTION_TAXABLE_NOT_RELEASED'"));
+  assert.ok(actions.includes("return { kind: 'blocked' }"));
   assert.match(orders, /const notice = customerMenuNotice\( kind \)/);
   assert.match(orders, /if \( notice\.error \) \{/);
   assert.match(orders, /hideToast\( inviteToastId\.current \)/);
@@ -38,7 +46,7 @@ test('blocked Contribute never announces success, never auto-retries', () => {
   assert.ok(orders.includes("showToast( 'whatsappAccepted'"));
   assert.ok(orders.includes("showToast( 'processing'"));
   assert.doesNotMatch(orders, /showToast\( (?:data|result|notice)\.(?:status|error|message)/);
-  assert.doesNotMatch(orders, /if \( kind === 'awaiting-template' \)/);
+  assert.doesNotMatch(orders, /if \( kind === 'blocked' \)/);
   assert.match(orders, /<PublicNotice mode="inline" tone="error" message=\{ ordersAlert\.message \}/);
   assert.ok(provider.includes("if ( kind === 'whatsappFailed' ) return 0;"));
 });
