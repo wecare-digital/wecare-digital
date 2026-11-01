@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from decimal import Decimal
 import pathlib
 import sys
 import unittest
@@ -11,6 +12,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "amplify" /
 from lambda_utils.ecommerce.staff_contribution import (
     STAFF_CONTRIBUTION_TOTAL_PAISE,
     valid_staff_contribution_snapshot,
+    valid_staff_contribution_catalog_record,
 )
 
 PRODUCT = "24fa0f39-330b-5365-b7eb-9caf27ad37f1"
@@ -94,6 +96,63 @@ class StaffContributionGuardTests(unittest.TestCase):
             q, product_id="another-product", variant_id=VARIANT))
         self.assertFalse(valid_staff_contribution_snapshot(
             q, product_id=PRODUCT, variant_id="another-variant"))
+
+
+
+class StaffContributionCatalogFraudTests(unittest.TestCase):
+    def record(self):
+        return {
+            "id": PRODUCT, "status": "active", "currency": "INR",
+            "websiteEnabled": True, "metaEnabled": False,
+            "variants": [{"id": VARIANT, "sku": VARIANT,
+                          "priceMinor": Decimal("30000")}],
+        }
+
+    def accepts(self, row):
+        return valid_staff_contribution_catalog_record(
+            row, product_id=PRODUCT, variant_id=VARIANT)
+
+    def test_exact_strong_catalog_record(self):
+        self.assertTrue(self.accepts(self.record()))
+        row = self.record()
+        row["variants"][0]["priceMinor"] = 30000
+        self.assertTrue(self.accepts(row))
+
+    def test_price_250_and_30001_refused(self):
+        for value in [25000, 30001, Decimal("29999"), Decimal("30000.01")]:
+            with self.subTest(amount=value):
+                row = self.record()
+                row["variants"][0]["priceMinor"] = value
+                self.assertFalse(self.accepts(row))
+
+    def test_forged_or_non_integer_price_refused(self):
+        for value in [True, 30000.0, "30000", None, Decimal("NaN")]:
+            with self.subTest(kind=str(value)):
+                row = self.record()
+                row["variants"][0]["priceMinor"] = value
+                self.assertFalse(self.accepts(row))
+
+    def test_inactive_hidden_foreign_currency_or_product_refused(self):
+        for field, value in [
+            ("id", "another-product"), ("status", "inactive"),
+            ("currency", "USD"), ("websiteEnabled", False),
+            ("websiteEnabled", "true"),
+        ]:
+            with self.subTest(field=field):
+                row = self.record()
+                row[field] = value
+                self.assertFalse(self.accepts(row))
+
+    def test_variant_substitution_and_ambiguity_refused(self):
+        row = self.record()
+        row["variants"][0]["id"] = "OTHER"
+        row["variants"][0]["sku"] = "OTHER"
+        self.assertFalse(self.accepts(row))
+        row = self.record()
+        row["variants"].append(copy.deepcopy(row["variants"][0]))
+        self.assertFalse(self.accepts(row))
+        self.assertFalse(self.accepts(None))
+
 
 
 if __name__ == "__main__":

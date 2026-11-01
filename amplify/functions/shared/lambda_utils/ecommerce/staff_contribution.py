@@ -7,6 +7,7 @@ validator, because the live ProductsTable price can change between reads.
 from __future__ import annotations
 
 from typing import Any, Mapping
+from decimal import Decimal
 
 STAFF_CONTRIBUTION_TOTAL_PAISE = 30000
 STAFF_CONTRIBUTION_POLICY = "contribution-exempt-2026-10-30"
@@ -62,8 +63,47 @@ def valid_staff_contribution_snapshot(
         return False
 
 
+def valid_staff_contribution_catalog_record(
+    product: Any, *, product_id: str, variant_id: str,
+) -> bool:
+    """Validate an authoritative, strongly-consistent ProductsTable GetItem.
+
+    A quote assembled from eventually-consistent reads is NOT sufficient for
+    an Admin-initiated payment. Call this with GetItem(ConsistentRead=True)
+    immediately before allocating a PAYREF or a payment attempt. No fallback.
+    Accept DynamoDB's integer Decimal, never float, bool or string prices.
+    """
+    if not isinstance(product, Mapping):
+        return False
+    if (
+        str(product.get("id") or "").lower() != product_id.lower()
+        or product.get("status") != "active"
+        or product.get("currency") != "INR"
+        or product.get("websiteEnabled") is not True
+    ):
+        return False
+    variants = product.get("variants")
+    if not isinstance(variants, list):
+        return False
+    candidates = [
+        item for item in variants
+        if isinstance(item, Mapping)
+        and (str(item.get("sku") or item.get("id") or "") == variant_id)
+    ]
+    if len(candidates) != 1:
+        return False
+    row = candidates[0]
+    price = row.get("priceMinor")
+    if type(price) is int:
+        return price == STAFF_CONTRIBUTION_TOTAL_PAISE
+    if type(price) is Decimal and price.is_finite():
+        return price == Decimal(STAFF_CONTRIBUTION_TOTAL_PAISE)
+    return False
+
+
 __all__ = [
     "STAFF_CONTRIBUTION_TOTAL_PAISE",
     "STAFF_CONTRIBUTION_POLICY",
     "valid_staff_contribution_snapshot",
+    "valid_staff_contribution_catalog_record",
 ]

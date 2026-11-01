@@ -112,3 +112,43 @@ test('production release defaults off and Admin readiness probes are side-effect
   assert.match(staff, /backendReady === 'enabled'/);
   assert.match(staff, /api\.getStaffContributionSendReadiness\(\)/);
 });
+
+test('fraud boundary: exact price is strongly reread before reference reservation', () => {
+  const check = checkout.slice(checkout.indexOf('def _staff_contribution_catalog_is_current('),
+    checkout.indexOf('def _staff_contribution_readiness('));
+  assert.match(check, /ConsistentRead=True/);
+  assert.match(check, /valid_staff_contribution_catalog_record/);
+  const start = checkout.indexOf('def _create(');
+  const reserve = checkout.indexOf('reference_id = order_keys.allocate_payment_reference(', start);
+  const before = checkout.slice(start, reserve);
+  assert.match(before, /if required_staff_contribution:[\s\S]*_staff_contribution_catalog_is_current\(/);
+  assert.ok(before.lastIndexOf('_staff_contribution_catalog_is_current(') > before.indexOf('readiness = _readiness()'));
+  assert.match(checkout, /_staff_contribution_catalog_is_current\(product_id, variant_id\)/);
+  assert.match(checkout, /if not _staff_contribution_catalog_is_current\(product_id, variant_id\)/);
+});
+
+test('fraud boundary: conflicting contact IDs cannot be treated as verified identity', () => {
+  const start = checkout.indexOf('def _staff_contribution_send(');
+  const end = checkout.indexOf('# ── request plumbing', start);
+  const send = checkout.slice(start,end);
+  assert.match(send, /contact_key\.assert_consistent\(contact\)/);
+  assert.match(send, /contact_key\.assert_consistent\(proven\)/);
+  assert.match(send, /CONTACT_IDENTITY_CONFLICT/);
+  assert.match(send, /str\(contact\.get\("checkoutCustomerId"\)/);
+  assert.match(send, /_native_whatsapp_identity\(/);
+});
+
+test('fraud boundary: Admin attribution comes only from verified staff session', () => {
+  const start = checkout.indexOf('staff_action = str(staff_candidate.get("action")');
+  const end = checkout.indexOf('# THE ONE PRE-AUTH ARM', start);
+  const auth = checkout.slice(start,end);
+  assert.match(auth, /require_auth\(event, required_role="Admin"\)/);
+  assert.match(auth, /event\.get\("_auth"\)/);
+  assert.match(auth, /"username"/);
+  assert.match(auth, /hashlib\.sha256\(/);
+  const create = checkout.slice(checkout.indexOf('def _create('), checkout.indexOf('def _status('));
+  assert.match(create, /staff_actor_hash/);
+  assert.match(create, /extra\["staffActorHash"\] = staff_actor_hash/);
+  assert.match(create, /attempt\["staffActorHash"\] = staff_actor_hash/);
+  assert.doesNotMatch(auth, /staff_candidate\.get\(["']staffActorHash/);
+});
