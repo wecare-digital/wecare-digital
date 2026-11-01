@@ -23,6 +23,7 @@ const retired = [
   '/subscribe',
   '/get', // Legacy customer-file signpost; /get/<*> media stays active.
   '/checkout/whatsapp', // Inactive payment-channel placeholder removed by owner.
+  '/cart', // Retired browser-only redirect; canonical basket checkout is /checkout/.
 ];
 const deadModules = [
   'src/content/customerservice.ts',
@@ -80,7 +81,7 @@ if (!block) {
 // Workspace/admin pages and API handlers are authenticated operational routes,
 // not orphaned public pages; they are intentionally audited separately.
 const ALLOWED_NONINDEXABLE_PAGES = new Set([
-  '/_app', '/_document', '/404', '/auth', '/cart', '/vault',
+  '/_app', '/_document', '/404', '/auth', '/vault',
   '/checkout', '/checkout/status', '/checkout/success',
   '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
@@ -201,7 +202,6 @@ for (const slug of ACTIVE_ORDER_SERVICE_SLUGS) {
 // Retired or invalid URLs are silent handoffs, not splash/loading pages.
 const vaultPage = fs.readFileSync(path.join(root, 'src/pages/vault.tsx'), 'utf8');
 const vaultView = fs.readFileSync(path.join(root, 'src/components/get/GetPage.tsx'), 'utf8');
-const cartPage = fs.readFileSync(path.join(root, 'src/pages/cart.tsx'), 'utf8');
 const shell = fs.readFileSync(path.join(root, 'src/pages/_app.tsx'), 'utf8');
 if (/Opening your account|Go to Home/.test(vaultPage)) {
   failures.push('Vault redirect renders an obsolete loading waypoint');
@@ -209,15 +209,11 @@ if (/Opening your account|Go to Home/.test(vaultPage)) {
 if (/Opening your Vault|Checking your verified customer session|sf-loading-mark/.test(vaultView)) {
   failures.push('Private Vault preflight renders an obsolete loading waypoint');
 }
-if (/<h1[^>]*>Continue to checkout|cart-return/.test(cartPage)) {
-  failures.push('Cart redirect renders an obsolete checkout waypoint');
-}
 if (!vaultView.includes("if ( stage === 'loading' && !error ) return null;")) {
   failures.push('Vault preflight must remain silent until owner-scoped verification');
 }
-if (!shell.includes("router.pathname === '/404' || router.pathname === '/cart'") ||
-    !shell.includes("router.pathname === '/vault'")) {
-  failures.push('Redirect-only/private routes must bypass public chrome and translation');
+if (!shell.includes("router.pathname === '/404' || router.pathname === '/vault'")) {
+  failures.push('404 and private Vault routes must bypass public chrome and translation');
 }
 
 // /vault/?file=ID is not a retired marketing page. Keep the protected entry.
