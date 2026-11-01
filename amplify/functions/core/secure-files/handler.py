@@ -2067,6 +2067,42 @@ def _queue_vault_review(entitlement: Dict[str, Any]) -> None:
 
 # ── customer: list, order, download ───────────────────────────────────────────
 
+def _customer_file_view(item: Dict[str, Any], identity: Dict[str, Any], now: int) -> Dict[str, Any]:
+    """One authorised file's public view, reused by list and exact-file reads.
+
+    Do not infer payment from the pointer alone. Preserve durable entitlement
+    fallback when a post-capture file pointer was not written.
+    """
+    access_id = str(item.get('vaultEntitlementId') or item.get('vaultAccessGrantId') or '')
+    entitlement = _active_entitlement(access_id, item['fileId'], identity) if access_id else None
+    if entitlement is None and _paid_marks(i):
+        # The pointer write after payment is best effort; the deterministic entitlement is
+        # the durable record, so a lost pointer must not make a paid file look unpaid.
+        fallback = _entitlement_for_file(str(identity['subject']), str(item['fileId']))
+        if fallback and fallback.get('ownerPhone') == identity['phone']:
+            entitlement = fallback
+    # The window view is the customer's own now, so the page can say "open until …",
+    # "opens on first download" or "renew" instead of guessing from a failed download.
+    view = _public_file(i, admin=False, entitlement=entitlement, now=now)
+    if entitlement:
+        view['paidEntitlementId'] = entitlement['grantId']
+        view['paidGrantId'] = entitlement['grantId']  # old website bundles
+        view['deliveryStatus'] = 'READY'
+    return view
+
+
+def _customer_exact_file(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """O(1) owner-scoped lookup for /vault/?file= links, even beyond 100 rows."""
+    # Invalid and unowned/revoked IDs get exactly the same response.
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", file_id or ""):
+        return _no_store(cors_response(404, {"error": "File unavailable"}, origin))
+    item = _owned_active_file(file_id, identity)
+    if not item:
+        return _no_store(cors_response(404, {"error": "File unavailable"}, origin))
+    view = _customer_file_view(item, identity, int(time.time()))
+    return _no_store(cors_response(200, {"files": [view], "count": 1}, origin))
+
+
 def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
     result = _table(FILES_TABLE).query(
         IndexName="owner-created-index",
@@ -2082,22 +2118,7 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
                 or not identity.get('subject') or i.get('ownerCustomerId') != identity['subject']):
             continue
-        access_id = str(i.get('vaultEntitlementId') or i.get('vaultAccessGrantId') or '')
-        entitlement = _active_entitlement(access_id, i['fileId'], identity) if access_id else None
-        if entitlement is None and _paid_marks(i):
-            # The pointer write after payment is best effort; the deterministic entitlement is
-            # the durable record, so a lost pointer must not make a paid file look unpaid.
-            fallback = _entitlement_for_file(str(identity['subject']), str(i['fileId']))
-            if fallback and fallback.get('ownerPhone') == identity['phone']:
-                entitlement = fallback
-        # The window view is the customer's own now, so the page can say "open until …",
-        # "opens on first download" or "renew" instead of guessing from a failed download.
-        view = _public_file(i, admin=False, entitlement=entitlement, now=now)
-        if entitlement:
-            view['paidEntitlementId'] = entitlement['grantId']
-            view['paidGrantId'] = entitlement['grantId']  # old website bundles
-            view['deliveryStatus'] = 'READY'
-        items.append(view)
+        items.append(_customer_file_view(i, identity, now))
     return cors_response(
         200,
         {
@@ -3248,10 +3269,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         # ---- customer surface ------------------------------------------------
-        if tail[:1] == ["mine"] and method == "GET":
+        if tail == ["mine"] and method == "GET":
             identity = _customer_identity(event)
             if not identity:
                 return cors_response(401, {"error": "Verification required"}, origin)
+            # Each Access Vault message carries one opaque file ID. Do not make
+            # the browser find it inside a capped owner list: that loses files
+            # older than the first 100 despite an otherwise valid exact link.
+            query = event.get("queryStringParameters") or {}
+            if isinstance(query, dict) and "file" in query:
+                return _customer_exact_file(query.get("file"), identity, origin)
             return _customer_list(identity, origin)
 
         # Drop Docs. A customer-pool token, never require_auth: that one is hardcoded to
