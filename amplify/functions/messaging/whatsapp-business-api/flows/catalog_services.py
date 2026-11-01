@@ -12,7 +12,8 @@ Internal invocation only; rollout defaults off (WHATSAPP_CATALOG_SERVICES_ENABLE
 * ``sendPayment`` keeps staff-initiated, exact-file native Review and Pay intact.
 
 Only the existing commerce Lambda owns pricing, payment and fulfilment.
-"""import hashlib
+"""
+import hashlib
 import json
 import os
 import re
