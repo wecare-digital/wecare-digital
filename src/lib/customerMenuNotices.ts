@@ -10,6 +10,8 @@
  * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
  * or Flow completion is confirmed. Never automatically retry an ambiguous send.
  */
+import { publicActionText } from './publicActionNotices';
+
 export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'awaiting-template' | 'failed';
 
 export type CustomerMenuNotice = Readonly<{
@@ -19,19 +21,19 @@ export type CustomerMenuNotice = Readonly<{
 
 const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = {
   pending: {
-    message: 'Processing…',
+    message: publicActionText( 'processing' ),
     error: false,
   },
   accepted: {
-    message: 'Sent to WhatsApp.',
+    message: publicActionText( 'whatsappAccepted' ),
     error: false,
   },
   'awaiting-template': {
-    message: "Couldn't confirm. Check WhatsApp.",
+    message: publicActionText( 'whatsappFailed' ),
     error: true,
   },
   failed: {
-    message: "Couldn't confirm. Check WhatsApp.",
+    message: publicActionText( 'whatsappFailed' ),
     error: true,
   },
 };
