@@ -767,49 +767,74 @@
 
 
 /* ========================================
-   TOAST (Unified)
+   TOAST (one shared visual and position rule)
    ======================================== */
-/* Keep Workspace action toasts small, slim and lime like public action
-   toasts. Inline validation/payment messages retain their existing styles. */
-.toast-container {
+/* Public and Workspace both use wc-action-toast and wc-action-toast-host.
+   Workspace has a separate action bar beneath the common site header,
+   so its host adds only that extra vertical clearance. */
+.wc-action-toast-host {
+  --wc-toast-action-band-height: 0px;
   position: fixed;
-  top: max(16px, env(safe-area-inset-top));
+  z-index: 1350;
+  top: max(
+    calc(var(--wc-toast-header-height) + var(--wc-toast-action-band-height) + var(--wc-toast-top-gap)),
+    calc(env(safe-area-inset-top, 0px) + 8px)
+  );
+  right: max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px));
+  left: auto;
   bottom: auto;
-  inset-inline-end: max(16px, env(safe-area-inset-right));
-  z-index: 10002;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-2);
-  max-width: calc(100vw - 32px);
+  justify-content: flex-start;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
   pointer-events: none;
 }
 
-.toast {
+.wc-action-toast-host--workspace {
+  --wc-toast-action-band-height: 64px;
+  z-index: 10002;
+}
+
+/* A single source of truth for toast appearance: do not restyle this
+   separately in PublicNotice.tsx or the legacy .toast class. */
+.wc-action-toast {
+  box-sizing: border-box;
   position: relative;
   display: flex;
   align-items: center;
   gap: 0;
+  width: fit-content;
+  max-width: min(var(--wc-toast-max-width), calc(100vw - 24px));
+  margin: 0;
   padding: var(--wc-toast-padding);
-  background: var(--wc-toast-surface);
-  color: var(--wc-toast-ink);
   border: 0;
   border-inline-start: var(--wc-toast-stripe-width) solid var(--wc-toast-stripe);
   border-radius: var(--wc-toast-radius);
+  background: var(--wc-toast-surface);
+  color: var(--wc-toast-ink);
   font-family: var(--font-sans);
   font-size: var(--wc-toast-type-size);
   font-weight: 600;
-  line-height: 1.4;
-  box-shadow: none;
-  animation: toast-enter 0.2s ease;
-  pointer-events: auto;
-  box-sizing: border-box;
-  max-width: min(100%, 340px);
+  line-height: 1.35;
+  text-align: start;
+  white-space: normal;
   overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: 180px;
+  max-height: min(180px, 40vh, calc(100vh - var(--wc-toast-header-height) - var(--wc-toast-action-band-height, 0px) - 20px));
+  max-height: min(180px, 40dvh, calc(100dvh - var(--wc-toast-header-height) - var(--wc-toast-action-band-height, 0px) - 20px));
+  box-shadow: none;
+  pointer-events: none;
 }
 
-.toast.toast-error {
-  border-inline-start-color: var(--wc-toast-stripe);
+/* Workspace action toasts alone are interactive and keep their accessible
+   dismiss control. Public action toasts remain non-blocking. */
+.toast {
+  animation: toast-enter 0.2s ease;
+  pointer-events: auto;
 }
 
 .toast-exit {
@@ -834,40 +859,43 @@
   color: inherit;
 }
 
-/* The reference screenshot has no status icon or visible dismiss glyph.
-   Keep keyboard/screen-reader dismissal available: reveal only on hover
-   or focus without changing the default card's content-width geometry. */
+/* The visible toast has no status glyph or checkmark. Keyboard/screen-reader
+   users can still dismiss Workspace feedback on focus, or hover with a mouse. */
 .toast-close {
   position: absolute;
-  inset-block-start: 4px;
-  inset-inline-end: 4px;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
   background: transparent;
   border: 0;
   padding: 4px;
   cursor: pointer;
   color: var(--wc-toast-ink);
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   opacity: 0;
+  pointer-events: none;
 }
 .toast:hover .toast-close,
 .toast:focus-within .toast-close {
   opacity: 1;
+  pointer-events: auto;
 }
 .toast-close:focus-visible {
   outline: 2px solid var(--wc-toast-ink);
   outline-offset: 2px;
 }
-@media(max-width:767px){
-  .toast-container {
-    top: max(12px, env(safe-area-inset-top));
-    bottom: auto;
-    inset-inline-start: 12px;
-    inset-inline-end: max(12px, env(safe-area-inset-right));
+
+@media (max-width: 767px) {
+  .wc-action-toast-host {
+    --wc-toast-header-height: 96px;
+    left: max(var(--wc-toast-edge-gap), env(safe-area-inset-left, 0px));
+    right: max(var(--wc-toast-edge-gap), env(safe-area-inset-right, 0px));
     max-width: none;
   }
-  .toast {
-    width: fit-content;
+  .wc-action-toast-host--workspace {
+    --wc-toast-action-band-height: 58px;
+  }
+  .wc-action-toast {
     max-width: 100%;
     padding: var(--wc-toast-mobile-padding);
     border-inline-start-width: var(--wc-toast-mobile-stripe-width);
@@ -875,15 +903,25 @@
     font-size: var(--wc-toast-mobile-type-size);
   }
 }
-@media(forced-colors:active){
-  .toast {
-    background: Canvas;
-    color: CanvasText;
-    border: 1px solid CanvasText;
-    border-inline-start-width: 4px;
+
+/* The Workspace action band may wrap on extremely narrow devices. */
+@media (max-width: 279px) {
+  .wc-action-toast-host--workspace {
+    --wc-toast-action-band-height: 112px;
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast-exit { animation: none; }
+}
+@media (forced-colors: active) {
+  .wc-action-toast {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    border-inline-start-width: 3px;
+  }
+}
 
 /* ========================================
    RESPONSIVE - MOBILE (max-width: 480px)
