@@ -1,6 +1,6 @@
 ## Backend hardening
 
-- **One intake path:** direct Vault upload/confirm is retired. Drop Docs is the only intake store; Vault rows are created by explicit Publish to Vault.
+- **One intake path:** direct Vault upload/confirm is retired. Drop Docs remains the only intake store; explicit Publish to Vault now copies the immutable document version into the edge-gated `s3://wecare-digital-get/secure/d/public/valut/` prefix, verifies S3 HEAD, and only then creates the owner-bound Vault row pointing to that independent copy.
 - `POST /secure-files/upload-init` and `POST /secure-files/{fileId}/confirm` return `410 VAULT_DIRECT_UPLOAD_RETIRED` during rollout and are explicitly deleted by `scripts/provision_secure_files_api.py --apply`.
 - `--verify` fails if either retired route is still present in API Gateway.
 - Paid download `Content-Disposition` uses the system-owned `wecare-digital-...` filename, never the original customer/staff upload filename.
@@ -13,6 +13,8 @@
 - Vault customer filenames are system-owned. Staff do not type or rename them.
 - A current Drop Docs manual upload keeps its generated `wecare-digital-<reference>.<ext>` name when published to Vault. Older/non-manual rows are normalized to an opaque `wecare-digital-<file-id>.<ext>` name before a new Vault offer is sent.
 - The original upload filename remains internal metadata only.
+- The **literal** S3 prefix is `secure/d/public/valut/` (intentional spelling). Despite the `public/` ancestor, these paid Vault objects must never be served by CloudFront. Production S3 bucket policy `DenyCloudFrontReadPrivateVaultValut` denies OAC `GetObject` to this prefix; the newer edge source also denies the prefix but its CloudFront version must be independently verified before removing the bucket-policy guard.
+- After Publish to Vault, `SecureFilesTable.s3Key` and (for PDF/image) `deliveryKey` refer to the same verified, opaque `valut/` copy. The Drop Docs `DocumentTable.storageKey` remains provenance and is not a paid file transport. Historical S3 versions remain available for repair, not as public URLs.
 - Workspace Vault exposes a staff-authenticated **Download** action through the source Drop Docs document and a **Customer Vault link** at `/vault/?file=<fileId>`; S3 keys never reach the browser.
 - A customer arriving through a one-file Vault link stays on the exact-file Vault surface; the download page does not expose **Back to all Vault files** or **Sign out** controls.
 
@@ -35,9 +37,12 @@ A link that matches nothing, and anything under `secure/`, redirects to the apex
 
 ## Why the object key is opaque
 
-Every gated upload lands at:
+A new paid Vault publication is saved at:
 
-    secure/wecare-digital-<uuid4hex>-<uuid4hex><ext>
+    secure/d/public/valut/wecare-digital-doc-<opaque-id><ext>
+
+Historical file keys may remain in older private prefixes. Vault never exposes
+either key as a public URL.
 
 The key carries no customer name, no original filename and no sequence number, so it
 cannot be guessed and one customer's key reveals nothing about another's. The
