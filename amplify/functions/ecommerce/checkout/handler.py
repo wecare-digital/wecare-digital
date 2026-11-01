@@ -355,7 +355,54 @@ def _readiness() -> payment_readiness.PaymentReadiness:
 # Admin staff Contribute is a catalog-order payment, NOT a Vault service
 # session, a staff invoice or the historical BLOG_CONTRIBUTION gateway route.
 _STAFF_CONTRIBUTION_ACTION = "staff-contribute-send"
+_STAFF_CONTRIBUTION_READINESS = "staff-contribute-readiness"
 _STAFF_CONTRIBUTION_CONTACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+
+def _staff_contribution_release_enabled() -> bool:
+    """Explicit owner-controlled release switch. Default OFF on every alias."""
+    return os.environ.get("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", "").lower() == "true"
+
+
+def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
+    """Read-only Admin capability probe; no payment, slot or message side effect.
+
+    The site may deploy before the Commerce Lambda. Old versions refuse the
+    action, leaving the Send button disabled. A new backend remains disabled
+    until its flag AND the current ProductsTable exempt amount both match.
+    """
+    enabled = _staff_contribution_release_enabled()
+    quote_matches = False
+    try:
+        row = service_pricing_native.resolve_all(
+            _native_variant_reader()).get("prices", {}).get("contribute") or {}
+        breakdown = row.get("breakdown") or {}
+        quote_matches = (
+            row.get("available") is True
+            and type(row.get("paise")) is int
+            and row["paise"] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+            and type(breakdown.get("totalPayablePaise")) is int
+            and breakdown["totalPayablePaise"] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+            and breakdown.get("itemSubtotalPaise") == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+            and breakdown.get("collectionBeforeConveniencePaise") == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+            and all(breakdown.get(k) == 0 for k in (
+                "supplyGstPaise", "delightPaise", "expressPaise",
+                "convenienceFeePaise", "convenienceGstPaise"))
+            and CONTRIBUTION_PRODUCT_ID in CONTRIBUTION_PRODUCT_IDS
+            and list(CONTRIBUTION_CHOICES_PAISE.values()) == [staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE]
+        )
+    except Exception:
+        quote_matches = False
+    available = enabled and quote_matches
+    return cors_response(200, {
+        "status": "STAFF_CONTRIBUTE_READY" if available else "STAFF_CONTRIBUTE_BLOCKED",
+        "sendEnabled": available,
+        "amountPaise": staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE,
+        "currency": "INR",
+        "reason": ("READY" if available else
+                   "RELEASE_NOT_ENABLED" if not enabled else "PRICE_OR_POLICY_UNVERIFIED"),
+    }, origin)
 
 
 def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -365,6 +412,11 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
     configuration, line details or quote. This reuses _create so the
     canonical reservation, provider readiness and capture rails stay intact.
     """
+    if not _staff_contribution_release_enabled():
+        return cors_response(409, {
+            "error": "CONTRIBUTION_SEND_NOT_RELEASED",
+            "message": "Staff payment sending has not been released. Nothing was sent.",
+        }, origin)
     if (set(body) != {"action", "contactId"}
             or type(body.get("contactId")) is not str
             or not _STAFF_CONTRIBUTION_CONTACT_ID.fullmatch(body["contactId"])):
@@ -645,7 +697,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # It is never reachable via an internal Lambda invoke or another URL,
     # and requires the staff Admin group plus the existing Admin MFA gate.
     staff_candidate = _body(event)
-    if str(staff_candidate.get("action") or "").strip().lower() == _STAFF_CONTRIBUTION_ACTION:
+    staff_action = str(staff_candidate.get("action") or "").strip().lower()
+    if staff_action in (_STAFF_CONTRIBUTION_ACTION, _STAFF_CONTRIBUTION_READINESS):
         from lambda_utils.middleware import require_auth
         staff_path = str(event.get("rawPath") or event.get("path")
                          or rc.get("http", {}).get("path") or "").rstrip("/").lower()
@@ -660,6 +713,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if (event.get("_auth") or {}).get("role") != "Admin":
             return cors_response(403, {"error": "STAFF_CONTRIBUTE_FORBIDDEN"}, origin)
         try:
+            if staff_action == _STAFF_CONTRIBUTION_READINESS:
+                if set(staff_candidate) != {"action"}:
+                    return cors_response(400, {"error": "INVALID_READINESS_REQUEST"}, origin)
+                return _staff_contribution_readiness(origin)
             return _staff_contribution_send(staff_candidate, origin)
         except Exception as error:
             logger.error(json.dumps({"event": "staff_contribute_unavailable",
