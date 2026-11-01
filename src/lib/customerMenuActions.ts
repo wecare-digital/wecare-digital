@@ -7,6 +7,8 @@
  * in the same tab, then is consumed BEFORE an API call so refresh/back never resends.
  * The server chooses the verified phone from the authenticated session, never the URL.
  */
+import { CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_CHOICES } from '../config/contribution';
+
 export type CustomerMenuAction = 'subscribe' | 'leave-review' | 'contribute';
 
 export const CUSTOMER_MENU_HREFS: Readonly<Record<CustomerMenuAction, string>> = {
@@ -64,9 +66,54 @@ type SendResult = { kind: 'accepted'; messageId: string } | { kind: 'expired' }
 
 /** Never includes a recipient field. Only the server's authenticated session may choose it. */
 export async function sendCustomerMenuAction ( action: CustomerMenuAction, accessToken: string ): Promise<SendResult> {
-  const backendAction = action === 'subscribe' ? 'sendProfileUpdate'
-    : action === 'leave-review' ? 'sendLeaveReview' : 'sendContribute';
+  const backendAction = action === 'subscribe' ? 'sendProfileUpdate' : 'sendLeaveReview';
   try {
+    // The original one-use menu intent has already been consumed by OrdersPage.
+    // Contribute is a PAYMENT, not a free-form invitation: send the exact catalog
+    // SKU through the existing authenticated Commerce/ORDER_DETAILS rail.
+    if ( action === 'contribute' ) {
+      const choice = CONTRIBUTION_CHOICES[0];
+      if ( !choice || choice.paise !== 30000 || typeof window === 'undefined'
+        || typeof window.crypto?.randomUUID !== 'function' ) return { kind: 'failed' };
+      const response = await fetch(
+        `${ process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api' }/ecommerce/checkout`, {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${ accessToken }`,
+          },
+          body: JSON.stringify( {
+            action: 'create',
+            requestKey: window.crypto.randomUUID(),
+            lineItems: [ {
+              catalogReference: {
+                catalogItemId: CONTRIBUTION_PRODUCT_ID,
+                options: { variantId: choice.variantId },
+              },
+              quantity: 1,
+            } ],
+          } ),
+        },
+      );
+      if ( response.status === 401 ) return { kind: 'expired' };
+      const data = await response.json().catch( () => ( {} ) ) as {
+        status?: string; amountPaise?: number; currency?: string; paymentAttemptId?: string;
+        error?: string;
+      };
+      if ( response.ok && data.status === 'PAYMENT_REQUEST_SENT'
+        && data.amountPaise === 30000 && data.currency === 'INR'
+        && typeof data.paymentAttemptId === 'string' && data.paymentAttemptId )
+        return { kind: 'accepted', messageId: '' };
+      // A 409 / release refusal creates no payable request. Never fall back to
+      // a generic template or trigger a second attempt after a timeout.
+      if ( response.status === 409 && (
+        data.error === 'AMOUNT_NOT_SETTLED'
+        || data.error === 'CONTRIBUTION_TAXABLE_NOT_RELEASED'
+      ) ) return { kind: 'awaiting-template' };
+      return { kind: 'failed' };
+    }
     const response = await fetch( PROFILE_URL, {
       method: 'POST',
       cache: 'no-store',
@@ -79,17 +126,13 @@ export async function sendCustomerMenuAction ( action: CustomerMenuAction, acces
     } );
     if ( response.status === 401 ) return { kind: 'expired' };
     const data = await response.json().catch( () => ( {} ) ) as { status?: string; messageId?: string };
-    // A contribution has no approved template yet. The backend must explicitly
-    // refuse a send until the owner selects one; never claim WhatsApp delivery.
-    if ( action === 'contribute' && response.status === 409
-      && data.status === 'CONTRIBUTE_TEMPLATE_NOT_CONFIGURED' ) return { kind: 'awaiting-template' };
-    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT'
-      : action === 'leave-review' ? 'REVIEW_REQUEST_SENT' : 'CONTRIBUTE_SENT';
+    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT' : 'REVIEW_REQUEST_SENT';
     if ( response.ok && data.status === expected ) {
       return { kind: 'accepted', messageId: String( data.messageId || '' ) };
     }
     return { kind: 'failed' };
   } catch {
+    // Provider acceptance may already have happened. Never retry automatically.
     return { kind: 'failed' };
   }
 }
