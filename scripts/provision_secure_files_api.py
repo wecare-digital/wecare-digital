@@ -93,6 +93,11 @@ WEBHOOK_FUNCTION = "wecare-razorpay-webhook"
 ROUTES = [
     # admin surface (authorised inside the handler via require_auth Operator)
     ("GET", "/secure-files"),
+    # Staff Vault-only intake; feature-flagged OFF until deployed edge deny is verified.
+    ("POST", "/secure-files/upload-init"),
+    ("POST", "/secure-files/{fileId}/confirm"),
+    ("GET", "/secure-files/{fileId}/staff-download"),
+    # Retained for historical published document rows, not used by new Vault uploads.
     ("POST", "/secure-files/publish-document"),
     ("POST", "/secure-files/{fileId}/revoke"),
     # Direct owner-bound native Review & Pay, staff-only media preview and paid access resend.
@@ -117,8 +122,6 @@ ROUTES = [
 # Routes retired from the product boundary. The provisioner deletes these explicitly;
 # merely removing them from ROUTES would leave them live in API Gateway forever.
 RETIRED_ROUTES = {
-    "POST /secure-files/upload-init",
-    "POST /secure-files/{fileId}/confirm",
     "POST /secure-files/{fileId}/send-offer",
 }
 
@@ -466,6 +469,8 @@ def environment() -> dict:
         # wecare-customer-whatsapp-auth, which is the only function that reads those
         # keys; they are provisioned there by provision_customer_whatsapp_auth.py.
         "UPLOAD_URL_TTL_SECONDS": "900",
+        # Never turn this on until Lambda@Edge LIVE blocks secure/d/public/valut/.
+        "VAULT_DIRECT_UPLOAD_ENABLED": "false",
         "GRANT_TTL_SECONDS": "1800",
         # Vault access window: ₹49 buys one window of this many hours (free re-downloads
         # inside it); after it closes it is ₹49 again for a new window on the same durable
@@ -747,6 +752,9 @@ def verify() -> int:
             print("FAIL X-Ray tracing is not Active")
             failures += 1
         variables = (config.get("Environment") or {}).get("Variables") or {}
+        if variables.get("VAULT_DIRECT_UPLOAD_ENABLED", "false").lower() not in ("false", "true"):
+            print("FAIL invalid VAULT_DIRECT_UPLOAD_ENABLED value")
+            failures += 1
 
         for key in ("SECURE_FILES_BUCKET", "SECURE_FILES_TABLE", "DOWNLOAD_GRANTS_TABLE",
                     "CUSTOMER_USER_POOL_ID", "RAZORPAY_SECRET_ID"):
