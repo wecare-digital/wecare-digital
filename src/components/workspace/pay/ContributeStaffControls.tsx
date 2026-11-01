@@ -306,8 +306,9 @@ const ContributeStaffControls: React.FC<Props> = ({
           Admin-only sending requires a reviewed draft, live backend payment readiness,
           a fresh exact ₹300 server quote, an approved native Meta template, and explicit final confirmation. The backend
           re-verifies the customer, current price and provider readiness before reserving
-          a payment. A request is not proof of delivery or payment. Express is internal only;
-          never use the generic template picker or an invoice to alter this contribution.
+          a payment. A request is not proof of delivery or payment. Express is a ₹15
+          billed line already included in the exact ₹300 total; never use the generic
+          template picker or a separate invoice to alter this contribution.
         </p>
       </form>
 
