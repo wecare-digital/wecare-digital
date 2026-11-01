@@ -365,6 +365,20 @@ def _staff_contribution_release_enabled() -> bool:
     return os.environ.get("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", "").lower() == "true"
 
 
+def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> bool:
+    """Strongly-consistent price check before any staff payment reservation."""
+    try:
+        product = _products_table().get_item(
+            Key={"id": product_id}, ConsistentRead=True,
+        ).get("Item")
+        return staff_contribution.valid_staff_contribution_catalog_record(
+            product, product_id=product_id, variant_id=variant_id)
+    except Exception as error:
+        logger.warning(json.dumps({"event": "staff_contribute_catalog_unavailable",
+                                   "reason": type(error).__name__}))
+        return False
+
+
 def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
     """Read-only Admin capability probe; no payment, slot or message side effect.
 
@@ -374,26 +388,32 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
     """
     enabled = _staff_contribution_release_enabled()
     quote_matches = False
-    try:
-        row = service_pricing_native.resolve_all(
-            _native_variant_reader()).get("prices", {}).get("contribute") or {}
-        breakdown = row.get("breakdown") or {}
+    if enabled:
+        # A variant-index SCAN is eventually consistent: staff payment-readiness
+        # must use an exact strongly-consistent product GetItem instead.
+        variants = list(CONTRIBUTION_CHOICES_PAISE.items())
         quote_matches = (
-            row.get("available") is True
-            and type(row.get("paise")) is int
-            and row["paise"] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
-            and type(breakdown.get("totalPayablePaise")) is int
-            and breakdown["totalPayablePaise"] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
-            and breakdown.get("itemSubtotalPaise") == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
-            and breakdown.get("collectionBeforeConveniencePaise") == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
-            and all(breakdown.get(k) == 0 for k in (
-                "supplyGstPaise", "delightPaise", "expressPaise",
-                "convenienceFeePaise", "convenienceGstPaise"))
+            len(CONTRIBUTION_PRODUCT_IDS) == 1
             and CONTRIBUTION_PRODUCT_ID in CONTRIBUTION_PRODUCT_IDS
-            and list(CONTRIBUTION_CHOICES_PAISE.values()) == [staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE]
+            and len(variants) == 1
+            and variants[0][1] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+            and _staff_contribution_catalog_is_current(
+                CONTRIBUTION_PRODUCT_ID, variants[0][0])
         )
-    except Exception:
-        quote_matches = False
+        if quote_matches:
+            # This policy is a fee-exempt voluntary contribution, not a
+            # Vault taxable supply. Any unexpected fee, Delight or Express
+            # blocks readiness even when the SKU is still ₹300.
+            terms = service_pricing_native._contribution_breakdown(
+                staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
+            quote_matches = (
+                terms.get("itemSubtotalPaise") == 30000
+                and terms.get("collectionBeforeConveniencePaise") == 30000
+                and terms.get("totalPayablePaise") == 30000
+                and all(terms.get(k) == 0 for k in (
+                    "supplyGstPaise", "delightPaise", "expressPaise",
+                    "convenienceFeePaise", "convenienceGstPaise"))
+            )
     available = enabled and quote_matches
     return cors_response(200, {
         "status": "STAFF_CONTRIBUTE_READY" if available else "STAFF_CONTRIBUTE_BLOCKED",
@@ -405,7 +425,9 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
     }, origin)
 
 
-def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+def _staff_contribution_send(
+    body: Dict[str, Any], origin: str, *, staff_actor_hash: str,
+) -> Dict[str, Any]:
     """One exact ₹300 Meta ORDER_DETAILS request to a verified saved customer.
 
     Staff never supply the price, SKU, WhatsApp number, media, payment
@@ -417,6 +439,9 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
             "error": "CONTRIBUTION_SEND_NOT_RELEASED",
             "message": "Staff payment sending has not been released. Nothing was sent.",
         }, origin)
+    if (not isinstance(staff_actor_hash, str) or len(staff_actor_hash) != 64
+            or not all(ch in "0123456789abcdef" for ch in staff_actor_hash)):
+        return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
     if (set(body) != {"action", "contactId"}
             or type(body.get("contactId")) is not str
             or not _STAFF_CONTRIBUTION_CONTACT_ID.fullmatch(body["contactId"])):
@@ -434,6 +459,10 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
             Key={"id": body["contactId"]}, ConsistentRead=True).get("Item") or {}
     except Exception:
         return cors_response(503, {"error": "CONTRIBUTION_CONTACT_READ_UNAVAILABLE"}, origin)
+    try:
+        contact_key.assert_consistent(contact)
+    except contact_key.ContactKeyMismatch:
+        return cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin)
     if (not contact_store.is_live(contact) or contact.get("archivedAt")
             or contact.get("locked") or contact_key.resolve(contact) != body["contactId"]
             or not customer_auth.is_cognito_subject(str(contact.get("checkoutCustomerId") or ""))
@@ -455,6 +484,10 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
             "error": "CONTRIBUTION_CUSTOMER_UNVERIFIED",
             "message": "WhatsApp customer ownership could not be verified. No request was sent.",
         }, origin)
+    try:
+        contact_key.assert_consistent(proven)
+    except contact_key.ContactKeyMismatch:
+        return cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin)
     if (identity.customer_id != str(contact["checkoutCustomerId"])
             or not contact_store.is_live(proven) or proven.get("archivedAt")
             or proven.get("locked") or not str(proven.get("name") or "").strip()):
@@ -475,6 +508,9 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
             "error": "CONTRIBUTION_PRICE_MISMATCH",
             "message": "The live ₹300 quote does not match the exempt policy. Nothing was sent.",
         }, origin)
+
+    if not _staff_contribution_catalog_is_current(product_id, variant_id):
+        return cors_response(409, {"error": "CONTRIBUTION_CATALOG_CHANGED"}, origin)
 
     # Reuse the existing *conditional* WACARTLIVE per-owner/basket slot.
     # Same customer + SKU sent from native WhatsApp and staff cannot race.
@@ -497,7 +533,8 @@ def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any
         result = _create(
             identity, {"lineItems": lines, "requestKey": uuid4().hex,
                        "deliveryConfirmed": True},
-            origin, native_contact=proven, required_staff_contribution=True)
+            origin, native_contact=proven, required_staff_contribution=True,
+            staff_actor_hash=staff_actor_hash)
     except Exception as error:
         logger.error(json.dumps({"event": "staff_contribution_send_unconfirmed",
                                  "error": type(error).__name__}))
@@ -697,7 +734,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # It is never reachable via an internal Lambda invoke or another URL,
     # and requires the staff Admin group plus the existing Admin MFA gate.
     staff_candidate = _body(event)
-    staff_action = str(staff_candidate.get("action") or "").strip().lower()
+    staff_action = (str(staff_candidate.get("action") or "").strip().lower()
+                    if isinstance(staff_candidate, dict) else "")
     if staff_action in (_STAFF_CONTRIBUTION_ACTION, _STAFF_CONTRIBUTION_READINESS):
         from lambda_utils.middleware import require_auth
         staff_path = str(event.get("rawPath") or event.get("path")
@@ -717,7 +755,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if set(staff_candidate) != {"action"}:
                     return cors_response(400, {"error": "INVALID_READINESS_REQUEST"}, origin)
                 return _staff_contribution_readiness(origin)
-            return _staff_contribution_send(staff_candidate, origin)
+            # The actor identity comes ONLY from the verified staff Cognito
+            # session, never from the request body. A stable hash is stored
+            # privately with the payment attempt and reference for audits.
+            import hashlib
+            username = str((event.get("_auth") or {}).get("username") or "").strip()
+            if not username:
+                return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
+            actor_hash = hashlib.sha256(
+                ("wecare-contribute-staff:" + username).encode("utf-8")
+            ).hexdigest()
+            return _staff_contribution_send(
+                staff_candidate, origin, staff_actor_hash=actor_hash)
         except Exception as error:
             logger.error(json.dumps({"event": "staff_contribute_unavailable",
                                      "reason": type(error).__name__}))
@@ -1998,6 +2047,12 @@ def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any
     def answer(code: int, data: Dict[str, Any]) -> Dict[str, Any]:
         return _hardened(cors_response(code, data, origin))
 
+    # Staff provenance is mandatory before any customer lookup, quote or
+    # provider call; customer web checkout keeps its existing contract.
+    if required_staff_contribution and (
+            len(staff_actor_hash) != 64
+            or not all(ch in "0123456789abcdef" for ch in staff_actor_hash)):
+        return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
         return answer(400, {"error": "LINE_ITEMS_REQUIRED"})
@@ -2922,7 +2977,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
             native_contact: Optional[Dict[str, Any]] = None,
             verified_service_context: Optional[Dict[str, Any]] = None,
-            required_staff_contribution: bool = False) -> Dict[str, Any]:
+            required_staff_contribution: bool = False,
+            staff_actor_hash: str = "") -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -3139,6 +3195,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "message": "Confirm the delivery address for this order.",
         }, origin)
 
+    if required_staff_contribution:
+        # Last-before-reservation FRESH price read, not the possibly stale
+        # eventual reader used while building the native quote.
+        variants = list(CONTRIBUTION_CHOICES_PAISE)
+        if (len(variants) != 1 or not _staff_contribution_catalog_is_current(
+                CONTRIBUTION_PRODUCT_ID, variants[0])):
+            return cors_response(409, {"error": "CONTRIBUTION_CATALOG_CHANGED"}, origin)
+
     # 3. Reserve a canonical reference bound to a fresh attempt id, then build the attempt. The
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
@@ -3188,6 +3252,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             # Provenance only. Do NOT write legacy Razorpay notes.purpose,
             # which would divert the normal SKU-first capture settlement.
             extra["staffContribute"] = True
+            extra["staffActorHash"] = staff_actor_hash
         if service_requests.has_service_line(line_items):
             extra.update(**service_requests.payref_extra(
                 line_items, body, line_paise=native_service_paise,
@@ -3214,6 +3279,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     attempt["checkoutMode"] = checkout_mode
     if required_staff_contribution:
         attempt["staffContribute"] = True
+        attempt["staffActorHash"] = staff_actor_hash
     if verified_service_context is not None:
         single = service_requests._single_order_context(verified_service_context)
         if single is None:
