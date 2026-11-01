@@ -17,10 +17,10 @@ import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
  *
  * _app renders this once for every public HTML surface, including Home.
  * Contribute and Share reveal short dropdowns; Subscribe retains a direct action icon.
- * Contribute offers two explicit choices: navigate to authenticated Orders for
- * future contribution details, or use the original ₹250 Checkout option below.
- * Only Checkout seeds a cart and opens the existing payment review flow; opening
- * Orders itself never starts a checkout or sends a template.
+ * Contribute offers exactly one action: the original authenticated Checkout.
+ * Clicking Checkout seeds the configured ₹300 contribution product/variant
+ * into the cart, then opens payment review. No Orders shortcut is shown here
+ * and no payment is charged until the customer confirms it.
  *
  * Subscribe uses the same one-time, explicit-click authenticated Orders handoff as
  * the Header's Subscribe item. Opening /orders/ or refreshing it sends nothing without
@@ -46,7 +46,7 @@ const cleanUrl = ( href: string ): string => {
   }
 };
 
-/** The default contribution choice the website checkout seeds into the cart (₹250 / CNT5Q2M8). */
+/** The default contribution choice the website checkout seeds into the cart (₹300 / CNT5Q2M8). */
 const [ SUGGESTED ] = CONTRIBUTION_CHOICES;
 
 const PublicShare: React.FC<PublicShareProps> = ( {
@@ -234,21 +234,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           </div>
 
           <div className="ps-menu-list">
-            <a
-              className="ps-menu-item"
-              href="/orders/"
-              aria-label="Open Orders to continue with Contribute"
-            >
-              <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ symbol( 'currency_rupee' ) }</span>
-              </span>
-              <span className="ps-menu-copy">
-                <span className="ps-menu-name">Open Orders</span>
-                <span className="ps-menu-note">Give back</span>
-              </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
-            </a>
-            <div className="ps-menu-divider" aria-hidden="true" />
             <button
               type="button"
               className="ps-menu-item"
@@ -428,7 +413,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-title{margin:0;color:#1a1a1a;font-size:18px;font-weight:700;line-height:1.3}
         .ps-menu-sub{margin:4px 0 0;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.4}
         .ps-menu-list{padding-top:6px}
-        .ps-menu-divider{border-top:1px solid #f0f1ed;margin:6px 10px}
         .ps-menu-item{
           width:100%;min-height:56px;display:grid;
           grid-template-columns:38px minmax(0,1fr) 20px;gap:10px;align-items:center;
@@ -438,8 +422,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .ps-menu-item:hover{background:#f7fbe9}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
-        /* Both contribution options reuse the dock's white/light-lime/green style.
-           Only the deliberate Checkout click can seed a contribution and open payment. */
+        /* The sole contribution Checkout action follows the dock's white/lime/green
+           style; it opens gated payment review, never a charge on its own. */
         .ps-menu-icon{
           width:38px;height:38px;border-radius:50%;
           display:inline-flex;align-items:center;justify-content:center;

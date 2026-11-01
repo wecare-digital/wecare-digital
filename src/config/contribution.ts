@@ -1,7 +1,8 @@
 /** Voluntary contribution catalog configuration.
  *
- * Production stays empty until the fresh SKU-first Contribute item is created. Tests receive one
- * synthetic choice so cart/contribution behavior remains covered without any retired identity.
+ * The SKU-first Contribute product has one ₹300 variant in production. Tests use
+ * a synthetic identity at the same amount; only the live ProductsTable price
+ * is authoritative when a payment is prepared.
  */
 
 const TESTING = process.env.NODE_ENV === 'test';
@@ -18,16 +19,16 @@ export interface ContributionChoice {
 }
 
 const TEST_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
-  { variantId:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', rupees:250, paise:25000 },
+  { variantId:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', rupees:300, paise:30000 },
 ];
 
 const LIVE_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
-  { variantId:'CNT5Q2M8', rupees:250, paise:25000 },
+  { variantId:'CNT5Q2M8', rupees:300, paise:30000 },
 ];
 
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] =
   TESTING ? TEST_CONTRIBUTION_CHOICES : LIVE_CONTRIBUTION_CHOICES;
-export const CONTRIBUTION_AMOUNT_LABEL = '₹250';
+export const CONTRIBUTION_AMOUNT_LABEL = '₹300';
 export const PAISE_PER_RUPEE = 100;
 
 export const paiseToRupees = ( paise: number ): number =>

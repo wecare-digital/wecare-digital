@@ -24,7 +24,7 @@ assert.match(backend, /def _contribution_breakdown/);
 assert.match(backend, /"delightPaise": 0/);
 assert.match(backend, /"expressPaise": 0/);
 assert.match(backend, /"convenienceFeePaise": 0/);
-assert.match(contribution, /CONTRIBUTION_PRESETS_PAISE: Tuple\[int, \.\.\.\] = \(25000,\)/);
+assert.match(contribution, /CONTRIBUTION_PRESETS_PAISE: Tuple\[int, \.\.\.\] = \(30000,\)/);
 
 // Proposed ₹300 total, both accounting interpretations, in exact integer paise.
 const target = 30000;

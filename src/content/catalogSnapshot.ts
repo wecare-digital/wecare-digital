@@ -69,9 +69,9 @@ const TEST_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'77777777-7777-4777-8777-777777777777', name:'Contribute', slug:'contribute',
-    formattedPrice:'₹250.00', price:'250.00', currency:'INR', inStock:true, visible:true,
+    formattedPrice:'₹300.00', price:'300.00', currency:'INR', inStock:true, visible:true,
     descriptionHtml:'<p>Contribute to WECARE.DIGITAL.</p><p>A synthetic payment vehicle used only by tests.</p>',
-    variants:[{ id:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', label:'₹250', inStock:true }],
+    variants:[{ id:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', label:'₹300', inStock:true }],
   },
   {
     id:'11111111-1111-4111-8111-111111111111', name:'Request', slug:'request-services',
@@ -265,7 +265,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   },
   {
     id:'24fa0f39-330b-5365-b7eb-9caf27ad37f1', name:'Contribute', slug:'contribute',
-    formattedPrice:'₹250.00', price:'250.00', currency:'INR',
+    formattedPrice:'₹300.00', price:'300.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/shop/contribute/',
     descriptionHtml:'<p>Contribute from WECARE.DIGITAL.</p>',
     variants:[{ id:'CNT5Q2M8', label:'Standard', inStock:true }],
