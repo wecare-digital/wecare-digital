@@ -8,7 +8,7 @@ import { publicActionText } from '../../lib/publicActionNotices';
 import type { PublicActionNoticeKind } from '../../lib/publicActionNotices';
 
 /**
- * Only ONE brief notification can be visible on public/customer pages.
+ * Only ONE readable action notification can be visible on public/customer pages.
  *
  * Use it for direct action feedback (copy, WhatsApp invitation), never for
  * passive search/weather updates, field errors or ambiguous payments. The
@@ -83,7 +83,7 @@ export default function PublicToastProvider ( { children }: { children: React.Re
     setActive( { id, message, tone } );
     // Action success is brief, pending explicitly stays, and errors never
     // auto-dismiss unless the caller marks a low-risk failure as transient.
-    const ms = options.durationMs === undefined ? ( tone === 'error' ? 0 : 2500 )
+    const ms = options.durationMs === undefined ? ( tone === 'error' ? 0 : 5500 )
       : Math.max( 0, options.durationMs );
     if ( ms > 0 ) {
       timer.current = setTimeout( () => {

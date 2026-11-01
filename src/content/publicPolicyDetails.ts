@@ -99,6 +99,12 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'Removing an item is not a refund; paid orders follow their confirmed terms.',
     disclaimer: 'Price, availability and totals can change before payment; checkout controls.',
   },
+  '/checkout': {
+    shipping: 'Fulfilment starts after the payment and order are confirmed; delivery or service timing follows the confirmed item.',
+    returns: 'Return and replacement eligibility depends on the selected item or service, its confirmed terms and applicable law.',
+    refunds: 'Cancellation and refund eligibility follows the confirmed transaction, disclosed terms and applicable law.',
+    disclaimer: 'Check your items, amount and details before paying. If payment status is unclear, check the order record instead of paying again.',
+  },
   '/checkout/status': {
     shipping: 'Fulfilment starts after the order is confirmed.',
     returns: 'Returns or replacements follow the purchased item or service terms.',
