@@ -58,7 +58,15 @@ const ContributePaymentPlan: React.FC<{workspaceView?: 'display' | 'create'}> = 
         setPrice(nextPrice);
         // This is the existing, shared, server-declared payment template/media,
         // not a new contribution-specific registered template or a send token.
-        setTemplates(allPrices.vault?.available ? allPrices.vault.templates || null : null);
+        // The native payment template is shared across services. Contribute must
+        // not become unsendable just because Vault pricing is temporarily unavailable.
+        // Prefer the Contribute-specific server listing when published; otherwise
+        // use another *available* server-listed service's shared payment metadata.
+        const listed = Object.values(allPrices).find(candidate =>
+          candidate.available && !!candidate.templates?.nativePay);
+        setTemplates(nextPrice.available && nextPrice.templates?.nativePay
+          ? nextPrice.templates
+          : listed && listed.available ? listed.templates || null : null);
       })
       .catch(() => { if (active) { setPrice(UNAVAILABLE); setTemplates(null); } })
       .finally(() => { if (active) setLoading(false); });
