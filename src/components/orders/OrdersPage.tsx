@@ -456,16 +456,11 @@ export default function OrdersPage (): React.ReactElement {
 
   const presentInviteResult = ( kind: 'accepted' | 'failed' | 'awaiting-template' ) => {
     const notice = customerMenuNotice( kind );
-    if ( kind === 'awaiting-template' ) {
-      hideToast( inviteToastId.current );
-      dismissAlertFor( 'service' );
-      inviteToastId.current = showToast( notice.message,
-        { tone: 'info', durationMs: 4500 } );
-      return;
-    }
     if ( notice.error ) {
-      // A failed/ambiguous send is important enough to remain inline. Clear
-      // only this invitation's pending toast, not a newer user copy toast.
+      // Both a blocked Contribute attempt and an uncertain send share the
+      // same customer-facing failure text and persistent inline warning.
+      // Never report an unavailable Contribute send as accepted. Clear only
+      // this invitation's pending toast, not a newer user copy toast.
       hideToast( inviteToastId.current );
       setOrdersAlert( { source: 'service', message: notice.message } );
     } else {
