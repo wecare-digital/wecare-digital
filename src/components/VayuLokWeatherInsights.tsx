@@ -196,17 +196,17 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         </div>
       </div>
 
-      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading weather history</span> }
+      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading history…</span> }
 
       { status === 'unavailable' && (
         <div className="vl-wi-note" role="status">
-          History isn’t available here yet.
+          No history here yet.
         </div>
       ) }
 
       { status === 'error' && (
         <div className="vl-wi-note" role="status">
-          History is unavailable.
+          History unavailable.
         </div>
       ) }
 
