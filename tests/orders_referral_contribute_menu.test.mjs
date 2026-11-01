@@ -41,26 +41,25 @@ test('Header and Orders referral navigate to authenticated Orders, not external 
   assert.doesNotMatch(menu, /goToServiceAction\(|CHECKOUT_PATH/);
 });
 
-test('Contribute dock keeps Give back and restores the complete Checkout block at bottom', () => {
+test('Contribute dock shows only Checkout with Give back and the ₹300 heading', () => {
   const pop = publicShare.split('id="ps-contribute-menu"')[1].split('id="ps-share-menu"')[0];
+  const config = read('src/config/contribution.ts');
   assert.match(pop, /<p className="ps-menu-sub">Give back<\/p>/);
   assert.match(pop, /Contribute \$\{CONTRIBUTION_AMOUNT_LABEL\}/);
-  assert.match(pop, /href="\/orders\/"\s+aria-label="Open Orders to continue with Contribute"/);
-  assert.match(pop, /<span className="ps-menu-name">Open Orders<\/span>/);
-  assert.match(pop, /<span className="ps-menu-note">Give back<\/span>/);
-  assert.match(pop, /symbol\( 'currency_rupee' \)/);
+  assert.match(config, /CONTRIBUTION_AMOUNT_LABEL = '₹300'/);
   assert.match(pop, /onClick=\{ onCheckout \}/);
   assert.match(pop, /symbol\( 'shopping_cart_checkout' \)/);
   assert.match(pop, /\{ busy \? 'One moment…' : 'Checkout' \}/);
   assert.match(pop, /<span className="ps-menu-note">Review, then pay on WhatsApp<\/span>/);
-  assert.ok(pop.indexOf('href="/orders/"') < pop.indexOf('onClick={ onCheckout }'),
-    'the entire original Checkout row must sit below Open Orders');
+  assert.equal((pop.match(/onClick=\{ onCheckout \}/g) || []).length, 1,
+    'exactly one Checkout action is shown');
+  assert.doesNotMatch(pop, /Open Orders|href="\/orders\/"|Sign in to continue/);
   assert.doesNotMatch(pop, /Review it in your cart, then pay securely on WhatsApp/);
 });
 
 test('Only explicit Checkout click seeds the original contribution and gated payment', () => {
   const pop = publicShare.split('id="ps-contribute-menu"')[1].split('id="ps-share-menu"')[0];
-  assert.match(pop, /<a\s+className="ps-menu-item"\s+href="\/orders\/"[\s\S]*?<\/a>/);
+  assert.doesNotMatch(pop, /<a\s+className="ps-menu-item"/);
   assert.match(pop, /<button\s+type="button"\s+className="ps-menu-item"\s+onClick=\{ onCheckout \}/);
   assert.match(publicShare, /setContribution\( SUGGESTED.variantId \)/);
   assert.match(publicShare, /await goToServiceAction\( router, \{/);
