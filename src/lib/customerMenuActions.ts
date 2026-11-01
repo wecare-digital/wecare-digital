@@ -83,7 +83,8 @@ export async function sendCustomerMenuAction ( action: CustomerMenuAction, acces
     // refuse a send until the owner selects one; never claim WhatsApp delivery.
     if ( action === 'contribute' && response.status === 409
       && data.status === 'CONTRIBUTE_TEMPLATE_NOT_CONFIGURED' ) return { kind: 'awaiting-template' };
-    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT' : 'REVIEW_REQUEST_SENT';
+    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT'
+      : action === 'leave-review' ? 'REVIEW_REQUEST_SENT' : 'CONTRIBUTE_SENT';
     if ( response.ok && data.status === expected ) {
       return { kind: 'accepted', messageId: String( data.messageId || '' ) };
     }
