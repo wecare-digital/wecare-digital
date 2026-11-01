@@ -34,3 +34,7 @@ jobs:
       - name: Compile customer-facing Python Lambda source without execution
         run: |
           python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils
+      - name: Verify retired Vault chooser contract (issue 2133)
+        run: python3 -m unittest discover -s tests -p 'test_vault_retirement_2133.py' -v
+      - name: Verify fail-closed Meta catalog inventory reads (issue 2152)
+        run: python3 -m unittest discover -s tests -p 'test_meta_catalog_inventory_read_2152.py' -v
