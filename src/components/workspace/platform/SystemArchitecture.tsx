@@ -441,13 +441,13 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 // ─── Data: Code Map ───
 interface CodeFolder { path: string; purpose: string; files: string; linkedTo: string; }
 const CODE_MAP: CodeFolder[] = [
-  { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: '~50 pages', linkedTo: 'Frontend routing' },
+  { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: 'generated routes', linkedTo: 'Frontend routing' },
   { path: 'src/pages/workspace/platform/', purpose: 'Canonical Platform workspace hub', files: '1 page', linkedTo: '/workspace/platform' },
   { path: 'src/components/workspace/platform/', purpose: 'Platform tools embedded by the canonical hub', files: '7 components', linkedTo: '/workspace/platform?view=*' },
-  { path: 'src/pages/workspace/engage/whatsapp/', purpose: 'WhatsApp messaging pages (21 sub-pages)', files: '21 pages', linkedTo: '/workspace/communications?view=manage&section=whatsapp' },
-  { path: 'src/pages/workspace/engage/', purpose: 'Multi-channel messaging (SMS, Voice, Email, RCS, Push)', files: '~15 pages', linkedTo: '/workspace/engage/channels?tab=sms' },
-  { path: 'src/pages/workspace/pay/', purpose: 'Payment pages (overview, flow, link)', files: '3 pages', linkedTo: '/workspace/payments' },
-  { path: 'src/pages/workspace/link/', purpose: 'URL shortener (list, create, logs)', files: '3 pages', linkedTo: '/workspace/communications?view=manage&section=links' },
+  { path: 'src/components/workspace/whatsapp/', purpose: 'WhatsApp tools embedded by Communications', files: 'shared components', linkedTo: '/workspace/communications?view=manage&section=whatsapp' },
+  { path: 'src/pages/workspace/engage/', purpose: 'Remaining channel hubs and compatibility routes', files: 'hubs + redirects', linkedTo: '/workspace/engage/channels?tab=sms' },
+  { path: 'src/pages/workspace/pay/', purpose: 'Retained Pay compatibility redirect', files: '1 route', linkedTo: '/workspace/payments' },
+  { path: 'src/pages/workspace/link/', purpose: 'Retained Short Links compatibility redirect', files: '1 route', linkedTo: '/workspace/communications?view=manage&section=links' },
   { path: 'src/components/', purpose: 'Reusable UI components', files: '~25 components', linkedTo: 'All pages' },
   { path: 'src/components/ui/', purpose: 'Base UI primitives (Button, Modal, Tabs, Table)', files: '~10 components', linkedTo: 'All pages' },
   { path: 'src/components/dashboard/', purpose: 'Shared workspace widgets', files: '~5 components', linkedTo: '/workspace/*' },
