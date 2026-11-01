@@ -17,7 +17,7 @@ interface ActivityRow {
   customer: string;
   kind: ActivityKind;
   label: string;
-  amount: number;
+  amount: number | null;
   currency: string;
   timestamp: number;
   paymentStatus: string;
@@ -30,7 +30,8 @@ function epochMs ( value?: number ): number {
   return value < 1e12 ? value * 1000 : value;
 }
 
-function amount ( value: number, currency: string ): string {
+function amount ( value: number | null, currency: string ): string {
+  if ( value === null ) return 'Amount unavailable';
   try {
     return new Intl.NumberFormat( 'en-IN', {
       style: 'currency',
@@ -45,6 +46,12 @@ function amount ( value: number, currency: string ): string {
 function latestState ( invoice: api.Invoice ): ActivityRow {
   const payment = ( invoice.paymentStatus || '' ).toLowerCase();
   const status = ( invoice.status || '' ).toLowerCase();
+  // Refund evidence is in integer paise. A partial refund must not display
+  // the entire original invoice total as though it had been refunded.
+  const refundValue = Number.isFinite( invoice.refundAmountPaise )
+    ? Number( invoice.refundAmountPaise ) / 100
+    : Number.isFinite( invoice.refundAmount )
+      ? Number( invoice.refundAmount ) : null;
 
   let kind: ActivityKind = 'invoice';
   let label = 'Invoice recorded';
@@ -52,7 +59,8 @@ function latestState ( invoice: api.Invoice ): ActivityRow {
   // paid first incorrectly classified refunded-but-paid invoices as captured.
   if ( payment === 'refunded' || !!invoice.refundId || !!invoice.refundAt ) {
     kind = 'refunded';
-    label = payment === 'refunded' ? 'Payment refunded' : 'Refund recorded';
+    label = refundValue !== null && refundValue < Number( invoice.total )
+      ? 'Partial refund recorded' : 'Refund recorded';
   } else if ( payment === 'failed' ) {
     kind = 'failed'; label = 'Payment failed';
   } else if ( [ 'captured', 'paid' ].includes( payment ) || status === 'paid' ) {
@@ -70,7 +78,7 @@ function latestState ( invoice: api.Invoice ): ActivityRow {
     customer: invoice.customerName || invoice.customerPhone || 'Customer',
     kind,
     label,
-    amount: Number( invoice.total ) || 0,
+    amount: kind === 'refunded' ? refundValue : Number( invoice.total ) || 0,
     currency: invoice.currency || 'INR',
     timestamp: epochMs( invoice.refundAt ) || epochMs( invoice.paidAt ) || epochMs( invoice.updatedAt ) || epochMs( invoice.createdAt ),
     paymentStatus: invoice.paymentStatus || '',
