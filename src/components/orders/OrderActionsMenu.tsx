@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import VoiceSearchMic from '../VoiceSearchMic';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 
@@ -242,16 +243,15 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
       { open && position && typeof document !== 'undefined' && createPortal(
         <div ref={ panelRef } id={ panelId } className="orm-menu"
           role="dialog" aria-label="Order actions" style={ position }>
-          <label className="orm-search-wrap">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <circle cx="10.8" cy="10.8" r="6.3" />
-              <path d="m15.6 15.6 5.1 5.1" />
-            </svg>
-            <input ref={ searchRef } type="search" value={ search }
+          {/* Same borderless search + shared microphone as Header and BlogSearch.
+              Native type=search retains the platform clear/close control. */}
+          <div className="orm-search-field">
+            <input ref={ searchRef } className="orm-search" type="search" value={ search }
               onChange={ event => setSearch( event.target.value ) }
-              placeholder="Search actions" aria-label="Search order actions"
+              placeholder="Search" aria-label="Search order actions"
               autoComplete="off" />
-          </label>
+            <VoiceSearchMic onTranscript={ setSearch } ariaLabel="Search order actions by voice" />
+          </div>
           <div className="orm-section">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d={ REQUEST_SECTION_PATH } />
@@ -359,22 +359,24 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
           color:var(--public-brand-green);text-align:start;white-space:normal;
           -webkit-overflow-scrolling:touch;
         }
-        .orm-search-wrap{display:flex;align-items:center;gap:12px;padding:12px 16px 8px}
-        .orm-search-wrap svg{
-          inline-size:20px;block-size:20px;flex:none;fill:none;stroke:currentColor;
-          stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;opacity:.6;
-        }
-        .orm-search-wrap input{
-          flex:1;min-inline-size:0;min-block-size:42px;padding:0;
+        /* The Orders action search shares Header's 44px borderless field and
+           its own VoiceSearchMic instance (same speech support, language and
+           visual treatment as public navigation and blog search). */
+        .orm-search-field{position:relative;margin:12px 16px 12px}
+        .orm-search{
+          width:100%;margin:0;min-height:44px;box-sizing:border-box;
           border:0;border-block-end:1px solid var(--public-hairline);
-          border-radius:0;background:transparent;color:var(--public-brand-green);
-          font:inherit;font-size:16px;outline:none;
+          border-radius:0;background:transparent;
+          padding-block:0;padding-inline:2px 44px;
+          font-size:16px;font-weight:400;line-height:1.3;
+          color:var(--public-body);font-family:inherit;outline:none;
+          transition:border-color .2s,box-shadow .2s;
         }
-        .orm-search-wrap input:focus-visible{
+        .orm-search::placeholder{color:rgba(0,0,0,.42)}
+        .orm-search:focus-visible{
           border-block-end-color:var(--public-brand-green);
-          box-shadow:0 1px 0 var(--public-brand-lime);
+          box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
-        .orm-search-wrap input::placeholder{color:var(--public-muted)}
         .orm-section{display:flex;align-items:center;gap:7px;padding:5px 18px;
           font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         .orm-section svg{
