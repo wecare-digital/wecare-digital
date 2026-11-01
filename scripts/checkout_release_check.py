@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # customer-commerce authorization backend, and scripts/probe_url_host_matrix.py
 # owns its live contract. Requiring out/auth/index.html would make every valid
 # static production build fail.
-CUSTOMER_PAGES = ('/cart/', '/checkout/', '/checkout/whatsapp/', '/orders/',
+CUSTOMER_PAGES = ('/cart/', '/checkout/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
@@ -73,6 +73,8 @@ def check_html(path, html):
     # Existing cart URLs redirect, but customer-facing links must use canonical checkout.
     if any(urlsplit(href).path.rstrip('/') == '/cart' for href in page.links):
         failures.append(f'{path}: legacy cart destination linked')
+    if any(urlsplit(href).path.rstrip('/') == '/checkout/whatsapp' for href in page.links):
+        failures.append(f'{path}: removed WhatsApp checkout page linked')
     if not any(urlsplit(href).path == '/r/wa' for href in page.links):
         failures.append(f'{path}: default WhatsApp widget missing')
     return failures
