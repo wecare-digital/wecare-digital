@@ -1162,7 +1162,6 @@ const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 14, b
 const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 12, background: '#fff', border: 0, boxShadow: 'inset 0 0 0 1px rgba(26,58,42,.08)' };
 const uploadIntroStyle: React.CSSProperties = { fontSize: 15, lineHeight: 1.5, color: 'var(--text-muted)', padding: '0 2px' };
 const uploadFooterNoteStyle: React.CSSProperties = { padding: '11px 14px', borderRadius: 12, background: 'var(--lime-tint)', color: 'var(--accent)', border: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5 };
-const unlockTemplateStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 18, borderRadius: 14, background: '#fcfdfa', border: 0, boxShadow: '0 8px 24px rgba(16,32,24,.06)' };
 const pageStyle: React.CSSProperties = { padding: '28px 32px', maxWidth: 1480 };
 const pageHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginBottom: 22 };
 const eyebrowStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--text-muted)', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: 6 };
