@@ -2,39 +2,47 @@
 
 Public pages do not mount the authenticated Workspace `ToastProvider`.
 They use `src/components/public/PublicNotice.tsx` and the one-at-a-time
-`PublicToastProvider` instead. **Both toast renderers now share compact
-pale-lime style tokens**, but their inline messages and application lifecycle
-remain separate.
+`PublicToastProvider` instead. Both use the **same global action-toast CSS
+classes and design tokens**; their authentication scope and lifecycle remain
+separate.
 The [31 October 2026 inventory](../audits/public-notification-surface-inventory-20261031.md)
 records **61 original render sites across 16 files**, not 61 unique toasts.
 Its source links and counts describe that audit snapshot; do not replace them
 with claims of current runtime coverage.
 
-## Slim, top-right action-toast design (1 November 2026)
+## One small, mobile-safe action toast — Public and Workspace (1 November 2026)
 
-**Current customer direction supersedes the earlier oversized screenshot
-interpretation.** Keep the lime/forest palette and the bright inline-start stripe,
-but make action toasts **small, narrow, and top-right**, with no visible status
-glyph/checkmark. Never display multiple toasts at once.
+Both apps now use **one global class and one global host rule** from
+`src/styles/inner-ux.css`: `.wc-action-toast` and
+`.wc-action-toast-host`. The same tokens in `src/styles/tokens.css`
+control their presentation. Do not reimplement toast colors/padding/sizing
+inside `PublicNotice.tsx` or an independent Workspace `.toast` rule.
 
-Both public and Workspace toast renderers use `src/styles/tokens.css`:
-`--wc-toast-surface: #f6fce4`, `--wc-toast-stripe: #d8f382`,
-`--wc-toast-ink: #1a1a1a`, **14px semibold text**, **8px × 12px padding**,
-**10px radius**, and a **4px lime stripe**. The maximum toast width is
-**340px**. Phones use the same compact scale, with text wrapping as needed.
+The shared design: pale-lime `#f6fce4` background, dark `#1a1a1a` text,
+bright lime `#d8f382` **3px** inline-start stripe, **13px** semibold text,
+**6px × 10px** padding, **8px** corners, and maximum width **288px**.
+No status icons, checkmarks, dots, or stacked toasts.
 
-Public toasts appear near the **top-right of the content, below the fixed
-108px desktop or 96px mobile header**, not in the bottom-right corner.
-Workspace toasts appear at the top-right with safe-area offsets.
+Both notifications appear at the **physical top-right** of the available
+page content, with 12px safe-area-aware right spacing:
+- **Public:** below the shared 108px desktop header (116px from top); below
+  the 96px mobile header (104px from top).
+- **Workspace:** below that same header **and its additional action bar**
+  (180px desktop; 162px mobile). On extremely narrow devices the Workspace
+  action-bar clearance grows to allow the buttons to wrap.
 
-The latest explicit action replaces the last toast. Preserve existing hold
-times, accessibility roles, and the distinction between Meta accepting a send
-and confirming recipient delivery. Workspace retains its accessible dismiss
-button, shown on hover or keyboard focus.
+On phones, the host uses safe-area-aware left/right insets, keeps the toast
+right-aligned, wraps long/unbroken text, and constrains height with
+scrolling when needed. Forced-colors and reduced-motion preferences retain
+functional feedback. Inline/payment/authentication/Vault errors are **not**
+changed into transient toasts.
 
-Inline authentication errors, payment uncertainty, Vault warnings, address
-validation, search counts and VayuLok data states remain in place. They are
-not popup action toasts and should not adopt the compact toast presentation.
+The PublicShare Copy-link action routes through the public toast host on
+public routes and the Workspace toast host inside Workspace. Its old
+local fallback is used only if **neither** provider is available.
+Both hosts keep only the latest action toast; lifecycle and ARIA roles
+remain distinct where they serve different authentication scopes.
+The Workspace dismiss button stays keyboard-accessible and unobtrusive.
 
 ## Three public modes
 
