@@ -1,0 +1,47 @@
+name: Payment and customer release gates
+
+on:
+  pull_request:
+    branches: [wecare.digital]
+  push:
+    branches: [wecare.digital]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payment-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  payment-release:
+    name: TypeScript and payment Lambda regression gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Reproduce production dependency install
+        run: |
+          npm install --global npm@11.6.2
+          npm ci --no-audit --no-fund
+      - name: TypeScript must compile without errors
+        run: npx tsc --noEmit
+      - name: Compile customer and payment Lambda Python source
+        run: |
+          python3 -m compileall -f -q             amplify/functions/core/secure-files             amplify/functions/ecommerce/service-requests             amplify/functions/ecommerce/checkout             amplify/functions/ecommerce/meta-catalog-sync             amplify/functions/payments/invoice-engine             amplify/functions/payments/razorpay-webhook             amplify/functions/messaging/whatsapp-business-api             amplify/functions/messaging/inbound-whatsapp-handler             amplify/functions/shared/lambda_utils
+      - name: Vault payments and Collect saved-invoice safety
+        run: python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v
+      - name: Vault exact-file ownership and truthful Activity
+        run: python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v
+      - name: Retired WhatsApp Vault chooser cannot collect payment
+        run: python3 -m unittest discover -s tests -p 'test_vault_retirement_2133.py' -v
+      - name: Fail-closed Meta inventory and anti-duplication guard
+        run: python3 -m unittest discover -s tests -p 'test_meta_catalog_inventory_read_2152.py' -v
