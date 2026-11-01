@@ -38,3 +38,5 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_vault_retirement_2133.py' -v
       - name: Verify fail-closed Meta catalog inventory reads (issue 2152)
         run: python3 -m unittest discover -s tests -p 'test_meta_catalog_inventory_read_2152.py' -v
+      - name: Verify no-renew Vault and saved Collect invoice send
+        run: python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v
