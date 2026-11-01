@@ -56,6 +56,9 @@ const ContributePaymentPlan: React.FC = () => {
 
   React.useEffect(() => {
     let active = true;
+    setLoading(true);
+    setPrice(UNAVAILABLE);
+    setTemplates(null);
     void Promise.all([fetchContributionPrice(), fetchServicePrices()])
       .then(([nextPrice, allPrices]) => {
         if (!active) return;
