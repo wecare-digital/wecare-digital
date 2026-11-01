@@ -110,7 +110,7 @@ from lambda_utils.ecommerce.blog_contribution import (
 from lambda_utils.ecommerce import service_requests, request_service_contracts
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
-from lambda_utils.ecommerce import service_pricing_native, staff_contribution
+from lambda_utils.ecommerce import contribute_taxable, service_pricing_native, staff_contribution
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -364,6 +364,11 @@ def _staff_contribution_release_enabled() -> bool:
     """Explicit owner-controlled release switch. Default OFF on every alias."""
     return os.environ.get("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", "").lower() == "true"
 
+def _contribute_taxable_release_enabled() -> bool:
+    """Independent default-off gate for all ₹300 taxable Contribute money paths."""
+    return os.environ.get("CONTRIBUTE_TAXABLE_NATIVE_PAYMENT_ENABLED", "") == "true"
+
+
 
 def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> bool:
     """Strongly-consistent price check before any staff payment reservation."""
@@ -386,7 +391,8 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
     action, leaving the Send button disabled. A new backend remains disabled
     until its flag AND the current ProductsTable exempt amount both match.
     """
-    enabled = _staff_contribution_release_enabled()
+    enabled = (_staff_contribution_release_enabled()
+               and _contribute_taxable_release_enabled())
     quote_matches = False
     if enabled:
         # A variant-index SCAN is eventually consistent: staff payment-readiness
@@ -401,19 +407,24 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
                 CONTRIBUTION_PRODUCT_ID, variants[0][0])
         )
         if quote_matches:
-            # This policy is a fee-exempt voluntary contribution, not a
-            # Vault taxable supply. Any unexpected fee, Delight or Express
-            # blocks readiness even when the SKU is still ₹300.
-            terms = service_pricing_native._contribution_breakdown(
-                staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
-            quote_matches = (
-                terms.get("itemSubtotalPaise") == 30000
-                and terms.get("collectionBeforeConveniencePaise") == 30000
-                and terms.get("totalPayablePaise") == 30000
-                and all(terms.get(k) == 0 for k in (
-                    "supplyGstPaise", "delightPaise", "expressPaise",
-                    "convenienceFeePaise", "convenienceGstPaise"))
-            )
+            # Verify the exact owner-specified native Contribute calculation;
+            # no browser-supplied price, invoice or Vault/Drop Docs amount.
+            try:
+                terms = service_pricing_native._contribution_breakdown(
+                    staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
+                quote_matches = (
+                    terms.get("itemSubtotalPaise") == 23541
+                    and terms.get("catalogGrossPaise") == 30000
+                    and terms.get("supplyGstPaise") == 4237
+                    and terms.get("delightPaise") == 138
+                    and terms.get("expressPaise") == 1500
+                    and terms.get("collectionBeforeConveniencePaise") == 29140
+                    and terms.get("convenienceFeePaise") == 729
+                    and terms.get("convenienceGstPaise") == 131
+                    and terms.get("totalPayablePaise") == 30000
+                )
+            except ValueError:
+                quote_matches = False
     available = enabled and quote_matches
     return cors_response(200, {
         "status": "STAFF_CONTRIBUTE_READY" if available else "STAFF_CONTRIBUTE_BLOCKED",
@@ -434,7 +445,8 @@ def _staff_contribution_send(
     configuration, line details or quote. This reuses _create so the
     canonical reservation, provider readiness and capture rails stay intact.
     """
-    if not _staff_contribution_release_enabled():
+    if not (_staff_contribution_release_enabled()
+            and _contribute_taxable_release_enabled()):
         return cors_response(409, {
             "error": "CONTRIBUTION_SEND_NOT_RELEASED",
             "message": "Staff payment sending has not been released. Nothing was sent.",
@@ -1283,11 +1295,12 @@ def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
 
 def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart: dict,
                         reader, now: int, canonical: list):
-    """Quote one voluntary contribution at exactly its ProductsTable amount.
+    """Single-item ₹300 Contribute: exact purpose-specific GST/Delight/Express quote.
 
-    Contribute has no fulfilment/shipping and no convenience fee. Product/variant activity is
-    still validated by the native supply engine; only the final fee policy is replaced with the
-    already-defined contribution exemption.
+    The catalog still sells ONE ₹300 gross product; the server alone expands that
+    gross target into the approved 23541 + 4237 - 138 + 1500 + 729 + 131
+    native payment lines. Neither browser nor staff supplies any term. This
+    must remain isolated from the Vault/Drop Docs and ordinary cart policies.
     """
     if len(canonical) != 1:
         raise ContributionRejected("CONTRIBUTION_REQUIRES_ONE_LINE")
@@ -1298,6 +1311,10 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         raise ContributionRejected("UNKNOWN_CONTRIBUTION_VARIANT")
     if quantity != 1:
         raise ContributionRejected("CONTRIBUTION_QUANTITY_MUST_BE_ONE")
+    # Explicit release authority: do not convert any existing voluntary
+    # contribution into a taxable payment while the finance gate is OFF.
+    if not _contribute_taxable_release_enabled():
+        raise ContributionRejected("CONTRIBUTION_TAXABLE_NOT_RELEASED")
 
     base = native_checkout.quote_native_cart(
         ephemeral_cart,
@@ -1310,10 +1327,24 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         coupon_definition=None,
     )
     frozen = base.frozen_data if isinstance(base.frozen_data, dict) else {}
-    quote = checkout_pricing.exempt_quote(
-        base.quote.collection_before_convenience_paise,
-        currency="INR",
-    )
+    source_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    if len(source_items) != 1 or not isinstance(source_items[0], dict):
+        raise ContributionRejected("CONTRIBUTION_CATALOG_UNAVAILABLE")
+    source = source_items[0]
+    if (source.get("productId", "").lower() != str(product_id).lower()
+            or source.get("variantId") != variant_id
+            or source.get("quantity") != 1
+            or type(source.get("unitPricePaise")) is not int):
+        raise ContributionRejected("CONTRIBUTION_CATALOG_CHANGED")
+    terms = contribute_taxable.breakdown(source["unitPricePaise"])
+    collection = terms["collectionBeforeConveniencePaise"]
+    quote = checkout_pricing.compute_quote(collection, currency="INR")
+    if (quote.total_payable_paise != terms["totalPayablePaise"]
+            or quote.convenience_fee_paise != terms["convenienceFeePaise"]
+            or quote.convenience_gst_paise != terms["convenienceGstPaise"]):
+        raise ContributionRejected("CONTRIBUTION_TOTAL_UNSETTLED")
+    line = dict(source)
+    line["unitPricePaise"] = terms["itemSubtotalPaise"]
     return checkout_pricing.build_snapshot(
         customer_id=base.customer_id,
         cart_id=base.cart_id,
@@ -1322,10 +1353,15 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         created_at=base.created_at,
         ttl_seconds=base.expires_at - base.created_at,
         site=frozen.get("site"),
-        items=frozen.get("items") if isinstance(frozen.get("items"), list) else [],
+        items=[line],
         address=frozen.get("address"),
-        delivery=frozen.get("delivery"),
-        pricing_metadata={"policy": "contribution-exempt-2026-10-30"},
+        delivery={"paise": terms["expressPaise"], "optionId": "contribute-express"},
+        pricing_metadata={
+            "policy": contribute_taxable.POLICY,
+            "catalogGrossPaise": terms["catalogGrossPaise"],
+            "supplyGstPaise": terms["supplyGstPaise"],
+            "discountPaise": terms["delightPaise"],
+        },
     )
 
 
@@ -2047,12 +2083,8 @@ def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any
     def answer(code: int, data: Dict[str, Any]) -> Dict[str, Any]:
         return _hardened(cors_response(code, data, origin))
 
-    # Staff provenance is mandatory before any customer lookup, quote or
-    # provider call; customer web checkout keeps its existing contract.
-    if required_staff_contribution and (
-            len(staff_actor_hash) != 64
-            or not all(ch in "0123456789abcdef" for ch in staff_actor_hash)):
-        return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
+    # Read-only customer quote. Staff provenance belongs to _staff_contribution_send,
+    # not this customer action (which has no staff_actor_hash variable).
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
         return answer(400, {"error": "LINE_ITEMS_REQUIRED"})

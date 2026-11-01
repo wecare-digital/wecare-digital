@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from lambda_utils import template_media, whatsapp_templates
-from lambda_utils.ecommerce import blog_contribution, checkout_pricing, default_coupon, service_requests
+from lambda_utils.ecommerce import blog_contribution, checkout_pricing, contribute_taxable, default_coupon, service_requests
 from lambda_utils.ecommerce.money import positive_paise
 
 logger = logging.getLogger(__name__)
@@ -86,25 +87,15 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
     }
 
 
-def _contribution_breakdown(item_subtotal_paise: int) -> Dict[str, int]:
-    """A voluntary contribution is exactly the chosen catalog amount.
+def _contribution_breakdown(catalog_gross_paise: int) -> Dict[str, int]:
+    """Exact 30000-paise Contribute quote under its own taxable policy.
 
-    It has no supply GST adjustment, Delight, Express charge, convenience fee or GST-on-fee.
-    The ProductsTable variant price remains the amount authority; this is only the fee policy.
+    This does NOT borrow Vault/Drop Docs' service SKU or their Rs25 Express
+    policy. Product catalog stores the gross 30000 paise while the mandatory
+    native payment lines transparently reconcile back to that same total.
+    A missing/drifting price fails closed instead of silently repricing.
     """
-    quote = checkout_pricing.exempt_quote(item_subtotal_paise, currency=SERVICE_CURRENCY)
-    return {
-        "itemSubtotalPaise": item_subtotal_paise,
-        "supplyGstPaise": 0,
-        "supplyGstBps": 0,
-        "delightPaise": 0,
-        "expressPaise": 0,
-        "collectionBeforeConveniencePaise": quote.collection_before_convenience_paise,
-        "convenienceFeePaise": 0,
-        "convenienceGstPaise": 0,
-        "convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS,
-        "totalPayablePaise": quote.total_payable_paise,
-    }
+    return contribute_taxable.breakdown(catalog_gross_paise)
 
 
 def _payment_templates(kind: str) -> Optional[Dict[str, Any]]:
@@ -186,7 +177,11 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     # server-authoritative price read. Keep it as a separate row rather than adding it to
     # SERVICE_KIND_BY_SLUG, because it has no service fulfilment / Meta Flow contract.
     contribution_variants = sorted(blog_contribution.CONTRIBUTION_VARIANT_IDS)
-    if len(contribution_variants) == 1:
+    # Do not advertise a payable taxable Contribute quote before the
+    # independently reviewed tax/capture release is enabled.
+    if os.environ.get("CONTRIBUTE_TAXABLE_NATIVE_PAYMENT_ENABLED", "") != "true":
+        prices["contribute"] = {"available": False}
+    elif len(contribution_variants) == 1:
         variant = contribution_variants[0]
         try:
             paise = _variant_paise(product_reader(variant))

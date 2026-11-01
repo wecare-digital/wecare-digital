@@ -2170,7 +2170,10 @@ def _handle_order_details_template_send(
             clean_item = {k: v for k, v in item.items() if k in _ALLOWED_ITEM_KEYS}
             # Final-boundary guard: every Meta ORDER_DETAILS item gets the one owner-approved
             # default thumbnail, regardless of what an upstream caller supplied.
-            clean_item['image'] = {'link': DEFAULT_ORDER_ITEM_THUMBNAIL}
+            if str(clean_item.get('name') or '').strip() == 'Convenience fee':
+                clean_item.pop('image', None)
+            else:
+                clean_item['image'] = {'link': DEFAULT_ORDER_ITEM_THUMBNAIL}
             if not clean_item.get('importer_name'):
                 clean_item.update(WECARE_IMPORTER)
             if not clean_item.get('country_of_origin'):

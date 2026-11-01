@@ -3,7 +3,7 @@
  *
  * No direct template sends or free-form invoices. The customer pays a single
  * server-priced catalog Contribute item after explicitly approving Review & Pay.
- * A ₹15 Express amount is an INTERNAL accounting allocation, not a charge.
+ * Express is a ₹15 line within, not on top of, the exact ₹300 total.
  */
 import React from 'react';
 import Link from 'next/link';
@@ -18,17 +18,10 @@ const TARGET_TOTAL_PAISE = 30000;
 const EXPRESS_PAISE = 1500;
 
 /**
- * Current contribution policy is fee/tax/Delight exempt. Treat Express as an
- * INTERNAL allocation within the target, not an invented customer fee.
- * This is not the live catalog price or a payment quote.
- */
-const VOLUNTARY_CONTRIBUTION_ALLOCATION_PAISE = TARGET_TOTAL_PAISE - EXPRESS_PAISE;
-
-/**
- * Alternative worked example if Finance separately approves applying the
- * existing Vault/Collect tax + fee + Delight policy to Contribute.
- * Pre-calculated in integer paise using checkout_pricing.round_half_up and
- * default_coupon.delight_paise. NOT a client-side pricing engine.
+ * Owner-specified reference numbers; NOT browser pricing authority.
+ * The live server quote and final Admin readiness decide whether a request
+ * can be sent. Neither checkout nor invoice can accept a stale UI total.
+ *
  *
  * 235.41 + 42.37 - 1.38 + 15.00 + 7.29 + 1.31 = 300.00
  */
@@ -82,10 +75,10 @@ const ContributePaymentPlan: React.FC = () => {
 
       <div className="contribute-notice" role="status">
         <strong>Send only after a fresh server quote, verified recipient and final Admin confirmation.</strong>
-        <p>Contribute is a single voluntary payment, priced from the live catalog. Its checkout has
-          no supply GST, Delight, added Express fee, convenience fee or GST on fees.
-          The ₹15 Express allocation is internal to ₹300. The native payment request is created
-          only when an authorized staff member explicitly clicks Send in the reviewed draft.</p>
+        <p>Contribute is a single ₹300 native order, with server-calculated supply GST,
+          Delight, Express and convenience tax/fees reconciled inside that total.
+          The existing approved payment template and images are unchanged.
+          Staff must review the live quote and explicitly confirm before sending.</p>
       </div>
 
       <ContributeStaffControls
@@ -97,22 +90,24 @@ const ContributePaymentPlan: React.FC = () => {
 
       <div className="contribute-grid">
         <article>
-          <h3>Existing contribution accounting</h3>
-          <p>Keep the existing tax and fee exemptions. Allocate Express internally from the
-            customer's fixed {money(TARGET_TOTAL_PAISE)}, rather than charge it again.</p>
+          <h3>Live server-authoritative Contribute quote</h3>
+          <p>The current catalog product must be exactly ₹300 and every fee must
+            match the same frozen quote before a WhatsApp request is permitted.</p>
           <dl>
-            <div><dt>Contribution allocation</dt><dd>{money(VOLUNTARY_CONTRIBUTION_ALLOCATION_PAISE)}</dd></div>
-            <div><dt>Express allocation (within total)</dt><dd>{money(EXPRESS_PAISE)}</dd></div>
-            <div><dt>Delight</dt><dd>₹0</dd></div>
-            <div><dt>Convenience and fee GST</dt><dd>₹0</dd></div>
-            <div className="total"><dt>Customer total</dt><dd>{money(TARGET_TOTAL_PAISE)}</dd></div>
+            <div><dt>Contribute item</dt><dd>{price.available && price.breakdown ? money(price.breakdown.itemSubtotalPaise) : 'Unavailable'}</dd></div>
+            <div><dt>Supply GST (18%)</dt><dd>{price.available && price.breakdown ? '+' + money(price.breakdown.supplyGstPaise) : 'Unavailable'}</dd></div>
+            <div><dt>Delight (0.5%)</dt><dd>{price.available && price.breakdown ? '−' + money(price.breakdown.delightPaise) : 'Unavailable'}</dd></div>
+            <div><dt>Express</dt><dd>{price.available && price.breakdown ? '+' + money(price.breakdown.expressPaise) : 'Unavailable'}</dd></div>
+            <div><dt>Convenience</dt><dd>{price.available && price.breakdown ? '+' + money(price.breakdown.convenienceFeePaise) : 'Unavailable'}</dd></div>
+            <div><dt>GST on convenience</dt><dd>{price.available && price.breakdown ? '+' + money(price.breakdown.convenienceGstPaise) : 'Unavailable'}</dd></div>
+            <div className="total"><dt>Customer total</dt><dd>{price.available && price.breakdown ? money(price.breakdown.totalPayablePaise) : 'Unavailable'}</dd></div>
           </dl>
         </article>
 
         <article>
-          <h3>Alternative: Vault-style taxable calculation</h3>
-          <p>Use this example only if Finance establishes that Contribute is a taxable supply
-            eligible for the existing GST, Delight and convenience-fee treatment.</p>
+          <h3>Owner-specified ₹300 target breakdown</h3>
+          <p>This is the requested item/tax/fee breakdown for comparison with the
+            live server quote. It never authorizes a payment by itself.</p>
           <dl>
             <div><dt>Item base</dt><dd>{money(TAXABLE_EXAMPLE.itemPaise)}</dd></div>
             <div><dt>Supply GST (18%)</dt><dd>+{money(TAXABLE_EXAMPLE.supplyGstPaise)}</dd></div>
@@ -146,7 +141,7 @@ const ContributePaymentPlan: React.FC = () => {
 
       <div className="contribute-footer">
         <p>Every Send is checked again by the backend against the exact {money(TARGET_TOTAL_PAISE)}
-          fee-exempt catalog quote, staff Admin role, approved payment configuration and verified
+          taxable catalog quote, staff Admin role, approved payment configuration and verified
           customer identity. A message accepted by Meta is not proof of delivery or payment.
           Check the ledger and paid receipt before marking a contribution completed. An ambiguous
           send remains locked; never manually send a substitute payment template.</p>

@@ -19,7 +19,7 @@ interface Props {
 
 type Approval = 'checking' | 'approved' | 'unverified';
 const TARGET_PAISE = 30000;
-const EXPRESS_ALLOCATION_PAISE = 1500;
+const EXPRESS_CHARGE_PAISE = 1500;
 const META_PAYMENT_BODY = '💳 Your order is ready for payment. Tap Review and Pay to complete it securely.';
 const CONTACT_LIMIT = 40;
 const money = (v: number) => '₹' + rupeesFromPaise(v);
@@ -27,22 +27,18 @@ const keyOf = (c: api.Contact): string => c.id; // DynamoDB ContactsTable primar
 const usableContact = (c: api.Contact): boolean =>
   !!keyOf(c) && !!c.phone && !c.deletedAt && !c.archivedAt && !c.locked;
 
-/**
- * This is a readiness CHECK for the existing exempt Contribute price contract,
- * not permission to initiate a payment. The actual sender must still reserve a
- * purpose-bound, immutable ₹300 order and verify the recipient and Meta status.
- */
+/** Read-only quote check: every Contribute tax/fee line must reconcile exactly. */
 const matchesContributionQuote = (p: ServicePrice): boolean => {
   if (!p.available || p.paise !== TARGET_PAISE || !p.breakdown) return false;
   const b = p.breakdown;
-  return b.itemSubtotalPaise === TARGET_PAISE
-    && b.collectionBeforeConveniencePaise === TARGET_PAISE
+  return b.itemSubtotalPaise === 23541
+    && b.collectionBeforeConveniencePaise === 29140
     && b.totalPayablePaise === TARGET_PAISE
-    && b.supplyGstPaise === 0
-    && b.delightPaise === 0
-    && b.expressPaise === 0
-    && b.convenienceFeePaise === 0
-    && b.convenienceGstPaise === 0;
+    && b.supplyGstPaise === 4237
+    && b.delightPaise === 138
+    && b.expressPaise === 1500
+    && b.convenienceFeePaise === 729
+    && b.convenienceGstPaise === 131;
 };
 
 const ContributeStaffControls: React.FC<Props> = ({
@@ -157,11 +153,11 @@ const ContributeStaffControls: React.FC<Props> = ({
     'Saved phone: ' + (selected?.phone || 'None'),
     'Staff reference: ' + reference.trim(),
     'Proposed customer total: ₹300.00',
-    'Express: ₹15.00 allocated internally (not an additional customer fee)',
-    'Current contribution policy: Delight ₹0; supply GST ₹0; convenience ₹0; fee GST ₹0',
+    'Express: +₹15.00 charged within the exact ₹300 total',
+    'Contribute ₹235.41 + GST ₹42.37 − Delight ₹1.38 + Express ₹15.00 + Convenience ₹7.29 + fee GST ₹1.31',
     'Server quote: ' + (price.available
       ? money(price.breakdown?.totalPayablePaise ?? price.paise) : 'Unavailable'),
-    'Server quote matches ₹300 exempt policy: ' + (priceMatches ? 'YES' : 'NO'),
+    'Server quote matches ₹300 taxable quote: ' + (priceMatches ? 'YES' : 'NO'),
     'Native Meta template: ' + (templateName || 'Unavailable'),
     'Meta status readback: ' + (approval === 'approved' ? 'Approved' : 'Not confirmed'),
     'Commerce send release: ' + (backendReady === 'enabled' ? 'Enabled' : 'Blocked: ' + backendReason),
@@ -177,7 +173,7 @@ const ContributeStaffControls: React.FC<Props> = ({
     try {
       const accepted = await confirm({
         title: 'Send ₹300 Review & Pay?',
-        message: `Customer: ${selected.name} (${selected.phone}).\nOne ₹300 exempt Contribute item. Express ₹15 is an internal allocation, not a billed line. No Delight, supply GST, convenience fee or GST on fees.\nThe server will re-check identity, exact price and Meta readiness. This does not charge the customer; only their payment approval does.\nAn uncertain send must be reconciled before retrying.`,
+        message: `Customer: ${selected.name} (${selected.phone}).\nContribute ₹235.41 + GST ₹42.37 − Delight ₹1.38 + Express ₹15.00 + Convenience ₹7.29 + fee GST ₹1.31 = ₹300.00.\nThe server will re-check identity, exact price and Meta readiness. This does not charge the customer; only their payment approval does.\nAn uncertain send must be reconciled before retrying.`,
         confirmText: 'Send ₹300 payment request',
       });
       if (!accepted) return;
@@ -245,7 +241,7 @@ const ContributeStaffControls: React.FC<Props> = ({
       <div className="staff-readiness" role="status" aria-live="polite">
         <div><strong>Server contribution quote</strong><span>{loadingPrice ? 'Checking…' : price.available
           ? money(price.breakdown?.totalPayablePaise ?? price.paise) : 'Unavailable'}</span></div>
-        <div><strong>Exact ₹300 exempt policy</strong><span>{loadingPrice ? 'Checking…' : priceMatches ? 'Matches' : 'Blocked: mismatch'}</span></div>
+        <div><strong>Exact ₹300 taxable quote</strong><span>{loadingPrice ? 'Checking…' : priceMatches ? 'Matches' : 'Blocked: mismatch'}</span></div>
         <div><strong>Native Meta template</strong><span>{approval === 'checking' ? 'Checking…'
           : approval === 'approved' ? 'Approved in staff lookup' : 'Not confirmed here'}</span></div>
         <div><strong>Commerce send release</strong><span>{backendReady === 'checking'
@@ -328,7 +324,7 @@ const ContributeStaffControls: React.FC<Props> = ({
             <div><dt>Item image</dt><dd>Default WECARE order-details thumbnail</dd></div>
             <div><dt>Header image</dt><dd>Shared WECARE branded header</dd></div>
             <div><dt>Proposed total</dt><dd>{money(TARGET_PAISE)}</dd></div>
-            <div><dt>Express (internal allocation)</dt><dd>{money(EXPRESS_ALLOCATION_PAISE)}</dd></div>
+            <div><dt>Express</dt><dd>{money(EXPRESS_CHARGE_PAISE)}</dd></div>
             <div><dt>Server pricing match</dt><dd>{priceMatches ? 'Yes' : 'NO — send blocked'}</dd></div>
             <div><dt>Internal note</dt><dd>{internalNote || 'None'}</dd></div>
           </dl>
