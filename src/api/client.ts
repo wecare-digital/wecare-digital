@@ -6478,25 +6478,6 @@ export async function confirmDocumentReplacement (
 }
 
 
-/** Publish one Drop Docs document to the customer's Vault. The server owns the
- *  customer-facing filename; staff cannot rename Vault files. Idempotent. */
-export async function publishDocumentToVault (
-  documentId: string,
-): Promise<ApiResult<{
-  fileId: string;
-  status: string;
-  deliverable: string;
-  created: boolean;
-  // Always returned: the generated name the server assigned.
-  displayName: string;
-}>> {
-  return apiCallResult( `${API_BASE}/secure-files/publish-document`, {
-    method: 'POST',
-    body: JSON.stringify( { documentId } ),
-  } );
-}
-
-
 export async function revalidateDocumentReference (
   documentId: string,
 ): Promise<ApiResult<{
