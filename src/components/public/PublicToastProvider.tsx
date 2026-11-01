@@ -4,6 +4,8 @@ import React, {
 import { useRouter } from 'next/router';
 import PublicNotice from './PublicNotice';
 import type { PublicNoticeTone } from './PublicNotice';
+import { publicActionText } from '../../lib/publicActionNotices';
+import type { PublicActionNoticeKind } from '../../lib/publicActionNotices';
 
 /**
  * Only ONE brief notification can be visible on public/customer pages.
@@ -19,6 +21,9 @@ export interface PublicToastOptions {
   durationMs?: number;
 }
 
+/** WhatsApp failures are deliberately persistent INLINE warnings, not toasts. */
+type PublicToastKind = Exclude<PublicActionNoticeKind, 'whatsappFailed'>;
+
 interface PublicToast {
   id: number;
   message: string;
@@ -26,7 +31,8 @@ interface PublicToast {
 }
 
 interface PublicToastContextValue {
-  showToast: ( message: string, options?: PublicToastOptions ) => number;
+  /** Status keys only: reject raw API/provider text at the shared toast boundary. */
+  showToast: ( kind: PublicToastKind, options?: PublicToastOptions ) => number;
   /** Ignore a stale async owner if a newer toast replaced it. */
   hideToast: ( id?: number ) => void;
 }
@@ -63,12 +69,14 @@ export default function PublicToastProvider ( { children }: { children: React.Re
     setActive( null );
   }, [ stopTimer ] );
 
-  const showToast = useCallback( ( message: string, options: PublicToastOptions = {} ): number => {
-    if ( !message.trim() ) return 0;
+  const showToast = useCallback( ( kind: PublicToastKind, options: PublicToastOptions = {} ): number => {
+    const message = publicActionText( kind );
+    if ( !message ) return 0;
     stopTimer();
     const id = ++nextId.current;
     activeId.current = id;
-    const tone = options.tone || 'info';
+    const tone = options.tone || ( kind === 'success' || kind === 'whatsappAccepted' ? 'success'
+      : kind === 'failure' || kind === 'blocked' ? 'error' : 'info' );
     setActive( { id, message, tone } );
     // Action success is brief, pending explicitly stays, and errors never
     // auto-dismiss unless the caller marks a low-risk failure as transient.

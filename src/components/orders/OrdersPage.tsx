@@ -18,6 +18,7 @@ import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatus
 import OrderActionIcon from './OrderActionIcon';
 import OrderActionsMenu from './OrderActionsMenu';
 import PublicNotice from '../public/PublicNotice';
+import { publicActionText } from '../../lib/publicActionNotices';
 import { usePublicToast } from '../public/PublicToastProvider';
 
 /**
@@ -376,7 +377,7 @@ export default function OrdersPage (): React.ReactElement {
     try
     {
       await navigator.clipboard.writeText( value );
-      showToast( 'Copied.', { tone: 'success', durationMs: 2500 } );
+      showToast( 'success', { durationMs: 2500 } );
     }
     catch
     {
@@ -417,17 +418,17 @@ export default function OrdersPage (): React.ReactElement {
       case 'none':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'none' } ) );
         setOrdersAlert( { source: 'invoice', key: invoiceKey,
-          message: 'An invoice is not available for this order yet.' } );
+          message: publicActionText( 'blocked' ) } );
         return;
       case 'rate':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'rate' } ) );
         setOrdersAlert( { source: 'invoice', key: invoiceKey,
-          message: 'Too many invoice requests. Wait a moment and try again.' } );
+          message: publicActionText( 'blocked' ) } );
         return;
       case 'failed':
         setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'failed' } ) );
         setOrdersAlert( { source: 'invoice', key: invoiceKey,
-          message: 'Invoice download failed. Please try again.' } );
+          message: publicActionText( 'failure' ) } );
         return;
       default: { const unhandled: never = outcome; void unhandled; return; }
     }
@@ -465,8 +466,7 @@ export default function OrdersPage (): React.ReactElement {
       setOrdersAlert( { source: 'service', message: notice.message } );
     } else {
       dismissAlertFor( 'service' );
-      inviteToastId.current = showToast( notice.message,
-        { tone: 'success', durationMs: 2800 } );
+      inviteToastId.current = showToast( 'whatsappAccepted', { durationMs: 2800 } );
     }
   };
 
@@ -477,8 +477,7 @@ export default function OrdersPage (): React.ReactElement {
     inviteInFlight.current = true;
     setInviteBusy( true );
     dismissAlertFor( 'service' );
-    inviteToastId.current = showToast( customerMenuNotice( 'pending' ).message,
-      { tone: 'info', durationMs: 0 } );
+    inviteToastId.current = showToast( 'processing', { durationMs: 0 } );
     void ( async () => {
       try {
         const result = await sendCustomerMenuAction( action, token );
@@ -510,9 +509,7 @@ export default function OrdersPage (): React.ReactElement {
   const applyFailure = ( kind: Failure ) => {
     setOrdersAlert( current => current?.source === 'service' ? current : {
       source: 'orders',
-      message: kind === 'rate'
-        ? 'Too many requests. Wait a moment and try again.'
-        : 'We could not load your orders just now. Try again shortly.',
+      message: publicActionText( kind === 'rate' ? 'blocked' : 'failure' ),
     } );
     setView( 'error' );
   };
@@ -552,8 +549,7 @@ export default function OrdersPage (): React.ReactElement {
       const serviceAction = takeCustomerMenuAction();
       if ( serviceAction ) {
         dismissAlertFor( 'service' );
-        inviteToastId.current = showToast( customerMenuNotice( 'pending' ).message,
-          { tone: 'info', durationMs: 0 } );
+        inviteToastId.current = showToast( 'processing', { durationMs: 0 } );
         const result = await sendCustomerMenuAction( serviceAction, session.accessToken );
         if ( !live ) return;
         if ( result.kind === 'expired' ) {
@@ -571,7 +567,7 @@ export default function OrdersPage (): React.ReactElement {
       if ( linkOutcome === 'expired' ) { expire(); return; }
       if ( linkOutcome === 'ignored' ) {
         setOrdersAlert( current => current?.source === 'service' ? current : {
-          source: 'link', message: "Couldn't refresh linked purchases.",
+          source: 'link', message: publicActionText( 'failure' ),
         } );
       }
 
@@ -621,9 +617,8 @@ export default function OrdersPage (): React.ReactElement {
     {
       // The rows already on screen stay, and so does the button, so a second tap retries. An
       // error view here would throw away a list the customer is reading over a pagination hiccup.
-      setOrdersAlert( { source: 'pagination', message: outcome.kind === 'rate'
-        ? 'Too many requests. Wait a moment before loading more orders.'
-        : 'We could not load more orders. Please try again.' } );
+      setOrdersAlert( { source: 'pagination',
+        message: publicActionText( outcome.kind === 'rate' ? 'blocked' : 'failure' ) } );
       return;
     }
     const rows = outcome.data.orders || [];
