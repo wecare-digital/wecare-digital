@@ -39,3 +39,23 @@ def test_paid_invoice_template_delivery_still_exists():
     assert "invoice_whatsapp_sent" in source
     assert "send_invoice_whatsapp" in source
     assert "wa_order_status" in source
+
+OUTBOUND_WHATSAPP = (
+    Path(__file__).resolve().parents[1]
+    / "amplify/functions/messaging/outbound-whatsapp/handler.py"
+)
+
+
+def test_outbound_refuses_legacy_order_page_key_before_sending():
+    source = OUTBOUND_WHATSAPP.read_text(encoding="utf-8")
+    ast.parse(source)
+
+    guard = source.index("if str(body.get('idempotencyKey') or '').startswith('order-page-link:'):")
+    assert "'ORDER_PAGE_LINK_RETIRED'" in source
+    assert "'retired_post_invoice_cta_refused'" in source
+
+    # The fallback protects even an accidentally reactivated older
+    # Commerce/Invoice engine version; refusal precedes any send-side effect.
+    assert guard < source.index("phone_number_id = body.get", guard)
+    assert guard < source.index("_refuse_unless_payment_ready(", guard)
+    assert guard < source.index("_claim_keyed_outbound_send(", guard)
