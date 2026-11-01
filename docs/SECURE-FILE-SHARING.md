@@ -147,9 +147,10 @@ payment is not granted immediately. That is recoverable — `reconcile_file_deli
 re-runs the same path — whereas a forged grant is not, because the file has already left.
 
 Redemption never consumes the purchase: `/download` issues a short-lived download session
-from the durable paid entitlement. A successful WhatsApp delivery, or the first redeem,
-opens a 24-hour access window (`VAULT_ACCESS_WINDOW_HOURS`); downloads inside it are free,
-and once it closes access needs a renewal. The grant write requires
+from the durable paid entitlement. The **first authenticated download after private S3 verification**
+opens the paid 24-hour access window (`VAULT_ACCESS_WINDOW_HOURS`). WhatsApp provider acceptance
+or delivery does not start the clock. Downloads inside the window are free; after expiry,
+access closes without a renewal or second payment. The grant write requires
 `paid = false`, so a replayed capture cannot revive a spent grant.
 
 Both callers of the single writer record provenance: `paidVia=webhook` when the hint

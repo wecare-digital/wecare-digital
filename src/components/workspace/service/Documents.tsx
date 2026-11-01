@@ -144,7 +144,7 @@ const VAULT_ACCESS_LABELS: Record<api.SecureFileAccessState, string> = {
   UNPAID: 'Not paid yet',
   OPEN: 'Paid · access window open',
   READY: 'Paid · window opens on first download',
-  EXPIRED: 'Paid · window used · renewal needed',
+  EXPIRED: 'Paid · access expired · no renewal',
   PAID_UNVERIFIED: 'Paid · needs reconciling, do not charge again',
 };
 

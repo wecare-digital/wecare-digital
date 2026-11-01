@@ -41,6 +41,8 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v
       - name: Verify stale paid Vault website carts cannot renew after expiry
         run: python3 -m unittest discover -s tests -p 'test_vault_website_no_renew.py' -v
+      - name: Verify Vault 24h clock begins on authenticated first download
+        run: python3 -m unittest discover -s tests -p 'test_vault_first_download_clock.py' -v
       - name: Vault exact-file ownership and truthful Activity
         run: python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v
       - name: Retired WhatsApp Vault chooser cannot collect payment

@@ -1974,7 +1974,7 @@ def _active_entitlement(access_id: str, file_id: str,
 
 
 def _open_access_window(entitlement: Dict[str, Any], now: Optional[int] = None) -> Dict[str, Any]:
-    """Open an already-paid 24h access window on a durable entitlement, at delivery.
+    """Open an already-paid 24h access window on the first authenticated download.
 
     ₹49 buys one window of ``VAULT_ACCESS_WINDOW_HOURS``; inside it every download is free. This
     is the only place the window is opened. It is idempotent: if a window is already open,
@@ -2364,8 +2364,8 @@ def _redeem_after_reconcile(
     entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
     if not entitlement:
         return _not_registered(origin)
-    # A reconcile means a fresh payment just confirmed, so this opens its window — the same
-    # delivery-starts-the-clock rule as the main redeem path, and the same paid-window rule.
+    # A reconciled captured payment still opens its paid window only during the
+    # first authenticated download, after the private S3 object is verified.
     if not _vault_file_storage_ready(item):
         return _vault_storage_unavailable(origin)
     now = int(time.time())
@@ -2506,19 +2506,15 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
         # The send already happened; losing the bookkeeping must not undo it.
         logger.warning(json.dumps({"event": "delivery_state_write_failed"}))
 
-    # feat-004: the 24h window starts AT DELIVERY, for the WhatsApp entry path too — not only
-    # on the web redeem. On a successful send, open (or confirm) the window on the durable
-    # entitlement so both entry paths start the same clock. Idempotent via _open_access_window,
-    # so a duplicate webhook / resend does not re-open or double-count. A failed send leaves the
-    # window closed, which is correct: nothing was delivered, so the clock has not started.
-    if ok:
-        _open_access_window(entitlement)
-
+    # A successful Meta send is provider acceptance, not handset delivery.
+    # Do NOT consume any part of the paid 24-hour entitlement here. The first
+    # authenticated, owner-bound redeem verifies the private S3 bytes and opens
+    # exactly one window. Historical windows already opened remain unchanged.
     return ok, detail
 
 
 def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origin: str):
-    """Issue renewable transport from durable paid entitlement; never consume the purchase."""
+    """Issue short-lived transport from a paid entitlement; never consume the purchase."""
     params = event.get("queryStringParameters") or {}
     access_id = str(params.get("grant") or "").strip()
     if not access_id:
@@ -2542,8 +2538,8 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
                   "message": "This file is not authorized for this account. If you already paid, contact support; do not pay again."},
             origin)
 
-    # The access window governs free re-download. The FIRST redeem after a paid entitlement opens
-    # the window (delivery is when the clock starts); redeems inside it are
+    # The access window governs free re-download. The FIRST authenticated redeem opens
+    # the window after verifying the private S3 object; further redeems inside it are
     # free. Once it closes, access ends without a renewal or new payment.
     # Storage must exist BEFORE we open a paid window, otherwise a missing object
     # consumes an entire 24-hour purchase on a failed download.
@@ -3213,12 +3209,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # can reach it: an event arriving through the API always carries a requestContext,
     # and this branch requires its absence.
     if event.get("internalAction") == "openVaultAccessWindow" and not event.get("requestContext"):
-        grant_id = str(event.get("grantId") or "")
-        ok, detail = open_vault_access_window(grant_id) if grant_id else (False, "no grantId")
-        logger.info(
-            json.dumps({"event": "vault_window_open_result", "ok": ok, "detail": detail})
-        )
-        return {"ok": ok, "detail": detail}
+        # Rolling-deploy compatibility for older paid_vault senders. Refuse the
+        # obsolete send-time clock advancement; do not claim the old caller has
+        # opened the window. The customer's first authenticated redeem does so.
+        logger.info(json.dumps({"event": "vault_window_open_deferred_until_download"}))
+        return {"ok": False, "detail": "deferred_until_first_authenticated_download"}
 
     if event.get("internalAction") == "deliverOverWhatsApp" and not event.get("requestContext"):
         grant_id = str(event.get("grantId") or "")

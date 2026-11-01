@@ -113,27 +113,10 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
     return status == 'ACCEPTED'
 
 
-def _open_paid_window(lambda_client, grant_id):
-    """Ask secure-files to open the paid window for this grant: ``(opened, detail)``.
-
-    Never raises, because delivery must not depend on it. ``detail`` is secure-files' own reason
-    or an exception type name; neither carries customer data.
-    """
-    try:
-        response = lambda_client.invoke(
-            FunctionName='wecare-secure-files:live',
-            InvocationType='RequestResponse',
-            Payload=json.dumps({'internalAction': 'openVaultAccessWindow',
-                                'grantId': grant_id}).encode(),
-        )
-        answer = json.loads(response['Payload'].read() or b'{}')
-    except Exception as error:  # noqa: BLE001
-        return False, type(error).__name__
-    if response.get('FunctionError'):
-        return False, 'function_error'
-    if not isinstance(answer, dict):
-        return False, 'malformed_answer'
-    return bool(answer.get('ok')), str(answer.get('detail') or '')[:120]
+# The old internal openVaultAccessWindow invocation was removed deliberately.
+# Meta accepted is not handset delivered; opening before download can consume
+# paid hours while a customer cannot see the message. Secure-files _redeem
+# starts the single paid window after verified sign-in and private S3 HEAD.
 
 
 #: Outcomes after which a captured Vault payment has not reached its customer. This module runs
@@ -227,19 +210,12 @@ def _prepare_and_send(event, lambda_client):
     # The approved download template is tied to this paid purchase's file ID.
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
-    # Delivery starts the paid 24-hour window, as in secure-files `deliver_over_whatsapp`, which
-    # also opens it only after a successful send; secure-files owns the window accounting. It is
-    # not a gate: the link has gone, and if the window cannot be opened now the customer's first
-    # download opens the unused paid window instead (secure-files `_redeem`). Opening it before
-    # the recipient checks, as before, could start the clock for a message that was never sent.
-    window_opened, window_detail = False, 'already_delivered'
-    if not delivered_before:
-        window_opened, window_detail = _open_paid_window(lambda_client, grant['grantId'])
-        if not window_opened:
-            extra = ({'alert': 'VAULT_PAID_WINDOW_UNAVAILABLE'}
-                     if window_detail == 'no paid access window is available' else {})
-            log_event(logger, 'vault_window_open_deferred', level='warning',
-                      requestId=row['publicRequestId'], detail=window_detail, **extra)
+    # The single 24-hour entitlement remains READY until the customer's first
+    # authenticated private-file download. WhatsApp provider acceptance has no
+    # reliable handset-delivery timestamp, so it must not consume paid access.
+    # This send has zero window openings; previous OPEN/EXPIRED records remain
+    # unchanged and an in-flight captured payment remains fulfilable.
+    window_opened = False
     # Vault is a paid, owner-bound DOWNLOAD product, not a WhatsApp PDF forwarding
     # service. The approved Access Vault button above is the only automatic
     # document-delivery message; customer authentication and the 24-hour
