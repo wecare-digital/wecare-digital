@@ -576,7 +576,7 @@ export default function OrdersPage (): React.ReactElement {
       if ( linkOutcome === 'expired' ) { expire(); return; }
       if ( linkOutcome === 'ignored' ) {
         setOrdersAlert( current => current?.source === 'service' ? current : {
-          source: 'link', message: 'Couldn't refresh linked purchases.',
+          source: 'link', message: "Couldn't refresh linked purchases.",
         } );
       }
 
