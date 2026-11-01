@@ -1050,7 +1050,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
           /* Keep the order reference and its copy control as one non-wrapping unit;
              smaller viewports scroll the existing table wrapper instead. */
-          .ord-id-line{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+          .ord-id-line{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
           .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;white-space:nowrap}
 
           /* Same rung, but it is the Date column's understudy: hidden while that column is
