@@ -24,16 +24,18 @@ interface PageProps { signOut?: () => void; user?: any; }
 
 const VaultWorkbench = dynamic( () => import('../../../components/workspace/service/SecureFiles'), { ssr: false } );
 const VaultDeliveryTiming = dynamic( () => import('../../../components/workspace/pay/VaultDeliveryTiming'), { ssr: false } );
+const ContributePaymentPlan = dynamic( () => import('../../../components/workspace/pay/ContributePaymentPlan'), { ssr: false } );
 
 const TABS: ShellTab[] = [
   { id: 'collect', label: 'Collect' },
   { id: 'vault', label: 'Vault · Review & Pay' },
+  { id: 'contribute', label: 'Contribute' },
   { id: 'defaults', label: 'Default invoice items' },
   { id: 'timing', label: 'Access delay' },
   { id: 'ledger', label: 'Ledger', divider: true },
 ];
 
-type PaymentsView = 'collect' | 'vault' | 'defaults' | 'timing' | 'ledger';
+type PaymentsView = 'collect' | 'vault' | 'contribute' | 'defaults' | 'timing' | 'ledger';
 type LedgerView = 'invoices' | 'activity' | ServiceSlug;
 
 function one ( raw: string | string[] | undefined ): string {
@@ -44,6 +46,7 @@ function mode ( raw: string | string[] | undefined ): PaymentsView {
   const value = one( raw );
   if ( value === 'collect' ) return 'collect';
   if ( value === 'vault' ) return 'vault';
+  if ( value === 'contribute' ) return 'contribute';
   if ( value === 'defaults' ) return 'defaults';
   if ( value === 'timing' ) return 'timing';
   return 'ledger';
@@ -146,12 +149,12 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
   return (
     <>
-      <SEO title="Pay & Flow" description="Collect payments, send a server-priced Vault request and review the payment ledger." noindex />
+      <SEO title="Pay & Flow" description="Collect payments, review Vault requests, and plan purpose-bound Contribute payments." noindex />
       <PageShell
         key={ active }
         className="payments-shell"
         title="Pay & Flow"
-        subtitle="Collect manually or send file-bound Vault Review & Pay. Invoices and download links follow verified payment."
+        subtitle="Collect server-approved payments, manage Vault Review & Pay and review Contribute accounting before enablement."
         tabs={ TABS }
         activeTab={ active }
         defaultTab={ active }
@@ -169,6 +172,7 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
           <>
             { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
             { tab === 'vault' && <VaultWorkbench signOut={ signOut } user={ user } embedded /> }
+            { tab === 'contribute' && <ContributePaymentPlan /> }
             { tab === 'timing' && <VaultDeliveryTiming /> }
             { tab === 'defaults' && (
               <DefaultInvoiceItems onUse={ choice => {
