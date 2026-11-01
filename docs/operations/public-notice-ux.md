@@ -10,6 +10,44 @@ records **61 original render sites across 16 files**, not 61 unique toasts.
 Its source links and counts describe that audit snapshot; do not replace them
 with claims of current runtime coverage.
 
+## Final public API/action wording (1 November 2026)
+
+All customer-facing **action feedback** now selects a trusted status key from
+`src/lib/publicActionNotices.ts`, never a raw API, Meta or provider message.
+The shared `PublicToastProvider.showToast` accepts *only* a typed status key
+and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** small
+top-right toast is shown at a time.
+
+| Outcome | Exact public text | Where |
+|---|---|---|
+| `processing` | `Processing…` | Low-risk action toast; page-local progress where necessary |
+| `success` | `Done.` | Non-WhatsApp action toast, e.g. copy |
+| `failure` | `Couldn't complete. Try again.` | Low-risk toast or persistent page error |
+| `blocked` | `This action is unavailable right now.` | Low-risk toast or persistent page error |
+| `whatsappAccepted` | `Sent to WhatsApp.` | ONLY when explicit sender acceptance is known |
+| `whatsappFailed` | `Couldn't confirm. Check WhatsApp.` | Persistent inline warning, NEVER an auto-dismissed toast |
+
+For API failures, classify known HTTP statuses / domain outcomes to
+`blocked` or `failure`; do not show `response.message`,
+`failure.message`, HTTP error text, exception strings or configuration
+details. Sign-in uses the already-approved `signInMessages.ts` text for
+recognized code/number states, and generic feedback for unknown API text.
+
+**Vault WhatsApp payments are sensitive:** HTTP `202` is a successful HTTP
+response but can carry `PAYMENT_REQUEST_UNCONFIRMED`. Show
+`Sent to WhatsApp.` only for the **exact**
+`PAYMENT_REQUEST_SENT` outcome; all other successful HTTP outcomes get a
+persistent `Couldn't confirm. Check WhatsApp.` warning and status refresh.
+Do not start a second payment request automatically.
+
+This is **not** permission to replace payment uncertainty, `Do not pay
+again.` guidance, address/OTP field validation, Vault paid-access state or
+weather/search result information with generic fleeting popups. Those stay
+inline/on-panel with the context needed for a safe decision. Unifying action
+language does not mean discarding financial facts or important recovery
+instructions. Workspace has the same toast CSS, but its operational message
+vocabulary is intentionally separate.
+
 ## One small, mobile-safe action toast — Public and Workspace (1 November 2026)
 
 Both apps now use **one global class and one global host rule** from
@@ -63,8 +101,8 @@ completed.
 - **Orders:** Subscribe and Leave Review share `Processing…`,
   `Sent to WhatsApp.`, and `Couldn't confirm. Check WhatsApp.`.
   The accepted toast describes **provider acceptance**, not delivery.
-  Invoice/order errors stay persistent; copy success clears after 2.5 seconds,
-  while the keyboard-copy fallback persists.
+  Invoice/order errors stay persistent; generic copy success `Done.` clears
+  after 2.5 seconds, while the keyboard-copy fallback persists.
 - **Cart/Checkout:** Action notices remain persistent, with error severity
   announced assertively. Quote, price and payment confirmation remain on
   their existing inline screens.
@@ -73,8 +111,9 @@ completed.
 - **Vault:** Access, missing-file and payment-action failures remain persistent
   inline. Paid/unverified access stays visible with its `Do not pay again`
   guidance; no conversion to a disappearing toast.
-- **PublicShare:** Copy shows one brief `Link copied.` toast, while the
-  same live region is visually hidden before copying.
+- **PublicShare:** Public copy shows one brief `Done.` toast, while its
+  screen-reader fallback remains hidden before copying. Workspace wording
+  remains separate.
 
 The other notification locations from the 61-site inventory are **not
 automatically changed**. In particular, header/search counts, translation,
@@ -114,5 +153,8 @@ state machine or payment logic is altered by this UI migration.
 checks the shared compact styles, top-right positions and one-toast behavior.
 `node --test tests/public_customer_notification_copy.test.mjs`
 checks plain-language Contribute messaging and acceptance boundaries.
+`node --test tests/public_action_feedback_contract.test.mjs`
+checks canonical action wording, refusal of raw API strings and the Vault
+HTTP-202 acceptance guard.
 Run browser QA for keyboard, small screens, RTL and long error strings
 before release.
