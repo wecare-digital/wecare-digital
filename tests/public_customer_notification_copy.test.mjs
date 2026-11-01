@@ -48,7 +48,7 @@ test('blocked Contribute never announces success, never auto-retries', () => {
   assert.doesNotMatch(orders, /showToast\( (?:data|result|notice)\.(?:status|error|message)/);
   assert.doesNotMatch(orders, /if \( kind === 'blocked' \)/);
   assert.match(orders, /<PublicNotice mode="inline" tone="error" message=\{ ordersAlert\.message \}/);
-  assert.ok(provider.includes("if ( kind === 'whatsappFailed' ) return 0;"));
+  assert.ok(provider.includes("if ( String( kind ) === 'whatsappFailed' ) return 0;"));
 });
 
 test('Vault only reports a sent payment request on explicit sender acceptance', () => {
