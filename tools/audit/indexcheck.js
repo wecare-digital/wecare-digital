@@ -65,7 +65,6 @@ const ALLOWED_NOINDEX = {
     + 'which ships zero links.',
   // Static customer-session screens stay out of PUBLIC_PAGE_META, the sitemap and the AI manifest.
   // Customer sign-in is not static anymore: /auth is the backend-routed, noindex canonical entry.
-  '/cart/': 'a noindex legacy handoff to /checkout/ for old basket links, not a payment surface.',
   '/checkout/': 'the one signed-in cart review and direct Razorpay page - session state.',
   '/checkout/status/': 'the payment-confirmation screen a customer returns to from an in-chat '
     + 'payment - meaningful only for that payment.',
