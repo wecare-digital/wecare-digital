@@ -752,10 +752,13 @@ def _prepare_payment(client, db, keys, row, identity, state, *, notify):
         _close(keys, row, identity.customer_id)
         code = getattr(refused, 'code', '') or type(refused).__name__
         if code in (service_requests.VAULT_ACCESS_ACTIVE, 'VAULT_ALREADY_PAID'):
-            # Paid in the meantime: the right answer is the link, never a second charge.
-            if notify:
-                return {**_send_access(client, row, row['vaultFileId']), 'reason': code}
-            return {'outcome': 'VAULT_ACCESS_ACTIVE', 'reason': code}
+            # A stale paid window is not active access. Do not send a dead link
+            # or sell a second window when an old button is tapped.
+            if state in ('OPEN', 'READY'):
+                if notify:
+                    return {**_send_access(client, row, row['vaultFileId']), 'reason': code}
+                return {'outcome': 'VAULT_ACCESS_ACTIVE', 'reason': code}
+            return {'outcome': 'VAULT_FILE_UNAVAILABLE', 'reason': code}
         if notify:
             _send(client, row, content=NOT_REQUESTED)
         return {'outcome': 'VAULT_PAYMENT_NOT_PREPARED', 'reason': code}
