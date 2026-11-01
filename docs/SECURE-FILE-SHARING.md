@@ -310,16 +310,26 @@ customer document URL into an outbound WhatsApp template.
   GST invoice PNG; no one can modify an issued invoice's item price or label.
   Customer-initiated purchases cannot author the item wording.
   Scheduled manual Vault payment sends persist their chosen wording.
-- A WhatsApp Vault **catalog purchase** with no usable customer-owned active
-  document or only expired documents sends one service-window message:
-  `No document is available for Vault download, or its access has expired.
-  Submit a New Request: open https://wecare.digital/orders/ and choose Submit Request.`
-  It creates **no payable ORDER_DETAILS message, no payment attempt and no
-  false paid Submit Request Flow**. Already-paid OPEN/READY files get the same
-  Access Vault link again without charge. Historical Unlock Vault quick-reply
-  tokens still resolve safely, but expired/revoked files take the single
-  new-request fallback rather than a fresh payment from that old message.
-  Explicit staff file-bound renewal is a separate guarded operation.
+- **Customer WhatsApp Vault chooser retired (issue #2133).** The old catalog
+  Vault item, `vault` / `my vault` keywords, tokenless Unlock Vault buttons,
+  cached `vaultpick:` list rows and generic Vault menu leaf do not list files,
+  select a target, solicit renewal or create a payment. An eligible signed
+  inbound message receives one generic service-window notice: use the
+  **staff-issued exact-file Access Vault link** or contact support. The response
+  cannot identify an owned, missing, revoked or another customer's file and
+  never links to the obsolete bare `/vault/` entry.
+- The no-payment notice is reserved in CommerceKeys by the signed inbound
+  message ID **before** sending. The send audit stores `replySendStatus`
+  (`ACCEPTED`, `REJECTED`, `UNKNOWN`), the real
+  `replyMessageId` when available, and whether reconciliation is needed;
+  Meta acceptance alone does not prove handset delivery. Replays, timeouts,
+  5xx and incomplete audit updates cause **no blind retry**.
+- Previously issued signed `vaultoffer:` quick replies continue to use
+  owner-bound validation, existing payment obligations and free paid-access
+  refresh when eligible. Unknown/revoked/expired offers take the same generic
+  one-shot refusal, **not** the removed Submit Request fallback. The staff
+  `sendPayment` exact-file Review & Pay and Drop Docs native checkout are
+  unchanged. This retirement does not alter invoices, pricing or money state.
 
 Staff may request a **60-second presigned S3 GET preview** of two exact owner-approved,
 non-customer PNG assets from `GET /secure-files/payment-media-preview`:
