@@ -98,9 +98,11 @@ completed.
 
 ### First migration
 
-- **Orders:** Subscribe and Leave Review share `Processing…`,
-  `Sent to WhatsApp.`, and `Couldn't confirm. Check WhatsApp.`.
-  The accepted toast describes **provider acceptance**, not delivery.
+- **Orders:** Subscribe, Leave Review and explicit Contribute payment requests
+  share `Processing…`, `Sent to WhatsApp.` and
+  `Couldn't confirm. Check WhatsApp.`. Only the endpoint's exact accepted
+  outcome permits the success; acceptance never proves WhatsApp delivery
+  or that a Contribute payment was completed.
   Invoice/order errors stay persistent; generic copy success `Done.` clears
   after 2.5 seconds, while the keyboard-copy fallback persists.
 - **Cart/Checkout:** Action notices remain persistent, with error severity
