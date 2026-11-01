@@ -10,6 +10,10 @@ export interface PolicyDetailsCopy {
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
   refunds?: string;
+  /** Smaller supporting text for dense customer pages such as Orders. */
+  compact?: boolean;
+  /** Deep links to the corresponding full terms, supplied only on relevant pages. */
+  termsLinks?: { shipping?: string; returns?: string; refunds?: string };
 }
 
 /**
@@ -25,13 +29,21 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   disclaimer,
   className,
   refunds = PRODUCT_REFUNDS,
+  compact = false,
+  termsLinks,
 } ) => (
-  <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
+  <details className={ ['wc-policy', compact ? 'wc-policy-compact' : '', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
-      <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
-      <p><strong>Returns:</strong> { returns }</p>
-      <p><strong>Refunds & cancellations:</strong> { refunds }</p>
+      <p><strong>{ termsLinks?.shipping
+        ? <a href={ termsLinks.shipping }>Shipping / fulfilment:</a>
+        : 'Shipping / fulfilment:' }</strong> { shipping }</p>
+      <p><strong>{ termsLinks?.returns
+        ? <a href={ termsLinks.returns }>Returns:</a>
+        : 'Returns:' }</strong> { returns }</p>
+      <p><strong>{ termsLinks?.refunds
+        ? <a href={ termsLinks.refunds }>Refunds & cancellations:</a>
+        : 'Refunds & cancellations:' }</strong> { refunds }</p>
       { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index ) => (
         <p className="wc-policy-disclaimer" key={ index }>
           { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
@@ -94,6 +106,22 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
+      /* In Orders the policy is supporting information, not another hero-level paragraph.
+         Keep the disclosure tappable and the existing marketing-page scale unchanged. */
+      .wc-policy.wc-policy-compact summary{font-size:var(--public-supporting-size)}
+      .wc-policy.wc-policy-compact p{
+        font-size:var(--public-supporting-size);
+        line-height:1.5;letter-spacing:normal;
+        margin-block-start:8px;padding-block:6px;
+      }
+      .wc-policy strong a{
+        color:inherit;text-decoration:underline;text-underline-offset:3px;
+        text-decoration-thickness:1px;
+      }
+      .wc-policy strong a:hover{text-decoration-thickness:2px}
+      .wc-policy strong a:focus-visible{
+        outline:2px solid var(--public-brand-green);outline-offset:2px;
+      }
       .wc-policy-disclaimer{padding-top:8px;border-top:1px solid var(--public-hairline)}
       @media(prefers-reduced-motion:reduce){
         .wc-policy summary{transition:none}
