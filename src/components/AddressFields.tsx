@@ -224,7 +224,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
       { pinBad && (
         <p id="address-postal-help" className="address-help" role="alert">
-          Enter a six-digit Indian PIN code.
+          Enter a valid 6-digit PIN.
         </p>
       ) }
 
