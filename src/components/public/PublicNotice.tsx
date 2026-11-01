@@ -47,14 +47,10 @@ export default function PublicNotice ( {
           font-weight:600;line-height:1.4;overflow-wrap:anywhere;
         }
         .wc-public-notice.is-inline{inline-size:min(100%,560px)}
-        /* WhatsApp-like single-line feedback: compact forest snackbar, not a
-           second large lime alert panel. Critical information stays inline. */
-        .wc-public-notice.is-toast{
-          inline-size:fit-content;max-inline-size:100%;margin:0;padding:10px 16px;
-          border-inline-start:3px solid var(--public-brand-lime);
-          border-radius:12px;background:var(--public-brand-green);color:#fff;
-          font-size:14px;font-weight:600;line-height:1.35;
-        }
+        /* The same ORIGINAL lime/dark-text notice design across all public
+           toasts: 10px radius, 4px lime stripe, 8px x 12px compact padding.
+           Inherit the normal PublicNotice typography and colors. */
+        .wc-public-notice.is-toast{inline-size:fit-content;margin:0;padding:8px 12px}
         .wc-public-notice.tone-error{font-weight:700}
         .wc-public-notice.is-flush{margin:0}
         .wc-public-notice.is-screen-reader{
