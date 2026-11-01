@@ -329,8 +329,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-send-error button:focus-visible{
           outline:2px solid var(--public-brand-green);outline-offset:2px;
         }
-        .public-share-duplicate-guard{display:none}
-        }
         .public-share.has-contribute{margin-top:32px}
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
            PublicFooterBand used. 17px/700 so the label matches the prominence of the eyebrows on
