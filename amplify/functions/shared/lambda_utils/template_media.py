@@ -33,6 +33,7 @@ ORDER_CATALOG_HEADER_IMAGE = PAYMENT_TEMPLATE_HEADER
 FIXED_IMAGE_HEADERS = {
     "wecare_whatapp_native_pay_template": PAYMENT_TEMPLATE_HEADER,
     "wecare_leave_review": SHARED_TEMPLATE_HEADER,
+    "wecare_referal_update": SHARED_TEMPLATE_HEADER,
     "wecare_default_download": SHARED_TEMPLATE_HEADER,
     "service_details": SHARED_TEMPLATE_HEADER,
     "wecare_vault_request_ready": SHARED_TEMPLATE_HEADER,
