@@ -34,7 +34,7 @@ test('public toast host cannot show arbitrary API text or unconfirmed WhatsApp s
   const host = read('src/components/public/PublicToastProvider.tsx');
   assert.match(host, /showToast: \( kind: PublicToastKind, options\?: PublicToastOptions \) => number/);
   assert.match(host, /type PublicToastKind = Exclude<PublicActionNoticeKind, 'whatsappFailed'>/);
-  assert.match(host, /if \( kind === 'whatsappFailed' \) return 0/);
+  assert.match(host, /if \( String\( kind \) === 'whatsappFailed' \) return 0/);
   assert.match(host, /const message = publicActionText\( kind \)/);
   assert.match(host, /if \( !message \) return 0/);
   assert.match(host, /setActive\( \{ id, message, tone \} \)/);
