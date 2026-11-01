@@ -138,9 +138,10 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   with HTTP 410 `ORDER_DETAILS_RETIRED` (before any payment-create fallback).
   Legacy `?o=` URLs normalize to `/orders/` without opening an individual
   order, and `/checkout/status/` links directly to `/orders/` with no selected-row
-  session storage. WhatsApp cart/catalog-service buyers get a canonical
-  "View your order" `cta_url` after the paid invoice (invoice engine
-  `_send_order_page_link`; within the 24-hour window, once per invoice).
+  session storage. WhatsApp cart/catalog-service buyers receive **no**
+  separate interactive `cta_url` message after the paid invoice. The retired
+  post-invoice sender was deleted; customers can still sign in at `/orders/`
+  to see their own orders.
   WhatsApp payment-order status is not a fulfilment tracker. Frozen delivery
   snapshots remain in internal payment/order records for statutory invoices
   and fulfilment; they must not appear in the customer history view.

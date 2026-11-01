@@ -1178,6 +1178,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if auth_result is not None:
         return auth_result
 
+    # Defense in depth for already-published commerce/invoice Lambda versions:
+    # their obsolete post-invoice "View your order" CTA used this dedicated key.
+    # Reject it BEFORE payment readiness, contact lookup, a send claim, or Meta.
+    # Unrelated legitimate CTA messages have different idempotency keys.
+    if str(body.get('idempotencyKey') or '').startswith('order-page-link:'):
+        logger.warning(json.dumps({
+            'event': 'retired_post_invoice_cta_refused', 'requestId': request_id,
+        }))
+        return _error_response(
+            410, 'ORDER_PAGE_LINK_RETIRED',
+            'The retired post-invoice Orders message cannot be sent.')
+
     # A0 — hoisted from inside the `try` below so the GATE and the SEND read the same value from
     # the same expression, rather than two copies of the same default. Nothing between the auth
     # block and the original position read or wrote it (the only early return in that span is the

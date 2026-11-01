@@ -3937,20 +3937,6 @@ _ORDER_DETAILS_CHECKOUT_MODES = frozenset({
     'AWS_NATIVE',
 })
 
-#: The WhatsApp payments whose capture also writes the order row the customer's order page reads:
-#: the catalog cart and the catalog-service leg. An invoice-native payment (`WHATSAPP_NATIVE_PG`)
-#: settles an invoice and no order, and a website buyer is already looking at the page.
-_ORDER_PAGE_LINK_CHECKOUT_MODES = frozenset({
-    wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,  # WHATSAPP_NATIVE_CART
-    'AWS_NATIVE',
-})
-#: The ONE customer-facing Orders URL, without any order identifier in the URL or
-#: query string. Order numbers belong in message text; session ownership is enforced
-#: at the authenticated Orders API. Older incoming ?o= links remain read-only compatibility.
-#: Static export uses trailingSlash, so /orders/ avoids an extra redirect.
-_ORDER_PAGE_URL = 'https://wecare.digital/orders/'
-#: The delivery-claim channel for the one order-page message per paid invoice.
-_ORDER_PAGE_LINK_CHANNEL = 'order-page-link'
 
 
 def _verified_paid_track_next_action(invoice: Dict, payref: Dict) -> bool:
@@ -4004,29 +3990,6 @@ def _verified_paid_track_next_action(invoice: Dict, payref: Dict) -> bool:
         return False
 
 
-def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
-                          phone_number_id: str, keys_table: Any, request_id: str) -> str:
-    """Retired: paid WhatsApp messages use approved templates, not free-form CTAs.
-
-    The native payment's Review and Pay button is an ORDER_DETAILS component
-    in the APPROVED `wecare_whatapp_native_pay_template` (wire type=template).
-    Captured payments still advance Meta processing -> completed using the
-    APPROVED `wecare_order_status_v3`, then send the paid invoice IMAGE template
-    with its Leave Review Flow button. Vault and other paid services get their
-    separate, owner-bound APPROVED service-action templates after the receipt.
-
-    A standalone interactive `cta_url` ("View your order") is not a template.
-    No approved general Orders URL template currently exists; do NOT substitute
-    another template, alter the native payment order, or send a free-form
-    message inside the 24-hour chat window. Customers can view their orders
-    at the authenticated /orders/ page independently of WhatsApp delivery.
-
-    Preserve this function's signature for compatibility with the existing
-    invoice send caller and audit logs. It is deliberately side-effect-free:
-    no DynamoDB lookups, delivery claims, Lambda calls or WhatsApp sends.
-    Historical order-page-link claims are retained as audit evidence only.
-    """
-    return 'template_only_policy'
 
 def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
     """The REAL Order id for an invoice, via the commerce claim, else `invoice.orderId`.
@@ -5789,16 +5752,9 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'toNumber': mask_phone(to_phone), 'requestId': request_id,
     }))
 
-    # Template-only payment follow-up: never send a free-form interactive
-    # order-page CTA after a paid invoice. The compatibility helper is a
-    # side-effect-free no-op; the approved service-specific template launcher
-    # separately owns Vault download / Drop Docs upload / other paid flows.
-    # The invoice IMAGE + Leave Review template above is unchanged.
-    if delivered and not force:
-        link_outcome = _send_order_page_link(invoice_id, contact_id, to_phone, phone_number_id,
-                                             keys_table, request_id)
-        logger.info(json.dumps({'event': 'order_page_link', 'outcome': link_outcome,
-                                'invoiceId': invoice_id, 'requestId': request_id}))
+    # Template-only after capture: approved service-specific actions (including
+    # Access Vault) are dispatched separately. Never emit a standalone Orders
+    # link or a generic interactive CTA after sending the paid invoice.
 
     return _resp(200 if delivered else (502 if wa_status in ('failed', 'rejected') else 202), {
         'invoiceId': invoice_id,

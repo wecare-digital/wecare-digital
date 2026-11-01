@@ -178,10 +178,10 @@ message templates, not ordinary `type=interactive` messages.
   sign in at `https://wecare.digital/orders/` to see their owned purchases;
   the merchant can submit a new dedicated URL-button template for Meta approval
   in a future, separately reviewed release.
-- The invoice engine compatibility `_send_order_page_link` is now a
-  side-effect-free `template_only_policy` refusal. Previously recorded
-  `INVOICEDELIVERY#<invoiceId>#order-page-link` rows remain historical audit
-  evidence and must not trigger customer re-sends.
+- The retired `_send_order_page_link` function, its order-page-link
+  constants, and the post-invoice caller have been deleted from source.
+  Previously recorded `INVOICEDELIVERY#<invoiceId>#order-page-link` rows
+  remain historical audit evidence only and must never trigger resends.
 
 No direct raw Vault PDF, standalone review Flow, generic Orders CTA or new
 payment prompt is automatically sent after a verified paid Vault invoice.
