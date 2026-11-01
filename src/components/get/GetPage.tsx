@@ -379,7 +379,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 return;
             }
             window.location.assign( destination.href );
-        } catch ( err: any )
+        } catch
         {
             feedback( 'error', publicActionText( 'failure' ) );
         } finally
