@@ -477,35 +477,74 @@ def _graph_request(path: str, *, method: str = "GET",
 
 def _existing_items(requester, *, token: str, app_secret: str,
                     catalog_id: str) -> List[Dict[str, Any]]:
-    """Every item currently in the Meta catalog, by cursor paging `/{catalog_id}/products`.
+    """Read the complete Meta catalog or fail closed.
 
-    Raises `MetaCatalogReadError` on a Graph error rather than returning a short list. A PARTIAL
-    read is the one failure mode that must not be tolerated here: items missing from `existing`
-    look exactly like items that need creating, so a truncated read would turn into a plan that
-    re-creates the whole catalogue.
+    Graph may legitimately return {"data": []} for an empty catalog. A missing
+    or malformed data array, bad cursor, empty page that still advertises a
+    next page, or exhausted page budget is *not* evidence of emptiness. Returning
+    a partial list here would offer to create duplicates or retire valid items.
     """
     items: List[Dict[str, Any]] = []
     after = ""
+    seen_cursors: set[str] = set()
+
+    def _unreliable(reason: str) -> None:
+        error = MetaCatalogReadError("the Meta catalogue read was incomplete")
+        # Structured internal diagnostic, never response body, token or URL.
+        error.errorKind = reason
+        raise error
+
     for _ in range(MAX_PAGES):
         params = {"fields": META_PRODUCT_FIELDS, "limit": META_PAGE_LIMIT}
         if after:
             params["after"] = after
         result = requester(f"{catalog_id}/products", method="GET", params=params,
                            token=token, app_secret=app_secret)
+        if not isinstance(result, Mapping):
+            _unreliable("InvalidGraphRoot")
         if "error" in result:
-            # The status and the transport kind only, both attached structurally. The message is
-            # unchanged - there is nothing diagnostic in it and never a response body.
+            # Only transport status/type: Graph errors can contain secrets.
+            details = result["error"] if isinstance(result["error"], Mapping) else {}
             failure = MetaCatalogReadError("the Meta catalogue could not be read")
-            failure.status = result["error"].get("status")
-            failure.errorKind = result["error"].get("type")
+            failure.status = details.get("status")
+            failure.errorKind = details.get("type")
             raise failure
+
         page = result.get("data")
-        if isinstance(page, list):
-            items.extend(row for row in page if isinstance(row, Mapping))
-        after = (((result.get("paging") or {}).get("cursors") or {}).get("after") or "")
-        if not after or not page:
-            break
-    return items
+        if not isinstance(page, list):
+            _unreliable("InvalidProductsData")
+        if any(not isinstance(row, Mapping) for row in page):
+            _unreliable("InvalidProductRow")
+        paging = result.get("paging") or {}
+        if not isinstance(paging, Mapping):
+            _unreliable("InvalidPaging")
+        cursors = paging.get("cursors") or {}
+        if not isinstance(cursors, Mapping):
+            _unreliable("InvalidCursors")
+        raw_after = cursors.get("after") or ""
+        if not isinstance(raw_after, str):
+            _unreliable("InvalidAfterCursor")
+        advertised_next = paging.get("next") or ""
+        if not isinstance(advertised_next, str):
+            _unreliable("InvalidNextPage")
+
+        items.extend(page)
+        if not page:
+            if advertised_next:
+                _unreliable("EmptyPageHasNext")
+            return items
+        if not raw_after:
+            if advertised_next:
+                _unreliable("MissingAfterCursor")
+            return items
+        if raw_after in seen_cursors:
+            _unreliable("RepeatedAfterCursor")
+        seen_cursors.add(raw_after)
+        after = raw_after
+
+    _unreliable("CatalogPageLimitExceeded")
+    return items  # Unreachable; explicit for static type checkers.
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -921,6 +960,16 @@ def handler(event, context, *, graph_requester=None,
         return {"ok": False, "reason": "blocked", "enabled": True, "dryRun": False,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "planHash": plan_hash, "approved": approved, "applied": 0}
+
+    if not action and desired and not existing:
+        # A catalog that suddenly reads zero after having products must never
+        # enter bounded auto-apply, even if that feature is enabled later.
+        # A real empty catalog may be recovered only by the explicit,
+        # separately approved exact-plan manual procedure.
+        return {"ok": False, "reason": "empty_provider_inventory_requires_review",
+                "enabled": enabled, "dryRun": False, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approved": approved, "autoApplied": False, "applied": 0}
 
     if not action and _safe_auto_apply(plan, blocked, trigger):
         outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
