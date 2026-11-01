@@ -454,8 +454,15 @@ export default function OrdersPage (): React.ReactElement {
     window.location.replace( '/auth/' );
   };
 
-  const presentInviteResult = ( kind: 'accepted' | 'failed' ) => {
+  const presentInviteResult = ( kind: 'accepted' | 'failed' | 'awaiting-template' ) => {
     const notice = customerMenuNotice( kind );
+    if ( kind === 'awaiting-template' ) {
+      hideToast( inviteToastId.current );
+      dismissAlertFor( 'service' );
+      inviteToastId.current = showToast( notice.message,
+        { tone: 'info', durationMs: 4500 } );
+      return;
+    }
     if ( notice.error ) {
       // A failed/ambiguous send is important enough to remain inline. Clear
       // only this invitation's pending toast, not a newer user copy toast.

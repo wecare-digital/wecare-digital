@@ -911,12 +911,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     body = _body(event)
     if "action" in body:
         action = str(body.get("action") or "")
-        if len(body) != 1 or action not in ("sendProfileUpdate", "sendLeaveReview"):
+        if len(body) != 1 or action not in ("sendProfileUpdate", "sendLeaveReview", "sendContribute"):
             return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
         try:
             phone = identity.normalize_phone_preserving_country(identity_session.phone)
         except identity.InvalidPhoneNumber:
             return _no_store(cors_response(400, {"error": "INVALID_SESSION_PHONE"}, origin))
+        if action == "sendContribute":
+            # Reserved authenticated Contribute hook. No template has been selected.
+            # Do not call Meta, create an order, or queue a message until the
+            # owner provides the approved template and payment flow.
+            audit_id = record_audit(
+                action="customer.contribute.template_unconfigured",
+                actor=identity_session.customer_id,
+                resource_type="whatsapp_template",
+                resource_id="contribute",
+                details={"source": "authenticated_customer_menu"},
+            )
+            if not audit_id:
+                return _no_store(cors_response(503, {"error": "AUDIT_UNAVAILABLE"}, origin))
+            return _no_store(cors_response(
+                409, {"status": "CONTRIBUTE_TEMPLATE_NOT_CONFIGURED"}, origin))
         return _send_customer_menu_template(
             phone, origin, action=action, customer_id=identity_session.customer_id)
 

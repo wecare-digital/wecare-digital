@@ -1,14 +1,15 @@
 /**
  * One short toast vocabulary for authenticated WhatsApp invitations on /orders.
  *
- * Only Subscribe and Leave Review currently trigger an actual send. Other order
- * menu entries must not display "Sent to WhatsApp." without a confirmed API
- * acknowledgment. Keep this separate from Workspace ToastContext.
+ * Only Subscribe and Leave Review currently send actual WhatsApp messages.
+ * Contribute uses the same authenticated handoff but remains blocked until
+ * its template is configured. Never claim "Sent to WhatsApp" for that state.
+ * Keep this separate from Workspace ToastContext.
  *
  * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
  * or Flow completion is confirmed. Never automatically retry an ambiguous send.
  */
-export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'failed';
+export type CustomerMenuNoticeStatus = 'pending' | 'accepted' | 'awaiting-template' | 'failed';
 
 export type CustomerMenuNotice = Readonly<{
   message: string;
@@ -22,6 +23,10 @@ const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = 
   },
   accepted: {
     message: 'Sent to WhatsApp.',
+    error: false,
+  },
+  'awaiting-template': {
+    message: 'Contribute WhatsApp message is not configured yet.',
     error: false,
   },
   failed: {

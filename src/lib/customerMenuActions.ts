@@ -1,5 +1,5 @@
 /**
- * Authenticated home/Orders menu doors for the two customer-initiated WhatsApp templates.
+ * One-time authenticated Orders actions for customer-initiated WhatsApp templates.
  *
  * An explicit first-party menu click is required to create a one-time send intent.
  * Plain navigation to /orders/ (including a copied URL with ?service=...) must NEVER
@@ -7,11 +7,12 @@
  * in the same tab, then is consumed BEFORE an API call so refresh/back never resends.
  * The server chooses the verified phone from the authenticated session, never the URL.
  */
-export type CustomerMenuAction = 'subscribe' | 'leave-review';
+export type CustomerMenuAction = 'subscribe' | 'leave-review' | 'contribute';
 
 export const CUSTOMER_MENU_HREFS: Readonly<Record<CustomerMenuAction, string>> = {
   subscribe: '/orders/',
   'leave-review': '/orders/',
+  contribute: '/orders/',
 };
 
 const PENDING_KEY = 'wecare.customer.pendingServiceAction';
@@ -51,18 +52,20 @@ export function takeCustomerMenuAction (): CustomerMenuAction | null {
     const parsed = JSON.parse( raw ) as { action?: string; at?: number };
     if ( !Number.isFinite( parsed.at ) || !parsed.at
       || Date.now() < parsed.at || Date.now() - parsed.at > MAX_PENDING_AGE_MS ) return null;
-    return parsed.action === 'subscribe' || parsed.action === 'leave-review'
+    return parsed.action === 'subscribe' || parsed.action === 'leave-review' || parsed.action === 'contribute'
       ? parsed.action : null;
   } catch {
     return null;
   }
 }
 
-type SendResult = { kind: 'accepted'; messageId: string } | { kind: 'expired' } | { kind: 'failed' };
+type SendResult = { kind: 'accepted'; messageId: string } | { kind: 'expired' }
+  | { kind: 'awaiting-template' } | { kind: 'failed' };
 
 /** Never includes a recipient field. Only the server's authenticated session may choose it. */
 export async function sendCustomerMenuAction ( action: CustomerMenuAction, accessToken: string ): Promise<SendResult> {
-  const backendAction = action === 'subscribe' ? 'sendProfileUpdate' : 'sendLeaveReview';
+  const backendAction = action === 'subscribe' ? 'sendProfileUpdate'
+    : action === 'leave-review' ? 'sendLeaveReview' : 'sendContribute';
   try {
     const response = await fetch( PROFILE_URL, {
       method: 'POST',
@@ -76,7 +79,12 @@ export async function sendCustomerMenuAction ( action: CustomerMenuAction, acces
     } );
     if ( response.status === 401 ) return { kind: 'expired' };
     const data = await response.json().catch( () => ( {} ) ) as { status?: string; messageId?: string };
-    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT' : 'REVIEW_REQUEST_SENT';
+    // A contribution has no approved template yet. The backend must explicitly
+    // refuse a send until the owner selects one; never claim WhatsApp delivery.
+    if ( action === 'contribute' && response.status === 409
+      && data.status === 'CONTRIBUTE_TEMPLATE_NOT_CONFIGURED' ) return { kind: 'awaiting-template' };
+    const expected = action === 'subscribe' ? 'PROFILE_UPDATE_SENT'
+      : action === 'leave-review' ? 'REVIEW_REQUEST_SENT' : 'CONTRIBUTE_SENT';
     if ( response.ok && data.status === expected ) {
       return { kind: 'accepted', messageId: String( data.messageId || '' ) };
     }
