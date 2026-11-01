@@ -53,6 +53,10 @@ class ActivationGuardTests(unittest.TestCase):
         ):
             with self.subTest(required=required):
                 self.assertIn(required, self.checkout)
+        # Prevent a missing/malformed catalog identity from ever reaching DynamoDB.
+        self.assertIn("if (not product_id or not variant_id", self.checkout)
+        self.assertIn("or product_id not in CONTRIBUTION_PRODUCT_IDS", self.checkout)
+        self.assertIn("or variant_id not in CONTRIBUTION_CHOICES_PAISE", self.checkout)
         self.assertIn("catalogGrossPaise", self.staff)
         self.assertIn("convenience_gst_paise", self.staff)
         self.assertIn("price == Decimal(STAFF_CONTRIBUTION_TOTAL_PAISE)", self.staff)
