@@ -3,6 +3,7 @@ import { publicActionText } from '../lib/publicActionNotices';
 import { useOptionalPublicToast } from './public/PublicToastProvider';
 import { useOptionalToastContext } from '../contexts/ToastContext';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
+import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
 import { symbol } from '../config/materialSymbols';
@@ -44,6 +45,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 } ) => {
   const publicToast = useOptionalPublicToast();
   const workspaceToast = useOptionalToastContext();
+  const quickSend = useCustomerMenuQuickSend();
   const showToast = publicToast?.showToast;
   const workspaceSuccess = workspaceToast?.success;
   const workspaceError = workspaceToast?.error;
@@ -165,11 +167,17 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         <a
           className="ps-action ps-subscribe"
           href={ CUSTOMER_MENU_HREFS.subscribe }
-          aria-label="Subscribe on WhatsApp through Orders"
+          aria-label="Subscribe on WhatsApp"
+          aria-busy={ quickSend.busy || undefined }
           onClick={ event => {
-            // Queue a single authenticated invitation only for a deliberate click.
-            // Modified/new-tab navigation must never send a message in this tab.
-            if ( isPrimaryMenuActivation( event ) ) stashCustomerMenuAction( 'subscribe' );
+            if ( !isPrimaryMenuActivation( event ) ) return;
+            // Already signed in? Send directly without a redundant Orders page
+            // load. Without a session the hook navigates to Orders sign-in.
+            if ( quickSend.start( 'subscribe' ) ) {
+              event.preventDefault();
+              return;
+            }
+            stashCustomerMenuAction( 'subscribe' );
           } }
         >
           <span className="ps-material" aria-hidden="true">{ symbol( 'notifications_active' ) }</span>
@@ -189,6 +197,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           <span className="ps-tip" aria-hidden="true">{ label }</span>
         </button>
       </div>
+
+      { quickSend.error && (
+        <div className="ps-send-error" role="alert">
+          <span>{ quickSend.error }</span>
+          <button type="button" onClick={ quickSend.dismissError }>Dismiss</button>
+        </div>
+      ) }
 
       <div
           className={ openMenu === 'contribute' ? 'ps-menu ps-contribute-menu is-open' : 'ps-menu ps-contribute-menu' }
@@ -298,6 +313,23 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           position:relative;width:100%;margin-top:32px;padding:12px 0 28px;
           box-sizing:border-box;
           font-family:var(--font-sans);
+        }
+        .ps-send-error{
+          display:flex;align-items:center;gap:12px;max-width:420px;
+          padding:12px;margin-top:12px;border:1px solid var(--public-brand-green);
+          border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
+          color:var(--public-brand-green);background:var(--public-lime-tint);
+          font-size:15px;line-height:1.45;
+        }
+        .ps-send-error span{min-width:0;flex:1;overflow-wrap:anywhere}
+        .ps-send-error button{
+          min-height:44px;padding:0 8px;border:0;background:transparent;
+          font:inherit;font-weight:700;color:inherit;cursor:pointer;
+        }
+        .ps-send-error button:focus-visible{
+          outline:2px solid var(--public-brand-green);outline-offset:2px;
+        }
+        .public-share-duplicate-guard{display:none}
         }
         .public-share.has-contribute{margin-top:32px}
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
