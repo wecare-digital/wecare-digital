@@ -59,6 +59,10 @@ const ContributeStaffControls: React.FC<Props> = ({
   const [feedback, setFeedback] = React.useState('');
   const [templateRefresh, setTemplateRefresh] = React.useState(0);
   const [approval, setApproval] = React.useState<Approval>('unverified');
+  // Exact production Commerce alias + owner-controlled release flag, not
+  // browser build version or local template metadata, controls Send.
+  const [backendReady, setBackendReady] = React.useState<'checking' | 'enabled' | 'blocked'>('checking');
+  const [backendReason, setBackendReason] = React.useState('Checking production payment availability…');
   const [sending, setSending] = React.useState(false);
   const [sendLocked, setSendLocked] = React.useState(false);
   const [sendOutcome, setSendOutcome] = React.useState('');
@@ -87,6 +91,21 @@ const ContributeStaffControls: React.FC<Props> = ({
   }, []);
 
   React.useEffect(() => { void loadContacts(); }, [loadContacts]);
+
+  React.useEffect(() => {
+    let active = true;
+    setBackendReady('checking');
+    setBackendReason('Checking live Commerce release…');
+    void api.getStaffContributionSendReadiness().then(result => {
+      if (!active) return;
+      setBackendReady(result.sendEnabled && result.amountPaise === TARGET_PAISE
+        ? 'enabled' : 'blocked');
+      setBackendReason(result.reason);
+    }).catch(() => {
+      if (active) { setBackendReady('blocked'); setBackendReason('BACKEND_UNAVAILABLE'); }
+    });
+    return () => { active = false; };
+  }, [templateRefresh]);
 
   React.useEffect(() => {
     let active = true;
@@ -130,7 +149,7 @@ const ContributeStaffControls: React.FC<Props> = ({
   const referenceValid = reference.trim().length >= 3 && reference.trim().length <= 60;
   const canReview = !!selected && referenceValid && !loadingContacts && !loadingPrice;
   const canSend = !!selected?.id && canReview && reviewOpen && priceMatches
-    && approval === 'approved' && !sending && !sendLocked;
+    && approval === 'approved' && backendReady === 'enabled' && !sending && !sendLocked;
 
   const copiedSummary = [
     'INTERNAL REVIEW DRAFT ONLY — NOT A WHATSAPP PAYMENT REQUEST',
@@ -145,6 +164,7 @@ const ContributeStaffControls: React.FC<Props> = ({
     'Server quote matches ₹300 exempt policy: ' + (priceMatches ? 'YES' : 'NO'),
     'Native Meta template: ' + (templateName || 'Unavailable'),
     'Meta status readback: ' + (approval === 'approved' ? 'Approved' : 'Not confirmed'),
+    'Commerce send release: ' + (backendReady === 'enabled' ? 'Enabled' : 'Blocked: ' + backendReason),
     'Internal note (not sent): ' + (internalNote.trim() || 'None'),
     sendLocked
       ? 'A send was attempted; check staff outcome and customer payment records.'
@@ -228,6 +248,8 @@ const ContributeStaffControls: React.FC<Props> = ({
         <div><strong>Exact ₹300 exempt policy</strong><span>{loadingPrice ? 'Checking…' : priceMatches ? 'Matches' : 'Blocked: mismatch'}</span></div>
         <div><strong>Native Meta template</strong><span>{approval === 'checking' ? 'Checking…'
           : approval === 'approved' ? 'Approved in staff lookup' : 'Not confirmed here'}</span></div>
+        <div><strong>Commerce send release</strong><span>{backendReady === 'checking'
+          ? 'Checking…' : backendReady === 'enabled' ? 'Enabled' : `Blocked: ${backendReason}`}</span></div>
         <div><strong>Customer recipient</strong><span>{selected ? 'Selected, backend verification required' : 'Not selected'}</span></div>
       </div>
 
@@ -279,13 +301,14 @@ const ContributeStaffControls: React.FC<Props> = ({
           <button className="primary" type="submit" disabled={!canReview}>Review draft</button>
           <button className="secondary" type="button" onClick={reset}>Clear draft</button>
           <button className="primary send-payment" type="button"
-            onClick={() => { void sendOnce(); }} disabled={!canSend}>
+            onClick={() => { void sendOnce(); }} disabled={!canSend}
+            title={backendReady !== 'enabled' ? 'Commerce release must be verified before sending' : undefined}>
             {sending ? 'Sending once…' : sendLocked ? 'Send locked · check ledger' : 'Send ₹300 Review & Pay'}
           </button>
         </div>
         <p className="send-explanation" role="note">
-          Admin-only sending requires a reviewed draft, a fresh exact ₹300 server quote,
-          approved native Meta template, and explicit final confirmation. The backend
+          Admin-only sending requires a reviewed draft, an enabled live Commerce release,
+          a fresh exact ₹300 server quote, an approved native Meta template, and explicit final confirmation. The backend
           re-verifies the customer, current price and provider readiness before reserving
           a payment. A request is not proof of delivery or payment. Express is internal only;
           never use the generic template picker or an invoice to alter this contribution.
