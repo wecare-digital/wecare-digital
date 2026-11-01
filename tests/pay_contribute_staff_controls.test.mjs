@@ -49,9 +49,13 @@ assert.match(pricing, /"delightPaise": 0/);
 assert.match(controls, /Internal draft review — nothing sent/);
 assert.match(controls, /Copy internal review draft/);
 assert.match(controls, /Unsaved in-memory draft/);
-assert.match(controls, /Send Review &amp; Pay — not enabled/);
-assert.match(controls, /className="disabled-send" type="button" disabled/);
-assert.match(controls, /The current staff Contribute API has no such send action/);
+assert.match(controls, /Send ₹300 Review & Pay/);
+assert.match(controls, /api\.sendStaffContributionPaymentOnce\(selected\.id\)/);
+assert.match(controls, /const canSend = .*priceMatches/);
+assert.match(controls, /approval === 'approved'/);
+assert.match(controls, /useConfirm\(\)/);
+assert.match(controls, /setSendLocked\(true\)/);
+assert.match(controls, /Check the chat and ledger; do not retry blindly/);
 for (const unsafeCall of [
   /api\.sendPaymentLink\(/,
   /api\.sendWhatsAppTemplateMessage\(/,
@@ -70,4 +74,4 @@ assert.match(paymentMedia, /Signed S3 preview/);
 assert.match(paymentMedia, /approved template header/);
 assert.match(paymentMedia, /ORDER_DETAILS item icon/);
 
-console.log('Contribute staff-controls and no-send contracts passed');
+console.log('Contribute staff-controls guarded one-shot send contracts passed');
