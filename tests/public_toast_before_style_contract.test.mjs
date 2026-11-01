@@ -94,7 +94,7 @@ test('one toast replaces older toasts, without glyphs or fake sends', () => {
   assert.match(host, /const \[ active, setActive \] = useState<PublicToast \| null>\( null \)/);
   assert.match(host, /setActive\( \{ id, message, tone \} \)/);
   assert.match(ctx, /setToasts\(\[\{ id, type, message \}\]\)/);
-  assert.match(workspaceToast, /setToasts\(\[\{ id, type, message, duration \}\]\)/);
+  assert.doesNotMatch(workspaceToast, /export const useToast =/);
   assert.doesNotMatch(workspaceToast, /toast-icon|const icons =/);
   assert.match(workspaceToast, /aria-label="Dismiss notification"/);
   assert.match(workspaceToast, /role=\{toast\.type === 'error' \|\| toast\.type === 'warning' \? 'alert' : 'status'\}/);
@@ -111,9 +111,9 @@ test('PublicShare uses each one-at-a-time host and critical errors stay inline',
 
   assert.ok(ctx.includes('export const useOptionalToastContext'));
   assert.ok(share.includes('const workspaceToast = useOptionalToastContext()'));
-  assert.ok(share.includes("else workspaceSuccess?.( 'Link copied.' )"));
-  assert.ok(share.includes("else workspaceError?.( \"Couldn't copy link.\" )"));
-  assert.ok(share.includes('!publicToast && !workspaceToast && ('));
+  assert.ok(share.includes("else workspaceSuccess?.( publicActionText( 'success' ) )"));
+  assert.ok(share.includes("else workspaceError?.( publicActionText( 'failure' ) )"));
+  assert.doesNotMatch(share, /!publicToast && !workspaceToast|setCopied\(|is-copied/);
   assert.ok(orders.includes("showToast( 'whatsappAccepted'"));
   assert.ok(orders.includes("showToast( 'processing'"));
   assert.ok(share.includes("showToast( 'success'"));
