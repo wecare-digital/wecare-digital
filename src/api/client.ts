@@ -1073,6 +1073,59 @@ export async function updateMessage ( messageId: string, updates: Record<string,
   return data !== null && data.success === true;
 }
 
+/**
+ * Staff-only Contribute native payment request. This is deliberately NOT
+ * apiCallResult: that helper retries 502/503 and network errors, which would
+ * duplicate a money-related Meta send after an ambiguous response.
+ *
+ * Exactly one POST per staff confirmation. The server re-prices ProductsTable,
+ * verifies the owned WhatsApp identity and requires an Admin/MFA session.
+ * Caller supplies only a saved Contact id, NEVER an amount or template.
+ */
+export type StaffContributeSendResult =
+  | { state: 'ACCEPTED'; paymentAttemptId: string; amountPaise: 30000 }
+  | { state: 'UNCONFIRMED'; code: string; message: string }
+  | { state: 'REFUSED'; code: string; message: string };
+
+export async function sendStaffContributionPaymentOnce (
+  contactId: string,
+): Promise<StaffContributeSendResult> {
+  if (typeof contactId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(contactId))
+    return { state: 'REFUSED', code: 'CONTACT_INVALID', message: 'Choose a saved customer.' };
+
+  try {
+    // A fetch, NOT apiCallResult, so even a timeout/502 is never replayed.
+    const response = await authFetch( `${API_BASE}/ecommerce/checkout`, {
+      method: 'POST',
+      cache: 'no-store',
+      body: JSON.stringify({ action: 'staff-contribute-send', contactId }),
+    } );
+    const raw: unknown = await response.json().catch(() => null);
+    const data = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    if (response.ok && data.status === 'PAYMENT_REQUEST_SENT'
+        && data.currency === 'INR' && data.amountPaise === 30000
+        && typeof data.paymentAttemptId === 'string' && data.paymentAttemptId) {
+      return {
+        state: 'ACCEPTED', amountPaise: 30000,
+        paymentAttemptId: data.paymentAttemptId,
+      };
+    }
+    const code = typeof data.error === 'string' ? data.error : 'SEND_RESPONSE_NOT_CONFIRMED';
+    const message = typeof data.message === 'string'
+      ? data.message.slice(0, 200) : 'Check the payment ledger and WhatsApp before retrying.';
+    if (response.status >= 500 || data.sendUnconfirmed === true || (response.ok && data.status === 'PAYMENT_REQUEST_SENT'))
+      return { state: 'UNCONFIRMED', code, message };
+    return { state: 'REFUSED', code, message };
+  } catch {
+    // A network failure might happen AFTER Meta accepted the payment request.
+    return {
+      state: 'UNCONFIRMED',
+      code: 'NETWORK_UNCONFIRMED',
+      message: 'The result could not be confirmed. Check WhatsApp and the payment ledger before retrying.',
+    };
+  }
+}
+
 // createInvoice() removed — use createInvoiceEngine() instead
 
 function normalizeMessage ( item: any ): Message {
