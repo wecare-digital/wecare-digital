@@ -83,6 +83,7 @@ const CollectOverview: React.FC = () => {
       </div>
       <div className="co-shortcuts">
         <Link href="/workspace/payments?view=collect&tab=create">Create a collection</Link>
+        <Link href="/workspace/payments?view=collect&tab=create&invoices=saved">Review &amp; send saved invoices</Link>
         <Link href="/workspace/payments?view=ledger&ledger=invoices">Open invoice ledger</Link>
         <Link href="/workspace/payments?view=ledger&ledger=activity">Review payment activity</Link>
       </div>
