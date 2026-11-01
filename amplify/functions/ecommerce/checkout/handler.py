@@ -364,6 +364,11 @@ def _staff_contribution_release_enabled() -> bool:
     """Explicit owner-controlled release switch. Default OFF on every alias."""
     return os.environ.get("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", "").lower() == "true"
 
+def _contribute_taxable_release_enabled() -> bool:
+    """Independent default-off gate for all ₹300 taxable Contribute money paths."""
+    return os.environ.get("CONTRIBUTE_TAXABLE_NATIVE_PAYMENT_ENABLED", "") == "true"
+
+
 
 def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> bool:
     """Strongly-consistent price check before any staff payment reservation."""
@@ -386,7 +391,8 @@ def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
     action, leaving the Send button disabled. A new backend remains disabled
     until its flag AND the current ProductsTable exempt amount both match.
     """
-    enabled = _staff_contribution_release_enabled()
+    enabled = (_staff_contribution_release_enabled()
+               and _contribute_taxable_release_enabled())
     quote_matches = False
     if enabled:
         # A variant-index SCAN is eventually consistent: staff payment-readiness
@@ -439,7 +445,8 @@ def _staff_contribution_send(
     configuration, line details or quote. This reuses _create so the
     canonical reservation, provider readiness and capture rails stay intact.
     """
-    if not _staff_contribution_release_enabled():
+    if not (_staff_contribution_release_enabled()
+            and _contribute_taxable_release_enabled()):
         return cors_response(409, {
             "error": "CONTRIBUTION_SEND_NOT_RELEASED",
             "message": "Staff payment sending has not been released. Nothing was sent.",
@@ -1304,6 +1311,10 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         raise ContributionRejected("UNKNOWN_CONTRIBUTION_VARIANT")
     if quantity != 1:
         raise ContributionRejected("CONTRIBUTION_QUANTITY_MUST_BE_ONE")
+    # Explicit release authority: do not convert any existing voluntary
+    # contribution into a taxable payment while the finance gate is OFF.
+    if not _contribute_taxable_release_enabled():
+        raise ContributionRejected("CONTRIBUTION_TAXABLE_NOT_RELEASED")
 
     base = native_checkout.quote_native_cart(
         ephemeral_cart,
@@ -2072,12 +2083,8 @@ def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any
     def answer(code: int, data: Dict[str, Any]) -> Dict[str, Any]:
         return _hardened(cors_response(code, data, origin))
 
-    # Staff provenance is mandatory before any customer lookup, quote or
-    # provider call; customer web checkout keeps its existing contract.
-    if required_staff_contribution and (
-            len(staff_actor_hash) != 64
-            or not all(ch in "0123456789abcdef" for ch in staff_actor_hash)):
-        return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
+    # Read-only customer quote. Staff provenance belongs to _staff_contribution_send,
+    # not this customer action (which has no staff_actor_hash variable).
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
         return answer(400, {"error": "LINE_ITEMS_REQUIRED"})
