@@ -22,6 +22,7 @@ interface ActivityRow {
   timestamp: number;
   paymentStatus: string;
   status: string;
+  source: string;
 }
 
 function epochMs ( value?: number ): number {
@@ -47,12 +48,15 @@ function latestState ( invoice: api.Invoice ): ActivityRow {
 
   let kind: ActivityKind = 'invoice';
   let label = 'Invoice recorded';
-  if ( [ 'captured', 'paid' ].includes( payment ) || status === 'paid' ) {
-    kind = 'captured'; label = 'Payment captured';
-  } else if ( payment === 'refunded' ) {
-    kind = 'refunded'; label = 'Payment refunded';
+  // A later verified refund supersedes the earlier captured state. Checking
+  // paid first incorrectly classified refunded-but-paid invoices as captured.
+  if ( payment === 'refunded' || !!invoice.refundId || !!invoice.refundAt ) {
+    kind = 'refunded';
+    label = payment === 'refunded' ? 'Payment refunded' : 'Refund recorded';
   } else if ( payment === 'failed' ) {
     kind = 'failed'; label = 'Payment failed';
+  } else if ( [ 'captured', 'paid' ].includes( payment ) || status === 'paid' ) {
+    kind = 'captured'; label = 'Payment captured';
   } else if ( status === 'cancelled' ) {
     kind = 'cancelled'; label = 'Invoice cancelled';
   } else if ( [ 'pending', 'pending_payment', 'created', 'sent' ].includes( status )
@@ -71,6 +75,7 @@ function latestState ( invoice: api.Invoice ): ActivityRow {
     timestamp: epochMs( invoice.paidAt ) || epochMs( invoice.updatedAt ) || epochMs( invoice.createdAt ),
     paymentStatus: invoice.paymentStatus || '',
     status: invoice.status || '',
+    source: invoice.serviceKind || invoice.entryPoint || 'Invoice',
   };
 }
 
@@ -78,6 +83,8 @@ const PaymentsActivity: React.FC = () => {
   const [ invoices, setInvoices ] = useState<api.Invoice[]>( [] );
   const [ loading, setLoading ] = useState( true );
   const [ error, setError ] = useState( '' );
+  const [ kindFilter, setKindFilter ] = useState<ActivityKind | 'all'>( 'all' );
+  const [ query, setQuery ] = useState( '' );
 
   const load = useCallback( async () => {
     setLoading( true );
@@ -95,9 +102,16 @@ const PaymentsActivity: React.FC = () => {
   useEffect( () => { void load(); }, [ load ] );
 
   const rows = useMemo(
-    () => invoices.map( latestState ).sort( ( a, b ) => b.timestamp - a.timestamp ).slice( 0, 100 ),
+    () => invoices.map( latestState ).sort( ( a, b ) => b.timestamp - a.timestamp ),
     [ invoices ],
   );
+  const matching = useMemo( () => rows.filter( row => {
+    const text = query.trim().toLowerCase();
+    return (kindFilter === 'all' || row.kind === kindFilter)
+      && (!text || [row.customer, row.invoiceNumber, row.source, row.label]
+        .some( value => value.toLowerCase().includes( text ) ));
+  } ), [ rows, query, kindFilter ] );
+  const visibleRows = matching.slice( 0, 100 );
 
   return (
     <section className="pa" aria-labelledby="payment-activity-title">
@@ -118,15 +132,37 @@ const PaymentsActivity: React.FC = () => {
         </div>
       ) }
 
+      <div className="pa-filters" role="group" aria-label="Filter payment activity">
+        <label htmlFor="pa-kind">Payment state</label>
+        <select id="pa-kind" value={ kindFilter }
+          onChange={ event => setKindFilter( event.target.value as ActivityKind | 'all' ) }>
+          <option value="all">All states</option>
+          <option value="captured">Captured</option>
+          <option value="refunded">Refunded</option>
+          <option value="failed">Failed</option>
+          <option value="pending">Pending</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="invoice">Invoice recorded</option>
+        </select>
+        <label htmlFor="pa-search">Search loaded invoices</label>
+        <input id="pa-search" type="search" value={ query } onChange={ e => setQuery( e.target.value ) }
+          placeholder="Customer, invoice or service" />
+      </div>
+      { !error && !loading && <p className="pa-context" role="status">
+        Showing { Math.min( matching.length, 100 ) } of { matching.length } matching latest states
+        from { invoices.length } loaded invoices. This is not a complete event history.
+      </p> }
       { !error && loading && <div className="pa-state">Loading payment activity…</div> }
 
-      { !error && !loading && rows.length === 0 && (
-        <div className="pa-state">No invoice or payment activity yet.</div>
+      { !error && !loading && matching.length === 0 && (
+        <div className="pa-state">{ rows.length === 0
+          ? 'No invoice or payment activity yet.'
+          : 'No loaded invoices match these filters.' }</div>
       ) }
 
-      { !error && !loading && rows.length > 0 && (
+      { !error && !loading && matching.length > 0 && (
         <div className="pa-list">
-          { rows.map( row => (
+          { visibleRows.map( row => (
             <Link
               key={ row.invoiceId }
               href={ `/workspace/payments?view=ledger&ledger=invoices&invoice=${encodeURIComponent( row.invoiceId )}` }
@@ -135,7 +171,7 @@ const PaymentsActivity: React.FC = () => {
               <span className={ `pa-dot ${row.kind}` } aria-hidden="true" />
               <span className="pa-copy">
                 <strong>{ row.label }</strong>
-                <small>{ row.customer } · { row.invoiceNumber }</small>
+                <small>{ row.customer } · { row.invoiceNumber } · { row.source }</small>
                 <small>
                   { row.timestamp ? new Date( row.timestamp ).toLocaleString( 'en-IN', {
                     day: '2-digit', month: 'short', year: 'numeric',
@@ -157,6 +193,11 @@ const PaymentsActivity: React.FC = () => {
         .pa-head p{margin:4px 0 0;color:var(--text-muted);font-size:var(--text-sm);line-height:1.45}
         .pa-head button,.pa-state button{padding:8px 14px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--text);font:inherit;font-weight:650;cursor:pointer}
         .pa-head button:disabled{opacity:.55;cursor:default}
+        .pa-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 12px}
+        .pa-filters label{font-size:var(--text-xs);font-weight:700;color:var(--text-muted)}
+        .pa-filters select,.pa-filters input{min-height:38px;min-width:0;border:1px solid var(--border);border-radius:9px;padding:7px 9px;background:var(--surface,#fff);color:var(--text);font:inherit;font-size:var(--text-sm)}
+        .pa-filters input{flex:1 1 230px}
+        .pa-context{font-size:var(--text-xs);color:var(--text-muted);margin:2px 0 11px}
         .pa-state{padding:24px;border:1px solid var(--border);border-radius:14px;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:12px}
         .pa-state.error{color:var(--danger)}
         .pa-list{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff}
