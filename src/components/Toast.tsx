@@ -3,7 +3,7 @@
  * Unified toast notifications for the entire app
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -115,9 +115,10 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
 // Hook for managing toasts
 export const useToast = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const nextToastId = useRef(0);
 
   const addToast = (type: ToastType, message: string, duration?: number) => {
-    const id = Date.now().toString();
+    const id = String(++nextToastId.current);
     setToasts([{ id, type, message, duration }]);
   };
 
