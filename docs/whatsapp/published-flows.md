@@ -1,11 +1,13 @@
 # Published customer WhatsApp Flows
 
-Last checked: 30 October 2026. Canonical WABA: `2094615664435155`.
+Last checked: 1 November 2026. Canonical WABA: `2094615664435155`.
 
 For the **31 October 2026 live Meta template/button reconciliation** and exact AWS DynamoDB registry names, see [WhatsApp templates, Flow IDs and AWS registries](../operations/whatsapp-template-flow-aws-registry-20261031.md).
 
-The repository deliberately retains **seven** Meta Flow JSON definitions, all
-under `amplify/functions/messaging/whatsapp-business-api/flows/published/`.
+The repository retains **seven legacy published customer Flow JSON definitions** under
+`amplify/functions/messaging/whatsapp-business-api/flows/published/`, plus the
+published F008 referral JSON at `docs/whatsapp/drafts/f008-referral-preview.json`.
+The latter path is historical (the design began as a draft); the Meta Flow is now published.
 
 | Capability | Flow ID | JSON asset |
 |---|---|---|
@@ -16,10 +18,15 @@ under `amplify/functions/messaging/whatsapp-business-api/flows/published/`.
 | Request Amendment | `2408621596338289` | `request-amendment.json` |
 | Pickup Request | `2988393421499259` | `request-pickup.json` |
 | Track Shipment | `1804165164183485` | `shipments.json` |
+| Refer Someone (F008) | `1933489271340286` | `docs/whatsapp/drafts/f008-referral-preview.json` |
 
 The TypeScript and Python identity sources are `src/lib/canonicalFlows.ts`
 and `amplify/functions/shared/lambda_utils/canonical_flows.py`.
 Orders and Vault have no published WhatsApp Flow asset.
+F008 is a response-only referral form. Its `nfm_reply` saver records the referrer's answers
+in FlowSubmission and both staff Inbox stores; it does not contact or subscribe the
+referred person. A submitted sharing attestation is not marketing opt-in.
+
 Pickup Request's current runtime launcher is intentionally disabled until its
 completion payload matches the pickup-specific contract.
 
