@@ -2012,9 +2012,6 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     >
                       { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
                     </button>
-                    <Link className="cart-auth-action" href="/checkout/whatsapp/">
-                      Checkout with WhatsApp
-                    </Link>
                   </> }
               </div>
             </>
