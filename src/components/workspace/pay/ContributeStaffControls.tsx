@@ -6,6 +6,7 @@
  * generic template sender or invoice engine to fabricate a contribution charge.
  */
 import React from 'react';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { rupeesFromPaise, type ServicePaymentTemplates, type ServicePrice } from '../../../lib/servicePricing';
 
@@ -22,7 +23,7 @@ const EXPRESS_ALLOCATION_PAISE = 1500;
 const META_PAYMENT_BODY = '💳 Your order is ready for payment. Tap Review and Pay to complete it securely.';
 const CONTACT_LIMIT = 40;
 const money = (v: number) => '₹' + rupeesFromPaise(v);
-const keyOf = (c: api.Contact): string => c.contactId || c.id;
+const keyOf = (c: api.Contact): string => c.id; // DynamoDB ContactsTable primary key, not a display ID
 const usableContact = (c: api.Contact): boolean =>
   !!keyOf(c) && !!c.phone && !c.deletedAt && !c.archivedAt && !c.locked;
 
@@ -58,6 +59,11 @@ const ContributeStaffControls: React.FC<Props> = ({
   const [feedback, setFeedback] = React.useState('');
   const [templateRefresh, setTemplateRefresh] = React.useState(0);
   const [approval, setApproval] = React.useState<Approval>('unverified');
+  const [sending, setSending] = React.useState(false);
+  const [sendLocked, setSendLocked] = React.useState(false);
+  const [sendOutcome, setSendOutcome] = React.useState('');
+  const inFlight = React.useRef(false);
+  const confirm = useConfirm();
 
   const templateName = templates?.nativePay || '';
   const templateId = templates?.templateIds?.nativePay || '';
@@ -123,6 +129,8 @@ const ContributeStaffControls: React.FC<Props> = ({
   const priceMatches = matchesContributionQuote(price);
   const referenceValid = reference.trim().length >= 3 && reference.trim().length <= 60;
   const canReview = !!selected && referenceValid && !loadingContacts && !loadingPrice;
+  const canSend = !!selected?.id && canReview && reviewOpen && priceMatches
+    && approval === 'approved' && !sending && !sendLocked;
 
   const copiedSummary = [
     'INTERNAL REVIEW DRAFT ONLY — NOT A WHATSAPP PAYMENT REQUEST',
@@ -138,8 +146,42 @@ const ContributeStaffControls: React.FC<Props> = ({
     'Native Meta template: ' + (templateName || 'Unavailable'),
     'Meta status readback: ' + (approval === 'approved' ? 'Approved' : 'Not confirmed'),
     'Internal note (not sent): ' + (internalNote.trim() || 'None'),
-    'No send/payment authorization has been generated.',
+    sendLocked
+      ? 'A send was attempted; check staff outcome and customer payment records.'
+      : 'No send/payment authorization has been generated.',
   ].join('\n');
+
+  const sendOnce = async () => {
+    if (!canSend || !selected || inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const accepted = await confirm({
+        title: 'Send ₹300 Review & Pay?',
+        message: `Customer: ${selected.name} (${selected.phone}).\nOne ₹300 exempt Contribute item. Express ₹15 is an internal allocation, not a billed line. No Delight, supply GST, convenience fee or GST on fees.\nThe server will re-check identity, exact price and Meta readiness. This does not charge the customer; only their payment approval does.\nAn uncertain send must be reconciled before retrying.`,
+        confirmText: 'Send ₹300 payment request',
+      });
+      if (!accepted) return;
+      // Once a request has left the browser, NEVER retry automatically or
+      // unlock this draft on a network failure (Meta may have accepted it).
+      setSendLocked(true);
+      setSending(true);
+      setSendOutcome('');
+      const outcome = await api.sendStaffContributionPaymentOnce(selected.id);
+      if (outcome.state === 'ACCEPTED') {
+        setSendOutcome(`Request accepted for ₹300. Attempt ${outcome.paymentAttemptId}. Check WhatsApp/ledger for actual delivery and verified payment. Do not send again.`);
+      } else if (outcome.state === 'UNCONFIRMED') {
+        setSendOutcome(`Sending could not be confirmed (${outcome.code}). The customer may already have a payment request. Check the chat and ledger; do not retry blindly.`);
+      } else {
+        setSendOutcome(`Server refused the request (${outcome.code}): ${outcome.message} Check the live customer and payment status before trying again.`);
+      }
+    } catch {
+      setSendLocked(true);
+      setSendOutcome('Send confirmation failed or its outcome is unknown. Check the chat and payment ledger before any retry.');
+    } finally {
+      setSending(false);
+      inFlight.current = false;
+    }
+  };
 
   const reset = () => {
     setSelectedId('');
@@ -236,22 +278,24 @@ const ContributeStaffControls: React.FC<Props> = ({
         <div className="staff-actions">
           <button className="primary" type="submit" disabled={!canReview}>Review draft</button>
           <button className="secondary" type="button" onClick={reset}>Clear draft</button>
-          <button className="disabled-send" type="button" disabled>
-            Send Review &amp; Pay — not enabled
+          <button className="primary send-payment" type="button"
+            onClick={() => { void sendOnce(); }} disabled={!canSend}>
+            {sending ? 'Sending once…' : sendLocked ? 'Send locked · check ledger' : 'Send ₹300 Review & Pay'}
           </button>
         </div>
         <p className="send-explanation" role="note">
-          Sending requires a server-issued, purpose-bound ₹300 native order and verified customer,
-          current Meta approval, matching payment/receipt records, and authorized final confirmation.
-          The current staff Contribute API has no such send action. Never use the generic template
-          picker or a generic invoice to bypass this gate.
+          Admin-only sending requires a reviewed draft, a fresh exact ₹300 server quote,
+          approved native Meta template, and explicit final confirmation. The backend
+          re-verifies the customer, current price and provider readiness before reserving
+          a payment. A request is not proof of delivery or payment. Express is internal only;
+          never use the generic template picker or an invoice to alter this contribution.
         </p>
       </form>
 
       {reviewOpen && selected && (
         <div className="staff-review" aria-live="polite">
           <header>
-            <h4>Internal draft review — nothing sent</h4>
+            <h4>{sendLocked ? 'Request attempted — verify its outcome' : 'Internal draft review — nothing sent'}</h4>
             <button type="button" className="secondary" onClick={() => setReviewOpen(false)}>Edit draft</button>
           </header>
           <dl>
@@ -275,6 +319,7 @@ const ContributeStaffControls: React.FC<Props> = ({
           </button>
         </div>
       )}
+      {sendOutcome && <p className="staff-feedback" role="status" aria-live="polite">{sendOutcome}</p>}
       {feedback && <p className="staff-feedback" role="status">{feedback}</p>}
 
       <style jsx>{`
@@ -297,7 +342,7 @@ const ContributeStaffControls: React.FC<Props> = ({
         button{min-height:42px;padding:8px 13px;border-radius:9px;border:1px solid var(--border);font-weight:800;font-size:12px;cursor:pointer;background:var(--surface);color:var(--text-primary)}
         button.primary{background:var(--lime);border-color:var(--accent);color:var(--accent)}
         button:disabled{cursor:not-allowed;opacity:.55}
-        button.disabled-send{margin-left:auto;border-style:dashed}
+        button.send-payment{margin-left:auto}
         .send-explanation{max-width:800px;margin-top:10px}
         .staff-review{border-top:1px solid var(--border);padding-top:15px;display:grid;justify-items:start;gap:12px}
         .staff-review header{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px}
@@ -311,7 +356,7 @@ const ContributeStaffControls: React.FC<Props> = ({
         .message-preview span{color:var(--text-muted)}
         .message-preview p{font-size:14px;margin:9px 0;line-height:1.6}
         button:focus-visible,.staff-field a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-        @media(max-width:700px){.contribute-staff{padding:13px}.staff-head{display:grid}.staff-form-grid,.staff-readiness{grid-template-columns:1fr}.staff-actions{display:grid}.staff-actions button,.staff-head button{width:100%}button.disabled-send{margin-left:0}.staff-review header{flex-wrap:wrap}}
+        @media(max-width:700px){.contribute-staff{padding:13px}.staff-head{display:grid}.staff-form-grid,.staff-readiness{grid-template-columns:1fr}.staff-actions{display:grid}.staff-actions button,.staff-head button{width:100%}button.send-payment{margin-left:0}.staff-review header{flex-wrap:wrap}}
       `}</style>
     </section>
   );

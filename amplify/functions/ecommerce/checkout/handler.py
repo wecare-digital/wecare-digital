@@ -76,6 +76,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
@@ -109,7 +110,7 @@ from lambda_utils.ecommerce.blog_contribution import (
 from lambda_utils.ecommerce import service_requests, request_service_contracts
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
-from lambda_utils.ecommerce import service_pricing_native
+from lambda_utils.ecommerce import service_pricing_native, staff_contribution
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -350,6 +351,126 @@ def _readiness() -> payment_readiness.PaymentReadiness:
     )
 
 
+
+# Admin staff Contribute is a catalog-order payment, NOT a Vault service
+# session, a staff invoice or the historical BLOG_CONTRIBUTION gateway route.
+_STAFF_CONTRIBUTION_ACTION = "staff-contribute-send"
+_STAFF_CONTRIBUTION_CONTACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _staff_contribution_send(body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """One exact ₹300 Meta ORDER_DETAILS request to a verified saved customer.
+
+    Staff never supply the price, SKU, WhatsApp number, media, payment
+    configuration, line details or quote. This reuses _create so the
+    canonical reservation, provider readiness and capture rails stay intact.
+    """
+    if (set(body) != {"action", "contactId"}
+            or type(body.get("contactId")) is not str
+            or not _STAFF_CONTRIBUTION_CONTACT_ID.fullmatch(body["contactId"])):
+        return cors_response(400, {"error": "STAFF_CONTRIBUTION_REQUEST_INVALID"}, origin)
+
+    variants = list(CONTRIBUTION_CHOICES_PAISE.items())
+    if (len(variants) != 1 or len(CONTRIBUTION_PRODUCT_IDS) != 1
+            or CONTRIBUTION_PRODUCT_ID not in CONTRIBUTION_PRODUCT_IDS
+            or variants[0][1] != staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE):
+        return cors_response(409, {"error": "CONTRIBUTION_POLICY_UNAVAILABLE"}, origin)
+    product_id, variant_id = CONTRIBUTION_PRODUCT_ID, variants[0][0]
+
+    try:
+        contact = _table(CONTACTS_TABLE).get_item(
+            Key={"id": body["contactId"]}, ConsistentRead=True).get("Item") or {}
+    except Exception:
+        return cors_response(503, {"error": "CONTRIBUTION_CONTACT_READ_UNAVAILABLE"}, origin)
+    if (not contact_store.is_live(contact) or contact.get("archivedAt")
+            or contact.get("locked") or contact_key.resolve(contact) != body["contactId"]
+            or not customer_auth.is_cognito_subject(str(contact.get("checkoutCustomerId") or ""))
+            or not str(contact.get("name") or "").strip()):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_CUSTOMER_UNVERIFIED",
+            "message": "Select a verified active customer before requesting payment.",
+        }, origin)
+
+    # No staff-supplied sender/phone, no fabricated inbound message.
+    sender_id = wa_payment_request.PHONE_NUMBER_ID_1
+    if sender_id not in wa_payment_request.PAYMENT_SENDERS:
+        return cors_response(409, {"error": "PAYMENT_SENDER_NOT_PERMITTED"}, origin)
+    try:
+        identity, proven = _native_whatsapp_identity(
+            body["contactId"], str(contact.get("phone") or ""), sender_id, "")
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_CUSTOMER_UNVERIFIED",
+            "message": "WhatsApp customer ownership could not be verified. No request was sent.",
+        }, origin)
+    if (identity.customer_id != str(contact["checkoutCustomerId"])
+            or not contact_store.is_live(proven) or proven.get("archivedAt")
+            or proven.get("locked") or not str(proven.get("name") or "").strip()):
+        return cors_response(409, {"error": "CONTRIBUTION_CUSTOMER_UNVERIFIED"}, origin)
+
+    lines = [{
+        "catalogReference": {"catalogItemId": product_id,
+                             "options": {"variantId": variant_id}},
+        "quantity": 1,
+    }]
+    try:
+        preview = _native_quote(identity, lines, int(time.time()))
+    except (ValueError, catalog_pricing.CatalogPricingError):
+        return cors_response(409, {"error": "CONTRIBUTION_QUOTE_UNAVAILABLE"}, origin)
+    if not staff_contribution.valid_staff_contribution_snapshot(
+            preview, product_id=product_id, variant_id=variant_id):
+        return cors_response(409, {
+            "error": "CONTRIBUTION_PRICE_MISMATCH",
+            "message": "The live ₹300 quote does not match the exempt policy. Nothing was sent.",
+        }, origin)
+
+    # Reuse the existing *conditional* WACARTLIVE per-owner/basket slot.
+    # Same customer + SKU sent from native WhatsApp and staff cannot race.
+    now = int(time.time())
+    live_key = _wa_cart_live_key(identity.customer_id, lines)
+    try:
+        token = (_claim_wa_cart(live_key, identity.customer_id, now)
+                 or _take_over_settled_wa_cart(live_key, identity.customer_id, now))
+    except Exception:
+        return cors_response(503, {"error": "CONTRIBUTION_RESERVATION_UNAVAILABLE"}, origin)
+    if not token:
+        return cors_response(409, {
+            "error": "CONTRIBUTION_REQUEST_ALREADY_OPEN",
+            "message": "A payment request is in progress or cannot be safely retried. Check WhatsApp and the ledger.",
+        }, origin)
+
+    # Server-generated request identity, no customer-supplied amount/address.
+    # Contributions never ship, so delivery confirmation is inapplicable.
+    try:
+        result = _create(
+            identity, {"lineItems": lines, "requestKey": uuid4().hex,
+                       "deliveryConfirmed": True},
+            origin, native_contact=proven, required_staff_contribution=True)
+    except Exception as error:
+        logger.error(json.dumps({"event": "staff_contribution_send_unconfirmed",
+                                 "error": type(error).__name__}))
+        # The provider might have accepted the request before an exception.
+        # Keep the slot; do not auto-send again or call this a failed delivery.
+        return cors_response(502, {
+            "error": "CONTRIBUTION_SEND_UNCONFIRMED", "sendUnconfirmed": True,
+            "message": "Delivery status is unknown. Check the ledger and WhatsApp before another attempt.",
+        }, origin)
+
+    try:
+        status = int(result.get("statusCode") or 0)
+        payload = json.loads(result.get("body") or "{}")
+    except (TypeError, ValueError):
+        status, payload = 0, {}
+    accepted = status == 200 and payload.get("status") == "PAYMENT_REQUEST_SENT"
+    uncertain = bool(payload.get("sendUnconfirmed")) or status == 0 or status >= 500
+    if accepted or uncertain:
+        _record_wa_cart(live_key, token,
+                        str(payload.get("paymentAttemptId") or ""), now)
+    else:
+        _release_wa_cart(live_key, token)
+    return result
+
+
 # ── request plumbing ───────────────────────────────────────────────────────────
 
 def _body(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -518,6 +639,36 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = rc.get("http", {}).get("method", event.get("httpMethod", "")).upper()
     if method == "OPTIONS":
         return options_response(origin)
+
+    # Staff/admin and customer OAuth tokens are DIFFERENT Cognito pools.
+    # This explicit staff action must be routed BEFORE require_customer.
+    # It is never reachable via an internal Lambda invoke or another URL,
+    # and requires the staff Admin group plus the existing Admin MFA gate.
+    staff_candidate = _body(event)
+    if str(staff_candidate.get("action") or "").strip().lower() == _STAFF_CONTRIBUTION_ACTION:
+        from lambda_utils.middleware import require_auth
+        staff_path = str(event.get("rawPath") or event.get("path")
+                         or rc.get("http", {}).get("path") or "").rstrip("/").lower()
+        api_gateway = bool(rc.get("apiId") or rc.get("domainName")
+                           or rc.get("http", {}).get("sourceIp"))
+        if (not api_gateway or method != "POST"
+                or not staff_path.endswith("/ecommerce/checkout")):
+            return cors_response(403, {"error": "STAFF_CONTRIBUTE_ROUTE_FORBIDDEN"}, origin)
+        denied = require_auth(event, required_role="Admin")
+        if denied is not None:
+            return denied
+        if (event.get("_auth") or {}).get("role") != "Admin":
+            return cors_response(403, {"error": "STAFF_CONTRIBUTE_FORBIDDEN"}, origin)
+        try:
+            return _staff_contribution_send(staff_candidate, origin)
+        except Exception as error:
+            logger.error(json.dumps({"event": "staff_contribute_unavailable",
+                                     "reason": type(error).__name__}))
+            return cors_response(503, {
+                "error": "CONTRIBUTION_UNAVAILABLE",
+                "sendUnconfirmed": True,
+                "message": "Could not confirm the request. Check the payment ledger before retrying.",
+            }, origin)
 
     # THE ONE PRE-AUTH ARM, and it is deliberately the narrowest shape that can exist: GET only,
     # on one exact path, taking no path parameter, no query string and no body. Nothing a caller
@@ -2713,7 +2864,8 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
             native_contact: Optional[Dict[str, Any]] = None,
-            verified_service_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            verified_service_context: Optional[Dict[str, Any]] = None,
+            required_staff_contribution: bool = False) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -2804,6 +2956,17 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
                                    "message": "We could not price this cart. Please try "
                                               "again."}, origin)
+
+    if required_staff_contribution:
+        # Last-before-write check: even if the staff preflight saw ₹300,
+        # refuse a concurrent catalog or fee-policy change before PAYREF/attempt.
+        variants = list(CONTRIBUTION_CHOICES_PAISE)
+        if (len(variants) != 1 or not staff_contribution.valid_staff_contribution_snapshot(
+                snapshot, product_id=CONTRIBUTION_PRODUCT_ID, variant_id=variants[0])):
+            return cors_response(409, {
+                "error": "CONTRIBUTION_PRICE_MISMATCH",
+                "message": "The ₹300 contribution quote changed. Nothing was sent.",
+            }, origin)
 
     if service_requests.has_service_line(line_items):
         # The authoritative per-line price, read from the FROZEN native quote (never a client
@@ -2964,6 +3127,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 extra[customer_uuid.ATTRIBUTE] = public_uuid
             if public_contact_id:
                 extra["contactId"] = public_contact_id
+        if required_staff_contribution:
+            # Provenance only. Do NOT write legacy Razorpay notes.purpose,
+            # which would divert the normal SKU-first capture settlement.
+            extra["staffContribute"] = True
         if service_requests.has_service_line(line_items):
             extra.update(**service_requests.payref_extra(
                 line_items, body, line_paise=native_service_paise,
@@ -2988,6 +3155,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = checkout_mode
+    if required_staff_contribution:
+        attempt["staffContribute"] = True
     if verified_service_context is not None:
         single = service_requests._single_order_context(verified_service_context)
         if single is None:
