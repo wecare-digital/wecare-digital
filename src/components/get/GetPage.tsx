@@ -145,7 +145,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     }, [ targetFileId ] );
 
     const loadFiles = useCallback( async () => {
-        const result = await api.listMySecureFiles();
+        const result = await api.getMySecureFile( targetFileId );
         if ( result.ok )
         {
             const ownedFiles = result.data.files || [];
@@ -165,6 +165,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         {
             clearSession();
             redirectToAuth();
+            return;
+        } else if ( result.failure.status === 404 )
+        {
+            // The server deliberately treats missing, revoked and foreign files alike.
+            window.location.replace( '/' );
             return;
         } else
         {
@@ -203,7 +208,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     redirectToAuth();
                     return null;
                 }
-                return api.listMySecureFiles();
+                return api.getMySecureFile( targetFileId );
             } )
             .then( result => {
                 if ( !active || !result ) return;
@@ -228,6 +233,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 {
                     clearSession();
                     redirectToAuth();
+                } else if ( result.failure.status === 404 )
+                {
+                    // No file existence leak to another customer or to revoked links.
+                    window.location.replace( '/' );
                 } else
                 {
                     setError( publicApiFailureText( result.failure.status ) );
