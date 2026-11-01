@@ -33,7 +33,7 @@ const Toast: React.FC<ToastProps> = ({ toasts, onRemove }) => {
  * How long a toast stays before it starts leaving. A time, not a motion: it is how long a reader
  * is given to read the message, so it is unaffected by prefers-reduced-motion.
  */
-const HOLD_MS = 5500;
+const HOLD_MS = 5000;
 
 const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void }> = ({ toast, onRemove }) => {
   const [isExiting, setIsExiting] = useState(false);
