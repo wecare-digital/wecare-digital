@@ -73,6 +73,19 @@ VayuLok live/map/weather readings, VayuLok history, Blog, Elsewhere,
 Checkout Result and field-level address validation keep their existing
 on-screen or assistive-technology status behavior.
 
+## Customer-facing wording
+
+Public notices must describe what a **customer can do or expect**, not an
+internal setup/configuration state. Do not display backend status codes,
+WhatsApp template identifiers, API names, WABA, Lambda, or provider/debug
+errors in a toast.
+
+For Contribute, the internal `CONTRIBUTE_TEMPLATE_NOT_CONFIGURED` response
+must render as **`Contribute on WhatsApp is unavailable.`**, not the
+implementation reason. It does **not** count as a sent/accepted message.
+Keep technical context in staff logs and engineering tools; preserve
+actionable, payment-safe inline error messages.
+
 ## WhatsApp action boundary
 
 Only **Subscribe** and **Leave Review** currently initiate an authenticated
