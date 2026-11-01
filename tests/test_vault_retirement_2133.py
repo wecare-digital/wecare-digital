@@ -262,7 +262,8 @@ class InboundRoutingTests(unittest.TestCase):
     def test_old_list_tap_and_menu_vault_do_not_select_file(self):
         calls = []
         ns = {
-            'os': os, 'json': json, 'logger': types.SimpleNamespace(info=lambda *_: None),
+            'os': os, 'json': json, 'Optional': typing.Optional,
+            'logger': types.SimpleNamespace(info=lambda *_: None),
             '_route_retired_vault_notice': lambda *args: calls.append(('retired', args)),
             '_route_paid_drop_docs': lambda *_: calls.append(('drop', None)) or True,
             '_send_wd_leaf_link': lambda *_: None,
