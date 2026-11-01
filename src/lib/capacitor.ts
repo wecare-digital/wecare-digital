@@ -185,7 +185,7 @@ export function initDeepLinks(navigate: (path: string) => void) {
 
     if (isApexShortLink) {
       const code = url.pathname.replace(/^\/r\//, '');
-      if (code) navigate(`/workspace/link?opened=${code}`);
+      if (code) navigate(`/workspace/communications?view=manage&section=links&opened=${encodeURIComponent(code)}`);
       return;
     }
     const path = url.pathname;
