@@ -38,11 +38,11 @@ function attemptIdFromUrl (): string {
 }
 
 const COPY: Record<View, { title: string }> = {
-  confirming: { title: 'Confirming your payment' },
+  confirming: { title: 'Confirming payment…' },
   paid: { title: 'Payment received' },
   finalizing: { title: 'Payment received' },
-  failed: { title: "Payment wasn't completed" },
-  unavailable: { title: 'Nothing to show here' },
+  failed: { title: 'Payment incomplete' },
+  unavailable: { title: 'Status unavailable' },
 };
 
 export default function CheckoutStatus (): React.ReactElement {
