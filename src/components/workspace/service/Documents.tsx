@@ -160,20 +160,6 @@ function vaultStateText ( view: VaultFileView ): string {
     : VAULT_ACCESS_LABELS[ state ];
 }
 
-/* Which WhatsApp action fits the Vault file now: the Vault offer while unpaid or used up, the
-   Access Vault link while paid, neither while a payment needs reconciling or the file is gone.
-   An unread state offers both; the server refuses the one that does not fit. */
-function vaultActionsFor ( view: VaultFileView ): { ask: boolean; resend: boolean; renewal: boolean } {
-  if ( view.status !== 'ready' ) return { ask: true, resend: true, renewal: false };
-  if ( !view.file || view.file.status !== 'active' ) return { ask: false, resend: false, renewal: false };
-  const state = vaultAccessState( view.file );
-  return {
-    ask: state === 'UNPAID' || state === 'EXPIRED',
-    resend: state === 'OPEN' || state === 'READY',
-    renewal: state === 'EXPIRED',
-  };
-}
-
 function referenceAgeSeconds ( doc: api.Document ): number {
   const base = doc.referenceIssuedAt || doc.createdAt || 0;
   if ( !base ) return Number.POSITIVE_INFINITY;
@@ -349,7 +335,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     resetCreate();
   };
 
-  const handleCreateDocument = async ( sendAfterUpload = false ) => {
+  const handleCreateDocument = async () => {
     if ( !createForm.customerPhone && !createForm.contactId )
     {
       toast.error( 'Select a customer or enter their mobile number' );
@@ -413,20 +399,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         return;
       }
 
-      if ( sendAfterUpload )
-      {
-        const published = await api.publishDocumentToVault( confirmed.data.documentId );
-        if ( !published.ok )
-        {
-          toast.warning( 'Document uploaded, but it could not be published to Vault. Open the document and try Publish & request payment.' );
-        }
-        else
-        {
-          const sent = await api.requestSecureFilePayment( published.data.fileId );
-          reportVaultAction( sent );
-        }
-      }
-      else toast.success( 'Document uploaded to Drop Docs' );
+      toast.success( 'Document saved to Drop Docs. No Vault upload or payment was initiated.' );
 
       setShowCreate( false );
       resetCreate();
@@ -514,109 +487,11 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     } );
   };
 
-  /* 202 means "may have been sent", which is not a success. Same rule as Secure files. */
-  const reportVaultAction = ( result: api.SecureFileActionResult ) => {
-    if ( result.ok && result.status !== 202 ) toast.success( result.message );
-    else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
-    else toast.error( result.message );
-  };
-
   const openDocument = ( doc: api.Document ) => {
     setSelected( doc );
     setReplacementFile( null );
     setRemarks( '' );
     void loadVaultFile( doc );
-  };
-
-  /* Publish with the server-owned WECARE filename. */
-  const publishVault = async ( doc: api.Document ): Promise<api.Document | null> => {
-    const published = await api.publishDocumentToVault( doc.documentId );
-    if ( !published.ok )
-    {
-      toast.error( published.failure.message || 'Could not publish this document to Vault' );
-      return null;
-    }
-    const next = {
-      ...doc,
-      vaultFileId: published.data.fileId,
-      vaultPublishedAt: doc.vaultPublishedAt || Date.now() / 1000,
-      vaultDisplayName: published.data.displayName || doc.fileName || doc.vaultDisplayName,
-    };
-    setSelected( next );
-    if ( published.data.created ) toast.success( `Published to Vault as “${ next.vaultDisplayName || doc.fileName || 'Document' }”` );
-    void loadVaultFile( next );
-    return next;
-  };
-
-  const handlePublishToVault = async ( doc: api.Document ) => {
-    if ( actionLoading ) return;
-    setActionLoading( true );
-    try
-    {
-      if ( await publishVault( doc ) ) void loadData();
-    } finally
-    {
-      setActionLoading( false );
-    }
-  };
-
-  const handleSendVaultPayment = async ( doc: api.Document ) => {
-    if ( actionLoading || !doc.vaultFileId ) return;
-    setActionLoading( true );
-    try
-    {
-      reportVaultAction( await api.requestSecureFilePayment( doc.vaultFileId ) );
-      void loadVaultFile( doc );
-      void loadData();
-    } finally
-    {
-      setActionLoading( false );
-    }
-  };
-
-  /* A paid file: send the Access Vault link again. Never charges and never opens a window. */
-  const handleSendVaultAccess = async ( doc: api.Document ) => {
-    if ( actionLoading || !doc.vaultFileId ) return;
-    setActionLoading( true );
-    try
-    {
-      reportVaultAction( await api.sendSecureFileAccess( doc.vaultFileId ) );
-      void loadVaultFile( doc );
-    } finally
-    {
-      setActionLoading( false );
-    }
-  };
-
-  const handlePublishAndRequestPayment = async ( doc: api.Document ) => {
-    if ( actionLoading || doc.archivedAt ) return;
-    setActionLoading( true );
-    try
-    {
-      let fileId = doc.vaultFileId || '';
-      if ( !fileId )
-      {
-        const published = await api.publishDocumentToVault( doc.documentId );
-        if ( !published.ok )
-        {
-          toast.error( published.failure.message || 'Could not publish this document to Vault' );
-          return;
-        }
-        fileId = published.data.fileId;
-      }
-      const sent = await api.requestSecureFilePayment( fileId );
-      reportVaultAction( sent );
-      void loadData();
-      if ( selected?.documentId === doc.documentId )
-      {
-        const next = { ...doc, vaultFileId: fileId, vaultPublishedAt: doc.vaultPublishedAt || Date.now() / 1000 };
-        setSelected( next );
-        void loadVaultFile( next );
-      }
-    } finally
-    {
-      setActionLoading( false );
-    }
   };
 
   const handleArchive = async ( doc: api.Document ) => {
@@ -711,7 +586,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     active: activeDocs.length,
     archived: archivedDocs.length,
     inVault: activeDocs.filter( d => !!d.vaultFileId ).length,
-    needsVault: activeDocs.filter( d => !d.vaultFileId && !!d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) ).length,
   };
 
   const columns = [
@@ -734,13 +608,13 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       key: 'workflow', header: 'Review', width: '135px', render: ( d: api.Document ) => <StatusBadge status={ d.status } />
     },
     {
-      key: 'delivery', header: 'Vault delivery', width: '190px', render: ( d: api.Document ) => (
+      key: 'delivery', header: 'Historic Vault link', width: '190px', render: ( d: api.Document ) => (
         <div>
           <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)' } }>
-            { d.vaultFileId ? 'Published to Vault' : 'Not in Vault' }
+            { d.vaultFileId ? 'Historically linked' : 'Separate from Vault' }
           </div>
           <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-            { d.vaultFileId ? 'Open to see payment/access state' : 'No WhatsApp Vault offer has been created' }
+            { d.vaultFileId ? 'Read-only: existing payment/access history' : 'Customer upload only; no Vault payment' }
           </div>
         </div>
       )
@@ -757,11 +631,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             <button className="dd-action dd-action-primary" onClick={ () => { void handleRestore( d ); } } disabled={ actionLoading }>Restore</button>
           ) : (
             <>
-              { !d.vaultFileId && d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) && (
-                <button className="dd-action dd-action-primary" onClick={ () => { void handlePublishAndRequestPayment( d ); } } disabled={ actionLoading }>
-                  Publish & send
-                </button>
-              ) }
               { d.vaultFileId && (
                 <button className="dd-action dd-action-primary" onClick={ () => openDocument( d ) }>Open Vault status</button>
               ) }
@@ -782,7 +651,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <div>
             <div style={ eyebrowStyle }>Service · Documents</div>
             <h1 style={ pageTitleStyle }>Drop Docs</h1>
-            <p style={ pageLeadStyle }>Upload documents first. Publish to Vault only when the customer should receive a downloadable copy.</p>
+            <p style={ pageLeadStyle }>Manage customer-submitted documents here. Staff Vault uploads and payments are separate under Pay & Flow → Vault.</p>
           </div>
           <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -792,8 +661,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
         <div className="dd-summary" style={ summaryStripStyle }>
           <div><strong>{ stats.active }</strong><span>Active</span></div>
-          <div><strong>{ stats.needsVault }</strong><span>Ready to publish</span></div>
-          <div><strong>{ stats.inVault }</strong><span>In Vault</span></div>
+          <div><strong>{ stats.inVault }</strong><span>Legacy Vault links</span></div>
           <div><strong>{ stats.archived }</strong><span>Archived</span></div>
         </div>
 
@@ -927,21 +795,14 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               </label>
             </div>
 
-            {/* Vault naming is system-owned: staff cannot create a second filename. */ }
-            { ( selected.vaultFileId || ( selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) ) ) && (
+            { selected.vaultFileId && (
               <div style={ vaultBoxStyle }>
-                <div style={ { fontSize: 'var(--text-md)', fontWeight: 650 } }>Vault file</div>
-                <div style={ { ...helperStyle, marginTop: 6 } }>
-                  Customer-facing filename: <strong>{ selected.fileName || selected.vaultDisplayName || 'Generated after publish' }</strong>
-                </div>
+                <div style={ { fontSize: 'var(--text-md)', fontWeight: 650 } }>Historical Vault linkage</div>
                 <div style={ helperStyle }>
-                  Generated by WECARE.DIGITAL. The original upload name stays internal and cannot be used to rename the Vault file.
+                  This older document was previously linked to a Vault file. Its existing payment
+                  history remains read-only here. New staff Vault uploads and sends are managed
+                  separately under Pay & Flow → Vault.
                 </div>
-              </div>
-            ) }
-            { !selected.vaultFileId && selected.storageKey && ![ 'uploaded', 'approved' ].includes( selected.status ) && (
-              <div style={ { ...helperStyle, marginTop: 0, marginBottom: 16 } }>
-                Approve this document to publish it to the customer&apos;s Vault.
               </div>
             ) }
 
@@ -958,8 +819,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 </label>
                 <div style={ helperStyle }>
                   The current file stays unchanged until the replacement is fully uploaded and confirmed.
-                  Confirming the replacement rotates the document reference; the next Vault publish uses a new
-                  Vault file ID so an older paid entitlement cannot unlock the new bytes.
+                  Confirming the replacement rotates the Drop Docs document reference. Any older Vault
+                  file and paid entitlement remain independent and are not replaced here.
                 </div>
                 <div style={ { marginTop: 10 } }>
                   <Button
@@ -972,7 +833,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   </Button>
                   { selected.vaultFileId && (
                     <div style={ { ...helperStyle, color: '#991b1b' } }>
-                      Revoke the published Vault file first, then upload the replacement.
+                      Legacy Vault-linked documents cannot be replaced from this screen. Manage the existing Vault entitlement separately.
                     </div>
                   ) }
                 </div>
@@ -989,41 +850,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               >
                 { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
               </Button>
-              { !selected.archivedAt && !selected.vaultFileId && (
-                <Button
-                  variant="secondary"
-                  loading={ actionLoading }
-                  disabled={ !selected.storageKey || ![ 'uploaded', 'approved' ].includes( selected.status ) }
-                  onClick={ () => handlePublishToVault( selected ) }
-                >
-                  Publish to Vault
-                </Button>
-              ) }
-              { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
-                <Button variant="primary" loading={ actionLoading } onClick={ () => { void handlePublishAndRequestPayment( selected ); } }>
-                  Publish & send Review & Pay
-                </Button>
-              ) }
-              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
-                <Button
-                  variant="primary"
-                  loading={ actionLoading }
-                  disabled={ vaultFile.status === 'loading' }
-                  onClick={ () => handleSendVaultPayment( selected ) }
-                >
-                  { vaultActionsFor( vaultFile ).renewal ? 'Send renewal Review & Pay' : 'Send Review & Pay' }
-                </Button>
-              ) }
-              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
-                <Button
-                  variant="secondary"
-                  loading={ actionLoading }
-                  disabled={ vaultFile.status === 'loading' }
-                  onClick={ () => handleSendVaultAccess( selected ) }
-                >
-                  Resend Access Vault
-                </Button>
-              ) }
               { selected.archivedAt ? (
                 <Button variant="primary" loading={ actionLoading } onClick={ () => { void handleRestore( selected ); } }>Restore</Button>
               ) : (
@@ -1053,26 +879,19 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <>
             <Button variant="secondary" onClick={ closeCreate } disabled={ creating }>Cancel</Button>
             <Button
-              variant="secondary"
-              disabled={ creating || !createReady }
-              onClick={ () => { void handleCreateDocument( false ); } }
-            >
-              Upload only
-            </Button>
-            <Button
               variant="primary"
               loading={ creating }
               disabled={ creating || !createReady }
-              onClick={ () => { void handleCreateDocument( true ); } }
+              onClick={ () => { void handleCreateDocument(); } }
             >
-              Upload & send Review & Pay
+              Save to Drop Docs
             </Button>
           </>
         }
       >
         <div className="dd-upload-form" style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ uploadIntroStyle }>
-            Private Drop Docs upload. The file goes directly to secure storage; Vault delivery is a separate, file-bound step.
+            Customer Drop Docs upload only. Files are stored in private Drop Docs storage and do not create a Vault file, payment request, or WhatsApp message.
           </div>
 
           <section style={ sectionStyle }>
@@ -1267,24 +1086,9 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             />
           </section>
 
-          <section className="dd-unlock-template" style={ unlockTemplateStyle }>
-            <div style={ sectionHeadingStyle }>
-              <strong>Vault Review &amp; Pay</strong>
-              <span style={ sectionHintStyle }>Server-priced · fixed amount</span>
-            </div>
-            <div className="dd-variable-grid">
-              <div><span>Item</span><strong>One verified owner-bound Vault file</strong></div>
-              <div><span>Amount</span><strong>Live catalogue price · staff cannot change</strong></div>
-              <div><span>Button</span><strong>Review &amp; Pay · ORDER_DETAILS</strong></div>
-              <div><span>After capture</span><strong>Payment receipt image, then Access Vault link</strong></div>
-            </div>
-            <div style={ helperStyle }>
-              The file remains private. The native payment sender uses the approved header and item image, then sends the issued receipt and Access Vault only after verified payment.
-            </div>
-          </section>
-
           <div style={ uploadFooterNoteStyle }>
-            <strong>Upload only</strong> stores the document. <strong>Upload &amp; send Review &amp; Pay</strong> publishes it, then sends the existing native Review &amp; Pay request. No invoice or access entitlement is issued before capture.
+            Drop Docs is the customer-document service. To upload a separate staff Vault file,
+            use Workspace → Pay & Flow → Vault.
           </div>
         </div>
       </Modal>
