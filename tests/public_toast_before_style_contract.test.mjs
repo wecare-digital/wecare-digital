@@ -98,7 +98,7 @@ test('one toast replaces older toasts, without glyphs or fake sends', () => {
   assert.doesNotMatch(workspaceToast, /toast-icon|const icons =/);
   assert.match(workspaceToast, /aria-label="Dismiss notification"/);
   assert.match(workspaceToast, /role=\{toast\.type === 'error' \|\| toast\.type === 'warning' \? 'alert' : 'status'\}/);
-  assert.ok(customerNotices.includes("message: 'Contribute on WhatsApp is unavailable.'"));
+  assert.ok(customerNotices.includes('message: "Couldn\'t confirm. Check WhatsApp."'));
   assert.ok(customerNotices.includes("message: 'Sent to WhatsApp.'"));
 });
 

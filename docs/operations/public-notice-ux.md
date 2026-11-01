@@ -90,8 +90,12 @@ WhatsApp template identifiers, API names, WABA, Lambda, or provider/debug
 errors in a toast.
 
 For Contribute, the internal `CONTRIBUTE_TEMPLATE_NOT_CONFIGURED` response
-must render as **`Contribute on WhatsApp is unavailable.`**, not the
-implementation reason. It does **not** count as a sent/accepted message.
+must display the same customer-facing failure message as other unconfirmed
+WhatsApp actions: **`Couldn't confirm. Check WhatsApp.`** It is a
+**persistent inline warning**, not a success or an auto-dismissing toast.
+This internal response means **Contribute did not send any message**; the
+generic wording is a consistent customer-facing fallback, not evidence
+that WhatsApp accepted or received anything. Do not retry automatically.
 Keep technical context in staff logs and engineering tools; preserve
 actionable, payment-safe inline error messages.
 

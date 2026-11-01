@@ -3,7 +3,8 @@
  *
  * Only Subscribe and Leave Review currently send actual WhatsApp messages.
  * Contribute uses the same authenticated handoff but remains blocked until
- * its template is configured. Never claim "Sent to WhatsApp" for that state.
+ * its template is configured. Reuse the generic failure copy without ever
+ * claiming that a message was sent or delivered.
  * Keep this separate from Workspace ToastContext.
  *
  * "Sent to WhatsApp." means Meta accepted the send request, not that delivery
@@ -26,8 +27,8 @@ const NOTICES: Readonly<Record<CustomerMenuNoticeStatus, CustomerMenuNotice>> = 
     error: false,
   },
   'awaiting-template': {
-    message: 'Contribute on WhatsApp is unavailable.',
-    error: false,
+    message: "Couldn't confirm. Check WhatsApp.",
+    error: true,
   },
   failed: {
     message: "Couldn't confirm. Check WhatsApp.",
