@@ -2075,15 +2075,15 @@ def _customer_file_view(item: Dict[str, Any], identity: Dict[str, Any], now: int
     """
     access_id = str(item.get('vaultEntitlementId') or item.get('vaultAccessGrantId') or '')
     entitlement = _active_entitlement(access_id, item['fileId'], identity) if access_id else None
-    if entitlement is None and _paid_marks(i):
+    if entitlement is None and _paid_marks(item):
         # The pointer write after payment is best effort; the deterministic entitlement is
         # the durable record, so a lost pointer must not make a paid file look unpaid.
         fallback = _entitlement_for_file(str(identity['subject']), str(item['fileId']))
         if fallback and fallback.get('ownerPhone') == identity['phone']:
             entitlement = fallback
     # The window view is the customer's own now, so the page can say "open until …",
-    # "opens on first download" or "renew" instead of guessing from a failed download.
-    view = _public_file(i, admin=False, entitlement=entitlement, now=now)
+    # "opens on first download" or "access expired" without guessing from a failed download.
+    view = _public_file(item, admin=False, entitlement=entitlement, now=now)
     if entitlement:
         view['paidEntitlementId'] = entitlement['grantId']
         view['paidGrantId'] = entitlement['grantId']  # old website bundles
@@ -2094,7 +2094,7 @@ def _customer_file_view(item: Dict[str, Any], identity: Dict[str, Any], now: int
 def _customer_exact_file(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
     """O(1) owner-scoped lookup for /vault/?file= links, even beyond 100 rows."""
     # Invalid and unowned/revoked IDs get exactly the same response.
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", file_id or ""):
+    if not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,120}", file_id):
         return _no_store(cors_response(404, {"error": "File unavailable"}, origin))
     item = _owned_active_file(file_id, identity)
     if not item:
