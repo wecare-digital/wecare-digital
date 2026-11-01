@@ -31,6 +31,13 @@ frontend:
         # Amplify image ever ships without python3, this fails here with an obvious
         # cause instead of turning the credential gate into a silent skip.
         - python3 --version
+        # Backend Python is not deployed by Amplify, but a green website build
+        # must not conceal invalid source in the customer-facing WhatsApp,
+        # Referral or Vault handlers. #2146 shipped with a broken module
+        # docstring/import boundary; Amplify #467 passed while its backend tests
+        # failed. Standard-library syntax compilation is safe and runs offline:
+        # no messages, payments, AWS mutation or runtime import side effects.
+        - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
