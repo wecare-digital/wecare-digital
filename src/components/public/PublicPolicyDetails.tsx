@@ -16,7 +16,6 @@ const PublicPolicyDetails: React.FC = () => {
     <section className="public-policy-tail" aria-label="Policy details">
       <div className="public-policy-inner">
         <PolicyDetails
-          termsHref={ router.pathname === '/terms' || router.pathname === '/privacy' ? null : '/terms/' }
           shipping={ policy.shipping }
           returns={ policy.returns }
           refunds={ policy.refunds }
