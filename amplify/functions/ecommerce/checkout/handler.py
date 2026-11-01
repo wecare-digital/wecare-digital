@@ -110,7 +110,7 @@ from lambda_utils.ecommerce.blog_contribution import (
 from lambda_utils.ecommerce import service_requests, request_service_contracts
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
-from lambda_utils.ecommerce import service_pricing_native, staff_contribution
+from lambda_utils.ecommerce import contribute_taxable, service_pricing_native, staff_contribution
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -1283,11 +1283,12 @@ def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
 
 def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart: dict,
                         reader, now: int, canonical: list):
-    """Quote one voluntary contribution at exactly its ProductsTable amount.
+    """Single-item ₹300 Contribute: exact purpose-specific GST/Delight/Express quote.
 
-    Contribute has no fulfilment/shipping and no convenience fee. Product/variant activity is
-    still validated by the native supply engine; only the final fee policy is replaced with the
-    already-defined contribution exemption.
+    The catalog still sells ONE ₹300 gross product; the server alone expands that
+    gross target into the approved 23541 + 4237 - 138 + 1500 + 729 + 131
+    native payment lines. Neither browser nor staff supplies any term. This
+    must remain isolated from the Vault/Drop Docs and ordinary cart policies.
     """
     if len(canonical) != 1:
         raise ContributionRejected("CONTRIBUTION_REQUIRES_ONE_LINE")
@@ -1310,10 +1311,24 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         coupon_definition=None,
     )
     frozen = base.frozen_data if isinstance(base.frozen_data, dict) else {}
-    quote = checkout_pricing.exempt_quote(
-        base.quote.collection_before_convenience_paise,
-        currency="INR",
-    )
+    source_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    if len(source_items) != 1 or not isinstance(source_items[0], dict):
+        raise ContributionRejected("CONTRIBUTION_CATALOG_UNAVAILABLE")
+    source = source_items[0]
+    if (source.get("productId", "").lower() != str(product_id).lower()
+            or source.get("variantId") != variant_id
+            or source.get("quantity") != 1
+            or type(source.get("unitPricePaise")) is not int):
+        raise ContributionRejected("CONTRIBUTION_CATALOG_CHANGED")
+    terms = contribute_taxable.breakdown(source["unitPricePaise"])
+    collection = terms["collectionBeforeConveniencePaise"]
+    quote = checkout_pricing.compute_quote(collection, currency="INR")
+    if (quote.total_payable_paise != terms["totalPayablePaise"]
+            or quote.convenience_fee_paise != terms["convenienceFeePaise"]
+            or quote.convenience_gst_paise != terms["convenienceGstPaise"]):
+        raise ContributionRejected("CONTRIBUTION_TOTAL_UNSETTLED")
+    line = dict(source)
+    line["unitPricePaise"] = terms["itemSubtotalPaise"]
     return checkout_pricing.build_snapshot(
         customer_id=base.customer_id,
         cart_id=base.cart_id,
@@ -1322,10 +1337,15 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         created_at=base.created_at,
         ttl_seconds=base.expires_at - base.created_at,
         site=frozen.get("site"),
-        items=frozen.get("items") if isinstance(frozen.get("items"), list) else [],
+        items=[line],
         address=frozen.get("address"),
-        delivery=frozen.get("delivery"),
-        pricing_metadata={"policy": "contribution-exempt-2026-10-30"},
+        delivery={"paise": terms["expressPaise"], "optionId": "contribute-express"},
+        pricing_metadata={
+            "policy": contribute_taxable.POLICY,
+            "catalogGrossPaise": terms["catalogGrossPaise"],
+            "supplyGstPaise": terms["supplyGstPaise"],
+            "discountPaise": terms["delightPaise"],
+        },
     )
 
 
