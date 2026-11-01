@@ -912,21 +912,16 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
-          { /* Keep the policy disclosure connected to the history in its own compact
-               card. The global public policy tail excludes /orders to avoid duplication. */ }
+          { /* Policy belongs directly under the Orders history. Use the same
+               unboxed, lime-button disclosure as the other public pages. The
+               global policy tail excludes /orders to avoid a duplicate. */ }
           { signedIn && (
             <section className="ord-policy-section" aria-label="Order policies">
               <PolicyDetails
-                compact
                 shipping={ ORDERS_POLICY_DETAILS.shipping }
                 returns={ ORDERS_POLICY_DETAILS.returns }
                 refunds={ ORDERS_POLICY_DETAILS.refunds }
                 disclaimer={ ORDERS_POLICY_DETAILS.disclaimer }
-                termsLinks={ {
-                  shipping: '/terms/#s15',
-                  returns: '/terms/#s14',
-                  refunds: '/terms/#s14',
-                } }
               />
             </section>
           ) }
