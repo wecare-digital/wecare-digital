@@ -1,8 +1,9 @@
 """Contribution payment helpers.
 
-The retired contribution catalog identity, variants and preset amounts have been wiped.
-Production recognition sets are empty until a new SKU-first Contribute catalog item is created.
-Generic settlement helpers remain so the payment-purpose contract can be reused safely later.
+The SKU-first Contribute catalog item has one ₹300 variant (CNT5Q2M8).
+The live ProductsTable remains authoritative when a customer checks out;
+these presets identify permitted contribution choices, not browser-set prices.
+Generic settlement helpers preserve the payment-purpose contract.
 """
 
 from __future__ import annotations
@@ -28,21 +29,18 @@ CONTRIBUTION_MODE = "BLOG_CONTRIBUTION_RAZORPAY_STANDARD"
 #: The only currency contributions are taken in.
 CONTRIBUTION_CURRENCY = "INR"
 
-#: SERVER-AUTHORITATIVE common contribution amounts, in integer paise, mirroring
-#: src/config/contribution.ts. Defined separately so the browser cannot widen the trusted set.
-#: Only these exact three values are accepted.
-CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (25000,)
+#: Allowed contribution preset in paise, mirrored in src/config/contribution.ts.
+#: The checkout still reads the actual price from live ProductsTable.
+CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (30000,)
 
-#: No retired contribution product identity is recognized. The new contribution product will be
-#: introduced later as a fresh SKU-first catalog item.
+#: Recognize only the current SKU-first contribution product identity.
 CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
     "24fa0f39-330b-5365-b7eb-9caf27ad37f1",
 })
 
-#: No contribution variant is currently purchasable. Fresh choices will be added with the new
-#: contribution catalog item.
+#: Exactly one contribution variant is offered at ₹300.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
-    "CNT5Q2M8": 25000,
+    "CNT5Q2M8": 30000,
 })
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
@@ -130,7 +128,7 @@ def validate_contribution_amount(requested_paise: Any, *, currency: str = CONTRI
       * currency must be exactly INR (compared, never inferred from the amount);
       * the amount must be a genuine ``int`` of minor units - a ``bool``, a float (``10000.5`` is
         fractional paise), a string, or anything ``positive_paise`` refuses is rejected;
-      * the amount must be one of the exact values in ``CONTRIBUTION_PRESETS_PAISE``.
+      * the amount must match the allowed contribution preset.
 
     A browser cannot widen this: any non-preset, fractional, or non-INR value is refused here
     before any gateway order is ever created.
