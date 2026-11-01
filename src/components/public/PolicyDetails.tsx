@@ -106,14 +106,44 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
-      /* In Orders the policy is supporting information, not another hero-level paragraph.
-         Keep the disclosure tappable and the existing marketing-page scale unchanged. */
-      .wc-policy.wc-policy-compact summary{font-size:var(--public-supporting-size)}
+      /* Orders-only disclosure is its own quiet card beneath the order history.
+         Preserve all other PolicyDetails variants and the 44px summary tap target. */
+      .wc-policy.wc-policy-compact{
+        margin:0;padding:0 16px;
+        border:1px solid var(--public-hairline);
+        border-block-start:2px solid var(--public-brand-lime);
+        border-radius:14px;background:var(--public-bg);
+      }
+      .wc-policy.wc-policy-compact summary{
+        display:flex;align-items:center;justify-content:space-between;
+        inline-size:100%;min-height:var(--tap-min);
+        padding:12px 0;border-radius:0;
+        background:transparent;font-size:var(--public-supporting-size);
+        font-weight:700;text-decoration:none;
+      }
+      .wc-policy.wc-policy-compact summary::after{
+        content:'';flex:none;inline-size:8px;block-size:8px;
+        margin-inline-end:4px;
+        border-inline-end:2px solid currentColor;
+        border-block-end:2px solid currentColor;
+        transform:rotate(45deg);
+      }
+      .wc-policy.wc-policy-compact[open] summary::after{transform:rotate(225deg)}
+      .wc-policy.wc-policy-compact summary:hover{
+        background:transparent;transform:none;box-shadow:none;
+      }
+      .wc-policy.wc-policy-compact summary:focus-visible{background:transparent}
+      .wc-policy.wc-policy-compact[open] summary{
+        border-block-end:1px solid var(--public-hairline);
+      }
+      .wc-policy.wc-policy-compact .wc-policy-body{padding:4px 0 6px}
       .wc-policy.wc-policy-compact p{
+        max-width:none;margin:0;padding:10px 0;
+        border-inline-start:0;border-block-end:1px solid var(--public-hairline);
         font-size:var(--public-supporting-size);
         line-height:1.5;letter-spacing:normal;
-        margin-block-start:8px;padding-block:6px;
       }
+      .wc-policy.wc-policy-compact p:last-child{border-block-end:0}
       .wc-policy strong a{
         color:inherit;text-decoration:underline;text-underline-offset:3px;
         text-decoration-thickness:1px;
