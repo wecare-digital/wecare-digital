@@ -168,19 +168,20 @@ invent a `Sent to WhatsApp.` success. Shipped Orders is excluded.
 This UI change does not alter send endpoints, payment amounts, retry rules or
 provider state machines.
 
-## Testing
+## Release validation after test-suite retirement
 
-`node --test tests/public_toast_before_style_contract.test.mjs`
-checks the shared compact styles, top-right positions and one-toast behavior.
-`node --test tests/public_customer_notification_copy.test.mjs`
-checks plain-language Contribute messaging and acceptance boundaries.
-`node --test tests/public_action_feedback_contract.test.mjs`
-checks canonical action wording, refusal of raw API strings and the Vault
-HTTP-202 acceptance guard.
-`node --test tests/public_single_action_feedback_contract.test.mjs`
-checks duplicate Share/Requests success texts were retired, Product
-checkout uses the existing inline notice surface, and payment/OTP/Vault
-safety instructions remain visible.
-Run full TypeScript build, tests, and browser QA for keyboard, Clipboard
-API failure, small screens, RTL and long error strings before release.
-These checks are not replaced by CodeQL or a source-only audit.
+The old `tests/` files and standalone Node test runners were removed under
+`docs/operations/repository-validation.md`. Do **not** restore or invoke
+those retired suites in the Amplify build.
+
+The retained release path runs `npm run typecheck`, `npm run build` and
+`python3 scripts/checkout_release_check.py --export-dir out`, followed by
+an authenticated desktop/mobile browser review before production release.
+
+For this shared toast change, manually verify top-centred placement below
+the public Header and Workspace action bar, 16px desktop / 15px mobile
+text, 5.5-second success hold, one-notice replacement, keyboard focus,
+Clipboard API failure, safe-area widths, RTL, long errors, and reduced
+motion. Copy fallbacks and payment/WhatsApp uncertainty must remain
+persistent and actionable rather than disappearing with the toast.
+CodeQL or source-only inspection does not substitute for browser QA.
