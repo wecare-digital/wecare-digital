@@ -1,9 +1,0 @@
-[
-    {
-        "ApiKeyRequired": false,
-        "AuthorizationType": "NONE",
-        "RouteId": "3t9iii5",
-        "RouteKey": "POST /payments/webhook",
-        "Target": "integrations/dg17ioi"
-    }
-]

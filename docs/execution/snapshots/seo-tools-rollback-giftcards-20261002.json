@@ -1,9 +1,0 @@
-{
-    "FunctionName": "wecare-seo-tools",
-    "Version": "$LATEST",
-    "CodeSha256": "jOreqVY5u8KbyBIS3AG2wluD7V+zb/3uPzdwmbhxEcM=",
-    "LastModified": "2026-10-02T04:33:31.000+0000",
-    "RevisionId": "b6a1658f-41c4-4b96-94d5-8e10b7eb5a9b",
-    "why": "Captured immediately before pushing the FEAT-002 gift-card commit. That commit adds files under amplify/functions/shared/lambda_utils/, which is a trigger path for seo-tools-deploy.yml, and wecare-seo-tools has no live alias so the workflow publishes straight to $LATEST. This is the revert target if that automatic deploy misbehaves.",
-    "rollback": "aws lambda update-function-code --function-name wecare-seo-tools restoring the above CodeSha256, or re-run seo-tools-deploy.yml from the prior commit."
-}

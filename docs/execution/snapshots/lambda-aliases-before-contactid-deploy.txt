@@ -1,7 +1,0 @@
-wecare-inbound-whatsapp          live=59
-wecare-outbound-whatsapp         live=34
-wecare-whatsapp-business-api     live=47
-wecare-ai-generate-response      live=25
-wecare-whatsapp-calling          live=30
-wecare-outbound-email            live=19
-wecare-rcs-dlr                   live=22
