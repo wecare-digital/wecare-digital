@@ -58,15 +58,15 @@ quote carrying an integer unit price inside the rail.
 (`GET /ecommerce/service-prices`), so the price a page promises and the price the checkout
 charges come from one source and cannot drift.
 
-VAULT AND DROP DOCS USE THE COLLECT BREAKDOWN
+ALL FIVE SERVICES USE THE UNIFIED GST-EXCLUSIVE SHOP BREAKDOWN
 ---------------------------------------------
-The native quote always prices the service line from ProductsTable. Vault and Drop Docs use the
-same customer-visible breakdown vocabulary as Collect: GST-inclusive item subtotal, automatic
-Delight, Express, Convenience Fee, GST on the Convenience Fee, then Amount Payable. Delight remains
-the ONE server-owned default calculation (0.5% of the eligible GST-inclusive item subtotal, capped
-at Rs.50); Express is the fixed Rs.45 service-delivery charge declared below. The standard checkout
-calculator then applies the 2.5% Convenience Fee and 18% GST on that fee. Website, WhatsApp Review
-& Pay, Workspace orders and invoices therefore read one frozen quote and reconcile exactly.
+The native quote reads the service item's base price from ProductsTable. All five
+services use the same GST-exclusive shop vocabulary: base + 18% supply GST,
+Delight (0.5% of base plus supply GST, capped at Rs.50 per basket), one fixed
+Rs.45 Express, 2.5% convenience and 18% GST on the convenience fee.
+Website, WhatsApp Review & Pay, Workspace orders and invoices read one frozen
+quote and reconcile exactly. Contribute is not a request service and keeps its
+separate Rs300 gross-target policy with Rs15 Express.
 
 Integer paise throughout. No float pricing is introduced here.
 """
@@ -156,7 +156,7 @@ SERVICE_PURCHASES_ENABLED = True
 SERVICE_LINE_MIN_PAISE = 1
 SERVICE_LINE_MAX_PAISE = 5_000_000
 
-#: Customer-facing "Express" row for Vault and Drop Docs. This is a service delivery/handling
+#: Customer-facing "Express" row for all non-Contribute services. This is a service delivery/handling
 #: charge, not physical courier postage, and is included in the frozen supply quote before payment.
 #: Rs.45 = 4,500 paise. It does NOT increase Delight's basis.
 VAULT_DROP_DOCS_EXPRESS_PAISE = express_policy.STANDARD_EXPRESS_PAISE

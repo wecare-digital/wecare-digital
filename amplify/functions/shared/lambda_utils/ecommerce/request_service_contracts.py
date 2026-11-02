@@ -43,7 +43,7 @@ class RequestServiceContract:
     requires_existing_order: bool = True
     one_payment_one_fulfillment: bool = True
     catalog_visible: bool = False
-    supply_gst_bps: int = 0
+    supply_gst_bps: int = 1800
     express_paise: int = express_policy.STANDARD_EXPRESS_PAISE
     pay_template: str = NATIVE_PAY_TEMPLATE
     invoice_template: str = INVOICE_TEMPLATE
