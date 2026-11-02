@@ -264,7 +264,20 @@ def _assert_smoke_recipient_allowed(to: Optional[str], where: str) -> None:
 
 
 def _send_direct_api(phone_number_id: str, message_json: str) -> Dict:
-    """Send message via Meta Graph API for Direct API phones."""
+    """Send non-interactive messages via Meta Graph API.
+
+    This final wire boundary rejects interactive payloads even when a caller
+    bypasses the normal handler or embeds an old message shape in JSON content.
+    Approved templates (including FLOW and ORDER_DETAILS buttons) are unaffected.
+    """
+    try:
+        _outbound_payload = json.loads(message_json) if isinstance(message_json, str) else message_json
+    except (TypeError, ValueError):
+        _outbound_payload = None
+    if isinstance(_outbound_payload, dict) and _outbound_payload.get('type') == 'interactive':
+        logger.warning(json.dumps({'event': 'direct_interactive_retired',
+                                   'reason': 'template_only_policy'}))
+        raise ValueError('DIRECT_INTERACTIVE_RETIRED: use an approved WhatsApp template')
     import hmac as _hmac, hashlib as _hashlib
     if live_smoke.is_smoke_mode():
         try:
@@ -1158,6 +1171,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except (json.JSONDecodeError, TypeError, ValueError):
         return _error_response(400, 'Invalid JSON in request body')
 
+    # Stop legacy direct interactive traffic before authorization, claims or sends.
+    # This intentionally does NOT reject a template's embedded FLOW button.
+    if body.get('isInteractive') or body.get('interactiveType') or 'interactive' in body:
+        logger.warning(json.dumps({'event': 'direct_interactive_retired',
+                                   'reason': 'legacy_envelope', 'requestId': request_id}))
+        return _error_response(
+            410, 'DIRECT_INTERACTIVE_RETIRED',
+            'Direct interactive WhatsApp messages are retired; use an approved template.')
+
     for removed_key in _REMOVED_PAYMENT_REQUEST_KEYS:
         if body.get(removed_key):
             return _error_response(
@@ -1316,11 +1338,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Checkout button template support (order_details button with sale_amount + shipping_info)
         is_checkout_template = body.get('isCheckoutTemplate', False)
         checkout_order_details = body.get('checkoutOrderDetails')  # Full Meta order_details object
-        
-        # Interactive message support (list, buttons, location request)
-        is_interactive = body.get('isInteractive', False)
-        interactive_type = body.get('interactiveType')  # 'list', 'button', 'location_request'
-        interactive_data = body.get('interactiveData', {})
         
         # Meta order_status is a post-payment fulfilment notification. It is NOT a payment
         # request and therefore is not blocked by the payment-readiness gate.
@@ -1692,14 +1709,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 recipient_bsuid=recipient_bsuid,
                 template_name=order_status_template_name,
                 within_window=within_window,
-            )
-        
-        # Handle interactive messages (list, buttons, location request)
-        if is_interactive and interactive_type:
-            return _handle_interactive_send(
-                message_id, contact_id, recipient_phone, phone_number_id,
-                interactive_type, interactive_data, request_id,
-                recipient_bsuid=recipient_bsuid
             )
         
         # THE payment send: the approved ORDER_DETAILS template (`WA_PAY_TEMPLATE`) whose button is
@@ -2318,267 +2327,6 @@ def _handle_order_details_template_send(
         }))
         _emit_delivery_metric('failed', is_template=True)
         return _error_response(500, f'Failed to send checkout template: {error_msg}')
-
-
-def _handle_interactive_send(message_id: str, contact_id: str, recipient_phone: str,
-                              phone_number_id: str, interactive_type: str,
-                              interactive_data: Dict, request_id: str,
-                              recipient_bsuid: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Send interactive messages (location request, CTA URL, flow, address, catalog).
-
-    The menu-shaped types - list, button, product and product_list - were deleted
-    on 2026-10-02 with every other WhatsApp menu. A request for one of them now
-    gets the JSON error from the `else` arm below rather than a send.
-
-    Interactive Types:
-    - location_request: Request user's location
-    - cta_url: Call-to-action URL button
-    - flow: WhatsApp Flow trigger
-    - address_message: India Address Message (checkout delivery address)
-    - catalog_message: "View catalog" button onto the Meta product catalogue
-
-    Per WhatsApp Business API docs:
-    https://developers.facebook.com/docs/whatsapp/guides/interactive-messages/
-    https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-cta-url-messages/
-    """
-    try:
-        # Normalize phone number
-        formatted_phone = _normalize_phone_number(recipient_phone)
-        whatsapp_phone = f"+{formatted_phone}"
-        
-        # Base payload
-        payload = {
-            'messaging_product': 'whatsapp',
-            'recipient_type': 'individual',
-            'to': whatsapp_phone,
-            'type': 'interactive'
-        }
-        # Add BSUID recipient if available (per Meta BSUID docs)
-        if recipient_bsuid:
-            payload['recipient'] = recipient_bsuid
-        
-        # Build interactive payload based on type
-        if interactive_type == 'location_request':
-            # Location request message
-            body_text = interactive_data.get('body', 'Please share your location')
-            
-            interactive_payload = {
-                'type': 'location_request_message',
-                'body': {'text': body_text},
-                'action': {'name': 'send_location'}
-            }
-            
-            payload['interactive'] = interactive_payload
-        
-        elif interactive_type == 'cta_url':
-            # Call-to-action URL button message
-            # Per Meta docs: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-cta-url-messages/
-            header_text = interactive_data.get('header', '')
-            header_type = interactive_data.get('headerType', 'text')
-            body_text = interactive_data.get('body', 'Click the button below')
-            footer_text = interactive_data.get('footer', '')
-            button_text = interactive_data.get('buttonText', 'Visit')[:20]  # Max 20 chars
-            url = interactive_data.get('url', '')
-            
-            if not url:
-                return _error_response(400, 'url is required for cta_url type')
-            
-            interactive_payload = {
-                'type': 'cta_url',
-                'body': {'text': body_text},
-                'action': {
-                    'name': 'cta_url',
-                    'parameters': {
-                        'display_text': button_text,
-                        'url': url
-                    }
-                }
-            }
-            
-            # Add header if provided
-            if header_text:
-                if header_type == 'text':
-                    interactive_payload['header'] = {'type': 'text', 'text': header_text}
-                elif header_type == 'image':
-                    interactive_payload['header'] = {
-                        'type': 'image',
-                        'image': {'link': interactive_data.get('headerMedia', '')}
-                    }
-                elif header_type == 'video':
-                    interactive_payload['header'] = {
-                        'type': 'video',
-                        'video': {'link': interactive_data.get('headerMedia', '')}
-                    }
-            
-            # Add footer if provided
-            if footer_text:
-                interactive_payload['footer'] = {'text': footer_text}
-            
-            payload['interactive'] = interactive_payload
-        
-        elif interactive_type == 'flow':
-            # WhatsApp Flow trigger message
-            # Per Meta docs: https://developers.facebook.com/docs/whatsapp/flows/
-            header_text = interactive_data.get('header', '')
-            body_text = interactive_data.get('body', 'Start the flow')
-            footer_text = interactive_data.get('footer', '')
-            flow_id = interactive_data.get('flowId', '')
-            flow_cta = interactive_data.get('flowCta', 'Start')[:20]
-            flow_action = interactive_data.get('flowAction', 'navigate')  # navigate or data_exchange
-            flow_token = interactive_data.get('flowToken', str(uuid.uuid4()))
-            screen_id = interactive_data.get('screenId', '')  # First screen to show
-            flow_data = interactive_data.get('flowData', {})  # Data to pass to flow
-            
-            if not flow_id:
-                return _error_response(400, 'flowId is required for flow type')
-            
-            interactive_payload = {
-                'type': 'flow',
-                'body': {'text': body_text},
-                'action': {
-                    'name': 'flow',
-                    'parameters': {
-                        'flow_message_version': '3',
-                        'flow_token': flow_token,
-                        'flow_id': flow_id,
-                        'flow_cta': flow_cta,
-                        'flow_action': flow_action
-                    }
-                }
-            }
-            
-            # flow_action_payload is ONLY valid for "navigate" mode.
-            # For "data_exchange", Meta sends INIT to the endpoint automatically —
-            # do NOT include flow_action_payload or Meta returns error 131009.
-            if flow_action == 'navigate' and screen_id:
-                interactive_payload['action']['parameters']['flow_action_payload'] = {
-                    'screen': screen_id
-                }
-                if flow_data:
-                    interactive_payload['action']['parameters']['flow_action_payload']['data'] = flow_data
-            
-            # Add header if provided
-            if header_text:
-                interactive_payload['header'] = {'type': 'text', 'text': header_text}
-            
-            # Add footer if provided
-            if footer_text:
-                interactive_payload['footer'] = {'text': footer_text}
-            
-            payload['interactive'] = interactive_payload
-            
-        elif interactive_type == 'address_message':
-            # Native India Address Message — collect a shipping address for physical
-            # goods. Docs: interactive.type=address_message, action.name=address_message,
-            # parameters.country (ISO code) is REQUIRED. India-only feature.
-            body_text = interactive_data.get('body',
-                "Thanks for your order! Please share the delivery address.")
-            params = {'country': interactive_data.get('country', 'IN')}
-            _vals = interactive_data.get('values')
-            if _vals:
-                params['values'] = _vals
-            _saved = interactive_data.get('savedAddresses') or interactive_data.get('saved_addresses')
-            if _saved:
-                params['saved_addresses'] = _saved
-            _verr = interactive_data.get('validationErrors') or interactive_data.get('validation_errors')
-            if _verr:
-                params['validation_errors'] = _verr
-            interactive_payload = {
-                'type': 'address_message',
-                'body': {'text': str(body_text)[:1024]},
-                'action': {'name': 'address_message', 'parameters': params},
-            }
-            if interactive_data.get('footer'):
-                interactive_payload['footer'] = {'text': str(interactive_data['footer'])[:60]}
-            if interactive_data.get('header'):
-                interactive_payload['header'] = {'type': 'text', 'text': str(interactive_data['header'])[:60]}
-            payload['interactive'] = interactive_payload
-
-        elif interactive_type == 'catalog_message':
-            # Full-catalog message — a "View catalog" button that opens the whole
-            # product catalog in-chat (optional thumbnail via product_retailer_id).
-            body_text = interactive_data.get('body', 'Browse our catalog and add items to your cart.')
-            action = {'name': 'catalog_message'}
-            thumb = interactive_data.get('thumbnailProductRetailerId') or interactive_data.get('thumbnail_product_retailer_id')
-            if thumb:
-                action['parameters'] = {'thumbnail_product_retailer_id': str(thumb)}
-            interactive_payload = {
-                'type': 'catalog_message',
-                'body': {'text': str(body_text)[:1024]},
-                'action': action,
-            }
-            if interactive_data.get('footer'):
-                interactive_payload['footer'] = {'text': str(interactive_data['footer'])[:60]}
-            payload['interactive'] = interactive_payload
-
-        else:
-            return _error_response(
-                400, 'interactive messaging removed',
-                f"'{interactive_type}' interactive sends were deleted on 2026-10-02; "
-                "list, button, product and product_list are no longer supported")
-        
-        logger.info(json.dumps({
-            'event': 'interactive_payload',
-            'to': mask_phone(whatsapp_phone),
-            'interactiveType': interactive_type,
-            'payloadKeys': sorted(payload.keys()),
-            'requestId': request_id
-        }))
-        
-        # Call SendWhatsAppMessage API (Direct API)
-        response = _send_message(phone_number_id, payload)
-        
-        whatsapp_message_id = response.get('messageId', '')
-        
-        # Store message record
-        _store_message_record(
-            message_id=message_id,
-            contact_id=contact_id,
-            content=f'[Interactive: {interactive_type}] {interactive_data.get("body", "")}',
-            status=WA_INITIAL_STATUS,
-            is_template=False,
-            whatsapp_message_id=whatsapp_message_id,
-            phone_number_id=phone_number_id,
-            recipient_bsuid=recipient_bsuid,
-        )
-        
-        logger.info(json.dumps({
-            'event': 'interactive_sent',
-            'messageId': message_id,
-            'whatsappMessageId': whatsapp_message_id,
-            'contactId': mask_contact_id(contact_id),
-            'interactiveType': interactive_type,
-            'requestId': request_id
-        }))
-        
-        # Emit success metric
-        _emit_delivery_metric('success', is_template=False)
-        
-        return {
-            'statusCode': 200,
-            'headers': cors_headers(origin),
-            'body': json.dumps({
-                'messageId': message_id,
-                'whatsappMessageId': whatsapp_message_id,
-                'status': 'sent',
-                'mode': 'LIVE',
-                'type': 'interactive',
-                'interactiveType': interactive_type
-            })
-        }
-        
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(json.dumps({
-            'event': 'interactive_send_error',
-            'messageId': message_id,
-            'interactiveType': interactive_type,
-            'error': error_msg,
-            'requestId': request_id
-        }))
-        _emit_delivery_metric('failed', is_template=False)
-        return _error_response(500, f'Failed to send interactive message: {error_msg}')
 
 
 def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
@@ -4292,25 +4040,10 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 payload['location']['name'] = content_data['name']
             if content_data.get('address'):
                 payload['location']['address'] = content_data['address']
-        elif content_data and content_data.get('_type') == 'location_request':
-            # Location request message — interactive type
-            payload['type'] = 'interactive'
-            payload['interactive'] = {
-                'type': 'location_request_message',
-                'body': {'text': content_data.get('body', 'Please share your location')},
-                'action': {'name': 'send_location'},
-            }
-        elif content_data and content_data.get('_type') == 'address':
-            # Address message — interactive type
-            payload['type'] = 'interactive'
-            payload['interactive'] = {
-                'type': 'address_message',
-                'body': {'text': content_data.get('body', 'Please provide your delivery address')},
-                'action': {
-                    'name': 'address_message',
-                    'parameters': content_data.get('parameters', {}),
-                },
-            }
+        elif content_data and content_data.get('_type') in ('location_request', 'address'):
+            # The former location/address JSON shims silently bypassed isInteractive.
+            # Refuse them rather than serializing an interactive request to Meta.
+            raise ValueError('DIRECT_INTERACTIVE_RETIRED: use an approved template')
         else:
             # Text message — enable link preview when content contains a URL
             has_url = 'http://' in content or 'https://' in content

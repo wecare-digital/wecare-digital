@@ -3,7 +3,6 @@
  * Admin UI for WhatsApp native commerce: send the catalog, compose & send a
  * native order_details (Review & Pay) bill, view orders/payments, and see the
  * live Razorpay payment configs per WABA. Backed by:
- *   POST /whatsapp/send            (catalog_message only — this page composes NO payment)
  *   POST /invoices + POST /invoices/{id}/send-payment-link   (the bill, server-composed)
  *   GET  /wa-business/orders       + PATCH /wa-business/orders/{id}
  *   GET  /payments                 (recent payments)
@@ -88,20 +87,6 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
     };
 
     const digits = ( p: string ) => p.replace( /\D/g, '' );
-
-    const sendCatalog = async () => {
-        if ( !digits( toPhone ) ) { toast.error( 'Enter a customer phone' ); return; }
-        setBusy( 'catalog' );
-        try
-        {
-            const r = await call( '/whatsapp/send', 'POST', {
-                recipientPhone: digits( toPhone ), phoneNumberId: phoneId,
-                isInteractive: true, interactiveType: 'catalog_message',
-                interactiveData: { body: 'Browse our catalog and add items to your cart.', footer: 'WECARE.DIGITAL' },
-            } );
-            if ( r ) toast.success( 'Catalog sent' ); else toast.error( 'Send failed' );
-        } finally { setBusy( '' ); }
-    };
 
     /**
      * Raise an invoice, then ask the server to send its payment request.
@@ -223,7 +208,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                     <label style={ { ...lbl, marginTop: 12 } }>Customer phone (E.164 digits)</label>
                     <input value={ toPhone } onChange={ e => setToPhone( e.target.value ) } placeholder="918100640044" style={ { width: '100%' } } />
                     <div style={ { marginTop: 12 } }>
-                        <Button onClick={ sendCatalog } disabled={ busy !== '' }>{ busy === 'catalog' ? 'Sending…' : 'Send catalog' }</Button>
+        
                     </div>
                 </div>
 

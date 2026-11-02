@@ -274,260 +274,17 @@ def _get_welcome_config_key(phone_number_id: str) -> str:
     return 'welcome_message'
 
 
-DEFAULT_FALLBACK_MESSAGE = "Thanks for your message! Type 'menu' to see available options, or 'subscribe' to get started."
+DEFAULT_FALLBACK_MESSAGE = "Thanks for your message. For services visit https://wecare.digital/ or tell us what you need."
 
 # The degraded fallback when the Graph list send fails (no token, HTTP error). It is
-# NOT the menu any more — see WD_LISTS below — but it must stay: a greeting / QR
+# NOT the menu any more — now retired — but it must stay: a greeting / QR
 # prefill / ice-breaker tap has to get an answer rather than silence or a crash even
 # when Meta refuses the list. The string is pinned byte-for-byte against the
 # `whatsapp-calling` Lambda's own copy by tests/test_calling_menu_template_is_gone.py.
-MENU_PLACEHOLDER_TEXT = "We're refreshing our menu - please type *menu* and we'll help you."
+MENU_PLACEHOLDER_TEXT = "Our old WhatsApp menu is retired. Visit https://wecare.digital/ for services, or tell us what you need here."
 
 
-# ── The WECARE.DIGITAL site menu, as WhatsApp interactive lists ──────────────
-# Owner-approved structure, 2026-10-03. It mirrors the public site mega-menu in
-# src/components/Header.tsx, so a path here and a path there must not drift.
-#
-# SHOP IS EXCLUDED BY OWNER DECISION. There is no Shop row anywhere, and there must
-# not be one. (`STORE_KEYWORDS` further down still answers a *typed* `shop` with a
-# CTA button; that is a live inbound alias, not a menu row, and it stays.)
-#
-# Meta's interactive-list limits, which `_send_wd_list` also enforces defensively so
-# a future edit to this data cannot produce a 400:
-#   rows per list <= 10 · row title <= 24 chars · row description <= 72
-#   button text <= 20 · header <= 60 · body <= 1024
-# Trailing slashes in the paths are LOAD-BEARING (the site has trailingSlash on);
-# dropping one turns a link into a redirect at best and a 404 at worst.
-WD_SITE_BASE = 'https://wecare.digital'
-
-# leaf row id -> (display name, site path or absolute external URL). Tapping any of these sends a text reply
-# with the link, not another list.
-WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
-    'wd_home': ('About / Home', '/'),
-    # Products
-    'wd_grahak_os': ('Grahak OS', '/grahak-os/'),
-    'wd_vayulok': ('VayuLok', '/vayulok/'),
-    'wd_bharat_rx': ('Bharat Rx', '/bharat-rx/'),
-    # Elsewhere children. There is no Elsewhere category landing page any more (it became a category
-    # on 2026-10-15, mirroring the Header), so `wd_elsewhere` is a submenu, not a leaf.
-    'wd_elsewhere_visa': ('Visa', '/elsewhere/visa/'),
-    'wd_elsewhere_trip': ('Trip', '/elsewhere/trip/'),
-    'wd_elsewhere_activities': ('Activities', '/elsewhere/activities/'),
-    'wd_expo_week': ('Expo Week', '/expo-week/'),
-    # Family labels have no page; their concrete destinations are leaves below.
-    'wd_dastavez_drafting': ('Drafting', '/dastavez/drafting/'),
-    'wd_dastavez_registration': ('Registration', '/dastavez/registration/'),
-    'wd_dastavez_legal_reference': ('Legal Reference', '/dastavez/legal-reference/'),
-    'wd_clear_guided_resolution': ('Guided Resolution', '/shop/guided-resolution/'),
-    'wd_clear_case_submission': ('Case Submission', '/shop/file-assist/'),
-    'wd_clear_paperwork': ('Paperwork', '/shop/paperwork/'),
-    'wd_ritual_puja_guidance': ('Puja Guidance', '/ritual-guru/puja-guidance/'),
-    'wd_ritual_diy_kit': ('DIY Puja Kit', '/ritual-guru/diy-puja-kit/'),
-    'wd_anew': ('Anew', '/anew/'),
-    'wd_hunar_kaushal': ('Kaushal', '/hunar/kaushal/'),
-    'wd_hunar_prastuti': ('Prastuti', '/hunar/prastuti/'),
-    'wd_niji_setu': ('Niji Setu', '/niji-setu/'),
-    # Request
-    'wd_orders': ('Orders', '/orders/'),
-    'wd_submit': ('Submit Request', '/submit-request/'),
-    'wd_amend': ('Request Amendment', '/request-amendment/'),
-    'wd_drop_docs': ('Drop Docs', '/drop-docs/'),
-    'wd_vault': ('Vault', '/vault/'),
-    'wd_track': ('Track', '/shipments/track/'),
-    'wd_pickup': ('Pickup Request', '/request-pickup/'),
-    'wd_review': ('Leave Review', 'https://wa.me/message/ZM74K2H2BIFOA1'),
-    # Refer & Earn children
-    'wd_merchandise': ('Merchandise', '/shop/merchandise/'),
-    'wd_kiosk': ('Kiosk', '/shop/kiosk/'),
-    'wd_referral': ('Referral', 'https://wa.me/message/S6A2QEXZSYXTG1'),
-    'wd_contact': ('Contact us', '/contact/'),
-    'wd_perks': ('Perks', 'https://wa.me/message/377GALDW4E26F1'),
-    # Legal
-    'wd_terms': ('Terms', '/terms/'),
-    'wd_privacy': ('Privacy', '/privacy/'),
-}
-
-# list key -> the list to send. `wd_main` is the only one with a header. Every
-# submenu ends with wd_back so a customer is never stranded one level down.
-WD_LISTS: Dict[str, Dict[str, Any]] = {
-    'wd_main': {
-        'header': 'WECARE.DIGITAL',
-        'body': 'Everyday AI, built for Bharat. What do you need?',
-        'button': 'Open Menu',
-        'section': 'Menu',
-        'rows': [
-            {'id': 'wd_home', 'title': '\U0001f3e0 About / Home', 'description': 'Who we are and what we do'},
-            {'id': 'wd_products', 'title': '\U0001f4e6 Products', 'description': 'Explore our products'},
-            {'id': 'wd_request', 'title': '\U0001f9fe Request', 'description': 'Orders, requests, documents'},
-            {'id': 'wd_work', 'title': '\U0001f91d Work with us', 'description': 'Refer, contact, perks'},
-            {'id': 'wd_legal', 'title': '\U0001f4c4 Legal & Extras', 'description': 'Terms, privacy, perks'},
-        ],
-    },
-    # Eleven products do not fit in one 10-row list, so the chooser splits them.
-    'wd_products': {
-        'body': 'Products — choose a set',
-        'button': 'Open Menu',
-        'section': 'Products',
-        'rows': [
-            {'id': 'wd_products_1', 'title': 'Products (1 of 2)', 'description': 'Grahak OS, VayuLok, Bharat Rx…'},
-            {'id': 'wd_products_2', 'title': 'Products (2 of 2)', 'description': 'Clear Closure, Anew, Hunar…'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_products_1': {
-        'body': 'Products (1 of 2)',
-        'button': 'Open Menu',
-        'section': 'Products',
-        'rows': [
-            {'id': 'wd_grahak_os', 'title': 'Grahak OS'},
-            {'id': 'wd_vayulok', 'title': 'VayuLok'},
-            {'id': 'wd_bharat_rx', 'title': 'Bharat Rx'},
-            {'id': 'wd_elsewhere', 'title': 'Elsewhere'},
-            {'id': 'wd_expo_week', 'title': 'Expo Week'},
-            {'id': 'wd_dastavez', 'title': 'Dastavez'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_products_2': {
-        'body': 'Products (2 of 2)',
-        'button': 'Open Menu',
-        'section': 'Products',
-        'rows': [
-            {'id': 'wd_clear_closure', 'title': 'Clear Closure'},
-            {'id': 'wd_ritual_guru', 'title': 'Ritual Guru'},
-            {'id': 'wd_anew', 'title': 'Anew'},
-            {'id': 'wd_hunar', 'title': 'Hunar'},
-            {'id': 'wd_niji_setu', 'title': 'Niji Setu'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_request': {
-        'body': 'Request — orders, requests and documents',
-        'button': 'Open Menu',
-        'section': 'Request',
-        'rows': [
-            {'id': 'wd_orders', 'title': 'Orders'},
-            {'id': 'wd_submit', 'title': 'Submit Request'},
-            {'id': 'wd_amend', 'title': 'Request Amendment'},
-            {'id': 'wd_drop_docs', 'title': 'Drop Docs'},
-            {'id': 'wd_vault', 'title': 'Vault'},
-            {'id': 'wd_shipments', 'title': 'Shipments'},
-            {'id': 'wd_review', 'title': 'Leave Review'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    # Elsewhere has no parent page (Header.tsx renders it as a label over three
-    # children), so the row opens its children instead of linking a 404.
-    'wd_elsewhere': {
-        'body': 'Elsewhere',
-        'button': 'Open Menu',
-        'section': 'Elsewhere',
-        'rows': [
-            {'id': 'wd_elsewhere_visa', 'title': 'Visa'},
-            {'id': 'wd_elsewhere_trip', 'title': 'Trip'},
-            {'id': 'wd_elsewhere_activities', 'title': 'Activities'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_dastavez': {
-        'body': 'Dastavez',
-        'button': 'Open Menu',
-        'section': 'Dastavez',
-        'rows': [
-            {'id': 'wd_dastavez_drafting', 'title': 'Drafting'},
-            {'id': 'wd_dastavez_registration', 'title': 'Registration'},
-            {'id': 'wd_dastavez_legal_reference', 'title': 'Legal Reference'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_clear_closure': {
-        'body': 'Clear Closure',
-        'button': 'Open Menu',
-        'section': 'Clear Closure',
-        'rows': [
-            {'id': 'wd_clear_guided_resolution', 'title': 'Guided Resolution'},
-            {'id': 'wd_clear_case_submission', 'title': 'Case Submission'},
-            {'id': 'wd_clear_paperwork', 'title': 'Paperwork'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_ritual_guru': {
-        'body': 'Ritual Guru',
-        'button': 'Open Menu',
-        'section': 'Ritual Guru',
-        'rows': [
-            {'id': 'wd_ritual_puja_guidance', 'title': 'Puja Guidance'},
-            {'id': 'wd_ritual_diy_kit', 'title': 'DIY Puja Kit'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_hunar': {
-        'body': 'Hunar',
-        'button': 'Open Menu',
-        'section': 'Hunar',
-        'rows': [
-            {'id': 'wd_hunar_kaushal', 'title': 'Kaushal'},
-            {'id': 'wd_hunar_prastuti', 'title': 'Prastuti'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_shipments': {
-        'body': 'Shipments',
-        'button': 'Open Menu',
-        'section': 'Shipments',
-        'rows': [
-            {'id': 'wd_track', 'title': 'Track'},
-            {'id': 'wd_pickup', 'title': 'Pickup Request'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_work': {
-        'body': 'Refer, perks and contact',
-        'button': 'Open Menu',
-        'section': 'More',
-        'rows': [
-            {'id': 'wd_refer', 'title': 'Refer & Earn'},
-            {'id': 'wd_perks', 'title': 'Perks'},
-            {'id': 'wd_contact', 'title': 'Contact us'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_refer': {
-        'body': 'Refer & Earn',
-        'button': 'Open Menu',
-        'section': 'Refer & Earn',
-        'rows': [
-            {'id': 'wd_partner', 'title': 'Partner'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_partner': {
-        'body': 'Partner',
-        'button': 'Open Menu',
-        'section': 'Partner',
-        'rows': [
-            {'id': 'wd_merchandise', 'title': 'Merchandise'},
-            {'id': 'wd_kiosk', 'title': 'Kiosk'},
-            {'id': 'wd_referral', 'title': 'Referral'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-    'wd_legal': {
-        'body': 'Legal & Extras',
-        'button': 'Open Menu',
-        'section': 'Legal & Extras',
-        'rows': [
-            {'id': 'wd_terms', 'title': 'Terms'},
-            {'id': 'wd_privacy', 'title': 'Privacy'},
-            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
-        ],
-    },
-}
-
-# The leaf reply. Exact copy — it is customer-facing and the only thing a tap
-# produces.
-WD_LEAF_TEMPLATE = "{name}\nOpen it here \U0001f449 {url}\n\nOr just tell me what you need and I'll help."
-
+# Retired interactive-list menu and its navigation data removed.
 
 # Deterministic-trigger keywords for the Meta Business Agent hybrid. When the AI
 # holds control (standby), we take control + run OUR flow only for these; free-form
@@ -942,7 +699,10 @@ def _auto_thumb_enabled() -> bool:
 
 
 def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_id: str = None) -> Dict:
-    """Send a WhatsApp message via Meta Graph API for Direct API phones."""
+    """Send non-interactive WhatsApp messages via Meta Graph API."""
+    if message_payload.get('type') == 'interactive':
+        logger.warning(json.dumps({'event': 'direct_interactive_retired', 'source': 'inbound'}))
+        return {'error': True, 'detail': 'DIRECT_INTERACTIVE_RETIRED'}
     token = _load_direct_api_token()
     if not token:
         return {'error': True, 'detail': 'No Direct API token available'}
@@ -6546,384 +6306,42 @@ def _send_flow_link(contact_id: str, phone_number_id: str, flow_key: str,
 def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                        request_id: str, flow_config: Dict = None, flow_key: str = '',
                        flow_token: str = '') -> bool:
-    """
-    Generic flow sender  -  works for all flow types.
-    
-    Phone 1 (WABA 1): Sends WhatsApp Flow interactive message (flows exist on WABA 1).
-    Phone 2 (WABA 2): Sends a CTA URL button with the door's `FLOW_LINKS` destination.
-    Flows are WABA-specific  -  they only exist on the WABA where they were created.
-
-    `flow_token` is a server-issued session token (F001); without one a token is minted
-    here as before. Returns whether the message was handed to the outbound sender.
-    """
-    try:
-        flow_id = (flow_config or {}).get('flowId', '')
-        if not flow_id:
-            logger.warning(json.dumps({
-                'event': 'generic_flow_no_id',
-                'flowKey': flow_key,
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return False
-        msg = (flow_config or {}).get('message', {})
-
-        # ── Phone 2: check if WABA 2 has its own flow, otherwise CTA fallback ──
-        if phone_number_id == PHONE_NUMBER_ID_2:
-            flow_id_2 = (flow_config or {}).get('flowId2', '')
-            if flow_id_2:
-                # WABA 2 has its own flow  -  use it instead of WABA 1 flow
-                flow_id = flow_id_2
-                logger.info(json.dumps({
-                    'event': 'generic_flow_using_waba2_flow',
-                    'flowKey': flow_key, 'flowId2': flow_id_2, 'requestId': request_id,
-                }))
-                # Fall through to flow sending logic below
-            else:
-                # No WABA 2 flow  -  send the website link instead
-                return _send_flow_link(contact_id, phone_number_id, flow_key, flow_config,
-                                       request_id, reason='waba2')
-
-        # ── Phone 1: send WhatsApp Flow interactive message ──
-        _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
-        flow_token = flow_token or f'{flow_key[:10]}-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
-
-        # Flows whose FIRST screen is STATIC (needs no endpoint data at open) must
-        # open with NAVIGATE, not data_exchange. NAVIGATE renders the first screen
-        # client-side and SKIPS the endpoint INIT round-trip — removing the "stuck
-        # on loading" latency (per Meta Flows performance guidance). The endpoint is
-        # still called later on data_exchange screens (e.g. REVIEW), so no data is
-        # lost. Only order-fetching flows (submit_request, etc.) need data_exchange
-        # at open to populate their first screen.
-        # `leave_review` is the canonical F002 door; the historical `customer_idea` alias points at the same Flow, so it
-        # needs the same entry screen: that flow is endpointless and would fail at
-        # open under data_exchange.
-        STATIC_ENTRY_SCREENS = {'customer_idea': 'FEEDBACK', 'leave_review': 'FEEDBACK'}
-        _entry_screen = STATIC_ENTRY_SCREENS.get(flow_key, '')
-        flow_action = 'navigate' if _entry_screen else 'data_exchange'
-
-        interactive_data = {
-            'body': msg.get('body', 'Please fill in the details below.'),
-            'footer': msg.get('footer', 'WECARE.DIGITAL'),
-            'flowId': flow_id,
-            'flowCta': msg.get('flowCta', flow_key.replace('_', ' ').title()),
-            'flowAction': flow_action,
-            'flowToken': flow_token,
-        }
-        if _entry_screen:
-            interactive_data['screenId'] = _entry_screen
-
-        header_val = msg.get('header', '')
-        if header_val:
-            interactive_data['header'] = header_val
-
-        payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'isInteractive': True,
-                'interactiveType': 'flow',
-                'interactiveData': interactive_data,
-            })
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
-
-        logger.info(json.dumps({
-            'event': 'generic_flow_sent',
-            'flowKey': flow_key,
-            'contactId': mask_contact_id(contact_id),
-            'senderPhone': mask_phone(sender_phone),
-            'flowId': flow_id,
-            'flowToken': mask_flow_token(flow_token),
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-        # An Event invoke answers 202 once the outbound sender has accepted the payload.
-        return response.get('StatusCode') in (200, 202)
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'generic_flow_error',
-            'flowKey': flow_key,
-            'contactId': mask_contact_id(contact_id),
-            'errorType': type(e).__name__,
-            'requestId': request_id
-        }))
-        return False
-
-
-def _send_wd_list(list_key: str, contact_id: str, sender_phone: str,
-                  aws_phone_number_id: str, request_id: str) -> bool:
-    """Send one WD_LISTS interactive list straight to the Meta Graph API.
-
-    SELF-CONTAINED ON PURPOSE, and not a style preference. The generic interactive
-    sender in `wecare-outbound-whatsapp` was deleted on 2026-10-02 and now answers
-    `interactiveType='list'` with a 400 ("'list' interactive sends were deleted"),
-    so delegating there would fail every menu send. This uses the handler's own
-    existing Graph path instead: `_load_direct_api_token` reads
-    `wecare/meta-system-user-token` lazily, by reference, at request time, and
-    `_send_direct_api_message` owns the POST, the bearer header and the
-    appsecret_proof. No new secret read, no new HTTP code.
-
-    Returns True when the list was sent (or deliberately suppressed by the
-    live-smoke lockdown), False when the caller should fall back. Never raises —
-    a menu send must not break `_process_message`.
-    """
-    try:
-        spec = WD_LISTS.get(list_key)
-        if not spec:
-            logger.warning(json.dumps({
-                'event': 'wd_list_unknown_key',
-                'listKey': list_key,
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return False
-
-        # The direct Graph send bypasses outbound-whatsapp's live_smoke gate, so the
-        # lockdown is re-applied here. With WA_LIVE_SMOKE_TEST absent (the state
-        # today) check_recipient returns (True, 'not_smoke_mode') and nothing changes.
-        allowed, reason = live_smoke.check_recipient(sender_phone)
-        if not allowed:
-            logger.info(json.dumps({
-                'event': 'wd_list_smoke_blocked',
-                'listKey': list_key,
-                'reason': reason,
-                'senderPhone': mask_phone(sender_phone or ''),
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return True  # handled, not failed — do not fall back and send anyway
-
-        rows = []
-        for row in spec.get('rows', [])[:10]:
-            entry = {'id': row['id'], 'title': row['title'][:24]}
-            if row.get('description'):
-                entry['description'] = row['description'][:72]
-            rows.append(entry)
-
-        body_text = spec.get('body', '')[:1024]
-        interactive: Dict[str, Any] = {
-            'type': 'list',
-            'body': {'text': body_text},
-            'action': {
-                'button': spec.get('button', 'Open Menu')[:20],
-                'sections': [{'title': spec.get('section', 'Menu')[:24], 'rows': rows}],
-            },
-        }
-        if spec.get('header'):
-            interactive['header'] = {'type': 'text', 'text': spec['header'][:60]}
-
-        result = _send_direct_api_message(
-            sender_phone,
-            {'type': 'interactive', 'interactive': interactive},
-            meta_phone_id=_get_meta_phone_id_for_direct_api(aws_phone_number_id),
-        )
-
-        if not result.get('success'):
-            # Shape only. Never the token, never the full Graph body.
-            logger.error(json.dumps({
-                'event': 'wd_list_send_failed',
-                'listKey': list_key,
-                'status': result.get('status'),
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return False
-
-        logger.info(json.dumps({
-            'event': 'wd_list_sent',
-            'listKey': list_key,
-            'rowCount': len(rows),
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
-        # A direct Graph send writes no message record, so mirror it into the inbox
-        # the way the deleted outbound path did. Non-blocking by construction.
-        try:
-            put_message(
-                channel='whatsapp',
-                direction='outbound',
-                contact_id=contact_id,
-                content=f'[Menu: {list_key}] {body_text}',
-                status='sent',
-                message_id=result.get('messageId') or None,
-                messageType='interactive_list',
-                raise_on_error=False,
-            )
-        except Exception as _me:
-            logger.warning(f'wd_list inbox mirror skipped: {type(_me).__name__}')
-        return True
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'wd_list_error',
-            'listKey': list_key,
-            'error': type(e).__name__,
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
-        return False
+    """No standalone Flow send. Direct customers to the existing service link."""
+    logger.info(json.dumps({'event': 'direct_flow_retired', 'flowKey': flow_key,
+                            'requestId': request_id}))
+    return _send_flow_link(contact_id, phone_number_id, flow_key, flow_config,
+                           request_id, reason='direct_interactive_retired')
 
 
 def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
                          aws_phone_number_id: str, request_id: str,
                          source_message_id: str = '') -> str:
-    """Route one tapped list row. Three ways out and no fourth.
-
-    Returns a short token naming which way it went ('back', 'list', 'leaf',
-    'vault_retired', 'unknown') so behaviour is testable without a live send. The caller has
-    already logged `list_reply_received` with the raw id.
-
-    Nothing falls through and nothing raises: a stale row from a deleted menu, a
-    typo and an empty id all re-open the main menu.
-    """
-    if str(list_id or '').startswith('vaultpick:') or list_id == 'wd_vault':
-        # Old WhatsApp document rows and the generic Vault menu leaf are retired.
-        # Do not decode token/index, inspect file ownership, or create a payment.
-        _route_retired_vault_notice(
-            contact_id, sender_phone, aws_phone_number_id,
-            source_message_id, request_id)
-        return 'vault_retired'
-    if list_id == 'wd_drop_docs':
-        if _route_paid_drop_docs(contact_id, sender_phone, aws_phone_number_id,
-                                 source_message_id, request_id):
-            return 'drop_docs'
-        _send_wd_leaf_link(list_id, contact_id, aws_phone_number_id, request_id)
-        return 'leaf'
-    if list_id == 'wd_back':
-        # Explicit, so WD_LISTS stays one key per list rather than gaining an alias.
-        _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
-        return 'back'
-    if list_id in WD_LISTS:
-        if not _send_wd_list(list_id, contact_id, sender_phone, aws_phone_number_id, request_id):
-            _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
-        return 'list'
-    if list_id in WD_LEAF_LINKS:
-        _send_wd_leaf_link(list_id, contact_id, aws_phone_number_id, request_id)
-        return 'leaf'
-    # An old cached `menu_*` id, a typo, an empty id. Never silent.
-    logger.info(json.dumps({
-        'event': 'wd_list_reply_unknown',
-        'listId': list_id,
-        'contactId': mask_contact_id(contact_id),
-        'requestId': request_id,
-    }))
-    _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
-    return 'unknown'
+    """Old cached menu taps are informational only, including Vault rows."""
+    logger.info(json.dumps({'event': 'retired_list_reply',
+                            'requestId': request_id, 'listId': list_id}))
+    _send_menu_placeholder(contact_id, aws_phone_number_id, request_id)
+    return 'retired'
 
 
 def _send_wd_main_menu(contact_id: str, sender_phone: str, aws_phone_number_id: str,
                        request_id: str) -> None:
-    """Send the main menu, falling back to the plain-text stand-in if Meta refuses.
-
-    The fallback is what keeps "nothing goes silent" true even with no token or a
-    Graph outage.
-    """
-    if not _send_wd_list('wd_main', contact_id, sender_phone, aws_phone_number_id, request_id):
-        _send_menu_placeholder(contact_id, aws_phone_number_id, request_id)
-
-
-def _send_wd_leaf_link(leaf_id: str, contact_id: str, aws_phone_number_id: str,
-                       request_id: str) -> None:
-    """Answer a tapped leaf row with the site link as plain text.
-
-    Goes through `_send_ai_auto_reply` rather than the direct Graph path: a text
-    send still works downstream, and routing it through `outbound-whatsapp` keeps
-    the inbox record and the live-smoke lockdown for free.
-    """
-    entry = WD_LEAF_LINKS.get(leaf_id)
-    if not entry:
-        return
-    name, path = entry
-    url = path if path.startswith('https://') else f'{WD_SITE_BASE}{path}'
-    text = WD_LEAF_TEMPLATE.format(name=name, url=url)
-    # leafId and path are neither secrets nor phone numbers, so they are logged in
-    # full — the same reasoning the payments steering gives for referenceId.
-    logger.info(json.dumps({
-        'event': 'wd_leaf_link_sent',
-        'leafId': leaf_id,
-        'path': path,
-        'contactId': mask_contact_id(contact_id),
-        'requestId': request_id,
-    }))
-    _send_ai_auto_reply(contact_id, text, aws_phone_number_id, request_id)
+    _send_menu_placeholder(contact_id, aws_phone_number_id, request_id)
 
 
 def _send_menu_placeholder(contact_id: str, phone_number_id: str, request_id: str) -> None:
-    """Send the plain-text stand-in — the DEGRADED FALLBACK, not the menu.
-
-    The real menu is `WD_LISTS` via `_send_wd_list`. This is what a customer gets
-    when that Graph send fails (no token, HTTP error), so a greeting is answered
-    rather than met with silence.
-
-    The string itself must not drift: `tests/test_calling_menu_template_is_gone.py`
-    asserts this Lambda's `MENU_PLACEHOLDER_TEXT` is byte-identical to the
-    `whatsapp-calling` Lambda's own copy, because the two share no module and a
-    drift would make one WABA answer differently from the other.
-    """
-    logger.info(json.dumps({
-        'event': 'menu_placeholder_sent',
-        'contactId': mask_contact_id(contact_id),
-        'requestId': request_id,
-    }))
+    logger.info(json.dumps({'event': 'retired_menu_text_sent',
+                            'contactId': mask_contact_id(contact_id),
+                            'requestId': request_id}))
     _send_ai_auto_reply(contact_id, MENU_PLACEHOLDER_TEXT, phone_number_id, request_id)
 
 
 def _send_cta_button(contact_id: str, phone_number_id: str, cta_text: str, cta_url: str, request_id: str,
                      body_text: str = '', header_text: str = '', footer_text: str = '') -> None:
-    """Send a WhatsApp CTA URL button message with body text.
-    Sends ONE interactive message with body text + CTA button."""
+    """No interactive CTA: send a readable link through the text sender."""
     if not contact_id or not cta_url:
         return
-
-    try:
-        interactive_data: Dict[str, Any] = {
-            'body': body_text or cta_text,
-            'buttonText': cta_text[:20],  # Max 20 chars for CTA display text
-            'url': cta_url,
-        }
-        if header_text:
-            interactive_data['header'] = header_text
-        if footer_text:
-            interactive_data['footer'] = footer_text
-
-        payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'isInteractive': True,
-                'interactiveType': 'cta_url',
-                'interactiveData': interactive_data,
-            })
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
-
-        logger.info(json.dumps({
-            'event': 'cta_button_sent',
-            'contactId': mask_contact_id(contact_id),
-            'ctaText': cta_text,
-            'ctaUrl': cta_url,
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'cta_button_error',
-            'contactId': mask_contact_id(contact_id),
-            'error': str(e),
-            'requestId': request_id
-        }))
+    content = (body_text.strip() + '\n\n' if body_text else '') + cta_text + ': ' + cta_url
+    _send_ai_auto_reply(contact_id, content, phone_number_id, request_id)
 
 
 def _send_help_about(contact_id: str, phone_number_id: str, request_id: str) -> None:
@@ -7201,67 +6619,11 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
                               request_id: str, body_text: str = '', *,
                               submitted: Optional[Dict[str, Any]] = None,
                               bad_field: str = '') -> None:
-    """Ask for a delivery address with the India Address Message. Never raises.
-
-    Called only AFTER checkout has refused a cart for its address: DELIVERY_DETAILS_REQUIRED
-    (checkout's own test, `contact_address.from_contact` on the verified checkout profile then
-    `payment_address.assert_payable`, found the address on file missing or unusable for a
-    WhatsApp payment) or DELIVERY_CONFIRMATION_REQUIRED (the address is fine but has not been
-    confirmed for this order). It used to run before checkout was invoked and skip any contact
-    holding a legacy `shippingAddress`, so an unverified customer was asked for an address that
-    could never make their cart payable, and a customer whose stored address was unpayable was
-    never asked at all. The submission comes back as `nfm_reply`/`address_message`, is stored by
-    `_handle_address_submission`, and resumes the waiting cart.
-
-    A FRESH ask (no `submitted`) opens on the address already on file, so a returning customer
-    confirms it in one tap instead of typing it again, and the copy says which case it is: confirm
-    a payable address, correct an unpayable one (its bad field marked), or share one.
-
-    A RE-ASK after a refused submission passes `submitted` (the customer's own form values) and
-    the canonical `bad_field`, so the form comes back filled in with the one field to fix marked,
-    instead of an empty form that reads as "we lost your address".
-    """
-    try:
-        contact = {}
-        if contact_id:
-            contact = dynamodb.Table(CONTACTS_TABLE).get_item(
-                Key={'id': contact_id}).get('Item', {}) or {}
-        values = {}
-        for key, value in (submitted or {}).items():
-            if key in _ADDRESS_MESSAGE_FIELDS and isinstance(value, (str, int)) and str(value).strip():
-                values[key] = str(value).strip()[:200]
-        if submitted is None:
-            from lambda_utils.ecommerce import contact_address, payment_address
-            stored = contact_address.from_contact(contact)
-            prefill = contact_address.to_meta_address_values(stored)
-            if prefill:
-                values.update(prefill)
-                try:
-                    payment_address.assert_payable(
-                        stored, channel=payment_address.WHATSAPP_ORDER_DETAILS)
-                    body_text = body_text or CART_REPLY_ADDRESS_CONFIRM
-                except payment_address.UnpayableAddress as unpayable:
-                    body_text = body_text or CART_REPLY_ADDRESS_FIX
-                    bad_field = bad_field or unpayable.field
-        body_text = body_text or CART_REPLY_ADDRESS
-        values['phone_number'] = '+' + str(sender_phone or '').lstrip('+')
-        name = contact.get('contactBookName', '') or contact.get('name', '') or ''
-        if name and not values.get('name'):
-            values['name'] = name
-        interactive_data = {'body': body_text, 'country': 'IN', 'values': values}
-        if bad_field in _ADDRESS_FIELD_ERRORS:
-            field, message = _ADDRESS_FIELD_ERRORS[bad_field]
-            interactive_data['validationErrors'] = {field: message}
-        payload = {'body': json.dumps({
-            'contactId': contact_id, 'phoneNumberId': phone_number_id,
-            'isInteractive': True, 'interactiveType': 'address_message',
-            'interactiveData': interactive_data,
-        })}
-        lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-                             InvocationType='Event', Payload=json.dumps(payload))
-    except Exception as error:
-        logger.warning(json.dumps({'event': 'cart_address_request_error',
-                                   'error': type(error).__name__, 'requestId': request_id}))
+    """No interactive address form: require verified website checkout instead."""
+    _send_ai_auto_reply(contact_id,
+        (body_text or CART_REPLY_ADDRESS) + '\n\nPlease provide your delivery address '
+        'at https://wecare.digital/ before checkout. Interactive address forms are retired.',
+        phone_number_id, request_id)
 
 
 def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,

@@ -381,7 +381,7 @@ export const IAM_POLICIES = {
           'lambda:InvokeFunction',
         ],
         Resource: [
-          'ai-generate-response', 'ai-query-kb', 'billing', 'bulk-worker', 'checkout', 'commerce',
+          'ai-query-kb', 'billing', 'bulk-worker', 'checkout', 'commerce',
           'inbound-whatsapp', 'meta-catalog-sync', 'outbound-email', 'outbound-sms',
           'outbound-whatsapp', 'razorpay-webhook', 'rcs-send', 'scheduled-messages', 'secure-files',
           'service-requests', 'sms-aws', 'voice-aws', 'voice-cdr-read', 'whatsapp-business-api',
@@ -453,7 +453,6 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
 
   // === AI ===
   'wecare-ai-query-kb': [ 'common', 'bedrock' ],
-  'wecare-ai-generate-response': [ 'common', 'bedrock' ],
   'wecare-ai-config-management': [ 'common' ],
   'wecare-agent-action-group': [ 'common', 'bedrock', 'lambdaInvoke' ],
 

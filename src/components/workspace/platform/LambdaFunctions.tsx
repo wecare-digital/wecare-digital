@@ -58,7 +58,6 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   { name: 'wecare-push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
 
   // AI
-  { name: 'wecare-ai-generate-response', displayName: 'AI Generate Response', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Generate AI responses via Bedrock', apiRoute: '/ai/generate', envVars: { BEDROCK_MODEL_ID: 'anthropic.claude-3-sonnet', KB_ID: '*' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: { CONFIG_TABLE: 'stack-wecare-digital-BotConfigTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },

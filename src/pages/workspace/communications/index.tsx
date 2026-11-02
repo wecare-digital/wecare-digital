@@ -54,7 +54,6 @@ const BsuidPanel = lazyTab<PageProps>( () => import( '../../../components/worksp
 const MigrationPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/migration' ) );
 const SendTestPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/send-test' ) );
 const CampaignPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/campaign' ) );
-const ListsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/interactive-lists' ) );
 const AutoResponsePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/auto-response' ) );
 const ConversionsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/conversions-api' ) );
 const CtwaPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/ctwa-ads' ) );
@@ -68,7 +67,6 @@ const GroupsPanel = lazyTab<PageProps>( () => import( '../../../components/works
 const CostControlsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
 const ScriptsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
 const WelcomePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/welcome' ) );
-const BotMenuPanel = lazyTab<{}>( () => import( '../../../components/workspace/whatsapp/bot-menu' ) );
 
 type SectionId =
   | 'whatsapp'
@@ -102,9 +100,7 @@ type WhatsAppTool =
   | 'tech-partner'
   | 'send-test'
   | 'campaign'
-  | 'lists'
   | 'welcome'
-  | 'bot-menu'
   | 'auto-response'
   | 'scripts'
   | 'templates'
@@ -193,9 +189,7 @@ const WHATSAPP_GROUPS: Array<{
     items: [
       { id: 'send-test', label: 'Send test', detail: 'Authorized provider test actions' },
       { id: 'campaign', label: 'Campaigns', detail: 'WhatsApp campaign composer' },
-      { id: 'lists', label: 'Interactive lists', detail: 'Interactive list messages' },
       { id: 'welcome', label: 'Welcome', detail: 'Welcome-message behavior' },
-      { id: 'bot-menu', label: 'Bot & service menu', detail: 'Customer entry points and service menu reference' },
       { id: 'auto-response', label: 'Auto response', detail: 'Keyword and automatic response rules' },
       { id: 'scripts', label: 'Scripts', detail: 'WhatsApp automation script configuration' },
       { id: 'ai-agent', label: 'AI Agent', detail: 'WhatsApp customer-agent configuration' },
@@ -280,9 +274,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'tech-partner': return <TechPartnerPanel signOut={ signOut } user={ user } embedded />;
       case 'send-test': return <SendTestPanel signOut={ signOut } user={ user } embedded />;
       case 'campaign': return <CampaignPanel signOut={ signOut } user={ user } embedded />;
-      case 'lists': return <ListsPanel signOut={ signOut } user={ user } embedded />;
       case 'welcome': return <WelcomePanel signOut={ signOut } user={ user } embedded />;
-      case 'bot-menu': return <BotMenuPanel />;
       case 'auto-response': return <AutoResponsePanel signOut={ signOut } user={ user } embedded />;
       case 'scripts': return <ScriptsPanel signOut={ signOut } user={ user } embedded />;
       case 'templates': return <WhatsAppTemplatesPanel signOut={ signOut } user={ user } embedded />;

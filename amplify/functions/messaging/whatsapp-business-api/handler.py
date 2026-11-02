@@ -2471,6 +2471,14 @@ def _send_message(phone_id: str, message: Dict, body: Dict = None) -> Dict:
     Destination: pass `body` to resolve `to` (phone) and/or `recipient` (BSUID or
     parent BSUID) per Meta's BSUID API. If both are given, Meta uses `to`.
     """
+    # A template may have a FLOW button, but standalone interactive payloads
+    # are retired across the platform. Guard at the Meta wire boundary so no
+    # internal caller can bypass the API route restriction.
+    if message.get('type') == 'interactive':
+        logger.warning(json.dumps({'event': 'direct_interactive_retired',
+                                   'reason': 'template_only_policy'}))
+        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
+                           'detail': 'Send an approved WhatsApp template instead.'})
     message.setdefault('messaging_product', 'whatsapp')
     message.setdefault('recipient_type', 'individual')
     if body is not None:
@@ -3194,15 +3202,18 @@ def _route_send_message(path: str, body: Dict, auth: Optional[Dict] = None,
                            'detail': 'generic interactive sends were deleted on '
                                      '2026-10-02; use /text, /template, /media or /flow'})
     if path.rstrip('/').endswith('/flow'):
-        return _send_flow_msg(body, auth)
+        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
+                           'detail': 'Use an approved Flow-button template.'})
     if path.rstrip('/').endswith('/contacts'):
         return _send_contacts_msg(body)
     if path.rstrip('/').endswith('/location'):
         return _send_location_msg(body)
     if path.rstrip('/').endswith('/product') or path.rstrip('/').endswith('/products'):
-        return _send_product_msg(body)
+        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
+                           'detail': 'Standalone product interactive sends are retired.'})
     if path.rstrip('/').endswith('/request-contact-info'):
-        return _send_request_contact_info(body)
+        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
+                           'detail': 'Use an approved template.'})
     return _resp(404, {'error': f'Unknown send path: {path}'})
 
 

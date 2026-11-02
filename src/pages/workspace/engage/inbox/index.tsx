@@ -13,7 +13,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import PageHeader from '../../../../components/PageHeader';
-import InteractiveMessageComposer from '../../../../components/InteractiveMessageComposer';
 import ContactMessageComposer from '../../../../components/ContactMessageComposer';
 import ContactCardBubble from '../../../../components/ContactCardBubble';
 import LocationSendComposer from '../../../../components/LocationSendComposer';
@@ -337,16 +336,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // sticky across threads. State rather than a ref: it is read during render.
     const [ wabaOverridden, setWabaOverridden ] = useState( false );
     const [ showTemplateSender, setShowTemplateSender ] = useState( false );
-    const [ aiSuggesting, setAiSuggesting ] = useState( false );
-    const [ summary, setSummary ] = useState( '' );
-    const [ summarizing, setSummarizing ] = useState( false );
     const [ quickReplies, setQuickReplies ] = useState<string[]>( [] );
     const [ showQuick, setShowQuick ] = useState( false );
     const [ meta, setMeta ] = useState<api.ConversationMeta | null>( null );
     const [ noteText, setNoteText ] = useState( '' );
     const [ showNotes, setShowNotes ] = useState( false );
     const [ showEmoji, setShowEmoji ] = useState( false );
-    const [ composer, setComposer ] = useState<null | 'interactive' | 'contact' | 'location' | 'pay' | 'tts' | 'catalog'>( null );
+    const [ composer, setComposer ] = useState<null | 'contact' | 'location' | 'pay' | 'tts'>( null );
     // Per-channel editor state
     const [ smsType, setSmsType ] = useState<'TRANSACTIONAL' | 'PROMOTIONAL'>( 'TRANSACTIONAL' );
     const [ emailSubject, setEmailSubject ] = useState( '' );
@@ -372,11 +368,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ payGstin, setPayGstin ] = useState( DEFAULT_GSTIN );
     const [ payOrderId, setPayOrderId ] = useState( '' );
     const [ payUnlocked, setPayUnlocked ] = useState( false );
-    // Catalog / product message
-    const [ catalogId, setCatalogId ] = useState( '' );
-    const [ catalogProducts, setCatalogProducts ] = useState( '' );
-    const [ catalogBody, setCatalogBody ] = useState( '' );
-    // No catalogList/catalogLoading: they existed only for the removed product picker.
     // Block + mark-unread
     const [ blocking, setBlocking ] = useState( false );
     const [ unreadIds, setUnreadIds ] = useState<Set<string>>( new Set() );
@@ -461,7 +452,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
     // Reset composer context when switching conversations.
     useEffect( () => {
-        setReplyingTo( null ); setReplyText( '' ); setVisibleCount( 50 ); setShowTemplateSender( false ); setShowRcsTemplates( false ); setEmailSubject( '' ); setSummary( '' ); setMediaFiles( [] ); setMediaPreview( null ); setEmojiSearch( '' ); setShowEmoji( false );
+        setReplyingTo( null ); setReplyText( '' ); setVisibleCount( 50 ); setShowTemplateSender( false ); setShowRcsTemplates( false ); setEmailSubject( '' ); setMediaFiles( [] ); setMediaPreview( null ); setEmojiSearch( '' ); setShowEmoji( false );
         if ( selected ) setUnreadIds( prev => { if ( !prev.has( selected ) ) return prev; const next = new Set( prev ); next.delete( selected ); try { window.localStorage.setItem( 'wd_unread', JSON.stringify( Array.from( next ) ) ); } catch { } return next; } );
     }, [ selected ] );
 
@@ -776,34 +767,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         }
     }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData ] );
 
-    const handleSuggest = useCallback( async () => {
-        if ( aiSuggesting || !thread.length ) return;
-        const lastInbound = [ ...thread ].reverse().find( m => ( m.direction || '' ).toUpperCase() === 'INBOUND' );
-        const seed = lastInbound?.content || thread[ thread.length - 1 ]?.content || '';
-        if ( !seed ) { toast.error( 'Nothing to reply to yet' ); return; }
-        setAiSuggesting( true );
-        try
-        {
-            const history = thread.slice( -8 ).map( m => `${( m.direction || '' ).toUpperCase() === 'INBOUND' ? 'Customer' : 'Us'}: ${m.content || ''}` );
-            const r = await api.generateAIResponse( seed, { channel: replyChannel, conversationHistory: history, contactName: selectedConv?.name } );
-            if ( r?.response ) { setReplyText( r.response ); toast.success( 'AI suggestion ready' ); }
-            else toast.error( 'No suggestion' );
-        } catch { toast.error( 'AI suggest failed' ); }
-        finally { setAiSuggesting( false ); }
-    }, [ aiSuggesting, thread, replyChannel, selectedConv, toast ] );
-
-    const handleSummarize = useCallback( async () => {
-        if ( summarizing || !thread.length ) return;
-        setSummarizing( true );
-        try
-        {
-            const convo = thread.slice( -30 ).map( m => `${( m.direction || '' ).toUpperCase() === 'INBOUND' ? 'Customer' : 'Us'}: ${m.content || '[' + ( m.messageType || 'media' ) + ']'}` ).join( '\n' );
-            const r = await api.generateAIResponse( `Summarize this customer conversation in 2-3 short bullet points (key intent, status, next action):\n\n${convo}`, { channel: replyChannel } );
-            if ( r?.response ) setSummary( r.response ); else toast.error( 'No summary' );
-        } catch { toast.error( 'Summarize failed' ); }
-        finally { setSummarizing( false ); }
-    }, [ summarizing, thread, replyChannel, toast ] );
-
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
         setTtsText( replyText.trim() );
@@ -952,36 +915,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         } catch { toast.error( 'Payment request not confirmed. Check Pay → Invoices before creating another invoice.' ); }
         finally { setSending( false ); }
     }, [ replyTarget, selectedContact, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
-
-    const handleSendCatalog = useCallback( async () => {
-        const { contactId } = replyTarget;
-        if ( !contactId ) { toast.error( 'Catalog message needs a saved contact' ); return; }
-        if ( !catalogId.trim() ) { toast.error( 'Enter the catalog ID' ); return; }
-        const ids = catalogProducts.split( ',' ).map( s => s.trim() ).filter( Boolean );
-        if ( !ids.length ) { toast.error( 'Enter at least one product retailer ID' ); return; }
-        setSending( true );
-        try
-        {
-            const r = await api.sendWhatsAppCatalogProduct( {
-                contactId, phoneNumberId: selectedWaba, catalogId: catalogId.trim(),
-                body: catalogBody.trim() || undefined,
-                ...( ids.length === 1
-                    ? { productRetailerId: ids[ 0 ] }
-                    : { sections: [ { title: 'Products', productItems: ids.map( id => ( { productRetailerId: id } ) ) } ] } ),
-            } );
-            if ( r ) { toast.success( 'Catalog message sent' ); setComposer( null ); setCatalogProducts( '' ); setCatalogBody( '' ); setTimeout( loadData, 800 ); }
-            else toast.error( 'Catalog send failed' );
-        } catch { toast.error( 'Catalog send failed' ); }
-        finally { setSending( false ); }
-    }, [ replyTarget, selectedWaba, catalogId, catalogProducts, catalogBody, toast, loadData ] );
-
-    // `loadCatalog` and `toggleCatalogProduct` were here, along with the product picker
-    // they fed. Removed 2026-10-07: loadCatalog called api.getCatalogProducts, i.e.
-    // /catalog/products, which has no live route. The 404 body came back parsed rather
-    // than thrown, so the picker stayed empty and the operator was told "No products
-    // found for this catalog" — a sentence that blames the catalog for a missing
-    // endpoint. handleSendCatalog above is untouched: it posts over WA_BIZ_BASE, that
-    // route IS live, and an operator can still send by typing retailer ids.
 
     const handleBlockToggle = useCallback( async ( block: boolean ) => {
         const { contactId, phone } = replyTarget;
@@ -1217,14 +1150,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     { replyChannel === 'whatsapp' && (
                                         <button className="ui-icon-btn ui-icon-danger" disabled={ blocking } onClick={ () => handleBlockToggle( true ) } title="Block contact (only if they messaged in last 24h)"><Icon name="block" size={ 16 } /></button>
                                     ) }
-                                    <button className="ui-summarize" disabled={ summarizing } onClick={ handleSummarize } title="AI summary of this conversation"><Icon name="sparkle" size={ 14 } /> { summarizing ? '…' : 'Summarize' }</button>
                                 </div>
-                                { summary && (
-                                    <div className="ui-summary">
-                                        <span className="ui-summary-text">{ summary }</span>
-                                        <button className="ui-summary-x" onClick={ () => setSummary( '' ) }>✕</button>
-                                    </div>
-                                ) }
                                 { selectedContact && (
                                     <details className="ui-customer-profile" aria-label="Customer profile">
                                         <summary className="ui-customer-profile-heading">WECARE.DIGITAL customer profile</summary>
@@ -1509,12 +1435,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                         <button type="button" className="ui-tool-btn" onClick={ () => fileRef.current?.click() } title="Attach image / document / video / audio (multiple)"><Icon name="attach" /></button>
                                                         { replyTarget.contactId && (
                                                             <>
-                                                                <button type="button" className="ui-tool-btn" onClick={ () => setComposer( 'interactive' ) } title="Interactive: list / buttons / CTA / flow"><Icon name="list" /></button>
                                                                 <button type="button" className="ui-tool-btn" onClick={ () => setComposer( 'location' ) } title="Send location"><Icon name="pin" /></button>
                                                                 <button type="button" className="ui-tool-btn" onClick={ () => setComposer( 'contact' ) } title="Send contact card"><Icon name="user" /></button>
                                                                 <button type="button" className="ui-tool-btn" onClick={ openTts } title="Send as voice note (TTS)"><Icon name="mic" /></button>
                                                                 <button type="button" className="ui-tool-btn" onClick={ () => setComposer( 'pay' ) } title="Request payment"><Icon name="pay" /></button>
-                                                                <button type="button" className="ui-tool-btn" onClick={ () => setComposer( 'catalog' ) } title="Send catalog product"><Icon name="cart" /></button>
                                                             </>
                                                         ) }
                                                     </>
@@ -1525,7 +1449,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 { replyChannel === 'sms' && (
                                                     <span className="ui-fmt-hint">{ replyText.length } chars · { Math.max( 1, Math.ceil( replyText.length / 160 ) ) } seg</span>
                                                 ) }
-                                                <button className="ui-ai-btn" disabled={ aiSuggesting } onClick={ handleSuggest } title="AI suggest reply"><Icon name="sparkle" size={ 15 } /> { aiSuggesting ? '…' : 'Suggest' }</button>
                                                 <button className="ui-reply-btn" disabled={ sending || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
@@ -1543,12 +1466,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             { composer && replyTarget.contactId && (
                 <div className="ui-modal-backdrop" onClick={ () => setComposer( null ) }>
                     <div className="ui-modal" onClick={ e => e.stopPropagation() }>
-                        { composer === 'interactive' && (
-                            <InteractiveMessageComposer contactId={ replyTarget.contactId } phoneNumberId={ selectedWaba }
-                                onClose={ () => setComposer( null ) }
-                                onSent={ () => { setComposer( null ); toast.success( 'Interactive message sent' ); setTimeout( loadData, 800 ); } }
-                                onError={ ( m: string ) => toast.error( m ) } />
-                        ) }
                         { composer === 'location' && (
                             <LocationSendComposer contactId={ replyTarget.contactId } phoneNumberId={ selectedWaba }
                                 onClose={ () => setComposer( null ) }
@@ -1680,24 +1597,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 </div>
                             );
                         } )() }
-                        { composer === 'catalog' && (
-                            <div className="ui-pay">
-                                <div className="ui-pay-title">Send catalog product</div>
-                                <label className="ui-pay-label">Catalog ID</label>
-                                { /* No 'Load products' button and no picker grid: /catalog/products has no
-                                     live route, so browsing is not available on this deployment. Sending is,
-                                     over WA_BIZ_BASE, which is why the id fields below stay. */ }
-                                <input className="ui-pay-in" placeholder="Meta catalog ID" value={ catalogId } onChange={ e => setCatalogId( e.target.value ) } />
-                                <label className="ui-pay-label">Product retailer ID(s) — comma-separated</label>
-                                <input className="ui-pay-in" placeholder="SKU_1, SKU_2, …" value={ catalogProducts } onChange={ e => setCatalogProducts( e.target.value ) } />
-                                <label className="ui-pay-label">Message (optional)</label>
-                                <textarea className="ui-pay-in" rows={ 2 } placeholder="Body text…" value={ catalogBody } onChange={ e => setCatalogBody( e.target.value ) } />
-                                <div className="ui-pay-actions">
-                                    <button className="ui-pay-cancel" onClick={ () => setComposer( null ) }>Cancel</button>
-                                    <button className="ui-pay-send" disabled={ sending } onClick={ handleSendCatalog }>{ sending ? 'Sending…' : 'Send products' }</button>
-                                </div>
-                            </div>
-                        ) }
                     </div>
                 </div>
             ) }
