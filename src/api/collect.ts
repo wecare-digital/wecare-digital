@@ -31,3 +31,8 @@ export async function collectDelivery(id:string):Promise<{deliveryLogs:api.Invoi
   const r=await authFetch(BASE+'/'+encodeURIComponent(id)+'/delivery-log',{cache:'no-store'});
   if(!r.ok)throw Error('Delivery evidence unavailable');const d=await r.json();if(!Array.isArray(d.deliveryLogs))throw Error('Invalid delivery evidence');return d;
 }
+
+export async function reconcileCollectReceipt(id:string):Promise<CollectCommand>{
+  const r=await authFetch(BASE,{method:'POST',body:JSON.stringify({_action:'collect-reconcile',invoiceId:id})});
+  const d=await r.json();if(!r.ok)throw Error(d.error||'Reconciliation unavailable');return d;
+}

@@ -13,7 +13,8 @@ def conditional(error):
     return getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException'
 
 
-def resend(body, *, actor, invoices, keys, latest_asset, recipient_valid, send, paid, now):
+def resend(body, *, actor, invoices, keys, latest_asset, recipient_valid, send, paid, now,
+           original_ready=None, reconcile=None):
     required = {'_action', 'invoiceId', 'resendRequestId', 'previousRequestId', 'expectedAssetKey'}
     if (set(body) != required or body.get('_action') != 'collect-resend'
             or not all(isinstance(body.get(k), str) for k in required)
@@ -31,18 +32,8 @@ def resend(body, *, actor, invoices, keys, latest_asset, recipient_valid, send, 
     def prior_result(row):
         if row.get('fingerprint') != fingerprint:
             return 409, {'error': 'RESEND_INTENT_CONFLICT'}
-        if row.get('state') in ('ACCEPTED', 'REFUSED'):
-            # Repair only the same completed intent after a partial metadata write.
-            try:
-                invoices.update_item(Key={'invoiceId': invoice_id},
-                    UpdateExpression='SET collectResendState=:state, collectResendMessageId=:message',
-                    ConditionExpression='collectResendRequestId=:intent',
-                    ExpressionAttributeValues={':state': row['state'], ':message': row.get('waMessageId', ''), ':intent': intent})
-            except Exception as error:
-                if not conditional(error):
-                    raise
-        return 200, {'requestId': intent, 'state': row.get('state', 'UNCONFIRMED'),
-                     'waMessageId': row.get('waMessageId', ''), 'deduplicated': True}
+        return _resolve_result(row, invoice_id=invoice_id, intent=intent, key=key,
+                               invoices=invoices, keys=keys, reconcile=reconcile, now=now)
 
     old = keys.get_item(Key={'orderId': key}, ConsistentRead=True).get('Item')
     if old:
@@ -58,12 +49,15 @@ def resend(body, *, actor, invoices, keys, latest_asset, recipient_valid, send, 
     if (not asset.get('s3Key') or asset['s3Key'] != body['expectedAssetKey']
             or int(asset.get('generatedAt') or asset.get('createdAt') or 0) < int(inv.get('paidAt') or 0)):
         return 409, {'error': 'PAID_IMAGE_CHANGED_OR_MISSING'}
+    if original_ready and not original_ready(inv):
+        return 409, {'error': 'ORIGINAL_RECEIPT_UNRESOLVED'}
     if (str(inv.get('collectResendRequestId') or '') != body['previousRequestId']
             or inv.get('collectResendState') in ('SENDING', 'UNCONFIRMED')):
         return 409, {'error': 'RESEND_PENDING_OR_CHANGED'}
     try:
         keys.put_item(Item={'orderId': key, 'invoiceId': invoice_id, 'requestId': intent,
                             'fingerprint': fingerprint, 'state': 'SENDING', 'createdAt': now,
+                            'expectedAssetKey': body['expectedAssetKey'],
                             'actorHash': hashlib.sha256(actor.encode()).hexdigest()},
                       ConditionExpression='attribute_not_exists(orderId)')
     except Exception as error:
@@ -107,3 +101,48 @@ def resend(body, *, actor, invoices, keys, latest_asset, recipient_valid, send, 
         ExpressionAttributeValues={':state': state, ':message': message_id, ':intent': intent})
     return 200 if state != 'UNCONFIRMED' else 202, {
         'requestId': intent, 'state': state, 'waMessageId': message_id, 'deduplicated': False}
+
+
+def _resolve_result(row, *, invoice_id, intent, key, invoices, keys, reconcile, now):
+    if row.get('state') in ('SENDING', 'UNCONFIRMED') and reconcile:
+        proof = reconcile(invoice_id, intent, row.get('expectedAssetKey', ''))
+        if proof and proof.get('state') in ('ACCEPTED', 'REFUSED'):
+            try:
+                keys.update_item(Key={'orderId': key},
+                    UpdateExpression='SET #s=:state, waMessageId=:message, updatedAt=:now',
+                    ConditionExpression='#s=:previous', ExpressionAttributeNames={'#s':'state'},
+                    ExpressionAttributeValues={':state':proof['state'], ':message':proof.get('waMessageId',''),
+                                               ':now':now, ':previous':row['state']})
+            except Exception as error:
+                if not conditional(error):
+                    raise
+            row = keys.get_item(Key={'orderId':key}, ConsistentRead=True).get('Item') or row
+    if row.get('state') in ('ACCEPTED', 'REFUSED'):
+        try:
+            invoices.update_item(Key={'invoiceId': invoice_id},
+                UpdateExpression='SET collectResendState=:state, collectResendMessageId=:message',
+                ConditionExpression='collectResendRequestId=:intent',
+                ExpressionAttributeValues={':state':row['state'], ':message':row.get('waMessageId',''), ':intent':intent})
+        except Exception as error:
+            if not conditional(error):
+                raise
+    return 200, {'requestId':intent, 'state':row.get('state','UNCONFIRMED'),
+                 'waMessageId':row.get('waMessageId',''), 'deduplicated':True}
+
+
+def reconcile_existing(invoice_id, *, actor, invoices, keys, reconcile, now):
+    """Resolve the stored intent in any staff browser; this entry point cannot send."""
+    if not actor:
+        return 403, {'error':'AUTHENTICATED_ADMIN_REQUIRED'}
+    inv=invoices.get_item(Key={'invoiceId':str(invoice_id)}, ConsistentRead=True).get('Item') or {}
+    if not is_collect(inv):
+        return 409, {'error':'COLLECT_INVOICE_REQUIRED'}
+    intent=str(inv.get('collectResendRequestId') or '')
+    if not intent:
+        return 409, {'error':'NO_RESEND_INTENT'}
+    key='COLLECT_RECEIPT_RESEND#'+hashlib.sha256((invoice_id+':'+intent).encode()).hexdigest()
+    row=keys.get_item(Key={'orderId':key}, ConsistentRead=True).get('Item') or {}
+    if row.get('invoiceId')!=invoice_id or row.get('requestId')!=intent:
+        return 409, {'error':'RESEND_INTENT_UNAVAILABLE'}
+    return _resolve_result(row, invoice_id=invoice_id, intent=intent, key=key,
+                           invoices=invoices, keys=keys, reconcile=reconcile, now=now)
