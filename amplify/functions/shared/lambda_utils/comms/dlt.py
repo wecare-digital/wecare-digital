@@ -43,7 +43,7 @@ from typing import Dict, Optional
 ENTITY_ID = os.environ.get("AWS_INDIA_DLT_ENTITY_ID", "1201161991108627443")
 SENDER_ID = os.environ.get("AWS_INDIA_SENDER_ID", "WDBEEP")
 
-# Sender-id DLT registration: 1405170900886606599, REGISTERED, permanent.
+# Historical sender-id registration reference; must be checked live before sending.
 SENDER_ID_REGISTRATION = "1405170900886606599"
 
 # --- approved content templates ----------------------------------------------
