@@ -144,13 +144,14 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   // other request-service prices use Rs45. Both must reconcile exactly.
   // Server-owned financial terms must reconcile in integer paise. We do not
   // infer or recalculate a customer's quote from catalog display prices.
-  if ( row.supplyGstBps !== 1800 || row.convenienceGstBps !== 1800
-      || ( row.expressPaise !== 4500 && row.expressPaise !== 1500 )
-      || row.collectionBeforeConveniencePaise !== row.itemSubtotalPaise
-        + row.supplyGstPaise - row.delightPaise + row.expressPaise
-      || row.totalPayablePaise !== row.collectionBeforeConveniencePaise
-        + row.convenienceFeePaise + row.convenienceGstPaise ) return undefined;
-  return row as ServicePriceBreakdown;
+  const charges = row as ServicePriceBreakdown;
+  if ( charges.supplyGstBps !== 1800 || charges.convenienceGstBps !== 1800
+      || ( charges.expressPaise !== 4500 && charges.expressPaise !== 1500 )
+      || charges.collectionBeforeConveniencePaise !== charges.itemSubtotalPaise
+        + charges.supplyGstPaise - charges.delightPaise + charges.expressPaise
+      || charges.totalPayablePaise !== charges.collectionBeforeConveniencePaise
+        + charges.convenienceFeePaise + charges.convenienceGstPaise ) return undefined;
+  return charges;
 }
 
 /**
