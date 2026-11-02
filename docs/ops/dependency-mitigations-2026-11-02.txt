@@ -1,0 +1,51 @@
+Dependency review — 2 November 2026
+
+The root and amplify/ directories are independent npm install roots. Both use
+scoped overrides for modern minimatch and glob callers: minimatch 11.0.4 and
+glob 14.0.2. These address GHSA-g3hv-75wg-m249 and GHSA-3g3m-2fjr-6pw4 in the
+replaceable dependency paths. Keep the old callable minimatch API for legacy
+callers; changing every minimatch to v11 breaks ESLint and legacy tooling.
+
+aws-cdk-lib 2.274.0 bundles minimatch 10.2.6. npm overrides do not replace that
+bundled copy. The latest inspected CDK 2.275.0 still declares ^10.2.6, so merely
+upgrading CDK does not establish a fix. guard_minimatch_preprocess.cjs backports
+the maintainer's expansion bound and large-set deduplication cutoff to the
+bundled CommonJS and ESM distributions. It validates pristine source hashes,
+rejects unexpected versions/source, verifies already-patched copies and supports
+--check. npm lifecycle hooks install and verify the mitigation. Prebuild and
+backend predeploy/presandbox also run bounded behavior checks. --ignore-scripts
+does not apply this mitigation; the verification gate must fail if it is missing.
+This follows the existing braces mitigation convention and keeps the original
+package versions and security alerts visible.
+
+Legacy minimatch 3.1.5 and 5.1.9 lack firstPhasePreProcess and optimizationLevel,
+the code described by the maintainer's advisory. The guard verifies that absence
+instead of overriding their incompatible API. The advisory database's broad
+<11.0.1 range still reports them. This is a source-based applicability assessment,
+not an upstream correction of the advisory database.
+
+Check: node scripts/guard_minimatch_preprocess.cjs --check
+Behavior: node scripts/check_minimatch_preprocess.cjs
+Both install roots must be installed for the behavior check to cover both trees.
+Install them sequentially: their lifecycle guards inspect both installed trees.
+The probes exercise ordinary matching, bounded **/.. expansion and large-set
+processing in subprocesses with an eight-second timeout per copy.
+
+Clean npm ci succeeds for each root. The root dependency-tree check succeeds.
+The backend installed-tree npm ls check still reports ELSPROBLEMS around bundled
+archiver-utils/readdir-glob metadata and archiver-utils' overridden glob range.
+Its lockfile-only tree check succeeds, and actual archive expansion, CDK asset
+filtering, glob cancellation and backend imports pass. Do not describe the entire
+backend dependency tree as warning-free or fully validated for stack deployment.
+
+Do not suppress/dismiss scanner alerts or claim npm audit is clean. Backend npm
+audit also reports bundled OpenTelemetry and Zod advisories, propagated through
+Amplify packages. Those are separate from these three GitHub alerts and are not
+resolved by upgrading glob/minimatch. Dependency updates must preserve Amplify's
+peer/schema APIs and require their own compatibility review. No backend stack
+deployment is part of this dependency change.
+
+Upstream evidence:
+https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249
+https://github.com/isaacs/minimatch/commit/77a0f5c4b80bdc641c3c930a1d9edf5ad2db57f8
+https://github.com/isaacs/node-glob/security/advisories/GHSA-3g3m-2fjr-6pw4
