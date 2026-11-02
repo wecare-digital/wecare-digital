@@ -168,25 +168,24 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
 
     const run = async () => {
       try {
-        // Until the separate GCP Cloud Run deployment is verified, the old
-        // service still permits 15–40GB queries for 1Y/5Y. Fail CLOSED before
-        // sending a long-range request unless it advertises the 1GiB guard.
-        if ( range !== '30d' ) {
-          const guardResponse = await fetch( `${INSIGHTS_URL}/v1/weather-insights/status`, { signal: ac.signal } )
-            .catch( () => null );
-          if ( ac.signal.aborted ) return;
-          if ( !guardResponse ) {
-            showStaleOrError( 'query_budget_reached', true );
-            return;
-          }
-          const guard = await guardResponse.json().catch( () => ( {} ) );
-          if ( ac.signal.aborted ) return;
-          const allowedBytes = Number( guard?.costGuard?.maxBytesBilledByRange?.[ range ] );
-          if ( !guardResponse.ok || !Number.isFinite( allowedBytes )
-            || allowedBytes <= 0 || allowedBytes > 1_073_741_824 ) {
-            showStaleOrError( 'query_budget_reached', true );
-            return;
-          }
+        // Fail closed for *every* uncached range, including automatic 30D history.
+        // An older independent Cloud Run revision may still permit 1.2/15/40GB
+        // per request. Do not bill Google BigQuery until the live service attests
+        // a bounded maximum for this range; cached summaries remain available.
+        const guardResponse = await fetch( `${INSIGHTS_URL}/v1/weather-insights/status`, { signal: ac.signal } )
+          .catch( () => null );
+        if ( ac.signal.aborted ) return;
+        if ( !guardResponse ) {
+          showStaleOrError( 'query_budget_reached', true );
+          return;
+        }
+        const guard = await guardResponse.json().catch( () => ( {} ) );
+        if ( ac.signal.aborted ) return;
+        const allowedBytes = Number( guard?.costGuard?.maxBytesBilledByRange?.[ range ] );
+        if ( !guardResponse.ok || !Number.isFinite( allowedBytes )
+          || allowedBytes <= 0 || allowedBytes > 1_073_741_824 ) {
+          showStaleOrError( 'query_budget_reached', true );
+          return;
         }
         // Do not trigger a new paid BigQuery query for every nearby street address.
         const url = `${INSIGHTS_URL}/v1/weather-insights?lat=${encodeURIComponent( gridLat )}&lng=${encodeURIComponent( gridLng )}&range=${range}`;
@@ -244,12 +243,12 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
   if ( !INSIGHTS_URL ) return null;
 
   return (
-    <section className="vl-wi" aria-label="Weather history">
+    <section className="vl-wi" aria-label="Historical weather model data">
       { includeUiStyles && <VayuLokUiStyles /> }
       <div className="vl-wi-head">
         <div>
-          <VayuLokSectionHeading>Weather history</VayuLokSectionHeading>
-          <p>Past weather for { placeName || 'this place' }</p>
+          <VayuLokSectionHeading>Historical weather data</VayuLokSectionHeading>
+          <p>Past modelled weather for { placeName || 'this place' }</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (
@@ -268,7 +267,11 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         </div>
       </div>
 
-      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading history…</span> }
+      <p className="vl-wi-source-note">
+        These Google long-term weather records describe modelled forecast conditions,
+        not independently verified weather-station observations or official alerts.
+      </p>
+      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading model data…</span> }
 
       { status === 'unavailable' && (
         <div className="vl-wi-note" role="status">
@@ -295,7 +298,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           ) }
           { data.coverageStart && data.coverageEnd && (
             <p className="vl-wi-coverage" data-wc-no-translate="true">
-              Data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
+              Model-data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
               { Number.isFinite( data.gridDistanceKm ) ? ` · nearest grid ~${Number( data.gridDistanceKm ).toFixed( 1 )} km` : '' }
             </p>
           ) }
@@ -305,7 +308,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
             <div><span>High</span><strong data-wc-no-translate="true">{ fmt( data.maxTemperatureC, '°C' ) }</strong></div>
             <div><span>Rain</span><strong data-wc-no-translate="true">{ fmt( data.precipitationMm, ' mm' ) }</strong></div>
             <div><span>Humidity</span><strong data-wc-no-translate="true">{ fmt( data.meanHumidityPct, '%' ) }</strong></div>
-            <div><span>Hours</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
+            <div><span>Model hours</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
           </div>
 
           { monthly.length > 1 && (
@@ -355,6 +358,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         .vl-wi-range::-webkit-scrollbar{height:6px}
         .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-coverage{margin:var(--space-3) 0 0;color:var(--public-muted);font-size:var(--vl-meta-size,var(--public-meta-size));line-height:1.5}
+         .vl-wi-source-note{margin:var(--space-3) 0 0;color:var(--public-muted);font-size:var(--vl-meta-size,var(--public-meta-size));line-height:1.5}
         .vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
         .vl-wi-grid>div{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);background:#fff}

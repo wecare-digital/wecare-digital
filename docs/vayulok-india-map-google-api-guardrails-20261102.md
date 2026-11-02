@@ -6,7 +6,7 @@ Status: 2026-11-02. Scope is the **actual Google Maps air-quality/weather map** 
 
 - The initial Google map calls fitBounds with north 37.5, south 6.0, east 98.0, west 67.5 and 24px padding. This includes mainland India, Lakshadweep, and Andaman/Nicobar; fitBounds accommodates the actual screen width. The default New Delhi Weather/AQI reading is clearly a **point** reading, not a country-wide average.
 - Google Maps JS and the browser's Weather/Air/forecast/history requests wait until the map is about 480px from the viewport. In browsers without IntersectionObserver they fall back to eager loading.
-- The map's previous branding-suppression CSS was restored at the owner's request on 2026-11-02. **Legal risk:** Google generally requires Maps attribution to remain visible; validate compliance before relying on this display behavior.
+- A later layout/compliance patch removes the CSS that hid Google Maps attribution. Treat this as a repository change until a successful production deployment and real-browser check confirm that logos and legal notices remain visible.
 - Known Indian places use built-in IST, avoiding a billable Google Time Zone lookup; other countries still use Google's Time Zone API.
 - Google Places autocomplete has a 300ms typing pause and ignores superseded responses so stale search results cannot override newer ones.
 - A completely failed Weather+Air lookup is not cached as a successful snapshot.
@@ -58,10 +58,10 @@ Google BigQuery linked dataset: wecaredigitalbw.weathernext_3, location US.
 - Only after low-cost extraction: sample many lead times / dates and compare against independent verified observations. A comparison to Google's Weather API alone measures **agreement, not accuracy**. Metrics: temperature MAE, rainfall event Brier skill and temporal alignment, spatial representativeness (station vs grid), missing-data rate.
 - Experimental WeatherNext forecasts are not IMD-issued warnings. Confirm weather-product use, caching, Google attribution and redistribution rights separately. Do not publish the model output directly until the licence and validation permit it.
 
-**No WeatherNext forecast value rows were fetched; this audit only validated schema and query cost estimates.**
+**No WeatherNext forecast value rows were fetched; this audit only validated schema and query cost estimates.** A follow-up 2026-11-02 00 UTC single-init, 24-hour model dry-run estimated 75,624,537,600 bytes per city for Shillong, Kolkata and Delhi; BigQuery reported zero bytes billed. This narrower scan is still too expensive for public request-time use.
 
 ## 5. Current limitations / remaining work
 
 - AWS Amplify build and source-contract tests do not prove every Google response works in every city in a real browser.
 - Google Cloud quota editing and key restriction checks need Maps Platform/Cloud Billing administrative credentials, which are not connected here.
-- On 2026-11-02, the earlier owner-requested presentation and automatic BigQuery history behaviors were restored to the VayuLok main map. The attribution hiding may conflict with Google Maps terms; this requires an explicit licensing review before release decisions.
+- The long-term history still auto-loads, but must be labelled as model/forecast values rather than station observations. The full-card map layout and restored Google attribution require deployed-browser verification; Google Weather API licensing remains unresolved.
