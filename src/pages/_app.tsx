@@ -58,10 +58,6 @@ import { useState, useEffect } from 'react';
    themselves, so whichever route needs Amplify configures it first, and /get does so through
    the client it already imports. */
 const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: false } );
-/* FloatingAgent is authenticated-only (it calls fetchAuthSession) and renders inside AuthShell,
-   which is already client-only, so `ssr: false` changes nothing it renders. Statically imported,
-   it kept aws-amplify/auth in the shared bundle of every public page. */
-const FloatingAgent = dynamic( () => import( '../components/FloatingAgent' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single
@@ -1185,7 +1181,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
             <ToastProvider>
               <ConfirmProvider>
                 { authenticatedPage }
-                <FloatingAgent />
                 {/* THE SAME COMBINED WIDGET AS THE PUBLIC PAGES, so contact and
                     language are in one place on every route in the product rather
                     than only on the marketing side.
@@ -1196,8 +1191,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
                     names, numbers, message bodies) is exempt. Without that
                     attribute this mount would let an operator machine-translate
                     live customer data, which is why it was previously excluded.
-                    FloatingAgent above is a different thing and stays: it is the
-                    internal AI task assistant, not customer contact. */}
+                    The retired legacy AI widget is no longer mounted. */}
                 <SupportWidget />
               </ConfirmProvider>
             </ToastProvider>
