@@ -74,6 +74,10 @@ frontend:
         # and Cloud Run BigQuery per-query limits. The Cloud Run service itself
         # is deployed independently through its Google Cloud Build pipeline.
         - node scripts/check_vayulok_cost_and_map.cjs
+        # Fail the build if .gitignore starts ignoring a protected tracked dir
+        # (.github/, .kiro/). On 2026-11-02 an edit added both and would have
+        # masked dependabot.yml and the steering/hook/agent config from git.
+        - node scripts/check_gitignore_safety.cjs
         # Catch deleted active Workspace imports and Orders/notification drift before tsc.
         - node scripts/check_action_ui_contracts.cjs > /tmp/wecare-action-ui-contracts.log 2>&1 || { aws s3 cp /tmp/wecare-action-ui-contracts.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/action-ui-contracts-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-action-ui-contracts.log; exit 1; }; tail -n 20 /tmp/wecare-action-ui-contracts.log
         # Reject fictional provider offers, fabricated analytics and test-template sends in every production build.

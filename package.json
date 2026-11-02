@@ -25,7 +25,7 @@
     "cap:public:open:android": "npx cap open android --config capacitor.public.config.ts",
     "amplify:install": "npm install --prefix amplify --no-audit --no-fund",
     "postinstall": "node scripts/guard_braces_depth.cjs && node scripts/guard_minimatch_preprocess.cjs",
-    "prebuild": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check && node scripts/check-retired-public-pages.cjs && node scripts/check_minimatch_preprocess.cjs",
+    "prebuild": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check && node scripts/check_gitignore_safety.cjs && node scripts/check-retired-public-pages.cjs && node scripts/check_minimatch_preprocess.cjs",
     "preamplify": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check",
     "preamplify:deploy": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check",
     "precap:build": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check"
