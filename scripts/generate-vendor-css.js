@@ -47,7 +47,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { mkdirSync, copyFileSync, cpSync, statSync } from 'node:fs';
+import { mkdirSync, copyFileSync, cpSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,6 +72,8 @@ console.log( '  loaded by <link> on the authenticated routes only; public pages 
 
 // Keep the private Vault PDF parser and its same-origin worker/fonts at one version.
 const pdfRoot=dirname(require_.resolve('pdfjs-dist/package.json'));
+// Remove only regenerated assets, so an older unversioned worker cannot ship.
+rmSync(join(DEST_DIR,'pdfjs'),{recursive:true,force:true});
 const pdfVersion=require_('pdfjs-dist/package.json').version;
 const pdfDest=join(DEST_DIR,'pdfjs',pdfVersion);
 mkdirSync(pdfDest,{recursive:true});
