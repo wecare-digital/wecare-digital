@@ -62,13 +62,25 @@ echo "Verified Cloud Run: $url, revision $ready_before"
 echo "Verified backend source blob: $actual_source_sha"
 echo "Selected BigQuery project cap: 10 GiB per day ($BQ_DAILY_BYTES bytes)"
 
+# Cloud Quotas commands are client-based API calls. Always supply the *same*
+# explicitly verified billing/quota project, not the Cloud Shell shared ADC project.
+# This check must never enable a service during read-only --check.
+if ! gcloud services list --enabled --project="$PROJECT" \
+  --filter='config.name:cloudquotas.googleapis.com' \
+  --format='value(config.name)' | grep -Fxq 'cloudquotas.googleapis.com'; then
+  echo "Cloud Quotas API is not enabled in $PROJECT (or its status is unreadable)." >&2
+  echo "Fix in Cloud Shell: gcloud services enable cloudquotas.googleapis.com --project=$PROJECT" >&2
+  echo "Then rerun: bash scripts/vayulok_gcp_activate.sh --check" >&2
+  exit 5
+fi
+
 # Validate that this is the project-wide on-demand QUERY usage limit,
 # not the user-level quota or an unrelated BigQuery API operation limit.
 quota_info="$(gcloud quotas info describe "$BQ_QUOTA_ID" \
-  --project="$PROJECT" --service="$BQ_SERVICE" --format=json)"
+  --project="$PROJECT" --service="$BQ_SERVICE" --billing-project="$PROJECT" --format=json)"
 printf '%s' "$quota_info" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("quotaId")=="QueryUsagePerDay", d; assert d.get("metric")=="bigquery.googleapis.com/quota/query/usage", d; assert not d.get("dimensions"), d.get("dimensions"); print("Quota identity verified:",d["quotaId"],d["metric"])'
 
-preferences="$(gcloud quotas preferences list --project="$PROJECT" --format=json)"
+preferences="$(gcloud quotas preferences list --project="$PROJECT" --billing-project="$PROJECT" --format=json)"
 pref_details="$(printf '%s' "$preferences" | python3 -c '
 import json,sys
 rows=json.load(sys.stdin)
@@ -108,12 +120,12 @@ else
   echo 'Applying the project-wide BigQuery daily query quota...'
   gcloud quotas preferences update "$pref_id" \
     --project="$PROJECT" --service="$BQ_SERVICE" --quota-id="$BQ_QUOTA_ID" \
-    --preferred-value="$BQ_DAILY_BYTES" \
+    --preferred-value="$BQ_DAILY_BYTES" --billing-project="$PROJECT" \
     --allow-missing --allow-high-percentage-quota-decrease \
     --allow-quota-decrease-below-usage --quiet
 fi
 
-quota_verify="$(gcloud quotas preferences describe "$pref_id" --project="$PROJECT" --format=json)"
+quota_verify="$(gcloud quotas preferences describe "$pref_id" --project="$PROJECT" --billing-project="$PROJECT" --format=json)"
 printf '%s' "$quota_verify" | python3 -c '
 import json,sys
 s=json.load(sys.stdin)
