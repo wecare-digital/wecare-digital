@@ -141,3 +141,14 @@ caught by the test suite.
   `config/lambda-env-manifest.json` are never copied here.
 - Classification precedes any pipeline change, so the CDK/CloudFormation-owned
   subset and the script-managed subset are separated before a deploy decision.
+
+## Phase 4 artifacts
+
+This classification is one of three Phase 4 artifacts:
+
+- `scripts/ops/build_handler_inventory.py` (the offline generator that reproduces
+  these counts into a gitignored report).
+- `docs/ops/backend-classification-2026-11-02.md` (this document).
+- `architecture/phase4-backend-as-code-design-2026-11-02.md` (the target-state
+  design, migration runbook, and the operator-only "BLOCKED on AWS access" list
+  that builds on this classification).
