@@ -25,7 +25,7 @@ interface TravelResult {
 }
 
 interface TravelResponse {
-  source?: 'api' | 'mcp' | 'demo';
+  source?: 'api' | 'mcp';
   summary?: string;
   results: TravelResult[];
 }
@@ -37,19 +37,9 @@ interface ModeConfig {
   placeholder: string;
   understanding: string;
   chips: string[];
-  results: Array<[ string, string, string, string, string, string ]>;
 }
 
 const MODE_ORDER: TravelMode[] = [ 'flights', 'hotels', 'activities', 'car' ];
-
-const MODE_RESULT_SUMMARIES: Record<TravelMode, string> = {
-  flights: 'I found a few flight options that balance timing, stops and fare rules. I’d start with the first one.',
-  hotels: 'I found a few stays that fit the location, comfort and flexibility you described. I’d start with the first one.',
-  activities: 'I found a few options that fit your timing, pace and budget. I’d start with the first one.',
-  rail: 'I found a few rail options that fit the arrival time and class you described. I’d start with the first one.',
-  car: 'I found a few transfer options that fit the pickup, space and comfort you described. I’d start with the first one.',
-  bus: 'I found a few bus options that fit your boarding point, timing and fare preferences. I’d start with the first one.',
-};
 
 const MODES: Record<TravelMode, ModeConfig> = {
   flights: {
@@ -58,11 +48,6 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. Kolkata to Delhi next Friday, return Sunday evening. 2 adults, cabin baggage only, prefer morning departure.',
     understanding: 'I’ll compare departure windows, stops, baggage, fare rules and arrival time against the trip you described.',
     chips: [ 'Morning · nonstop', 'Cheapest flexible fare', '2 travellers · weekend', 'Cabin bag only' ],
-    results: [
-      [ 'Best timing option', 'Morning nonstop with the cleanest arrival window for the rest of the day.', 'Nonstop', '2h 20m', 'Cabin bag', '~₹6,480' ],
-      [ 'Best value option', 'Slightly later departure with a lower total fare and a similar arrival time.', 'Nonstop', '2h 25m', 'Cabin bag', '~₹5,920' ],
-      [ 'Most flexible option', 'Higher fare, but easier change terms for a weekend plan that may move.', 'Nonstop', '2h 30m', 'Flexible', '~₹7,350' ],
-    ],
   },
   hotels: {
     label: 'Hotels',
@@ -70,11 +55,6 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. 3 nights in South Goa for a couple. Quiet, near the beach, breakfast included, under ₹7,000/night.',
     understanding: 'I’ll weigh neighbourhood, room type, cancellation terms, breakfast and transfer friction — not just star rating.',
     chips: [ 'Quiet beach stay', 'Family room · breakfast', 'Near station · 1 night', 'Free cancellation' ],
-    results: [
-      [ 'Quiet beach-side stay', 'Best balance of beach access, calm surroundings and flexible cancellation.', '600 m beach', 'Breakfast', 'Free cancellation', '~₹6,650' ],
-      [ 'Best-value boutique stay', 'Smaller property with a lower rate and strong location for the same beach area.', '900 m beach', 'Breakfast', 'Pay later', '~₹5,780' ],
-      [ 'Most convenient full-service stay', 'More facilities and easier transfers, useful if the trip has mixed activity levels.', 'Pool + desk', 'Breakfast', 'Airport transfer', '~₹7,250' ],
-    ],
   },
   activities: {
     label: 'Activities',
@@ -82,11 +62,6 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. Two adults in Jaipur on Saturday. We like food and architecture, want something relaxed, and need to be back by 8 PM. Budget ₹3,000 each.',
     understanding: 'I’ll rank experiences by travel time, opening hours, pace, budget and how well they fit the rest of the day.',
     chips: [ 'Food + culture · 4 hours', 'Family-friendly · afternoon', 'Low walking · evening', 'Under ₹3,000 · relaxed' ],
-    results: [
-      [ 'Old City food + architecture walk', 'Best fit for a relaxed cultural afternoon without crossing the city twice.', '3.5 h', 'Pickup nearby', 'Free cancellation', '~₹1,850' ],
-      [ 'Craft district studio visit', 'Hands-on local craft experience with a shorter duration and an indoor fallback.', '2 h', 'Small group', 'Indoor option', '~₹1,400' ],
-      [ 'Sunset fort + dinner transfer', 'Later start, sunset timing and a direct transfer toward dinner instead of backtracking.', '4 h', 'Private transfer', 'Evening', '~₹2,950' ],
-    ],
   },
   rail: {
     label: 'Rail',
@@ -94,11 +69,6 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. Delhi to Jaipur Tuesday morning. 2 people. Prefer chair car and arrive before lunch.',
     understanding: 'I’ll prioritise arrival time, class, station, journey duration and whether the train fits the day on either side.',
     chips: [ 'Arrive before noon', 'Chair car', 'Lowest change risk', 'Window seat preferred' ],
-    results: [
-      [ 'Fast morning intercity', 'Earliest useful arrival with a straightforward daytime journey.', '3h 45m', 'Chair car', 'Morning', '~₹1,120' ],
-      [ 'Best-value daytime train', 'A little slower but lower fare and still reaches before lunch.', '4h 20m', 'Chair car', 'Day train', '~₹860' ],
-      [ 'Flexible later option', 'Later departure if the morning plan changes, while keeping the journey same-day.', '4h 05m', 'Chair car', 'Flexible time', '~₹980' ],
-    ],
   },
   car: {
     label: 'Transfer',
@@ -106,11 +76,6 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. Jaipur airport to Amer Fort tomorrow at 10 AM. 3 people, luggage, prefer a clean AC car with an English-speaking driver.',
     understanding: 'I’ll compare vehicle type, pickup convenience, included distance or time, cancellation terms and the total fare.',
     chips: [ 'Airport pickup · AC', 'Driver for 8 hours', 'SUV · 4 travellers', 'One-way · lowest fare' ],
-    results: [
-      [ 'Private sedan with driver', 'Best fit for three travellers with luggage and a straightforward point-to-point transfer.', 'AC sedan', 'Meet & greet', 'Free cancellation', '~₹1,450' ],
-      [ 'Driver for the day', 'Better value if you expect multiple stops instead of booking separate rides.', '8 hours', '80 km included', 'Local driver', '~₹2,850' ],
-      [ 'Roomier SUV option', 'More luggage space and easier seating if the group wants extra comfort.', 'AC SUV', '6 seats', 'Airport pickup', '~₹2,250' ],
-    ],
   },
   bus: {
     label: 'Bus',
@@ -118,29 +83,8 @@ const MODES: Record<TravelMode, ModeConfig> = {
     placeholder: 'e.g. Bangalore to Mysore tomorrow evening. 1 person, AC seat, pickup near Indiranagar after 6 PM.',
     understanding: 'I’ll rank boarding-point convenience, seat type, arrival time, operator rules and total price.',
     chips: [ 'AC sleeper', 'Near my pickup', 'Arrive before midnight', 'Lowest fare' ],
-    results: [
-      [ 'Nearest pickup option', 'Closest boarding point with a comfortable AC service and a useful arrival time.', 'AC seater', '3h 25m', 'Nearby pickup', '~₹640' ],
-      [ 'Best-value option', 'Slightly farther boarding point with the lowest total fare.', 'AC seater', '3h 40m', 'Value', '~₹520' ],
-      [ 'Most comfortable option', 'Wider seat and fewer intermediate stops for a calmer evening ride.', 'Premium AC', '3h 20m', 'Fewer stops', '~₹790' ],
-    ],
   },
 };
-
-function demoResponse( mode: TravelMode ): TravelResponse {
-  const config = MODES[ mode ];
-  return {
-    source: 'demo',
-    summary: MODE_RESULT_SUMMARIES[ mode ],
-    results: config.results.map( ( item, index ) => ( {
-      id: 'demo-' + mode + '-' + String( index + 1 ),
-      sourceLabel: 'WECARE.DIGITAL',
-      title: item[ 0 ],
-      description: item[ 1 ],
-      meta: [ item[ 2 ], item[ 3 ], item[ 4 ] ],
-      price: item[ 5 ],
-    } ) ),
-  };
-}
 
 function safeHttpsUrl( value: unknown ): string {
   if ( typeof value !== 'string' || !value.trim() ) return '';
@@ -224,14 +168,7 @@ async function searchTravel( mode: TravelMode, query: string, preferences: strin
     return normaliseResponse( { ...payload, source: 'api' } );
   }
 
-  await new Promise<void>( ( resolve, reject ) => {
-    const timer = globalThis.setTimeout( resolve, 420 );
-    signal.addEventListener( 'abort', () => {
-      globalThis.clearTimeout( timer );
-      reject( new DOMException( 'Aborted', 'AbortError' ) );
-    }, { once: true } );
-  } );
-  return demoResponse( mode );
+  throw new Error( 'Live travel search is unavailable. No provider is configured.' );
 }
 
 const ElsewhereTravelAssistant: React.FC = () => {
@@ -340,8 +277,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
         controller.signal,
       );
       setResults( response.results.slice( 0, 3 ) );
-      setResponseSummary( response.summary || MODE_RESULT_SUMMARIES[ mode ] );
-      setResponseSource( response.source || 'demo' );
+      setResponseSummary( response.summary || 'Verified options from the connected travel provider.' );
+      setResponseSource( response.source || 'api' );
       setStatus( 'ready' );
     } catch ( error ) {
       if ( error instanceof DOMException && error.name === 'AbortError' ) return;
@@ -452,7 +389,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
           { status === 'ready' && (
             <>
-              <p className="eta-line eta-response-intro"><strong>Guide</strong> { responseSummary || MODE_RESULT_SUMMARIES[ mode ] }</p>
+              <p className="eta-line eta-response-intro"><strong>Guide</strong> { responseSummary || 'Verified options from the connected travel provider.' }</p>
               <div className="eta-results">
                 { results.map( ( result, index ) => (
                   <article className={ 'eta-result eta-result-' + mode } key={ result.id }>
@@ -477,20 +414,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         ) }
                         <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
                       </div>
-                      { responseSource === 'demo' && (
-                        // Plain anchor, as in ClosingBand: <Link> is a component, so styled-jsx
-                        // would not scope `.eta-action` onto the <a> it renders and the action
-                        // would lose its styles.
-                        // eslint-disable-next-line @next/next/no-html-link-for-pages
-                        <a
-                          className="eta-action eta-demo-checkout"
-                          href="/checkout/"
-                          aria-label={ `Checkout ${result.title}` }
-                        >
-                          <span className="eta-material eta-checkout-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
-                          <span className="eta-action-label">Checkout</span>
-                        </a>
-                      ) }
                       { checkoutAvailable( result ) && (
                         <button
                           type="button"

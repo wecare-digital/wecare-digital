@@ -131,6 +131,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
   // Analytics state
   const [ analytics, setAnalytics ] = useState<api.TemplateAnalyticsSummary | null>( null );
   const [ analyticsLoading, setAnalyticsLoading ] = useState( false );
+  const [ analyticsError, setAnalyticsError ] = useState( false );
 
   // Scheduled messages state
   const [ scheduledMessages, setScheduledMessages ] = useState<api.ScheduledMessage[]>( [] );
@@ -195,6 +196,8 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
   const loadAnalytics = useCallback( async () => {
     setAnalyticsLoading( true );
+    setAnalyticsError( false );
+    setAnalytics( null );
     try
     {
       const data = await api.getTemplateAnalyticsSummary( selectedWaba );
@@ -202,32 +205,14 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
     } catch ( err )
     {
       console.error( 'Failed to load analytics:', err );
-      // Set mock data for demo if API not available
-      setAnalytics( {
-        totalTemplatesSent: templates.length * 50,
-        avgDeliveryRate: 94.5,
-        avgReadRate: 72.3,
-        topTemplates: templates.slice( 0, 5 ).map( t => ( {
-          templateName: t.name,
-          language: t.language,
-          totalSent: Math.floor( Math.random() * 500 ) + 50,
-          delivered: Math.floor( Math.random() * 450 ) + 45,
-          read: Math.floor( Math.random() * 350 ) + 30,
-          failed: Math.floor( Math.random() * 20 ),
-          deliveryRate: 90 + Math.random() * 10,
-          readRate: 60 + Math.random() * 30,
-        } ) ),
-        byCategory: {
-          UTILITY: Math.floor( Math.random() * 300 ) + 100,
-          MARKETING: Math.floor( Math.random() * 200 ) + 50,
-          AUTHENTICATION: Math.floor( Math.random() * 100 ) + 20,
-        },
-      } );
+      setAnalytics( null );
+      setAnalyticsError( true );
+      toast.error( 'Template analytics unavailable. Retry when connected.' );
     } finally
     {
       setAnalyticsLoading( false );
     }
-  }, [ selectedWaba, templates ] );
+  }, [ selectedWaba ] );
 
   const loadScheduledMessages = useCallback( async () => {
     setScheduledLoading( true );
@@ -777,7 +762,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                 </div>
               </>
             ) : (
-              <div className="empty-state">No analytics data available</div>
+              <div className="empty-state" role={ analyticsError ? 'alert' : 'status' }>{ analyticsError ? 'Template analytics unavailable. No statistics are shown until real data is available.' : 'No analytics data available' }</div>
             ) }
           </div>
         ) }
