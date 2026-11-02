@@ -600,7 +600,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuote( null );
       setQuoteFor( '' );
       setQuoteLoading( false );
-      setQuoteNotice( 'Checkout not ready. Payment unavailable.' );
+      setQuoteNotice( publicActionText( 'blocked' ) );
       return () => { live = false; };
     }
     if ( !ready || items.length === 0 ) {
@@ -612,7 +612,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     if ( items.some( needsVariantSelection ) ) {
       setQuote( null );
       setQuoteFor( '' );
-      setQuoteNotice( 'Choose product options to see total.' );
+      setQuoteNotice( publicActionText( 'blocked' ) );
       setQuoteLoading( false );
       return () => { live = false; };
     }
@@ -662,7 +662,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           if ( response.status === 401 ) setQuoteSignInRequired( true );
           setQuoteNotice( error === 'PROFILE_REQUIRED' ? publicActionText( 'blocked' )
             : error === 'DELIVERY_DETAILS_REQUIRED' ? publicActionText( 'blocked' )
-              : error === 'CART_NOT_PAYABLE' ? 'Item price unavailable. Review cart.'
+              : error === 'CART_NOT_PAYABLE' ? publicActionText( 'blocked' )
                 : publicActionText( 'blocked' ) );
           return;
         }
@@ -773,7 +773,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setNotice( { kind: 'none' } );
       setPaymentBlocked( false );
     } catch {
-      setNotice( { kind: 'quiet', message: 'Choose a quantity from 1 to 99.' } );
+      setNotice( { kind: 'quiet', message: publicActionText( 'failure' ) } );
     }
   }, [] );
 
@@ -1185,7 +1185,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setProfileMode( 'create' );
       setProfileStatus( 'required' );
       setShowProfile( true );
-      setNotice( { kind: 'quiet', message: 'Verify and save your checkout details again.' } );
+      setNotice( { kind: 'quiet', message: publicActionText( 'blocked' ) } );
       return;
     }
 
@@ -1196,7 +1196,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setProfileMode( 'address' );
       setProfileStatus( 'required' );
       setShowProfile( true );
-      setNotice( { kind: 'quiet', message: 'Confirm your delivery address to continue.' } );
+      setNotice( { kind: 'quiet', message: publicActionText( 'blocked' ) } );
       return;
     }
 
@@ -1310,7 +1310,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     {
       setNotice( {
         kind: 'error',
-        message: 'Some items are no longer available. Please review your cart.',
+        message: publicActionText( 'blocked' ),
       } );
       return;
     }
@@ -1369,7 +1369,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setPaymentBlocked( true );
       setNotice( {
         kind: 'quiet',
-        message: 'We could not open the payment. No charge was made - please try again.',
+        message: publicActionText( 'failure' ),
       } );
       return;
     }
@@ -1410,7 +1410,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     // The decision survives the profile editor and sign-in without becoming a URL parameter.
     if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
       setNotice( { kind: 'quiet', message:
-        'Secure checkout is being prepared. No payment has been started.' } );
+        publicActionText( 'blocked' ) } );
       return;
     }
     const chosenChannel: CheckoutChannel = channel === 'whatsapp' ? 'whatsapp' : 'website';
@@ -1566,7 +1566,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     try { lineItems = toLineItems( currentItems ); }
     catch {
       setItems( currentItems );
-      setNotice( { kind: 'quiet', message: 'Review the quantities in your cart.' } );
+      setNotice( { kind: 'quiet', message: publicActionText( 'failure' ) } );
       return;
     }
     if ( lineItems.length === 0 ) {
