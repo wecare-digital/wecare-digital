@@ -55,7 +55,7 @@
  * both states were measurable at once:
  *
  *   node tools/browser/hydratecheck.js                                  48 ok, 0 failed
- *   BASE=https://wecare.digital node ... /workspace/engage/              4 FAILs per route
+ *   BASE=https://wecare.digital node ... /workspace/communications/              4 FAILs per route
  *
  * Re-run the BASE form after the deploy; it must then agree with the local one.
  *
@@ -76,7 +76,7 @@ const ARGS = process.argv.slice( 2 );
 
 /**
  * Public routes plus the authenticated ones. The three workspace entries are the point of
- * the file: /workspace/engage/ is the route that was reported blank, /workspace/dashboard/
+ * the file: /workspace/communications/ replaces the retired Engage home; /workspace/dashboard/
  * is the app's front door, and /workspace/engage/inbox/ is a nested route, because the
  * defect was in _app.tsx and therefore depth-independent - a sanity check that it is.
  */
@@ -84,7 +84,7 @@ const ROUTES = ARGS.length ? ARGS : [
   '/',
   '/grahak-os/',
   '/contact/',
-  '/workspace/engage/',
+  '/workspace/communications/',
   '/workspace/engage/inbox/',
   '/workspace/dashboard/',
 ];
