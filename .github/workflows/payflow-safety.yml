@@ -12,7 +12,7 @@ on:
       - 'amplify/functions/**'
       - 'scripts/check_f001_subscribe.py'
       - 'scripts/check_action_ui_contracts.cjs'
-      - 'tests/test_message_transport_contract.py'
+      - 'tests/**'
   workflow_dispatch:
 permissions:
   contents: read
