@@ -3,7 +3,7 @@ export function nativeVaultPdfRequired(userAgent:string,hasPromiseResolvers:bool
  const ios=/(?:CPU (?:iPhone )?OS|iPhone OS) (\d+)[_.]/.exec(userAgent);
  const safari=/Version\/(\d+)/.exec(userAgent);
  const webkit=/AppleWebKit/.test(userAgent)&&!/(?:Chrome|Chromium|Edg|OPR)\//.test(userAgent);
- return !hasPromiseResolvers||!!(ios&&Number(ios[1])<18)||!!(webkit&&safari&&Number(safari[1])<18);
+ return !!(ios&&Number(ios[1])<18)||!!(webkit&&(!hasPromiseResolvers||safari&&Number(safari[1])<18));
 }
 
 /** A native iframe receives verified PDF bytes, never a remote 403/error document. */
