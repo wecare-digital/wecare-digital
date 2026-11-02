@@ -6,12 +6,32 @@ const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'w
 const DATASET = process.env.WEATHER_INSIGHTS_DATASET || 'weather_insights';
 const LOCATION = process.env.BQ_LOCATION || 'US';
 const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || 'wecaredigitalbw.weather_insights.weather_history_in';
+// Safety first: no VayuLok request may scan more than 1 GiB. In particular, the
+// old 1Y/5Y defaults of 15 GB / 40 GB per visitor could exhaust the free tier.
+// Higher environment values cannot silently bypass this absolute ceiling.
+const HARD_MAX_BYTES_PER_QUERY = 1073741824n;
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
+function boundedQueryBytes(value) {
+  try {
+    const requested = BigInt(String(value || '0'));
+    return String(requested > 0n && requested < HARD_MAX_BYTES_PER_QUERY ? requested : HARD_MAX_BYTES_PER_QUERY);
+  } catch {
+    return String(HARD_MAX_BYTES_PER_QUERY);
+  }
+}
 const RANGE_MAX_BYTES_BILLED = {
-  '30d': String(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED || '1200000000'),
-  '1y': String(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED || '15000000000'),
-  '5y': String(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED || '40000000000'),
+  '30d': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED),
+  '1y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED),
+  '5y': boundedQueryBytes(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED),
 };
+// Defence in depth: at most eight query attempts per UTC day per process by
+// default (never more than twelve). This is NOT a project-global quota:
+// Cloud Run replicas/restarts can each have fresh counters. An actual Google
+// Cloud project-level BigQuery query-usage quota is still mandatory.
+const INSTANCE_MAX_DAILY_QUERY_ATTEMPTS = Math.max(0, Math.min(12,
+  Number.isFinite(Number(process.env.INSIGHTS_INSTANCE_MAX_DAILY_QUERIES))
+    ? Math.trunc(Number(process.env.INSIGHTS_INSTANCE_MAX_DAILY_QUERIES)) : 8
+));
 const CACHE_TTL_MS = Number(process.env.INSIGHTS_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 const RATE_LIMIT_PER_MINUTE = Number(process.env.INSIGHTS_RATE_LIMIT_PER_MINUTE || 30);
 const ALLOW_ORIGINLESS = process.env.ALLOW_ORIGINLESS === '1';
@@ -24,7 +44,17 @@ const ALLOWED_ORIGINS = new Set(
 );
 
 const cache = new Map();
+const inFlight = new Map();
 const rate = new Map();
+let queryDay = '';
+let queryAttemptsToday = 0;
+function reserveQueryBudget() {
+  const day = new Date().toISOString().slice(0, 10);
+  if (day !== queryDay) { queryDay = day; queryAttemptsToday = 0; }
+  if (queryAttemptsToday >= INSTANCE_MAX_DAILY_QUERY_ATTEMPTS) return false;
+  queryAttemptsToday += 1;
+  return true;
+}
 let tokenCache = { token: '', expiresAt: 0 };
 
 const COLUMN_CANDIDATES = {
@@ -431,6 +461,9 @@ async function statusPayload() {
       project: PROJECT,
       dataset: DATASET,
       location: LOCATION,
+      // Enables operators to confirm the Cloud Run revision actually has the
+      // protective budget code; AWS Amplify builds do not deploy this service.
+      costGuard: { maxBytesBilledByRange: RANGE_MAX_BYTES_BILLED, instanceMaxDailyQueryAttempts: INSTANCE_MAX_DAILY_QUERY_ATTEMPTS },
       reason: source.reason,
       tableCount: source.tableCount,
       table: source.ready || DEBUG_SCHEMA ? source.table : undefined,
@@ -460,40 +493,66 @@ async function handleInsights(req, res, url) {
     return json(res, 400, { error: 'invalid_request' }, origin);
   }
 
-  const cacheKey = [Math.round(lat * 10) / 10, Math.round(lng * 10) / 10, range].join(':');
+
+  const gridLat = Math.round(lat * 10) / 10;
+  const gridLng = Math.round(lng * 10) / 10;
+  const cacheKey = [gridLat.toFixed(1), gridLng.toFixed(1), range].join(':');
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return json(res, 200, { ...cached.body, cached: true }, origin);
   }
 
-  let source;
-  try {
-    source = await discoverSource();
-  } catch (error) {
-    return json(res, 503, { error: 'weather_insights_unavailable' }, origin);
-  }
-  if (!source.ready) {
-    return json(res, 503, { error: source.reason, missing: source.missing || [] }, origin);
+  // Budget failures must not trigger an uncapped fallback query. Use an
+  // expired in-process summary if one exists, with truthful staleness metadata.
+  const budgetFallback = () => {
+    if (cached) return json(res, 200, { ...cached.body, cached: true, stale: true }, origin);
+    return json(res, 429, { error: 'query_budget_reached' }, origin);
+  };
+
+  // Simultaneous requests for the same grid/range share one BigQuery query.
+  let pending = inFlight.get(cacheKey);
+  if (!pending) {
+    if (!reserveQueryBudget()) return budgetFallback();
+    pending = (async () => {
+      const source = await discoverSource();
+      if (!source.ready) {
+        const error = new Error(source.reason);
+        error.code = source.reason;
+        throw error;
+      }
+      const rows = await runQuery(weatherSql(source), [
+        param('lat', 'FLOAT64', gridLat),
+        param('lng', 'FLOAT64', gridLng),
+        param('start_ts', 'TIMESTAMP', startDate(range) + 'T00:00:00Z'),
+      ], RANGE_MAX_BYTES_BILLED[range]);
+      const summary = cleanSummary(rows[0], range);
+      if (!summary) {
+        const error = new Error('no_historical_weather_for_location');
+        error.code = 'no_historical_weather_for_location';
+        throw error;
+      }
+      const body = { ok: true, ...summary, generatedAt: new Date().toISOString() };
+      cache.set(cacheKey, { ts: Date.now(), body });
+      // Cloud Run's in-memory cache is optional and bounded, not durable.
+      if (cache.size > 256) cache.delete(cache.keys().next().value);
+      return body;
+    })();
+    inFlight.set(cacheKey, pending);
   }
 
   try {
-    const rows = await runQuery(weatherSql(source), [
-      param('lat', 'FLOAT64', lat),
-      param('lng', 'FLOAT64', lng),
-      param('start_ts', 'TIMESTAMP', startDate(range) + 'T00:00:00Z'),
-    ], RANGE_MAX_BYTES_BILLED[range]);
-    const summary = cleanSummary(rows[0], range);
-    if (!summary) return json(res, 404, { error: 'no_historical_weather_for_location' }, origin);
-    const body = { ok: true, ...summary };
-    cache.set(cacheKey, { ts: Date.now(), body });
+    const body = await pending;
     return json(res, 200, body, origin);
   } catch (error) {
+    // Cached data is always preferable to attempting another expensive query.
+    if (cached) return json(res, 200, { ...cached.body, cached: true, stale: true }, origin);
     const message = String(error?.message || error);
     const tooLarge = /maximum bytes billed|bytes.*limit|billingTierLimitExceeded/i.test(message);
-    return json(res, tooLarge ? 422 : 503, {
-      error: tooLarge ? 'query_cost_cap_exceeded' : 'weather_insights_query_failed',
-      detail: DEBUG_SCHEMA ? message : undefined,
-    }, origin);
+    const code = error?.code || (tooLarge ? 'query_cost_cap_exceeded' : 'weather_insights_query_failed');
+    const status = tooLarge ? 422 : code === 'no_historical_weather_for_location' ? 404 : 503;
+    return json(res, status, { error: code, detail: DEBUG_SCHEMA ? message : undefined }, origin);
+  } finally {
+    if (inFlight.get(cacheKey) === pending) inFlight.delete(cacheKey);
   }
 }
 
@@ -537,5 +596,6 @@ server.listen(PORT, '0.0.0.0', () => {
     dataset: DATASET,
     location: LOCATION,
     maxBytesBilledByRange: RANGE_MAX_BYTES_BILLED,
+    instanceMaxDailyQueryAttempts: INSTANCE_MAX_DAILY_QUERY_ATTEMPTS,
   }));
 });
