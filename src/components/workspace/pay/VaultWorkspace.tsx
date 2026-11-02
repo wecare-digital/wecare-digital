@@ -98,7 +98,7 @@ function VaultControl(){
  ['Paid invoice preview / PNG','GET /invoices/{verifiedInvoiceId} · get_invoice','InvoiceAssetsTable; saved version and fresh signed URL'],
  ['Delivery evidence / invoice link','GET /secure-files/{id}/message-log · _verified_vault_payment_evidence','DownloadGrantsTable exact paid entitlement/grant/reference; InvoicesTable; InvoiceDeliveryLogTable; WhatsAppOutboundTable'],
  ['Access link resend','POST /secure-files/{id}/send-access · _admin_send_access / send_vault_link','SecureFilesTable request identity/CAS; owner + paid entitlement; keyed outbound send; no extra payment'],
- ['Access timing','vault_delivery_timing_v1 · VaultDeliveryTiming','Saved configuration; 0–5 seconds; 4-second fallback only when absent'],
+ ['Access timing','GET /ai/config?key=vault_delivery_timing_v1; PUT /ai/config · wecare-ai-config-management._get_config / _update_config','SystemConfigTable · id=vault_delivery_timing_v1; 0–5 seconds; 4-second fallback only when absent'],
  ['Customer download','GET /secure-files/{id}/download · verified customer identity','Exact paid file entitlement and private object; expired/unverified access refused'],
  ].map(row=><tr key={row[0]}>{row.map(cell=><td key={cell}>{cell}</td>)}</tr>)}</tbody></table></div><p>Physical tables use the stack-wecare-digital- prefix. Control displays configuration; Log displays observed message evidence. Processing → Completed spacing is 1 second. No fixed payment completion time is promised.</p></section><VaultDeliveryTiming/><PaymentFramework section="vault"/></div>;
 }
