@@ -2,7 +2,7 @@
 
 This module is the one money policy for all customer shop SKUs except Contribute:
     ProductsTable base -> 18% supply GST -> Delight (0.5%, max Rs50)
-    -> Rs45 Express ONCE per basket -> 2.5% convenience -> 18% GST on fee.
+    -> Rs25 Vault / Rs45 other Express ONCE per basket -> 2.5% convenience -> 18% GST on fee.
 
 Contribute retains its exact Rs300 gross-target policy, including Rs15 Express,
 in contribute_taxable.py. Internal Rs2 commerce QA bypasses this customer policy.
@@ -21,10 +21,11 @@ from lambda_utils.ecommerce import (
 )
 
 SUPPLY_GST_BPS = 1800
-POLICY = "shop-gst-exclusive-2026-11-02"
+POLICY = "shop-gst-exclusive-vault-25-2026-11-02"
 
 
-def price_components(item_subtotal_paise: int) -> Dict[str, int]:
+def price_components(item_subtotal_paise: int, *,
+                     express_paise: int = express_policy.STANDARD_EXPRESS_PAISE) -> Dict[str, int]:
     """All six customer-visible money components from a GST-exclusive subtotal.
 
     Per-basket, NOT per-line: Delight cap and Express are applied exactly once.
@@ -34,10 +35,14 @@ def price_components(item_subtotal_paise: int) -> Dict[str, int]:
     if type(item_subtotal_paise) is not int or item_subtotal_paise <= 0:
         raise checkout_pricing.PricingError(
             "shop GST-exclusive subtotal must be positive integer paise")
+    if type(express_paise) is not int or express_paise not in (
+            express_policy.VAULT_EXPRESS_PAISE,
+            express_policy.STANDARD_EXPRESS_PAISE):
+        raise checkout_pricing.PricingError("unverified ordinary cart Express rate")
     gst = checkout_pricing.round_half_up(item_subtotal_paise, SUPPLY_GST_BPS)
     eligible_for_delight = item_subtotal_paise + gst
     delight = default_coupon.delight_paise(eligible_for_delight)
-    express = express_policy.STANDARD_EXPRESS_PAISE
+    express = express_paise
     collection = eligible_for_delight - delight + express
     quote = checkout_pricing.compute_quote(collection, currency="INR")
     return {
@@ -92,7 +97,11 @@ def quote_from_base_snapshot(base: Any) -> checkout_pricing.QuoteSnapshot:
         raise checkout_pricing.PricingError(
             "source snapshot is not an unadjusted catalog base")
 
-    parts = price_components(subtotal)
+    try:
+        express = express_policy.frozen_customer_cart_express_paise(rows)
+    except ValueError as exc:
+        raise checkout_pricing.PricingError(str(exc)) from exc
+    parts = price_components(subtotal, express_paise=express)
     collection = parts["collectionBeforeConveniencePaise"]
     quote = checkout_pricing.compute_quote(
         collection, currency="INR",
