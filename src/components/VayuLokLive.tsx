@@ -10,6 +10,7 @@ import {
   VayuLokUiStyles,
 } from './VayuLokUiPrimitives';
 import { API_BASE } from '../config/constants';
+import { publicActionText } from '../lib/publicActionNotices';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -3945,7 +3946,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     </div>
                   ) : (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
-                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? 'Air quality unavailable.' : 'Choose a place for air quality.' }</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? publicActionText( 'blocked' ) : 'Choose a place for air quality.' }</p>
                     </div>
                   )
                 ) }
@@ -4011,7 +4012,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <div className="vl-live-wx-alerts">
                             <h2 className="vl-live-air-forecast-title">Alerts</h2>
                             { weatherAlertStatus === 'error' ? (
-                              <p className="vl-live-air-history-empty" role="status">Alerts unavailable.</p>
+                              <p className="vl-live-air-history-empty" role="status">{ publicActionText( 'blocked' ) }</p>
                             ) : weatherAlerts.map( alert => (
                               <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
@@ -4336,7 +4337,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
                     ) : (
-                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? 'Weather unavailable.' : 'Choose a place for weather.' }</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? publicActionText( 'blocked' ) : 'Choose a place for weather.' }</p>
                     ) }
                   </div>
                 ) }
@@ -4564,7 +4565,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </ul>
                       ) }
                       { currencyOpenSide === 'base' && !currencySuggestions.length && (
-                        <span className="vl-live-utility-empty" role="status">Currency unavailable.</span>
+                        <span className="vl-live-utility-empty" role="status">{ publicActionText( 'blocked' ) }</span>
                       ) }
                     </div>
 
@@ -4611,7 +4612,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </ul>
                       ) }
                       { currencyOpenSide === 'quote' && !currencySuggestions.length && (
-                        <span className="vl-live-utility-empty" role="status">Currency unavailable.</span>
+                        <span className="vl-live-utility-empty" role="status">{ publicActionText( 'blocked' ) }</span>
                       ) }
                     </div>
                   </div>

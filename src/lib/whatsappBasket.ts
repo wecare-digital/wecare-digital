@@ -18,6 +18,7 @@
  */
 
 import type { ClaimedLine } from './cart';
+import { publicActionText } from './publicActionNotices';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
@@ -277,8 +278,7 @@ export function claimMessage ( outcome: ClaimOutcome ): string | null {
       return 'Short checkout supports one item with quantity one. Please send a single product '
         + 'from the WhatsApp catalog again.';
     case 'REFUSED':
-      return 'This cart link is no longer available. Send your cart again on WhatsApp to get a '
-        + 'fresh link.';
+      return publicActionText( 'blocked' );
     case 'LOST':
       return 'We could not open your WhatsApp cart just now. Please try the link again.';
   }

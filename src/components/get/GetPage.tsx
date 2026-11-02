@@ -95,9 +95,9 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
     switch ( state ) {
         case 'OPEN': return '';
         case 'READY': return 'Payment verified';
-        case 'PAID_UNVERIFIED': return 'Verifying payment';
+        case 'PAID_UNVERIFIED': return publicActionText( 'processing' );
         case 'EXPIRED': return publicActionText( 'blocked' );
-        default: return 'Access locked';
+        default: return publicActionText( 'blocked' );
     }
 }
 
@@ -373,7 +373,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             let destination: URL;
             try { destination = new URL( result.data.downloadUrl ); }
             catch {
-                feedback( 'error', 'The secure file link is invalid. Please try downloading again.' );
+                feedback( 'error', publicActionText( 'failure' ) );
                 return;
             }
             // SigV4 in us-east-1 legitimately uses either regional or legacy
