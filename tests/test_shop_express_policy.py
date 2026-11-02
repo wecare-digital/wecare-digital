@@ -55,6 +55,35 @@ class ShopExpressPolicyTests(unittest.TestCase):
         # original native cart or change its stored/previously reviewed amount.
         self.assertEqual(original.frozen_data["delivery"]["paise"], 0)
 
+    def test_two_item_basket_has_one_45_rupee_express_charge(self):
+        original = self.sample_snapshot(collection_paise=19_701)
+        frozen = original.frozen_data
+        items = list(frozen["items"])
+        items.append({
+            "lineItemId": "sku-two",
+            "productId": "example-product-two",
+            "variantId": "sku-two",
+            "quantity": 1,
+            "unitPricePaise": 9_900,
+        })
+        basket = checkout_pricing.build_snapshot(
+            customer_id=original.customer_id,
+            cart_id=original.cart_id,
+            cart_revision=original.cart_revision,
+            quote=original.quote,
+            created_at=original.created_at,
+            ttl_seconds=original.expires_at - original.created_at,
+            site=frozen["site"],
+            items=items,
+            address=None,
+            delivery=frozen["delivery"],
+        )
+        priced = express_policy.with_standard_express(basket)
+        self.assertEqual(
+            priced.quote.collection_before_convenience_paise -
+            basket.quote.collection_before_convenience_paise, 4_500)
+        self.assertEqual(priced.frozen_data["delivery"]["paise"], 4_500)
+
     def test_nonzero_existing_delivery_refuses_instead_of_double_charging(self):
         with self.assertRaises(checkout_pricing.PricingError):
             express_policy.with_standard_express(
