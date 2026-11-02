@@ -2063,7 +2063,7 @@ def _resolve_originating_phone(reference_id: str, invoice_item: Dict = None) -> 
         os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable'), reference_id)
     if phone:
         return phone
-    # 3) InboundTable payment_request record (catalog cart interactive-payment send)
+    # 3) InboundTable payment_request record (historical catalog payment record)
     phone = _phone_from_payment_reference_table(
         os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable'), reference_id)
     if phone:
@@ -2071,12 +2071,7 @@ def _resolve_originating_phone(reference_id: str, invoice_item: Dict = None) -> 
     return ''
 
 
-# Post-payment WhatsApp Flows and interactive messages are intentionally retired.
-# Payment capture proceeds directly to paid-invoice PNG delivery.
-
-
-# Post-payment WhatsApp Flows and interactive messages are intentionally retired.
-# Payment capture proceeds directly to paid-invoice PNG delivery.
+# Verified capture is followed by approved payment-status and paid-invoice templates.
 
 
 def _handle_payment_authorized(event_data: Dict, request_id: str) -> None:

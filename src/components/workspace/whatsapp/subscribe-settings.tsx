@@ -4,7 +4,7 @@
  * One place where staff can see what launches F001, who may launch it, what it reads, writes
  * and protects, what the customer and staff see, its history and its health, and change the
  * parts that are meant to change without a deploy: keywords, the keyword switch, the
- * opening/confirmation copy, the FlowRegistry row and a controlled staff send.
+ * opening/confirmation copy, the FlowRegistry row and approved form content.
  *
  * Every launch rule is enforced server-side (lambda_utils.flow_launch); this page shows the
  * server's own decision from /wa-business/flow-launch-status rather than recomputing it.
@@ -145,8 +145,6 @@ export default function SubscribeSettings () {
   const [ customerSearchMessage, setCustomerSearchMessage ] = useState( '' );
   const [ searchingCustomers, setSearchingCustomers ] = useState( false );
   const [ selectedContact, setSelectedContact ] = useState<api.Contact | null>( null );
-  const [ sending, setSending ] = useState( false );
-  const [ lastSend, setLastSend ] = useState<api.CanonicalFlowSendResult | null>( null );
 
   const applyStatus = useCallback( ( result: Awaited<ReturnType<typeof fetchStatus>> ) => {
     if ( result.ok )
@@ -230,8 +228,8 @@ export default function SubscribeSettings () {
     const ok = await confirm( {
       title: next === 'PUBLISHED' ? 'Publish F001 in FlowRegistry?' : 'Return F001 to DRAFT?',
       message: next === 'PUBLISHED'
-        ? 'Staff sends become possible. Customer keyword launch still needs the keyword switch to be ON.'
-        : 'Customer keyword launch and staff sends stop immediately. Saved profiles and history are not changed.',
+        ? 'Customer service-link routing still needs the keyword switch to be ON.'
+        : 'Customer service-link routing stops immediately. Saved profiles and history are not changed.',
       confirmText: next === 'PUBLISHED' ? 'Mark PUBLISHED' : 'Return to DRAFT',
       danger: next === 'DRAFT',
     } );
@@ -314,25 +312,6 @@ export default function SubscribeSettings () {
     } finally { setSearchingCustomers( false ); }
   };
 
-  const sendToCustomer = async () => {
-    if ( !selectedContact?.phone ) return;
-    const ok = await confirm( {
-      title: 'Send F001 Subscribe?',
-      message: `${selectedContact.name || 'This customer'} receives the Subscribe Flow on WhatsApp now. The send is recorded under your name. WhatsApp only delivers it inside the customer-service window.`,
-      confirmText: 'Send Subscribe',
-    } );
-    if ( !ok ) return;
-    setSending( true );
-    setLastSend( null );
-    const result = await api.sendCanonicalFlow( CAPABILITY, selectedContact.phone );
-    setSending( false );
-    if ( result.ok )
-    {
-      setLastSend( result.data );
-      toast.success( 'Subscribe Flow sent.' );
-    } else toast.error( result.failure.kind === 'forbidden' ? 'Sending F001 requires the Operator or Admin role.' : result.failure.message );
-  };
-
   return <section aria-label="F001 Subscribe control surface">
     <h3 style={ { marginBottom: 4 } }>{ CONTRACT.flowNumber } · { CONTRACT.label }</h3>
     <p style={ { marginTop: 0 } }>
@@ -348,9 +327,9 @@ export default function SubscribeSettings () {
       { statusError && <p role="alert">Launch status unavailable: { statusError }</p> }
       { status && <>
         <p role="status" style={ { fontSize: 15 } }>
-          <strong>Customer keyword launch: { status.keywordLaunch.allowed ? 'ON' : 'OFF' }.</strong> { status.keywordLaunch.allowed ? 'Customers who type a keyword below receive the Flow.' : status.keywordLaunch.explanation }
+          <strong>Customer keyword launch: { status.keywordLaunch.allowed ? 'ON' : 'OFF' }.</strong> { status.keywordLaunch.allowed ? 'Customers who type a keyword below receive the service website link.' : status.keywordLaunch.explanation }
           <br />
-          <strong>Staff send (your role): { status.manualLaunch.allowed ? 'available' : 'unavailable' }.</strong> { status.manualLaunch.allowed ? 'Use “Send to a customer” below.' : status.manualLaunch.explanation }
+          <strong>Profile form settings and submission history</strong>
         </p>
         <div style={ { overflowX: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
@@ -380,7 +359,7 @@ export default function SubscribeSettings () {
           [ 'Meta Flow ID', F001_FLOW_ID ],
           [ 'Meta name', FLOW.metaName || '—' ],
           [ 'WABA', `WABA 1 · ${CONTRACT.wabaId}` ],
-          [ 'Entry model', 'Keyword → native Flow (keyword_interactive)' ],
+          [ 'Entry model', 'Keyword → service website link' ],
           [ 'Approved template', 'None. Keyword Flows never use a template' ],
           [ 'Payment', 'Not required (contract)' ],
           [ 'Internal events', 'None' ],
@@ -398,7 +377,7 @@ export default function SubscribeSettings () {
       <strong>Who can launch it</strong>
       <ul style={ { margin: '8px 0 0', paddingLeft: 20, fontSize: 14 } }>
         <li>Customers, by typing one exact keyword in the open WhatsApp customer-service window, only while customer keyword launch is ON.</li>
-        <li>Operators and Admins, with “Send to a customer” below. Each send is recorded with the sender&apos;s identity. It works before keyword launch is ON, so the Flow can be tested first.</li>
+        <li>Approved template forms and their incoming submissions remain available.</li>
         <li>Never through payment, an approved template or an internal event. The F001 contract rejects those settings.</li>
         <li>Each Flow message carries a one-time link valid for 24 hours. An unknown, expired or already-used link is refused and its button is disabled.</li>
       </ul>
@@ -445,8 +424,8 @@ export default function SubscribeSettings () {
       </fieldset>
     </form>
 
-    <div style={ card } aria-label="Send to a customer">
-      <strong>Send to a customer</strong>
+    <div style={ card } aria-label="Customer consent lookup">
+      <strong>Customer consent lookup</strong>
       <p style={ { fontSize: 13 } }>Controlled QA and support. Operator or Admin only.</p>
       <form onSubmit={ searchCustomers }>
         <label style={ { display: 'block', marginBottom: 8 } }>
@@ -463,13 +442,6 @@ export default function SubscribeSettings () {
           { contact.name || 'Unnamed customer' } · { contact.customerDisplayId || contact.customerUuid || 'No Customer ID yet' }
         </button> ) }
       </div> }
-      { selectedContact && <div style={ { marginTop: 12 } }>
-        { selectedContact.phone
-          ? <button type="button" style={ button } disabled={ sending || !status?.manualLaunch.allowed } onClick={ () => void sendToCustomer() }>{ sending ? 'Sending…' : 'Send Subscribe Flow' }</button>
-          : <p role="status">This customer has no WhatsApp number on their profile.</p> }
-        { status && !status.manualLaunch.allowed && <p role="status" style={ { fontSize: 13 } }>{ status.manualLaunch.explanation }</p> }
-      </div> }
-      { lastSend && <p role="status" style={ { fontSize: 13 } }>Sent (message { lastSend.messageId || 'accepted' }). The link expires { formatEpoch( lastSend.sessionExpiresAt ) }.</p> }
     </div>
 
     <div style={ card } aria-label="Health and history">

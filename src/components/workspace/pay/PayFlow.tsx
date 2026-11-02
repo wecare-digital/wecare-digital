@@ -779,6 +779,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
      the two Brand choosers it fed: `purposes` is the single entry WECARE.DIGITAL, so the list
      could only ever offer one brand and a placeholder. `config.purposes` is still read by the
      settings tab, so the state it comes from is untouched. */
+  const invoiceSendInFlight = useRef( false );
+  const invoiceSendAttempts = useRef( new Set<string>() );
   const doSendPaymentLink = async ( inv: Invoice ) => {
     // Create is the only embedded surface allowed to send a saved invoice.
     // Other service invoices must use their own verified payment workflow.
@@ -786,15 +788,21 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
       showMsg( 'This invoice cannot be sent from Collect Create.', 'error' );
       return;
     }
-    const approved = await confirm( {
-      title: 'Send this invoice payment request?',
-      message: 'Confirm the invoice, saved customer and amount. WhatsApp acceptance does not mean payment. If an earlier send is uncertain, check delivery evidence before retrying.',
-      confirmText: 'Send payment request',
-    } );
-    if ( !approved ) return;
-    setActionLoading( 'send' );
-    try
-    {
+    if ( invoiceSendInFlight.current ) return;
+    if ( invoiceSendAttempts.current.has( inv.invoiceId ) ) {
+      showMsg( 'A send was already attempted for this invoice. Reconcile delivery evidence and payment activity before any further request.', 'error' );
+      return;
+    }
+    invoiceSendInFlight.current = true;
+    try {
+      const approved = await confirm( {
+        title: 'Send this invoice payment request?',
+        message: 'Confirm the invoice, saved customer and amount. WhatsApp acceptance does not mean payment. If an earlier send is uncertain, check delivery evidence before retrying.',
+        confirmText: 'Send payment request',
+      } );
+      if ( !approved ) return;
+      invoiceSendAttempts.current.add( inv.invoiceId );
+      setActionLoading( 'send' );
       const r = await api.sendPaymentLinkResult( inv.invoiceId, sendPhone );
       // Reconcile an ambiguous command against the durable delivery log before describing the
       // outcome. Read only; this never re-sends the payment request.
@@ -811,8 +819,14 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
       const outcome = describeSendOutcome( r, deliveryConfirmed );
       showMsg( outcome.text, outcome.tone );
       loadInvoices();
-    } catch ( e ) { showMsg( 'Send failed', 'error' ); }
-    setActionLoading( '' );
+    } catch {
+      showMsg( invoiceSendAttempts.current.has( inv.invoiceId )
+        ? 'Send outcome is unknown. Check delivery evidence and payment activity before any further request.'
+        : 'Confirmation could not be opened. No payment request was sent.', 'error' );
+    } finally {
+      invoiceSendInFlight.current = false;
+      setActionLoading( '' );
+    }
   };
   // Every issued invoice retains its GST number. There is no safe hard-delete pathway.
   // Void is conditional on the current unpaid money state, enforced again by invoice-engine.

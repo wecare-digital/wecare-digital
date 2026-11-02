@@ -29,7 +29,6 @@ from lambda_utils.response import cors_headers, extract_origin
 from lambda_utils.privacy import mask_phone, mask_contact_id, redact_pii  # contactId is `wa` + the customer's digits
 # Aliased for the same reason as in the inbound handler: `payment_status` is a local variable
 # holding a provider's raw word, and this is the module that says what the word means.
-from lambda_utils import payment_status as pay_status
 from lambda_utils.middleware import require_auth
 from lambda_utils.message_store import put_message  # unified MessagesTable dual-write
 from lambda_utils import graph_errors  # Meta error subcode + transient classification
@@ -264,20 +263,21 @@ def _assert_smoke_recipient_allowed(to: Optional[str], where: str) -> None:
 
 
 def _send_direct_api(phone_number_id: str, message_json: str) -> Dict:
-    """Send non-interactive messages via Meta Graph API.
-
-    This final wire boundary rejects interactive payloads even when a caller
-    bypasses the normal handler or embeds an old message shape in JSON content.
-    Approved templates (including FLOW and ORDER_DETAILS buttons) are unaffected.
-    """
+    """Send supported message types via Meta Graph API."""
     try:
-        _outbound_payload = json.loads(message_json) if isinstance(message_json, str) else message_json
+        wire = json.loads(message_json) if isinstance(message_json, str) else message_json
     except (TypeError, ValueError):
-        _outbound_payload = None
-    if isinstance(_outbound_payload, dict) and _outbound_payload.get('type') == 'interactive':
-        logger.warning(json.dumps({'event': 'direct_interactive_retired',
-                                   'reason': 'template_only_policy'}))
-        raise ValueError('DIRECT_INTERACTIVE_RETIRED: use an approved WhatsApp template')
+        raise ValueError('INVALID_MESSAGE_PAYLOAD') from None
+    supported_message = isinstance(wire, dict) and wire.get('type') in {
+        'text', 'template', 'image', 'video', 'audio', 'document',
+        'sticker', 'contacts', 'location', 'reaction'}
+    read_control = (isinstance(wire, dict) and 'type' not in wire
+                    and wire.get('status') == 'read' and bool(wire.get('message_id'))
+                    and not (set(wire) - {'messaging_product', 'status', 'message_id', 'typing_indicator'})
+                    and (wire.get('typing_indicator') is None
+                         or wire.get('typing_indicator') == {'type': 'text'}))
+    if not (supported_message or read_control):
+        raise ValueError('UNSUPPORTED_MESSAGE_TYPE')
     import hmac as _hmac, hashlib as _hashlib
     if live_smoke.is_smoke_mode():
         try:
@@ -599,12 +599,70 @@ EXPECTED_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', '')
 #: The ONE payload key that REQUESTS a payment. `orderStatusDetails` is deliberately absent
 #: because fulfilment is not a payment request. `payment_action` in `handler` stays as it is - it
 #: answers a different question (does this need Admin?) and order_status does.
+_SEND_FIELDS = frozenset({
+    'action',
+    'blockAction',
+    'blockUsers',
+    'body',
+    'campaignId',
+    'campaignName',
+    'checkoutOrderDetails',
+    'consentPurpose',
+    'contactId',
+    'content',
+    'contextMessageId',
+    'filename',
+    'flowButton',
+    'headerFilename',
+    'headerImageUrl',
+    'headerLocation',
+    'headerMedia',
+    'headerType',
+    'idempotencyKey',
+    'isAuthenticationTemplate',
+    'isCheckoutTemplate',
+    'isLimitedTimeOffer',
+    'isLtoTemplate',
+    'isOtpTemplate',
+    'isReaction',
+    'isTemplate',
+    'isTypingIndicator',
+    'ltoCopyCodeIndex',
+    'ltoExpirationTimeMs',
+    'ltoOfferCode',
+    'mediaFile',
+    'mediaFileName',
+    'mediaType',
+    'message',
+    'messageId',
+    'messagePurpose',
+    'offerCode',
+    'orderStatusDetails',
+    'otpButtonType',
+    'otpCode',
+    'phoneNumberId',
+    'reactionEmoji',
+    'reactionMessageId',
+    'recipientBsuid',
+    'recipientPhone',
+    'recipientType',
+    'replyToMessageId',
+    'reuse',
+    'showTyping',
+    'target',
+    'templateFlowButton',
+    'templateHeaderFilename',
+    'templateHeaderLocation',
+    'templateHeaderMedia',
+    'templateHeaderType',
+    'templateName',
+    'templateParams',
+    'templateQuickReplyButton',
+    'templateUrlButton',
+    'typingMessageId',
+})
+
 _PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate',)
-_REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
-
-#: Removed payment envelopes. They are rejected at the public handler boundary and have no
-#: payload-building implementation. WhatsApp collection is template ORDER_DETAILS only.
-
 #: THE single approved Meta payment template (UTILITY / ORDER_DETAILS / `en`, WABA1). Pinned
 #: here, at the boundary, rather than trusted from each caller: an `isCheckoutTemplate` request
 #: naming any other template is refused before any provider read, so a second payable template
@@ -1171,24 +1229,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except (json.JSONDecodeError, TypeError, ValueError):
         return _error_response(400, 'Invalid JSON in request body')
 
-    # Stop legacy direct interactive traffic before authorization, claims or sends.
-    # This intentionally does NOT reject a template's embedded FLOW button.
-    if body.get('isInteractive') or body.get('interactiveType') or 'interactive' in body:
-        logger.warning(json.dumps({'event': 'direct_interactive_retired',
-                                   'reason': 'legacy_envelope', 'requestId': request_id}))
-        return _error_response(
-            410, 'DIRECT_INTERACTIVE_RETIRED',
-            'Direct interactive WhatsApp messages are retired; use an approved template.')
-
-    for removed_key in _REMOVED_PAYMENT_REQUEST_KEYS:
-        if body.get(removed_key):
-            return _error_response(
-                400, WA_PAY_ENVELOPE_NOT_PERMITTED,
-                'This WhatsApp payment mode has been removed. Use the approved ORDER_DETAILS template.')
-    if body.get('orderDetails') and not body.get('isCheckoutTemplate'):
-        return _error_response(
-            400, WA_PAY_ENVELOPE_NOT_PERMITTED,
-            'Raw order_details payments have been removed. Use checkoutOrderDetails with the approved template.')
+    if not isinstance(body, dict) or set(body) - _SEND_FIELDS:
+        return _error_response(400, 'UNSUPPORTED_MESSAGE_FIELDS',
+                               'Use the supported message request fields.')
 
     payment_action = bool(body.get('isCheckoutTemplate')) or isinstance(body.get('orderStatusDetails'), dict)
     # Viewers read; they do not message customers. Every send, reaction, typing indicator, block
@@ -1547,12 +1590,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # and the handler re-checks afterwards. A disagreement falls back to the
         # 403 rather than sending a non-text message out of the window.
         if not within_window and not is_template:
-            # The retired `isPaymentTemplate` / `isInteractivePayment` envelopes are refused at
-            # the top of this handler and have no locals here. Naming them raised NameError,
-            # which turned every outside-window non-template send (including staff ORDER_STATUS
-            # fulfilment updates) into a 500 before the intended refusal/exemption could run.
             looks_plain_text = not any((
-                is_reaction, media_type, media_file, is_interactive,
+                is_reaction, media_type, media_file,
                 is_checkout_template, is_order_status,
             )) and bool(content) and bool(recipient_phone)
             if looks_plain_text:
@@ -1608,7 +1647,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # read (blue ticks) and shows a "typing…" bubble for up to 25s or until we
         # send. It requires the WAMID of the customer's most recent inbound message,
         # which we store on the contact as lastInboundWamid. Works for ANY outgoing
-        # type (text, media, template, interactive) as long as there is a recent
+        # type (text, media, template) as long as there is a recent
         # inbound message (i.e. within the 24h window). Skipped for reactions and
         # explicit typing-only requests.
         if body.get('showTyping', True) and not is_reaction and within_window:
@@ -1726,8 +1765,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_live_send(
             message_id, contact_id, recipient_phone, phone_number_id,
             content, media_file, media_type, media_filename, is_template, template_name,
-            template_params, within_window, request_id, False, None,
-            header_image_url, False, is_otp_template, otp_code, otp_button_type,
+            template_params, within_window, request_id,
+            is_otp_template, otp_code, otp_button_type,
             recipient_bsuid=recipient_bsuid,
             template_header_media=template_header_media,
             template_header_type=template_header_type,
@@ -1919,7 +1958,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
     """Send one Meta payment-order status update through the approved template only.
 
     Business semantics live in `wa_order_status`. The 24-hour customer-service window is
-    observational only here; it never selects an interactive transport. Every processing/completed
+    observational only here; it never selects another transport. Every processing/completed
     payment-order update uses the approved `wecare_order_status_v3` ORDER_STATUS template, and a
     missing approval is deferred before any provider send.
     """
@@ -2288,7 +2327,7 @@ def _handle_order_details_template_send(
             # checkout-template send carried no `paymentReferenceId`. The consequence was not
             # cosmetic: `razorpay-webhook._resolve_originating_phone` queries
             # `paymentReferenceId-index` as its layer 2, and the InboundTable `payment_request`
-            # row its layer 3 reads is written only in the interactive branch - so BOTH layers
+            # row its layer 3 reads is written only in the checkout branch - so BOTH layers
             # missed for a native send, the resolution fell through to the WABA1 fallback, and
             # `razorpay_phone_unresolved_using_primary` would fire at WARNING on EVERY native
             # capture. That is noise on the exact signal that exists to catch a cross-WABA
@@ -2333,8 +2372,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                       phone_number_id: str, content: str, media_file: Optional[str],
                       media_type: Optional[str], media_filename: Optional[str], is_template: bool, template_name: Optional[str],
                       template_params: list, within_window: bool, request_id: str,
-                      is_payment_template: bool = False, order_details: Optional[Dict] = None,
-                      header_image_url: Optional[str] = None, is_interactive_payment: bool = False,
                       is_otp_template: bool = False, otp_code: Optional[str] = None,
                       otp_button_type: Optional[str] = None,
                       recipient_bsuid: Optional[str] = None,
@@ -2422,7 +2459,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         message_payload = _build_message_payload(
             recipient_phone, content, media_type, whatsapp_media_id,
             is_template, template_name, template_params, stored_filename,
-            is_payment_template, order_details, header_image_url, is_interactive_payment,
             is_otp_template, otp_code, otp_button_type,
             phone_number_id=phone_number_id,
             recipient_bsuid=recipient_bsuid,
@@ -2538,42 +2574,12 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         except Exception:
             pass
         
-        payment_ref_id = None
-        payment_amount_paise = None
         stored_content = content
         # Templates: guarantee a displayable content string so the sent template
         # shows in the conversation thread (the empty-content guard below would
         # otherwise skip template sends, which carry no free-form `content`).
         if is_template and not stored_content:
             stored_content = f'[Template] {template_name}' if template_name else '[Template message]'
-        if is_interactive_payment and order_details:
-            payment_ref_id = _sanitize_reference_id(order_details.get('reference_id', ''))
-            # Calculate total amount in rupees from order_details
-            order_data = order_details.get('order', {})
-            total_amt = order_data.get('total_amount', {})
-            # INTEGER PAISE throughout, with no multiply and no divide. This value is PERSISTED
-            # by `_store_message_record` and is read back on confirmation, so it is money of
-            # record rather than a display figure - the two divisions that used to be here made
-            # it a float on the way in and a float on the way out.
-            if not total_amt:
-                # total_amount may be at parameters level in built payload
-                subtotal_val = int(order_data.get('subtotal', {}).get('value', 0) or 0)
-                discount_val = int(order_data.get('discount', {}).get('value', 0) or 0)
-                shipping_val = int(order_data.get('shipping', {}).get('value', 0) or 0)
-                tax_val = int(order_data.get('tax', {}).get('value', 0) or 0)
-                payment_amount_paise = subtotal_val - discount_val + shipping_val + tax_val
-            else:
-                # Refused rather than divided by `offset`. Meta's `order_details` amounts are
-                # minor units with `offset: 100`, so the value IS paise; dividing it was what
-                # introduced the float in the first place.
-                raw_value = total_amt.get('value', 0)
-                if isinstance(raw_value, bool) or not isinstance(raw_value, int):
-                    raise ValueError('order_details total_amount.value must be integer paise')
-                payment_amount_paise = raw_value
-            # Build rich content for inbox display
-            item_name = order_details.get('itemName', 'Payment')
-            stored_content = (f'[Payment: ₹{pay_status.rupees_str(payment_amount_paise)} | '
-                              f'{item_name} | Ref: {payment_ref_id}]')
         
         # Keep the original S3 object key for a template header in the authenticated Inbox.
         # Meta requires an uploaded media ID for the send, but that ID is not a downloadable
@@ -2598,8 +2604,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             # The body media (if present) takes precedence over the template header.
             s3_key=s3_key or inbox_template_header_key,
             phone_number_id=phone_number_id,
-            payment_reference_id=payment_ref_id,
-            payment_amount_paise=payment_amount_paise,
             recipient_bsuid=recipient_bsuid,
             # Template header media (public link) → shows the attachment in the inbox
             media_url=(resolved_header_media if (is_template and template_header_media
@@ -2609,103 +2613,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         
         # Store payment_request record for invoice generator lookup
         # The invoice engine scans for messageType='payment_request' + paymentReferenceId
-        if is_interactive_payment and order_details and payment_ref_id:
-            try:
-                order_data = order_details.get('order', {})
-                items_list = order_data.get('items', [])
-                first_item_name = items_list[0].get('name', 'Service Fee') if items_list else order_details.get('itemName', 'Service Fee')
-                subtotal_val = order_data.get('subtotal', {}).get('value', 0)
-                discount_val = order_data.get('discount', {}).get('value', 0)
-                shipping_val = order_data.get('shipping', {}).get('value', 0)
-                tax_val = order_data.get('tax', {}).get('value', 0)
-                
-                # Calculate per-item GST total for gstRate field. `Decimal` rather than a
-                # `float()` round-trip: this value is persisted as `paymentGstRate` and a GST
-                # rate on a tax record is not a display figure.
-                total_gst_rate = Decimal('0')
-                if items_list:
-                    weighted_sum = Decimal('0')
-                    total_value = 0
-                    for it in items_list:
-                        it_val = int(it.get('amount', {}).get('value', 0)) * int(it.get('quantity', 1))
-                        it_rate = Decimal(str(it.get('gstRate', 0) or 0))
-                        weighted_sum += it_val * it_rate
-                        total_value += it_val
-                    if total_value > 0:
-                        total_gst_rate = weighted_sum / total_value  # Weighted average GST rate
-                
-                # Look up contact for customer details
-                contact_info = _get_contact(contact_id) if contact_id else None
-                c_name = (contact_info or {}).get('name', '')
-                c_phone = (contact_info or {}).get('phone', recipient_phone or '')
-                c_email = (contact_info or {}).get('email', '')
-                c_ship = (contact_info or {}).get('shippingAddress', '')
-                c_bill = (contact_info or {}).get('billingAddress', '')
-                
-                pay_req_record = {
-                    'id': str(uuid.uuid4()),
-                    'messageId': payment_ref_id,
-                    'contactId': contact_id,
-                    'channel': 'whatsapp',
-                    'direction': 'outbound',
-                    'messageType': 'payment_request',
-                    'content': stored_content,
-                    'paymentReferenceId': payment_ref_id,
-                    'paymentAmount': Decimal(str(subtotal_val)),
-                    'paymentOffset': Decimal('100'),
-                    'paymentCurrency': 'INR',
-                    'paymentItemName': first_item_name,
-                    'paymentItemCount': len(items_list),
-                    'paymentQuantity': int(items_list[0].get('quantity', 1)) if items_list else 1,
-                    'paymentSubtotal': Decimal(str(subtotal_val)),
-                    'paymentDiscount': Decimal(str(discount_val)),
-                    'paymentGstRate': Decimal(str(total_gst_rate)),
-                    'paymentGstAmount': Decimal(str(tax_val)),
-                    'paymentShipping': Decimal(str(shipping_val)),
-                    'paymentTotal': Decimal(payment_amount_paise or 0),
-                    'paymentGstin': business_identity.GSTIN,
-                    'paymentSource': 'inbox_ui',
-                    'paymentOrderId': order_details.get('orderId', 'Offline'),
-                    'paymentCustomerName': c_name,
-                    'paymentCustomerPhone': c_phone,
-                    'paymentCustomerEmail': c_email,
-                    'paymentShippingAddress': c_ship,
-                    'paymentBillingAddress': c_bill,
-                    'paymentConfigName': order_details.get('payment_configuration', PHONE_PAYMENT_CONFIG.get(phone_number_id, DEFAULT_PAYMENT_CONFIG)),
-                    'awsPhoneNumberId': phone_number_id or '',
-                    'status': 'pending',
-                    'senderPhone': recipient_phone or '',
-                    'createdAt': Decimal(str(int(time.time()))),
-                    'expiresAt': Decimal(str(int(time.time()) + 86400 * 30)),
-                }
-                # Store in INBOUND table — invoice generator scans WhatsAppInboundTable
-                inbound_table_name = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
-                inbound_table = dynamodb.Table(inbound_table_name)
-                inbound_table.put_item(Item={k: v for k, v in pay_req_record.items() if v is not None and v != '' and v != Decimal('0') or k in ('paymentDiscount', 'paymentShipping')})
-                # Unified Inbox dual-write — mirror the payment_request to the canonical
-                # MessagesTable so the dashboard (which reads canonical) shows payments.
-                # Add `timestamp` (GSI sort key) so it's queryable via channel/contactId index.
-                try:
-                    _canon = dict(pay_req_record)
-                    _canon['timestamp'] = _canon.get('createdAt') or Decimal(str(int(time.time())))
-                    dynamodb.Table(
-                        os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
-                    ).put_item(Item={k: v for k, v in _canon.items() if v is not None and v != '' and v != Decimal('0') or k in ('paymentDiscount', 'paymentShipping')})
-                except Exception as _ce:
-                    logger.warning(f'payment_request canonical mirror skipped: {_ce}')
-                logger.info(json.dumps({
-                    'event': 'payment_request_record_stored',
-                    'referenceId': payment_ref_id,
-                    'contactId': mask_contact_id(contact_id),
-                    'requestId': request_id,
-                }))
-            except Exception as pr_err:
-                logger.warning(json.dumps({
-                    'event': 'payment_request_record_error',
-                    'referenceId': payment_ref_id,
-                    'error': str(pr_err),
-                    'requestId': request_id,
-                }))
         
         logger.info(json.dumps({
             'event': 'message_sent',
@@ -3689,9 +3596,6 @@ def _copy_code_button_component(index: Any, code: Any) -> Dict[str, Any]:
 def _build_message_payload(recipient_phone: str, content: str, media_type: Optional[str],
                            media_id: Optional[str], is_template: bool, template_name: Optional[str],
                            template_params: list, filename: Optional[str] = None,
-                           is_payment_template: bool = False, order_details: Optional[Dict] = None,
-                           header_image_url: Optional[str] = None,
-                           is_interactive_payment: bool = False,
                            is_otp_template: bool = False, otp_code: Optional[str] = None,
                            otp_button_type: Optional[str] = None,
                            phone_number_id: Optional[str] = None,
@@ -3976,7 +3880,6 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
             'paramCount': len(actual_params),
             'componentTypes': [c.get('sub_type') or c.get('type')
                                for c in payload['template']['components']],
-            'isPaymentTemplate': is_payment_template
         }))
     elif media_id and media_type:
         # Media message - derive WhatsApp message type from the media MIME type.
@@ -4040,10 +3943,8 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 payload['location']['name'] = content_data['name']
             if content_data.get('address'):
                 payload['location']['address'] = content_data['address']
-        elif content_data and content_data.get('_type') in ('location_request', 'address'):
-            # The former location/address JSON shims silently bypassed isInteractive.
-            # Refuse them rather than serializing an interactive request to Meta.
-            raise ValueError('DIRECT_INTERACTIVE_RETIRED: use an approved template')
+        elif content_data and '_type' in content_data:
+            raise ValueError('UNSUPPORTED_MESSAGE_TYPE')
         else:
             # Text message — enable link preview when content contains a URL
             has_url = 'http://' in content or 'https://' in content
@@ -4051,7 +3952,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
             payload['text'] = {'body': content, 'preview_url': has_url}
     
     # Native reply: quote the message being replied to (Meta "context" object).
-    # Applies to text/media/interactive/contacts/location — set last so it covers all.
+    # Applies to supported message types — set last so it covers all.
     if context_message_id:
         payload['context'] = {'message_id': context_message_id}
 

@@ -49,7 +49,7 @@ from lambda_utils import customer_ideas, request_amendment_response, submit_requ
 from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
-from lambda_utils import flow_launch, flow_sessions, flow_funnel, subscribe_messages
+from lambda_utils import flow_launch, flow_sessions, flow_funnel
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
@@ -281,10 +281,9 @@ DEFAULT_FALLBACK_MESSAGE = "Thanks for your message. For services visit https://
 # prefill / ice-breaker tap has to get an answer rather than silence or a crash even
 # when Meta refuses the list. The string is pinned byte-for-byte against the
 # `whatsapp-calling` Lambda's own copy by tests/test_calling_menu_template_is_gone.py.
-MENU_PLACEHOLDER_TEXT = "Our old WhatsApp menu is retired. Visit https://wecare.digital/ for services, or tell us what you need here."
+SERVICE_WEBSITE_REPLY = "Visit https://wecare.digital/ for services, or tell us what you need here."
 
 
-# Retired interactive-list menu and its navigation data removed.
 
 # Deterministic-trigger keywords for the Meta Business Agent hybrid. When the AI
 # holds control (standby), we take control + run OUR flow only for these; free-form
@@ -699,10 +698,11 @@ def _auto_thumb_enabled() -> bool:
 
 
 def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_id: str = None) -> Dict:
-    """Send non-interactive WhatsApp messages via Meta Graph API."""
-    if message_payload.get('type') == 'interactive':
-        logger.warning(json.dumps({'event': 'direct_interactive_retired', 'source': 'inbound'}))
-        return {'error': True, 'detail': 'DIRECT_INTERACTIVE_RETIRED'}
+    """Send supported WhatsApp message types via Meta Graph API."""
+    if message_payload.get('type') not in {
+            'text', 'template', 'image', 'video', 'audio', 'document',
+            'sticker', 'contacts', 'location', 'reaction'}:
+        return {'error': True, 'detail': 'UNSUPPORTED_MESSAGE_TYPE'}
     token = _load_direct_api_token()
     if not token:
         return {'error': True, 'detail': 'No Direct API token available'}
@@ -2778,47 +2778,7 @@ def _process_message(
         if interactive_type == 'call_permission_reply':
             logger.info(f"Ignoring call_permission_reply from {mask_phone(sender_phone or '')} — permission auto-granted post-call")
             return  # Discard — no longer forwarded or stored
-        # Button reply. The IVR button menu and the follow-up button chooser are both
-        # deleted, so there is no button id left to route - a tap on a button still
-        # sitting in a customer's history opens the site menu rather than answering
-        # with the degraded placeholder.
-        elif interactive_type == 'button_reply':
-            button_id = interactive.get('button_reply', {}).get('id', '')
-            logger.info(json.dumps({
-                'event': 'button_reply_received',
-                'buttonId': button_id,
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            # SEND #2. The log above still fires either way, so a suppressed tap is
-            # still visible in the record rather than vanishing.
-            if _may_send('button_reply_menu'):
-                _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
-            return
-        # List reply - a tapped row from the site menu, or a stale row from a deleted
-        # menu still in chat history. Three ways out and no fourth: open the next
-        # list, answer with the site link, or re-open the main menu. Nothing falls
-        # through, nothing raises.
-        elif interactive_type == 'list_reply':
-            list_id = interactive.get('list_reply', {}).get('id', '')
-            logger.info(json.dumps({
-                'event': 'list_reply_received',
-                'listId': list_id,
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            # SEND #3.
-            # A list tap is a fresh signed inbound message. Stamp its WAMID before any
-            # commerce action so the identity bridge can independently prove this exact action.
-            _update_contact_timestamp(
-                contact_id, now, wamid=whatsapp_message_id or '')
-            if _may_send('list_reply_route'):
-                _route_wd_list_reply(
-                    list_id, contact_id, sender_phone, aws_phone_number_id, request_id,
-                    source_message_id=whatsapp_message_id or '')
-            return
-        # Native Flow Message reply — India Address Message submission arrives here
-        # as nfm_reply with name='address_message' (also used by flow completions).
+        # Approved template form submissions are processed below.
         elif interactive_type == 'nfm_reply':
             if _referral_data is not None:
                 # F008 was durably saved and projected into both inbox stores.
@@ -3128,7 +3088,7 @@ def _process_message(
         # trigger, so a standby "Start" tap never reaches here anyway; the guard is for
         # completeness rather than for a path that exists today.
         if _may_send('request_welcome_menu'):
-            _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
+            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
         # Mark welcomeSent so brand-new contact path doesn't double-send
         try:
             dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -3176,7 +3136,7 @@ def _process_message(
                 or button_text_lower.startswith('get started')):
             # SEND #11.
             if _may_send('button_text_menu'):
-                _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
+                _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             logger.info(json.dumps({
                 'event': 'button_triggered_menu_sent',
                 'buttonText': button_text_lower,
@@ -3256,9 +3216,9 @@ def _process_message(
                 'submit request': ('View orders', '/orders/', 'Sign in to select your existing order. Your service purchase and the order you need help with remain linked separately. The WhatsApp service checkout is being prepared.'),
             }
             title, path, body = service_doors[_content_plain]
-            _send_cta_button(contact_id, aws_phone_number_id, title,
+            _send_service_link(contact_id, aws_phone_number_id, title,
                 'https://wecare.digital' + path, request_id,
-                body_text=body, footer_text='WECARE.DIGITAL')
+                body_text=body)
             return
 
         # Orders and public Customer ID share the website's verified customer partition.
@@ -3275,16 +3235,15 @@ def _process_message(
                 answer = json.loads(result['Payload'].read())
                 if result.get('FunctionError') or not answer.get('reply'):
                     raise RuntimeError('customer command unavailable')
-                _send_cta_button(contact_id, aws_phone_number_id, 'View orders',
+                _send_service_link(contact_id, aws_phone_number_id, 'View orders',
                     'https://wecare.digital/orders/', request_id,
-                    body_text=answer['reply'], footer_text='WECARE.DIGITAL')
+                    body_text=answer['reply'])
             except Exception as error:
                 logger.warning(json.dumps({'event': 'customer_command_unavailable',
                                            'errorType': type(error).__name__}))
-                _send_cta_button(contact_id, aws_phone_number_id, 'View orders',
+                _send_service_link(contact_id, aws_phone_number_id, 'View orders',
                     'https://wecare.digital/orders/', request_id,
-                    body_text='Please sign in with this WhatsApp number to securely view your orders and Customer ID.',
-                    footer_text='WECARE.DIGITAL')
+                    body_text='Please sign in with this WhatsApp number to securely view your orders and Customer ID.')
             return
 
         # ── "Get my ID" / "my id" / "sub id" — fetch subscriber details ──
@@ -3371,21 +3330,14 @@ def _process_message(
                 continue
             # WABA 1 sends the Flow itself, so it must be live on Meta: a missing, draft or
             # deprecated Flow is refused after this Lambda returns and the customer hears
-            # nothing. WABA 2 never sends this Flow (`_send_generic_flow` links instead).
+            # nothing. WABA 2 never sends this Flow (the service-link router links instead).
             liveness = flow_launch.meta_liveness(registry_row)
             if aws_phone_number_id != PHONE_NUMBER_ID_2 and liveness != 'live':
                 _send_flow_link(contact_id, aws_phone_number_id, flow_key, trigger, request_id,
                                 reason=liveness)
                 return
-            # Keyword-native flows use the native WhatsApp Flow interactive sender.
-            _send_generic_flow(
-                contact_id=contact_id,
-                phone_number_id=aws_phone_number_id,
-                sender_phone=sender_phone,
-                request_id=request_id,
-                flow_config=trigger,
-                flow_key=flow_key,
-            )
+            # A service keyword opens its website link.
+            _send_flow_link(contact_id, aws_phone_number_id, flow_key, trigger, request_id, reason='service_keyword')
             return  # Skip AI automation  -  flow handles the rest
 
         # ── `review <REF>` — the attributed half of the website review door (Phase R) ──
@@ -3430,14 +3382,7 @@ def _process_message(
                         'phone': mask_phone(sender_phone),
                         'requestId': request_id,
                     }))
-                    _send_generic_flow(
-                        contact_id=contact_id,
-                        phone_number_id=aws_phone_number_id,
-                        sender_phone=sender_phone,
-                        request_id=request_id,
-                        flow_config=review_trigger,
-                        flow_key='leave_review',
-                    )
+                    _send_flow_link(contact_id, aws_phone_number_id, 'leave_review', review_trigger, request_id, reason='service_keyword')
                     return  # Skip AI automation  -  flow handles the rest
 
         # ── Direct "Pay" keyword trigger (LLM-independent, hardcoded) ──
@@ -3491,14 +3436,13 @@ def _process_message(
             }))
             # Phone 2: send CTA link to Phone 1 for payment
             if aws_phone_number_id == PHONE_NUMBER_ID_2:
-                _send_cta_button(
+                _send_service_link(
                     contact_id=contact_id,
                     phone_number_id=aws_phone_number_id,
                     cta_text='Pay Now',
                     cta_url='https://wecare.digital/r/pay',
                     request_id=request_id,
                     body_text='\U0001f4b3 Make your payment quickly and securely online.',
-                    footer_text='WECARE.DIGITAL',
                 )
                 return
             # Phone 1: Step 1: Send "pulling" message immediately
@@ -3584,8 +3528,8 @@ def _process_message(
                 'requestId': request_id,
             }))
             # Open the site menu so a greeting is answered rather than met with
-            # silence. A Graph failure degrades to MENU_PLACEHOLDER_TEXT.
-            _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
+            # silence. A Graph failure degrades to SERVICE_WEBSITE_REPLY.
+            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             logger.info(json.dumps({
                 'event': 'hi_keyword_welcome_sent',
                 'contactId': mask_contact_id(contact_id),
@@ -3609,9 +3553,8 @@ def _process_message(
                 'contactId': mask_contact_id(contact_id),
                 'requestId': request_id,
             }))
-            _send_cta_button(contact_id, aws_phone_number_id, 'Explore WECARE.DIGITAL', 'https://wecare.digital', request_id,
-                body_text="Explore WECARE.DIGITAL and discover services designed for everyday Bharat.",
-                footer_text='WECARE.DIGITAL')
+            _send_service_link(contact_id, aws_phone_number_id, 'Explore WECARE.DIGITAL', 'https://wecare.digital', request_id,
+                body_text="Explore WECARE.DIGITAL and discover services designed for everyday Bharat.")
             return
 
         # ── Ice breaker: the legacy customer-service label / "[retired public path]" ──
@@ -3628,7 +3571,7 @@ def _process_message(
                 'contactId': mask_contact_id(contact_id),
                 'requestId': request_id,
             }))
-            _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
+            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             return
 
         # ── The one menu's Help row, typed rather than tapped ──
@@ -3666,25 +3609,25 @@ def _process_message(
         # ── Keyword: "store" / "shop" / "explore store" ──
         STORE_KEYWORDS = {'store', 'shop', 'explore store', 'brands', 'marketplace', '\U0001f6cd\ufe0f explore store'}
         if content_lower in STORE_KEYWORDS:
-            _send_cta_button(contact_id, aws_phone_number_id, 'Explore Store', 'https://wecare.digital', request_id)
+            _send_service_link(contact_id, aws_phone_number_id, 'Explore Store', 'https://wecare.digital', request_id)
             return
 
         # ── Keyword: "gift card" / "gift" ──
         GIFT_KEYWORDS = {'gift card', 'gift cards', 'gift', 'buy gift card', '\U0001f381 gift cards'}
         if content_lower in GIFT_KEYWORDS:
-            _send_cta_button(contact_id, aws_phone_number_id, 'Perks', 'https://wa.me/message/377GALDW4E26F1', request_id)
+            _send_service_link(contact_id, aws_phone_number_id, 'Perks', 'https://wa.me/message/377GALDW4E26F1', request_id)
             return
 
         # ── Keyword: "faq" / "faqs" / "help" / "questions" ──
         FAQ_KEYWORDS = {'faq', 'faqs', 'help', 'questions', 'common questions', '\u2753 faqs'}
         if content_lower in FAQ_KEYWORDS:
-            _send_cta_button(contact_id, aws_phone_number_id, 'FAQs', 'https://wecare.digital/contact/', request_id)
+            _send_service_link(contact_id, aws_phone_number_id, 'FAQs', 'https://wecare.digital/contact/', request_id)
             return
 
         # ── Keyword: "about" / "about us" / "about wecare" ──
         ABOUT_KEYWORDS = {'about', 'about us', 'about wecare', 'about wecare.digital', '\U0001f49b about wecare.digital'}
         if content_lower in ABOUT_KEYWORDS:
-            _send_cta_button(contact_id, aws_phone_number_id, 'About Us', 'https://wecare.digital', request_id)
+            _send_service_link(contact_id, aws_phone_number_id, 'About Us', 'https://wecare.digital', request_id)
             return
 
     # Process AI automation for supported message types
@@ -3713,7 +3656,7 @@ def _process_message(
             # not own is being answered by whoever does own it, so the missed welcome is
             # the cheaper of the two failures.
             if _may_send('brand_new_contact_welcome'):
-                _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
+                _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             # Mark contact so welcome isn't sent again
             try:
                 dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -6052,25 +5995,14 @@ def _send_unreadable_hint(contact_id: str, phone_number_id: str, now: int,
 
 
 # `_send_submit_request_flow` was removed on 2026-10-26. It had no caller (the keyword door uses
-# `_send_generic_flow`, and Submit Request answers with its website link), and its default Flow
+# the service-link router, and Submit Request answers with its website link), and its default Flow
 # 1235100738173254 was an unused legacy draft.
 
 
 F001_CONTRACT = canonical_contract('subscribe')
-F001_SESSION_UNAVAILABLE_REPLY = ('We could not open Subscribe right now. Please try again in a '
-                                  'few minutes. - WECARE.DIGITAL')
-
-
 def _launch_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                            request_id: str, trigger: Dict) -> bool:
-    """F001 Subscribe keyword door. True when the keyword was handled; False to keep looking.
-
-    Order is the policy: every launch control must agree (`flow_launch`), the thread must be
-    ours to answer, a server-issued session is recorded BEFORE the Flow message is sent (the
-    data-exchange endpoint answers 427 to any token without one), and the opening copy is the
-    Workspace-managed New / Returning customer message. A refusal is counted with its reason
-    and falls through exactly as a disabled trigger always has.
-    """
+    """Route an enabled Subscribe keyword to profile support without creating a form session."""
     flow_code = F001_CONTRACT['flowCode']
     funnel_table = dynamodb.Table(flow_funnel.table_name())
 
@@ -6094,40 +6026,9 @@ def _launch_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: 
     if not _may_send('subscribe_flow'):
         count('launch_blocked', reason='not_thread_owner')
         return True
-    try:
-        row = contact_store.lookup(dynamodb.Table(CONTACTS_TABLE), sender_phone,
-                                   contact_id=contact_id) or {}
-    except Exception:  # noqa: BLE001 - only chooses New vs Returning copy; identity is the session
-        row = {}
-    copy = subscribe_messages.copy_for(subscribe_messages.is_returning(row),
-                                       dynamodb.Table(SYSTEM_CONFIG_TABLE))
-    flow_config = {**trigger, 'flowId': canonical_flow_id('subscribe'),
-                   'message': {'body': copy['body'], 'footer': subscribe_messages.FOOTER,
-                               'flowCta': copy['flowCta']}}
-    if phone_number_id == PHONE_NUMBER_ID_2:
-        # F001 exists on WABA 1 only; a WABA 2 customer receives the website link instead.
-        _send_generic_flow(contact_id=contact_id, phone_number_id=phone_number_id,
-                           sender_phone=sender_phone, request_id=request_id,
-                           flow_config={**flow_config, 'flowId2': ''}, flow_key='subscribe')
-        count('launch_redirected')
-        return True
-    try:
-        flow_token = flow_sessions.mint_token(F001_CONTRACT['tokenPrefix'], sender_phone, '1')
-        flow_sessions.record_session(
-            dynamodb.Table(flow_sessions.table_name()), capability='subscribe',
-            token=flow_token, launch_channel=flow_sessions.LAUNCH_KEYWORD,
-            initiated_by='customer_keyword')
-    except (flow_sessions.FlowSessionUnavailable, ValueError) as e:
-        count('launch_failed', reason=f'session_{type(e).__name__}')
-        _send_ai_auto_reply(contact_id, F001_SESSION_UNAVAILABLE_REPLY, phone_number_id, request_id)
-        return True
-    sent = _send_generic_flow(contact_id=contact_id, phone_number_id=phone_number_id,
-                              sender_phone=sender_phone, request_id=request_id,
-                              flow_config=flow_config, flow_key='subscribe', flow_token=flow_token)
-    if sent:
-        count('launch_sent')
-    else:
-        count('launch_failed', reason='outbound_invoke')
+    _send_flow_link(contact_id, phone_number_id, 'subscribe', trigger, request_id,
+                    reason='service_keyword')
+    count('launch_redirected')
     return True
 
 
@@ -6264,9 +6165,8 @@ FLOW_LINKS = {
     # Both review doors share one Meta Flow, so they share the owner's verified review link.
     'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
     'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
-    # F001 Subscribe has no web form and exists on WABA 1 only, so a WABA 2 customer continues
-    # on WABA 1 with the keyword already typed.
-    'subscribe': 'https://wa.me/919330994400?text=subscribe',
+    # Profile support uses the working contact page; do not loop the customer back to the same keyword.
+    'subscribe': 'https://wecare.digital/contact/',
     'order_notes': 'https://wecare.digital/orders/',
 }
 FLOW_LINK_DEFAULT = 'https://wecare.digital/contact/'
@@ -6279,8 +6179,7 @@ FLOW_LINK_BODIES = {
     'drop_docs': '\U0001f4c4 Send supporting documents for your request.',
     'enterprise_assist': '\U0001f3e2 Corporate, B2B, and bulk enquiries. Tell us what you need.',
     'leave_review': '\u2b50 Share your experience with our service.',
-    'subscribe': ('Save your details for faster service on WECARE.DIGITAL. Subscribe opens on our '
-                  'main WhatsApp number: tap below, then send the message as it is.'),
+    'subscribe': 'Contact WECARE.DIGITAL for help with your saved customer profile.',
     'order_notes': '\U0001f4dd Add notes to your order with any special instructions.',
 }
 
@@ -6292,8 +6191,8 @@ def _send_flow_link(contact_id: str, phone_number_id: str, flow_key: str,
     link = FLOW_LINKS.get(flow_key, FLOW_LINK_DEFAULT)
     cta_text = msg.get('flowCta') or flow_key.replace('_', ' ').title()
     body_text = FLOW_LINK_BODIES.get(flow_key, msg.get('body') or 'Tap below to continue.')
-    _send_cta_button(contact_id, phone_number_id, cta_text, link, request_id,
-                     body_text=body_text, footer_text='WECARE.DIGITAL')
+    _send_service_link(contact_id, phone_number_id, cta_text, link, request_id,
+                     body_text=body_text)
     logger.info(json.dumps({
         # The WABA 2 event keeps its established name; the others are keyword fallbacks.
         'event': 'generic_flow_phone2_cta_sent' if reason == 'waba2' else 'keyword_flow_link_fallback',
@@ -6303,41 +6202,17 @@ def _send_flow_link(contact_id: str, phone_number_id: str, flow_key: str,
     return True
 
 
-def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
-                       request_id: str, flow_config: Dict = None, flow_key: str = '',
-                       flow_token: str = '') -> bool:
-    """No standalone Flow send. Direct customers to the existing service link."""
-    logger.info(json.dumps({'event': 'direct_flow_retired', 'flowKey': flow_key,
-                            'requestId': request_id}))
-    return _send_flow_link(contact_id, phone_number_id, flow_key, flow_config,
-                           request_id, reason='direct_interactive_retired')
 
 
-def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
-                         aws_phone_number_id: str, request_id: str,
-                         source_message_id: str = '') -> str:
-    """Old cached menu taps are informational only, including Vault rows."""
-    logger.info(json.dumps({'event': 'retired_list_reply',
-                            'requestId': request_id, 'listId': list_id}))
-    _send_menu_placeholder(contact_id, aws_phone_number_id, request_id)
-    return 'retired'
 
 
-def _send_wd_main_menu(contact_id: str, sender_phone: str, aws_phone_number_id: str,
-                       request_id: str) -> None:
-    _send_menu_placeholder(contact_id, aws_phone_number_id, request_id)
 
 
-def _send_menu_placeholder(contact_id: str, phone_number_id: str, request_id: str) -> None:
-    logger.info(json.dumps({'event': 'retired_menu_text_sent',
-                            'contactId': mask_contact_id(contact_id),
-                            'requestId': request_id}))
-    _send_ai_auto_reply(contact_id, MENU_PLACEHOLDER_TEXT, phone_number_id, request_id)
 
 
-def _send_cta_button(contact_id: str, phone_number_id: str, cta_text: str, cta_url: str, request_id: str,
-                     body_text: str = '', header_text: str = '', footer_text: str = '') -> None:
-    """No interactive CTA: send a readable link through the text sender."""
+def _send_service_link(contact_id: str, phone_number_id: str, cta_text: str, cta_url: str, request_id: str,
+                     body_text: str = '') -> None:
+    """Send a readable website link through the plain-text sender."""
     if not contact_id or not cta_url:
         return
     content = (body_text.strip() + '\n\n' if body_text else '') + cta_text + ': ' + cta_url
@@ -6369,9 +6244,8 @@ def _send_help_about(contact_id: str, phone_number_id: str, request_id: str) -> 
         "Prefer to talk? Call +91 9330994400 or email one@wecare.digital.\n\n"
         "Tap below for the full FAQ page. \U0001f447"
     )
-    _send_cta_button(contact_id, phone_number_id, 'Open FAQs', 'https://wecare.digital/contact/', request_id,
-        body_text=help_text,
-        footer_text='WECARE.DIGITAL')
+    _send_service_link(contact_id, phone_number_id, 'Open FAQs', 'https://wecare.digital/contact/', request_id,
+        body_text=help_text)
 
 
 def _send_audio_response(contact_id: str, phone_number_id: str, text: str, language: str, request_id: str,
@@ -7020,20 +6894,19 @@ def _cart_refusal_kind(outcome: str, error: str) -> str:
 def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, request_id: str) -> None:
     """Tell the customer why their cart produced no payment request. Never raises.
 
-    Through outbound (`_send_cta_button` / `_send_ai_auto_reply`), so the inbox records the reply
+    Through outbound (`_send_service_link` / `_send_ai_auto_reply`), so the inbox records the reply
     and the window, live-smoke and consent rules apply exactly as to any other send.
     """
     try:
         if kind == 'sign_in':
-            _send_cta_button(contact_id, phone_number_id, 'Sign in', CART_SIGN_IN_URL, request_id,
-                             body_text=CART_REPLY_SIGN_IN, footer_text='WECARE.DIGITAL')
+            _send_service_link(contact_id, phone_number_id, 'Sign in', CART_SIGN_IN_URL, request_id,
+                             body_text=CART_REPLY_SIGN_IN)
         elif kind in ('service', 'service_alone', 'not_here', 'address_web'):
-            _send_cta_button(contact_id, phone_number_id, 'Open shop', CART_SHOP_URL, request_id,
+            _send_service_link(contact_id, phone_number_id, 'Open shop', CART_SHOP_URL, request_id,
                              body_text={'service': CART_REPLY_SERVICE,
                                         'service_alone': CART_REPLY_SERVICE_ALONE,
                                         'address_web': CART_REPLY_ADDRESS_WEB}.get(
-                                            kind, CART_REPLY_NOT_HERE),
-                             footer_text='WECARE.DIGITAL')
+                                            kind, CART_REPLY_NOT_HERE))
         else:
             text = {'already_requested': CART_REPLY_ALREADY_REQUESTED,
                     'partial': CART_REPLY_PARTIAL,
@@ -7345,7 +7218,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # The historical `customer_idea` alias points at the same Meta asset but is not a second
         # launch authority. It is ENDPOINTLESS (no data_api_version, first
         # screen FEEDBACK carries no `data` block), so it MUST open with NAVIGATE —
-        # see STATIC_ENTRY_SCREENS in _send_generic_flow. Opening it with
+        # The approved Flow-button template controls opening behavior; using
         # data_exchange fails at open. The id this replaced pointed at the
         # never-published WD_Feedback_v1 draft, which is why the keyword did nothing.
         'flowId': canonical_flow_id('leave_review'),

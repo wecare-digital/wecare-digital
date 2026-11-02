@@ -394,7 +394,6 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/communications?view=manage&section=flows', label: 'WA Flow Responses', backend: 'inbound-whatsapp-handler', tables: 'FlowSubmission, FlowLog, SubmitRequest' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'WA Calling', backend: 'whatsapp-calling', tables: 'WhatsAppCalling' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=groups', label: 'WA Groups', backend: 'waba-management', tables: 'WhatsAppGroup' },
-  { path: '/workspace/communications?view=manage&section=whatsapp&tool=lists', label: 'WA Interactive Lists', backend: 'outbound-whatsapp', tables: '-' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'WA Scripts', backend: 'outbound-whatsapp', tables: '-' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=welcome', label: 'WA Welcome', backend: 'outbound-whatsapp', tables: 'Contact' },
   { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'WA Auto Response', backend: 'ai-config-management', tables: 'ConversationHistory, SystemConfig' },
@@ -548,7 +547,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-url', category: 'Core Lambdas', name: 'URL Shortener', description: 'Short link creation and redirect through wecare.digital/r.', path: 'amplify/functions/core/url-shortener/handler.py', type: 'Lambda' },
   // WhatsApp Lambdas
   { id: 'l-inbound', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — messages, keyword triggers, flow routing, AI, media.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'Lambda' },
-  { id: 'l-outbound', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media, interactive, templates, flows.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'Lambda' },
+  { id: 'l-outbound', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media and approved templates.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'Lambda' },
   { id: 'l-wa-biz', category: 'WhatsApp Lambdas', name: 'WhatsApp Business API', description: 'Meta Graph API wrapper — flows, payments, checkout, business profile.', path: 'amplify/functions/messaging/whatsapp-business-api/handler.py', type: 'Lambda' },
   { id: 'l-wa-calling', category: 'WhatsApp Lambdas', name: 'WhatsApp Calling', description: 'Voice/video call webhook handler and SDP relay.', path: 'amplify/functions/messaging/whatsapp-calling/handler.py', type: 'Lambda' },
   { id: 'l-wa-voice', category: 'WhatsApp Lambdas', name: 'WhatsApp Voice', description: 'TTS voice notes via Polly, audio message processing.', path: 'amplify/functions/messaging/whatsapp-voice/handler.py', type: 'Lambda' },
@@ -598,9 +597,9 @@ const BOT_MENU: BotMenuItem[] = [
   { row: 9, section: 'Help & Answers', icon: '💛', title: 'About WECARE.DIGITAL', description: 'Learn more about WECARE.DIGITAL', action: 'CTA link → wecare.digital' },
 ];
 
-// ─── Data: Customer Service Sub-Menu (WhatsApp Flow Interactive List) ───
+// ─── Data: Customer service forms and website links ───
 interface CustomerServiceItem { row: number; section: string; icon: string; title: string; description: string; flowId: string; keywords: string; }
-const CUSTOMERSERVICE_MENU: CustomerServiceItem[] = [
+const CUSTOMER_SERVICE_FORMS: CustomerServiceItem[] = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: canonicalFlowId('submit_request')!, keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: canonicalFlowId('track_request') ?? '-', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: canonicalFlowId('amend_request') ?? '-', keywords: 'amend request, amend, change' },
@@ -628,7 +627,7 @@ function buildSearchIndex (): SearchEntry[] {
   RISKS.forEach( r => entries.push( { type: 'Risk', name: r.title, detail: r.description, category: r.category } ) );
   IMPROVEMENTS.forEach( i => entries.push( { type: 'Improvement', name: i.title, detail: i.description, category: i.category } ) );
   BOT_MENU.forEach( m => entries.push( { type: 'Bot Menu', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
-  CUSTOMERSERVICE_MENU.forEach( m => entries.push( { type: 'Customer Service', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
+  CUSTOMER_SERVICE_FORMS.forEach( m => entries.push( { type: 'Customer Service', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
   return entries;
 }
 
@@ -699,7 +698,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           { label: 'S3 Paths', value: `${STORAGE_PATHS.length}`, color: C.blueBg, text: C.blue },
           { label: 'Dependencies', value: `${DEPENDENCIES.length}`, color: C.amberBg, text: C.amber },
           { label: 'Bot Menu Items', value: `${BOT_MENU.length}`, color: '#f5f3ff', text: '#7c3aed' },
-          { label: 'Customer Service Flows', value: `${CUSTOMERSERVICE_MENU.length}`, color: C.greenBg, text: C.green },
+          { label: 'Customer Service Flows', value: `${CUSTOMER_SERVICE_FORMS.length}`, color: C.greenBg, text: C.green },
           { label: 'Risks Found', value: `${RISKS.length}`, color: C.redBg, text: C.red },
         ].map( s => (
           <div key={ s.label } style={ statCard( s.color, s.text ) }>
@@ -814,7 +813,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       </div>
       {/* Customer Service Sub-Menu */ }
       <div style={ card() }>
-        <h3 style={ sectionTitle }>🚀 Customer Service Menu (WhatsApp Interactive List)</h3>
+        <h3 style={ sectionTitle }>🚀 Customer service forms and website links</h3>
         <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Customer Service&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
         <div style={ { overflowX: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
@@ -826,7 +825,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               </tr>
             </thead>
             <tbody>
-              { CUSTOMERSERVICE_MENU.map( m => (
+              { CUSTOMER_SERVICE_FORMS.map( m => (
                 <tr key={ m.row } style={ { borderBottom: `1px solid ${C.border}` } }>
                   <td style={ { padding: '8px 10px', color: C.textMuted, fontWeight: 600 } }>{ m.row }</td>
                   <td style={ { padding: '8px 10px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ m.section }</span></td>

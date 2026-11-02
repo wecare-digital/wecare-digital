@@ -3,8 +3,7 @@ Metric filters + alarms for the two Direct Send failure modes.
 
 Why these two events are alarm-worthy, when the whole feature ships OFF
 ---------------------------------------------------------------------
-Neither event can fire while both allowlists - `DIRECT_SEND_ENABLED_WABAS` (utility)
-and `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS` (authentication) - are empty, and
+Neither event can fire while `DIRECT_SEND_ENABLED_WABAS` is empty;
 then both alarms sit in OK with no data. They exist *before* the flag is ever switched on,
 and that ordering is the point:
 
@@ -62,7 +61,7 @@ SIGNALS = [
             "enforcement ladder escalates on a timer and ends in permanent "
             "revocation, so investigate the flagged auto-generated template now. "
             "Sends are NOT dropped: utility falls back to the existing outside-window "
-            "403, authentication to the approved wecare_otp template. The log line's "
+            "403, sign-in codes use the approved wecare_otp template. The log line's "
             "category field says which."
         ),
     },
@@ -75,9 +74,8 @@ SIGNALS = [
             "direct_send_not_onboarded logged (Meta 100 with Direct-Send-category "
             "details) - a Direct Send allowlist names a WABA Meta has not onboarded "
             "for that category: DIRECT_SEND_ENABLED_WABAS for category utility, "
-            "DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS for category authentication. "
             "Harmless to customers (utility falls back to the existing 403, "
-            "authentication to the approved wecare_otp template) but the flag is "
+            "sign-in codes use the approved wecare_otp template) but the flag is "
             "misconfigured: clear that WABA id, or complete onboarding in WhatsApp "
             "Manager (authentication access comes through a partner or client manager)."
         ),

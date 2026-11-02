@@ -78,7 +78,12 @@ const ContributePaymentPlan: React.FC<{workspaceView?: 'display' | 'create'}> = 
       <header className="contribute-header">
         <p>PAY &amp; FLOW / CONTRIBUTE</p>
         <h2>{workspaceView === 'display' ? 'Contribute · Overview' : 'Contribute · Review & Pay'}</h2>
-        <span>Proposed customer total: <strong>{money(TARGET_TOTAL_PAISE)}</strong></span>
+        <span>Live customer total: <strong>{loading ? 'Checking…' : price.available && price.breakdown
+          ? money(price.breakdown.totalPayablePaise) : 'Unavailable'}</strong></span>
+        <button type="button" className="quote-refresh" disabled={loading}
+          onClick={() => setRefreshSeq(current => current + 1)}>
+          {loading ? 'Checking live quote…' : 'Refresh live quote'}
+        </button>
       </header>
 
       <div className="contribute-notice" role="status">
@@ -104,7 +109,7 @@ const ContributePaymentPlan: React.FC<{workspaceView?: 'display' | 'create'}> = 
         </div>
       )}
 
-      <div className="contribute-grid">
+      <div className="contribute-grid" aria-busy={loading}>
         <article>
           <h3>Live server-authoritative Contribute quote</h3>
           <p>The current catalog product must be exactly ₹300 and every fee must
@@ -166,6 +171,9 @@ const ContributePaymentPlan: React.FC<{workspaceView?: 'display' | 'create'}> = 
 
       <style jsx>{`
         .contribute-pay{max-width:1070px;min-width:0;display:grid;gap:16px;padding:12px 0 32px}
+        .quote-refresh{display:block;margin-top:12px;min-height:44px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+        .quote-refresh:disabled{opacity:.6;cursor:default}
+        .quote-refresh:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
         .contribute-header p{margin:0 0 6px;font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--text-muted)}
         .contribute-header h2{margin:0 0 8px;font-size:clamp(22px,3vw,30px);color:var(--text-primary)}
         .contribute-header span{color:var(--text-muted);font-size:14px}

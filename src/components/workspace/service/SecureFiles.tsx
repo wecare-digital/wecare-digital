@@ -745,7 +745,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, workspaceVi
                                         { accessStateOf( reviewFile ) === 'PAID_UNVERIFIED' &&
                                             <p role="status" className="sf-hint">Paid access needs reconciliation. Do not request payment again.</p> }
                                         { accessStateOf( reviewFile ) === 'EXPIRED' &&
-                                            <p role="status" className="sf-hint">This file's paid 24-hour access has ended. Renewal is not offered; do not request another Vault payment for this file.</p> }
+                                            <p role="status" className="sf-hint">This file&apos;s paid 24-hour access has ended. Renewal is not offered; do not request another Vault payment for this file.</p> }
                                     </div>
                                 ) }
                             </section>

@@ -1350,7 +1350,7 @@ def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     ).get("Items") or []
     paid = [row for row in invoices
             if row.get("referenceId") == ref
-            and str(row.get("paymentStatus") or "").lower() == "paid"
+            and str(row.get("paymentStatus") or "").lower() in ("paid", "captured")
             and row.get("invoiceId")]
     if len(invoices) != 1 or len(paid) != 1:
         return result

@@ -44,7 +44,7 @@ const CODE_ASSETS: CodeAsset[] = [
 
   // ── WhatsApp Lambdas ──
   { id: 'lambda-inbound-wa', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — processes all inbound WhatsApp messages, keyword triggers, flow routing, AI automation, media handling.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'lambda' },
-  { id: 'lambda-outbound-wa', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media, interactive, templates, flows.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'lambda' },
+  { id: 'lambda-outbound-wa', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media and approved templates.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'lambda' },
   { id: 'lambda-wa-voice', category: 'WhatsApp Lambdas', name: 'WhatsApp Voice', description: 'Voice note TTS via Amazon Polly, send as WhatsApp audio.', path: 'amplify/functions/messaging/whatsapp-voice/handler.py', type: 'lambda' },
   { id: 'lambda-wa-calling', category: 'WhatsApp Lambdas', name: 'WhatsApp Calling', description: 'WhatsApp calling — permission requests, call records, SIP integration.', path: 'amplify/functions/messaging/whatsapp-calling/handler.py', type: 'lambda' },
   { id: 'lambda-wa-tmpl-mgmt', category: 'WhatsApp Lambdas', name: 'WhatsApp Template Management', description: 'Canonical template CRUD, validation, media, library, carousel, analytics, and batch operations.', path: 'amplify/functions/messaging/whatsapp-template-management/handler.py', type: 'lambda' },

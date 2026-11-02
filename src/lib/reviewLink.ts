@@ -13,7 +13,7 @@
  * WHICH NUMBER ANSWERS, AND WHY IT IS NOT A CHOICE
  * ------------------------------------------------
  * WABA 1 — 919330994400. `DEFAULT_FLOW_TRIGGERS['leave_review']` declares a `flowId` and
- * NO `flowId2`, and `_send_generic_flow` falls back to a plain CTA URL button when the
+ * NO `flowId2`, and the service-link router uses a plain website link when the
  * conversation arrived on WABA 2 because Flows exist only on the WABA that created them.
  * Pointing this door at WABA 2 would therefore land the customer in a link, not the form.
  * `src/test/ReviewCta.test.tsx` asserts the number as a property, so a future edit cannot

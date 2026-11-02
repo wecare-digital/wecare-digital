@@ -3,8 +3,6 @@
  *
  * Manages all automated WhatsApp responses from one place:
  * - Flow Triggers: keyword → WhatsApp Flow form mapping
- * - Selfservice Menu: the interactive list sent on "customerservice" keyword
- * - Main Menu: the interactive list sent on "hi" / "menu"
  * - Welcome Message: first-time greeting for new contacts
  *
  * All configs stored in SystemConfigTable, read by wecare-inbound-whatsapp Lambda.
@@ -27,10 +25,6 @@ interface FlowTrigger {
   message: { body: string; footer: string; flowCta: string };
   enabled: boolean;
 }
-interface MenuRow { id: string; title: string; description: string; }
-interface MenuSection { title: string; rows: MenuRow[]; }
-interface MenuConfig { header: string; body: string; footer: string; buttonText: string; sections: MenuSection[]; }
-
 // ── Styles ──
 const S = {
   tab: (on: boolean): React.CSSProperties => ({ padding: '7px 14px', border: 'none', borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: on ? 600 : 400, color: on ? 'var(--accent)' : 'var(--text-muted)' }),
@@ -46,21 +40,13 @@ const S = {
 
 const AutoResponsePageBody: React.FC<Props> = () => {
   const toast = useToastContext();
-  const [tab, setTab] = useState<'triggers' | 'customerservice' | 'mainmenu' | 'welcome' | 'subscribe'>('triggers');
+  const [tab, setTab] = useState<'triggers' | 'welcome' | 'subscribe'>('triggers');
   const [saving, setSaving] = useState(false);
 
   // ── Flow Triggers ──
   const [triggers, setTriggers] = useState<Record<string, FlowTrigger>>({});
   const [trigLoading, setTrigLoading] = useState(false);
   const [editTrig, setEditTrig] = useState<string | null>(null);
-
-  // ── Selfservice Menu ──
-  const [ssMenu, setSsMenu] = useState<MenuConfig | null>(null);
-  const [ssLoading, setSsLoading] = useState(false);
-
-  // ── Main Menu ──
-  const [mainMenu, setMainMenu] = useState<MenuConfig | null>(null);
-  const [mmLoading, setMmLoading] = useState(false);
 
   // ── Welcome ──
   const [welcomeText, setWelcomeText] = useState('');
@@ -73,16 +59,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     try { const r = await api.getSystemConfig('flow_triggers_config'); if (r) setTriggers(r as any); } catch {}
     setTrigLoading(false);
   }, []);
-  const loadSsMenu = useCallback(async () => {
-    setSsLoading(true);
-    try { const r = await api.getSystemConfig('customerservice_menu_config'); if (r) setSsMenu(r as any); } catch {}
-    setSsLoading(false);
-  }, []);
-  const loadMainMenu = useCallback(async () => {
-    setMmLoading(true);
-    try { const r = await api.getSystemConfig('welcome_message_config'); if (r) setMainMenu(r as any); } catch {}
-    setMmLoading(false);
-  }, []);
   const loadWelcome = useCallback(async () => {
     setWelLoading(true);
     try {
@@ -94,10 +70,8 @@ const AutoResponsePageBody: React.FC<Props> = () => {
 
   useEffect(() => {
     if (tab === 'triggers') loadTriggers();
-    if (tab === 'customerservice') loadSsMenu();
-    if (tab === 'mainmenu') loadMainMenu();
     if (tab === 'welcome') loadWelcome();
-  }, [tab, loadTriggers, loadSsMenu, loadMainMenu, loadWelcome]);
+  }, [tab, loadTriggers, loadWelcome]);
 
   // Keep the draft when either the write or its read-back cannot be confirmed.
   const saveSetting = async (key: string, value: any, message: string) => {
@@ -129,8 +103,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     if (storedSubscribe !== undefined) next[F001_TRIGGER_KEY] = storedSubscribe;
     await saveSetting('flow_triggers_config', next, 'Flow triggers saved');
   };
-  const saveSsMenu = () => saveSetting('customerservice_menu_config', ssMenu, 'Selfservice menu saved');
-  const saveMainMenu = () => saveSetting('welcome_message_config', mainMenu, 'Main menu saved');
   const saveWelcome = () => saveSetting('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }, 'Welcome saved');
 
   // Trigger helpers
@@ -139,21 +111,10 @@ const AutoResponsePageBody: React.FC<Props> = () => {
   const addTrig = () => { const id = `custom_${Date.now()}`; setTriggers(p => ({ ...p, [id]: { keywords: [''], flowId: '', message: { body: '', footer: 'WECARE.DIGITAL', flowCta: 'Open' }, enabled: true } })); setEditTrig(id); };
   const delTrig = (k: string) => setTriggers(p => { const n = { ...p }; delete n[k]; return n; });
 
-  // Menu helpers
-  const updateMenuField = (menu: MenuConfig, setMenu: (m: MenuConfig) => void, field: string, val: string) => setMenu({ ...menu, [field]: val });
-  const updateRow = (menu: MenuConfig, setMenu: (m: MenuConfig) => void, si: number, ri: number, field: string, val: string) => {
-    const sections = [...menu.sections]; const rows = [...sections[si].rows]; rows[ri] = { ...rows[ri], [field]: val }; sections[si] = { ...sections[si], rows }; setMenu({ ...menu, sections });
-  };
-  const updateSectionTitle = (menu: MenuConfig, setMenu: (m: MenuConfig) => void, si: number, val: string) => {
-    const sections = [...menu.sections]; sections[si] = { ...sections[si], title: val }; setMenu({ ...menu, sections });
-  };
-
   return (
     <div style={{ padding: '12px 0' }}>
       <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 14, display: 'flex', gap: 2 }}>
         <button style={S.tab(tab === 'triggers')} onClick={() => setTab('triggers')}>Flow Triggers</button>
-        <button style={S.tab(tab === 'customerservice')} onClick={() => setTab('customerservice')}>Selfservice Menu</button>
-        <button style={S.tab(tab === 'mainmenu')} onClick={() => setTab('mainmenu')}>Main Menu</button>
         <button style={S.tab(tab === 'welcome')} onClick={() => setTab('welcome')}>Welcome</button>
         <button style={S.tab(tab === 'subscribe')} onClick={() => setTab('subscribe')}>Subscribe</button>
       </div>
@@ -164,7 +125,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       {tab === 'triggers' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>Keyword → WhatsApp Flow mapping. Empty = Lambda defaults.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>Keyword → service website link mapping. Empty = server defaults.</p>
             <div style={{ display: 'flex', gap: 6 }}><button style={S.btn} onClick={addTrig}>+ Add</button><button style={S.btnP} onClick={saveTriggers} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
           </div>
           {trigLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
@@ -211,76 +172,6 @@ const AutoResponsePageBody: React.FC<Props> = () => {
         </div>
       )}
 
-      {/* ── CUSTOMERSERVICE MENU ── */}
-      {tab === 'customerservice' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>The list message sent when user types &quot;customerservice&quot;. Empty = Lambda defaults.</p>
-            <button style={S.btnP} onClick={saveSsMenu} disabled={saving}>{saving ? '...' : 'Save'}</button>
-          </div>
-          {ssLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
-          {ssMenu ? (
-            <div>
-              <div style={{ ...S.card }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <div><label style={S.label}>Header</label><input style={S.input} value={ssMenu.header} onChange={e => updateMenuField(ssMenu, setSsMenu as any, 'header', e.target.value)} /></div>
-                  <div><label style={S.label}>Button Text</label><input style={S.input} value={ssMenu.buttonText} onChange={e => updateMenuField(ssMenu, setSsMenu as any, 'buttonText', e.target.value)} /></div>
-                </div>
-                <div><label style={S.label}>Body</label><textarea style={S.textarea} value={ssMenu.body} onChange={e => updateMenuField(ssMenu, setSsMenu as any, 'body', e.target.value)} /></div>
-                <div style={{ marginTop: 6 }}><label style={S.label}>Footer</label><input style={S.input} value={ssMenu.footer} onChange={e => updateMenuField(ssMenu, setSsMenu as any, 'footer', e.target.value)} /></div>
-              </div>
-              {ssMenu.sections.map((sec, si) => (
-                <div key={si} style={{ ...S.card, borderLeft: '3px solid var(--lime)' }}>
-                  <input style={{ ...S.input, fontWeight: 600, border: 'none', padding: '3px 0', marginBottom: 6 }} value={sec.title} onChange={e => updateSectionTitle(ssMenu, setSsMenu as any, si, e.target.value)} />
-                  {sec.rows.map((row, ri) => (
-                    <div key={ri} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 2fr', gap: 4, marginBottom: 4 }}>
-                      <input style={{ ...S.input, fontSize: 'var(--text-xs)', color: '#9ca3af' }} value={row.id} readOnly />
-                      <input style={S.input} value={row.title} onChange={e => updateRow(ssMenu, setSsMenu as any, si, ri, 'title', e.target.value)} />
-                      <input style={S.input} value={row.description} onChange={e => updateRow(ssMenu, setSsMenu as any, si, ri, 'description', e.target.value)} />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ) : !ssLoading && <div style={{ ...S.card, textAlign: 'center', color: '#9ca3af', padding: 24 }}>No override. Lambda defaults active.</div>}
-        </div>
-      )}
-
-      {/* ── MAIN MENU ── */}
-      {tab === 'mainmenu' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>The list message sent on &quot;hi&quot; / &quot;menu&quot; / &quot;start&quot;. Empty = Lambda defaults.</p>
-            <button style={S.btnP} onClick={saveMainMenu} disabled={saving}>{saving ? '...' : 'Save'}</button>
-          </div>
-          {mmLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
-          {mainMenu ? (
-            <div>
-              <div style={{ ...S.card }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <div><label style={S.label}>Header</label><input style={S.input} value={mainMenu.header} onChange={e => updateMenuField(mainMenu, setMainMenu as any, 'header', e.target.value)} /></div>
-                  <div><label style={S.label}>Button Text</label><input style={S.input} value={mainMenu.buttonText} onChange={e => updateMenuField(mainMenu, setMainMenu as any, 'buttonText', e.target.value)} /></div>
-                </div>
-                <div><label style={S.label}>Body</label><textarea style={S.textarea} value={mainMenu.body} onChange={e => updateMenuField(mainMenu, setMainMenu as any, 'body', e.target.value)} /></div>
-                <div style={{ marginTop: 6 }}><label style={S.label}>Footer</label><input style={S.input} value={mainMenu.footer} onChange={e => updateMenuField(mainMenu, setMainMenu as any, 'footer', e.target.value)} /></div>
-              </div>
-              {mainMenu.sections.map((sec, si) => (
-                <div key={si} style={{ ...S.card, borderLeft: '3px solid var(--lime)' }}>
-                  <input style={{ ...S.input, fontWeight: 600, border: 'none', padding: '3px 0', marginBottom: 6 }} value={sec.title} onChange={e => updateSectionTitle(mainMenu, setMainMenu as any, si, e.target.value)} />
-                  {sec.rows.map((row, ri) => (
-                    <div key={ri} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 2fr', gap: 4, marginBottom: 4 }}>
-                      <input style={{ ...S.input, fontSize: 'var(--text-xs)', color: '#9ca3af' }} value={row.id} readOnly />
-                      <input style={S.input} value={row.title} onChange={e => updateRow(mainMenu, setMainMenu as any, si, ri, 'title', e.target.value)} />
-                      <input style={S.input} value={row.description} onChange={e => updateRow(mainMenu, setMainMenu as any, si, ri, 'description', e.target.value)} />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ) : !mmLoading && <div style={{ ...S.card, textAlign: 'center', color: '#9ca3af', padding: 24 }}>No override. Lambda defaults active.</div>}
-        </div>
-      )}
-
       {/* ── WELCOME ── */}
       {tab === 'welcome' && (
         <div>
@@ -295,7 +186,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
               <button style={S.toggle(welcomeEnabled)} onClick={() => setWelcomeEnabled(!welcomeEnabled)}><span style={S.dot(welcomeEnabled)} /></button>
             </div>
             <textarea style={{ ...S.textarea, minHeight: 80 }} value={welcomeText} onChange={e => setWelcomeText(e.target.value)} placeholder="Hi there! 👋 Welcome to WECARE.DIGITAL..." />
-            <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '6px 0 0' }}>After this message, the main menu list is also sent automatically.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '6px 0 0' }}>This setting controls the plain-text greeting only.</p>
           </div>
         </div>
       )}

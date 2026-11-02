@@ -141,3 +141,45 @@ template, use a retired Vault offer or modify the canonical payment rail.
    disabled if any check is uncertain. No test sends to live customers.
 7. Only merge after successful preview build and controlled QA. Backend Lambda
    deployments and old-route retirements are separate, explicitly reviewed jobs.
+
+## Read-only framework inspection
+
+`/workspace/payments?view=collect|vault|contribute&tab=display&panel=framework`
+opens the framework for the selected section. The section cards preserve this
+panel; Display/Create/Ledger links leave it for the owning operating view.
+
+The framework lists distinct templates versus planned template sends, ordered
+staff/provider/customer stages, event gates, configured spacing, variable input
+ownership, outgoing payload families, incoming response/event types and known
+evidence/recovery gaps. It reads template registry details and, for Vault, the
+saved timing configuration. It cannot send, upload, change timing or grant access.
+Registry lookup status is separate from the sender's component/readiness checks
+and from per-customer acceptance, delivery and capture evidence.
+
+Vault Processing → Completed has a fixed one-second pause only after a newly
+accepted Processing send. The paid-invoice → Access gap is 0–5 seconds (four-second
+backend fallback). These are deliberate spacings, not measured end-to-end latency
+or a guarantee of handset message order. Deferred status work may return while
+the paid receipt path proceeds; inspect stage evidence independently.
+
+## Supported outbound transport and exact message inspection
+
+Standalone rich-message send implementations, client helpers, dedicated route
+entries, test-console controls and menu editors are deleted. Message transport
+accepts only text, approved templates, supported media, contacts, location and
+reactions, plus the existing read/typing control envelope. Unknown message types
+or fields are rejected by the generic transport contract; there are no dedicated
+compatibility endpoints for deleted senders. Sign-in uses its approved OTP
+template. Service keywords use plain website links without creating a Flow session.
+
+Approved template ORDER_DETAILS, ORDER_STATUS, embedded FLOW/URL buttons and
+incoming form submissions remain. Incoming provider schema names are retained
+where required to parse those approved template replies.
+
+The Framework's full-content panel shows the complete public header/thumbnail
+links, exact body/footer/button definitions and dynamic-field ownership. Its
+fallback snapshot was read from the selected WECARE.DIGITAL messaging account on
+2026-11-02 at 04:20 UTC; a matching current template read takes precedence.
+Registration-example image URLs are labeled separately from send-time media.
+Paid invoice headers use a generated private PNG uploaded as a WhatsApp media ID,
+so no universal public invoice-header URL is invented.

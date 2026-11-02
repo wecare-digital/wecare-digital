@@ -41,6 +41,7 @@ const CollectOverview: React.FC = () => {
     let active = true;
     setLoading(true);
     setError('');
+    setRows([]);
     void api.listInvoicesEngine({limit: 500})
       .then(result => {
         if (!active) return;
@@ -60,7 +61,11 @@ const CollectOverview: React.FC = () => {
   const captured = rows.filter(isCaptured);
   const pending = rows.filter(isPending);
   const refunded = rows.filter(isRefunded);
-  const billed = rows.reduce((acc, row) => acc + (Number(row.total) || 0), 0);
+  const billed = rows.reduce<Record<string, number>>((totals, row) => {
+    const currency = (row.currency || 'INR').toUpperCase();
+    totals[currency] = (totals[currency] || 0) + (Number(row.total) || 0);
+    return totals;
+  }, {});
 
   return (
     <section className="co" aria-labelledby="collect-overview-title">
@@ -76,10 +81,10 @@ const CollectOverview: React.FC = () => {
       </header>
       {error && <p className="co-error" role="alert">{error}</p>}
       <div className="co-stats" aria-label="Loaded Collect invoice counts">
-        <div><small>Invoices</small><strong>{loading ? '—' : rows.length}</strong></div>
-        <div><small>Captured</small><strong>{loading ? '—' : captured.length}</strong></div>
-        <div><small>Pending</small><strong>{loading ? '—' : pending.length}</strong></div>
-        <div><small>Refunded</small><strong>{loading ? '—' : refunded.length}</strong></div>
+        <div><small>Invoices</small><strong>{loading || error ? '—' : rows.length}</strong></div>
+        <div><small>Captured</small><strong>{loading || error ? '—' : captured.length}</strong></div>
+        <div><small>Pending</small><strong>{loading || error ? '—' : pending.length}</strong></div>
+        <div><small>Refunded</small><strong>{loading || error ? '—' : refunded.length}</strong></div>
       </div>
       <div className="co-shortcuts">
         <Link href="/workspace/payments?view=collect&tab=create">Create a collection</Link>
@@ -95,7 +100,7 @@ const CollectOverview: React.FC = () => {
         {!loading && !error && rows.length === 0 &&
           <p className="co-empty">No Collect-created invoices in the loaded results. Older records may still be in Ledger.</p>}
         {loading && <p className="co-empty">Loading invoice records…</p>}
-        {!loading && recent.length > 0 && (
+        {!loading && !error && recent.length > 0 && (
           <div className="co-tablewrap">
             <table>
               <thead><tr><th>Invoice</th><th>Customer</th><th>State</th><th>Stored total</th><th></th></tr></thead>
@@ -116,7 +121,7 @@ const CollectOverview: React.FC = () => {
         )}
       </section>
       {!loading && !error && <p className="co-foot">
-        Stored amount across loaded Collect invoices: <strong>{money(billed)}</strong>.
+        Stored amount across loaded Collect invoices: <strong>{Object.entries(billed).map(([currency, total]) => money(total, currency)).join(' · ') || money(0)}</strong>.
         Totals are not a full financial reconciliation; use the ledger and gateway evidence for money decisions.
       </p>}
       <style jsx>{`

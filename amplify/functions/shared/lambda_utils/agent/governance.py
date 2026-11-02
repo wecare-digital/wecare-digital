@@ -314,11 +314,6 @@ CATALOG.update({
     # Sends. Every one of these reached a real recipient on the model's decision.
     "send_whatsapp": _apply("send_whatsapp", "Send a WhatsApp message.",
                             _SEND, _SEND_DETAIL, counterpart="sendWhatsApp"),
-    "send_whatsapp_buttons": _apply("send_whatsapp_buttons",
-                                    "Send an interactive button message.",
-                                    _SEND, _SEND_DETAIL),
-    "send_whatsapp_flow": _apply("send_whatsapp_flow", "Send a WhatsApp Flow.",
-                                 _SEND, _SEND_DETAIL),
     "send_template": _apply("send_template", "Send an approved template.",
                             _SEND, _SEND_DETAIL),
     "send_sms": _apply("send_sms", "Send an SMS.", _SEND, _SEND_DETAIL,

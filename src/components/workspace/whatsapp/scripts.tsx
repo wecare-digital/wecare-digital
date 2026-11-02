@@ -1,6 +1,6 @@
 /**
  * WhatsApp Scripts — Content library for all automated messages.
- * Every text, menu, flow message, CTA, and response sent by the bot is listed here
+ * Configured form routes and supported responses are listed here
  * for content review, improvement, and consistency management.
  *
  * Sources: SystemConfigTable configs, hardcoded defaults in Lambda, flow trigger messages.
@@ -39,55 +39,6 @@ const ScriptsPageBody: React.FC<Props> = () => {
   const loadScripts = useCallback(async () => {
     setLoading(true);
     const items: ScriptItem[] = [];
-
-    // Load live configs from SystemConfigTable
-    let welcomeConfig: any = null;
-    let mainMenuConfig: any = null;
-    let ssMenuConfig: any = null;
-    try { welcomeConfig = await api.getSystemConfig('wa_auto_response'); } catch {}
-    try { mainMenuConfig = await api.getSystemConfig('welcome_message_config'); } catch {}
-    try { ssMenuConfig = await api.getSystemConfig('customerservice_menu_config'); } catch {}
-
-    // Welcome messages — use live config or defaults
-    const welcomeText = welcomeConfig?.welcomeMessage || '(Using Lambda default — no custom welcome set)';
-    items.push(
-      { id: 'welcome_new', category: 'Welcome', trigger: 'Brand-new contact first message', messageType: 'Interactive List', content: 'Sends main menu list directly (no separate welcome text)', phone: 'Both', editable: true, configKey: 'wa_auto_response' },
-      { id: 'welcome_hi', category: 'Welcome', trigger: '"hi" / "hello" / "menu" / "start" / "need help!"', messageType: 'Interactive List', content: 'Sends main menu list directly (1 message)', phone: 'Both', editable: false },
-    );
-
-    // Main menu — use live config or show defaults
-    const mmHeader = mainMenuConfig?.header || 'Welcome to WECARE.DIGITAL';
-    const mmBody = mainMenuConfig?.body || "Choose what you\u2019d like to do \u2014 get started, explore our services, or find quick answers.";
-    const mmButton = mainMenuConfig?.buttonText || 'Get Started';
-    const mmSections = mainMenuConfig?.sections?.length || 3;
-    items.push(
-      { id: 'main_menu', category: 'Menu', trigger: 'hi / menu / start / Explore More button', messageType: 'Interactive List', content: `Header: ${mmHeader}\nBody: ${mmBody}\nButton: ${mmButton}\nSections: ${mmSections}`, phone: 'Both', editable: true, configKey: 'welcome_message_config' },
-    );
-
-    // Selfservice menu — use live config or show defaults
-    const ssHeader = ssMenuConfig?.header || 'Selfservice';
-    const ssBody = ssMenuConfig?.body || "Choose what you\u2019d like to do...";
-    const ssButton = ssMenuConfig?.buttonText || 'Browse Services';
-    const ssSections = ssMenuConfig?.sections?.length || 10;
-    items.push(
-      { id: 'ss_menu', category: 'Menu', trigger: '"customerservice" / tapping Selfservice from main menu', messageType: 'Interactive List', content: `Header: ${ssHeader}\nBody: ${ssBody}\nButton: ${ssButton}\nSections: ${ssSections}`, phone: 'Both', editable: true, configKey: 'customerservice_menu_config' },
-    );
-
-    // CTA messages (hardcoded in Lambda — shown for content review)
-    items.push(
-      { id: 'cta_faq', category: 'FAQ', trigger: 'Tapping FAQs from main menu', messageType: 'In-chat answer', content: 'FAQs are answered directly in WhatsApp by faq-handler. No public FAQ URL is used.', phone: 'Both', editable: false },
-      { id: 'cta_store', category: 'CTA', trigger: 'Tapping Explore Store from main menu', messageType: 'CTA URL', content: 'Body: Browse WECARE.DIGITAL services, brands, and offers — all in one place.\nButton: Visit Store\nURL: wecare.digital\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
-      { id: 'cta_gift', category: 'CTA', trigger: 'Tapping Perks from main menu', messageType: 'CTA URL', content: 'Body: Open Perks on WhatsApp in just a few taps — quick, easy, and thoughtful.\nButton: View Perks\nURL: wa.me/message/377GALDW4E26F1\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
-      { id: 'cta_bharat', category: 'CTA', trigger: 'Tapping WECARE.DIGITAL / typing "bharat stack"', messageType: 'CTA URL', content: 'Body: Explore WECARE.DIGITAL and discover services designed for everyday Bharat.\nButton: Explore WECARE.DIGITAL\nURL: wecare.digital\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
-      { id: 'cta_about', category: 'CTA', trigger: 'Tapping About WECARE.DIGITAL from main menu', messageType: 'Text', content: '*Building digital railroads for everyday Bharat*\n\nWECARE.DIGITAL is a network of microservice brands serving everyday Bharat — across travel, paperwork, disputes, rituals, and reflection.\n\nMade to serve what matters most.', phone: 'Both', editable: false },
-    );
-
-    // Followup buttons
-    items.push(
-      { id: 'followup', category: 'System', trigger: 'After every CTA / About response', messageType: 'Reply Buttons', content: 'Body: What next? 👇\nButton 1: 🧭 Explore More → Main Menu\nButton 2: 🫶 All Set → Goodbye\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
-      { id: 'followup_done', category: 'System', trigger: 'Tapping All Set button', messageType: 'Text', content: 'Awesome — you\u2019re all set for now 💛\nType hi anytime to come back.', phone: 'Both', editable: false },
-      { id: 'sys_reaction', category: 'System', trigger: 'Every inbound message (except reactions)', messageType: 'Reaction + Read Receipt', content: '👍 Auto-reaction + ✅ Read receipt (blue tick)', phone: 'Both', editable: false },
-    );
 
     // Flow trigger messages — load from SystemConfig with fallback defaults
     const defaultFlowTriggers: Record<string, { keywords: string[]; message: { body: string; flowCta: string }; flowId: string }> = {
@@ -130,42 +81,15 @@ const ScriptsPageBody: React.FC<Props> = () => {
         trigger: isPaidDropDocs
           ? `Keywords: ${ft.keywords.slice(0, 4).join(', ')} → paid checkout`
           : `Keywords: ${ft.keywords.slice(0, 4).join(', ')}`,
-        messageType: isPaidDropDocs ? 'Paid checkout → F003 Flow' : 'Flow Form (data_exchange)',
+        messageType: isPaidDropDocs ? 'Paid checkout → F003 Flow' : 'Website service link',
         content: isPaidDropDocs
           ? `Body: ${ft.message.body}\nCTA: ${ft.message.flowCta}\nAfter payment: launch F003\nFlow ID: ${ft.flowId}`
           : `Body: ${ft.message.body}\nCTA: ${ft.message.flowCta}\nFlow ID: ${ft.flowId}`,
         phone: isPaidDropDocs
           ? 'Paid checkout first; F003 launches after successful payment'
-          : 'Phone 1: Flow form\nPhone 2: Flow form (if flowId2) or CTA link',
+          : 'Website service link; approved template forms use their own send contracts',
         editable: true,
         configKey: 'flow_triggers_config',
-      });
-    }
-
-    // Pay messages
-    items.push(
-      { id: 'pay_pulling', category: 'Pay', trigger: '"pay" / "payment" / "invoice" (Phone 1)', messageType: 'Text', content: '👀 Pulling your pending invoice...', phone: 'Phone 1', editable: false },
-      { id: 'pay_no_dues', category: 'Pay', trigger: 'No pending invoices found', messageType: 'Text', content: '✅ No pending dues!', phone: 'Phone 1', editable: false },
-      { id: 'pay_cta', category: 'Pay', trigger: '"pay" (Phone 2)', messageType: 'CTA URL Button', content: 'CTA: Pay Now → wecare.digital/r/pay', phone: 'Phone 2', editable: false },
-    );
-
-    // Phone 2 CTA links
-    const ctaLinks = [
-      { key: 'sr', label: 'Submit Request' }, { key: 'tr', label: 'Track Request' },
-      { key: 'ar', label: 'Update Request' }, { key: 'sa', label: 'Book Appointment' },
-      { key: 'sehat', label: 'Book Appointment' }, { key: 'dd', label: 'Start Drop Docs' },
-      { key: 'ea', label: 'Enterprise Support' }, { key: 'lr', label: 'Leave Feedback' },
-      { key: 'sub', label: 'Subscribe' }, { key: 'pay', label: 'Pay Now' },
-    ];
-    for (const cl of ctaLinks) {
-      items.push({
-        id: `cta_${cl.key}`,
-        category: 'CTA Link',
-        trigger: `Phone 2 flow fallback for ${cl.label}`,
-        messageType: 'CTA URL Button',
-        content: `CTA: ${cl.label} → wecare.digital/r/${cl.key}`,
-        phone: 'Phone 2 only',
-        editable: false,
       });
     }
 

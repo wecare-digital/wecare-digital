@@ -80,11 +80,11 @@ const HANDLERS: HandlerInfo[] = [
         displayName: 'Outbound WhatsApp',
         category: 'Messaging',
         endpoint: 'POST /whatsapp/send',
-        description: 'Sends WhatsApp messages (text, media, templates, interactive) via Meta Graph API',
+        description: 'Sends WhatsApp messages (text, media, templates) via Meta Graph API',
         flow: [
             'Receive send request (contactId, content, phoneNumberId)',
             'Lookup contact phone from ContactsTable',
-            'Build Meta API payload (text/template/media/interactive)',
+            'Build supported Meta API payload (text/template/media)',
             'Send via POST /{phoneNumberId}/messages',
             'Store sent message → WhatsAppOutboundTable',
             'Return messageId to frontend',

@@ -4543,13 +4543,6 @@ export async function sendTestMedia ( to: string, mediaType: 'image' | 'video' |
   return apiCall<any>( `${WA_SEND_BASE}/media`, { method: 'POST', body: JSON.stringify( { to, mediaType, ...opts } ) } ) as any;
 }
 
-export async function sendTestInteractive ( to: string, interactive: any, phoneId?: string ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/interactive`, { method: 'POST', body: JSON.stringify( { to, interactive, phoneId } ) } ) as any;
-}
-
-export async function sendTestFlow ( to: string, opts: { flowId?: string; flowName?: string; flowToken?: string; flowCta?: string; bodyText?: string; headerText?: string; footerText?: string; screen?: string; flowAction?: 'navigate' | 'data_exchange'; mode?: 'draft' | 'published'; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/flow`, { method: 'POST', body: JSON.stringify( { to, ...opts } ) } ) as any;
-}
 
 export async function sendTestContacts ( to: string, contacts: any[], phoneId?: string ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
   return apiCall<any>( `${WA_SEND_BASE}/contacts`, { method: 'POST', body: JSON.stringify( { to, contacts, phoneId } ) } ) as any;
@@ -4559,18 +4552,6 @@ export async function sendTestLocation ( to: string, latitude: number, longitude
   return apiCall<any>( `${WA_SEND_BASE}/location`, { method: 'POST', body: JSON.stringify( { to, latitude, longitude, ...opts } ) } ) as any;
 }
 
-// `carouselCards` selects the product_carousel shape on the same route: the handler
-// dispatches on body shape, and carouselCards is the most specific one, so it wins over
-// catalogMessage and sections. No sibling function — a second one would duplicate the
-// body assembly for an identical request.
-export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; carouselCards?: { productRetailerId: string }[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/product`, { method: 'POST', body: JSON.stringify( { to, catalogId, ...opts } ) } ) as any;
-}
-
-// Request a user's phone number (BSUID-friendly; for username-adopters whose phone is hidden).
-export async function sendRequestContactInfo ( opts: { to?: string; recipient?: string; bodyText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
-  return apiCall<any>( `${WA_SEND_BASE}/request-contact-info`, { method: 'POST', body: JSON.stringify( opts ) } ) as any;
-}
 
 // ── Flow admin (assets / migrate / sync) ──
 export async function uploadFlowAsset ( flowId: string, flowJson: any, opts?: { assetType?: string; name?: string; wabaId?: string } ): Promise<{ success?: boolean; validationErrors?: any[]; hasErrors?: boolean; error?: any }> {
@@ -4759,14 +4740,6 @@ export async function getBlockedUsers ( wabaId: string ): Promise<any> {
   return apiCall<any>( `${WA_BIZ_BASE}/block-users?wabaId=${wabaId}` );
 }
 
-// Interactive List Messages
-export async function sendInteractiveList ( phoneId: string, to: string, bodyText: string, buttonText: string, sections: any[], headerText?: string, footerText?: string ): Promise<{ messageId: string } | null> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/interactive-list`, {
-    method: 'POST',
-    body: JSON.stringify( { phoneId, to, bodyText, buttonText, sections, headerText, footerText } ),
-  } );
-  return data?.success ? { messageId: data.messageId } : null;
-}
 
 // Calling Settings (Enable/Disable calling on phone number)
 export async function getCallingSettings ( phoneId: string ): Promise<any> {
@@ -5710,7 +5683,6 @@ export interface FlowLaunchStatus {
   registryProblems: string[];
   runtime: { enabled: boolean; keywords: string[]; entryMode: string; flowId: string; configured: boolean; readError: string };
   keywordLaunch: FlowLaunchDecision;
-  manualLaunch: FlowLaunchDecision & { minimumRole: string };
   session: { ttlSeconds: number };
   endpoint: string;
 }
@@ -5729,14 +5701,6 @@ export interface FlowRegistrySaveResult {
   flow: FlowRegistryItem;
 }
 
-export interface CanonicalFlowSendResult {
-  success: boolean;
-  messageId: string;
-  flowCode: string;
-  launchChannel: string;
-  sessionExpiresAt: number;
-}
-
 export async function getFlowLaunchStatus ( capability: string ): Promise<ApiResult<FlowLaunchStatus>> {
   return apiCallResult<FlowLaunchStatus>( `${WA_BIZ_BASE}/flow-launch-status?capability=${encodeURIComponent( capability )}` );
 }
@@ -5744,18 +5708,6 @@ export async function getFlowLaunchStatus ( capability: string ): Promise<ApiRes
 export async function getFlowFunnel ( flowCode: string, days = 7 ): Promise<ApiResult<FlowFunnelReport>> {
   const qs = new URLSearchParams( { flowCode, days: String( days ) } );
   return apiCallResult<FlowFunnelReport>( `${WA_BIZ_BASE}/flow-funnel?${qs.toString()}` );
-}
-
-/**
- * Staff send of a canonical contract Flow (F001) to one customer. The server requires the
- * Operator role, mints the session and records who sent it. Not retried automatically: a
- * timed-out send may still have been delivered, so a retry would send a second message.
- */
-export async function sendCanonicalFlow ( flowKey: string, to: string ): Promise<ApiResult<CanonicalFlowSendResult>> {
-  return apiCallResult<CanonicalFlowSendResult>( `${WA_BIZ_BASE}/messages/send/flow`, {
-    method: 'POST',
-    body: JSON.stringify( { flowKey, to } ),
-  }, RETRY_CONFIG.maxRetries );
 }
 
 export interface FlowSubmissionItem {
@@ -6891,7 +6843,6 @@ export async function getThroughput ( phoneId: string ): Promise<ThroughputInfo>
   };
 }
 
-export interface DirectSendButton { type: 'reply' | 'url'; text: string; id?: string; url?: string; }
 
 // `betaGated` and `restricted` are DIFFERENT conditions and must stay separate.
 // betaGated  = Graph code 100 whose error_data.details says the category requires
@@ -6903,7 +6854,7 @@ export interface DirectSendResult { success: boolean; error?: string; directSend
 
 export async function directSend (
   phoneId: string,
-  payload: { to: string; category: 'utility' | 'authentication'; text: string; templateName?: string; ttlSeconds?: number; buttons?: DirectSendButton[] }
+  payload: { to: string; category: 'utility' | 'authentication'; text: string; templateName?: string; ttlSeconds?: number }
 ): Promise<DirectSendResult> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/direct-send`, {
     method: 'POST',

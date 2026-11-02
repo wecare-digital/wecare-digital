@@ -409,7 +409,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return send_invoice_whatsapp(inv_id, phone, phone_number_id, request_id,
                                          force=bool(body.get('force')))
 
-        # POST /invoices/{id}/send-payment-link — send WhatsApp interactive payment message
+        # POST /invoices/{id}/send-payment-link — send approved WhatsApp payment template
         if method == 'POST' and 'send-payment-link' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone_number_id = body.get('phoneNumberId')
@@ -3092,7 +3092,7 @@ def send_pending_by_phone(body: Dict, request_id: str) -> Dict:
     })
 
 
-# ─── Send Payment Link (WhatsApp Interactive Payment Message) ───
+# ─── Send Payment Link (approved ORDER_DETAILS template) ───
 
 def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
     """Live Meta read of `GET /{waba}/payment_configurations`, via the business-API Lambda.
