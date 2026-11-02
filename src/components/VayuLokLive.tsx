@@ -3322,8 +3322,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               field stays light and uncluttered while typing. Only genuine end states - no result,
               or an actual failure - show visible helper text. */}
           { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching places…</p> }
-          { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
-          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Search unavailable.</p> }
+          { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">0 results</p> }
+          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">{ publicActionText( 'blocked' ) }</p> }
         </div>
       </div>
 
@@ -4459,8 +4459,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </ul>
                         ) }
                         { utilityOpenSlot === 'world-from' && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
-                        { utilityOpenSlot === 'world-from' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
-                        { utilityOpenSlot === 'world-from' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
+                        { utilityOpenSlot === 'world-from' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">0 results</span> }
+                        { utilityOpenSlot === 'world-from' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">{ publicActionText( 'blocked' ) }</span> }
                       </div>
                       <strong>{ worldFrom.name }</strong>
                       <small className="vl-live-place-selection">{ worldFrom.addr }</small>
@@ -4506,8 +4506,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </ul>
                         ) }
                         { utilityOpenSlot === 'world-to' && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
-                        { utilityOpenSlot === 'world-to' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
-                        { utilityOpenSlot === 'world-to' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
+                        { utilityOpenSlot === 'world-to' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">0 results</span> }
+                        { utilityOpenSlot === 'world-to' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">{ publicActionText( 'blocked' ) }</span> }
                       </div>
                       <strong>{ worldTo.name }</strong>
                       <small className="vl-live-place-selection">{ worldTo.addr }</small>
@@ -4693,8 +4693,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               </ul>
                             ) }
                             { utilityOpenSlot === slot && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
-                            { utilityOpenSlot === slot && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
-                            { utilityOpenSlot === slot && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
+                            { utilityOpenSlot === slot && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">0 results</span> }
+                            { utilityOpenSlot === slot && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">{ publicActionText( 'blocked' ) }</span> }
                           </div>
                           { selected && (
                             <>
@@ -4721,9 +4721,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { routeLoading ? 'Checking route…' : 'Check route' }
                     </button>
                     { !ROUTE_REQUEST_ENABLED ? (
-                      <span className="vl-live-route-unavailable" role="status">Route unavailable.</span>
+                      <span className="vl-live-route-unavailable" role="status">{ publicActionText( 'blocked' ) }</span>
                     ) : routeError ? (
-                      <span className="vl-live-route-unavailable" role="status">Route unavailable.</span>
+                      <span className="vl-live-route-unavailable" role="status">{ publicActionText( 'blocked' ) }</span>
                     ) : null }
                     { routeResult && routeFrom && routeTo && (
                       <div className="vl-live-route-metrics">
