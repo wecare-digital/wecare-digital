@@ -18,7 +18,6 @@ function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> 
   return dynamic( loader, { ssr: false } );
 }
 
-const StaffAgent = dynamic( () => import( '../../../components/dashboard/tabs/InternalChatTab' ), { ssr: false } );
 const Rules = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Automation' ) );
 const Schedules = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Scheduled' ) );
 const Knowledge = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
@@ -68,12 +67,12 @@ const AutomationWorkspace: React.FC<PageProps> = ( { signOut, user } ) => {
               <section className="automation-mode">
                 <div className="automation-context">
                   <div>
-                    <strong>Staff-only assistant</strong>
-                    <span>Read and planning capabilities follow the server governance catalog. APPLY actions remain refused unless the backend explicitly permits them.</span>
+                    <strong>Legacy assistant retired</strong>
+                    <span>The outdated /ai/generate assistant is disconnected. No automated customer messages or payments are issued here.</span>
                   </div>
                   <Link href="/workspace/settings/internal-agent">Agent configuration →</Link>
                 </div>
-                <StaffAgent />
+                <p role="status">The legacy staff AI assistant has been retired. Automation rules, schedules and knowledge tools remain available. A replacement agent requires a separate reviewed integration.</p>
               </section>
             ) }
             { active === 'rules' && <Rules signOut={ signOut } user={ user } embedded /> }
