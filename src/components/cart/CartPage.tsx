@@ -1902,12 +1902,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                       </table>
                     </div>
                     <dl className="cart-summary">
-                      <div><dt>Items subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
-                      { quote.charges.supplyGstPaise > 0 && <div><dt>GST on products / services</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
+                      <div><dt>Base price subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
+                      { quote.charges.supplyGstPaise > 0 && <div><dt>Supply GST (18%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
                       { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel === 'Delight' ? 'Delight (0.5%)' : ( quote.charges.discountLabel || 'Discount' ) }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
                       <div><dt>{ quote.charges.deliveryLabel || 'Delivery' }</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
-                      <div><dt>Convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
-                      <div><dt>GST on convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
+                      <div><dt>Convenience (2.5%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
+                      <div><dt>GST on convenience (18%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
                       <div className="cart-summary-total"><dt>AMOUNT PAYABLE</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
                     </dl>
                   </>

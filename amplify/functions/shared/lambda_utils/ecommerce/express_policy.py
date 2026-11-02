@@ -5,8 +5,10 @@ A customer basket pays ONE Express amount, not one amount per line:
 * Every other customer checkout: ₹45, including Vault and Drop Docs.
 The unlisted ₹2 commerce verification SKU is internal QA, not a customer item.
 
-The general basket helper takes a previously priced, GST-inclusive native
-snapshot and adds Express BEFORE computing convenience + GST on convenience.
+Customer payment amounts are now calculated by unified_pricing.py using
+these shared Express constants. The older with_standard_express helper is
+retained only for compatible legacy clients; it is NOT the customer checkout
+calculation and must not be wired back into the new GST-exclusive quote.
 Neither a browser price nor a display string can change the money.
 """
 from __future__ import annotations
