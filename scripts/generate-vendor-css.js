@@ -47,7 +47,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { mkdirSync, copyFileSync, cpSync, statSync } from 'node:fs';
+import { mkdirSync, copyFileSync, cpSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,8 +72,11 @@ console.log( '  loaded by <link> on the authenticated routes only; public pages 
 
 // Keep the private Vault PDF parser and its same-origin worker/fonts at one version.
 const pdfRoot=dirname(require_.resolve('pdfjs-dist/package.json'));
-const pdfDest=join(DEST_DIR,'pdfjs');
+// Remove only regenerated assets, so an older unversioned worker cannot ship.
+rmSync(join(DEST_DIR,'pdfjs'),{recursive:true,force:true});
+const pdfVersion=require_('pdfjs-dist/package.json').version;
+const pdfDest=join(DEST_DIR,'pdfjs',pdfVersion);
 mkdirSync(pdfDest,{recursive:true});
-copyFileSync(join(pdfRoot,'build','pdf.worker.min.mjs'),join(pdfDest,'pdf.worker.min.mjs'));
+copyFileSync(join(pdfRoot,'legacy','build','pdf.worker.min.mjs'),join(pdfDest,'pdf.worker.min.mjs'));
 for(const folder of ['cmaps','standard_fonts','wasm'])cpSync(join(pdfRoot,folder),join(pdfDest,folder),{recursive:true});
 console.log('vendor-pdf: matching PDF worker, fonts and decoders copied for private browser previews');
