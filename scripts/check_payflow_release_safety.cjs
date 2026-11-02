@@ -71,11 +71,12 @@ const definitions = read('src/lib/paymentFramework.ts');
 check(page.includes("type PaymentSection = 'collect' | 'vault' | 'contribute'") &&
       page.includes("type PaymentTab = 'display' | 'create' | 'ledger'") &&
       page.includes('SECTION_OPTIONS.map') &&
-      page.includes('className="payment-rail"') &&
+      page.includes('id="payment-type"') &&
+      page.includes('<select id="payment-type" value={section}') &&
+      page.includes('changeSection(choice.value)') &&
       page.includes('className="console-tools"') &&
       page.includes("panel: 'framework'") &&
       page.includes('<PaymentFramework section={section} />') &&
-      page.includes('changeSection(option.value)') &&
       page.includes("tab:'create'") &&
       page.includes("tab:'ledger'"),
       'Collect/Vault/Contribute navigation or message framework is unavailable');

@@ -120,9 +120,7 @@ export const navigationConfig: NavItem[] = [
     label: 'Payments',
     icon: 'payment',
     children: [
-      { path: '/workspace/payments?view=collect', label: 'Collect' },
-      { path: '/workspace/payments?view=vault', label: 'Vault · Review & Pay' },
-      { path: '/workspace/payments?view=contribute&tab=create', label: 'Contribute' },
+      { path: '/workspace/payments', label: 'Payment workspace' },
       { path: '/workspace/payments?view=defaults', label: 'Invoice items (29)' },
       { path: '/workspace/payments?view=timing', label: 'Access Vault delay' },
       { path: '/workspace/payments?view=ledger', label: 'Ledger' },
