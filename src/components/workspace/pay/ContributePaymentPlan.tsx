@@ -17,7 +17,7 @@ export default function ContributePaymentPlan(_props: {workspaceView?: 'display'
     return () => {active=false;};
   },[revision]);
   const b = price.available ? price.breakdown : undefined;
-  const money = (n: number) => '₹'+rupeesFromPaise(n);
+  const money = (n: number) => (n<0?'−':'')+'₹'+rupeesFromPaise(Math.abs(n));
   return <section className="contribute-live" aria-label="Live contribution payment">
     <header className="contribute-top"><div><p>CONTRIBUTE</p><h2>Request a contribution</h2><span>Select a customer, review ₹300 and send Review &amp; Pay.</span></div><div className="contribute-amount"><small>Customer pays</small><strong>{loading?'Checking…':b?money(b.totalPayablePaise):'Unavailable'}</strong><small>{loading?'Reading live quote':checkedAt?`Checked ${checkedAt}`:'Quote unavailable'}</small></div></header>
     <div className="contribute-layout"><ContributeStaffControls price={price} templates={price.available?price.templates||null:null} loadingPrice={loading} refreshPrice={() => setRevision(n=>n+1)} />

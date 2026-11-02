@@ -245,5 +245,21 @@ class FixedInvoicePresetTests(unittest.TestCase):
         resolved=resolver({'fixedPresetId':'fixed-01','shipping':0,'items':[{'amount':1,'name':'tampered'}]})
         self.assertEqual(resolved['shipping'],45)
         self.assertEqual(resolved['items'][0],{'name':'Grahak OS','amount':899,'quantity':1,'gstRate':18})
-        for preset in ('fixed-23','fixed-27','unknown'):
+        for preset in ('fixed-23','fixed-24','fixed-25','fixed-26','fixed-27','fixed-29','unknown'):
             with self.assertRaises(ValueError):resolver({'fixedPresetId':preset})
+
+
+class LegacyReceiptCompatibilityTests(unittest.TestCase):
+    def test_legacy_paid_row_can_reach_claim_but_explicit_refund_stays_refused(self):
+        from types import SimpleNamespace
+        class ClaimBoundary(Exception): pass
+        invoice={'invoiceId':'legacy','status':'paid','customerPhone':'+919000000001'}
+        def table(name):
+            if name=='invoices':return SimpleNamespace(get_item=lambda **kw:{'Item':invoice})
+            raise ClaimBoundary()
+        sender=isolated('amplify/functions/payments/invoice-engine/handler.py','send_invoice_whatsapp',
+            dynamodb=SimpleNamespace(Table=table),INVOICES_TABLE='invoices',COMMERCE_KEYS_TABLE='keys',
+            pay_status=SimpleNamespace(CAPTURED='captured',canonical=lambda v:'captured' if v in ('paid','captured') else v))
+        with self.assertRaises(ClaimBoundary):sender('legacy','+919000000001','demo','offline')
+        invoice['paymentStatus']='refunded'
+        self.assertEqual(sender('legacy','+919000000001','demo','offline')['statusCode'],409)

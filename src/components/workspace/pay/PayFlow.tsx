@@ -1212,10 +1212,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                     </div>
                     <div className="form-group"><label htmlFor="pf-fixed-item">Fixed invoice item</label><select id="pf-fixed-item" value={invForm.items.length===1?invForm.items[0].presetId||'':''} onChange={e=>{
                       const preset=FIXED_ITEMS.find(p=>p.id===e.target.value);
-                      if(!preset){setInvForm(current=>({...current,items:[NEW_ITEM()]}));return;}
-                      if(preset.workflow==='contribute'||preset.workflow==='vault'){void router.push({pathname:'/workspace/payments',query:{view:preset.workflow,tab:'create'}});return;}
+                      if(!preset){setInvForm(current=>({...current,shipping:String(config.default_shipping),items:[NEW_ITEM()]}));return;}
+                      if(preset.workflow!=='collect'){const service=SERVICE_CHOICES.find(s=>s.slug===preset.workflow);void router.push(preset.workflow==='contribute'||preset.workflow==='vault'?{pathname:'/workspace/payments',query:{view:preset.workflow,tab:'create'}}:service?.path||'/workspace/service?view=requests');return;}
                       setInvForm(current=>({...current,shipping:(preset.expressPaise/100).toFixed(2),items:[{presetId:preset.id,name:preset.name,unitPrice:(preset.basePaise/100).toFixed(2),quantity:'1',gstRate:'18',hsnSac:''}]}));
-                    }}><option value="">Custom item</option>{FIXED_ITEMS.map(p=><option key={p.id} value={p.id}>{p.name} · ₹{(p.totalPayablePaise/100).toFixed(2)} final</option>)}</select><small>29 fixed items. Vault opens its exact-file workflow; Contribute opens its ₹300 payment form. The server verifies preset prices.</small></div>
+                    }}><option value="">Custom item</option>{FIXED_ITEMS.map(p=><option key={p.id} value={p.id}>{p.name} · ₹{(p.totalPayablePaise/100).toFixed(2)} final</option>)}</select><small>29 fixed items. Target-bound services open their existing workflow; Contribute opens its ₹300 payment form. The server verifies preset prices.</small></div>
                     <div className="pf-item-card-list">
                       { invForm.items.map( ( it, i ) => (
                         <div className="pf-item-card" key={ i }>

@@ -22,13 +22,13 @@ export default function ContributeStaffControls({price,templates,loadingPrice,re
  const b=price.available?price.breakdown:undefined;
  const exact=price.available&&price.paise===30000&&b?.totalPayablePaise===30000&&b.itemSubtotalPaise===23541&&b.supplyGstPaise===4237&&b.delightPaise===138&&b.expressPaise===1500&&b.convenienceFeePaise===729&&b.convenienceGstPaise===131&&b.collectionBeforeConveniencePaise===29140;
  const canReview=!!selected&&exact&&!loadingPrice&&!editing&&!locked&&!sending;
- const send=async()=>{if(busy.current||!review||!canReview||readiness!=='ready'||!approved||!selected)return;busy.current=true;
+ const send=async()=>{if(busy.current||!review||!canReview||readiness!=='ready'||!approved||!selected)return;busy.current=true;let attempted=false;
   try{const yes=await confirm({title:'Send ₹300 payment request?',message:`${selected.name} · ${selected.phone}. Total ₹300 including GST, Express and fees. Send one approved WhatsApp Review and Pay request?`,confirmText:'Send ₹300 request'});if(!yes)return;setSending(true);setOutcome('');
-   const result=await api.sendStaffContributionPaymentOnce(selected.id);setLocked(result.state!=='REFUSED');
+   attempted=true;const result=await api.sendStaffContributionPaymentOnce(selected.id);setLocked(result.state!=='REFUSED');
    if(result.state==='ACCEPTED')setOutcome('Payment request accepted. Check the customer chat and records for delivery and capture.');
    else if(result.state==='UNCONFIRMED')setOutcome('Send outcome unknown. Check the chat and records before any retry.');
    else setOutcome(result.message||`Request refused: ${result.code}. No confirmed payment request.`);
-  }catch{setLocked(true);setOutcome('Send outcome could not be confirmed. Check the chat and records before retrying.');}finally{busy.current=false;setSending(false);}
+  }catch{if(attempted){setLocked(true);setOutcome('Send outcome could not be confirmed. Check the chat and records before retrying.');}else{setOutcome('The confirmation could not be opened. Nothing was sent; you can try opening it again.');}}finally{busy.current=false;setSending(false);}
  };
  const select=(c:api.Contact)=>{setSelected(c);setReview(false);setError('');};
  const reload=()=>{setReview(false);refreshPrice();setRefresh(n=>n+1);};

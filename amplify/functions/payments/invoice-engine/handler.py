@@ -990,7 +990,7 @@ def _apply_fixed_invoice_preset(body: Dict) -> Dict:
     if not preset:
         raise ValueError('Unknown fixed invoice item')
     if preset.get('workflow') != 'collect':
-        raise ValueError('Use the dedicated Vault or Contribute workspace for this item')
+        raise ValueError('Use the dedicated service workspace for this item')
     if body.get('amountIsTaxInclusive'):
         raise ValueError('A new fixed item cannot be supplied as a captured total')
     return {**body, 'items': [{'name': preset['name'], 'amount': preset['basePaise'] / 100,
@@ -5532,7 +5532,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         return _resp(404, {'error': 'Invoice not found'})
     # The approved receipt body asserts payment. Enforce this for every caller,
     # including manual/forced resends, before any claim, render or token write.
-    if pay_status.canonical(invoice.get('paymentStatus')) != pay_status.CAPTURED:
+    if pay_status.canonical(invoice.get('paymentStatus') or invoice.get('status')) != pay_status.CAPTURED:
         return _resp(409, {'error': 'Verified captured payment required for a paid receipt',
                            'code': 'PAID_RECEIPT_REQUIRED'})
     from lambda_utils.comms.numbers import to_e164

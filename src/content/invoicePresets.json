@@ -285,7 +285,7 @@
     "convenienceFeePaise": 403,
     "convenienceGstPaise": 73,
     "totalPayablePaise": 16600,
-    "workflow": "collect"
+    "workflow": "submit-request"
   },
   {
     "id": "fixed-25",
@@ -297,7 +297,7 @@
     "convenienceFeePaise": 697,
     "convenienceGstPaise": 125,
     "totalPayablePaise": 28687,
-    "workflow": "collect"
+    "workflow": "request-amendment"
   },
   {
     "id": "fixed-26",
@@ -309,7 +309,7 @@
     "convenienceFeePaise": 697,
     "convenienceGstPaise": 125,
     "totalPayablePaise": 28687,
-    "workflow": "collect"
+    "workflow": "drop-docs"
   },
   {
     "id": "fixed-27",
@@ -345,6 +345,6 @@
     "convenienceFeePaise": 2020,
     "convenienceGstPaise": 364,
     "totalPayablePaise": 83201,
-    "workflow": "collect"
+    "workflow": "request-pickup"
   }
 ]

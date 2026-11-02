@@ -24,6 +24,16 @@ FUNCTIONS = {
 
 
 def package(handler_path: str) -> bytes:
+    if handler_path == FUNCTIONS['wecare-invoice-engine']:
+        # Keep the receipt renderer, fonts, recursive shared modules and fixed-item
+        # registry identical to the canonical invoice package on every rollout.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('canonical_lambda_packager',
+            ROOT / 'scripts/deploy_all_lambdas.py')
+        packager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packager)
+        invoice = next(item for item in packager.SPECS if item.name == 'wecare-invoice-engine')
+        return packager.build_zip(invoice)[0]
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write(ROOT / handler_path, "handler.py")
