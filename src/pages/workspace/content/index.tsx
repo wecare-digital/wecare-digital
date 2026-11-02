@@ -8,6 +8,7 @@
  * routes remain compatibility/history pages and are not advertised as live capabilities.
  */
 import React, { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
@@ -16,6 +17,14 @@ import ShortLinks from '../../../components/workspace/content/ShortLinks';
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 type View = 'blog' | 'seo' | 'links';
 type SeoArea = 'tools' | 'pages';
+
+function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
+  return dynamic( loader, { ssr: false } );
+}
+
+const BlogManager = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/BlogManager' ) );
+const SeoTools = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/Tools' ) );
+const PagesManager = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/PagesManager' ) );
 
 const TABS: ShellTab[] = [
   { id: 'blog', label: 'Blog' },
@@ -66,14 +75,7 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
           <Suspense fallback={ <div className="content-state">Loading…</div> }>
             { active === 'blog' && (
               <section className="content-mode">
-                <div className="content-context" role="status">
-                  <div>
-                    <strong>Blog editor retired</strong>
-                    <span>The former SEO/Blog management components were deliberately removed.
-                      Public articles remain available, but no unpublished editing workflow is
-                      offered until its replacement has been reviewed.</span>
-                  </div>
-                </div>
+                <BlogManager signOut={ signOut } user={ user } embedded />
               </section>
             ) }
 
@@ -97,13 +99,9 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
                     Pages
                   </button>
                 </nav>
-                <div className="content-context" role="status">
-                  <div>
-                    <strong>{seoArea === 'tools' ? 'SEO tools retired' : 'SEO pages editor retired'}</strong>
-                    <span>The deleted legacy SEO component is not loaded. Existing public
-                      pages and the separately operated SEO backend are unchanged.</span>
-                  </div>
-                </div>
+                { seoArea === 'tools'
+                  ? <SeoTools signOut={ signOut } user={ user } embedded />
+                  : <PagesManager signOut={ signOut } user={ user } embedded /> }
               </section>
             ) }
 
