@@ -250,6 +250,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const mapRegionRef = useRef<HTMLElement | null>( null );
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
+  // Neutral map camera; no place is selected until the visitor acts.
   // Do not zoom into the default example city when the initial map is fitted to
   // India. Only an explicit new place selection should change that camera.
   const framedPlaceRef = useRef<PlaceState | null>( DEFAULT_PLACE );

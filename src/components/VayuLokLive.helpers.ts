@@ -47,6 +47,16 @@ export const FALLBACK_CURRENCY_CODES = [
   'CNY', 'KRW', 'THB', 'NZD', 'BRL', 'ZAR', 'SAR', 'IDR', 'MYR', 'HKD',
 ];
 
+// SCOPED RED EXCEPTION: UAQI_RED_GREEN is the Universal AQI red-green palette, the most
+// representative continuous global AQI heatmap and the closest match to the reference
+// image's green -> yellow -> orange -> red cloud. These tiles are rendered server-side by
+// Google and MAY contain red for high-pollution areas. That red is DELIBERATELY allowed,
+// but ONLY inside these tile IMAGES on the map. The rest of the page/card (legend ramp,
+// gauge, pollutant rows, hourly history, health recommendations, every component CSS color)
+// stays on the approved no-red palette (#c98a2e -> #e8c547 -> #d1f470 -> #3da35a) and never
+// introduces a red hex. The SCOPED RED EXCEPTION also covers the WEATHER/STORM tiles below:
+// Google's server-rendered radar/cloud imagery MAY contain colour (including red) inside the
+// tile IMAGES; that red lives ONLY in the remote tiles, never in this component's CSS/markup.
 export const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
 export const PM25_HEATMAP_MAP_TYPE = 'PM25_INDIGO_PERSIAN';
 export const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
