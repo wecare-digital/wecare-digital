@@ -449,7 +449,7 @@
       "IVR_AUDIO_URL": "https://wecare.digital/get/o/stream/media/ivr/incoming_welcome.wav",
       "PLIVO_CALLBACK_HOST": "wecare.digital",
       "PLIVO_CALLBACK_PATH_PREFIX": "/api",
-      "POST_CALL_SMS_ENABLED": "true",
+      "POST_CALL_SMS_ENABLED": "false",
       "SMS_FUNCTION": "wecare-sms-aws:live"
     },
     "wecare-product-image-gen": {},
