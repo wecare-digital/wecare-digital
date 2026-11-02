@@ -5179,7 +5179,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:24px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height);border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
-        .vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height);z-index:5;overflow:hidden;border-radius:var(--panel-r);pointer-events:none}
+        .vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height);z-index:5;overflow:hidden;clip-path:inset(0 0 48px 0 round var(--panel-r));border-radius:var(--panel-r);pointer-events:none}
         .vl-live-sky-wash{position:absolute;inset:0;opacity:var(--vl-sky-opacity)}
         .vl-live-weather-visual.is-day .vl-live-sky-wash{background:linear-gradient(180deg,rgba(93,173,226,.64),rgba(187,224,247,.34) 58%,rgba(255,255,255,.06))}
         .vl-live-weather-visual.is-night .vl-live-sky-wash{background:linear-gradient(180deg,rgba(17,32,61,.75),rgba(45,66,96,.46) 60%,rgba(255,255,255,.04))}
