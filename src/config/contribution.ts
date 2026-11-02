@@ -1,16 +1,8 @@
-/** Voluntary contribution catalog configuration.
- *
- * The SKU-first Contribute product has one ₹300 variant in production. Tests use
- * a synthetic identity at the same amount; only the live ProductsTable price
- * is authoritative when a payment is prepared.
- */
-
-const TESTING = process.env.NODE_ENV === 'test';
+/** Live contribution configuration. Server-side ProductsTable remains the authoritative price source. */
 
 export const CONTRIBUTION_CURRENCY = 'INR' as const;
 export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
-export const CONTRIBUTION_PRODUCT_ID: string =
-  TESTING ? '77777777-7777-4777-8777-777777777777' : '24fa0f39-330b-5365-b7eb-9caf27ad37f1';
+export const CONTRIBUTION_PRODUCT_ID: string = '24fa0f39-330b-5365-b7eb-9caf27ad37f1';
 
 export interface ContributionChoice {
   readonly variantId: string;
@@ -18,16 +10,10 @@ export interface ContributionChoice {
   readonly paise: number;
 }
 
-const TEST_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
-  { variantId:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', rupees:300, paise:30000 },
-];
-
-const LIVE_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
+export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
   { variantId:'CNT5Q2M8', rupees:300, paise:30000 },
 ];
 
-export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] =
-  TESTING ? TEST_CONTRIBUTION_CHOICES : LIVE_CONTRIBUTION_CHOICES;
 export const CONTRIBUTION_AMOUNT_LABEL = '₹300';
 export const PAISE_PER_RUPEE = 100;
 

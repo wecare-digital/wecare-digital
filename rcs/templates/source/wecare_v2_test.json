@@ -1,8 +1,0 @@
-{
-  "component": {
-    "text": "Hello [custom_param1b], your order [custom_param2b] is ready for pickup."
-  },
-  "name": "wecare_v2_test",
-  "status": "approved",
-  "type": "text_message"
-}

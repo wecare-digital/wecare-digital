@@ -43,6 +43,8 @@ REGION = "us-east-1"
 REFERENCED = {"rcsmenu"}
 #: Named in docstrings but with no sender since 2026-09-19.
 DOCUMENTED_ONLY = {"rcsorder", "waalert"}
+# Retain provider-side inventory in the manifest without recreating local test-template exports.
+EXCLUDED_TEST_EXPORTS = {"test16", "test17", "wecare_test_create", "wecare_v2_test"}
 
 
 def fetch_templates() -> list:
@@ -298,12 +300,13 @@ def write_export(templates: list) -> dict:
     for template in templates:
         name = template.get("name") or "unnamed"
         safe = "".join(c for c in name if c.isalnum() or c in "-_") or "unnamed"
-        # The original remote representation, preserved byte-for-byte in meaning.
-        (SOURCE / f"{safe}.json").write_text(
-            json.dumps(template, indent=2, ensure_ascii=False, sort_keys=True) + "\n")
+        # Preserve the provider's metadata in manifest, but not local copies of test templates.
         row = normalize(template)
-        (NORMALIZED / f"{safe}.json").write_text(
-            json.dumps(row, indent=2, ensure_ascii=False, sort_keys=True) + "\n")
+        if name not in EXCLUDED_TEST_EXPORTS:
+            (SOURCE / f"{safe}.json").write_text(
+                json.dumps(template, indent=2, ensure_ascii=False, sort_keys=True) + "\n")
+            (NORMALIZED / f"{safe}.json").write_text(
+                json.dumps(row, indent=2, ensure_ascii=False, sort_keys=True) + "\n")
         rows.append(row)
 
     findings = validate(rows)
