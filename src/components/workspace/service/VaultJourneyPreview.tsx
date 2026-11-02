@@ -430,7 +430,7 @@ export default function VaultJourneyPreview ( props: Props ) {
           <span>PREVIEW · NOT ISSUED</span>
         </div>
         <h3>Vault access invoice · fixed amount</h3>
-        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. Only the ₹49 Vault item's one-line description is editable; the file, quantity 1, catalogue amount and all pricing remain locked. The receipt image and tax invoice are generated only after verified payment.</p>
+        <p className={ styles.hint }>Same canonical invoice/payment backend as Pay &amp; Flow. Only the ₹49 Vault item&apos;s one-line description is editable; the file, quantity 1, catalogue amount and all pricing remain locked. The receipt image and tax invoice are generated only after verified payment.</p>
         <p className={ styles.customer }>{ owner } · { mobile }</p>
         { editable49Item && (
           <div className={ styles.itemNamePreview }>

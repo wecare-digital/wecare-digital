@@ -72,5 +72,5 @@ export const FRAMEWORK_GAPS = [
   {title: 'Uncertain sends and reloads', detail: 'Browser attempt locks are scoped to mounted components. Durable backend send claims govern replay, navigation, reloads and other staff clients. Unknown outcomes require reconciliation.'},
   {title: 'Collect reference ownership', detail: 'Architecture says references are server-owned, while Collect currently supplies a browser reference for invoice deduplication. Coordinate a backend idempotency migration before changing that existing contract.'},
   {title: 'Contribute evidence is spread across records', detail: 'Catalog orders, payment activity and invoice references must be correlated. A matching name or ₹300 amount alone is insufficient evidence of a contribution.'},
-  {title: 'Release verification', detail: 'Authenticated live QA and provider readiness still need verification after deployment. Repository lint is blocked by its TypeScript 7 / typescript-eslint incompatibility.'},
+  {title: 'Release verification', detail: 'Authenticated live QA and provider readiness require per-release verification. The locked TypeScript version is compatible with the lint parser; source checks do not prove customer delivery.'},
 ];

@@ -122,10 +122,10 @@ function loadTypeScript(file, mockRequire) {
     target: 'es2022',
     jsx: 'automatic',
   }).code;
-  const module = { exports: {} };
-  const sandbox = { module, exports: module.exports, require: mockRequire };
+  const loadedModule = { exports: {} };
+  const sandbox = { module: loadedModule, exports: loadedModule.exports, require: mockRequire };
   vm.runInNewContext(output, sandbox, { timeout: 4000, filename: file });
-  return module.exports;
+  return loadedModule.exports;
 }
 const publicNotices = loadTypeScript('src/lib/publicActionNotices.ts', name => { throw Error('Unexpected public notice import: ' + name); });
 const copy = {

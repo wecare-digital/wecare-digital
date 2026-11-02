@@ -6,6 +6,7 @@
  * generic template sender or invoice engine to fabricate a contribution charge.
  */
 import React from 'react';
+import Link from 'next/link';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { rupeesFromPaise, type ServicePaymentTemplates, type ServicePrice } from '../../../lib/servicePricing';
@@ -290,7 +291,7 @@ const ContributeStaffControls: React.FC<Props> = ({
                   : ' No reliable phone-verification proof is shown here; backend identity verification is still required.'}
               </p>
             )}
-            <a href="/workspace/payments?view=collect">Open general Collect / customer management</a>
+            <Link href="/workspace/payments?view=collect">Open general Collect / customer management</Link>
           </div>
           <div className="staff-field">
             <label htmlFor="contribute-reference">Internal draft reference (3–60 characters)</label>
@@ -370,7 +371,7 @@ const ContributeStaffControls: React.FC<Props> = ({
         .staff-field input,.staff-field select,.staff-field textarea{width:100%;max-width:100%;box-sizing:border-box;min-height:44px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:var(--surface-raised,#fff);color:var(--text-primary)}
         .staff-field textarea{min-height:86px;resize:vertical}
         .staff-field input[aria-invalid="true"]{border-color:#b74545}
-        .staff-field a{font-size:12px;color:var(--text-primary);text-decoration:underline;align-self:flex-start}
+        .staff-field :global(a){font-size:12px;color:var(--text-primary);text-decoration:underline;align-self:flex-start}
         .staff-actions{margin-top:15px;display:flex;gap:8px;flex-wrap:wrap}
         button{min-height:42px;padding:8px 13px;border-radius:9px;border:1px solid var(--border);font-weight:800;font-size:12px;cursor:pointer;background:var(--surface);color:var(--text-primary)}
         button.primary{background:var(--lime);border-color:var(--accent);color:var(--accent)}
@@ -388,7 +389,7 @@ const ContributeStaffControls: React.FC<Props> = ({
         .message-preview strong,.message-preview span{font-size:12px}
         .message-preview span{color:var(--text-muted)}
         .message-preview p{font-size:14px;margin:9px 0;line-height:1.6}
-        button:focus-visible,.staff-field a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+        button:focus-visible,.staff-field :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
         @media(max-width:700px){.contribute-staff{padding:13px}.staff-head{display:grid}.staff-form-grid,.staff-readiness{grid-template-columns:1fr}.staff-actions{display:grid}.staff-actions button,.staff-head button{width:100%}button.send-payment{margin-left:0}.staff-review header{flex-wrap:wrap}}
       `}</style>
     </section>
