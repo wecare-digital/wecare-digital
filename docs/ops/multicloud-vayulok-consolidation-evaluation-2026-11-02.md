@@ -60,7 +60,7 @@ The reasons the historical service plausibly belongs on GCP are structural, not 
 - **BigQuery GIS** (`ST_GEOGPOINT`, `ST_DWITHIN`, `ST_DISTANCE`) is the query engine. Reproducing geospatial aggregation at comparable cost elsewhere is not trivial.
 - **Free-tier economics**: the whole service is built around BigQuery's free-tier query allowance, enforced by the 1 GiB per-query cap and the daily attempt budget. That economic model is specific to BigQuery.
 - **Keyless auth**: Cloud Run workload identity (metadata-server token) means there is no stored key to manage or rotate.
-- **Region**: `asia-south1` co-locates with the India-focused product and its data.
+- **Region**: the Cloud Run service and its Artifact Registry image are in `asia-south1` (per `cloudbuild.yaml`), co-locating the compute with the India-focused product. Note the BigQuery data location is not established as `asia-south1`: `server.mjs` sets `LOCATION = process.env.BQ_LOCATION || 'US'`, so the dataset defaults to `US` unless `BQ_LOCATION` is overridden. The data-gravity argument below rests on the data living in BigQuery at all, not on its region.
 
 ## 6. The tradeoffs the audit raised (sections 2.7, 5f)
 
