@@ -18,7 +18,7 @@ assert(live.includes('north: 37.5,') && live.includes('south: 6.0,')
   && live.includes('east: 98.0,') && live.includes('west: 67.5,'),
   'India overview bounds must include mainland and island regions');
 assert(live.includes('--vl-map-height:clamp(500px,calc(100svh - 112px),820px)'),
-  'desktop sticky map must fit the user's viewport height');
+  "desktop sticky map must fit the user's viewport height");
 assert(live.includes('--vl-map-height:clamp(460px,77vw,720px)'),
   'tablet map viewport must not be artificially cropped');
 assert(live.includes('--vl-map-height:clamp(440px,112vw,640px)'),
