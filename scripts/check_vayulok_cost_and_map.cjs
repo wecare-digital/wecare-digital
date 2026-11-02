@@ -16,8 +16,8 @@ assert(live.includes("fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 )"), 'India overvie
 assert(live.includes('north: 37.5,') && live.includes('south: 6.0,')
   && live.includes('east: 98.0,') && live.includes('west: 67.5,'),
   'India overview bounds must include mainland and island regions');
-assert(live.includes('--vl-map-height:clamp(580px,60vw,820px)'),
-  'desktop map must have a large responsive viewport');
+assert(live.includes('--vl-map-height:clamp(500px,calc(100svh - 112px),820px)'),
+  'desktop sticky map must fit the user's viewport height');
 assert(live.includes('--vl-map-height:clamp(460px,77vw,720px)'),
   'tablet map viewport must not be artificially cropped');
 assert(live.includes('--vl-map-height:clamp(440px,112vw,640px)'),
@@ -26,9 +26,9 @@ assert(live.includes('grid-template-columns:minmax(0,1fr) minmax(320px,416px)'),
   'desktop map must have an unobstructed column alongside the detail card');
 assert(live.includes('grid-template-rows:var(--vl-map-height) auto'),
   'narrow map must have a separate real grid track before the detail card');
-assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:24px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height)'),
+assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:80px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height)'),
   'desktop map and placeholder must share a full-size sticky viewport');
-assert(live.includes('.vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height)') &&
+assert(live.includes('.vl-live-weather-visual{position:sticky;top:80px;grid-area:1/1;align-self:start;height:var(--vl-map-height)') &&
   live.includes('clip-path:inset(0 0 48px 0 round var(--panel-r))'),
   'weather visual must align with the map and leave attribution visible');
 assert(live.includes('.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/2;'),
