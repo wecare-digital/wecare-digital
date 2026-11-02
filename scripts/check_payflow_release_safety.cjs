@@ -84,9 +84,18 @@ for (const role of ['payment', 'status', 'invoice', 'access']) {
 }
 check(framework.includes('OutgoingMessageContent'),
       'Framework no longer shows full message/header/button content');
-const collect = read('src/components/workspace/pay/CollectOverview.tsx');
-check(collect.includes('setRows([])') && collect.includes('totals[currency]'),
-      'Collect stale-refresh or currency total regression');
+// CollectOverview was deliberately retired when the canonical PayFlow workspace
+// took over Collect's invoice list and totals. Keep a *functional* guard against
+// stale lists and incorrect paid-state claims, but do not import deleted UI.
+const collect = read('src/components/workspace/pay/PayFlow.tsx');
+check(page.includes('<PayFlowPage') &&
+      collect.includes('const loadInvoices = useCallback') &&
+      collect.includes('api.listInvoicesEngine( params )') &&
+      collect.includes("setInvoices( statusFilter === 'active' ? rows.filter") &&
+      collect.includes("paymentStatus === 'captured'") &&
+      collect.includes('setCustomers([])') &&
+      collect.includes('loadInvoices();'),
+      'Collect must retain live invoice refresh, customer error reset, and paid-state guard');
 const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');
