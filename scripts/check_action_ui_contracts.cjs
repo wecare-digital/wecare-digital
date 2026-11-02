@@ -165,7 +165,6 @@ assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
 // Prevent reintroduction of the explicitly retired customer-facing messages.
 // Compile TSX without executing it: the transform strips non-rendered comments.
 const publicScreens = [
-  'src/components/orders/RequestsPanel.tsx',
   'src/components/ProductBuyBox.tsx',
   'src/components/cart/CheckoutPriceBreakdown.tsx',
   'src/components/VayuLokLive.tsx',
