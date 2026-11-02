@@ -27,8 +27,16 @@ not an upstream correction of the advisory database.
 Check: node scripts/guard_minimatch_preprocess.cjs --check
 Behavior: node scripts/check_minimatch_preprocess.cjs
 Both install roots must be installed for the behavior check to cover both trees.
+Install them sequentially: their lifecycle guards inspect both installed trees.
 The probes exercise ordinary matching, bounded **/.. expansion and large-set
 processing in subprocesses with an eight-second timeout per copy.
+
+Clean npm ci succeeds for each root. The root dependency-tree check succeeds.
+The backend installed-tree npm ls check still reports ELSPROBLEMS around bundled
+archiver-utils/readdir-glob metadata and archiver-utils' overridden glob range.
+Its lockfile-only tree check succeeds, and actual archive expansion, CDK asset
+filtering, glob cancellation and backend imports pass. Do not describe the entire
+backend dependency tree as warning-free or fully validated for stack deployment.
 
 Do not suppress/dismiss scanner alerts or claim npm audit is clean. Backend npm
 audit also reports bundled OpenTelemetry and Zod advisories, propagated through
