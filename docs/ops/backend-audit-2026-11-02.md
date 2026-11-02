@@ -14,7 +14,9 @@ Five unreferenced recovery tables from 2026-10-30 were removed only after dedica
 
 The shared `lambda_utils/ecommerce/meta_catalog_sync.py` helper remains because native basket parsing, checkout analytics and website catalog generation use its retailer-ID and projection contracts. Removing that shared module would break active consumers.
 
-The latest function inventory contains 76 Lambdas and 78 DynamoDB tables in us-east-1. Recent direct invocations and current release/rollback dependencies justify retaining checkout, invoice and catalog functions that have no HTTP route. Keep Cognito triggers, CloudFront edge handlers and scheduled/queue workers even when they have no HTTP integration. Private inventory outputs must not be committed to this public repository.
+The verified empty legacy SmsOutboundTable was also removed after an AVAILABLE backup; current and deployed SMS handlers use the canonical MessagesTable. The active WhatsApp template registry was retained based on recent read/write metrics.
+
+The latest function inventory contains 76 Lambdas and 77 DynamoDB tables in us-east-1. Recent direct invocations and current release/rollback dependencies justify retaining checkout, invoice and catalog functions that have no HTTP route. Keep Cognito triggers, CloudFront edge handlers and scheduled/queue workers even when they have no HTTP integration. Private inventory outputs must not be committed to this public repository.
 
 ## Security
 

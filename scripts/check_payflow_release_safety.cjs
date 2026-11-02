@@ -96,6 +96,36 @@ check(page.includes('<PayFlowPage') &&
       collect.includes('setCustomers([])') &&
       collect.includes('loadInvoices();'),
       'Collect must retain live invoice refresh, customer error reset, and paid-state guard');
+
+// The old Collect overview is unmounted. Guard the actual read-only ledger.
+const ledgerSource = read('src/components/workspace/pay/InvoiceRecords.tsx');
+check(page.includes('<InvoiceRecords') &&
+      ledgerSource.includes('request !== loadRequest.current') &&
+      ledgerSource.includes('setInvoices( [] )') &&
+      ledgerSource.includes('request === loadRequest.current') &&
+      ledgerSource.includes('request !== logRequest.current') &&
+      ledgerSource.includes('request === logRequest.current'),
+      'Active invoice ledger must clear stale rows and ignore superseded responses');
+const esbuild = require('esbuild');
+const vm = require('node:vm');
+const loadedLedger = {exports: {}};
+const compiledLedger = esbuild.transformSync(ledgerSource, {
+  loader: 'tsx', format: 'cjs', target: 'es2022',
+}).code;
+vm.runInNewContext(compiledLedger, {
+  module: loadedLedger, exports: loadedLedger.exports, require: () => ({}), Intl,
+}, {timeout: 4000});
+const grouped = loadedLedger.exports.invoiceTotalsByCurrency([
+  {currency: 'INR', total: 100, tax: 18, paymentStatus: 'captured'},
+  {currency: 'USD', total: 20, tax: 2, paymentStatus: 'pending'},
+  {currency: 'inr', total: 50, tax: 9, paymentStatus: 'paid'},
+]);
+check(grouped.INR?.billed === 150 && grouped.INR?.collected === 150 &&
+      grouped.INR?.tax === 27 && grouped.USD?.billed === 20 &&
+      grouped.USD?.collected === 0 && grouped.USD?.tax === 2,
+      'Invoice ledger must keep totals and paid amounts separate by currency');
+const emptyTotals = loadedLedger.exports.invoiceTotalsByCurrency([]);
+check(Object.keys(emptyTotals).length === 0, 'Empty ledger must not invent totals');
 const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');

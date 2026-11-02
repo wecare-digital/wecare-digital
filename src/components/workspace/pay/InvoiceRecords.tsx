@@ -27,7 +27,7 @@
  * rule changed.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
@@ -75,7 +75,33 @@ function money ( amount?: number, currency?: string ): string {
   }
 }
 
+export interface InvoiceCurrencyTotals {
+  count: number;
+  billed: number;
+  collected: number;
+  tax: number;
+}
+
+/** Group stored amounts by their own currency; never add different currencies. */
+export function invoiceTotalsByCurrency(invoices: api.Invoice[]): Record<string, InvoiceCurrencyTotals> {
+  const totals: Record<string, InvoiceCurrencyTotals> = Object.create(null);
+  const amount = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  for (const invoice of invoices) {
+    const currency = (invoice.currency || 'INR').trim().toUpperCase() || 'INR';
+    const group = totals[currency] ||= {count: 0, billed: 0, collected: 0, tax: 0};
+    group.count += 1;
+    group.billed += amount(invoice.total);
+    group.tax += amount(invoice.tax);
+    if (['captured', 'paid'].includes((invoice.paymentStatus || '').toLowerCase())) {
+      group.collected += amount(invoice.total);
+    }
+  }
+  return totals;
+}
+
 const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, serviceKind } ) => {
+  const loadRequest = useRef( 0 );
+  const logRequest = useRef( 0 );
   const toast = useToastContext();
   const router = useRouter();
   const [ invoices, setInvoices ] = useState<api.Invoice[]>( [] );
@@ -95,6 +121,12 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
   }, [ router.query.search ] );
 
   const load = useCallback( async () => {
+    const request = ++loadRequest.current;
+    logRequest.current += 1;
+    setOpenLog( null );
+    setLogs( [] );
+    setLogLoading( false );
+    setInvoices( [] );
     setLoading( true );
     setScopeError( '' );
     try
@@ -105,6 +137,7 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
         limit: 2000,
         ...( serviceKind ? { serviceKind } : {} ),
       } );
+      if ( request !== loadRequest.current ) return;
       const rows = r.invoices || [];
       if ( serviceKind && rows.some( row => row.serviceKind !== serviceKind ) ) {
         // Old backend versions silently ignore unknown query keys. Never show
@@ -116,16 +149,20 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
       }
     } catch
     {
+      if ( request !== loadRequest.current ) return;
       setInvoices( [] );
       setScopeError( serviceKind ? 'Could not verify the service ledger. No invoice has been attributed.' : '' );
       toast.error( 'Could not load invoice records' );
     } finally
     {
-      setLoading( false );
+      if ( request === loadRequest.current ) setLoading( false );
     }
   }, [ serviceKind, toast ] );
 
-  useEffect( () => { load(); }, [ load ] );
+  useEffect( () => {
+    void load();
+    return () => { loadRequest.current += 1; logRequest.current += 1; };
+  }, [ load ] );
   useEffect( () => { setPage( 1 ); }, [ statusFilter, search, serviceKind ] );
 
   const statuses = useMemo( () => {
@@ -161,36 +198,29 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
     } );
   }, [ invoices, statusFilter, search ] );
 
-  const totals = useMemo( () => {
-    // Summed from the stored totals, never recomputed from line items - the invoice
-    // is the record, and a second calculation is a second answer.
-    const paidRows = filtered.filter( ( i ) =>
-      [ 'captured', 'paid' ].includes( ( i.paymentStatus || '' ).toLowerCase() ) );
-    const sum = ( rows: api.Invoice[] ) =>
-      rows.reduce( ( n, i ) => n + ( Number( i.total ) || 0 ), 0 );
-    return {
-      count: filtered.length,
-      billed: sum( filtered ),
-      collected: sum( paidRows ),
-      tax: filtered.reduce( ( n, i ) => n + ( Number( i.tax ) || 0 ), 0 ),
-      currency: filtered[ 0 ]?.currency || 'INR',
-    };
-  }, [ filtered ] );
+  const totals = useMemo( () => invoiceTotalsByCurrency( filtered ), [ filtered ] );
 
   const totalPages = Math.max( 1, Math.ceil( filtered.length / PER_PAGE ) );
   const rows = filtered.slice( ( page - 1 ) * PER_PAGE, page * PER_PAGE );
 
   const showLog = useCallback( async ( invoiceId: string ) => {
-    if ( openLog === invoiceId ) { setOpenLog( null ); return; }
+    const request = ++logRequest.current;
+    if ( openLog === invoiceId ) {
+      setOpenLog( null ); setLogs( [] ); setLogLoading( false ); return;
+    }
     setOpenLog( invoiceId );
     setLogLoading( true );
     setLogs( [] );
     try
     {
       const r = await api.getInvoiceDeliveryLog( invoiceId );
+      if ( request !== logRequest.current ) return;
       setLogs( r.deliveryLogs || [] );
-    } catch { toast.error( 'Could not load the delivery log' ); }
-    finally { setLogLoading( false ); }
+    } catch {
+      if ( request === logRequest.current ) toast.error( 'Could not load the delivery log' );
+    } finally {
+      if ( request === logRequest.current ) setLogLoading( false );
+    }
   }, [ openLog, toast ] );
 
   const when = ( ts?: number ) => ts
@@ -222,24 +252,26 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
           <div role="alert" className="ir-scope-error">{ scopeError }</div>
         ) : (
         <>
-        <div className="ir-cards">
+        { Object.entries( totals ).map( ( [ currency, group ] ) => (
+        <div className="ir-cards" key={ currency } aria-label={ `${currency} invoice totals` }>
           <div className="ir-card">
-            <span className="ir-n">{ totals.count }</span>
+            <span className="ir-n">{ group.count }</span>
             <span className="ir-l">Invoices</span>
           </div>
           <div className="ir-card">
-            <span className="ir-n">{ money( totals.billed, totals.currency ) }</span>
+            <span className="ir-n">{ money( group.billed, currency ) }</span>
             <span className="ir-l">Billed</span>
           </div>
           <div className="ir-card">
-            <span className="ir-n">{ money( totals.collected, totals.currency ) }</span>
+            <span className="ir-n">{ money( group.collected, currency ) }</span>
             <span className="ir-l">Collected</span>
           </div>
           <div className="ir-card">
-            <span className="ir-n">{ money( totals.tax, totals.currency ) }</span>
+            <span className="ir-n">{ money( group.tax, currency ) }</span>
             <span className="ir-l">Tax</span>
           </div>
         </div>
+        ) ) }
 
         <div className="ir-filters">
           <div className="ir-fg">
