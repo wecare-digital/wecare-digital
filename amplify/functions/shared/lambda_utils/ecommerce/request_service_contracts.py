@@ -77,12 +77,12 @@ _CONTRACTS = (
     RequestServiceContract(
         service_code="VAULT",
         label="Vault",
-        product_id="d4cfc6e8-10b3-5c47-94c8-3c69f4c03907",
-        sku="RVT6K4Q8",
+        product_id=express_policy.VAULT_PRODUCT_ID,
+        sku=express_policy.VAULT_VARIANT_ID,
         flow_capability="",
         fulfillment_kind="secure_download",
         supply_gst_bps=1800,
-        express_paise=express_policy.STANDARD_EXPRESS_PAISE,
+        express_paise=express_policy.VAULT_EXPRESS_PAISE,
     ),
     RequestServiceContract(
         service_code="REQUEST_PICKUP",
