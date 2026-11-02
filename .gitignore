@@ -212,3 +212,6 @@ public/vendor/amplify-ui.css
 !.kiro/steering/*.md
 .env.omni
 .omni/collector.json
+
+# Rebuilt from the pinned PDF.js package; no vendored version drift.
+public/vendor/pdfjs/

@@ -9,6 +9,7 @@ import {useConfirm} from '../../../contexts/ConfirmContext';
 import PaymentCustomerPicker from './PaymentCustomerPicker';
 import PaymentFramework from './PaymentFramework';
 import VaultDeliveryTiming from './VaultDeliveryTiming';
+import VaultPdfPreview from './VaultPdfPreview';
 import s from './VaultWorkspace.module.css';
 
 type Preview={src:string;label:string;type:string};
@@ -28,7 +29,7 @@ export default function VaultWorkspace(){
  return <main className={s.root}><header className={s.header}><div><span className={s.eyebrow}>WORKSPACE</span><h1>Vault</h1><p>Upload a private file, review its payment and track paid access.</p></div><Link href="/workspace/collect/">Collect · custom invoices ↗</Link></header>
  <nav className={s.nav} aria-label="Vault tabs">{(['Create','Control','Log'] as const).map(name=><button key={name} aria-current={tab===name?'page':undefined} onClick={()=>{setTab(name);setPreview(null);}}>{name}</button>)}</nav>
  <div className={s.layout}><div className={s.main}><div hidden={tab!=='Create'}><VaultCreate visible={tab==='Create'} revision={revision} onPreview={onPreview} onChanged={changed}/></div>{tab==='Control'&&<VaultControl/>}{tab==='Log'&&<VaultLog revision={revision} onPreview={onPreview} onChanged={changed}/>}</div>
- <aside className={s.aside} aria-label="Vault file and invoice preview"><h2>{preview?.type==='invoice'?'Saved invoice preview':'File & payment preview'}</h2>{preview?<><p>{preview.label}</p>{preview.type==='application/pdf'?<iframe title="Private PDF preview" src={preview.src}/>:<img src={preview.src} alt={preview.label}/>}<div className={s.actions}><a href={preview.src} target="_blank" rel="noopener noreferrer">Open full preview ↗</a></div><p>Private links expire. Use Preview again to obtain a fresh link to the saved version.</p></>:<p>Choose a local file or a verified saved file to inspect it here. In Log, open the saved invoice after payment. No invoice image is invented before it exists.</p>}</aside></div></main>;
+ <aside className={s.aside} aria-label="Vault file and invoice preview"><h2>{preview?.type==='invoice'?'Saved invoice preview':'File & payment preview'}</h2>{preview?<><p>{preview.label}</p>{preview.type==='application/pdf'?<VaultPdfPreview key={preview.src} src={preview.src}/>:<img src={preview.src} alt={preview.label}/>}<div className={s.actions}><a href={preview.src} target="_blank" rel="noopener noreferrer">Open full preview ↗</a></div><p>Private links expire. Use Preview again to obtain a fresh link to the saved version.</p></>:<p>Choose a local file or a verified saved file to inspect it here. In Log, open the saved invoice after payment. No invoice image is invented before it exists.</p>}</aside></div></main>;
 }
 function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;revision:number;onPreview:(p:Preview|null)=>void;onChanged:()=>void}){
  const confirm=useConfirm();const [customer,setCustomer]=React.useState<api.Contact|null>(null),[local,setLocal]=React.useState<File|null>(null),[files,setFiles]=React.useState<api.SecureFile[]>([]),[selected,setSelected]=React.useState<api.SecureFile|null>(null);

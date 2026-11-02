@@ -47,7 +47,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { mkdirSync, copyFileSync, statSync } from 'node:fs';
+import { mkdirSync, copyFileSync, cpSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -69,3 +69,11 @@ copyFileSync( SOURCE, DEST );
 const kb = Math.round( statSync( DEST ).size / 1024 );
 console.log( `vendor-css: @aws-amplify/ui-react/styles.css (${kb} kB) -> public/vendor/amplify-ui.css` );
 console.log( '  loaded by <link> on the authenticated routes only; public pages get src/styles/amplify-base.css' );
+
+// Keep the private Vault PDF parser and its same-origin worker/fonts at one version.
+const pdfRoot=dirname(require_.resolve('pdfjs-dist/package.json'));
+const pdfDest=join(DEST_DIR,'pdfjs');
+mkdirSync(pdfDest,{recursive:true});
+copyFileSync(join(pdfRoot,'build','pdf.worker.min.mjs'),join(pdfDest,'pdf.worker.min.mjs'));
+for(const folder of ['cmaps','standard_fonts','wasm'])cpSync(join(pdfRoot,folder),join(pdfDest,folder),{recursive:true});
+console.log('vendor-pdf: matching PDF worker, fonts and decoders copied for private browser previews');
