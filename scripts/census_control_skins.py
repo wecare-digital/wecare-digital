@@ -36,11 +36,10 @@ TWO ADDITIONS WERE MADE WHEN IT WAS COMMITTED, neither of which touches how it c
   1. ROOT is derived from this file's location instead of being a hardcoded absolute path
      to one worktree. The scan is identical when run from that worktree; the difference is
      that the committed script also works from the branch it is committed to.
-  2. --json, plus a SELF-TEST on a planted sample, because src/test/FormControlsCss.test.ts
-     asserts against the committed fixture src/test/fixtures/control-skin-census.json rather
-     than re-deriving the scan in TypeScript. The self-test exists for the reason
-     ScrollbarDeclarations.test.ts has one: a scanner with a parsing bug reports FEWER files
-     than exist, which reads as "the gate passed".
+  2. --json, plus a SELF-TEST on a planted sample. The former FormControlsCss
+     test and committed census fixture were removed during repository cleanup.
+     Keep the scanner's self-test: a parsing bug otherwise reports FEWER files
+     than exist, which can look like a successful cleanup.
 
 A THIRD ADDITION LANDED WITH BATCH 1.3c, and it does not touch the counting rule either -
 it WIDENS THE ELEMENT SET the same rule is applied to.
@@ -67,9 +66,9 @@ scan - tokens.css:420, :434, :440, inner-pages.css:279, :1999, :2021 and
 MCPConnections.module.css:14. tokens.css:420 is the one that forces form-controls.css to
 declare `padding: 0` on the checkbox.
 
---json emits BOTH sets from one invocation, because src/test/fixtures/control-skin-census.json
-is one committed fixture and two scans in two files would drift apart. The select set keeps
-the top-level keys it has always had; the checkbox/radio set arrives under `checkboxRadio`.
+--json emits BOTH sets from one invocation so select and checkbox/radio counts share
+the same scanner. The select set keeps its original top-level keys; the checkbox/radio
+set arrives under `checkboxRadio`. No committed test fixture is required.
 --elements selects the element set for the HUMAN report only; with --json present, --json
 wins and everything is emitted.
 """
@@ -485,11 +484,9 @@ def parse_elements(argv):
 def main():
     argv = sys.argv[1:]
     if '--json' in argv:
-        # BOTH SETS FROM ONE INVOCATION. The fixture is one committed file and two scans in
-        # two files would drift apart - which is the whole reason assertion 10 shares
-        # assertion 3's producer instead of getting a second scanner. The select set keeps
-        # the top-level keys it has always had, so the assertions written against it do not
-        # move; the checkbox/radio set arrives alongside under `checkboxRadio`.
+        # BOTH SETS FROM ONE INVOCATION. Share one scanner for select and
+        # checkbox/radio, preserving the historical select keys and adding
+        # checkbox/radio counts alongside under `checkboxRadio`.
         sel = scan(['select'])
         cbr = scan(['checkbox', 'radio'])
         json.dump({

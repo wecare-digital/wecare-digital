@@ -41,9 +41,10 @@ frontend:
         # failed. Standard-library syntax compilation is safe and runs offline:
         # no messages, payments, AWS mutation or runtime import side effects.
         - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils > /tmp/wecare-python-compile.log 2>&1 || { aws s3 cp /tmp/wecare-python-compile.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/python-compile-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-python-compile.log; exit 1; }; tail -n 20 /tmp/wecare-python-compile.log
-        # Retired the repository's tests/ unit-test suite by owner request.
-        # Keep production guards: Python compileall, source/UI contract checks,
-        # TypeScript, static site export, release validation, and credential checks.
+        # The historical browser and Python test suites were retired; a dedicated
+        # transport-contract test now runs in GitHub's Payflow safety workflow.
+        # Amplify independently enforces Python compilation, real-data safety,
+        # source/UI contracts, TypeScript, export and credential checks.
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
@@ -58,7 +59,7 @@ frontend:
         # This was blocked until the four @opentelemetry backend packages moved to
         # amplify/package.json: their bundled subtree is internally inconsistent and
         # `npm ci` correctly refuses it. The root lockfile no longer contains them.
-        # See docs/npm-ci-backend-isolation.md.
+        # The backend CDK dependency tree is isolated under amplify/package.json.
         #
         # NO --legacy-peer-deps: the committed lockfile is generated
         # with plain `npm install`, so the flag has nothing to resolve. The exact npm version
@@ -72,6 +73,8 @@ frontend:
         - npm ci --cache .npm --prefer-offline --no-audit --no-fund > /tmp/wecare-npm-ci.log 2>&1 || { aws s3 cp /tmp/wecare-npm-ci.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/npm-ci-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-npm-ci.log; exit 1; }; tail -n 20 /tmp/wecare-npm-ci.log
         # Catch deleted active Workspace imports and Orders/notification drift before tsc.
         - node scripts/check_action_ui_contracts.cjs > /tmp/wecare-action-ui-contracts.log 2>&1 || { aws s3 cp /tmp/wecare-action-ui-contracts.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/action-ui-contracts-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-action-ui-contracts.log; exit 1; }; tail -n 20 /tmp/wecare-action-ui-contracts.log
+        # Reject fictional provider offers, fabricated analytics and test-template sends in every production build.
+        - node scripts/check_production_data_safety.cjs > /tmp/wecare-production-data-safety.log 2>&1 || { aws s3 cp /tmp/wecare-production-data-safety.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/production-data-safety-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-production-data-safety.log; exit 1; }; tail -n 20 /tmp/wecare-production-data-safety.log
         # DEPLOY GATE. Store private diagnostics before failing so release blockers are inspectable
         # without relying on Amplify's service-owned log bucket.
         - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-unknown}"

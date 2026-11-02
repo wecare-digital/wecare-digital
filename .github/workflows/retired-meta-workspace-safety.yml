@@ -16,9 +16,11 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      # Current lockfile omits @emnapi dependencies; avoid rewriting it in this PR.
-      - name: Install dependencies without modifying lockfile
-        run: npm install --no-package-lock --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      # Use the same locked, reproducible install as the verified Amplify production build.
+      - name: Install declared npm and locked dependencies
+        run: |
+          npm install --global npm@11.6.2
+          npm ci --no-audit --no-fund
       - name: Typecheck native product workspace
         run: npm run typecheck
       - name: Ensure retired Meta UI is inaccessible

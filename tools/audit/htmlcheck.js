@@ -232,5 +232,4 @@ for ( const route of list ) {
 
 const counts = findings.reduce( ( a, f ) => ( a[ f.sev ] = ( a[ f.sev ] || 0 ) + 1, a ), {} );
 console.log( `\nHIGH ${counts.HIGH || 0}  MED ${counts.MED || 0}  LOW ${counts.LOW || 0}` );
-console.log( 'This checks MARKUP only. Geometry, contrast and timing are the design harnesses' );
-console.log( 'in tools/browser/ — the two axes are independent.' );
+console.log( 'This checks exported HTML MARKUP only; it does not replace interactive browser QA.' );

@@ -7,8 +7,8 @@
 // positional directory argument. There was also no ESLint package, binary or
 // config anywhere in the repo, so this project had no working linter at all.
 //
-// eslint-config-next 16.3.5 is pinned to the same minor as next itself, and
-// ships flat-config-ready entrypoints ("." and "./core-web-vitals").
+// eslint-config-next follows the matching Next.js 16 version declared in
+// package.json and ships flat-config-ready entrypoints.
 
 import next from 'eslint-config-next';
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
