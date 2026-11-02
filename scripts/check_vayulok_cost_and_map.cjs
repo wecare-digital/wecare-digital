@@ -9,12 +9,29 @@ const live = read('src/components/VayuLokLive.tsx');
 const insights = read('src/components/VayuLokWeatherInsights.tsx');
 const backend = read('gcp/vayulok-weather-insights/server.mjs');
 
-// The real 2D map must be bounded. Don't mistake the standalone globe for it.
+// The 2D map has a REAL, generously-sized viewport (not a cropped 300px
+// padding-top placeholder); its visual layers share the same height and
+// the India camera still fits the full mainland and islands.
 assert(live.includes("fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 )"), 'India overview fit is missing');
-assert(live.includes('height:clamp(500px,72svh,740px)'), 'desktop 2D map height is unbounded');
-assert(live.includes('@media(max-width:1050px)'), 'narrow tablet/mobile layout is missing');
-assert(live.includes('padding-top:clamp(300px,50vw,440px)'), 'tablet map does not reserve compact height');
-assert(live.includes('padding-top:clamp(300px,75vw,360px)'), 'phone map does not reserve compact height');
+assert(live.includes('north: 37.5,') && live.includes('south: 6.0,')
+  && live.includes('east: 98.0,') && live.includes('west: 67.5,'),
+  'India overview bounds must include mainland and island regions');
+assert(live.includes('--vl-map-height:clamp(580px,60vw,820px)'),
+  'desktop map must have a large responsive viewport');
+assert(live.includes('--vl-map-height:clamp(460px,77vw,720px)'),
+  'tablet map viewport must not be artificially cropped');
+assert(live.includes('--vl-map-height:clamp(440px,112vw,640px)'),
+  'phone map viewport must show the whole India overview');
+assert(live.includes('grid-template-rows:var(--vl-map-height) auto'),
+  'narrow map must have a separate real grid track before the detail card');
+assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0 0 auto;width:100%;height:var(--vl-map-height)'),
+  'map canvas and fallback must match the full map viewport');
+assert(live.includes('.vl-live-weather-visual{position:absolute;inset:0 0 auto;height:var(--vl-map-height)'),
+  'weather overlay must not paint across the data card');
+assert(!live.includes('padding-top:clamp(300px,50vw,440px)')
+  && !live.includes('padding-top:clamp(300px,75vw,360px)')
+  && !live.includes('max-height:740px'),
+  'old map crop/padding-height code must be gone');
 assert(live.lastIndexOf('.vl-live-mobile-snapshot{display:none}') >
   live.lastIndexOf('display:block;position:absolute;z-index:13;'), 'mobile summary must not cover India');
 

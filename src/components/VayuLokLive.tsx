@@ -5168,14 +5168,21 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
 
-        /* Map has a stable height independent of the long Air/Weather panel.
-           Rounded visual layers clip their own tiles. At narrow widths the detail card
-           follows the map in document flow. */
-        .vl-live-map-shell{position:relative;display:grid;height:clamp(500px,72svh,740px);min-height:0;max-height:740px;overflow:visible;border-radius:var(--panel-r);background:var(--lime-tint);isolation:isolate;contain:layout}
-        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
+        /* One shared real map viewport height across its canvas, atmospheric layer and
+           placeholder. Unlike the previous 300px/padding-top crop, Google Maps sees
+           the full visible map rectangle when fitBounds frames all of India. */
+        .vl-live-map-shell{
+          --vl-map-height:clamp(580px,60vw,820px);
+          position:relative;display:grid;grid-template-columns:minmax(0,1fr);
+          grid-template-rows:var(--vl-map-height);height:auto;
+          min-height:var(--vl-map-height);max-height:none;overflow:visible;
+          border-radius:var(--panel-r);background:var(--lime-tint);
+          isolation:isolate;contain:layout
+        }
+        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0 0 auto;width:100%;height:var(--vl-map-height);border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
-        .vl-live-weather-visual{position:absolute;inset:0;z-index:5;overflow:hidden;border-radius:var(--panel-r);pointer-events:none}
+        .vl-live-weather-visual{position:absolute;inset:0 0 auto;height:var(--vl-map-height);z-index:5;overflow:hidden;border-radius:var(--panel-r);pointer-events:none}
         .vl-live-sky-wash{position:absolute;inset:0;opacity:var(--vl-sky-opacity)}
         .vl-live-weather-visual.is-day .vl-live-sky-wash{background:linear-gradient(180deg,rgba(93,173,226,.64),rgba(187,224,247,.34) 58%,rgba(255,255,255,.06))}
         .vl-live-weather-visual.is-night .vl-live-sky-wash{background:linear-gradient(180deg,rgba(17,32,61,.75),rgba(45,66,96,.46) 60%,rgba(255,255,255,.04))}
@@ -5210,7 +5217,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         @media(max-width:767px){.vl-live-wn3-outlook{padding:14px}.vl-live-wn3-metrics{grid-template-columns:1fr}.vl-live-wn3-metrics li{gap:3px}}
         .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-control-size);font-weight:var(--vl-control-weight);cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime);box-shadow:var(--vl-hover-shadow);transform:translateY(-1px)}
-        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
+        .vl-live-map-fallback{position:absolute;inset:0 0 auto;height:var(--vl-map-height);display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
         .vl-live-map-loading-dot{width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.28);animation:vl-live-map-pulse 1.15s ease-in-out infinite alternate}
         @keyframes vl-live-map-pulse{to{opacity:.35;transform:scale(.72)}}
         .vl-live-map-fallback button{min-height:var(--tap-min);margin-inline-start:8px;border:1px solid var(--green);border-radius:var(--pill-r);background:#fff;color:var(--green);padding:7px 11px}
@@ -5243,13 +5250,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-search-results strong{font-size:var(--vl-data-size);font-weight:700;color:var(--heading);letter-spacing:-.18px}
         .vl-live-search-results span{margin-top:3px;font-size:var(--vl-subtext-size);color:var(--muted)}
         .vl-live-search-status{margin:8px 2px 0;font-size:var(--vl-meta-size);color:var(--muted)}
-        /* Narrow screens: give India its own short 2D map. Keep the long detail
-           panel in page flow BELOW the map instead of enlarging/covering the map.
-           This includes portrait tablets up to 1050px, not just phones. */
+        /* Phones and tablets: the first grid track is the WHOLE India map and the
+           second grid track contains the details. No clipping, negative margins
+           or fake top-padding to simulate a map. */
         @media(max-width:1050px){
-          .vl-live-map-shell{display:flex;flex-direction:column;height:auto;min-height:0;max-height:none;padding-top:clamp(300px,50vw,440px)}
-          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:clamp(300px,50vw,440px)}
-          .vl-live-air-card-wrap{grid-area:auto;align-self:auto;justify-self:auto;width:100%;max-width:100%;max-height:none;overflow:visible;margin:16px 0 12px}
+          .vl-live-map-shell{--vl-map-height:clamp(460px,77vw,720px);grid-template-rows:var(--vl-map-height) auto;min-height:0;padding:0}
+          .vl-live-air-card-wrap{grid-area:2/1;align-self:auto;justify-self:auto;width:100%;max-width:100%;max-height:none;overflow:visible;margin:16px 0 12px}
           .vl-live-mobile-snapshot{display:none}
         }
         /* A browser that exposes physical viewport segments is telling us part of the viewport
@@ -5275,8 +5281,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-metric-size:var(--public-mobile-section-size);--vl-meta-size:var(--public-meta-size);--vl-compact-copy-size:var(--vl-subtext-size)}
 
           .vl-live-shell{padding:0 max(var(--public-mobile-page-gutter),var(--safe-right)) max(var(--public-mobile-section-gap),var(--safe-bottom)) max(var(--public-mobile-page-gutter),var(--safe-left))}
-          .vl-live-map-shell{display:flex;height:auto;min-height:0;max-height:none;padding-top:clamp(300px,75vw,360px);background:transparent;contain:layout}
-          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:clamp(300px,75vw,360px)}
+          .vl-live-map-shell{--vl-map-height:clamp(440px,112vw,640px);min-height:0;max-height:none;padding:0;background:transparent;contain:layout}
           .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:0}
           .vl-live-mobile-snapshot{
             display:block;position:absolute;z-index:13;inset-inline:20px;top:94px;
@@ -5412,7 +5417,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-mobile-snapshot{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
-          .vl-live-map-shell{height:auto;min-height:250px}
+          .vl-live-map-shell{--vl-map-height:clamp(400px,85svh,560px);min-height:0}
           .vl-live-search-field{height:52px}
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
