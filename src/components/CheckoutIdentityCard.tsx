@@ -23,6 +23,7 @@ export function maskPhone ( phone: string ): string {
 }
 
 interface Props {
+  compact?: boolean;
   identity: CheckoutIdentity;
   editorOpen?: boolean;
   emptyAddressLabel?: string;
@@ -32,12 +33,12 @@ interface Props {
 }
 
 const CheckoutIdentityCard: React.FC<Props> = ( {
-  identity, editorOpen, emptyAddressLabel, showAddress = true, onEditProfile, onEditAddress,
+  identity, editorOpen, emptyAddressLabel, showAddress = true, onEditProfile, onEditAddress, compact = false,
 } ) => {
   const locked = !!editorOpen;
 
   return (
-    <section className="identity-card" aria-label="Checkout details">
+    <section className={`identity-card${compact ? ' identity-compact' : ''}`}  aria-label="Checkout details">
       <div className="identity-head">
         <button type="button" onClick={ onEditProfile } disabled={ locked }>Edit profile</button>
       </div>
@@ -120,6 +121,9 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           .identity-row,.identity-address-row{grid-template-columns:1fr;gap:4px;padding:14px 0}
           .identity-address-row button{justify-self:start;margin-top:6px}
         }
+        .identity-compact .identity-row,.identity-compact .identity-address-row{grid-template-columns:minmax(75px,.4fr) minmax(0,1fr);gap:10px}
+        .identity-compact .identity-address-row button{grid-column:2;justify-self:start;margin-top:4px}
+        @media(max-width:400px){.identity-compact .identity-row,.identity-compact .identity-address-row{grid-template-columns:1fr}.identity-compact .identity-address-row button{grid-column:1}}
         @media(prefers-reduced-motion:reduce){
           button{transition:none}
           button:hover:not(:disabled){transform:none;box-shadow:none}

@@ -563,6 +563,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
     return () => { active = false; };
   }, [] );
 
+  const appliedFixedItemRef = useRef('');
+  useEffect(() => {
+    const requested = router.query.item;
+    const id = Array.isArray(requested) ? requested[0] : requested;
+    if (!id || appliedFixedItemRef.current === id) return;
+    const item = FIXED_ITEMS.find(row => row.id === id && row.workflow === 'collect');
+    if (!item) return;
+    appliedFixedItemRef.current = id;
+    setInvForm(current => ({...current, shipping:(item.expressPaise/100).toFixed(2), items:[{presetId:item.id,name:item.name,unitPrice:(item.basePaise/100).toFixed(2),quantity:'1',gstRate:'18',hsnSac:''}]}));
+  }, [router.query.item]);
+
   const applyServicePreset = ( choice: ServiceChoice ) => {
     if ( choice.needsTarget ) {
       // An unbound invoice does not create a Vault file entitlement or a

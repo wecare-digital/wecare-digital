@@ -18,6 +18,8 @@ import PublicNotice from '../public/PublicNotice';
 import { publicActionText } from '../../lib/publicActionNotices';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
+import CheckoutReceipt from './CheckoutReceipt';
+import FIXED_ITEMS from '../../content/invoicePresets.json';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
@@ -58,16 +60,18 @@ import {
   CHECKOUT_REQUEST_BASKET, CHECKOUT_REQUEST_KEY, rememberCheckoutAttempt,
 } from '../../lib/checkoutHandoff';
 
+const CONTRIBUTION_BASE_PAISE = FIXED_ITEMS.find( item => item.workflow === 'contribute' )!.basePaise;
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
 const WHATSAPP_CHECKOUT_URL = `${API_BASE}/ecommerce/checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
-// The old production checkout Lambda treats unknown actions as CREATE. Until
-// version-pinned backend deployment proves it understands action:quote, do not
-// send a quote request at all. This switch is compile-time, default OFF.
+// The deployed checkout runtime now handles read-only action:quote explicitly.
+// Enable the reviewed flow by default; an explicit false remains an emergency
+// switch. Both payment actions still require a validated, current server quote.
 const WEBSITE_FULL_CART_QUOTE_ENABLED =
-  process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED === 'true';
+  process.env.NEXT_PUBLIC_WEBSITE_FULL_CART_QUOTE_ENABLED !== 'false';
 
 /**
  * One directly linked commerce QA item. It is intentionally absent from
@@ -600,7 +604,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuote( null );
       setQuoteFor( '' );
       setQuoteLoading( false );
-      setQuoteNotice( publicActionText( 'blocked' ) );
+      setQuoteNotice( 'Checkout is temporarily unavailable. Please try again later. Nothing has been charged.' );
       return () => { live = false; };
     }
     if ( !ready || items.length === 0 ) {
@@ -635,7 +639,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       try {
         const session = getSession() || await restoreSession();
         if ( !session ) {
-          if ( live ) { setQuoteSignInRequired( true ); setQuoteNotice( publicActionText( 'blocked' ) ); }
+          if ( live ) { setQuoteSignInRequired( true ); setQuoteNotice( 'Sign in to review your full price and choose a payment method.' ); }
           return;
         }
         const serviceIntent = serviceIntentFor( lines );
@@ -660,10 +664,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             setShowProfile( true );
           }
           if ( response.status === 401 ) setQuoteSignInRequired( true );
-          setQuoteNotice( error === 'PROFILE_REQUIRED' ? publicActionText( 'blocked' )
-            : error === 'DELIVERY_DETAILS_REQUIRED' ? publicActionText( 'blocked' )
-              : error === 'CART_NOT_PAYABLE' ? publicActionText( 'blocked' )
-                : publicActionText( 'blocked' ) );
+          setQuoteNotice( response.status === 401 ? 'Your session has expired. Sign in again to continue.'
+            : error === 'PROFILE_REQUIRED' ? 'Complete your customer details below to see the final price.'
+              : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Add a complete delivery address below to see the final price.'
+                : error === 'SERVICE_INTENT_REQUIRED' || error === 'VAULT_PAYMENT_REQUIRED'
+                  ? 'Start this request from Orders so it is linked to the correct request or file.'
+                  : 'We could not confirm the price. Refresh prices to try again. Nothing has been charged.' );
           return;
         }
         // A stale response must never price a different basket selected meanwhile.
@@ -672,7 +678,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         setQuoteFor( fingerprint );
         setQuoteNotice( '' );
       } catch {
-        if ( live ) setQuoteNotice( publicActionText( 'blocked' ) );
+        if ( live ) setQuoteNotice( 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
       } finally {
         if ( live ) setQuoteLoading( false );
       }
@@ -1776,18 +1782,19 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           keeps WCAG 2.2.2. The global action dock is mounted once by _app after route policy. */}
       <RotatingHero
         ariaLabel="WECARE.DIGITAL customer"
-        frame="One account."
-        words={ [
-          { word: 'securely', tint: '#e0f7c8', dot: '#3da35a' },
-          { word: 'simply', tint: '#dbeafe', dot: '#2563eb' },
-          { word: 'anywhere', tint: '#ede9fe', dot: '#9849e8' },
-        ] }
-        sub="Pick up where you left off."
+        frame="WECARE Shop."
+        words={ [ { word: 'checkout', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        sub="Review your order. Choose how to pay."
         mobileFoundation
         compact
       >
         <div className="cart-in">
-          <h1 className="cart-heading">Checkout</h1>
+          <nav className="cart-progress" aria-label="Checkout progress">
+            <span><b aria-hidden="true">✓</b> Cart reviewed</span>
+            <span aria-current="step"><b aria-hidden="true">2</b> Checkout</span>
+            <span><b aria-hidden="true">3</b> Payment</span>
+          </nav>
+          <h1 className="cart-heading">Checkout breakdown</h1>
           <p className="cart-body cart-intro">Review every item and the verified total before paying securely.</p>
           {!ready && <p className="cart-body">Loading your cart…</p>}
 
@@ -1800,14 +1807,82 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           {ready && items.length > 0 && (
             <>
-              <h2 className="cart-subheading">Your cart</h2>
+              <div className="cart-review-grid">
+              <div className="cart-details-panel">
+                <section className="cart-customer-summary" aria-labelledby="cart-customer-heading">
+                  <h2 className="cart-panel-heading" id="cart-customer-heading">Customer summary</h2>
+                  { !profile?.name && !showProfile && <p className="cart-body">Sign in to confirm your name and verified WhatsApp number before payment.</p> }
+              {/* A returning customer's stored identity must remain visible when the
+                  shipping address is missing. Non-shipping baskets omit the Deliver row;
+                  physical baskets explicitly label an unsaved address. */}
+              { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
+                <CheckoutIdentityCard compact
+                  identity={ profile }
+                  showAddress={ cartRequiresDelivery() }
+                  emptyAddressLabel="Not saved yet"
+                  editorOpen={ showProfile }
+                  onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
+                  onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
+                />
+              ) }
+
+              { showProfile && checkoutAccessToken && (
+                <CheckoutProfile
+                  /* `initial` is read ONCE at mount, so the editor is keyed on the mode: an
+                     affordance that changes the mode gets a FRESH editor prefilled from the
+                     current profile rather than a stale one that ignored the new prop. */
+                  key={ profileMode }
+                  accessToken={ checkoutAccessToken }
+                  mode={ profileMode }
+                  initial={ {
+                    name: profile?.name || '',
+                    username: profile?.username || '',
+                    companyName: profile?.companyName || '',
+                    designation: profile?.designation || '',
+                    address: profile?.address || null,
+                  } }
+                  onReady={ next => {
+                    // THE STATUS DECIDES THE EDITOR, NOT THE SAVE EVENT. A save that lands
+                    // without a usable address must leave the address form MOUNTED: closing it
+                    // and then asking for an address is a dead end, and it is reachable - a
+                    // stored address that stopped mapping, or a backend that wrote one it cannot
+                    // re-validate.
+                    const nextStatus = deriveStatus(
+                      'PROFILE_READY',
+                      next.addressComplete,
+                      Boolean( next.name ),
+                    );
+                    setProfile( next );
+                    justSavedRef.current = true;
+                    setProfileStatus( nextStatus );
+                    // Digital-only carts need a name and a verified phone, not
+                    // a shipping address. Do not keep reopening an unnecessary
+                    // address editor after a successful name-only save.
+                    if ( nextStatus === 'ready' || ( next.name.trim() && !cartRequiresDelivery() ) )
+                    {
+                      setShowProfile( false );
+                      setNotice( { kind: 'none' } );
+                    }
+                    else
+                    {
+                      setProfileMode( next.name.trim() ? 'address' : 'name' );
+                      setShowProfile( true );
+                      setNotice( { kind: 'none' } );
+                    }
+                  } }
+                />
+              ) }
+
+                </section>
+              <section className="cart-order-summary" aria-labelledby="cart-order-heading">
+              <h2 className="cart-panel-heading" id="cart-order-heading">Order summary</h2>
               <ul className="cart-list">
                 { items.map( item => (
                   <li className="cart-row" key={ item.ref }>
                     <div className="cart-row-main">
                       <p className="cart-name">{ item.name }</p>
                       {/* DISPLAY ONLY. This catalogue passthrough price never reaches the server. */}
-                      <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
+                      <p className="cart-price" data-wc-no-translate="true">{ item.productId === CONTRIBUTION_PRODUCT_ID ? `${formatPaiseINR( CONTRIBUTION_BASE_PAISE, 'INR' )} base · ₹300 final` : `${item.formattedPrice} base each` }</p>
                       { needsVariantSelection( item ) && (
                         /*
                          * BOTH LABELLING SOURCES, AND THAT IS THE POINT. The visible text is the
@@ -1867,10 +1942,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   </li>
                 ) ) }
               </ul>
+              </section>
+              <p className="cart-assurance">Your full price is confirmed before payment. A paid receipt follows verified capture.</p>
+              </div>
 
               <section className="cart-quote" aria-labelledby="cart-price-heading">
                 <div className="cart-quote-title">
-                  <h2 className="cart-subheading cart-breakdown-heading" id="cart-price-heading">CHECKOUT BREAKDOWN</h2>
+                  <h2 className="cart-subheading cart-breakdown-heading" id="cart-price-heading">Price breakup</h2>
                   <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
                     onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
                     Refresh prices
@@ -1883,109 +1961,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     Sign in on WhatsApp
                   </Link>
                 ) }
-                { quoteReady && quote && (
-                  <>
-                    <div className="cart-table-wrap">
-                      <table className="cart-breakdown-table">
-                        <caption className="cart-visually-hidden">Server-verified cart item prices</caption>
-                        <thead><tr><th scope="col">Item</th><th scope="col">Qty</th><th scope="col">Unit price</th><th scope="col">Amount</th></tr></thead>
-                        <tbody>
-                          { quote.items.map( ( row, index ) => (
-                            <tr key={ `${index}-${row.name}` }>
-                              <th scope="row">{ row.name }</th>
-                              <td data-wc-no-translate="true">{ row.quantity }</td>
-                              <td data-wc-no-translate="true">{ formatPaiseINR( row.unitPricePaise, quote.currency ) }</td>
-                              <td data-wc-no-translate="true">{ formatPaiseINR( row.totalPaise, quote.currency ) }</td>
-                            </tr>
-                          ) ) }
-                        </tbody>
-                      </table>
-                    </div>
-                    <dl className="cart-summary">
-                      <div><dt>Base price subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
-                      { quote.charges.supplyGstPaise > 0 && <div><dt>Supply GST (18%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
-                      { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel === 'Delight' ? 'Delight (0.5%)' : ( quote.charges.discountLabel || 'Discount' ) }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
-                      <div><dt>{ quote.charges.deliveryLabel || 'Delivery' }</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
-                      <div><dt>Convenience (2.5%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
-                      <div><dt>GST on convenience (18%)</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
-                      <div className="cart-summary-total"><dt>AMOUNT PAYABLE</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
-                    </dl>
-                  </>
-                ) }
+                { quoteReady && quote && <CheckoutReceipt quote={ quote } /> }
                 <p className="cart-price-note">The total comes from the live server quotation.
                   Website and WhatsApp payment both use the same server-priced basket.
                   No payment is completed until the provider confirms capture.</p>
               </section>
-
-              {/* The always-on Delight discount, stated (not applied) here. Every figure is
-                  server-authoritative: Delight is priced by the invoice engine at checkout, not in
-                  the browser.
-
-                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION OR EXACT-PRICE SERVICE. A discount would make the
-                  recorded amount differ from the amount contributed, so the server suppresses
-                  Delight on a contribution and this panel is hidden to match. A render-time read of
-                  `items` is correct here. */}
-
-              {/* A returning customer's stored identity must remain visible when the
-                  shipping address is missing. Non-shipping baskets omit the Deliver row;
-                  physical baskets explicitly label an unsaved address. */}
-              { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
-                <CheckoutIdentityCard
-                  identity={ profile }
-                  showAddress={ cartRequiresDelivery() }
-                  emptyAddressLabel="Not saved yet"
-                  editorOpen={ showProfile }
-                  onEditProfile={ () => { setProfileMode( 'profile' ); setShowProfile( true ); } }
-                  onEditAddress={ () => { setProfileMode( 'address' ); setShowProfile( true ); } }
-                />
-              ) }
-
-              { showProfile && checkoutAccessToken && (
-                <CheckoutProfile
-                  /* `initial` is read ONCE at mount, so the editor is keyed on the mode: an
-                     affordance that changes the mode gets a FRESH editor prefilled from the
-                     current profile rather than a stale one that ignored the new prop. */
-                  key={ profileMode }
-                  accessToken={ checkoutAccessToken }
-                  mode={ profileMode }
-                  initial={ {
-                    name: profile?.name || '',
-                    username: profile?.username || '',
-                    companyName: profile?.companyName || '',
-                    designation: profile?.designation || '',
-                    address: profile?.address || null,
-                  } }
-                  onReady={ next => {
-                    // THE STATUS DECIDES THE EDITOR, NOT THE SAVE EVENT. A save that lands
-                    // without a usable address must leave the address form MOUNTED: closing it
-                    // and then asking for an address is a dead end, and it is reachable - a
-                    // stored address that stopped mapping, or a backend that wrote one it cannot
-                    // re-validate.
-                    const nextStatus = deriveStatus(
-                      'PROFILE_READY',
-                      next.addressComplete,
-                      Boolean( next.name ),
-                    );
-                    setProfile( next );
-                    justSavedRef.current = true;
-                    setProfileStatus( nextStatus );
-                    // Digital-only carts need a name and a verified phone, not
-                    // a shipping address. Do not keep reopening an unnecessary
-                    // address editor after a successful name-only save.
-                    if ( nextStatus === 'ready' || ( next.name.trim() && !cartRequiresDelivery() ) )
-                    {
-                      setShowProfile( false );
-                      setNotice( { kind: 'none' } );
-                    }
-                    else
-                    {
-                      setProfileMode( next.name.trim() ? 'address' : 'name' );
-                      setShowProfile( true );
-                      setNotice( { kind: 'none' } );
-                    }
-                  } }
-                />
-              ) }
+              </div>
 
               {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
                   written inline here any more. */}
@@ -2073,6 +2054,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
              already applied the 108px/96px header clearance, the 1300px measure and the gutter.
              820px is the reading measure for a list of lines plus a paragraph of terms - the band
              above it is wider, which is the same relationship .rh-sub has to .rh-head. */
+          .cart-progress{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 24px;margin-bottom:22px;border-bottom:2px solid var(--public-brand-lime);font-size:13px;color:var(--public-muted)}
+          .cart-progress span{display:flex;align-items:center;gap:8px}.cart-progress b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;border:1px solid var(--public-hairline);font-weight:700}.cart-progress [aria-current=step]{color:var(--public-heading);font-weight:700}.cart-progress [aria-current=step] b{background:var(--public-brand-lime);border-color:var(--public-brand-lime);color:#111}
+          .cart-review-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:22px;align-items:start}.cart-details-panel{min-width:0;display:grid;gap:20px}.cart-customer-summary,.cart-order-summary{min-width:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}.cart-panel-heading{margin:0 0 12px;padding:10px 12px;background:var(--public-lime-tint);border-radius:8px;font-size:17px;font-weight:750;color:var(--public-heading)}.cart-customer-summary :global(.identity-card){margin-top:0}.cart-assurance{margin:0;padding:14px 18px;background:var(--public-lime-tint);border-radius:12px;font-size:13px;line-height:1.6;color:var(--public-brand-green)}
+          @media(max-width:800px){.cart-review-grid{grid-template-columns:minmax(0,1fr)}.cart-progress{font-size:12px;gap:8px}.cart-progress span{gap:5px}}
           .cart-heading{margin:0 0 12px;color:var(--public-heading);font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
           .cart-intro{margin-bottom:24px}
           .cart-subheading{margin:0;font-size:var(--public-card-size);line-height:var(--public-card-leading);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
@@ -2081,25 +2066,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-qty button:disabled{opacity:.4;cursor:default}
           .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .cart-qty span{min-width:26px;text-align:center}
-          .cart-quote{margin-top:26px;padding-top:24px;border-top:1px solid var(--public-hairline)}
-          .cart-breakdown-heading{padding:13px 16px;border-radius:12px;background:var(--public-brand-lime);color:#111;font-size:20px;font-weight:800;letter-spacing:.01em}
+          .cart-quote{min-width:0;margin:0;padding:18px;border:1px solid var(--public-hairline);border-radius:16px;background:var(--public-bg)}
+          .cart-breakdown-heading{padding:10px 12px;border-radius:8px;background:var(--public-lime-tint);color:var(--public-heading);font-size:17px;font-weight:750}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
           .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
           .cart-quiet-refresh:disabled{opacity:.5}
-          .cart-table-wrap{overflow-x:auto}
-          .cart-breakdown-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px;line-height:1.5;color:var(--public-text)}
-          .cart-breakdown-table th,.cart-breakdown-table td{padding:9px 8px;border-bottom:1px solid var(--public-hairline)}
-          .cart-breakdown-table thead th{font-size:13px;color:var(--public-brand-green)}
-          .cart-breakdown-table td:not(:first-child){font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-          .cart-breakdown-table th:first-child{min-width:110px;overflow-wrap:anywhere}
-          .cart-summary{display:flex;flex-direction:column;gap:11px;margin:24px 0 0;font-size:15px}
-          .cart-summary>div{display:flex;gap:18px;justify-content:space-between;align-items:baseline}
-          .cart-summary dt{color:var(--public-muted)}
-          .cart-summary dd{margin:0;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--public-heading)}
-          .cart-summary-total{padding:16px 14px;margin-top:6px;border:0;border-radius:12px;background:var(--public-brand-lime);font-size:19px}
-          .cart-summary-total dt,.cart-summary-total dd{font-weight:800;color:#111}
-          .cart-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-          .cart-in{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
+          .cart-in{width:min(100%,1060px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
@@ -2201,9 +2173,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
           .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
           .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px;text-decoration:none}
-          .cart-pay-website{background:#111;color:#fff}
+          .cart-actions .cart-pay-website{background:#111;color:#fff}
           .cart-pay-website:hover{background:var(--public-brand-green);color:#fff}
-          .cart-pay-whatsapp{border:2px solid var(--public-brand-green);background:#fff}
+          .cart-actions .cart-pay-whatsapp{border:2px solid var(--public-brand-green);background:#fff}
           .cart-pay-whatsapp:hover{background:var(--public-lime-tint)}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .cart-auth-action{
