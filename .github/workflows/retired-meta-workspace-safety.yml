@@ -1,0 +1,33 @@
+name: Retired Meta workspace safety
+on:
+  pull_request:
+    paths:
+      - 'src/components/workspace/commerce/Catalog.tsx'
+      - '.github/workflows/retired-meta-workspace-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  typecheck-and-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      # Current lockfile omits @emnapi dependencies; avoid rewriting it in this PR.
+      - name: Install dependencies without modifying lockfile
+        run: npm install --no-package-lock --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      - name: Typecheck native product workspace
+        run: npm run typecheck
+      - name: Ensure retired Meta UI is inaccessible
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const src = fs.readFileSync('src/components/workspace/commerce/Catalog.tsx','utf8');
+          if (src.includes("(['products', 'meta'] as Tab[])")) throw Error('Meta tab restored');
+          if (src.includes("{tab === 'meta' && (")) throw Error('Retired Meta controls restored');
+          if (src.includes("metaEnabled: editMetaEnabled,")) throw Error('Native product save still writes Meta flag');
+          if (!src.includes("['products'] as Tab[]")) throw Error('Native Products tab unavailable');
+          NODE
