@@ -63,9 +63,22 @@ check(callingUi.includes('if ( !response.ok )') &&
 const page = read('src/pages/workspace/payments/index.tsx');
 const framework = read('src/components/workspace/pay/PaymentFramework.tsx');
 const definitions = read('src/lib/paymentFramework.ts');
-check(page.includes('PaymentFramework') && page.includes("panel: 'framework'") &&
-      page.includes('pay-flow-sections') && page.includes('pay-flow-work-tabs'),
-      'Collect/Vault/Contribute Framework and section navigation missing');
+// Check the actual canonical payment console, not retired CSS selectors. The
+// previous guard checked pay-flow-sections/pay-flow-work-tabs, which were removed
+// when the working Collect/Vault/Contribute console was rebuilt. The new checks
+// bind navigation to the section values, scoped work tabs, and actual framework
+// route. Missing any one of them still blocks production.
+check(page.includes("type PaymentSection = 'collect' | 'vault' | 'contribute'") &&
+      page.includes("type PaymentTab = 'display' | 'create' | 'ledger'") &&
+      page.includes('SECTION_OPTIONS.map') &&
+      page.includes('className="payment-rail"') &&
+      page.includes('className="console-tools"') &&
+      page.includes("panel: 'framework'") &&
+      page.includes('<PaymentFramework section={section} />') &&
+      page.includes('changeSection(option.value)') &&
+      page.includes("tab:'create'") &&
+      page.includes("tab:'ledger'"),
+      'Collect/Vault/Contribute navigation or message framework is unavailable');
 for (const role of ['payment', 'status', 'invoice', 'access']) {
   check(definitions.includes('  ' + role + ':'), 'Payment framework template missing: ' + role);
 }
@@ -78,8 +91,16 @@ const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');
 const contribute = read('src/components/workspace/pay/ContributePaymentPlan.tsx');
-check(contribute.includes('Live customer total:'),
-      'Contribute headline is not sourced from live quote');
+// The rebuilt Contribute header intentionally says "Customer pays", not the
+// retired "Live customer total:" text. Require a read-only server quote and
+// display of its returned total, including correct loading/unavailable states.
+check(contribute.includes('fetchContributionPrice()') &&
+      contribute.includes('price.available ? price.breakdown : undefined') &&
+      contribute.includes('Customer pays') &&
+      contribute.includes('b?money(b.totalPayablePaise)') &&
+      contribute.includes("'Quote unavailable'") &&
+      contribute.includes('ContributeStaffControls price={price}'),
+      'Contribute must present the server-quoted amount with safe loading states');
 
 if (failures.length) {
   for (const issue of failures) console.error('FAIL:', issue);
