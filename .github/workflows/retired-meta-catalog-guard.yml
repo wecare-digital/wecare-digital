@@ -27,7 +27,10 @@ jobs:
           alarms = Path("scripts/provision_payment_rail_alarms.py").read_text()
           ast.parse(deploy)
           ast.parse(alarms)
-          assert 'Spec(\n        "wecare-meta-catalog-sync",' not in deploy
+          assert 'Spec(\\n        "wecare-meta-catalog-sync",' not in deploy
+          # Reject literal backslash-n embedded in source comments (a prior merged defect).
+          assert not any(line.lstrip().startswith('#') and r'\\n    #' in line for line in deploy.splitlines())
+          assert any('Cognito CustomMessage trigger:' in line for line in deploy.splitlines())
           assert '"alarmName": "wecare-catalog-sync-drift"' not in alarms
           assert '"alarmName": "wecare-catalog-sync-failure"' not in alarms
           PY
