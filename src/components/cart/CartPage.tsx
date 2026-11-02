@@ -1817,7 +1817,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                   physical baskets explicitly label an unsaved address. */}
               { profile && Boolean( profile.name ) && ( profileStatus === 'ready' || profileStatus === 'required' ) && (
                 <CheckoutIdentityCard compact
-                  identity={ profile }
+                  identity={ { ...profile, customerId: profile.contactId } }
                   showAddress={ cartRequiresDelivery() }
                   emptyAddressLabel="Not saved yet"
                   editorOpen={ showProfile }
