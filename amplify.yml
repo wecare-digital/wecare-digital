@@ -32,7 +32,7 @@ frontend:
         # cause instead of turning the credential gate into a silent skip.
         - python3 --version
         # Derive a private diagnostic location before any early gates can fail.
-        # Otherwise failed unit tests/npm installs leave no account-readable evidence.
+        # Otherwise failed Python compilation/npm installs leave no account-readable evidence.
         - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"
         # Backend Python is not deployed by Amplify, but a green website build
         # must not conceal invalid source in the customer-facing WhatsApp,
@@ -41,19 +41,9 @@ frontend:
         # failed. Standard-library syntax compilation is safe and runs offline:
         # no messages, payments, AWS mutation or runtime import side effects.
         - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils > /tmp/wecare-python-compile.log 2>&1 || { aws s3 cp /tmp/wecare-python-compile.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/python-compile-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-python-compile.log; exit 1; }; tail -n 20 /tmp/wecare-python-compile.log
-        # Read-only executable INR 300 Contribute pricing and frozen-order guards.
-        # No customer data, WhatsApp sends, payment reservation, credentials, or AWS mutations.
-        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_*contribut*.py' -v > /tmp/wecare-contribute-tests.log 2>&1 || { aws s3 cp /tmp/wecare-contribute-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/contribute-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-contribute-tests.log; exit 1; }; tail -n 20 /tmp/wecare-contribute-tests.log
-        # Read-only source guards: Collect, Vault and Contribute stay in their
-        # canonical workspace after a directory deletion; no Meta or S3 calls.
-        - python3 -m unittest discover -s tests -p 'test_payflow_workspace_architecture_20261102.py' -v > /tmp/wecare-payflow-architecture-tests.log 2>&1 || { aws s3 cp /tmp/wecare-payflow-architecture-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/payflow-architecture-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-payflow-architecture-tests.log; exit 1; }; tail -n 20 /tmp/wecare-payflow-architecture-tests.log
-        - python3 -m unittest discover -s tests -p 'test_vayulok_google_guardrails_20261102.py' -v > /tmp/wecare-vayulok-guardrails-tests.log 2>&1 || { aws s3 cp /tmp/wecare-vayulok-guardrails-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/vayulok-guardrails-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-vayulok-guardrails-tests.log; exit 1; }; tail -n 20 /tmp/wecare-vayulok-guardrails-tests.log
-        # Read-only backend regression suites using in-memory owners, orders and files.
-        # They cannot send WhatsApp messages, charge cards or access live documents.
-        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_vault_website_no_renew.py' -v > /tmp/wecare-vault-website-tests.log 2>&1 || { aws s3 cp /tmp/wecare-vault-website-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/vault-website-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-vault-website-tests.log; exit 1; }; tail -n 20 /tmp/wecare-vault-website-tests.log
-        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v > /tmp/wecare-vault-activity-tests.log 2>&1 || { aws s3 cp /tmp/wecare-vault-activity-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/vault-activity-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-vault-activity-tests.log; exit 1; }; tail -n 20 /tmp/wecare-vault-activity-tests.log
-        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v > /tmp/wecare-payflow-no-renew-tests.log 2>&1 || { aws s3 cp /tmp/wecare-payflow-no-renew-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/payflow-no-renew-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-payflow-no-renew-tests.log; exit 1; }; tail -n 20 /tmp/wecare-payflow-no-renew-tests.log
-        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_retired_ai_and_interactive.py' -v > /tmp/wecare-retired-ai-tests.log 2>&1 || { aws s3 cp /tmp/wecare-retired-ai-tests.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/retired-ai-tests-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-retired-ai-tests.log; exit 1; }; tail -n 20 /tmp/wecare-retired-ai-tests.log
+        # Retired the repository's tests/ unit-test suite by owner request.
+        # Keep production guards: Python compileall, source/UI contract checks,
+        # TypeScript, static site export, release validation, and credential checks.
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
