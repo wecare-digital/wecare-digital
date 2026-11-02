@@ -6,7 +6,7 @@
  * capabilities inside those modes, never another top-level navigation tree.
  *
  * Migration note: the existing proven channel/tool components are embedded here first. Their old
- * /workspace/engage/* routes remain compatibility doors until each one is replaced by a redirect.
+ * Active /workspace/engage/inbox, channels, logs and settings routes remain until each one is replaced by a redirect.
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
