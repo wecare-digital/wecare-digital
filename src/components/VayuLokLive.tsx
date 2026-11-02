@@ -5169,17 +5169,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            Sticky map layers align together while the complete Air/Weather card determines
            document height and scrolls naturally with the page. Resizing reframes India. */
         .vl-live-map-shell{
-          --vl-map-height:clamp(580px,60vw,820px);
+          --vl-map-height:clamp(500px,calc(100svh - 112px),820px);
           position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,416px);
           column-gap:20px;grid-template-rows:auto;height:auto;
           min-height:var(--vl-map-height);max-height:none;overflow:visible;
           border-radius:var(--panel-r);background:transparent;
           isolation:isolate
         }
-        .vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:24px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height);border-radius:var(--panel-r);overflow:hidden}
+        .vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:80px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height);border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
-        .vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height);z-index:5;overflow:hidden;clip-path:inset(0 0 48px 0 round var(--panel-r));border-radius:var(--panel-r);pointer-events:none}
+        .vl-live-weather-visual{position:sticky;top:80px;grid-area:1/1;align-self:start;height:var(--vl-map-height);z-index:5;overflow:hidden;clip-path:inset(0 0 48px 0 round var(--panel-r));border-radius:var(--panel-r);pointer-events:none}
         .vl-live-sky-wash{position:absolute;inset:0;opacity:var(--vl-sky-opacity)}
         .vl-live-weather-visual.is-day .vl-live-sky-wash{background:linear-gradient(180deg,rgba(93,173,226,.64),rgba(187,224,247,.34) 58%,rgba(255,255,255,.06))}
         .vl-live-weather-visual.is-night .vl-live-sky-wash{background:linear-gradient(180deg,rgba(17,32,61,.75),rgba(45,66,96,.46) 60%,rgba(255,255,255,.04))}
@@ -5212,7 +5212,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         @media(max-width:767px){.vl-live-wn3-outlook{padding:14px}.vl-live-wn3-metrics{grid-template-columns:1fr}.vl-live-wn3-metrics li{gap:3px}}
         .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-control-size);font-weight:var(--vl-control-weight);cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime);box-shadow:var(--vl-hover-shadow);transform:translateY(-1px)}
-        .vl-live-map-fallback{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height);display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
+        .vl-live-map-fallback{position:sticky;top:80px;grid-area:1/1;align-self:start;height:var(--vl-map-height);display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
         .vl-live-map-loading-dot{width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.28);animation:vl-live-map-pulse 1.15s ease-in-out infinite alternate}
         @keyframes vl-live-map-pulse{to{opacity:.35;transform:scale(.72)}}
         .vl-live-map-fallback button{min-height:var(--tap-min);margin-inline-start:8px;border:1px solid var(--green);border-radius:var(--pill-r);background:#fff;color:var(--green);padding:7px 11px}
