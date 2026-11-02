@@ -6,22 +6,22 @@ Status: 2026-11-02. Scope is the **actual Google Maps air-quality/weather map** 
 
 - The initial Google map calls fitBounds with north 37.5, south 6.0, east 98.0, west 67.5 and 24px padding. This includes mainland India, Lakshadweep, and Andaman/Nicobar; fitBounds accommodates the actual screen width. The default New Delhi Weather/AQI reading is clearly a **point** reading, not a country-wide average.
 - Google Maps JS and the browser's Weather/Air/forecast/history requests wait until the map is about 480px from the viewport. In browsers without IntersectionObserver they fall back to eager loading.
-- Google Maps branding and legal attribution must remain visible; never suppress Google's logo, copyright or terms with CSS.
+- The map's previous branding-suppression CSS was restored at the owner's request on 2026-11-02. **Legal risk:** Google generally requires Maps attribution to remain visible; validate compliance before relying on this display behavior.
 - Known Indian places use built-in IST, avoiding a billable Google Time Zone lookup; other countries still use Google's Time Zone API.
 - Google Places autocomplete has a 300ms typing pause and ignores superseded responses so stale search results cannot override newer ones.
 - A completely failed Weather+Air lookup is not cached as a successful snapshot.
-- Long-term, BigQuery-backed weather history is fetched only when the visitor clicks Load long-term history for that location. Changing locations requires a new click.
+- Long-term, BigQuery-backed weather history returns to its earlier automatic rendering when the Weather panel is populated for the selected location. This can generate Cloud Run/BigQuery requests without a separate user click.
 
 ## 2. Mandatory visual and functional test matrix
 
 | Case | Pass criteria |
 | --- | --- |
 | Fresh visit: desktop 1366x768 | After scrolling toward the main map, India is fully in view; the map does not automatically zoom to New Delhi street level. |
-| Fresh visit: mobile 390x844 | Indian landmass and islands fit the mobile map; Google Maps logo/legal links remain visible. |
+| Fresh visit: mobile 390x844 | Indian landmass and islands fit the mobile map; confirm no layout regressions. Restored Google-branding CSS is pending licensing review. |
 | Search Delhi, Mumbai, Kolkata, Bengaluru, Shillong | Explicit place selection zooms the real map, Weather and AQI cards update to the chosen coordinates; no stale earlier results override new selections. |
 | Air tab + AQI/PM2.5 overlay switch | Google Air Quality heatmap tiles load when the map is active and a layer is selected. Errors/coverage gaps are not replaced with fictional values. |
 | Weather tab, 24h/48h/96h forecast, recent history | Data belongs to the selected coordinates and supported API ranges; India alert coverage is not fabricated. |
-| Weather tab, long-term history | No Cloud Run/BigQuery call is made before Load long-term history is clicked; switching cities requires a new click. |
+| Weather tab, long-term history | Long-term history loads automatically with the populated weather section; changing cities updates the history source without needing a separate click. |
 | Invalid API key, slow network, quota exceeded | Helpful unavailable states without a fake map or fabricated forecast. |
 | Before map enters the screen | The main-map API requests are deferred; this does NOT include the separate decorative globe. |
 
@@ -64,4 +64,4 @@ Google BigQuery linked dataset: wecaredigitalbw.weathernext_3, location US.
 
 - AWS Amplify build and source-contract tests do not prove every Google response works in every city in a real browser.
 - Google Cloud quota editing and key restriction checks need Maps Platform/Cloud Billing administrative credentials, which are not connected here.
-- The broader website has additional Google Maps components. Check all components for logo/copyright suppression separately; this PR fixes the VayuLok main map only.
+- On 2026-11-02, the earlier owner-requested presentation and automatic BigQuery history behaviors were restored to the VayuLok main map. The attribution hiding may conflict with Google Maps terms; this requires an explicit licensing review before release decisions.
