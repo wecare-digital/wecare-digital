@@ -168,25 +168,24 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
 
     const run = async () => {
       try {
-        // Until the separate GCP Cloud Run deployment is verified, the old
-        // service still permits 15–40GB queries for 1Y/5Y. Fail CLOSED before
-        // sending a long-range request unless it advertises the 1GiB guard.
-        if ( range !== '30d' ) {
-          const guardResponse = await fetch( `${INSIGHTS_URL}/v1/weather-insights/status`, { signal: ac.signal } )
-            .catch( () => null );
-          if ( ac.signal.aborted ) return;
-          if ( !guardResponse ) {
-            showStaleOrError( 'query_budget_reached', true );
-            return;
-          }
-          const guard = await guardResponse.json().catch( () => ( {} ) );
-          if ( ac.signal.aborted ) return;
-          const allowedBytes = Number( guard?.costGuard?.maxBytesBilledByRange?.[ range ] );
-          if ( !guardResponse.ok || !Number.isFinite( allowedBytes )
-            || allowedBytes <= 0 || allowedBytes > 1_073_741_824 ) {
-            showStaleOrError( 'query_budget_reached', true );
-            return;
-          }
+        // Fail closed for *every* uncached range, including automatic 30D history.
+        // An older independent Cloud Run revision may still permit 1.2/15/40GB
+        // per request. Do not bill Google BigQuery until the live service attests
+        // a bounded maximum for this range; cached summaries remain available.
+        const guardResponse = await fetch( `${INSIGHTS_URL}/v1/weather-insights/status`, { signal: ac.signal } )
+          .catch( () => null );
+        if ( ac.signal.aborted ) return;
+        if ( !guardResponse ) {
+          showStaleOrError( 'query_budget_reached', true );
+          return;
+        }
+        const guard = await guardResponse.json().catch( () => ( {} ) );
+        if ( ac.signal.aborted ) return;
+        const allowedBytes = Number( guard?.costGuard?.maxBytesBilledByRange?.[ range ] );
+        if ( !guardResponse.ok || !Number.isFinite( allowedBytes )
+          || allowedBytes <= 0 || allowedBytes > 1_073_741_824 ) {
+          showStaleOrError( 'query_budget_reached', true );
+          return;
         }
         // Do not trigger a new paid BigQuery query for every nearby street address.
         const url = `${INSIGHTS_URL}/v1/weather-insights?lat=${encodeURIComponent( gridLat )}&lng=${encodeURIComponent( gridLng )}&range=${range}`;
