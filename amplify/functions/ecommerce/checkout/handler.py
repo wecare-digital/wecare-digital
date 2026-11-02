@@ -26,8 +26,8 @@ Four rules it enforces, each load-bearing
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
    `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs
-   use the owner-approved sequence at this seam: item price, 18% supply GST, Delight, Rs45
-   Express, then convenience fee and 18% GST on that fee. The browser sends
+   use the same unified sequence as ordinary customer items: item base, 18% supply GST,
+   Delight, Rs45 Express, convenience fee and its GST. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
@@ -1049,23 +1049,29 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     supply_gst_paise = int(pricing_metadata.get("supplyGstPaise") or 0)
     explicit_discount = pricing_metadata.get("discountPaise")
 
-    # Vault / Drop Docs have an explicit supply-GST step before Delight. Meta ORDER_DETAILS has
-    # one tax field, which is already used for GST on the convenience fee. To keep the payment
-    # sheet arithmetically honest, fold the supply GST into the one service item's displayed
-    # amount and label that item as GST-inclusive. Delight remains Meta's separate discount row,
-    # Express remains shipping, and GST on the convenience fee remains tax.
+    # Meta ORDER_DETAILS has one tax field, already used for GST on convenience.
+    # A one-line native payment preserves the established inclusive-label shape.
+    # For a multi-line frozen cart, add one non-catalog Supply GST line: dividing
+    # aggregate tax into unit prices would lose paise on quantities >1. Like the
+    # existing convenience-fee line this does NOT invent a retailer_id. Both
+    # representations reconcile exactly to the checkout's separate GST row.
     if supply_gst_paise:
-        if len(items) != 1:
-            raise ValueError("explicit supply GST requires exactly one service item")
-        items[0]["amount"]["value"] += supply_gst_paise
-        items[0]["name"] = (items[0]["name"] + " (incl. GST 18%)")[:60]
+        if len(items) == 1:
+            items[0]["amount"]["value"] += supply_gst_paise
+            items[0]["name"] = (items[0]["name"] + " (incl. GST 18%)")[:60]
+        else:
+            items.append({
+                "name": "Supply GST (18%)", "quantity": 1,
+                "amount": {"value": supply_gst_paise, "offset": 100},
+            })
 
     display_merchandise_paise = merchandise_paise + supply_gst_paise
     if explicit_discount is not None:
         discount_paise = max(0, int(explicit_discount))
     else:
-        # Ordinary native carts already carry GST-inclusive catalogue prices. For those carts the
-        # only adjustment between merchandise + delivery and collection is Delight.
+        # Internal QA and legacy frozen snapshots may carry no explicit
+        # discountPaise metadata. New customer GST-exclusive quotes always
+        # freeze that metadata, so this inference never changes their payable.
         discount_paise = max(
             0, display_merchandise_paise + delivery_paise
             - int(quote.collection_before_convenience_paise))
@@ -1142,8 +1148,9 @@ def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
     reviewed in the ORDER_DETAILS message - the lines, the Delight discount, and the convenience
     fee with its GST - so the invoice issued after capture describes exactly what was paid.
 
-    None when the snapshot cannot be itemised (a supply-GST or delivery term this cart does not
-    carry today, an unusable line). The invoice then keeps its single-line inclusive split.
+    None only for invalid source lines or a non-reconciling frozen quote. Supply
+    GST and Express are now explicit terms on all customer shop snapshots and
+    are itemised against the same captured total.
     """
     from lambda_utils.ecommerce import default_coupon
 
@@ -1221,14 +1228,15 @@ class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
 
 
 def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
-    """Owner-approved Vault/Drop Docs sequence in exact integer paise.
+    """The existing service-intent guard, priced by the SAME unified shop policy.
 
-    ProductsTable line price -> 18% supply GST -> Delight -> Rs45 Express ->
-    canonical 2.5% Convenience Fee -> 18% GST on that fee -> Amount Payable.
+    No separate Vault/Drop Docs fee arithmetic: GST, Delight, Rs45 Express,
+    convenience and its GST must match the public service-price preview and all
+    ordinary customer carts, down to the paise. The immutable service identity
+    and payment-attempt protections are unchanged.
     """
-    from lambda_utils.ecommerce import default_coupon, service_requests
+    from lambda_utils.ecommerce import unified_pricing
 
-    # Read/freeze the authoritative ProductsTable line once; no adjustment is trusted from client.
     base = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
@@ -1239,38 +1247,7 @@ def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
         gst_bps=0,
         coupon_definition=None,
     )
-    frozen = base.frozen_data if isinstance(base.frozen_data, dict) else {}
-    frozen_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
-    item_paise = sum(
-        int(line.get("unitPricePaise") or 0) * int(line.get("quantity") or 0)
-        for line in frozen_items if isinstance(line, dict)
-    )
-    if item_paise <= 0:
-        raise ValueError("Vault/Drop Docs service item price unavailable")
-
-    supply_gst_paise = checkout_pricing.round_half_up(item_paise, 1800)
-    gst_inclusive_paise = item_paise + supply_gst_paise
-    delight_paise = default_coupon.delight_paise(gst_inclusive_paise)
-    express_paise = service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
-    collection_paise = gst_inclusive_paise - delight_paise + express_paise
-    quote = checkout_pricing.compute_quote(collection_paise, currency="INR")
-    return checkout_pricing.build_snapshot(
-        customer_id=base.customer_id,
-        cart_id=base.cart_id,
-        cart_revision=base.cart_revision,
-        quote=quote,
-        created_at=base.created_at,
-        ttl_seconds=base.expires_at - base.created_at,
-        site=frozen.get("site"),
-        items=frozen_items,
-        address=frozen.get("address"),
-        delivery={"paise": express_paise, "optionId": "express"},
-        pricing_metadata={
-            "policy": "vault-dropdocs-explicit-gst-2026-10-28",
-            "supplyGstPaise": supply_gst_paise,
-            "discountPaise": delight_paise,
-        },
-    )
+    return unified_pricing.quote_from_base_snapshot(base)
 
 
 
@@ -1416,21 +1393,25 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
             raise ContributionRejected("CONTRIBUTION_MUST_BE_SEPARATE")
         return _contribution_quote(identity, ephemeral_cart, reader, now, canonical)
 
-    # Delight is server-owned. Vault/Drop Docs keep their explicit 18% supply-GST
-    # sequence; other customer carts add one mandatory Rs45 Express AFTER the
-    # existing GST-inclusive catalog/discount quote, but BEFORE fee and fee GST.
-    # The unlisted Rs2 internal QA SKU stays usable for cheap payment verification.
-    from lambda_utils.ecommerce import default_coupon, service_requests, express_policy
+    # All customer items except Contribute use ONE GST-exclusive pricing policy.
+    # Server-owned ProductsTable line amounts are bases; unified_pricing adds 18%
+    # supply GST before Delight, one Rs45 Express, and convenience + fee GST.
+    # The unlisted Rs2 internal QA item preserves its original low-cost quote.
+    from lambda_utils.ecommerce import (
+        default_coupon, service_requests, express_policy, unified_pricing)
     service_line = service_requests.service_line(line_items)
     if service_line is not None and service_line.kind in (
             service_requests.VAULT, service_requests.DROP_DOCS):
         return _vault_dropdocs_quote(identity, ephemeral_cart, reader, now)
 
-    coupon_definition = (
-        default_coupon.delight_definition()
-        if not service_requests.has_service_line(line_items)
-        else None
-    )
+    internal_qa = express_policy.is_internal_qa_cart(canonical)
+    if (not internal_qa and any(pid == express_policy.INTERNAL_QA_PRODUCT_ID
+                                for pid, _, _ in canonical)):
+        raise ValueError("internal QA item cannot be mixed into customer checkout")
+    # Base snapshot is intentionally unadjusted for customers. A native
+    # gst_bps=1800 pass would tax *after* Delight; the agreed customer rule
+    # computes 18% on the full base and Delight on base plus supply GST.
+    coupon_definition = default_coupon.delight_definition() if internal_qa else None
     base = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
@@ -1441,9 +1422,9 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         gst_bps=0,
         coupon_definition=coupon_definition,
     )
-    if express_policy.is_internal_qa_cart(canonical):
+    if internal_qa:
         return base
-    return express_policy.with_standard_express(base)
+    return unified_pricing.quote_from_base_snapshot(base)
 
 
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
@@ -2099,8 +2080,8 @@ def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any
         charges = _order_charges(spec, items, int(snapshot.quote.total_payable_paise))
         if not items or charges is None:
             return answer(503, {"error": "QUOTE_BREAKDOWN_UNAVAILABLE"})
-        # The checkout labels Express only when the frozen server delivery
-        # option actually says Express. Never guess from a ₹25/₹15 amount.
+        # Express is labelled from the frozen server delivery option, never
+        # guessed from the price or a browser-supplied field.
         frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
         delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
         if delivery.get("optionId") in ("express", "contribute-express"):
