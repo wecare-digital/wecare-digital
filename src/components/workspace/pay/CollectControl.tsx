@@ -9,9 +9,9 @@ export default function CollectControl(){
       ['Server preview / confirm','POST /invoices · _action=preview or create · invoice-engine','ContactsTable; preview writes no invoice'],
       ['Collect Log','GET /invoices?scope=collect · list_invoices','InvoicesTable; pay_flow custom invoices only'],
       ['Saved image / signed link','GET /invoices/{id} · get_invoice','InvoiceAssetsTable; private S3 object'],
-      ['Paid receipt resend','POST /invoices · collect-resend · collect_receipts.resend','CommerceKeysTable request identity + InvoicesTable lock + InvoiceDeliveryLogTable'],
+      ['Paid receipt resend','POST /invoices · collect-resend · collect_receipts.resend','CommerceKeys request identity + InvoicesTable lock + InvoiceDeliveryLogTable'],
       ['Receipt image recovery','POST /invoices · collect-repair-image · ensure_invoice_image','InvoiceAssetsTable; reuse saved paid version'],
-      ['Order evidence','GET /wa-business/orders/{internalOrderId} · service-api','OrdersTable; invoiceId must match'],
+      ['Order evidence','GET /wa-business/orders/{internalOrderId} · service-api','OrderTable; invoiceId must match'],
       ['Measured message chronology','GET /invoices/{id}/delivery-log · get_delivery_log','InvoiceDeliveryLogTable; exact invoice partition'],
     ].map(row=><tr key={row[0]}>{row.map(cell=><td key={cell}>{cell}</td>)}</tr>)}</tbody></table></div><p>Physical table names use the deployment prefix stack-wecare-digital-. The invoice API provides the saved internal order ID and public order number; the UI verifies the order’s invoice link before offering Open order.</p><PaymentFramework section="collect"/>
     <style jsx>{`h2{font-size:18px}p,pre{font-size:12px;line-height:1.7;color:var(--text-muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere}.table{overflow:auto}table{border-collapse:collapse;width:100%;font-size:11px}th,td{padding:10px;border:1px solid var(--border);text-align:left;vertical-align:top}`}</style>

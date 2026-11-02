@@ -22,6 +22,7 @@ Prefix: secure/d/public/Invoice/customer_invoice/  (GATED - moved off the public
 """
 
 import os
+import re
 import sys
 import json
 import base64
