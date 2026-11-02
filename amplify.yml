@@ -119,12 +119,12 @@ frontend:
         # browser key passes; that one fails the build before anything deploys.
         # Compares fingerprints only, so no secret is read or printed.
         - python3 scripts/verify_public_bundle_secrets.py > /tmp/wecare-public-bundle-check.log 2>&1 || { aws s3 cp /tmp/wecare-public-bundle-check.log "$WEB_BUILD_DIAGNOSTICS/public-bundle-failure.log" --only-show-errors || true; cat /tmp/wecare-public-bundle-check.log; exit 1; }; cat /tmp/wecare-public-bundle-check.log
-         # Stage only reviewed, content-addressed Lambda packages AFTER all site
-         # compilation and public-credential checks pass. Staging does NOT
-         # update a function, publish a version or move any live alias.
-         - python3 -m pip install --disable-pip-version-check --no-input --quiet boto3
-         - export SHOP_RELEASE_COMMIT="$(git rev-parse HEAD)"; test -n "$AWS_COMMIT_ID"; test "$SHOP_RELEASE_COMMIT" = "$AWS_COMMIT_ID"; python3 scripts/stage_shop_checkout_packages.py --commit "$SHOP_RELEASE_COMMIT" --output /tmp/wecare-shop-checkout-release
-         - for f in /tmp/wecare-shop-checkout-release/*.zip /tmp/wecare-shop-checkout-release/manifest.json; do aws s3 cp "$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/customer-commerce/shop-checkout-release/$SHOP_RELEASE_COMMIT/$(basename "$f")" --only-show-errors || exit 1; done
+        # Stage only reviewed, content-addressed Lambda packages AFTER all site
+        # compilation and public-credential checks pass. Staging DOES NOT publish.
+        # Amplify provides AWS_COMMIT_ID even when no .git checkout is mounted.
+        - test -n "$AWS_COMMIT_ID"; export SHOP_RELEASE_COMMIT="$AWS_COMMIT_ID"; python3 -m pip install --disable-pip-version-check --no-input --quiet boto3
+        - python3 scripts/stage_shop_checkout_packages.py --commit "$SHOP_RELEASE_COMMIT" --output /tmp/wecare-shop-checkout-release > /tmp/wecare-shop-staging.log 2>&1 || { aws s3 cp /tmp/wecare-shop-staging.log "$WEB_BUILD_DIAGNOSTICS/shop-stage-failure.log" --only-show-errors || true; cat /tmp/wecare-shop-staging.log; exit 1; }; cat /tmp/wecare-shop-staging.log
+        - for f in /tmp/wecare-shop-checkout-release/*.zip /tmp/wecare-shop-checkout-release/manifest.json; do aws s3 cp "$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/customer-commerce/shop-checkout-release/$SHOP_RELEASE_COMMIT/$(basename "$f")" --only-show-errors || { echo "Shop checkout artifact staging failed for $(basename "$f")" | tee /tmp/wecare-shop-upload-failure.log; aws s3 cp /tmp/wecare-shop-upload-failure.log "$WEB_BUILD_DIAGNOSTICS/shop-upload-failure.log" --only-show-errors || true; exit 1; }; done
   artifacts:
     baseDirectory: out
     files:
