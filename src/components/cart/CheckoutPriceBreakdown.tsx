@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { CheckoutLineItem } from '../../lib/cart';
 import { basketFingerprint } from '../../lib/cart';
 import { formatPaiseINR } from '../../lib/money';
+import { publicActionText } from '../../lib/publicActionNotices';
 
 /** Read-only quotation. No payment attempt, gateway order or invoice is created here. */
 const QUOTE_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/ecommerce/prepare-checkout`;
@@ -101,7 +102,7 @@ export default function CheckoutPriceBreakdown (
       { !accessToken
         ? <p className="cq-note">Sign in to review the full amount before payment.</p>
         : state.kind === 'loading' || !fingerprint
-          ? <p className="cq-note" role="status">Calculating your total securely…</p>
+          ? <p className="cq-note" role="status">{ publicActionText( 'processing' ) }</p>
           : state.kind === 'failed'
             ? (
               <div className="cq-retry">
