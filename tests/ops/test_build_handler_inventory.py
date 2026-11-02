@@ -46,10 +46,12 @@ class BuildHandlerInventoryTest(unittest.TestCase):
 
     def test_summary_counts_reconcile(self):
         summary = self.report["summary"]
-        self.assertEqual(summary["total_py_files"], 318)
-        self.assertEqual(summary["shared_modules"], 190)
+        # Production added collect_contract.py and collect_receipts.py during
+        # this branch's development; both are shared modules, not new Lambdas.
+        self.assertEqual(summary["total_py_files"], 320)
+        self.assertEqual(summary["shared_modules"], 192)
         # The shared modules must dominate the standalone handler count: this is
-        # the 318-vs-~76 drift signal.
+        # the 320-vs-~76 drift signal.
         self.assertGreater(summary["shared_modules"], summary["standalone_handlers"])
         self.assertEqual(summary["manifest_functions"], 72)
         self.assertGreaterEqual(summary["specs_total"], 60)
@@ -129,7 +131,7 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         shared_entries = self.report["domains"].get("shared", [])
         self.assertEqual(shared_entries, [],
                          "shared/ files must be modules, not standalone handlers")
-        self.assertEqual(self.report["summary"]["shared_modules"], 190)
+        self.assertEqual(self.report["summary"]["shared_modules"], 192)
         # And no emitted handler path lives under shared/.
         for entries in self.report["domains"].values():
             for entry in entries:

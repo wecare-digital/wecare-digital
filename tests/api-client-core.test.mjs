@@ -1,8 +1,9 @@
 // Behavioural regression tests for the api-client failure-classification core.
 //
-// src/api/client.ts is a ~7800-line module with heavy top-level imports
-// (aws-amplify, config, lib helpers) that cannot be evaluated wholesale
-// offline. Following the established extract-and-run-in-vm idiom (see
+// src/api/core.ts is the shared engine extracted from the api-client module and
+// still carries heavy top-level imports (aws-amplify, config, lib helpers) that
+// cannot be evaluated wholesale offline. Following the established
+// extract-and-run-in-vm idiom (see
 // tests/whatsapp-analytics.test.mjs) we slice the REAL apiCallResult function
 // body — together with its supporting recordFailure/delay/getAuthToken and the
 // RETRYABLE_KINDS plumbing — out of the source text, compile it with esbuild
@@ -19,7 +20,11 @@ import vm from 'node:vm';
 
 import { compileTsx, readSource } from './helpers/loadTsx.mjs';
 
-const CLIENT_FILE = 'src/api/client.ts';
+// FEAT-002: the shared failure-classification core (RETRYABLE_KINDS .. apiCallResult)
+// was relocated verbatim from src/api/client.ts into src/api/core.ts during the
+// domain-module decomposition. The extracted span and every assertion below are
+// unchanged; only the source file this test slices from moved.
+const CLIENT_FILE = 'src/api/core.ts';
 
 // Extract the real module slice from `const RETRYABLE_KINDS` through the end of
 // `apiCallResult`. That span carries recordFailure, delay, getAuthToken,
@@ -53,19 +58,20 @@ function extractCoreSlice() {
   return source.slice( start, end ).replace( /^export\s+/gm, '' );
 }
 
-function loadApiCallResult( { fetch, fetchAuthSession, retryConfig } = {} ) {
+function loadApiCallResult( { fetch, fetchAuthSession, retryConfig, apiBase = 'https://api.invalid' } = {} ) {
   const slice = extractCoreSlice();
-  const wrapped = `${ slice }\nexport { apiCallResult, getLastApiFailure };`;
+  const wrapped = `${ slice }\nexport { apiCallResult, getLastApiFailure, authFetch };`;
   const code = compileTsx( wrapped );
   const compiledModule = { exports: {} };
   const sandbox = {
     module: compiledModule,
     exports: compiledModule.exports,
-    API_BASE: 'https://api.invalid',
+    API_BASE: apiBase,
     RETRY_CONFIG: retryConfig ?? { maxRetries: 1, baseDelayMs: 0, maxDelayMs: 0 },
     fetch,
     fetchAuthSession: fetchAuthSession ?? ( async () => ( { tokens: null } ) ),
     AbortController,
+    URL,
     // The shipped code arms an 8s AbortController timer per attempt and only
     // clears it on the success/refusal path, not when fetch throws. Dropping
     // the long-lived 8s timer keeps the suite fast and leaves no open handle;
@@ -270,4 +276,49 @@ test( 'a refusal message never leaks the Bearer token', async () => {
   const result = await apiCallResult( 'https://api.invalid/admin' );
   assert.equal( result.ok, false );
   assert.ok( !result.failure.message.includes( secret ), 'token must never appear in the message' );
+} );
+
+test( 'authenticated requests reject foreign destinations before reading credentials or fetching', async () => {
+  let authReads = 0;
+  let requests = 0;
+  const { apiCallResult, authFetch } = loadApiCallResult( {
+    apiBase: 'https://api.invalid/api',
+    fetch: async () => { requests++; return makeResponse( 200, {} ); },
+    fetchAuthSession: async () => { authReads++; return { tokens: null }; },
+  } );
+  for ( const url of [
+    'https://evil.invalid/api/contacts',
+    'https://api.invalid.evil.invalid/api/contacts',
+    '//evil.invalid/api/contacts',
+    'https://api.invalid@evil.invalid/api/contacts',
+    'https://user:password@api.invalid/api/contacts',
+    'http://api.invalid/api/contacts',
+    'https://api.invalid/api-other/contacts',
+    '/api/../outside',
+    'file:///api/contacts',
+  ] ) {
+    await assert.rejects( authFetch( url ), /outside the configured API/ );
+    const result = await apiCallResult( url );
+    assert.equal( result.ok, false );
+    assert.equal( result.failure.retryable, false );
+    assert.equal( result.failure.url, 'https://api.invalid/api' );
+  }
+  assert.equal( authReads, 0 );
+  assert.equal( requests, 0 );
+} );
+
+test( 'trusted absolute and root-relative API destinations preserve query, body and staff auth', async () => {
+  const calls = [];
+  const { apiCallResult, authFetch } = loadApiCallResult( {
+    apiBase: 'https://api.invalid/api',
+    fetch: async ( url, init ) => { calls.push( { url, init } ); return makeResponse( 200, { ok: true } ); },
+    fetchAuthSession: async () => ( { tokens: { accessToken: { toString: () => 'test-token' } } } ),
+  } );
+  await authFetch( '/api/workspace/mcp?scope=read#fragment', { method: 'POST', body: '{}' } );
+  const result = await apiCallResult( 'https://api.invalid/api/contacts?next=https%3A%2F%2Fexample.org' );
+  assert.equal( result.ok, true );
+  assert.equal( calls[ 0 ].url, 'https://api.invalid/api/workspace/mcp?scope=read' );
+  assert.equal( calls[ 0 ].init.body, '{}' );
+  assert.equal( calls[ 0 ].init.headers.Authorization, 'Bearer test-token' );
+  assert.equal( calls[ 1 ].url, 'https://api.invalid/api/contacts?next=https%3A%2F%2Fexample.org' );
 } );

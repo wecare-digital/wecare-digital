@@ -20,7 +20,11 @@ import vm from 'node:vm';
 import { compileTsx, readSource } from './helpers/loadTsx.mjs';
 
 const TEMPLATES_FILE = 'src/components/workspace/whatsapp/templates.tsx';
-const CLIENT_FILE = 'src/api/client.ts';
+// FEAT-002: getTemplateAnalyticsSummary was relocated verbatim from
+// src/api/client.ts into the whatsapp domain module during the api-client
+// decomposition. The extracted body and every assertion below are unchanged;
+// only the source file this test slices from moved.
+const CLIENT_FILE = 'src/api/domains/whatsapp.ts';
 
 test( 'templates.tsx contains no Math.random fabricated metrics', () => {
   const source = readSource( TEMPLATES_FILE );
