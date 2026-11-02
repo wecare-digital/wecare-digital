@@ -41,7 +41,7 @@ def test_unpaid_expired_unverified_file_cannot_resend():
         fn, _, updates = access_handler(state)
         with patch.dict(sys.modules, {'whatsapp_delivery': SimpleNamespace(
                 send_vault_link=lambda **kw: (_ for _ in ()).throw(AssertionError('sent')))}):
-            response = fn('file-one', {'body': '{}'}, '')
+            response = fn('file-one', {'body': json.dumps({'requestId': '11111111-1111-4111-8111-111111111111'})}, '')
         assert response['statusCode'] == 409
         assert not updates
 
@@ -69,3 +69,35 @@ def test_different_request_cannot_bypass_unresolved_send():
             'previousRequestId': 'old'})}, '')
     assert result['statusCode'] == 409
     assert not updates
+
+
+def test_scheduled_access_supplies_stable_resend_identity():
+    from datetime import datetime, timezone, timedelta
+    import uuid
+    node = next(n for n in ast.parse(HANDLER.read_text()).body
+                if isinstance(n, ast.FunctionDef) and n.name == '_dispatch_vault_scheduled_action')
+    schedule_id = 'vault-' + 'a' * 32
+    row = {'kind': 'VAULT_ACTION', 'status': 'DISPATCHING',
+           'dispatchToken': 't' * 32, 'vaultAction': 'access', 'fileId': 'file-one',
+           'ownerCustomerId': 'owner', 'scheduledAt': datetime.now(timezone.utc).isoformat()}
+    calls = []
+    def resend(file, event, origin):
+        calls.append(json.loads(event['body']))
+        return {'statusCode': 200, 'body': json.dumps({'outcome': 'VAULT_LINK_SENT'})}
+    env = {'Dict': dict, 'Any': object, 'json': json, 'datetime': datetime,
+           'timezone': timezone, 'timedelta': timedelta, 'uuid': uuid,
+           'time': __import__('time'), 'ClientError': ClientError,
+           'VAULT_SCHEDULE_TABLE': 'schedule', 'VAULT_SCHEDULE_KIND': 'VAULT_ACTION',
+           'VAULT_SCHEDULE_ACTIONS': ('access', 'payment', 'offer'),
+           '_table': lambda name: SimpleNamespace(get_item=lambda **kw: {'Item': row},
+                                                  update_item=lambda **kw: None),
+           '_owned_file_for_admin': lambda file: ({'ownerCustomerId': 'owner',
+                                                   'accessResendRequestId': 'previous'}, None),
+           '_file_access_state': lambda *args: 'OPEN', '_admin_send_access': resend}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
+    event = {'scheduleId': schedule_id, 'dispatchToken': 't' * 32}
+    assert env['_dispatch_vault_scheduled_action'](event)['result'] == 'SENT'
+    assert env['_dispatch_vault_scheduled_action'](event)['result'] == 'SENT'
+    assert calls[0] == calls[1]
+    assert calls[0]['previousRequestId'] == 'previous'
+    assert str(uuid.UUID(calls[0]['requestId'])) == calls[0]['requestId']

@@ -3235,6 +3235,10 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
             or catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT})
         answer = _admin_request_payment(file_id, internal_event, "")
     else:
+        internal_event["body"] = json.dumps({
+            "requestId": str(uuid.uuid5(uuid.NAMESPACE_URL, "wecare:vault-access:" + schedule_id)),
+            "previousRequestId": str(file_row.get("accessResendRequestId") or ""),
+        })
         answer = _admin_send_access(file_id, internal_event, "")
 
     code = answer.get("statusCode")
