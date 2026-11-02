@@ -10,7 +10,7 @@ TS=ROOT/'src/lib/canonicalFlows.ts'
 IDEA=ROOT/'amplify/functions/shared/lambda_utils/customer_ideas.py'
 RECORDS=ROOT/'amplify/functions/shared/lambda_utils/flow_records.py'
 FLOW=ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/published/f002-leave-review.json'
-HUB=ROOT/'src/components/workspace/service/CustomerServiceHub.tsx'
+REGISTRY=ROOT/'src/lib/canonicalFlows.ts'
 INBOUND=ROOT/'amplify/functions/messaging/inbound-whatsapp-handler/handler.py'
 
 errors=[]
@@ -74,8 +74,8 @@ review=json.dumps(screens['REVIEW'],ensure_ascii=False)
 for token in ('wd_leave_review_v2','schema_version','topic','idea','WECARE.DIGITAL'):
     check(token in review or token in json.dumps(doc,ensure_ascii=False),f'Flow JSON missing {token}')
 
-hub=HUB.read_text(encoding='utf-8')
-check("key: 'leave_review'" in hub and "status: 'published'" in hub,'Workspace must show F002 published')
+registry=REGISTRY.read_text(encoding='utf-8')
+check("capability: 'leave_review'" in registry and "flowId: REVIEW_FLOW_ID, status: 'PUBLISHED'" in registry, 'Active canonical registry must show F002 published')
 
 inbound=INBOUND.read_text(encoding='utf-8')
 leave=inbound[inbound.index("    'leave_review': {"):inbound.index("    'subscribe': {", inbound.index("    'leave_review': {"))]
@@ -91,4 +91,4 @@ if errors:
     print('F002 CHECK FAILED')
     for e in errors: print(' -',e)
     raise SystemExit(1)
-print('F002 CHECK PASSED: canonical contract, endpointless Flow, identity protection, idempotent writer and Workspace status agree.')
+print('F002 CHECK PASSED: canonical contract, endpointless Flow, identity protection, idempotent writer and canonical registry status agree.')

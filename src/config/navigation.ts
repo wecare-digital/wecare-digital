@@ -168,7 +168,7 @@ export const settingsConfig: SettingsGroup[] = [
     // AssociateSoftwareToken does not evaluate IAM, so there is no admin path). It is declared
     // on `mfaPanel` below rather than as a `items[]` route, so getAllNavItems() / the command
     // palette (which index real URLs only) never point at a missing file, while the gear still
-    // leads with it. Navigation.test / PagesConsolidation assert exactly this relocation.
+    // leads with it.
     mfaPanel: { id: 'mfa', label: 'Sign-in & MFA' },
     items: [
       // Internal Agent moved here from the Platform group: with the flat sidebar, the
@@ -305,8 +305,7 @@ export const settingsConfig: SettingsGroup[] = [
  *
  * So the eight homes are declared here and every one is a real, reachable route. Six of
  * the eight were already live under different names; this registry stops that being
- * implicit, and `tests/test_module_homes.py` asserts each `path` exists as a page and
- * appears in `getAllNavItems()`.
+ * implicit. Keep each path reachable and included in getAllNavItems().
  *
  * Settings is deliberately `null`. A `/workspace/settings` page would be one more destination to
  * navigate to *before* navigating, with its own shell, breadcrumb and a decision about

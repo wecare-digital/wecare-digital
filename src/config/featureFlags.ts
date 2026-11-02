@@ -31,10 +31,8 @@ export const featureFlags = {
    * Enabling it is an env change plus a REBUILD, not a code edit: NEXT_PUBLIC_ values are
    * inlined at build time, so setting the variable alone changes nothing.
    *
-   * The name is `invoiceDownload` and not `myInvoiceRouteLive` because
-   * `src/test/FeatureFlags.test.tsx` sweeps flag names for `send`/`live`/`smoke`/`apply`/
-   * `routing` — and correctly so: a reader scanning flag names should not have to decide
-   * whether "…Live" means "the route is live" or "live sending".
+   * The invoiceDownload name describes a read capability; avoid names that could be
+   * confused with enabling live sends or payment actions.
    */
   invoiceDownload: flag( process.env.NEXT_PUBLIC_ENABLE_INVOICE_DOWNLOAD ),
 

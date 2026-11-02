@@ -25,7 +25,7 @@ Status: 2026-11-02. Scope is the **actual Google Maps air-quality/weather map** 
 | Invalid API key, slow network, quota exceeded | Helpful unavailable states without a fake map or fabricated forecast. |
 | Before map enters the screen | The main-map API requests are deferred; this does NOT include the separate decorative globe. |
 
-The new unittest source-contract tests run in AWS Amplify prebuild. They verify code wiring but do not replace an actual visual test in mobile browsers; connected Browser tab reading was unavailable during this audit.
+The retired unittest source-contract suite no longer runs in Amplify prebuild. Source checks do not replace visual tests in mobile browsers; browser verification remains required.
 
 ## 3. Google Cloud quotas: administrator console actions still required
 

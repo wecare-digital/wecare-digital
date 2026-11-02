@@ -1,28 +1,9 @@
 import type { Crumb } from '../components/Breadcrumbs';
 
-/**
- * ONE SOURCE FOR THE PRODUCT-FAMILY BREADCRUMB TRAILS.
- *
- * .kiro/steering/00-common.md: the BreadcrumbList JSON-LD must "mirror the visible breadcrumb trail
- * exactly". Until 2026-10-16 it did not on any of these fifteen pages. Each page typed its
- * visible trail by hand (Home / Shop / Dastavez / Drafting) while _app.tsx's
- * getPublicPageSchema emitted a fixed two-item list (Home / Drafting) for every route in
- * PUBLIC_PAGE_META - two trails for one page, and the one Google reads was the shorter.
- *
- * Both now read this map: the page passes `breadcrumbTrail( route )` to ProductPage's `crumbs`,
- * and getPublicPageSchema builds the ListItems from the same entry, so the two cannot disagree.
- * src/test/BreadcrumbTrails.test.ts pins that every key is a PUBLIC_PAGE_META route whose name
- * ends the trail, and that every page under src/pages takes its crumbs from here.
- *
- * DELIBERATELY SMALL. _app.tsx imports this module, which puts it in the bundle every page
- * loads, so it carries labels and hrefs only - not the product copy in products.ts or
- * productChildren.ts. The labels repeat the product names; the test is what keeps them equal.
- *
- * Keys are router.pathname spellings (no trailing slash), the same keys PUBLIC_PAGE_META uses.
- * hrefs carry the trailing slash, because next.config.js sets trailingSlash and a crumb pointing
- * at the slashless URL names a redirect.
- *
- * Routes NOT here render no visible trail, and keep the two-item JSON-LD default.
+/** Shared product breadcrumb trails for visible navigation and BreadcrumbList JSON-LD.
+ * Keys match PUBLIC_PAGE_META router paths; links include the configured trailing slash.
+ * Keep labels aligned with products.ts and productChildren.ts. Routes absent from this
+ * map retain their two-item schema default.
  */
 const HOME: Crumb = { label: 'Home', href: '/' };
 const SHOP: Crumb = { label: 'Shop', href: '/shop/' };

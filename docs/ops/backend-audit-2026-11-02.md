@@ -6,7 +6,9 @@ This is a **reviewable operations change**, not a deployment. Production remains
 
 User confirmed that Meta/WhatsApp **Commerce catalog synchronization** is no longer needed. Do **not** confuse it with WhatsApp Business messaging, message templates, conversation metadata, customer orders, native product catalog, or checkout.
 
-In AWS, two scheduled sync rules (`wecare-meta-catalog-sync-schedule` and `wecare-meta-catalog-sync-waba2-schedule`) were disabled, and the retired sync's drift/failure alarms were removed on 2026-11-02. The Lambda, aliases, underlying products, and customer data were preserved. The retired Meta-sync Lambda's reserved concurrency was additionally set to **0** on 2026-11-02 as a reversible runtime block: direct invocations (including aliases) now throttle until intentionally re-enabled. Do not change this concurrency without explicit release approval.
+In AWS, both retired scheduled sync rules and their targets were deleted on 2026-11-02 after verifying they were disabled and targeted only Meta catalog sync. The retired sync's drift/failure alarms had already been removed. The Lambda and aliases remain with reserved concurrency **0**. The active WhatsApp Business API still contains an admin proxy to the sync function, and deployment/IAM/catalog infrastructure references remain; coordinate their removal in a backend release before deleting the function. Do not change concurrency without explicit release approval. Products and customer records were not changed.
+
+The route-free API Gateway integration for the retired AI generation function was also deleted, with absence verified afterward. The AI Lambda remains blocked at concurrency **0**. The inbound handler still contains unused invocation helpers; remove those and complete rollback/deployment review before deleting it. Neither Lambda was invoked to test this cleanup.
 
 ### Dependency review required before code removal
 

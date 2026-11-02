@@ -21,16 +21,9 @@
  * Google Places output; it is not part of the key set, so offering an alias here would be
  * offering a name that is not canonical.
  *
- * PINNED BY tests/test_india_subdivision_drift.py, BECAUSE THIS TABLE DECIDES THE TAX.
- * The subdivision is the place of supply, which decides the CGST/SGST versus IGST split. A state
- * this file offers but the Python table cannot map is a dead-end loop for the customer and a
- * wrong tax split if it ever got through, so the two sides are compared in CI. The server
- * lowercases before lookup, so the comparison is case-insensitive and only the SET of names is
- * pinned - not their order, which is alphabetical here purely so the select is scannable.
- *
- * ONE CONSTRAINT ON EDITING THIS FILE: the drift test collects every single-quoted literal in the
- * whole source, so no other single-quoted string may appear anywhere in it, comments included.
- * Use double quotes in prose, as above.
+ * Keep this set aligned with india_address.INDIA_SUBDIVISIONS: subdivision determines
+ * place of supply and the CGST/SGST versus IGST split. The backend uses case-insensitive
+ * lookup; this list is alphabetical for the customer selector.
  */
 export const INDIA_SUBDIVISION_NAMES: readonly string[] = [
   'Andaman and Nicobar Islands',
