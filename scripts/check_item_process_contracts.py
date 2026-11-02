@@ -66,12 +66,12 @@ class ProcessContracts(unittest.TestCase):
             processes.record_captured(FailedTable({**row,'itemProcessCapturedPaymentId':''}),'i','p')
 
     def test_service_attribution_requires_exact_paid_lineage_and_file_target(self):
-        i=dict(invoiceId='i',paymentId='p',referenceId='ref',total='105.56',currency='INR')
+        i=dict(invoiceId='i',paymentId='p',referenceId='ref',total='84.97',currency='INR')
         r=dict(referenceId='ref',paymentAttemptId='a')
-        a=dict(paymentAttemptId='a',referenceId='ref',status='PAYMENT_PAID',verifiedProviderPaymentId='p',verifiedCapturedPaise=10556,serviceKind='VAULT',vaultFileId='f')
+        a=dict(paymentAttemptId='a',referenceId='ref',status='PAYMENT_PAID',verifiedProviderPaymentId='p',verifiedCapturedPaise=8497,serviceKind='VAULT',vaultFileId='f')
         self.assertEqual(processes.verified_item_id(i,r,a),'fixed-27')
         self.assertEqual(processes.verified_item_id(i,r,{**a,'vaultFileId':''}),'')
-        self.assertEqual(processes.verified_item_id(i,r,{**a,'verifiedCapturedPaise':10555}),'')
+        self.assertEqual(processes.verified_item_id(i,r,{**a,'verifiedCapturedPaise':8496}),'')
         self.assertEqual(processes.verified_item_id(i,r,{**a,'status':'PAYMENT_PENDING'}),'')
 
 class ContactRetentionContracts(unittest.TestCase):
