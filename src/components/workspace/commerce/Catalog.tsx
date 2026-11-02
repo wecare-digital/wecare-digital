@@ -597,7 +597,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           catalogImageKey: editCatalogImageKey,
           canonicalPath: editCanonicalPath,
           websiteEnabled: editWebsiteEnabled,
-          metaEnabled: editMetaEnabled,
         }),
       });
       showProduct(data.product);
@@ -689,7 +688,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         />
 
         <nav aria-label="Commerce sections" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          {(['products', 'meta'] as Tab[]).map(id => (
+          {(['products'] as Tab[]).map(id => (
             <button type="button" key={id} onClick={() => setTab(id)}
               aria-pressed={tab === id}
               style={{
@@ -774,13 +773,8 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                       onChange={e => setEditWebsiteEnabled(e.target.checked)} />
                     Publish on website after catalog snapshot/build
                   </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                    <input type="checkbox" checked={editMetaEnabled}
-                      onChange={e => setEditMetaEnabled(e.target.checked)} />
-                    Include in Meta / WhatsApp catalog plan
-                  </label>
-                  <p style={muted}>Website or Meta publication requires Active status and an approved
-                    artwork key under secure/d/public/catalog-deploy/catalog/products/. Meta still requires its separate exact-plan approval.</p>
+                  <p style={muted}>Website publication requires Active status and approved artwork
+                    under secure/d/public/catalog-deploy/catalog/products/.</p>
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button disabled={busy} onClick={updateProduct}>Save product</button>
                     <button disabled={busy} onClick={archive}>Archive</button>
@@ -855,87 +849,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           </div>
         )}
 
-        {tab === 'meta' && (
-          <section style={boxStyle}>
-            <h2 style={{ fontSize: 'var(--text-xl)' }}>Meta commerce synchronization</h2>
-            <div style={{ ...boxStyle, background: '#f8faf8', marginTop: 12 }}>
-              <h3 style={{ marginTop: 0, fontSize: 'var(--text-base)' }}>Bulk catalog release</h3>
-              <p style={muted}>
-                Admin-only 28-item release. Promotes only Activities, Ritva and VayuLok,
-                verifies all canonical artwork and publication flags, then prepares the read-only
-                Meta plan. No unrelated draft is touched and it never approves or applies the
-                provider plan.
-              </p>
-              <button type="button" onClick={runBulkCatalogMigration}
-                disabled={busy || metaCatalogBusy}>
-                Migrate catalog + prepare Meta plan
-              </button>
-              <button type="button" onClick={promoteApprovedCatalogThree}
-                disabled={busy || metaCatalogBusy}
-                style={{ marginInlineStart: 8 }}>
-                Promote Activities + Ritva + VayuLok → 28-item plan
-              </button>
-              {bulkMigrationProgress && (
-                <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
-                  {bulkMigrationProgress}
-                </p>
-              )}
-              {bulkMigrationSummary && (
-                <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
-                  {bulkMigrationSummary}
-                </p>
-              )}
-            </div>
-            <p>Product prices come from AWS ProductsTable. Meta is a projected sales channel,
-              not the product database. Sync application and approvals stay owner-gated.</p>
-            {!metaCatalog ? <p>Meta plan not loaded.</p> : (
-              <div style={{ marginTop: 12 }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: 'var(--text-base)', fontWeight: 600 }}>WhatsApp Catalog Approval</h3>
-                <p style={muted}>Changes are published to Meta only after this exact plan is approved
-                  AND the release gates are open. Apply writes to the live catalog; everything before
-                  it is reversible.</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0' }}>
-                  {([
-                    ['Catalog', metaCatalog.catalogId],
-                    ['Create', metaCatalog.counts?.create ?? 0],
-                    ['Update', metaCatalog.counts?.update ?? 0],
-                    ['Retire', metaCatalog.counts?.retire ?? 0],
-                    ['Approval', metaCatalog.approval?.status || 'Not proposed'],
-                    ['Release gates', metaCatalog.enabled && metaCatalog.dryRun === false ? 'Open' : 'Closed'],
-                  ] as [string, React.ReactNode][]).map(([label, value]) => (
-                    <div key={label} style={{ ...boxStyle, background: '#f8faf8', minWidth: 110, padding: '8px 12px' }}>
-                      <span style={muted}>{label}</span><br />
-                      <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-                <p style={{ fontSize: 'var(--text-xs)' }}>
-                  <strong>Exact plan hash</strong><br />
-                  <code style={{ wordBreak: 'break-all' }}>{metaCatalog.planHash || metaCatalog.currentPlanHash || '—'}</code>
-                  {(metaCatalog.blocked?.length || 0) > 0 && (
-                    <span style={{ display: 'block', marginTop: 8, color: 'var(--text-muted)' }}>Blocked: {metaCatalog.blocked?.join(', ')}</span>
-                  )}
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                  <button type="button" onClick={() => runMetaCatalogAction('propose')}
-                    disabled={metaCatalogBusy || (metaCatalog.blocked?.length || 0) > 0}>Propose this plan</button>
-                  <button type="button" onClick={() => runMetaCatalogAction('approve')}
-                    disabled={metaCatalogBusy || metaCatalog.approval?.status !== 'PROPOSED'}>Approve exact plan</button>
-                  <button type="button" onClick={() => runMetaCatalogAction('apply')}
-                    disabled={metaCatalogBusy || metaCatalog.approval?.status !== 'APPROVED' || !metaCatalog.enabled || metaCatalog.dryRun !== false}>Apply to Meta</button>
-                  <button type="button" onClick={() => runMetaCatalogAction('readback')}
-                    disabled={metaCatalogBusy || !['APPLYING', 'APPLY_SUBMITTED', 'APPLIED'].includes(metaCatalog.approval?.status || '')}>Readback provider</button>
-                </div>
-                {(!metaCatalog.enabled || metaCatalog.dryRun !== false) && (
-                  <p style={{ marginTop: 10, color: '#92400e', fontSize: 'var(--text-xs)' }}>
-                    Apply is intentionally locked: production catalog writes are disabled / dry-run.
-                    Open the release gates (enabled + dry-run off) before Apply can run.</p>
-                )}
-                {metaCatalogMessage && <p style={{ marginTop: 10, fontSize: 'var(--text-xs)' }} role="status">{metaCatalogMessage}</p>}
-              </div>
-            )}
-          </section>
-        )}
+
       </div>
   );
 
