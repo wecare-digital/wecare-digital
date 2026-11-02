@@ -1843,7 +1843,10 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
         return cors_response(400, {"error": "INVALID_ACCESS_REQUEST"}, origin)
     request_id = str(body.get("requestId") or "") if isinstance(body, dict) else ""
     previous = str(body.get("previousRequestId") or "") if isinstance(body, dict) else ""
-    # New workspace resends carry a durable identity. Legacy callers remain compatible.
+    # Every manual staff resend requires a durable identity.
+    if not request_id:
+        return cors_response(400, {"error": "ACCESS_REQUEST_ID_REQUIRED",
+            "message": "Refresh the Vault workspace before resending access."}, origin)
     if request_id:
         if not re.fullmatch(r"[a-f0-9-]{36}", request_id):
             return cors_response(400, {"error": "INVALID_ACCESS_REQUEST"}, origin)
