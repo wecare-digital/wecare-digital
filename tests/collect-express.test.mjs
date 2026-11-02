@@ -5,9 +5,9 @@ import {buildSync} from 'esbuild';
 
 // Exercise the real draft serializer. No API, renderer or provider is invoked.
 const built=buildSync({entryPoints:['src/lib/collect.ts'],bundle:true,platform:'node',format:'cjs',write:false});
-const module={exports:{}};
-vm.runInNewContext(built.outputFiles[0].text,{module,exports:module.exports});
-const {collectDraft,collectInputKey}=module.exports;
+const evaluatedModule={exports:{}};
+vm.runInNewContext(built.outputFiles[0].text,{module:evaluatedModule,exports:evaluatedModule.exports});
+const {collectDraft,collectInputKey}=evaluatedModule.exports;
 const customer={id:'saved-customer',name:'Example Customer',phone:'+919000000001',checkoutDeliveryAddress:{addressLine1:'Example street',city:'Kolkata',state:'West Bengal',postalCode:'700012',country:'India',countryCode:'IN'}};
 const lines=[{name:'Custom service',amount:'100.00',quantity:'1',gstRate:'18'}];
 
