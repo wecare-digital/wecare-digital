@@ -329,7 +329,7 @@ def check_live_behaviour(r: Result) -> None:
         r.add(f"gated API rejects anonymous: {path}", status == expect, f"HTTP {status}")
 
     # the rest of the site must be untouched
-    for path in ("/", "/workspace/engage/inbox/", "/workspace/link/"):
+    for path in ("/", "/workspace/engage/inbox/", "/workspace/communications/"):
         status, _ = _fetch(f"{SITE}{path}")
         r.add(f"site unaffected: {path}", status == 200, f"HTTP {status}")
 
