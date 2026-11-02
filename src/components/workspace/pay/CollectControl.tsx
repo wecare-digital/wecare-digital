@@ -13,6 +13,7 @@ export default function CollectControl(){
       ['Collect Log','GET /invoices?scope=collect · list_invoices','InvoicesTable; pay_flow custom invoices only'],
       ['Saved image / signed link','GET /invoices/{id} · get_invoice','InvoiceAssetsTable; private S3 object'],
       ['Paid receipt resend','POST /invoices · collect-resend · collect_receipts.resend','CommerceKeys request identity + InvoicesTable lock + InvoiceDeliveryLogTable'],
+      ['Reconcile unresolved receipt','POST /invoices · collect-reconcile · reconcile_existing / _reconcile_collect_resend','CommerceKeys + InvoicesTable; exact WhatsAppOutboundTable idempotency record; no message send'],
       ['Receipt image recovery','POST /invoices · collect-repair-image · ensure_invoice_image','InvoiceAssetsTable; reuse saved paid version'],
       ['Order evidence','GET /wa-business/orders/{internalOrderId} · service-api','OrderTable; invoiceId must match'],
       ['Measured message chronology','GET /invoices/{id}/delivery-log · get_delivery_log','InvoiceDeliveryLogTable; exact invoice partition; WhatsAppOutboundTable callback by exact receipt message ID'],

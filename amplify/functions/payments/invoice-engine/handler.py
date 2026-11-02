@@ -26,6 +26,7 @@ import re
 import sys
 import json
 import base64
+import hashlib
 import uuid
 import time
 import logging
@@ -355,11 +356,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 body, actor=_actor_sub, invoices=dynamodb.Table(INVOICES_TABLE),
                 keys=dynamodb.Table(COMMERCE_KEYS_TABLE), latest_asset=_latest_image_asset,
                 recipient_valid=_collect_saved_recipient_valid,
-                send=lambda iid, phone, key: send_invoice_whatsapp(
-                    iid, phone, wa_payment_request.PHONE_NUMBER_ID_1, request_id,
-                    force=True, expected_asset_key=key, resend_request_id=body['resendRequestId']),
+                send=lambda iid, phone, key: _send_collect_receipt(
+                    iid, phone, key, body['resendRequestId'], request_id),
+                original_ready=_collect_original_receipt_ready, reconcile=_reconcile_collect_resend,
                 paid=lambda inv: pay_status.canonical(inv.get('paymentStatus')) == pay_status.CAPTURED,
                 now=int(time.time()))
+            return _resp(code, result)
+
+        if method == 'POST' and body.get('_action') == 'collect-reconcile':
+            code, result = collect_receipts.reconcile_existing(
+                str(body.get('invoiceId') or ''), actor=_actor_sub,
+                invoices=dynamodb.Table(INVOICES_TABLE), keys=dynamodb.Table(COMMERCE_KEYS_TABLE),
+                reconcile=_reconcile_collect_resend, now=int(time.time()))
             return _resp(code, result)
 
         if method == 'POST' and body.get('_action') == 'collect-repair-image':
@@ -5827,7 +5835,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         wa_status = wa_body.get('status', 'unknown')
         if wa_response.get('FunctionError'):
             wa_status = 'unknown'
-        elif downstream_status >= 500 and force:
+        elif force and (downstream_status >= 500 or wa_body.get('error') == 'MESSAGE_SEND_IN_FLIGHT'):
             wa_status = 'unknown'
         elif downstream_status >= 400:
             # The downstream parsed and REFUSED the request. That is definite non-delivery,
@@ -5902,19 +5910,93 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
 
 # ─── Delivery Log ───
 
+def _collect_outbound_proof(invoice: Dict, intent: str = '', asset_key: str = '') -> Optional[Dict]:
+    # Same stable-ID contract as outbound-whatsapp._stable_outbound_message_id.
+    iid = str(invoice.get('invoiceId') or '')
+    business_key = f'collect-receipt:{iid}:{intent}' if intent else f'invoice-receipt:{iid}'
+    message_id = 'wa-idem-' + hashlib.sha256(business_key.encode()).hexdigest()[:40]
+    row = dynamodb.Table(os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')).get_item(
+        Key={'id': message_id}, ConsistentRead=True).get('Item') or {}
+    if (not row or row.get('id') != message_id
+            or (row.get('contactId') and row['contactId'] != invoice.get('contactId'))
+            or (asset_key and row.get('s3Key') and row['s3Key'] != asset_key)):
+        return None
+    status = str(row.get('status') or '').lower()
+    wamid = str(row.get('whatsappMessageId') or '')
+    if status in ('sent', 'accepted', 'delivered', 'read') and wamid.startswith('wamid.'):
+        return {'state':'ACCEPTED', 'waMessageId':wamid}
+    if status in ('failed', 'rejected'):
+        return {'state':'REFUSED', 'waMessageId':wamid}
+    return None
+
+
+def _collect_original_receipt_ready(invoice: Dict) -> bool:
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    iid = invoice['invoiceId']
+    claim = order_keys.resolve_invoice_delivery(keys, iid)
+    if not claim or claim.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED:
+        return True
+    proof = _collect_outbound_proof(invoice, str(claim.get('collectManualIntent') or ''))
+    if not proof:
+        return False
+    if proof['state'] == 'ACCEPTED':
+        order_keys.confirm_invoice_delivery(keys, invoice_id=iid, wa_message_id=proof['waMessageId'])
+    else:
+        order_keys.release_invoice_delivery(keys, invoice_id=iid)
+    fresh = order_keys.resolve_invoice_delivery(keys, iid)
+    return not fresh or fresh.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED
+
+
+def _reconcile_collect_resend(invoice_id: str, intent: str, asset_key: str) -> Optional[Dict]:
+    invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+        Key={'invoiceId':invoice_id}, ConsistentRead=True).get('Item') or {}
+    if not collect_contract.is_collect(invoice):
+        return None
+    proof = _collect_outbound_proof(invoice, intent, asset_key)
+    if proof:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        claim = order_keys.resolve_invoice_delivery(keys, invoice_id)
+        if claim and claim.get('collectManualIntent') == intent:
+            if proof['state'] == 'ACCEPTED':
+                order_keys.confirm_invoice_delivery(keys, invoice_id=invoice_id, wa_message_id=proof['waMessageId'])
+            else:
+                order_keys.release_invoice_delivery(keys, invoice_id=invoice_id)
+    return proof
+
+
+def _send_collect_receipt(invoice_id: str, phone: str, asset_key: str, intent: str, request_id: str) -> Dict:
+    # Serialize the first manual delivery with the automatic sender at the SAME boundary.
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    owned = order_keys.claim_invoice_delivery(keys, invoice_id=invoice_id,
+                                              extra={'collectManualIntent':intent})
+    if not owned:
+        claim = order_keys.resolve_invoice_delivery(keys, invoice_id)
+        if not claim or claim.get('deliveryStatus') != order_keys.DELIVERY_CONFIRMED:
+            return _resp(409, {'error':'ORIGINAL_RECEIPT_UNRESOLVED'})
+    result = send_invoice_whatsapp(invoice_id, phone, wa_payment_request.PHONE_NUMBER_ID_1,
+                                  request_id, force=True, expected_asset_key=asset_key, resend_request_id=intent)
+    if owned:
+        body = json.loads(result.get('body') or '{}')
+        if body.get('status') in ('sent','accepted','delivered','read') and body.get('waMessageId'):
+            order_keys.confirm_invoice_delivery(keys, invoice_id=invoice_id, wa_message_id=body['waMessageId'])
+        elif int(result.get('statusCode') or 0) in (400,403,404,409) or body.get('status') in ('failed','rejected'):
+            order_keys.release_invoice_delivery(keys, invoice_id=invoice_id)
+    return result
+
+
 def _collect_receipt_delivery(invoice: Dict, logs: List) -> Dict:
     # The invoice log durably binds its image key to the exact provider WAMID.
     # Outbound template headers historically omit s3Key; WAMID + saved contact
     # still bind their callback to that exact receipt, without guessing from time.
     receipts = [row for row in logs if row.get('invoiceId') == invoice.get('invoiceId') and row.get('channel') == 'whatsapp'
-                and row.get('waMessageId') and row.get('imageS3Key')
+                and row.get('imageS3Key')
                 and row.get('toNumber') == invoice.get('customerPhone')]
     if not receipts:
         return {'status': 'Acceptance not verified'}
     receipt = receipts[0]
     if receipt.get('status') in ('failed', 'rejected'):
         return {'status': 'Failed'}
-    if receipt.get('status') not in ('sent', 'accepted', 'delivered', 'read'):
+    if not receipt.get('waMessageId') or receipt.get('status') not in ('sent', 'accepted', 'delivered', 'read'):
         return {'status': 'Acceptance not verified'}
     try:
         result = dynamodb.Table(os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')).query(
