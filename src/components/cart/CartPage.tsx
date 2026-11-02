@@ -181,17 +181,10 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
 const SIGN_IN_PATH = '/auth?return=/checkout/';
 
 /**
- * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
- *
- * ITS PLACEMENT IS THE WHOLE OF ITS CORRECTNESS. It asserts that no charge was made, so it may be
- * shown only where the backend has said something that rules a charge out - the initiation gate was
- * off, readiness refused, the request was rejected, or it never left the browser. Every use below is
- * one of those. It is deliberately ABSENT from the two handoffs to /checkout/status/ and from that
- * screen entirely: once an attempt is live, "pending", "unknown" and "captured but not finalised"
- * are indistinguishable from here, and inviting a retry in any of them risks a second charge.
- *
- * A constant rather than four string literals so the claim has exactly one definition to audit, and
- * so a future edit cannot drift one copy of it onto a path that cannot support it.
+ * Shared short blocked notice for verified pre-payment refusals only.
+ * The browser still distinguishes refusals, attempted payments and unknown
+ * outcomes. Unknown results disable another checkout attempt and direct
+ * customers to Orders rather than encouraging a possible duplicate charge.
  */
 const NOT_PREPARED = publicActionText( 'blocked' );
 
