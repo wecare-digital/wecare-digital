@@ -1,0 +1,127 @@
+.preview{min-width:0;position:sticky;top:16px;align-self:start;display:grid;gap:16px;padding:20px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 4px 20px rgba(16,37,26,.035)}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.header h2{margin:2px 0 0;font-size:20px;letter-spacing:-.35px;color:var(--text)}
+.kicker{margin:0;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.065em;font-weight:800}
+.tag{white-space:nowrap;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--bg-secondary,#f8faf9);font-size:11px;font-weight:700;color:var(--text-muted)}
+.document{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;border:1px solid var(--border-light,var(--border));background:var(--bg-secondary,#f8faf9)}
+.documentIcon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:10px;background:#f0f8db;font-size:20px}
+.documentCopy{display:grid;gap:3px;min-width:0}
+.documentCopy strong{font-size:13px;overflow-wrap:anywhere;color:var(--text)}
+.documentCopy small{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
+.invoice,.messages,.delivery{min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;padding:14px}
+.invoiceTop,.sectionTitle,.billRow,.billTotal,.messageMeta{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.invoiceTop{align-items:center;gap:10px;font-size:11px}
+.invoiceTop strong{color:var(--text);letter-spacing:-.3px}
+.invoiceTop span{font-weight:700;color:var(--text-muted);font-size:10px}
+.invoice h3,.messages h3,.delivery h3{margin:10px 0 6px;color:var(--text);font-size:15px;line-height:1.3}
+.invoice h3{margin-top:13px}
+.customer{font-size:12px;color:var(--text-muted);margin:0 0 10px;overflow-wrap:anywhere}
+.billRow{padding:8px 0;border-top:1px solid var(--border-light,var(--border));font-size:12px}
+.billRow span{color:var(--text-muted)}
+.billRow strong{color:var(--text);white-space:nowrap}
+.billTotal{padding:12px 10px;margin-top:8px;border-radius:9px;background:rgba(209,244,112,.35);font-size:13px;font-weight:750;color:var(--accent)}
+.billTotal strong{font-size:16px}
+.hint{font-size:11px;line-height:1.45;color:var(--text-muted);margin:9px 0 0}
+.warning{background:#fff8e9;border:1px solid #f0cc84;color:#855814;border-radius:9px;padding:10px;font-size:11px;line-height:1.45;margin:10px 0 0}
+.sectionTitle{align-items:center}
+.sectionTitle h3{margin:0 0 12px}
+.sectionTitle span{font-size:10px;color:var(--text-muted);white-space:nowrap}
+.steps{display:flex;gap:5px;max-width:100%;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.stepButton{flex:1 0 66px;min-height:49px;border:1px solid var(--border);border-radius:9px;background:#fff;font:600 11px/1.2 var(--font-sans);color:var(--text-muted);padding:7px 5px;cursor:pointer;display:grid;justify-items:center;align-content:center;gap:3px}
+.stepButton span{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--bg-secondary,#f8faf9);font-size:10px;font-weight:800}
+.stepButton:hover{background:var(--bg-secondary,#f8faf9)}
+.stepButton:focus-visible,.actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.activeStep{background:#eef9cd;border-color:var(--lime);color:var(--accent);font-weight:800}
+.activeStep span{background:var(--accent);color:#fff}
+.messageMeta{font-size:11px;color:var(--text-muted);padding:4px 0 10px}
+.bubble{display:grid;gap:9px;padding:13px 14px;background:#edf9ef;border:1px solid #d5eedc;border-radius:14px 14px 4px 14px}
+.bubble small{font-size:10px;font-weight:750;color:#365b40;overflow-wrap:anywhere}
+.bubble p{font-size:13px;line-height:1.5;color:#173926;white-space:pre-wrap;margin:0;overflow-wrap:anywhere}
+.bubbleButton{display:block;border-radius:7px;text-align:center;padding:8px 10px;background:#fff;border:1px solid #bed9bf;color:#214b33;font-size:11px;font-weight:750}
+.smallNote{font-size:11px;color:#436449}
+.variables{display:grid;gap:0;margin:12px 0 0}
+.variables>div{display:grid;grid-template-columns:minmax(95px,31%) minmax(0,1fr);align-items:baseline;gap:9px;padding:7px 0;border-top:1px solid var(--border-light,var(--border));font-size:11px}
+.variables dt{color:var(--text-muted)}
+.variables dd{margin:0;font-weight:650;color:var(--text);overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.actions button{min-height:36px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--accent);font:700 12px var(--font-sans);padding:0 10px;cursor:pointer}
+.actions button:disabled{opacity:.5;cursor:default}
+@media(max-width:1080px){.preview{position:static}.steps{justify-content:flex-start}.stepButton{flex:1 0 70px}}
+@media(max-width:600px){.preview{padding:14px}.invoice,.messages,.delivery{padding:12px}.steps{overflow-x:auto}.stepButton{flex:0 0 80px}}
+
+/* One glance: WhatsApp first, then evidence; invoice/technical details are on demand. */
+.preview{background:#fcfdfa;gap:13px;border-color:#d7e3d7}
+.messages{border-color:#cfe0ce;background:#fff}
+.messages h3{font-size:14px;color:#193d26}
+.bubble{background:#eaf7eb;border-color:#d0e7d1;box-shadow:0 1px 0 rgba(30,59,39,.04);padding:16px}
+.bubble p{font-size:14px;line-height:1.6}
+.bubbleButton{min-height:35px;display:grid;place-items:center;font-size:12px}
+.steps{padding-top:3px;margin-bottom:5px}
+.activeStep{background:#e8f6d8}
+.disclosureTitle{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0;cursor:pointer;font-size:13px;font-weight:750;color:#274833;list-style:none}
+.disclosureTitle::-webkit-details-marker{display:none}
+.disclosureTitle:after{content:'+';margin-left:6px;color:#668573;font-size:19px}
+details[open]>.disclosureTitle:after{content:'−'}
+.disclosureTitle strong{margin-left:auto;color:#1f5731;font-size:14px}
+.disclosureTitle small{font-size:11px;font-weight:600;color:#748579}
+.invoice,.delivery{background:#fff;border:1px solid #dfe9dc}
+.invoice .invoiceTop{margin-top:15px}
+.technical{padding:10px 12px;margin-top:12px;border-radius:9px;background:#f7faf6;border:1px solid #e2ece1}
+.technical>.disclosureTitle{font-size:11px}
+.technical .variables{margin-top:10px}
+@media(max-width:600px){.preview{position:static}.bubble{padding:12px}.steps{overflow-x:auto}}
+
+/* Paid Vault: keep all four configured Meta IDs visible without opening details. */
+.templateCatalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.templateCatalogRow{min-width:0;padding:10px;border:1px solid #dce9d9;border-radius:9px;background:#f8fcf6}
+.templateCatalogRow dt{font-size:11px;font-weight:800;color:#244b2c;margin-bottom:5px}
+.templateCatalogRow dd{display:grid;gap:4px;margin:0;min-width:0}
+.templateCatalogRow code{font:600 10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;color:#315d3e}
+.templateCatalogRow small{font-size:10px;color:#5f7965;overflow-wrap:anywhere}
+.templateNote{font-size:10px;line-height:1.45;color:var(--text-muted);margin:2px 0 11px}
+@media(max-width:600px){.templateCatalog{grid-template-columns:1fr}}
+
+
+/* Vault UX refresh: timing and real message copy before large media assets. */
+.preview{position:static;gap:14px}
+.quickFlow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;border:1px solid #d9e8d1;border-radius:13px;background:#f4faef}
+.quickFlow>div{min-width:0;display:grid;align-content:start;gap:5px;padding:10px;border-radius:9px;border:1px solid #deebd6;background:#fff}
+.quickFlow small{font-size:11px;line-height:1.35;color:#5f7362}
+.quickFlow strong{font-size:12px;line-height:1.45;color:#204f2b;overflow-wrap:anywhere}
+.quickFlow>a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:9px;box-sizing:border-box;border:1px solid #97be7a;border-radius:9px;background:#e7f7cf;color:#214b33;font-size:12px;line-height:1.4;font-weight:750;text-decoration:none}
+.quickFlow>a:hover{background:#d8f1ad}
+.quickFlow>a:focus-visible,.itemNamePreview a:focus-visible{outline:3px solid #326a37;outline-offset:2px}
+.sectionTitle{align-items:flex-start;flex-wrap:wrap}
+.sectionTitle h3{margin:0}
+.sectionTitle span{white-space:normal;text-align:right}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;gap:7px;padding:3px 0 9px}
+.stepButton{min-width:0;flex:auto;min-height:52px;font-size:12px;line-height:1.3;white-space:normal}
+.messageMeta{flex-wrap:wrap;align-items:center}
+.copySource{font-size:12px;font-weight:800;color:#205f36;line-height:1.4;overflow-wrap:anywhere}
+.metaFooter{font-size:11px!important;font-weight:600!important;line-height:1.5;color:#506d56!important}
+.metaButtons{display:flex;gap:7px;flex-wrap:wrap}
+.metaButtons .bubbleButton{flex:1 1 120px}
+.mediaDetails,.historyDetails{border:1px solid #dce9d9;border-radius:11px;padding:12px;background:#fbfdfb;min-width:0}
+.mediaDetails>.disclosureTitle,.historyDetails>.disclosureTitle{min-height:44px;align-items:center;font-size:12px}
+.mediaDetails>div,.historyDetails>div{min-width:0}
+.itemNamePreview{display:grid;gap:7px;border:1px solid #c9e0be;background:#f4fbef;border-radius:10px;padding:12px;margin:14px 0 16px}
+.itemNamePreview small{font-size:11px;color:#4f6755;line-height:1.45}
+.itemNamePreview strong{font-size:14px;color:#203d29;line-height:1.4;overflow-wrap:anywhere}
+.itemNamePreview a{display:inline-flex;align-items:center;min-height:40px;font-size:12px;font-weight:750;color:#1b632d;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:600px){
+  .preview{padding:12px;gap:11px;border-radius:12px}
+  .header{flex-wrap:wrap}
+  .quickFlow{grid-template-columns:1fr;padding:10px}
+  .quickFlow>div{padding:9px}
+  .sectionTitle span{text-align:left}
+  .steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stepButton{min-height:48px}
+  .templateCatalog{grid-template-columns:1fr}
+  .messageMeta{gap:6px}
+  .billRow,.billTotal{align-items:flex-start}
+  .billRow strong,.billTotal strong{white-space:normal;text-align:right}
+  .variables>div{grid-template-columns:1fr;gap:3px}
+  .invoice,.messages,.delivery{padding:11px}
+  .invoiceTop{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.stepButton,.quickFlow>a{transition:none}}
