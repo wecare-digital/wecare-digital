@@ -27,6 +27,8 @@ interface WeatherInsightsSummary {
     meanHumidityPct?: number | null;
   }>;
   cached?: boolean;
+  stale?: boolean;
+  generatedAt?: string;
 }
 
 interface Props {
@@ -39,6 +41,38 @@ interface Props {
 }
 
 const INSIGHTS_URL = ( process.env.NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL || '' ).replace( /\/$/, '' );
+// Automatic history remains enabled. Use the same 0.1-degree grid as the
+// server's BigQuery result cache; browser persistence survives remounts/reloads.
+const LOCAL_HISTORY_STORE = 'vayulok-weather-history-cache-v1';
+const HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const HISTORY_STALE_FALLBACK_MS = 7 * HISTORY_CACHE_TTL_MS;
+
+type SavedHistory = { ts: number; data: WeatherInsightsSummary };
+
+function readHistoryCache( key: string ): SavedHistory | null {
+  if ( typeof window === 'undefined' ) return null;
+  try {
+    const all = JSON.parse( window.localStorage.getItem( LOCAL_HISTORY_STORE ) || '{}' ) as Record<string, SavedHistory>;
+    const item = all[ key ];
+    if ( !item || !Number.isFinite( item.ts ) || Date.now() - item.ts >= HISTORY_STALE_FALLBACK_MS
+      || item.ts > Date.now() || !item.data || !Number.isFinite( item.data.sampleHours ) ) return null;
+    return item;
+  } catch { return null; }
+}
+
+function saveHistoryCache( key: string, item: SavedHistory ) {
+  if ( typeof window === 'undefined' ) return;
+  try {
+    const stored = JSON.parse( window.localStorage.getItem( LOCAL_HISTORY_STORE ) || '{}' ) as Record<string, SavedHistory>;
+    stored[ key ] = item;
+    const valid = Object.entries( stored ).filter( ( [ , entry ] ) => entry
+      && Number.isFinite( entry.ts ) && Date.now() - entry.ts < HISTORY_STALE_FALLBACK_MS
+      && entry.ts <= Date.now() && entry.data && Number.isFinite( entry.data.sampleHours ) );
+    // Bound storage space; keep the 48 most recent grid/range summaries.
+    const recent = valid.sort( ( a, b ) => b[ 1 ].ts - a[ 1 ].ts ).slice( 0, 48 );
+    window.localStorage.setItem( LOCAL_HISTORY_STORE, JSON.stringify( Object.fromEntries( recent ) ) );
+  } catch { /* Storage is optional (private browsing, quota, unavailable). */ }
+}
 
 function analyticsEvent( event: string, range: Range, status?: string ) {
   if ( typeof window === 'undefined' ) return;
@@ -94,17 +128,22 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
   const [ errorCode, setErrorCode ] = useState( '' );
   const cacheRef = useRef<Record<string, { ts: number; data: WeatherInsightsSummary }>>( {} );
 
+
   useEffect( () => {
     if ( !INSIGHTS_URL || !Number.isFinite( lat ) || !Number.isFinite( lng ) ) {
       setStatus( 'unavailable' );
       return;
     }
 
-    const key = `${lat.toFixed( 2 )},${lng.toFixed( 2 )}:${range}`;
-    const cached = cacheRef.current[ key ];
-    if ( cached && Date.now() - cached.ts < 6 * 60 * 60 * 1000 ) {
-      setData( cached.data );
-      setFetchedAt( cached.ts );
+    const gridLat = Math.round( lat * 10 ) / 10;
+    const gridLng = Math.round( lng * 10 ) / 10;
+    const key = `${gridLat.toFixed( 1 )},${gridLng.toFixed( 1 )}:${range}`;
+    const saved = cacheRef.current[ key ] || readHistoryCache( key );
+    if ( saved && Date.now() - saved.ts < HISTORY_CACHE_TTL_MS ) {
+      cacheRef.current[ key ] = saved;
+      setData( saved.data );
+      const generatedAt = Date.parse( saved.data.generatedAt || '' );
+      setFetchedAt( Number.isFinite( generatedAt ) ? generatedAt : saved.ts );
       setStatus( 'ready' );
       return;
     }
@@ -113,37 +152,50 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
     setStatus( 'loading' );
     setErrorCode( '' );
 
+    const showStaleOrError = ( code: string, unavailable: boolean ) => {
+      if ( saved && Date.now() - saved.ts < HISTORY_STALE_FALLBACK_MS ) {
+        setData( { ...saved.data, cached: true, stale: true } );
+        const generatedAt = Date.parse( saved.data.generatedAt || '' );
+        setFetchedAt( Number.isFinite( generatedAt ) ? generatedAt : saved.ts );
+        setStatus( 'ready' );
+      } else {
+        setData( null );
+        setStatus( unavailable ? 'unavailable' : 'error' );
+      }
+      setErrorCode( code );
+      analyticsEvent( 'vayulok_weather_insights_error', range, code );
+    };
+
     const run = async () => {
       try {
-        const url = `${INSIGHTS_URL}/v1/weather-insights?lat=${encodeURIComponent( lat )}&lng=${encodeURIComponent( lng )}&range=${range}`;
-        const res = await fetch( url, { signal: ac.signal, cache: 'no-store' } );
+        // Do not trigger a new paid BigQuery query for every nearby street address.
+        const url = `${INSIGHTS_URL}/v1/weather-insights?lat=${encodeURIComponent( gridLat )}&lng=${encodeURIComponent( gridLng )}&range=${range}`;
+        const res = await fetch( url, { signal: ac.signal } );
         const body = await res.json().catch( () => ( {} ) );
         if ( ac.signal.aborted ) return;
 
-        if ( !res.ok || !body?.ok ) {
+        if ( !res.ok || !body?.ok || !Number.isFinite( body?.sampleHours ) ) {
           const code = String( body?.error || 'unavailable' );
-          setErrorCode( code );
-          setData( null );
-          setStatus( code === 'linked_dataset_missing' || code === 'linked_dataset_empty' || code === 'column_configuration_required' || code === 'table_configuration_required'
-            ? 'unavailable'
-            : 'error' );
-          analyticsEvent( 'vayulok_weather_insights_error', range, code );
+          showStaleOrError( code, [
+            'linked_dataset_missing', 'linked_dataset_empty', 'column_configuration_required',
+            'table_configuration_required', 'query_cost_cap_exceeded', 'query_budget_reached',
+          ].includes( code ) );
           return;
         }
 
         const next = body as WeatherInsightsSummary;
         const receivedAt = Date.now();
-        cacheRef.current[ key ] = { ts: receivedAt, data: next };
+        const fresh = { ts: receivedAt, data: next };
+        cacheRef.current[ key ] = fresh;
+        saveHistoryCache( key, fresh );
         setData( next );
-        setFetchedAt( receivedAt );
+        const generatedAt = Date.parse( next.generatedAt || '' );
+        setFetchedAt( Number.isFinite( generatedAt ) ? generatedAt : receivedAt );
         setStatus( 'ready' );
         analyticsEvent( 'vayulok_weather_insights_viewed', range, 'ready' );
       } catch {
         if ( ac.signal.aborted ) return;
-        setData( null );
-        setStatus( 'error' );
-        setErrorCode( 'network_error' );
-        analyticsEvent( 'vayulok_weather_insights_error', range, 'network_error' );
+        showStaleOrError( 'network_error', false );
       }
     };
 
@@ -200,18 +252,33 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
 
       { status === 'unavailable' && (
         <div className="vl-wi-note" role="status">
-          No history here yet.
+          { errorCode === 'query_budget_reached' || errorCode === 'query_cost_cap_exceeded'
+            ? 'History paused to protect the data budget. Try again later.'
+            : 'No history here yet.' }
         </div>
       ) }
 
       { status === 'error' && (
         <div className="vl-wi-note" role="status">
-          History unavailable.
+          { errorCode === 'query_budget_reached' || errorCode === 'query_cost_cap_exceeded'
+            ? 'History paused to protect the data budget. Try again later.'
+            : 'History unavailable.' }
         </div>
       ) }
 
       { status === 'ready' && data && (
         <>
+          { data.stale && (
+            <div className="vl-wi-note" role="status">
+              Showing saved history because fresh data is temporarily unavailable.
+            </div>
+          ) }
+          { data.coverageStart && data.coverageEnd && (
+            <p className="vl-wi-coverage" data-wc-no-translate="true">
+              Data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
+              { Number.isFinite( data.gridDistanceKm ) ? ` · nearest grid ~${Number( data.gridDistanceKm ).toFixed( 1 )} km` : '' }
+            </p>
+          ) }
           <div className="vl-wi-grid">
             <div><span>Avg temp</span><strong data-wc-no-translate="true">{ fmt( data.meanTemperatureC, '°C' ) }</strong></div>
             <div><span>Low</span><strong data-wc-no-translate="true">{ fmt( data.minTemperatureC, '°C' ) }</strong></div>
@@ -267,6 +334,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         .vl-wi-range{display:flex;flex:0 0 auto;gap:6px;overflow-x:auto;padding:0;background:transparent;scrollbar-width:thin}
         .vl-wi-range::-webkit-scrollbar{height:6px}
         .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
+        .vl-wi-coverage{margin:var(--space-3) 0 0;color:var(--public-muted);font-size:var(--vl-meta-size,var(--public-meta-size));line-height:1.5}
         .vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
         .vl-wi-grid>div{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);background:#fff}

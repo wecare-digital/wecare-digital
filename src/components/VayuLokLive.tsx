@@ -1127,14 +1127,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
   const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
 
-  // Which air-quality layer is active. Defaults to 'AQI' so the continuous AQI heatmap TILE
-  // overlay paints by DEFAULT once the keyed map is ready (the keyed + map-ready guard in the
-  // layer effect still gates attachment, so a keyless/not-ready map creates NOTHING). The
-  // Heatmap switch (aria-checked={layer==='AQI'}) therefore reads ON by default and still
-  // turns the overlay OFF. Selecting a layer both toggles the map air-quality layer AND swaps
-  // the environmental RESULT content shown in the LEFT card (AQI result vs PM2.5-focused).
+  // Explicit heatmap opt-in: initial Maps/AQI loads never request paid heatmap tiles.
+  // AQI readings and forecasts still load normally; users can enable AQI/PM2.5 tiles
+  // with the existing Heatmap switch or metric pills. This does not replace project quotas.
   const [ heatmapMetric, setHeatmapMetric ] = useState<'AQI' | 'PM25'>( 'AQI' );
-  const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( 'AQI' );
+  const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
 
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
   // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
@@ -1182,8 +1179,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const fxRequestSeqRef = useRef( 0 );
   const currencyCatalogLoadedRef = useRef( false );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
-  // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
-  // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
+  // (FEAT-001). Attached only after explicit heatmap activation,
+  // pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
   // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
   //
   // NOTE: Google's heatmap MapType enum exposes global UAQI and PM2.5 plus regional AQI palettes;
@@ -1673,6 +1670,28 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     // mapInitNonce lets the map-failed "Try again" button re-run initialisation.
   }, [ mapInitNonce, mapViewRequested ] );
 
+  // Reframe only the DEFAULT India overview after orientation/container resize.
+  // Explicit city selections keep their chosen camera. No extra Maps API load.
+  useEffect( () => {
+    if ( !mapReady || typeof ResizeObserver === 'undefined' ) return;
+    const host = mapHost.current;
+    const map = mapRef.current as {
+      fitBounds?: ( bounds: typeof INDIA_OVERVIEW_BOUNDS, padding?: number ) => void;
+    } | null;
+    if ( !host || !map?.fitBounds ) return;
+    let width = host.clientWidth;
+    let height = host.clientHeight;
+    const observer = new ResizeObserver( entries => {
+      const rect = entries[ 0 ]?.contentRect;
+      if ( !rect || ( Math.abs( rect.width - width ) < 8 && Math.abs( rect.height - height ) < 8 ) ) return;
+      width = rect.width;
+      height = rect.height;
+      if ( framedPlaceRef.current === DEFAULT_PLACE ) map.fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 );
+    } );
+    observer.observe( host );
+    return () => observer.disconnect();
+  }, [ mapReady ] );
+
   /* ---------------------------------------------------------------------------------
      GOOGLE AIR HEATMAP TILES. AQI and PM2.5 both use Google's documented ImageMapType tile
      products. Only one tile overlay is attached at a time; the selected destination still owns
@@ -1723,9 +1742,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     }
     if ( !map ) return;
 
-    // AQI/PM2.5 -> continuous heatmap TILE overlay. Both are Google ImageMapType tile products;
-    // attach the selected one exactly once. Attached by DEFAULT here (layer defaults to 'AQI')
-    // once the keyed map is ready - never at module load, never on the keyless path.
+    // AQI/PM2.5 -> continuous heatmap TILE overlay. Attach only after the visitor
+    // turns on a heatmap, never on initial map load or in the keyless path.
     if ( layer === 'AQI' || layer === 'PM25' ) {
       detachHeatmap();
       const w = window as unknown as { google?: { maps?: {
@@ -4875,7 +4893,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0;filter:none}
+        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));max-height:calc(100% - 32px);overflow-y:auto;overscroll-behavior-y:contain;scrollbar-gutter:stable;margin:16px 0 16px 16px;filter:none}
         .vl-live-mobile-snapshot{display:none}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none;color:var(--body)}
 
@@ -5149,15 +5167,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
 
-        /* ROUNDED MAP SECTION. The whole map area now carries the same corner radius as the
-           surrounding cards (var(--panel-r) = the shared --radius-xl), so it no longer reads as a
-           square against the rounded floating card. The SHELL keeps overflow:visible so the
-           floating .vl-live-air-card is never clipped; instead the radius is applied to the map's
-           VISUAL layers that fill it (canvas, placeholder, fallback, atmosphere), each with
-           overflow:hidden, so the Google tiles/overlays and loading/fallback states clip to the
-           rounded corners. isolation:isolate keeps the overlay z-stack contained; the height band
-           is unchanged. */
-        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border-radius:var(--panel-r);background:var(--lime-tint);isolation:isolate;contain:layout}
+        /* Map has a stable height independent of the long Air/Weather panel.
+           Rounded visual layers clip their own tiles. At narrow widths the detail card
+           follows the map in document flow. */
+        .vl-live-map-shell{position:relative;display:grid;height:clamp(500px,72svh,740px);min-height:0;max-height:740px;overflow:visible;border-radius:var(--panel-r);background:var(--lime-tint);isolation:isolate;contain:layout}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
@@ -5229,8 +5242,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-search-results strong{font-size:var(--vl-data-size);font-weight:700;color:var(--heading);letter-spacing:-.18px}
         .vl-live-search-results span{margin-top:3px;font-size:var(--vl-subtext-size);color:var(--muted)}
         .vl-live-search-status{margin:8px 2px 0;font-size:var(--vl-meta-size);color:var(--muted)}
+        /* Narrow screens: give India its own short 2D map. Keep the long detail
+           panel in page flow BELOW the map instead of enlarging/covering the map.
+           This includes portrait tablets up to 1050px, not just phones. */
         @media(max-width:1050px){
-          .vl-live-map-shell{height:auto;min-height:min(560px,66svh)}
+          .vl-live-map-shell{display:flex;flex-direction:column;height:auto;min-height:0;max-height:none;padding-top:clamp(300px,50vw,440px)}
+          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:clamp(300px,50vw,440px)}
+          .vl-live-air-card-wrap{grid-area:auto;align-self:auto;justify-self:auto;width:100%;max-width:100%;max-height:none;overflow:visible;margin:16px 0 12px}
+          .vl-live-mobile-snapshot{display:none}
         }
         /* A browser that exposes physical viewport segments is telling us part of the viewport
            may be occluded by a hinge. Keep the live VayuLok application wholly inside one pane,
@@ -5255,8 +5274,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-metric-size:var(--public-mobile-section-size);--vl-meta-size:var(--public-meta-size);--vl-compact-copy-size:var(--vl-subtext-size)}
 
           .vl-live-shell{padding:0 max(var(--public-mobile-page-gutter),var(--safe-right)) max(var(--public-mobile-section-gap),var(--safe-bottom)) max(var(--public-mobile-page-gutter),var(--safe-left))}
-          .vl-live-map-shell{display:block;height:auto;min-height:0;max-height:none;padding-top:360px;background:transparent;contain:layout}
-          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:360px}
+          .vl-live-map-shell{display:flex;height:auto;min-height:0;max-height:none;padding-top:clamp(300px,75vw,360px);background:transparent;contain:layout}
+          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:clamp(300px,75vw,360px)}
           .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:0}
           .vl-live-mobile-snapshot{
             display:block;position:absolute;z-index:13;inset-inline:20px;top:94px;
@@ -5385,12 +5404,18 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-health-tab{scroll-snap-align:start}
 
         }
+        /* Keep India's map unobstructed: the detailed Air/Weather card below
+           replaces the floating mobile summary at every narrow width. This
+           override deliberately follows the phone-specific snapshot styles. */
+        @media(max-width:1050px){
+          .vl-live-mobile-snapshot{display:none}
+        }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-map-shell{height:auto;min-height:250px}
           .vl-live-search-field{height:52px}
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
-          .vl-live-air-card-wrap{width:min(416px,48%)}
+          .vl-live-air-card-wrap{width:100%}
           .vl-live-map-search{width:min(760px,100%)}
         }
         @media(prefers-reduced-motion:reduce){
