@@ -139,3 +139,32 @@ class MessageTransportTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class VaultCapturedEvidenceTests(unittest.TestCase):
+    def test_captured_invoice_exposes_bound_logs_without_accepting_unpaid_states(self):
+        path = 'amplify/functions/core/secure-files/handler.py'
+        item = dict(fileId='file', ownerCustomerId='customer', ownerPhone='owner', vaultEntitlementId='ent')
+        entitlement = dict(grantId='ent', recordType='VAULT_ENTITLEMENT', entitlementState='ACTIVE',
+                           customerId='customer', ownerPhone='owner', fileId='file', sourceGrantId='grant')
+        grant = dict(paid=True, customerId='customer', ownerPhone='owner', fileId='file',
+                     entitlementId='ent', reference='reference')
+        invoice = dict(referenceId='reference', invoiceId='invoice', paymentStatus='captured')
+        class Table:
+            def __init__(self, name): self.name = name
+            def get_item(self, **kw):
+                return {'Item': entitlement if kw['Key'].get('grantId') == 'ent' else grant}
+            def query(self, **kw):
+                if self.name == 'invoices': return {'Items': [invoice]}
+                if self.name == 'logs': return {'Items': [dict(channel='whatsapp', status='sent', waMessageId='wamid.fixture', timestamp=42)]}
+                return {'Items': []}
+        reader = isolated(path, '_verified_vault_payment_evidence',
+                          _table=Table, GRANTS_TABLE='grants', SERVICE_REQUESTS_TABLE='requests',
+                          os=SimpleNamespace(environ={'INVOICES_TABLE':'invoices','INVOICE_DELIVERY_TABLE':'logs'}),
+                          _logged_send_evidence=lambda wamid, at: {'status':'ACCEPTED','observedAt':at})
+        for state in ('captured', 'paid'):
+            invoice['paymentStatus'] = state
+            self.assertEqual(reader(item)['invoice']['status'], 'ACCEPTED')
+        for state in ('pending', 'failed', 'refunded', 'authorized'):
+            invoice['paymentStatus'] = state
+            self.assertEqual(reader(item)['invoice']['status'], 'NOT_TRACKED')
