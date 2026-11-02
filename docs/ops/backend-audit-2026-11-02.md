@@ -20,9 +20,9 @@ The shared Lambda execution role is used by 54 functions. Review 16 inline polic
 
 ## CloudWatch / logging
 
-Historical CloudWatch logs were previously deleted at user request, including their log-based metric filters. Reconstructed essential API and selected payment/auth/WhatsApp log groups have 3, 7, or 14-day retention. Existing alarms may still depend on absent log-based custom metrics. Restore only necessary metric filters and test end-to-end notifications before relying on those alarms.
+Historical CloudWatch logs were previously deleted at user request, including their log-based metric filters. Reconstructed essential API and selected payment/auth/WhatsApp log groups have 3, 7, or 14-day retention. Existing alarms may still depend on absent log-based custom metrics. Fourteen critical payment, Vault, WhatsApp and Flow-health metric filters were restored in live AWS on 2026-11-02. End-to-end notification delivery still needs a non-customer-impacting test; do not assume all retained alarms are healthy just because alarm definitions exist.
 
-`scripts/ops/enforce_log_retention.py` is **dry-run by default**; use a scheduled scoped role or automation after reviewing its permissions. This PR does not deploy a scheduler or install credentials.
+`scripts/ops/enforce_log_retention.py` is **dry-run by default**; use a scheduled scoped role or automation after reviewing its permissions. A least-privilege daily retention scheduler was deployed separately through CloudFormation stack `wecare-cloudwatch-retention-enforcer` on 2026-11-02. Its stack reached CREATE_COMPLETE and its EventBridge rule is enabled. It only fills missing retention and never overrides existing policies; its first live invocation test remains unverified because the AWS connector hit its session limit.
 
 ## Private inventory
 
