@@ -288,6 +288,7 @@ def _native_variant_reader():
                 sku = str(v.get("sku") or v.get("id") or "")
                 if sku:
                     index[sku] = {"priceMinor": v.get("priceMinor"),
+                                  "expressPaise": v.get("expressPaise"),
                                   "currency": p.get("currency", "INR"),
                                   "status": status}
         if "LastEvaluatedKey" not in resp:
@@ -1302,9 +1303,9 @@ class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
 def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
     """The existing service-intent guard, priced by the SAME unified shop policy.
 
-    No separate Vault/Drop Docs fee arithmetic: GST, Delight, Rs45 Express,
-    convenience and its GST must match the public service-price preview and all
-    ordinary customer carts, down to the paise. The immutable service identity
+    No separate Vault/Drop Docs fee arithmetic: GST, Delight, Rs25 Vault /
+    Rs45 Drop Docs Express, convenience and fee GST must match the public
+    price-preview and all customer carts, down to the paise. The immutable service identity
     and payment-attempt protections are unchanged.
     """
     from lambda_utils.ecommerce import unified_pricing
@@ -1359,7 +1360,8 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
     if (source.get("productId", "").lower() != str(product_id).lower()
             or source.get("variantId") != variant_id
             or source.get("quantity") != 1
-            or type(source.get("unitPricePaise")) is not int):
+            or type(source.get("unitPricePaise")) is not int
+            or source.get("expressPaise") != 1500):
         raise ContributionRejected("CONTRIBUTION_CATALOG_CHANGED")
     terms = contribute_taxable.breakdown(source["unitPricePaise"])
     collection = terms["collectionBeforeConveniencePaise"]
@@ -1467,7 +1469,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
 
     # All customer items except Contribute use ONE GST-exclusive pricing policy.
     # Server-owned ProductsTable line amounts are bases; unified_pricing adds 18%
-    # supply GST before Delight, one Rs45 Express, and convenience + fee GST.
+    # supply GST before Delight, Rs25 Vault / Rs45 other Express once, and convenience + fee GST.
     # The unlisted Rs2 internal QA item preserves its original low-cost quote.
     from lambda_utils.ecommerce import (
         default_coupon, service_requests, express_policy, unified_pricing)
