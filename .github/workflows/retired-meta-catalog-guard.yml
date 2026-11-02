@@ -4,6 +4,12 @@ on:
     paths:
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/provision_payment_rail_alarms.py'
+      - 'amplify/catalog-resources.ts'
+      - 'scripts/provision_meta_catalog_sync.py'
+      - 'scripts/provision_meta_catalog_sync_waba2.py'
+      - 'scripts/open_meta_release_gate.py'
+      - 'scripts/deploy_meta_catalog_safe_release.py'
+      - 'scripts/decode_meta_plan.py'
       - '.github/workflows/retired-meta-catalog-guard.yml'
   workflow_dispatch:
 permissions:
@@ -33,4 +39,18 @@ jobs:
           assert any('Cognito CustomMessage trigger:' in line for line in deploy.splitlines())
           assert '"alarmName": "wecare-catalog-sync-drift"' not in alarms
           assert '"alarmName": "wecare-catalog-sync-failure"' not in alarms
+          # The retired Meta sync must not regain a ProductsTable event source or
+          # a runnable operator command that recreates schedules or enables writes.
+          catalog = Path("amplify/catalog-resources.ts").read_text()
+          assert "addCatalogStreamTrigger" not in catalog
+          assert "DynamoEventSource" not in catalog
+          retired = (
+              "scripts/provision_meta_catalog_sync.py",
+              "scripts/provision_meta_catalog_sync_waba2.py",
+              "scripts/open_meta_release_gate.py",
+              "scripts/deploy_meta_catalog_safe_release.py",
+              "scripts/decode_meta_plan.py",
+          )
+          for file in retired:
+              assert not Path(file).exists(), "Retired Meta sync reactivation script restored: " + file
           PY
