@@ -63,6 +63,7 @@
  * could win.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { useActionCopy } from '../../hooks/useActionCopy';
 // Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
 import '../../lib/amplifyConfig';
 import {
@@ -180,7 +181,7 @@ const TotpSetup: React.FC = () => {
   const [ setupUri, setSetupUri ] = useState( '' );
   const [ code, setCode ] = useState( '' );
   const [ message, setMessage ] = useState( '' );
-  const [ copied, setCopied ] = useState( false );
+  const copyAction = useActionCopy();
   const [ makePreferred, setMakePreferred ] = useState( false );
 
   const refresh = useCallback( async () => {
@@ -204,7 +205,6 @@ const TotpSetup: React.FC = () => {
 
   const begin = useCallback( async () => {
     setMessage( '' );
-    setCopied( false );
     try
     {
       const details = await setUpTOTP();
@@ -257,16 +257,10 @@ const TotpSetup: React.FC = () => {
   }, [ code, makePreferred, refresh ] );
 
   const copySecret = useCallback( async () => {
-    try
-    {
-      await navigator.clipboard.writeText( secret );
-      setCopied( true );
-    } catch
-    {
-      setCopied( false );
-      setMessage( 'Copy failed. Select the key and copy it manually.' );
-    }
-  }, [ secret ] );
+    // Never place the TOTP seed in a toast, log, network call or analytics.
+    const succeeded = await copyAction( secret );
+    if ( !succeeded ) setMessage( 'Copy failed. Select the key and copy it manually.' );
+  }, [ secret, copyAction ] );
 
   /**
    * Choose the default factor, or clear it to be asked every time.
@@ -352,7 +346,7 @@ const TotpSetup: React.FC = () => {
           </p>
           <button className="ts-pill" type="button" data-public-ui
             onClick={ () => void copySecret() }>
-            { copied ? 'Copied' : 'Copy key' }
+            Copy key
           </button>
 
           <label className="ts-label ts-label-field" htmlFor="ts-code">
