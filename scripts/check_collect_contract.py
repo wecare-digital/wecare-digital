@@ -116,6 +116,36 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(self.run_send({**self.body,'resendRequestId':'b'*32,'previousRequestId':'a'*32})[1]['state'],'ACCEPTED')
         self.assertEqual(self.send.call_count,2)
 
+    def test_unresolved_automatic_receipt_blocks_manual_send(self):
+        self.args['original_ready']=lambda _:False
+        self.assertEqual(self.run_send()[0],409)
+        self.send.assert_not_called()
+        self.assertFalse(self.keys.rows)
+
+    def test_later_callback_resolves_unknown_without_resending(self):
+        self.send.side_effect=TimeoutError()
+        self.assertEqual(self.run_send()[1]['state'],'UNCONFIRMED')
+        self.args['reconcile']=lambda iid,intent,key:{'state':'ACCEPTED','waMessageId':'wamid.later'}
+        self.assertEqual(self.run_send()[1]['state'],'ACCEPTED')
+        self.assertEqual(self.send.call_count,1)
+        self.assertEqual(self.invoices.rows['inv-1']['collectResendState'],'ACCEPTED')
+
+    def test_other_browser_can_reconcile_only_the_stored_intent(self):
+        self.send.side_effect=TimeoutError()
+        self.run_send()
+        code,data=receipts.reconcile_existing('inv-1',actor='other-staff',invoices=self.invoices,
+            keys=self.keys,reconcile=lambda *args:{'state':'REFUSED','waMessageId':''},now=30)
+        self.assertEqual(code,200)
+        self.assertEqual(data['state'],'REFUSED')
+        self.assertEqual(self.send.call_count,1)
+
+    def test_missing_later_proof_keeps_unknown_locked(self):
+        self.send.side_effect=TimeoutError()
+        self.run_send()
+        self.args['reconcile']=lambda *args:None
+        self.assertEqual(self.run_send()[1]['state'],'UNCONFIRMED')
+        self.assertEqual(self.send.call_count,1)
+
     def test_complete_saved_address_snapshot(self):
         c={'checkoutDeliveryAddress':{'addressLine1':'Street','addressLine2':'Unit','locality':'Area','country':'India','countryCode':'IN'}}
         original=contract.address_snapshot(c)
@@ -144,15 +174,38 @@ class ProjectionTests(unittest.TestCase):
         from types import SimpleNamespace
         self.ns = SimpleNamespace
         source = (root / 'amplify/functions/payments/invoice-engine/handler.py').read_text()
-        names = {'_verified_collect_order_link', '_collect_receipt_delivery'}
+        names = {'_verified_collect_order_link', '_collect_receipt_delivery', '_send_collect_receipt'}
         tree = ast.parse(source)
         nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
         self.table = Mock()
         self.env = {'Dict':dict, 'List':list, 're':__import__('re'), 'os':__import__('os'),
                     'dynamodb':SimpleNamespace(Table=lambda _:self.table),
                     'shared_tables':SimpleNamespace(orders_table_name=lambda:'orders'),
-                    'logger':Mock(), 'boto3':SimpleNamespace(dynamodb=SimpleNamespace(conditions=SimpleNamespace(Key=lambda _:SimpleNamespace(eq=lambda _:True))))}
+                    'logger':Mock(), 'json':json, 'order_keys':Mock(), 'send_invoice_whatsapp':Mock(),
+                    'COMMERCE_KEYS_TABLE':'keys', 'wa_payment_request':SimpleNamespace(PHONE_NUMBER_ID_1='primary'),
+                    '_resp':lambda code,data:{'statusCode':code,'body':json.dumps(data)}, 'boto3':SimpleNamespace(dynamodb=SimpleNamespace(conditions=SimpleNamespace(Key=lambda _:SimpleNamespace(eq=lambda _:True))))}
         exec(compile(ast.Module(body=nodes,type_ignores=[]),'<isolated projection>', 'exec'),self.env)
+
+    def test_automatic_claim_race_blocks_force_at_send_boundary(self):
+        keys=self.env['order_keys'];keys.DELIVERY_CONFIRMED='DELIVERED'
+        keys.claim_invoice_delivery.return_value=False
+        keys.resolve_invoice_delivery.return_value={'deliveryStatus':'CLAIMED'}
+        result=self.env['_send_collect_receipt']('inv','phone','image','intent','request')
+        self.assertEqual(result['statusCode'],409)
+        self.env['send_invoice_whatsapp'].assert_not_called()
+
+    def test_first_manual_delivery_holds_ordinary_claim_on_timeout(self):
+        keys=self.env['order_keys'];keys.claim_invoice_delivery.return_value=True
+        self.env['send_invoice_whatsapp'].return_value={'statusCode':202,'body':'{"status":"unknown"}'}
+        self.env['_send_collect_receipt']('inv','phone','image','intent','request')
+        keys.release_invoice_delivery.assert_not_called()
+        keys.confirm_invoice_delivery.assert_not_called()
+
+    def test_rejected_receipt_without_wamid_remains_known_failure(self):
+        inv={'invoiceId':'inv','customerPhone':'phone'}
+        log={'invoiceId':'inv','channel':'whatsapp','toNumber':'phone','imageS3Key':'image','status':'rejected','waMessageId':''}
+        self.assertEqual(self.env['_collect_receipt_delivery'](inv,[log])['status'],'Failed')
+        self.table.query.assert_not_called()
 
     def test_order_link_requires_reciprocal_invoice(self):
         invoice={'invoiceId':'inv','invoiceNumber':'N','internalOrderId':'internal','orderNumber':'public'}
