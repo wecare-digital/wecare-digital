@@ -134,15 +134,24 @@ interface SearchResult {
   };
 }
 
+// Weather and Air Quality APIs need a point, not a whole-country coordinate.
+// New Delhi is the clearly named first reading; the map initially displays
+// India as a region, and explicit place selection zooms to that location.
 const DEFAULT_PLACE: PlaceState = {
-  // India-first: match the hero globe's initial New Delhi selection. The detailed
-  // map starts with a country-wide camera; a visitor's search or city choice
-  // moves it to the requested location. No geolocation is inferred.
   name: 'New Delhi',
   addr: 'Delhi, India',
   lat: 28.6139,
   lng: 77.2090,
   regionCode: 'IN',
+};
+
+// A padded overview, not an administrative border: includes the mainland,
+// Lakshadweep and the Andaman/Nicobar islands on narrow as well as wide maps.
+const INDIA_OVERVIEW_BOUNDS = {
+  north: 37.5,
+  south: 6.0,
+  east: 98.0,
+  west: 67.5,
 };
 
 // Selected-place marker uses the current lime/green LOCATION_MARKER_ICON above. Keep this
@@ -1135,8 +1144,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
-  // Keep India's country-wide camera on first paint, instead of zooming straight
-  // into the default city. Subsequent explicit selections still refocus the map.
+  // Do not zoom into the default example city when the initial map is fitted to
+  // India. Only an explicit new place selection should change that camera.
   const framedPlaceRef = useRef<PlaceState | null>( DEFAULT_PLACE );
   // Bumped by every selection, map or search. A step that finishes later (a reverse geocode,
   // Place details) applies its result only if no newer selection has started since.
@@ -1545,6 +1554,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         clickableIcons: false,
         styles: MAP_STYLES,
       } );
+      // On first load show the entire India region in the actual weather/AQI
+      // Google map, whatever the viewport's aspect ratio. A fixed zoom can crop
+      // India on mobile, and the default city's marker must not zoom in for us.
+      ( map as {
+        fitBounds?: ( bounds: typeof INDIA_OVERVIEW_BOUNDS, padding?: number ) => void;
+      } ).fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 );
       mapRef.current = map;
 
       // Show the Google canvas as soon as the Map constructor succeeds. Google paints
