@@ -259,28 +259,21 @@ class CatalogRetirementTests(unittest.TestCase):
 
 
 class InboundRoutingTests(unittest.TestCase):
-    def test_old_list_tap_and_menu_vault_do_not_select_file(self):
+    def test_old_list_taps_are_informational_and_never_start_payment(self):
         calls = []
         ns = {
-            'os': os, 'json': json, 'Optional': typing.Optional,
+            'json': json,
             'logger': types.SimpleNamespace(info=lambda *_: None),
-            '_route_retired_vault_notice': lambda *args: calls.append(('retired', args)),
-            '_route_paid_drop_docs': lambda *_: calls.append(('drop', None)) or True,
-            '_send_wd_leaf_link': lambda *_: None,
-            '_send_wd_main_menu': lambda *_: None, '_send_wd_list': lambda *_: True,
-            'WD_LISTS': {}, 'WD_LEAF_LINKS': {},
-            'mask_contact_id': lambda x: x,
+            '_send_menu_placeholder': lambda *args: calls.append(args),
         }
         load_functions(INBOUND, {'_route_wd_list_reply'}, ns)
-        for value in ('vaultpick:old-token:2', 'vaultpick:malformed', 'wd_vault'):
-            result = ns['_route_wd_list_reply'](
+        for value in ('vaultpick:old-token:2', 'wd_vault', 'wd_drop_docs',
+                      'wd_main', 'wd_back'):
+            outcome = ns['_route_wd_list_reply'](
                 value, 'contact-1', '919000000001', 'WABA1', 'req', 'wamid.tap')
-            self.assertEqual(result, 'vault_retired')
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(ns['_route_wd_list_reply'](
-            'wd_drop_docs', 'contact-1', '919000000001',
-            'WABA1', 'req', 'wamid.drop'), 'drop_docs')
-        self.assertEqual(calls[-1][0], 'drop')
+            self.assertEqual(outcome, 'retired')
+        self.assertEqual(len(calls), 5)
+        self.assertTrue(all(c[0] == 'contact-1' for c in calls))
 
     def test_signed_cart_is_intercepted_before_catalog_checkout(self):
         calls = []
