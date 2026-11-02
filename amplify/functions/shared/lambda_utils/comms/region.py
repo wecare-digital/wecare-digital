@@ -14,18 +14,15 @@ Why India is a separate region at all
 -------------------------------------
 Indian A2P traffic must carry the TRAI DLT entity id and an approved template id
 via `DestinationCountryParameters`, and must originate from the DLT-registered
-sender id. That registration is regional: `IN_SENDER_ID_REGISTRATION` is COMPLETE
-in ap-south-1 and the `WDBEEP` sender id exists there with `Registered=True`.
-Neither exists in us-east-1. Sending Indian traffic from us-east-1 therefore
-cannot be DLT-compliant regardless of what parameters are attached.
+sender id. This is regional: India traffic cannot be DLT-compliant merely
+because a sender ID is present as a source-code default.
 
-Verified against the live account on 2026-09-19:
-
-    ap-south-1   sender id WDBEEP, IN, Promotional+Transactional, Registered=True
-                 IN_SENDER_ID_REGISTRATION = COMPLETE
-                 no phone numbers, no pools   <- correct; India sends by sender id
-    us-east-1    +18444891209 TOLL_FREE ACTIVE InternationalSendingEnabled=true
-                 +14255556333 SIMULATOR ACTIVE  <- in the SAME pool
+Historical registration observations are NOT proof of current readiness. On
+2026-11-02 a fresh DescribeSenderIds in both ap-south-1 and us-east-1 returned
+zero sender identities, and 13 post-call SMS records had ResourceNotFound for
+WDBEEP. Automated call SMS must stay off until the current account's registered
+WDBEEP sender is verified in ap-south-1, with valid DLT entity/content templates.
+Do not provision a substitute identity or silently route Indian traffic elsewhere.
 """
 from __future__ import annotations
 

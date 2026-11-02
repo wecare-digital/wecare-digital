@@ -187,7 +187,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
   const ivrHref = useMemo( () => safeHttpHref( ivrUrl ), [ ivrUrl ] );
 
   // IVR SMS state
-  const [ smsOnCall, setSmsOnCall ] = useState( true );
+  const [ smsOnCall, setSmsOnCall ] = useState( false );
   // Auto 👍 reaction toggle (all messages, templates & call notifications)
   const [ autoThumb, setAutoThumb ] = useState( true );
   const [ smsTestPhone, setSmsTestPhone ] = useState( '+919903300044' );
@@ -590,7 +590,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
         {
           setAutoPickupMode( data.autoPickupMode );
         }
-        if ( data.smsOnCall !== undefined ) setSmsOnCall( data.smsOnCall !== false );
+        if ( data.smsOnCall !== undefined ) setSmsOnCall( data.smsOnCall === true );
         if ( data.autoThumb !== undefined ) setAutoThumb( data.autoThumb !== false );
       }
     } catch ( e ) { console.error( 'Config load error:', e ); }
@@ -1215,19 +1215,25 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
             {/* IVR SMS Configuration + Test */ }
             <div style={ { ...s.card, marginTop: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } }>
               <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } }>
-                <h4 style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>IVR SMS (sent once on incoming call, 10-min dedup)</h4>
+                <h4 style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>IVR SMS (requires verified sender registration)</h4>
                 <label style={ { display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: '#374151', cursor: 'pointer' } }>
                   <input type="checkbox" checked={ smsOnCall } onChange={ async () => {
                     const newVal = !smsOnCall;
-                    setSmsOnCall( newVal );
                     try
                     {
-                      await fetch( `${API_BASE}/whatsapp/config`, {
+                      const response = await fetch( `${API_BASE}/whatsapp/config`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify( { smsOnCall: newVal } ),
                       } );
+                      if ( !response.ok ) {
+                        toast.error( newVal
+                          ? 'SMS sender WDBEEP is not registered or its status could not be verified.'
+                          : 'SMS setting could not be saved.' );
+                        return;
+                      }
+                      setSmsOnCall( newVal );
                       toast.success( `SMS on call ${newVal ? 'enabled' : 'disabled'}` );
-                    } catch { toast.error( 'Failed to save' ); }
+                    } catch { toast.error( 'SMS setting could not be saved.' ); }
                   } }
                     style={ { width: '14px', height: '14px', accentColor: 'var(--accent)' } } />
                   SMS on call
@@ -1237,7 +1243,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                 <div style={ { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' } }>
                   <div style={ { fontWeight: 600, color: 'var(--text)', marginBottom: '4px' } }>🇮🇳 Indian Numbers (+91)</div>
                   <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>AWS End User Messaging, ap-south-1</div>
-                  <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>Sender: WDBEEP (DLT-registered)</div>
+                  <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>Sender: WDBEEP (verify live registration before enabling)</div>
                   <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>Template key: ivr-default</div>
                   <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>Lambda: wecare-sms-aws</div>
                   <span style={ { display: 'inline-block', marginTop: '4px', padding: '2px 6px', background: '#dcfce7', color: '#166534', borderRadius: '4px', fontSize: 'var(--text-xs)' } }>TRAI DLT ENFORCED</span>
