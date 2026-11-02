@@ -253,17 +253,6 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           >
             { visible.map( listing => (
               <article key={ listing.slug } className="shop-card">
-                { listing.image && (
-                  <img
-                    className="shop-card-image"
-                    src={ listing.image }
-                    alt={ `${listing.name} catalogue artwork` }
-                    width={ 4096 }
-                    height={ 4096 }
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) }
                 <span className="shop-card-name">{ listing.name }</span>
                 { listing.sku && (
                   <span className="shop-card-sku" data-wc-no-translate="true">SKU: { listing.sku }</span>
@@ -374,10 +363,6 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           .shop-card:hover{
             border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
           }
-          .shop-card-image{
-            display:block;width:calc(100% + 52px);height:auto;aspect-ratio:1/1;object-fit:cover;
-            margin:-26px -26px 10px;border-bottom:1px solid var(--public-hairline);background:#fff;
-          }
           .shop-in :global(.shop-card-action){
             display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
             min-height:44px;margin-top:auto;padding:0 18px;border:2px solid var(--public-brand-green);
@@ -429,7 +414,6 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              steps down and the clamp opens, the same pair of moves the blog listing makes. */
           @media(max-width:767px){
             .shop-card{flex-basis:82vw;padding:22px}
-            .shop-card-image{width:calc(100% + 44px);margin:-22px -22px 10px}
             .shop-card-tag{font-size:18px;-webkit-line-clamp:4}
           }
           /* A shadow appearing under a card is the same "something moved" cue as the lift, and the
