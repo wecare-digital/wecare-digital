@@ -14,29 +14,30 @@
  */
 
 import type { ServiceKind } from '../config/services';
+import { publicActionText } from './publicActionNotices';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 export const REQUEST_INTENT_URL = `${ API_BASE }/services/request-intent`;
 export const MY_REQUESTS_URL = `${ API_BASE }/services/my-requests`;
 
 /**
- * One sentence per server refusal code, word for word the server's own
- * (service_requests.py SERVICE_MESSAGES). tests/test_service_requests.py holds the two equal.
- * Every one ends "Nothing has been charged." because every one is raised before a gateway order
- * can exist.
+ * Public service-refusal codes stay stable, while customer-facing feedback
+ * always uses the same six approved action notices. Backend codes remain
+ * authoritative for pricing, eligibility and pre-payment refusal decisions.
+ * Never render raw provider/server error messages to customers.
  */
 export const SERVICE_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
-  SERVICE_NOT_OFFERED: 'This service is not offered yet. Nothing has been charged.',
-  SERVICE_UNKNOWN_CHOICE: 'Choose a WECARE.DIGITAL service. Nothing has been charged.',
-  SERVICE_INVALID_QUANTITY: 'A service is bought one at a time. Set its quantity to 1. Nothing has been charged.',
-  SERVICE_ONE_PER_ORDER: 'Only one service can be paid for in an order. Remove the extra one. Nothing has been charged.',
-  SERVICE_SEPARATE_CHECKOUT: 'Vault and Drop Docs need a separate cart checkout. Remove other cart items or buy them first. Nothing has been charged.',
-  SERVICE_INTENT_REQUIRED: 'Start this service from its own page, then check out. Nothing has been charged.',
-  SERVICE_ORIGINAL_ORDER_REQUIRED: 'Choose the original order this request is for. Nothing has been charged.',
-  SERVICE_UNAVAILABLE: 'Services cannot be paid for right now. Nothing has been charged.',
-  SERVICE_WEBSITE_ONLY: 'Services can only be paid for on the website. Nothing has been charged.',
-  SERVICE_PRICE_CHANGED: 'The price of this service has changed. Nothing has been charged.',
-  SERVICE_NOT_PAYABLE: 'This service cannot be paid for right now. Nothing has been charged.',
+  SERVICE_NOT_OFFERED: publicActionText( 'blocked' ),
+  SERVICE_UNKNOWN_CHOICE: publicActionText( 'failure' ),
+  SERVICE_INVALID_QUANTITY: publicActionText( 'failure' ),
+  SERVICE_ONE_PER_ORDER: publicActionText( 'blocked' ),
+  SERVICE_SEPARATE_CHECKOUT: publicActionText( 'blocked' ),
+  SERVICE_INTENT_REQUIRED: publicActionText( 'blocked' ),
+  SERVICE_ORIGINAL_ORDER_REQUIRED: publicActionText( 'failure' ),
+  SERVICE_UNAVAILABLE: publicActionText( 'blocked' ),
+  SERVICE_WEBSITE_ONLY: publicActionText( 'blocked' ),
+  SERVICE_PRICE_CHANGED: publicActionText( 'blocked' ),
+  SERVICE_NOT_PAYABLE: publicActionText( 'blocked' ),
 };
 
 /** Is this prepare status one of the service refusals? */
