@@ -1,0 +1,26 @@
+name: Backend operations safety checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/ops/**'
+      - 'docs/ops/**'
+      - '.github/workflows/backend-ops-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax check operations scripts (no AWS calls)
+        run: python -m compileall -q scripts/ops
+      - name: Ensure live inventory snapshots are not committed
+        run: |
+          if git ls-files | grep -E '(^|/)(aws-us-east-1|lambda-aliases-event-targets-iam)\.snapshot\.json$'; then
+            echo 'Private AWS inventory snapshots must not be committed to this public repo' >&2
+            exit 1
+          fi
