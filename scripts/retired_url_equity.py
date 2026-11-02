@@ -32,8 +32,8 @@ OUTPUT is a verdict per path:
     RECOVERABLE   answers 404 AND has impressions - this is the actionable set
     GONE-QUIET    answers 404 with no impressions - correctly dead, leave it
 
-Read-only. Touches no Amplify configuration; scripts/provision_legacy_redirects.py owns
-that. No secret value is read or printed.
+Read-only. Does not change live Amplify Hosting customRules; any redirect changes
+require a separate review of hosting configuration. No secret value is read or printed.
 """
 from __future__ import annotations
 

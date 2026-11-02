@@ -716,13 +716,8 @@ def walk_nodes(value: Any) -> Iterable[Dict[str, Any]]:
             yield from walk_nodes(nested)
 
 
-#: THE CORPUS USES TWO SPELLINGS, AND IT IS NOT AN ACCIDENT TO TIDY UP HERE.
-#: `migration/blog/batch-*.json` is camelCase (`seoTitle`), `content/gastronomy/batches/
-#: GAST-*.json` is snake_case (`seo_title`), and both are committed, published and gated
-#: by their own scripts. A gate that reads only one spelling reports every record in the
-#: other corpus as missing its SEO title - which is exactly what the first run of this
-#: file did against 333 live articles. Renaming the fields in those manifests instead
-#: would mean rewriting published content to suit a validator.
+#: Retained content manifests use both camelCase and snake_case fields. Accept
+#: both naming conventions without rewriting published content to suit the validator.
 FIELD_ALIASES: Dict[str, Tuple[str, ...]] = {
     "seoTitle": ("seoTitle", "seo_title"),
     "metaDescription": ("metaDescription", "meta_description"),
@@ -1873,7 +1868,6 @@ def _build_corpus(patterns: Sequence[str], published: bool = True) -> CorpusInde
 
 #: The published corpora section 28 wants every new record compared against.
 DEFAULT_CORPUS = (
-    "migration/blog/batch-*.json",
     "content/gastronomy/batches/GAST-*.json",
     "content/conversations/batches/CONV-*.json",
 )

@@ -57,8 +57,7 @@ SANCTIONED_FUNCTION = 'claim_completion'
 #: Keyed `<path>::<function qualname>`. Never add an entry to make a new writer pass: route the
 #: insert through `flow_completion.claim_completion` instead.
 KNOWN_PENDING: Dict[str, str] = {}
-# Offline migrations such as scripts/consolidate_shared_tables.py live under scripts/, outside
-# the amplify/functions scan, so they need no entry here.
+# This gate inspects amplify/functions; standalone operator scripts are out of scope.
 
 NAME_IDENTIFIERS = frozenset({'FLOW_SUBMISSIONS_TABLE', 'FLOW_SUBMISSION_TABLE', 'FLOW_SUBMISSIONS'})
 NAME_FUNCTIONS = frozenset({'flow_submissions_table_name'})

@@ -11,11 +11,9 @@
  * that pointed at the wrong flow. One module makes a one-sided edit impossible rather than
  * merely discouraged — the same move `reviewEntry.ts` already made for the review door.
  *
- * SOURCE OF TRUTH FOR THE IDS. `outputs/flow-retirement-2026-10-09.json` is a full paginated
- * live-Meta readback of both WABAs taken AFTER the 9-Oct deprecation run. Its `keepIds` list
- * is the retained plan. Every id below is one of those keepIds (or `null` where the capability
- * has no Flow). `tests/test_canonical_flow_ids.py` asserts this file against that readback and
- * against the inbound handler, and forbids any flow-id literal outside the canonical modules.
+ * SOURCE OF TRUTH FOR THE IDS. This module and its Python twin define the retained
+ * customer-service Flow mapping. Verify the published/deprecated state against Meta
+ * before editing either mapping; historical retirement snapshots are not part of the repo.
  *
  * Review stays in `reviewEntry.ts` (its keyword list is load-bearing elsewhere); this module
  * re-exports REVIEW_FLOW_ID so a reader has one complete table.

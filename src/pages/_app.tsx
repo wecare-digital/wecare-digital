@@ -450,8 +450,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // are customer actions, not separate public pages.
 };
 
-/** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.
- * Fetch live rules and plan before applying; static route refactors must preserve that ruleset.
+/** Public redirect changes require a review of live Amplify Hosting customRules.
+ * Static route refactors must preserve all current API and not-found rewrites.
  */
 const SITE = 'https://wecare.digital';
 

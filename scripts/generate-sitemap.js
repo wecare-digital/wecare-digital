@@ -69,8 +69,8 @@ const PUBLIC_EXACT = new Set( [
   // Paid request-service and Track routes are customer-session/deep-link surfaces. They are
   // intentionally absent from this crawl allowlist; _app keeps them renderable and noindex.
   // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
-  // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
-  // src/pages/shop/index.tsx is recreated), so it belongs in the sitemap. Its PUBLIC_PAGE_META
+  // again after its old 301 rules were removed from live hosting configuration and
+  // src/pages/shop/index.tsx was restored, so it belongs in the sitemap. Its PUBLIC_PAGE_META
   // entry in _app.tsx is back too - the two are coupled by src/test/PublicRouteRegistration.test.ts.
   // Shop detail pages - including child destinations for families such as Clear Closure
   // and Partner - come in through the '/shop/' PREFIX below, which is separate.

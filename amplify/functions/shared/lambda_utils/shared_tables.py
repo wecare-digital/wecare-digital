@@ -32,9 +32,9 @@ the f-string convention and the explicit-env convention give the same answer.
 Folded tables
 -------------
 These held copies of rows that belong to one of the stores above. No runtime writer may use
-them; `RETIRED` maps each to where its rows live now, and
-`scripts/consolidate_shared_tables.py` copies any existing rows across. Deleting the physical
-tables is a separate, owner-approved step.
+them; `RETIRED` maps each to where its rows belong now. The historical consolidation
+helper is no longer tracked. Verify existing rows have been migrated before considering
+physical table deletion, which remains a separate, owner-approved step.
 
     CustomersTable         -> ContactsTable        never existed live; a second person store
     ReviewTable            -> FlowSubmissionTable  flowCode WD_REV (rating) / WD_IDEA (idea)

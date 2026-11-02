@@ -7,11 +7,9 @@ capability named different ids, several of them unused DRAFT design-duplicates o
 flows, while the real retained flow sat elsewhere. Centralising the ids here (and in the TS
 twin) makes a one-sided edit a test failure rather than a silent production mismatch.
 
-SOURCE OF TRUTH. outputs/flow-retirement-2026-10-09.json is a full paginated live-Meta
-readback taken after the 9-Oct deprecation run; its keepIds list is the retained plan. Every
-id below is one of those keepIds, or None where the capability has no Flow.
-tests/test_canonical_flow_ids.py asserts this module against that readback and against the TS
-twin, and forbids flow-id literals outside the canonical modules.
+SOURCE OF TRUTH. This module and src/lib/canonicalFlows.ts define the retained
+customer-service Flow mapping. Check the current published/deprecated state against
+Meta before editing either mapping; historical retirement snapshots are not retained.
 
 WABA 1 only (2094615664435155). WABA 2 has no retained customer-service Flow set and is not
 routed from here.
