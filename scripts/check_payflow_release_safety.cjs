@@ -12,7 +12,15 @@ const check = (value, reason) => { if (!value) failures.push(reason); };
 const wire = read('amplify/functions/messaging/whatsapp-business-api/handler.py');
 const outbound = read('amplify/functions/messaging/outbound-whatsapp/handler.py');
 const direct = read('amplify/functions/shared/lambda_utils/direct_send.py');
-const client = read('src/api/client.ts');
+// Retired browser senders must stay absent from the implementations as well as
+// the public barrel after the API client decomposition.
+const client = [
+  read('src/api/client.ts'),
+  read('src/api/core.ts'),
+  ...fs.readdirSync(path.join(root, 'src/api/domains'))
+    .filter(name => name.endsWith('.ts'))
+    .map(name => read('src/api/domains/' + name)),
+].join('\n');
 const inbound = read('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
 const sender = wire.slice(wire.indexOf('def _send_message('), wire.indexOf('def _send_text('));
 check(sender.includes("message.get('type') not in") &&

@@ -94,7 +94,7 @@ require(out_of_order["gaps"][0]["seconds"] is None,
         "Out-of-order timestamps must remain unverified")
 
 invoice_engine = (ROOT / "amplify/functions/payments/invoice-engine/handler.py").read_text()
-client = (ROOT / "src/api/client.ts").read_text()
+client = (ROOT / "src/api/domains/commerce.ts").read_text()
 view = (ROOT / "src/components/workspace/pay/InvoiceRecords.tsx").read_text()
 require("payment_evidence.invoice_evidence_timeline(invoice, logs)" in invoice_engine,
         "Invoice backend must create timeline, never browser compose it")

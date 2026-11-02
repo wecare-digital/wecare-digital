@@ -6,6 +6,7 @@ const { execFileSync } = require('node:child_process');
 
 function read(path) { return readFileSync(path, 'utf8'); }
 const live = read('src/components/VayuLokLive.tsx');
+const helpers = read('src/components/VayuLokLive.helpers.ts');
 const insights = read('src/components/VayuLokWeatherInsights.tsx');
 const backend = read('gcp/vayulok-weather-insights/server.mjs');
 const gateway = read('scripts/provision_vayulok_environment.py');
@@ -14,8 +15,9 @@ const gateway = read('scripts/provision_vayulok_environment.py');
 // desktop. The whole Air/Weather card follows normal page scrolling without
 // clipping; phones/tablets show the full map before the complete detail card.
 assert(live.includes("fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 )"), 'India overview fit is missing');
-assert(live.includes('north: 37.5,') && live.includes('south: 6.0,')
-  && live.includes('east: 98.0,') && live.includes('west: 67.5,'),
+assert(live.includes("from './VayuLokLive.helpers'"), 'map must use the audited helper module');
+assert(helpers.includes('north: 37.5,') && helpers.includes('south: 6.0,')
+  && helpers.includes('east: 98.0,') && helpers.includes('west: 67.5,'),
   'India overview bounds must include mainland and island regions');
 assert(live.includes('--vl-map-height:clamp(500px,calc(100svh - 112px),820px)'),
   "desktop sticky map must fit the user's viewport height");
@@ -51,7 +53,7 @@ assert(gateway.includes('RATE_LIMIT = 2.0') && gateway.includes('BURST_LIMIT = 4
 assert(live.includes("const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );"),
   'paid heatmap tiles must be off on first load');
 assert(live.includes('mapViewRequested'), 'paid Maps loading must be deferred');
-assert(live.includes('const SEARCH_DEBOUNCE_MS = 300;'), 'autocomplete debounce missing');
+assert(helpers.includes('const SEARCH_DEBOUNCE_MS = 300;'), 'autocomplete debounce missing');
 
 // Keep history automatic, preserve Google's map attribution and avoid hiding it.
 assert(live.includes('<VayuLokWeatherInsights\n                          lat={ place.lat }'),
