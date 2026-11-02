@@ -4847,6 +4847,7 @@ export interface Invoice {
 
 export interface CreateInvoiceEngineRequest {
   collectWorkspace?: true;
+  collectSavedAddress?: Record<string,unknown>;
   confirmedPreviewFingerprint?: string;
   fixedPresetId?: string;
   customerPhone: string;

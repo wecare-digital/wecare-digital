@@ -116,6 +116,14 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(self.run_send({**self.body,'resendRequestId':'b'*32,'previousRequestId':'a'*32})[1]['state'],'ACCEPTED')
         self.assertEqual(self.send.call_count,2)
 
+    def test_complete_saved_address_snapshot(self):
+        c={'checkoutDeliveryAddress':{'addressLine1':'Street','addressLine2':'Unit','locality':'Area','country':'India','countryCode':'IN'}}
+        original=contract.address_snapshot(c)
+        for field in ('addressLine2','locality','country','countryCode'):
+            changed={'checkoutDeliveryAddress':{**c['checkoutDeliveryAddress'],field:'changed'}}
+            self.assertNotEqual(original,contract.address_snapshot(changed))
+        self.assertEqual(contract.address_snapshot({'city':'A','landmark':''}),{'city':'A'})
+
     def test_preview_changes_bind_all_reviewed_fields(self):
         body={'contactId':'customer','customerName':'Name','buyerGstin':'GST',
               'addressLine1':'Street','items':[{'name':'Custom','amount':10,'quantity':1,'gstRate':18}]}
@@ -155,13 +163,13 @@ class ProjectionTests(unittest.TestCase):
         self.table.update_item.assert_not_called()
 
     def test_delivery_proof_requires_exact_message_contact_image(self):
-        invoice={'customerPhone':'+919000000001','contactId':'saved'}
-        logs=[{'channel':'whatsapp','toNumber':invoice['customerPhone'],'waMessageId':'wamid.exact','imageS3Key':'saved.png','status':'sent'}]
-        valid={'whatsappMessageId':'wamid.exact','contactId':'saved','s3Key':'saved.png','status':'read','statusUpdatedAt':25}
+        invoice={'invoiceId':'inv','customerPhone':'+919000000001','contactId':'saved'}
+        logs=[{'invoiceId':'inv','channel':'whatsapp','toNumber':invoice['customerPhone'],'waMessageId':'wamid.exact','imageS3Key':'saved.png','status':'sent'}]
+        valid={'direction':'outbound','whatsappMessageId':'wamid.exact','contactId':'saved','s3Key':'saved.png','status':'read','statusUpdatedAt':25}
         for field in ('whatsappMessageId','contactId','s3Key'):
             self.table.query.return_value={'Items':[{**valid,field:'wrong'}]}
             self.assertIn('unverified',self.env['_collect_receipt_delivery'](invoice,logs)['status'])
-        self.table.query.return_value={'Items':[valid]}
+        self.table.query.return_value={'Items':[{k:v for k,v in valid.items() if k!='s3Key'}]}
         self.assertEqual(self.env['_collect_receipt_delivery'](invoice,logs)['status'],'Read')
         self.table.query.side_effect=RuntimeError('unavailable')
         self.assertIn('unavailable',self.env['_collect_receipt_delivery'](invoice,logs)['status'])

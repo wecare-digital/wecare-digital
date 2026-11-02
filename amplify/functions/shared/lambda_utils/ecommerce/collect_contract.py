@@ -27,3 +27,19 @@ def preview_fingerprint(body, quote):
         'convenienceFeeGst', 'total')}
     return hashlib.sha256(json.dumps(context, sort_keys=True, ensure_ascii=False,
                                     separators=(',', ':')).encode()).hexdigest()
+
+
+def address_snapshot(contact):
+    """Compare stored source fields, avoiding duplicate address-formatting rules."""
+    def clean(value):
+        if isinstance(value, dict):
+            return {key: normalized for key, child in value.items()
+                    if (normalized := clean(child)) not in ('', None, {})}
+        return str(value or '').strip()
+    canonical = contact.get('checkoutDeliveryAddress')
+    if isinstance(canonical, dict) and canonical:
+        return {'checkoutDeliveryAddress': clean(canonical)}
+    fields = ('shippingAddressJson', 'addressLine1', 'addressLine2', 'landmark',
+              'city', 'state', 'postalCode', 'country', 'countryCode',
+              'houseNumber', 'buildingName', 'towerNumber', 'floorNumber')
+    return clean({key: contact.get(key) for key in fields})

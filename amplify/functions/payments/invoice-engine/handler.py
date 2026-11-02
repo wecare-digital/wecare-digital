@@ -439,6 +439,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and 'send-payment-link' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone_number_id = body.get('phoneNumberId')
+            saved = dynamodb.Table(INVOICES_TABLE).get_item(Key={'invoiceId': inv_id}, ConsistentRead=True).get('Item') or {}
+            if collect_contract.is_collect(saved) and not _collect_saved_recipient_valid(saved):
+                return _resp(409, {'error': 'Saved recipient changed. Payment request was not sent.'})
             return send_payment_link(inv_id, phone_number_id, request_id)
 
         # POST /invoices/{id}/order-status — send a WhatsApp fulfilment status update
@@ -972,6 +975,8 @@ def _validate_collect_draft(body: Dict) -> Optional[Dict]:
     contact = dynamodb.Table(CONTACTS_TABLE).get_item(
         Key={'id': body['contactId']}, ConsistentRead=True).get('Item') or {}
     address = _contact_address_fields(contact)
+    if body.get('collectSavedAddress') != collect_contract.address_snapshot(contact):
+        return _resp(409, {'error': 'Saved address changed. Reload the customer.', 'errorCode': 'SAVED_CUSTOMER_CHANGED'})
     if (str(contact.get('name') or '').strip() != str(body.get('customerName') or '').strip()
             or str(contact.get('email') or '').strip().casefold() != str(body.get('customerEmail') or '').strip().casefold()
             or any(str(address.get(k) or '').strip().casefold() != str(body.get(k) or '').strip().casefold()
@@ -5898,8 +5903,10 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
 # ─── Delivery Log ───
 
 def _collect_receipt_delivery(invoice: Dict, logs: List) -> Dict:
-    # Callback proof must match the exact receipt WAMID, saved contact and image key.
-    receipts = [row for row in logs if row.get('channel') == 'whatsapp'
+    # The invoice log durably binds its image key to the exact provider WAMID.
+    # Outbound template headers historically omit s3Key; WAMID + saved contact
+    # still bind their callback to that exact receipt, without guessing from time.
+    receipts = [row for row in logs if row.get('invoiceId') == invoice.get('invoiceId') and row.get('channel') == 'whatsapp'
                 and row.get('waMessageId') and row.get('imageS3Key')
                 and row.get('toNumber') == invoice.get('customerPhone')]
     if not receipts:
@@ -5917,7 +5924,8 @@ def _collect_receipt_delivery(invoice: Dict, logs: List) -> Dict:
         for row in result.get('Items', []):
             if (row.get('whatsappMessageId') == receipt['waMessageId']
                     and row.get('contactId') == invoice.get('contactId')
-                    and row.get('s3Key') == receipt['imageS3Key']):
+                    and row.get('direction') == 'outbound'
+                    and (not row.get('s3Key') or row['s3Key'] == receipt['imageS3Key'])):
                 status = str(row.get('status') or '').lower()
                 if status in ('delivered', 'read', 'failed') and row.get('statusUpdatedAt'):
                     return {'status': status.capitalize(), 'at': int(row['statusUpdatedAt']),

@@ -16,7 +16,7 @@ export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:str
   const a=addressFieldsFromContact(customer);
   if(![a.addressLine1,a.city,a.state,a.postalCode,a.country].every(v=>String(v||'').trim()))return null;
   if(gstin&&!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin))return null;
-  return {collectWorkspace:true,contactId:customer.id,customerName:customer.name,customerPhone:customer.phone,
+  return {collectWorkspace:true,collectSavedAddress:collectAddressSnapshot(customer),contactId:customer.id,customerName:customer.name,customerPhone:customer.phone,
     customerEmail:customer.email||'',shippingAddress:contactDeliveryAddress(customer),billingAddress:contactDeliveryAddress(customer),
     addressLine1:a.addressLine1,addressLine2:a.addressLine2,city:a.city,state:a.state,postalCode:a.postalCode,
     landmark:a.locality,countryCode:a.countryCode||countryCodeForName(a.country),goodsType:'physical-goods',
@@ -27,3 +27,10 @@ export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:str
 // Customer GST and all invoice values are server-quoted. This fingerprint only
 // binds React state to the response that produced the visible image.
 export const collectInputKey=(request:CreateInvoiceEngineRequest|null)=>request?JSON.stringify(request):'';
+
+export function collectAddressSnapshot(contact:Contact):Record<string,unknown>{
+  const source=contact as unknown as Record<string,unknown>;
+  const clean=(value:unknown):unknown=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,clean(v)]).filter(([,v])=>v!==''&&v!==null&&JSON.stringify(v)!=='{}')):String(value||'').trim();
+  if(source.checkoutDeliveryAddress&&typeof source.checkoutDeliveryAddress==='object'&&Object.keys(source.checkoutDeliveryAddress).length)return {checkoutDeliveryAddress:clean(source.checkoutDeliveryAddress)};
+  return clean(Object.fromEntries(['shippingAddressJson','addressLine1','addressLine2','landmark','city','state','postalCode','country','countryCode','houseNumber','buildingName','towerNumber','floorNumber'].map(k=>[k,source[k]]))) as Record<string,unknown>;
+}
