@@ -63,9 +63,15 @@ check(callingUi.includes('if ( !response.ok )') &&
 const page = read('src/pages/workspace/payments/index.tsx');
 const framework = read('src/components/workspace/pay/PaymentFramework.tsx');
 const definitions = read('src/lib/paymentFramework.ts');
-check(page.includes('PaymentFramework') && page.includes("panel: 'framework'") &&
-      page.includes('pay-flow-sections') && page.includes('pay-flow-work-tabs'),
-      'Collect/Vault/Contribute Framework and section navigation missing');
+// The owner-approved single-workbench console uses a payment rail and tool links,
+// not the removed Display/Create/Ledger tab-strip class names. Check navigation
+// semantics and the actual rendered inspector instead of an old CSS implementation.
+check(page.includes("one(router.query.panel) === 'framework'") &&
+      page.includes("panel:'framework'") &&
+      page.includes('<PaymentFramework section={section} />') &&
+      page.includes('className="payment-rail"') &&
+      page.includes('className="console-tools"'),
+      'Collect/Vault/Contribute Framework or working navigation missing');
 for (const role of ['payment', 'status', 'invoice', 'access']) {
   check(definitions.includes('  ' + role + ':'), 'Payment framework template missing: ' + role);
 }
@@ -78,8 +84,14 @@ const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');
 const contribute = read('src/components/workspace/pay/ContributePaymentPlan.tsx');
-check(contribute.includes('Live customer total:'),
-      'Contribute headline is not sourced from live quote');
+// The current headline deliberately says "Customer pays" and shows the live
+// server breakdown. Never require a specific prose label or a hardcoded amount.
+check(contribute.includes('fetchContributionPrice()') &&
+      contribute.includes('setPrice(next)') &&
+      contribute.includes('b.totalPayablePaise') &&
+      contribute.includes("loading?'Checking…'") &&
+      contribute.includes("'Unavailable'"),
+      'Contribute heading must reflect loading, unavailable and server quote states');
 
 if (failures.length) {
   for (const issue of failures) console.error('FAIL:', issue);
