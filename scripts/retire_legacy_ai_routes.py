@@ -74,15 +74,30 @@ def plan():
                            repr(other_refs))
 
     qualified = lam.get_function_configuration(FunctionName=FUNCTION)
-    source_mappings = pages(lam, "list_event_source_mappings",
-                            "EventSourceMappings", FunctionName=FUNCTION)
+    source_mappings = [
+        mapping
+        for page in lam.get_paginator("list_event_source_mappings").paginate(
+            FunctionName=FUNCTION)
+        for mapping in page.get("EventSourceMappings", [])
+    ]
     if source_mappings:
         raise RuntimeError("Legacy Lambda has event-source mappings; inspect manually.")
+
+    events = boto3.client("events", region_name=REGION)
+    rules = []
+    for arn in (qualified["FunctionArn"], qualified["FunctionArn"] + ":live"):
+        for page in events.get_paginator("list_rule_names_by_target").paginate(
+                TargetArn=arn):
+            rules.extend(page.get("RuleNames", []))
+    if rules:
+        raise RuntimeError("Legacy Lambda has EventBridge rules: " + repr(rules))
+
     return apigw, lam, matches, {
         "function": FUNCTION,
         "functionVersion": qualified.get("Version"),
         "routes": matches,
         "eventSourceMappings": 0,
+        "eventBridgeRules": 0,
         "otherApiRoutes": 0,
     }
 
