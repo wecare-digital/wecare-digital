@@ -6,7 +6,7 @@ This is a **reviewable operations change**, not a deployment. Production remains
 
 User confirmed that Meta/WhatsApp **Commerce catalog synchronization** is no longer needed. Do **not** confuse it with WhatsApp Business messaging, message templates, conversation metadata, customer orders, native product catalog, or checkout.
 
-In AWS, two scheduled sync rules (`wecare-meta-catalog-sync-schedule` and `wecare-meta-catalog-sync-waba2-schedule`) were disabled, and the retired sync's drift/failure alarms were removed on 2026-11-02. The Lambda, aliases, underlying products, and customer data were preserved.
+In AWS, two scheduled sync rules (`wecare-meta-catalog-sync-schedule` and `wecare-meta-catalog-sync-waba2-schedule`) were disabled, and the retired sync's drift/failure alarms were removed on 2026-11-02. The Lambda, aliases, underlying products, and customer data were preserved. The retired Meta-sync Lambda's reserved concurrency was additionally set to **0** on 2026-11-02 as a reversible runtime block: direct invocations (including aliases) now throttle until intentionally re-enabled. Do not change this concurrency without explicit release approval.
 
 ### Dependency review required before code removal
 
