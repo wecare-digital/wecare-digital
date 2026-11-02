@@ -319,7 +319,10 @@ SPECS: List[Spec] = [
         "ecommerce/customer-invoice",
         provisioned_by="python scripts/provision_customer_invoice.py",
     ),
-    # Retired Meta Commerce catalog sync (2026-11-02): intentionally excluded from\n    # routine releases. Both EventBridge schedules are disabled and AWS reserved\n    # concurrency is 0. Do not reintroduce without explicit owner approval.\n    # Cognito CustomMessage trigger: branded HTML for MFA, verification and
+    # Retired Meta Commerce catalog sync (2026-11-02): intentionally excluded from
+    # routine releases. Both EventBridge schedules are disabled and AWS reserved
+    # concurrency is 0. Do not reintroduce without explicit owner approval.
+    # Cognito CustomMessage trigger: branded HTML for MFA, verification and
     # recovery email. First creation is owned by
     # scripts/provision_cognito_custom_message.py, which also gives it a
     # least-privilege role of its own rather than the shared secrets-reading one.
