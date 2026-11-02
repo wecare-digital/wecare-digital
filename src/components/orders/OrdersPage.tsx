@@ -468,7 +468,7 @@ export default function OrdersPage (): React.ReactElement {
       setOrdersAlert( { source: 'service', message: notice.message } );
     } else {
       dismissAlertFor( 'service' );
-      inviteToastId.current = showToast( 'whatsappAccepted' );
+      inviteToastId.current = showToast( 'whatsappAccepted', { ownerId: inviteToastId.current } );
     }
   };
 
