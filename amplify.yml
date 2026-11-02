@@ -44,6 +44,7 @@ frontend:
         # Read-only source guards: Collect, Vault and Contribute stay in their
         # canonical workspace after a directory deletion; no Meta or S3 calls.
         - python3 -m unittest discover -s tests -p 'test_payflow_workspace_architecture_20261102.py' -v
+        - python3 -m unittest discover -s tests -p 'test_vayulok_google_guardrails_20261102.py' -v
         # Read-only backend regression suites using in-memory owners, orders and files.
         # They cannot send WhatsApp messages, charge cards or access live documents.
         - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_vault_website_no_renew.py' -v
