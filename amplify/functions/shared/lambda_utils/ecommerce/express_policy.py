@@ -2,7 +2,7 @@
 
 A customer basket pays ONE Express amount, not one amount per line:
 * Contribute: ₹15 within its existing exact ₹300 gross contract.
-* Every other customer checkout: ₹45, including Vault and Drop Docs.
+* Request · Vault: ₹25. All other customer items: ₹45, including Drop Docs.
 The unlisted ₹2 commerce verification SKU is internal QA, not a customer item.
 
 Customer payment amounts are now calculated by unified_pricing.py using
@@ -17,6 +17,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 CONTRIBUTE_EXPRESS_PAISE = 1_500
+VAULT_EXPRESS_PAISE = 2_500
+VAULT_PRODUCT_ID = "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907"
+VAULT_VARIANT_ID = "RVT6K4Q8"
 STANDARD_EXPRESS_PAISE = 4_500
 STANDARD_EXPRESS_POLICY = "shop-express-noncontribute-2026-11-02"
 
@@ -84,7 +87,7 @@ def with_standard_express(base: Any) -> Any:
 
 
 __all__ = [
-    "CONTRIBUTE_EXPRESS_PAISE", "STANDARD_EXPRESS_PAISE",
+    "CONTRIBUTE_EXPRESS_PAISE", "STANDARD_EXPRESS_PAISE", "VAULT_EXPRESS_PAISE",
     "STANDARD_EXPRESS_POLICY", "INTERNAL_QA_PRODUCT_ID",
     "INTERNAL_QA_VARIANT_ID", "is_internal_qa_cart",
     "with_standard_express",

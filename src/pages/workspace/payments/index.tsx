@@ -76,6 +76,7 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
   const {section, tab, legacy} = location;
   const showFramework = one(router.query.panel) === 'framework';
   React.useEffect(() => {
+    if(router.isReady && section==='vault' && tab==='create' && !legacy && !showFramework && (!one(router.query.item)||one(router.query.item)==='fixed-27'))void router.replace('/workspace/vault');
     if(router.isReady && section==='collect' && tab==='create' && !legacy && !showFramework && !one(router.query.item))void router.replace('/workspace/collect');
   },[router.isReady,section,tab,legacy,showFramework,router]);
 

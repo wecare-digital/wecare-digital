@@ -146,7 +146,7 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
   // infer or recalculate a customer's quote from catalog display prices.
   const charges = row as ServicePriceBreakdown;
   if ( charges.supplyGstBps !== 1800 || charges.convenienceGstBps !== 1800
-      || ( charges.expressPaise !== 4500 && charges.expressPaise !== 1500 )
+      || ( charges.expressPaise !== 4500 && charges.expressPaise !== 1500 && charges.expressPaise !== 2500 )
       || charges.collectionBeforeConveniencePaise !== charges.itemSubtotalPaise
         + charges.supplyGstPaise - charges.delightPaise + charges.expressPaise
       || charges.totalPayablePaise !== charges.collectionBeforeConveniencePaise

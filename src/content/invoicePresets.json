@@ -317,10 +317,10 @@
     "basePaise": 4900,
     "supplyGstPaise": 882,
     "delightPaise": 28,
-    "expressPaise": 4500,
-    "convenienceFeePaise": 256,
-    "convenienceGstPaise": 46,
-    "totalPayablePaise": 10556,
+    "expressPaise": 2500,
+    "convenienceFeePaise": 206,
+    "convenienceGstPaise": 37,
+    "totalPayablePaise": 8497,
     "workflow": "vault"
   },
   {

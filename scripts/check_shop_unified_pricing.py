@@ -49,7 +49,7 @@ APPROVED_PAIRS = [
     ("Request · Submit Request", 9900, 1782, 58, 4500, 403, 73, 16600),
     ("Request · Amendment", 19900, 3582, 117, 4500, 697, 125, 28687),
     ("Request · Drop Docs", 19900, 3582, 117, 4500, 697, 125, 28687),
-    ("Request · Vault", 4900, 882, 28, 4500, 256, 46, 10556),
+    ("Request · Vault", 4900, 882, 28, 2500, 206, 37, 8497),
     ("Shipment · Track", 4900, 882, 28, 4500, 256, 46, 10556),
     ("Shipment · Pickup", 65000, 11700, 383, 4500, 2020, 364, 83201),
 ]
@@ -64,7 +64,7 @@ class UnifiedShopPricingTests(unittest.TestCase):
                 if name == "Contribute":
                     terms = contribute_taxable.breakdown(30_000)
                 else:
-                    terms = unified_pricing.price_components(base)
+                    terms = unified_pricing.price_components(base, vault=name == "Request · Vault")
                 self.assertEqual(terms["itemSubtotalPaise"], base)
                 self.assertEqual(terms["supplyGstPaise"], gst)
                 self.assertEqual(terms["delightPaise"], delight)
@@ -162,9 +162,25 @@ class UnifiedShopPricingTests(unittest.TestCase):
             with self.subTest(service=kind):
                 self.assertEqual(
                     service_pricing_native._collect_breakdown(kind, 9_900),
-                    unified_pricing.price_components(9_900),
+                    unified_pricing.price_components(9_900, vault=kind == service_requests.VAULT),
                 )
         self.assertIsNone(service_pricing_native._collect_breakdown("bad-kind", 9_900))
+
+    def test_vault_snapshot_uses_exact_identity_and_preserves_history(self):
+        vault = {"lineItemId": "vault", "productId": express_policy.VAULT_PRODUCT_ID,
+                 "variantId": express_policy.VAULT_VARIANT_ID, "quantity": 1,
+                 "unitPricePaise": 4900}
+        source = self.base_snapshot([vault])
+        priced = unified_pricing.quote_from_base_snapshot(source)
+        self.assertEqual(priced.quote.total_payable_paise, 8497)
+        self.assertEqual(priced.frozen_data["delivery"]["paise"], 2500)
+        self.assertEqual(source.frozen_data["delivery"]["paise"], 0)
+        # Shipment Track shares the base, but never receives the Vault exception.
+        ordinary = dict(vault, productId="shipment", variantId="track")
+        self.assertEqual(unified_pricing.quote_from_base_snapshot(
+            self.base_snapshot([ordinary])).quote.total_payable_paise, 10556)
+        with self.assertRaises(checkout_pricing.PricingError):
+            unified_pricing.quote_from_base_snapshot(self.base_snapshot([vault, ordinary]))
 
     def test_contribute_gross_contract_unchanged(self):
         terms = contribute_taxable.breakdown(30_000)

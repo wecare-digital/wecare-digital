@@ -82,7 +82,7 @@ def _invoke(function_name: str, payload: Dict[str, Any]) -> Tuple[int, Dict[str,
     return status, (body if isinstance(body, dict) else {})
 
 
-def send_vault_link(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
+def send_vault_link(*, phone: str, file_row: Dict[str, Any], request_id: str = "") -> Tuple[bool, str]:
     """Announce a paid file with the approved Vault download template. Returns (sent, detail).
 
     The header and button come from `whatsapp_templates.download_send_fields`, the same
@@ -98,6 +98,8 @@ def send_vault_link(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]
             "body": json.dumps(
                 {
                     "recipientPhone": phone,
+                    **({"idempotencyKey": "vault-access:" + file_id + ":" + request_id}
+                       if request_id else {}),
                     "phoneNumberId": WA_SEND_PHONE_ID,
                     **whatsapp_templates.download_send_fields(file_id),
                 }

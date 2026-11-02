@@ -82,7 +82,7 @@ _CONTRACTS = (
         flow_capability="",
         fulfillment_kind="secure_download",
         supply_gst_bps=1800,
-        express_paise=express_policy.STANDARD_EXPRESS_PAISE,
+        express_paise=express_policy.VAULT_EXPRESS_PAISE,
     ),
     RequestServiceContract(
         service_code="REQUEST_PICKUP",

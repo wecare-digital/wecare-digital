@@ -66,7 +66,7 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
     """
     if kind not in service_requests.SERVICE_KIND_BY_VARIANT.values():
         return None
-    return unified_pricing.price_components(item_subtotal_paise)
+    return unified_pricing.price_components(item_subtotal_paise, vault=kind == service_requests.VAULT)
 
 
 
