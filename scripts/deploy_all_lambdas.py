@@ -428,7 +428,6 @@ SPECS: List[Spec] = [
     Spec("wecare-meta-business-agent", "messaging/meta-business-agent"),
     # --- ai ---
     Spec("wecare-ai-query-kb", "ai/ai-query-kb"),
-    Spec("wecare-ai-generate-response", "ai/ai-generate-response"),
     Spec("wecare-ai-config-management", "ai/ai-config-management"),
     Spec("wecare-agent-action-group", "ai/agent-action-group"),
     # --- operations ---
