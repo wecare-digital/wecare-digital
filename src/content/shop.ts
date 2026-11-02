@@ -16,8 +16,9 @@ import { buildPageTitle } from '../lib/page-title';
  *   productType  reads "PHYSICAL" on all seven, which is the catalog's default for a product with no
  *                shipping profile. Five of the seven are documents and coordination, so surfacing
  *                it would put a false statement on five pages.
- *   mediaCount   zero on all seven, so there is no image URL. The pages ship no product image and
- *                no placeholder frame, and the Product schema emits no `image`.
+ *   mediaCount   zero on all products, so there is no image URL. The Shop is image-free by design:
+ *                the pages ship no product image and no placeholder frame, and the schema emits no
+ *                Product node (which would require an image) - only the image-free ItemPage node.
  */
 import catalog from './catalogSnapshot';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
@@ -41,12 +42,6 @@ export interface ShopProduct {
   price: string;
   currency: string;
   inStock: boolean;
-  /**
-   * Absolute URL of the product's primary image, when one exists. Absent on all seven today, and
-   * that absence gates the Product structured data - see ShopProductHead.tsx. Populating it needs
-   * images uploaded in catalog and scripts/build-catalog-snapshot.py extended to capture the URL.
-   */
-  image?: string;
   /** Canonical public destination for this product. Defaults to /shop/<slug>/. */
   canonicalPath?: string;
   /**
@@ -69,7 +64,6 @@ interface RawProduct {
   inStock?: boolean;
   visible?: boolean;
   descriptionHtml?: string;
-  image?: string;
   canonicalPath?: string;
   websiteEnabled?: boolean;
   metaEnabled?: boolean;
@@ -203,9 +197,8 @@ const project = ( raw: RawProduct ): ShopProduct => {
     price: String( raw.price || '' ),
     currency: String( raw.currency || 'INR' ),
     inStock: true,
-    // Spread, not `image: raw.image || undefined`, so a product with no image has no `image` KEY
-    // at all. ShopProductHead gates the Product node on the field's presence.
-    ...( raw.image ? { image: String( raw.image ) } : {} ),
+    // The Shop is image-free: no product image URL ships in the catalogue and no page or schema node
+    // renders one. See ShopProductHead.tsx, which emits only the image-free ItemPage node.
     ...( raw.canonicalPath ? { canonicalPath: String( raw.canonicalPath ) } : {} ),
     tagline,
     body,
