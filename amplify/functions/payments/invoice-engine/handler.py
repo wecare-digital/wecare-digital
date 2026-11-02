@@ -39,7 +39,7 @@ from lambda_utils.response import cors_response, cors_headers, options_response,
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
-from lambda_utils import media_paths, shared_tables, template_media
+from lambda_utils import media_paths, shared_tables, template_media, contact_store, contact_key
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
@@ -58,7 +58,7 @@ from lambda_utils.ecommerce import order_keys, payment_evidence, service_invoice
 # The fulfilment-status vocabulary and legal transitions for a WhatsApp order_status update. A
 # SEPARATE lifecycle from the payment's money state — this is what the merchant did (shipped,
 # completed), not what the money did. One home for the rules `send_order_status` validates.
-from lambda_utils.ecommerce import wa_order_status
+from lambda_utils.ecommerce import wa_order_status, collect_contract, collect_receipts
 # Order-bound review tokens for the paid-invoice template's FLOW button. `send_invoice_whatsapp`
 # is the only minter/binder: it records REVIEWTOKEN#<token> -> {invoiceId, orderId, referenceId,
 # contactId, customerUuid} on CommerceKeys so a review can be tied to the order it was about.
@@ -349,6 +349,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and body.get('_action') == 'preview':
             return preview_invoice(body, request_id)
 
+        if method == 'POST' and body.get('_action') == 'collect-resend':
+            code, result = collect_receipts.resend(
+                body, actor=_actor_sub, invoices=dynamodb.Table(INVOICES_TABLE),
+                keys=dynamodb.Table(COMMERCE_KEYS_TABLE), latest_asset=_latest_image_asset,
+                recipient_valid=_collect_saved_recipient_valid,
+                send=lambda iid, phone, key: send_invoice_whatsapp(
+                    iid, phone, wa_payment_request.PHONE_NUMBER_ID_1, request_id,
+                    force=True, expected_asset_key=key, resend_request_id=body['resendRequestId']),
+                paid=lambda inv: pay_status.canonical(inv.get('paymentStatus')) == pay_status.CAPTURED,
+                now=int(time.time()))
+            return _resp(code, result)
+
+        if method == 'POST' and body.get('_action') == 'collect-repair-image':
+            if not _actor_sub:
+                return _resp(403, {'error': 'AUTHENTICATED_ADMIN_REQUIRED'})
+            inv = dynamodb.Table(INVOICES_TABLE).get_item(
+                Key={'invoiceId': str(body.get('invoiceId') or '')}, ConsistentRead=True).get('Item') or {}
+            if not collect_contract.is_collect(inv) or pay_status.canonical(inv.get('paymentStatus')) != pay_status.CAPTURED:
+                return _resp(409, {'error': 'PAID_COLLECT_INVOICE_REQUIRED'})
+            return ensure_invoice_image(inv['invoiceId'], request_id)
+
         # POST /invoices with _action=initiate-refund — irreversible provider command.
         # Uses the existing authenticated invoice collection route so shipping this dormant
         # capability does not create an unaudited API-Gateway route. The feature flag is false
@@ -404,6 +425,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone = body.get('toWhatsAppNumber')
             phone_number_id = body.get('phoneNumberId')
+            if body.get('force'):
+                saved = dynamodb.Table(INVOICES_TABLE).get_item(Key={'invoiceId': inv_id}, ConsistentRead=True).get('Item') or {}
+                if collect_contract.is_collect(saved):
+                    return _resp(409, {'error': 'Use the guarded Collect resend action', 'code': 'RESEND_INTENT_REQUIRED'})
             # `force` is threaded from the body because the function has no `body` in scope.
             # Absent means False, which is the idempotent direction.
             return send_invoice_whatsapp(inv_id, phone, phone_number_id, request_id,
@@ -919,6 +944,41 @@ def _invoice_input_error(body: Dict) -> str:
 
 # ─── Create Invoice ───
 
+def _collect_saved_recipient_valid(invoice: Dict) -> bool:
+    contact_id = str(invoice.get('contactId') or '')
+    if not contact_id:
+        return False
+    contact = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+    try:
+        contact_key.assert_consistent(contact)
+        from lambda_utils.comms.numbers import to_e164
+        return bool(contact_store.is_live(contact) and not contact.get('archivedAt')
+                    and contact_key.resolve(contact) == contact_id
+                    and str(contact.get('name') or '').strip()
+                    and re.fullmatch(r'\+[1-9][0-9]{6,14}', to_e164(str(contact.get('phone') or '')) or '')
+                    and to_e164(str(contact.get('phone') or '')) == to_e164(str(invoice.get('customerPhone') or '')))
+    except (ValueError, TypeError, contact_key.ContactKeyMismatch):
+        return False
+
+
+def _validate_collect_draft(body: Dict) -> Optional[Dict]:
+    if body.get('collectWorkspace') is not True:
+        return None
+    if body.get('fixedPresetId') or body.get('entryPoint') != 'pay_flow':
+        return _resp(400, {'error': 'CUSTOM_COLLECT_REQUIRED'})
+    if not _collect_saved_recipient_valid(body):
+        return _resp(409, {'error': 'SAVED_CUSTOMER_CHANGED', 'errorCode': 'SAVED_CUSTOMER_CHANGED'})
+    contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+        Key={'id': body['contactId']}, ConsistentRead=True).get('Item') or {}
+    address = _contact_address_fields(contact)
+    if (str(contact.get('name') or '').strip() != str(body.get('customerName') or '').strip()
+            or str(contact.get('email') or '').strip().casefold() != str(body.get('customerEmail') or '').strip().casefold()
+            or any(str(address.get(k) or '').strip().casefold() != str(body.get(k) or '').strip().casefold()
+                   for k in ('addressLine1', 'city', 'state', 'postalCode'))):
+        return _resp(409, {'error': 'Saved customer details changed. Reload the customer.', 'errorCode': 'SAVED_CUSTOMER_CHANGED'})
+    return None
+
+
 def preview_invoice(body: Dict, request_id: str) -> Dict:
     """Return the canonical invoice quote without issuing or persisting an invoice."""
     preview_body = dict(body or {})
@@ -1004,6 +1064,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         body = _apply_fixed_invoice_preset(body)
     except ValueError as error:
         return _resp(400, {'error': str(error), 'errorCode': 'FIXED_ITEM_INVALID'})
+    contact_error = _validate_collect_draft(body)
+    if contact_error:
+        return contact_error
     now = int(time.time())
 
     # ── Deduplication: check if invoice already exists for this referenceId or paymentId ──
@@ -1539,6 +1602,16 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'expectedTotalPaise': expected_total_paise,
                 'computedTotalPaise': computed_total_paise,
             })
+    collect_quote = {
+        'subtotal': _money_display(subtotal), 'discount': _money_display(discount),
+        'shipping': _money_display(shipping), 'tax': _money_display(tax),
+        'convenienceFeeNet': _money_display(convenience_fee_net),
+        'convenienceFeeGst': _money_display(convenience_fee_gst), 'total': _money_display(total),
+    }
+    reviewed_fingerprint = collect_contract.preview_fingerprint(body, collect_quote) if body.get('collectWorkspace') is True else ''
+    if body.get('collectWorkspace') is True and not body.get('previewOnly'):
+        if not body.get('confirmedPreviewFingerprint') or body['confirmedPreviewFingerprint'] != reviewed_fingerprint:
+            return _resp(409, {'error': 'Customer, invoice or quote changed. Review a fresh preview.', 'errorCode': 'PREVIEW_CHANGED'})
     if body.get('previewOnly'):
         preview = {
             'preview': True,
@@ -1557,6 +1630,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'sellerGstin': body.get('gstin') or COMPANY['gstin'],
             'pricingAuthority': 'invoice-engine',
         }
+
+        if reviewed_fingerprint:
+            preview['previewFingerprint'] = reviewed_fingerprint
 
         # Optional visual preview: use the SAME receipt renderer as the paid document, but keep
         # everything in memory. No invoice number, DynamoDB row, S3 object or asset row is minted.
@@ -2083,7 +2159,7 @@ _INVOICE_FINANCIAL_FIELDS = frozenset({
 #: only sometimes client-writable is a field whose guard can be bypassed by finding the state
 #: where it is permitted. An issued unpaid invoice used to be markable `paid`/`captured` by a
 #: PUT with no payment anywhere behind it.
-_INVOICE_SERVER_OWNED_FIELDS = frozenset({'status', 'paymentStatus', 'fixedPresetId', 'itemProcessId', 'itemProcessItemId', 'postPaymentProcessState', 'itemProcessCapturedPaymentId', 'itemProcessIds', 'itemProcessStates'})
+_INVOICE_SERVER_OWNED_FIELDS = frozenset({'status', 'paymentStatus', 'fixedPresetId', 'itemProcessId', 'itemProcessItemId', 'postPaymentProcessState', 'itemProcessCapturedPaymentId', 'itemProcessIds', 'itemProcessStates', 'internalOrderId', 'orderNumber', 'receiptStatus', 'receiptSentAt', 'collectResendRequestId', 'collectResendState', 'collectResendMessageId', 'collectResendAt'})
 
 #: The server transitions that DO own them, named in the refusal so the operator is not left
 #: guessing which button to press instead.
@@ -2284,7 +2360,7 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
 def get_invoice(invoice_id: str, request_id: str) -> Dict:
     """Get a single invoice with items and assets."""
     table = dynamodb.Table(INVOICES_TABLE)
-    resp = table.get_item(Key={'invoiceId': invoice_id})
+    resp = table.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True)
     invoice = resp.get('Item')
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
@@ -2307,6 +2383,7 @@ def get_invoice(invoice_id: str, request_id: str) -> Dict:
     result['items'] = [_normalize_item(i) for i in items]
     result['assets'] = [_normalize_asset(a) for a in assets]
     result['gstWorkpaper'] = _gst_workpaper(invoice, items)
+    result.update(_verified_collect_order_link(invoice))
 
     return _resp(200, {'invoice': result})
 
@@ -2321,6 +2398,8 @@ def list_invoices(params: Dict, request_id: str) -> Dict:
         filters.append(boto3.dynamodb.conditions.Attr('status').eq(params['status']))
     if params.get('contactId'):
         filters.append(boto3.dynamodb.conditions.Attr('contactId').eq(params['contactId']))
+    if params.get('referenceId'):
+        filters.append(boto3.dynamodb.conditions.Attr('referenceId').eq(str(params['referenceId'])))
     if params.get('paymentId'):
         filters.append(boto3.dynamodb.conditions.Attr('paymentId').eq(params['paymentId']))
 
@@ -2338,6 +2417,9 @@ def list_invoices(params: Dict, request_id: str) -> Dict:
             scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
         else:
             break
+
+    if params.get('scope') == 'collect':
+        invoices = [row for row in invoices if collect_contract.is_collect(row)]
 
     invoices.sort(key=lambda x: int(x.get('createdAt', 0)), reverse=True)
 
@@ -5511,7 +5593,7 @@ def add_remark(invoice_id: str, body: Dict, request_id: str,
 # ─── Send Invoice on WhatsApp ───
 
 def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
-                          request_id: str, *, force: bool = False) -> Dict:
+                          request_id: str, *, force: bool = False, expected_asset_key: str = '', resend_request_id: str = '') -> Dict:
     """Send the approved invoice as a PNG image via outbound-whatsapp.
 
     `force` is KEYWORD-ONLY and defaults to `False`, and that shape is the whole safety property:
@@ -5635,6 +5717,9 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             best_version = version
             asset = row
 
+    if expected_asset_key and (not asset or asset.get('s3Key') != expected_asset_key):
+        return _resp(409, {'error': 'PAID_IMAGE_CHANGED_OR_MISSING'})
+
     if not asset or not asset.get('s3Key'):
         # Generate image first
         # NOTE: an absent asset row is NOT a refusal. The engine renders it here and proceeds -
@@ -5667,8 +5752,14 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     # empty), so this path composes no free-form "thank you" text; the caption that used to be
     # built here was never sent and was deleted on 2026-10-25.
     table = dynamodb.Table(INVOICES_TABLE)
-    inv_resp = table.get_item(Key={'invoiceId': invoice_id})
+    inv_resp = table.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True)
     invoice = inv_resp.get('Item', {})
+    if expected_asset_key:
+        from lambda_utils.comms.numbers import to_e164
+        if (pay_status.canonical(invoice.get('paymentStatus')) != pay_status.CAPTURED
+                or to_e164(str(invoice.get('customerPhone') or '')) != to_e164(to_phone)
+                or not _collect_saved_recipient_valid(invoice)):
+            return _resp(409, {'error': 'PAID_RECEIPT_OR_RECIPIENT_CHANGED'})
     reference_id = invoice.get('referenceId', '')
 
     # Look up contact by phone
@@ -5713,7 +5804,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'templateHeaderMedia': s3_key,
             'templateHeaderType': 'image',
             'templateFlowButton': {'index': 0, 'flowToken': review_flow_token},
-            **({} if force else {'idempotencyKey': f'invoice-receipt:{invoice_id}'}),
+            **({'idempotencyKey': f'collect-receipt:{invoice_id}:{resend_request_id}'} if force and resend_request_id else {} if force else {'idempotencyKey': f'invoice-receipt:{invoice_id}'}),
         })
     }
 
@@ -5729,6 +5820,8 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         wa_message_id = wa_body.get('whatsappMessageId', wa_body.get('messageId', ''))
         wa_status = wa_body.get('status', 'unknown')
         if wa_response.get('FunctionError'):
+            wa_status = 'unknown'
+        elif downstream_status >= 500 and force:
             wa_status = 'unknown'
         elif downstream_status >= 400:
             # The downstream parsed and REFUSED the request. That is definite non-delivery,
@@ -5803,6 +5896,36 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
 
 # ─── Delivery Log ───
 
+def _collect_receipt_delivery(invoice: Dict, logs: List) -> Dict:
+    # Callback proof must match the exact receipt WAMID, saved contact and image key.
+    receipts = [row for row in logs if row.get('channel') == 'whatsapp'
+                and row.get('waMessageId') and row.get('imageS3Key')
+                and row.get('toNumber') == invoice.get('customerPhone')]
+    if not receipts:
+        return {'status': 'Acceptance not verified'}
+    receipt = receipts[0]
+    if receipt.get('status') in ('failed', 'rejected'):
+        return {'status': 'Failed'}
+    if receipt.get('status') not in ('sent', 'accepted', 'delivered', 'read'):
+        return {'status': 'Acceptance not verified'}
+    try:
+        result = dynamodb.Table(os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')).query(
+            IndexName='whatsappMessageId-index',
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('whatsappMessageId').eq(receipt['waMessageId']),
+            Limit=5)
+        for row in result.get('Items', []):
+            if (row.get('whatsappMessageId') == receipt['waMessageId']
+                    and row.get('contactId') == invoice.get('contactId')
+                    and row.get('s3Key') == receipt['imageS3Key']):
+                status = str(row.get('status') or '').lower()
+                if status in ('delivered', 'read', 'failed') and row.get('statusUpdatedAt'):
+                    return {'status': status.capitalize(), 'at': int(row['statusUpdatedAt']),
+                            'source': 'exact_receipt_provider_callback'}
+        return {'status': 'Accepted · delivery/read unverified'}
+    except Exception:
+        return {'status': 'Accepted · callback evidence unavailable'}
+
+
 def get_delivery_log(invoice_id: str, request_id: str) -> Dict:
     """Staff-only exact-invoice send log plus bounded measured evidence.
 
@@ -5827,10 +5950,12 @@ def get_delivery_log(invoice_id: str, request_id: str) -> Dict:
             if str(row.get('invoiceId') or '') == str(invoice_id)]
     logs.sort(key=lambda x: int(x.get('timestamp', 0)), reverse=True)
     measured = payment_evidence.invoice_evidence_timeline(invoice, logs)
+    receipt_delivery = _collect_receipt_delivery(invoice, logs)
 
     return _resp(200, {
         'invoiceId': invoice_id,
         'evidenceTimeline': measured,
+        'receiptDelivery': receipt_delivery,
         'deliveryLogs': [{
             'timestamp': int(l.get('timestamp', 0)),
             'channel': l.get('channel', ''),
@@ -5882,6 +6007,26 @@ def _lookup_contact_by_phone(phone: str) -> Optional[Dict]:
         return None
 
 
+def _verified_collect_order_link(invoice: Dict) -> Dict:
+    link = {'internalOrderId': '', 'orderNumber': ''}
+    internal = str(invoice.get('internalOrderId') or '')
+    if not internal and re.fullmatch(r'[a-fA-F0-9-]{36}', str(invoice.get('orderId') or '')):
+        internal = str(invoice['orderId'])
+    if not internal:
+        return link
+    try:
+        order = dynamodb.Table(shared_tables.orders_table_name()).get_item(
+            Key={'orderId': internal}, ConsistentRead=True).get('Item') or {}
+        if (order.get('invoiceId') == invoice.get('invoiceId')
+                and order.get('invoiceNumber') == invoice.get('invoiceNumber')
+                and order.get('orderNumber')
+                and (not invoice.get('orderNumber') or order['orderNumber'] == invoice['orderNumber'])):
+            return {'internalOrderId': internal, 'orderNumber': str(order['orderNumber'])}
+    except Exception:
+        logger.warning('collect_order_link_unavailable')
+    return link
+
+
 def _normalize_invoice(item: Dict) -> Dict:
     """Normalize invoice record for API response."""
     return {
@@ -5890,6 +6035,14 @@ def _normalize_invoice(item: Dict) -> Dict:
         'paymentId': item.get('paymentId', ''),
         'orderId': item.get('orderId', ''),
         'referenceId': item.get('referenceId', ''),
+        # Detail reads fill these only after verifying the reciprocal order.
+        'internalOrderId': '',
+        'orderNumber': '',
+        'receiptStatus': item.get('receiptStatus', ''),
+        'receiptSentAt': int(item.get('receiptSentAt') or 0),
+        'collectResendRequestId': item.get('collectResendRequestId', ''),
+        'collectResendState': item.get('collectResendState', ''),
+        'collectResendMessageId': item.get('collectResendMessageId', ''),
         'entryPoint': item.get('entryPoint', ''),
         'fixedPresetId': item.get('fixedPresetId', ''),
         'itemProcessId': item.get('itemProcessId', ''),
