@@ -19,7 +19,9 @@ contradicts it on the dependency axis.** The platform's runtime stack is current
 not legacy:
 
 - **Next.js 16** (`next@^16.4.3`, `package.json`), **React 19** (`react@^19.3.1`),
-  **TypeScript 6** (`typescript@6.0.3`), **Capacitor 8** (`@capacitor/core@^8.5.3`),
+  **TypeScript 6** (`typescript@6.0.3`; these are the toolchain's own current
+  major version numbers as reported by `npm outdated`, i.e. `typescript 6.0.3 ->
+  7.0.2`, not a typo), **Capacitor 8** (`@capacitor/core@^8.5.3`),
   **aws-amplify 6** (`aws-amplify@^6.22.2`), **Python 3.12** Lambda runtime.
 - The React layer shows **no legacy patterns**: exactly **1** class component
   (`src/components/ErrorBoundary.tsx`, a legitimate error-boundary use) and
@@ -50,8 +52,8 @@ TypeScript 6->7 available) and the `eslint-config-next`/`next` 16.4.3->16.4.4 pa
 **Only *appears* legacy:** Next.js Pages Router (current on Next 16, deliberately
 constrained by static `output: 'export'`); the `overrides`/guard-script machinery
 (deliberate security mitigations, not accidental staleness); files mentioning
-"legacy" (165 of them) that mostly describe **retirement work already underway**,
-not unmanaged rot.
+"legacy" (192 tracked files, per `git grep -li legacy`) that mostly describe
+**retirement work already underway**, not unmanaged rot.
 
 ---
 
@@ -277,9 +279,10 @@ AWS (Amplify + 318 script-deployed Lambdas) plus a GCP Cloud Run service
 raise onboarding cost and concentrate operational knowledge.
 
 ### 5g. "Retirement in progress" theme
-**165** files mention "legacy"
-(`grep -rli legacy ... | grep -v node_modules`). Most describe **managed
-retirement**, not rot: `config/backend-retirement.json`,
+**192** tracked files mention "legacy"
+(`git grep -li legacy | wc -l`; a narrower `git grep -li legacy -- 'src/**/*.ts'
+'src/**/*.tsx' | wc -l` scopes it to **47** TypeScript sources). Most describe
+**managed retirement**, not rot: `config/backend-retirement.json`,
 `scripts/check-retired-public-pages.cjs`, and the retirement narrative in
 `docs/ops/backend-audit-2026-11-02.md` (Meta Commerce catalog sync + AI generation
 Lambdas/routes + `SmsOutboundTable`). Surfacing *what* is retired matters so the
@@ -439,7 +442,8 @@ $ find/grep counts
 546  *.py total (repo, excl node_modules)
 350  *.ts/*.tsx total (repo, excl node_modules)
  94  src/ files containing ": any"
-165  files mentioning "legacy" (excl node_modules)
+192  tracked files mentioning "legacy"  (git grep -li legacy | wc -l)
+ 47  of those scoped to src/**/*.ts(x)  (git grep -li legacy -- 'src/**/*.ts' 'src/**/*.tsx' | wc -l)
   1  class component (src/components/ErrorBoundary.tsx)
   0  UNSAFE_/componentWill* lifecycles
 ```
