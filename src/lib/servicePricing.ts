@@ -140,10 +140,12 @@ function readBreakdown ( raw: unknown ): ServicePriceBreakdown | undefined {
         || !Number.isSafeInteger( row[ key ] )
         || row[ key ] < 0 ) return undefined;
   }
+  // Contribute's special Rs300 gross contract includes Rs15 Express; all
+  // other request-service prices use Rs45. Both must reconcile exactly.
   // Server-owned financial terms must reconcile in integer paise. We do not
   // infer or recalculate a customer's quote from catalog display prices.
   if ( row.supplyGstBps !== 1800 || row.convenienceGstBps !== 1800
-      || row.expressPaise !== 4500
+      || ( row.expressPaise !== 4500 && row.expressPaise !== 1500 )
       || row.collectionBeforeConveniencePaise !== row.itemSubtotalPaise
         + row.supplyGstPaise - row.delightPaise + row.expressPaise
       || row.totalPayablePaise !== row.collectionBeforeConveniencePaise
