@@ -32,6 +32,7 @@ from lambda_utils.ecommerce import (
     checkout_pricing,
     native_cart,
     native_shipping,
+    express_policy,
 )
 
 SITE_TAG = "aws-native"
@@ -60,6 +61,7 @@ def quote_native_cart(
     if not lines:
         raise catalog_pricing.CatalogPricingError("cannot quote an empty cart")
 
+    registered_express = {}
     for line in lines:
         product = product_reader(line.product_id)
         if not isinstance(product, Mapping) or product.get("status", "active") != "active":
@@ -68,6 +70,18 @@ def quote_native_cart(
                     if str(v.get("sku") or v.get("id") or "") == line.variant_id]
         if len(variants) != 1:
             raise catalog_pricing.CatalogPricingError("variant is missing or ambiguous")
+        # Only backend ProductsTable values are copied into the immutable quote.
+        # A missing field remains absent so legacy and the internal QA source
+        # can still be priced; unified customer pricing then fails closed.
+        if "expressPaise" in variants[0]:
+            expected = express_policy.expected_express_paise(
+                line.product_id, line.variant_id)
+            try:
+                registered_express[(line.product_id, line.variant_id)] = (
+                    express_policy.verified_registered_fee(
+                        variants[0].get("expressPaise"), expected))
+            except ValueError as exc:
+                raise catalog_pricing.CatalogPricingError(str(exc)) from exc
 
     subtotal = sum(ln.total_paise for ln in lines)
     delivery = native_shipping.resolve_delivery_paise(
@@ -99,7 +113,9 @@ def quote_native_cart(
         # makes — so the duplicate-payment narrow guard stays enabled on every native quote.
         items=[{"lineItemId": ln.variant_id,
                 "productId": ln.product_id, "variantId": ln.variant_id,
-                "quantity": ln.quantity, "unitPricePaise": ln.unit_price_paise}
+                "quantity": ln.quantity, "unitPricePaise": ln.unit_price_paise,
+                **({"expressPaise": registered_express[(ln.product_id, ln.variant_id)]}
+                   if (ln.product_id, ln.variant_id) in registered_express else {})}
                for ln in lines],
         address=None,
         delivery={"paise": delivery, "optionId": delivery_option_id or "resolved"},
