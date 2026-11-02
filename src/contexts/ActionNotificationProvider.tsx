@@ -9,7 +9,8 @@ import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useRouter } from 'next/router';
-import { publicActionText } from '../lib/publicActionNotices';
+import { normalizeActionNotification } from '../lib/publicActionNotices';
+export { normalizeActionNotification } from '../lib/publicActionNotices';
 
 export type ActionNotificationType = 'success' | 'error' | 'warning' | 'info';
 export type ActionNotificationScope = 'public' | 'workspace';
@@ -33,33 +34,6 @@ interface ActionNotificationAPI {
 }
 
 const ActionContext = createContext<ActionNotificationAPI | null>(null);
-
-const INVALID_MESSAGES = new Set(['undefined', 'null', 'nan', '[object object]']);
-const FALLBACK: Record<Exclude<ActionNotificationType, 'success'>, string> = {
-  error: publicActionText('failure'),
-  warning: publicActionText('blocked'),
-  info: publicActionText('processing'),
-};
-
-/**
- * Avoid showing undefined, objects, stack traces, HTML error pages, tokens or
- * enormous backend error payloads as customer/staff feedback.
- *
- * An invalid SUCCESS is suppressed rather than changed into "Done.": that
- * would falsely claim an operation completed. Errors get approved safe copy.
- */
-export function normalizeActionNotification(
-  message: unknown, type: ActionNotificationType,
-): string | null {
-  const text = typeof message === 'string'
-    ? message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
-    : '';
-  const invalid = !text || INVALID_MESSAGES.has(text.toLowerCase())
-    || text.length > 320
-    || /<\/?(?:html|script|body)[\s>]|<!doctype|\bBearer\s+[A-Za-z0-9_-]{10,}|Traceback \(most recent call last\)|(?:secret|api[_-]?key|access[_-]?token)\s*[:=]/i.test(text);
-  if (invalid) return type === 'success' ? null : FALLBACK[type];
-  return text;
-}
 
 export function useActionNotification(): ActionNotificationAPI {
   const value = useContext(ActionContext);
