@@ -112,6 +112,7 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
   const [ page, setPage ] = useState( 1 );
   const [ openLog, setOpenLog ] = useState<string | null>( null );
   const [ logs, setLogs ] = useState<api.InvoiceDeliveryLog[]>( [] );
+  const [ evidenceTimeline, setEvidenceTimeline ] = useState<api.InvoiceEvidenceTimeline | null>( null );
   const [ logLoading, setLogLoading ] = useState( false );
 
   useEffect( () => {
@@ -125,6 +126,7 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
     logRequest.current += 1;
     setOpenLog( null );
     setLogs( [] );
+    setEvidenceTimeline( null );
     setLogLoading( false );
     setInvoices( [] );
     setLoading( true );
@@ -206,16 +208,18 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
   const showLog = useCallback( async ( invoiceId: string ) => {
     const request = ++logRequest.current;
     if ( openLog === invoiceId ) {
-      setOpenLog( null ); setLogs( [] ); setLogLoading( false ); return;
+      setOpenLog( null ); setLogs( [] ); setEvidenceTimeline( null ); setLogLoading( false ); return;
     }
     setOpenLog( invoiceId );
     setLogLoading( true );
     setLogs( [] );
+    setEvidenceTimeline( null );
     try
     {
       const r = await api.getInvoiceDeliveryLog( invoiceId );
       if ( request !== logRequest.current ) return;
       setLogs( r.deliveryLogs || [] );
+      setEvidenceTimeline( r.evidenceTimeline );
     } catch {
       if ( request === logRequest.current ) toast.error( 'Could not load the delivery log' );
     } finally {
@@ -223,11 +227,12 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
     }
   }, [ openLog, toast ] );
 
-  const when = ( ts?: number ) => ts
-    ? new Date( ts ).toLocaleDateString( 'en-IN', {
+  const when = ( ts?: number ) => ts && Number.isFinite( ts )
+    ? new Date( ts < 1_000_000_000_000 ? ts * 1000 : ts ).toLocaleString( 'en-IN', {
+      timeZone: 'Asia/Kolkata',
       day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit' } )
-    : '—';
+      hour: '2-digit', minute: '2-digit', second: '2-digit' } ) + ' IST'
+    : 'Unverified';
 
   const content = (
     <div className="ir-page">
@@ -368,28 +373,55 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
                       <tr className="ir-log-row">
                         <td colSpan={ 7 }>
                           { logLoading ? (
-                            <span className="ir-muted">Loading delivery log…</span>
-                          ) : logs.length === 0 ? (
-                            <span className="ir-muted">
-                              Nothing was delivered for this invoice.
-                            </span>
+                            <span className="ir-muted">Loading invoice-scoped evidence…</span>
                           ) : (
-                            <ul className="ir-log">
-                              { logs.map( ( l, n ) => (
-                                <li key={ `${inv.invoiceId}-${n}` }>
-                                  <strong>{ l.channel || 'delivery' }</strong>
-                                  { ' · ' }{ l.status || 'unknown' }
-                                  { /* Last four only. This is a customer's number and
-                                       every log site in this codebase masks to four. */ }
-                                  { l.toNumber
-                                    ? ` · …${String( l.toNumber ).slice( -4 )}` : '' }
-                                  { l.timestamp ? ` · ${when( l.timestamp )}` : '' }
-                                  { l.error ? (
-                                    <span className="ir-err"> · { l.error }</span>
-                                  ) : null }
-                                </li>
-                              ) ) }
-                            </ul>
+                            <>
+                              { evidenceTimeline?.scope === 'authoritative_invoice_id' ? (
+                                <section className="ir-evidence" aria-label="Server-owned invoice event chronology">
+                                  <h3>Measured invoice evidence</h3>
+                                  <p>{ evidenceTimeline.note }</p>
+                                  { evidenceTimeline.events.length ? (
+                                    <ol className="ir-events">
+                                      { evidenceTimeline.events.map( ( event, index ) => (
+                                        <li key={ `${event.role}-${event.at}-${index}` }>
+                                          <strong>{ event.label }</strong>
+                                          <span>{ event.verificationClass.replace( /_/g, ' ' ) }</span>
+                                          <time dateTime={ event.utc } title={ event.utc }>{ when( event.at ) } · { event.utc } UTC</time>
+                                          <small>{ event.source } · { event.actor } · record #{ event.recordFragment }</small>
+                                        </li>
+                                      ) ) }
+                                    </ol>
+                                  ) : <p>No timestamped evidence was recorded for this invoice.</p> }
+                                  <dl className="ir-gaps">
+                                    { evidenceTimeline.gaps.map( gap => (
+                                      <div key={ gap.label }>
+                                        <dt>{ gap.label }</dt>
+                                        <dd>{ gap.status === 'measured' && gap.seconds !== null
+                                          ? `${gap.seconds} seconds between recorded send events`
+                                          : 'Unverified — matching server events unavailable' }</dd>
+                                      </div>
+                                    ) ) }
+                                  </dl>
+                                </section>
+                              ) : (
+                                <p className="ir-muted">Verified invoice chronology not available on the deployed backend. No stage timings inferred.</p>
+                              ) }
+                              { logs.length === 0 ? (
+                                <p className="ir-muted">No delivery-log records for this invoice; absence does not prove non-delivery.</p>
+                              ) : (
+                                <ul className="ir-log">
+                                  { logs.map( ( l, n ) => (
+                                    <li key={ `${inv.invoiceId}-${n}` }>
+                                      <strong>{ l.channel || 'send log' }</strong>
+                                      { ' · ' }{ l.status || 'unverified' }
+                                      { l.toNumber ? ` · …${String( l.toNumber ).slice( -4 )}` : '' }
+                                      { l.timestamp ? ` · ${when( l.timestamp )}` : '' }
+                                      { l.error ? <span className="ir-err"> · { l.error }</span> : null }
+                                    </li>
+                                  ) ) }
+                                </ul>
+                              ) }
+                            </>
                           ) }
                         </td>
                       </tr>
@@ -488,6 +520,15 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded, ser
         }
         .ir-pill:hover{border-color:var(--lime);color:var(--accent)}
         .ir-log-row td{background:#fafafa}
+        .ir-evidence{display:grid;gap:10px;min-width:0;margin:0 0 14px}
+        .ir-evidence h3{margin:0;font-size:16px}
+        .ir-evidence p,.ir-evidence small{font-size:12px;line-height:1.5;color:var(--text-muted);overflow-wrap:anywhere}
+        .ir-events{display:grid;gap:7px;padding:0;margin:0;list-style:none}
+        .ir-events li{display:flex;min-width:0;flex-direction:column;gap:3px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow-wrap:anywhere}
+        .ir-events strong{font-size:13px}.ir-events span,.ir-events time{font-size:12px}
+        .ir-gaps{display:grid;gap:7px;margin:0}.ir-gaps>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+        .ir-gaps dt,.ir-gaps dd{margin:0;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+        @media(max-width:430px){.ir-gaps>div{grid-template-columns:minmax(0,1fr)}.ir-events li{padding:9px}}
         .ir-log{margin:0;padding-left:18px}
         .ir-log li{font-size:var(--text-md);line-height:1.6;color:rgba(0,0,0,.898)}
         /* --danger, not the success green: a failed delivery must not read as
