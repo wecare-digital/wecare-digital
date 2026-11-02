@@ -6,7 +6,7 @@
  * WHY THIS IS SEPARATE FROM routegraph.js. routegraph reads hrefs out of the rendered
  * HTML, and every /workspace/ page ships ZERO /workspace/ hrefs: the shell is rendered on
  * the client behind an auth gate, so the sidebar exists in no static document. Measured on
- * out/workspace/engage/index.html - 0 matches for href="/workspace. routegraph therefore
+ * out/workspace/communications/index.html - 0 matches for href="/workspace. routegraph therefore
  * reports all 105 workspace routes as orphans, which is true of the crawlable graph and
  * says nothing about whether an operator can reach them.
  *
@@ -81,12 +81,10 @@ for ( const m of src.matchAll( /path:\s*'([^']+)'\s*,\s*label:\s*'([^']+)'/g ) )
  * this script conflated them. It reported ten absences; seven of them an operator can
  * open today, because this app reaches pages two ways the sidebar never mentions:
  *
- *   1. A HUB EMBEDS THEM AS TABS. /workspace/engage/service-ops imports '../orders' and
- *      renders it as its default tab, so "Orders" is the orders page even though only
- *      the hub has a nav row. Same for rcs/send, rcs/templates and whatsapp/inbox. The
- *      import is RELATIVE, so grepping for the route string finds nothing - which is
- *      exactly how the earlier pass talked itself into "wire up 3 pages" and nearly
- *      added duplicate sidebar rows for screens that were already on screen.
+ *   1. A HUB EMBEDS CAPABILITIES AS TABS. Current Communications and Channels
+ *      routes contain the actual messaging tools; a removed compatibility
+ *      redirect is not an additional feature page. Imports may be relative,
+ *      so route-string search alone does not establish whether a tool exists.
  *   2. A PAGE LINKS THEM BY STRING. /workspace/index.tsx is a tile grid, and its
  *      Settings tile is the only route to settings/internal-agent.
  *
