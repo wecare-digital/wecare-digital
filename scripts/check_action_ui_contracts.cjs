@@ -25,6 +25,9 @@ const watched = [
   'src/pages/workspace/service/index.tsx',
   'src/pages/workspace/content/index.tsx',
   'src/components/get/GetPage.tsx',
+  'src/components/workspace/commerce/Orders.tsx',
+  'src/components/workspace/whatsapp/groups.tsx',
+  'src/components/workspace/whatsapp/calling.tsx',
 ];
 const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.css', '.scss', '.svg'];
 
@@ -66,6 +69,18 @@ const publicAdapter = read('src/components/public/PublicToastProvider.tsx');
 const workspaceAdapter = read('src/contexts/ToastContext.tsx');
 const provider = read('src/contexts/ActionNotificationProvider.tsx');
 const copyHook = read('src/hooks/useActionCopy.ts');
+const staffOrders = read('src/components/workspace/commerce/Orders.tsx');
+for (const route of [
+  'src/components/workspace/commerce/Orders.tsx',
+  'src/components/workspace/whatsapp/groups.tsx',
+  'src/components/workspace/whatsapp/calling.tsx',
+]) {
+  const source = read(route);
+  assert.match(source, /useActionCopy/, 'Staff Copy must await the validated clipboard helper: ' + route);
+  assert.doesNotMatch(source, /navigator\.clipboard\.writeText/, 'Forbidden fire-and-forget Copy: ' + route);
+}
+assert.match(staffOrders, /event\.stopPropagation\(\)/, 'Copy must not navigate to an order detail');
+assert.match(staffOrders, /aria-label=\{ `Copy full order ID/, 'Staff Copy must be keyboard accessible');
 
 for (const [name, pattern] of Object.entries({
   'Orders 12px Copy gap': /\.ord-id-line\{[^}]*gap:12px/,

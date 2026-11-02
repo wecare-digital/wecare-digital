@@ -11,6 +11,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useActionCopy } from '../../../hooks/useActionCopy';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { MaskedWaId, useConfirmDanger } from '../../../components/wa';
@@ -50,6 +51,7 @@ const SETTING_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
 
 const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
+  const copy = useActionCopy();
   const confirm = useConfirm();
   const confirmDanger = useConfirmDanger();
   const [ waba, setWaba ] = useState( WABAS[ 0 ] );
@@ -254,7 +256,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               { inviteLink ? (
                 <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
                   <code style={ { fontSize: 'var(--text-xs)', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, wordBreak: 'break-all' } }>{ inviteLink }</code>
-                  <button onClick={ () => { navigator.clipboard.writeText( inviteLink ); toast.success( 'Copied' ); } } style={ pill( false ) }>Copy</button>
+                  <button type="button" onClick={ () => { void copy( inviteLink ); } } style={ pill( false ) }>Copy</button>
                   <button onClick={ async () => { if ( await confirm( 'Reset link?' ) ) { const l = await api.resetGroupInviteLink( sel.id ); if ( l ) { setInviteLink( l ); toast.success( 'Reset' ); } } } }
                     style={ { ...pill( false ), color: '#991b1b', borderColor: '#fca5a5' } }>Reset</button>
                 </div>
