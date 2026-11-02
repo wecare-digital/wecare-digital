@@ -135,14 +135,13 @@ interface SearchResult {
 }
 
 const DEFAULT_PLACE: PlaceState = {
-  // Initial VayuLok demonstration location: Shillong, Meghalaya (a recognisable city, not a
-  // neighbourhood presented as "your location"). It is simply the starting destination until the
-  // user searches for another place. regionCode IN keeps the India CPCB local AQI; live
-  // Weather/Air requests use these coordinates.
-  name: 'Shillong',
-  addr: 'Meghalaya, India',
-  lat: 25.5788,
-  lng: 91.8933,
+  // India-first: match the hero globe's initial New Delhi selection. The detailed
+  // map starts with a country-wide camera; a visitor's search or city choice
+  // moves it to the requested location. No geolocation is inferred.
+  name: 'New Delhi',
+  addr: 'Delhi, India',
+  lat: 28.6139,
+  lng: 77.2090,
   regionCode: 'IN',
 };
 
@@ -1136,8 +1135,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
-  // Start unframed so the initial map camera and the initial Shillong data agree.
-  const framedPlaceRef = useRef<PlaceState | null>( null );
+  // Keep India's country-wide camera on first paint, instead of zooming straight
+  // into the default city. Subsequent explicit selections still refocus the map.
+  const framedPlaceRef = useRef<PlaceState | null>( DEFAULT_PLACE );
   // Bumped by every selection, map or search. A step that finishes later (a reverse geocode,
   // Place details) applies its result only if no newer selection has started since.
   const selectionSeqRef = useRef( 0 );
@@ -4223,7 +4223,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                    holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
                    .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
                 <div className="vl-live-map-placeholder" role="status">
-                  <strong>{ previewPlace.name || 'Shillong' }</strong>
+                  <strong>{ previewPlace.name || 'New Delhi' }</strong>
                   { previewPlace.addr && <span>{ previewPlace.addr }</span> }
                   <p>{ mapActive ? 'Could not load map' : 'Map unavailable' }</p>
                   { mapActive && mapFailed && (

@@ -1,0 +1,264 @@
+/**
+ * Reviews Admin Page — [retired public path]/reviews
+ * Moderation: approve/hide, filter by status/source/rating, detail panel
+ */
+import React, { useState, useEffect, useCallback } from 'react';
+import MaybeLayout from '../../../components/MaybeLayout';
+import SEO, { PAGE_SEO } from '../../../components/SEO';
+import Table from '../../../components/ui/Table';
+import Modal from '../../../components/ui/Modal';
+import Button from '../../../components/ui/Button';
+import Pagination from '../../../components/ui/Pagination';
+import EmptyState from '../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../components/ui/Select';
+import { useToastContext } from '../../../contexts/ToastContext';
+import * as api from '../../../api/client';
+import type { ApiFailure } from '../../../api/client';
+import ServiceDataState from '../../../components/service/ServiceDataState';
+
+const PAGE_SIZE = 20;
+const STATUS_OPTIONS = [ 'pending', 'approved', 'hidden', 'flagged' ];
+const SOURCE_OPTIONS = [ 'whatsapp', 'web', 'google', 'manual' ];
+
+/*
+ * The three filter lists, built once from the arrays above so the option TEXT stays exactly
+ * what the <option> rows rendered - the raw status / source string, lowercase, and `${r}+
+ * stars` for the rating. The leading '' row is the "all" choice and it is a real selectable
+ * option rather than a placeholder, which is what keeps clearing a filter possible.
+ */
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const SOURCE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Sources' },
+  ...SOURCE_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const RATING_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Ratings' },
+  ...[ 5, 4, 3, 2, 1 ].map( r => ( { value: String( r ), label: `${r}+ stars` } ) ),
+];
+
+function formatDate ( ts?: number ): string {
+  if ( !ts ) return '—';
+  const d = new Date( ts < 1e12 ? ts * 1000 : ts );
+  return d.toLocaleDateString( 'en-IN', { day: 'numeric', month: 'short', year: '2-digit' } );
+}
+
+function statusBadge ( status: string ) {
+  const colors: Record<string, { bg: string; fg: string }> = {
+    pending: { bg: '#fef3c7', fg: '#92400e' },
+    approved: { bg: 'var(--lime)', fg: 'var(--accent)' },
+    hidden: { bg: '#f3f4f6', fg: '#374151' },
+    flagged: { bg: '#fee2e2', fg: '#991b1b' },
+  };
+  const c = colors[ status ] || { bg: '#f3f4f6', fg: '#374151' };
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ status }</span>;
+}
+
+function stars ( rating?: number ) {
+  if (!rating || rating < 1 || rating > 5) return 'Not rated';
+  return '★'.repeat( rating ) + '☆'.repeat( 5 - rating );
+}
+
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+
+const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
+  const toast = useToastContext();
+  const [ reviews, setReviews ] = useState<api.Review[]>( [] );
+  const [ loading, setLoading ] = useState( true );
+  const [ failure, setFailure ] = useState<ApiFailure | null>( null );
+  const [ statusFilter, setStatusFilter ] = useState( '' );
+  const [ sourceFilter, setSourceFilter ] = useState( '' );
+  const [ ratingFilter, setRatingFilter ] = useState( '' );
+  const [ page, setPage ] = useState( 1 );
+  const [ selected, setSelected ] = useState<api.Review | null>( null );
+
+  const loadData = useCallback( async () => {
+    setLoading( true );
+    // collectApiFailures recovers the error the list wrapper would otherwise swallow, so a
+    // failed load shows an error instead of an empty "No reviews" table.
+    const { data, failures } = await api.collectApiFailures( () => api.listReviews( {
+      status: statusFilter || undefined,
+      source: sourceFilter || undefined,
+      minRating: ratingFilter ? Number( ratingFilter ) : undefined,
+    } ) );
+    const rows = data.reviews || [];
+    setReviews( rows );
+    setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
+    setLoading( false );
+  }, [ statusFilter, sourceFilter, ratingFilter, toast ] );
+
+  useEffect( () => { loadData(); }, [ loadData ] );
+
+  const handleAction = async ( review: api.Review, status: string ) => {
+    const ok = await api.updateReview( review.reviewId, { status } );
+    if ( ok )
+    {
+      toast.success( `Review ${status}` );
+      loadData();
+      if ( selected?.reviewId === review.reviewId ) setSelected( { ...review, status } );
+    } else toast.error( 'Update failed' );
+  };
+
+  const totalPages = Math.ceil( reviews.length / PAGE_SIZE );
+  const paged = reviews.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
+
+  const columns = [
+    {
+      key: 'rating', header: 'Rating', width: '100px', render: ( r: api.Review ) => (
+        <span style={ { color: '#f59e0b', fontSize: 'var(--text-md)', letterSpacing: 1 } }>{ stars( r.rating ) }</span>
+      )
+    },
+    {
+      key: 'customerName', header: 'Customer', render: ( r: api.Review ) => (
+        <div>
+          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)' } }>{ r.customerName || '—' }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ r.comment || 'No comment' }</div>
+        </div>
+      )
+    },
+    { key: 'source', header: 'Source', width: '90px', render: ( r: api.Review ) => r.source },
+    {
+      // ATTRIBUTION IN THE LIST, not only in the detail modal. The modal already rendered
+      // `selected.orderId`, so a staff member could see which order a review was about —
+      // but only by opening each row one at a time, which is the opposite of what a
+      // moderation queue is for. Nothing WROTE `orderId` until Phase R, so this column was
+      // not useful before now.
+      //
+      // HEADED "Reference", NOT "Order", and the wire field name is the reason it has to
+      // be. `orderId` is the pre-existing `api.Review` field and renaming it would fork a
+      // shared contract, but what the customer's link actually carries is `/orders/`'s
+      // `copyValue` ladder — `order.orderNumber || order.referenceId` — and
+      // `referenceId` is a `WD-PAY-…` PAYMENT reference. Labelling that "Order" sends a
+      // staff member looking for an order number that does not exist. "Reference" is true
+      // of both shapes, and the prefix tells them which one they are holding.
+      //
+      // `—` rather than blank for an unattributed review: a review opened from
+      // the direct Leave Review menu action has no reference by design, and an empty cell reads as missing data.
+      key: 'orderId', header: 'Reference', width: '150px',
+      render: ( r: api.Review ) => (
+        <span style={ { fontSize: 'var(--text-sm)', color: r.orderId ? 'var(--text)' : 'var(--text-muted)' } }>
+          { r.orderId || '—' }
+        </span>
+      ),
+    },
+    { key: 'status', header: 'Status', width: '100px', render: ( r: api.Review ) => statusBadge( r.status ) },
+    { key: 'createdAt', header: 'Date', width: '100px', render: ( r: api.Review ) => formatDate( r.createdAt ) },
+    {
+      key: 'actions', header: '', width: '130px', render: ( r: api.Review ) => (
+        <div style={ { display: 'flex', gap: 4 } }>
+          { r.status !== 'approved' && <button onClick={ () => handleAction( r, 'approved' ) } title="Approve" style={ actionBtnStyle }>✅</button> }
+          { r.status !== 'hidden' && <button onClick={ () => handleAction( r, 'hidden' ) } title="Hide" style={ actionBtnStyle }>🙈</button> }
+          { r.status !== 'flagged' && <button onClick={ () => handleAction( r, 'flagged' ) } title="Flag" style={ actionBtnStyle }>🚩</button> }
+          <button onClick={ () => setSelected( r ) } title="Details" style={ actionBtnStyle }>👁️</button>
+        </div>
+      )
+    },
+  ];
+
+  return (
+    <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
+      <SEO { ...PAGE_SEO.reviews } />
+      <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
+        <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
+          <div>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Reviews</h1>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>{ reviews.length } reviews</p>
+          </div>
+          <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
+        </div>
+
+        <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
+          { /*
+             * No label existed here and none is invented: these three take `ariaLabel`, which
+             * is the one labelling prop that renders nothing. The native selects had no
+             * accessible name at all, so a screen reader announced three comboboxes reading
+             * "All Statuses", "All Sources", "All Ratings" - the second statement, setPage( 1 ),
+             * is preserved in order on all three, because a filter change that left the reader
+             * on page 4 of a shorter list shows an empty table.
+             */ }
+          <Select ariaLabel="Status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Source" value={ sourceFilter }
+            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+            options={ SOURCE_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Minimum rating" value={ ratingFilter }
+            onChange={ v => { setRatingFilter( v ); setPage( 1 ); } }
+            options={ RATING_FILTER_OPTIONS } style={ filterStyle } />
+        </div>
+
+        <ServiceDataState
+          loading={ loading }
+          failure={ failure }
+          empty={ reviews.length === 0 }
+          emptyLabel="No reviews"
+          emptyIcon="default"
+          onRetry={ loadData }
+        >
+          <Table columns={ columns } data={ paged } keyField="reviewId" loading={ loading } />
+          { totalPages > 1 && <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }><Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } /></div> }
+        </ServiceDataState>
+      </div>
+
+      <Modal isOpen={ !!selected } onClose={ () => setSelected( null ) } title="Review Details" size="md">
+        { selected && (
+          <div>
+            <div style={ { textAlign: 'center', marginBottom: 16 } }>
+              <div style={ { color: '#f59e0b', fontSize: 'var(--h1)', letterSpacing: 2 } }>{ stars( selected.rating ) }</div>
+              <div style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', marginTop: 4 } }>{ selected.rating ? `${selected.rating}/5` : 'Customer idea' }</div>
+            </div>
+            <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
+              <div><span style={ labelStyle }>Customer</span><div style={ { fontWeight: 500 } }>{ selected.customerName || '—' }</div></div>
+              <div><span style={ labelStyle }>Phone</span><div>{ selected.customerPhone || '—' }</div></div>
+              <div><span style={ labelStyle }>Source</span><div>{ selected.source }</div></div>
+              <div><span style={ labelStyle }>Status</span><div>{ statusBadge( selected.status ) }</div></div>
+              <div><span style={ labelStyle }>Date</span><div>{ formatDate( selected.createdAt ) }</div></div>
+              { /* "Reference" for the same reason as the list column above: this field can
+                   hold either a `WD-ORD-…` order number or a `WD-PAY-…` payment reference,
+                   so "Order" is true of only one of them. The label was here before Phase R
+                   but nothing ever wrote the field, so this is the first release in which
+                   it is read by anyone. */ }
+              { selected.orderId && <div><span style={ labelStyle }>Reference</span><div>{ selected.orderId }</div></div> }
+            </div>
+            { selected.comment && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Comment</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ selected.comment }</div></div> }
+            { selected.response && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Response</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ selected.response }</div></div> }
+            { !selected.response && (
+              <div style={ { marginBottom: 12 } }>
+                <span style={ labelStyle }>Write Response</span>
+                <textarea id="review-response" rows={ 3 } placeholder="Write a response to this review..." style={ { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4, resize: 'vertical' } } />
+              </div>
+            ) }
+            <div style={ { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } }>
+              { !selected.response && <Button variant="secondary" onClick={ async () => {
+                const textarea = document.getElementById( 'review-response' ) as HTMLTextAreaElement;
+                const response = textarea?.value?.trim();
+                if ( !response ) { return; }
+                const ok = await api.updateReview( selected.reviewId, { response } as any );
+                if ( ok ) { toast.success( 'Response saved' ); loadData(); setSelected( { ...selected, response } ); }
+                else toast.error( 'Failed to save response' );
+              } }>Save Response</Button> }
+              <Button variant="primary" onClick={ () => handleAction( selected, 'approved' ) }>Approve</Button>
+              <Button variant="secondary" onClick={ () => handleAction( selected, 'hidden' ) }>Hide</Button>
+              <Button variant="danger" onClick={ () => handleAction( selected, 'flagged' ) }>Flag</Button>
+            </div>
+          </div>
+        ) }
+      </Modal>
+    </MaybeLayout>
+  );
+};
+
+/*
+ * LAYOUT ONLY, which is all `style` on a Select is for: appearance - the 2px border, the 13px
+ * radius, the padding, the type - now comes from .ui-select-trigger in form-controls.css, so
+ * the old padding/border/radius/font-size object went with the native control it was skinning.
+ * The width is here because the trigger shows the SELECTED label rather than the widest option,
+ * so three unsized filters would resize as they are used; one width holds the row still.
+ */
+const filterStyle: React.CSSProperties = { width: 160 };
+const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
+
+export default ReviewsPage;

@@ -1087,16 +1087,17 @@
   const HOME_ROT_Y=-62*Math.PI/180;
   // Manual interaction: unlimited 360deg horizontal rotation.
   // Vertical drag is intentionally capped so the globe never flips upside-down.
-  // Automatic motion is now a CONTINUOUS horizontal spin: the globe turns a full
-  // 360deg forever rather than drifting back to an India-facing home.
+  // Automatic motion starts after an India-first hold, then continues as a
+  // gentle horizontal spin. Double-click resets the India-facing home.
   const ROT_X_MIN=-62*Math.PI/180;
   const ROT_X_MAX=48*Math.PI/180;
   // Continuous spin rate, expressed per-second and converted per-frame so the
   // speed is frame-rate independent. ~6deg/s gives one full turn each minute: a
   // calm, deliberate rotation that reads as alive without ever feeling busy.
   const SPIN_PER_SEC=6*Math.PI/180;
-  // After a drag/inertia settles, resume spinning fairly quickly; an always-
-  // spinning globe should not sit frozen for several seconds. ~1.2s feels right.
+  // Keep the India-facing initial view stable long enough to understand it.
+  // Later, gentle auto-spin resumes; manually dragging still works immediately.
+  const INDIA_FIRST_HOLD_MS=15000;
   const AUTO_RESUME_MS=1200;
   // Vertical tilt eases back toward the reference tilt during the spin so a drag
   // that left the globe tilted does not stay lopsided forever, while the spin
@@ -1105,7 +1106,7 @@
   let rotY=HOME_ROT_Y;
   let viewRotX=rotX,viewRotY=rotY;
   let dragging=false;
-  let autoResumeAt=0;
+  let autoResumeAt=performance.now()+INDIA_FIRST_HOLD_MS;
   let velocityX=0,velocityY=0;
   let lastFrameAt=0;
   let lastX = 0, lastY = 0, lastMoveAt = 0;
@@ -1439,7 +1440,7 @@
   stage.addEventListener('dblclick', e => {
     if (toggle.contains(e.target)) return;
     if (e.target.closest?.('.city-pin')) return;
-    rotX=HOME_ROT_X;rotY=HOME_ROT_Y;velocityX=0;velocityY=0;autoResumeAt=0;
+    rotX=HOME_ROT_X;rotY=HOME_ROT_Y;velocityX=0;velocityY=0;autoResumeAt=performance.now()+INDIA_FIRST_HOLD_MS;
   });
 
   const cities=CITIES.map(c=>({
