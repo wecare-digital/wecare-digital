@@ -23,7 +23,7 @@ import logging
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from lambda_utils import template_media, whatsapp_templates
-from lambda_utils.ecommerce import blog_contribution, contribute_taxable, service_requests, unified_pricing
+from lambda_utils.ecommerce import blog_contribution, contribute_taxable, express_policy, service_requests, unified_pricing
 from lambda_utils.ecommerce.money import positive_paise
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,9 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
     """
     if kind not in service_requests.SERVICE_KIND_BY_VARIANT.values():
         return None
-    return unified_pricing.price_components(item_subtotal_paise, vault=kind == service_requests.VAULT)
+    express = (express_policy.VAULT_EXPRESS_PAISE if kind == service_requests.VAULT
+               else express_policy.STANDARD_EXPRESS_PAISE)
+    return unified_pricing.price_components(item_subtotal_paise, express_paise=express)
 
 
 
@@ -135,7 +137,12 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     for slug, kind in service_requests.SERVICE_KIND_BY_SLUG.items():
         variant = service_requests.SERVICE_VARIANT_BY_KIND.get(kind, "")
         try:
-            paise = _variant_paise(product_reader(variant))
+            stored = product_reader(variant)
+            paise = _variant_paise(stored)
+            expected = (express_policy.VAULT_EXPRESS_PAISE if kind == service_requests.VAULT
+                        else express_policy.STANDARD_EXPRESS_PAISE)
+            express_policy.verified_registered_fee(
+                stored.get("expressPaise") if isinstance(stored, Mapping) else None, expected)
             row: Dict[str, Any] = {"available": True, "paise": paise}
             breakdown = _collect_breakdown(kind, paise)
             if breakdown is not None:
@@ -151,7 +158,11 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     # Track Shipping is ordinary merchandise, not a sixth request service.
     # Its public price preview still uses the SAME per-item checkout calculator.
     try:
-        paise = _variant_paise(product_reader(SHIPMENT_TRACK_SKU))
+        stored = product_reader(SHIPMENT_TRACK_SKU)
+        paise = _variant_paise(stored)
+        express_policy.verified_registered_fee(
+            stored.get("expressPaise") if isinstance(stored, Mapping) else None,
+            express_policy.STANDARD_EXPRESS_PAISE)
         prices["shipments-track"] = {
             "available": True, "paise": paise,
             "breakdown": unified_pricing.price_components(paise),
@@ -170,7 +181,11 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     if len(contribution_variants) == 1:
         variant = contribution_variants[0]
         try:
-            paise = _variant_paise(product_reader(variant))
+            stored = product_reader(variant)
+            paise = _variant_paise(stored)
+            express_policy.verified_registered_fee(
+                stored.get("expressPaise") if isinstance(stored, Mapping) else None,
+                express_policy.CONTRIBUTE_EXPRESS_PAISE)
             prices["contribute"] = {
                 "available": True,
                 "paise": paise,

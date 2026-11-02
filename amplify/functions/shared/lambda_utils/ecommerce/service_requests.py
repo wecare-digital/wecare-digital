@@ -62,8 +62,8 @@ ALL FIVE SERVICES USE THE UNIFIED GST-EXCLUSIVE SHOP BREAKDOWN
 ---------------------------------------------
 The native quote reads the service item's base price from ProductsTable. All five
 services use the same GST-exclusive shop vocabulary: base + 18% supply GST,
-Delight (0.5% of base plus supply GST, capped at Rs.50 per basket), one fixed
-Rs.45 Express, 2.5% convenience and 18% GST on the convenience fee.
+Delight (0.5% of base plus supply GST, capped at Rs.50 per basket), one
+Rs.25 Vault / Rs.45 other Express, 2.5% convenience and 18% fee GST.
 Website, WhatsApp Review & Pay, Workspace orders and invoices read one frozen
 quote and reconcile exactly. Contribute is not a request service and keeps its
 separate Rs300 gross-target policy with Rs15 Express.
@@ -156,10 +156,12 @@ SERVICE_PURCHASES_ENABLED = True
 SERVICE_LINE_MIN_PAISE = 1
 SERVICE_LINE_MAX_PAISE = 5_000_000
 
-#: Customer-facing "Express" row for all non-Contribute services. This is a service delivery/handling
-#: charge, not physical courier postage, and is included in the frozen supply quote before payment.
-#: Rs.45 = 4,500 paise. It does NOT increase Delight's basis.
-VAULT_DROP_DOCS_EXPRESS_PAISE = express_policy.STANDARD_EXPRESS_PAISE
+#: Customer-facing Express is once per checkout. Vault Rs25, Drop Docs and
+#: all other non-Contribute customer items Rs45. Delight excludes Express.
+VAULT_EXPRESS_PAISE = express_policy.VAULT_EXPRESS_PAISE
+DROP_DOCS_EXPRESS_PAISE = express_policy.STANDARD_EXPRESS_PAISE
+# Retained solely for legacy imports: this means Drop Docs, NOT Vault.
+VAULT_DROP_DOCS_EXPRESS_PAISE = DROP_DOCS_EXPRESS_PAISE
 
 #: The five PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
 #: public price endpoint (`service_pricing_native.resolve_all`) and mirrored in
