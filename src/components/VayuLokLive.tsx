@@ -1062,9 +1062,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ weatherDayPeriod, setWeatherDayPeriod ] = useState<'day' | 'night'>( 'day' );
   const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity' | 'pressure' | 'wind' | 'cloud'>( 'temp' );
   const [ weatherHistoryInspectIdx, setWeatherHistoryInspectIdx ] = useState<number | null>( null );
-  // BigQuery-backed long-term history is only requested when a visitor asks for
-  // that specific location. Changing places requires a fresh explicit action.
-  const [ insightsRequestedFor, setInsightsRequestedFor ] = useState<string | null>( null );
   // Explicit Air-forecast state machine so the section can show loading skeletons, the real
   // strip, an honest "no rows" empty state, or a concise error - instead of silently rendering
   // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
@@ -4251,24 +4248,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           );
                         } )() }
 
-                        { insightsRequestedFor === `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}` ? (
-                          <VayuLokWeatherInsights
-                            key={ insightsRequestedFor }
-                            lat={ place.lat }
-                            lng={ place.lng }
-                            placeName={ place.name }
-                            timeZoneId={ locationTime.timeZoneId }
-                            zoneLabel={ locationZoneLabel }
-                            includeUiStyles={ false }
-                          />
-                        ) : (
-                          <div className="vl-live-wx-history-opt-in">
-                            <span>Long-term history is available on request. It may use BigQuery processing.</span>
-                            <VayuLokCompactPill onClick={ () => setInsightsRequestedFor( `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}` ) }>
-                              Load long-term history
-                            </VayuLokCompactPill>
-                          </div>
-                        ) }
+                        <VayuLokWeatherInsights
+                          lat={ place.lat }
+                          lng={ place.lng }
+                          placeName={ place.name }
+                          timeZoneId={ locationTime.timeZoneId }
+                          zoneLabel={ locationZoneLabel }
+                          includeUiStyles={ false }
+                        />
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
@@ -5127,13 +5114,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-cloud-field i:nth-child(1){width:42%;height:28%;left:-4%;top:8%}.vl-live-cloud-field i:nth-child(2){width:48%;height:32%;right:-8%;top:18%}
         .vl-live-cloud-field i:nth-child(3){width:38%;height:26%;left:24%;top:44%}.vl-live-cloud-field i:nth-child(4){width:44%;height:30%;right:4%;bottom:0}
         @keyframes vl-live-cloud-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(3%,1.5%,0)}}
-        /* Always preserve Google's visible logo, attribution and legal notices.
-           Never hide .gm-style-cc or Google Maps brand elements. */
+        /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
+        .vl-live :global(.gm-style-cc),
+        .vl-live :global(a[aria-label="Google Maps"]),
+        .vl-live :global(img[alt="Google"]){display:none!important}
         .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:var(--lime-tint);color:var(--green)}
         .vl-live-map-placeholder strong{font-size:var(--vl-subtext-size);letter-spacing:0}
         .vl-live-map-placeholder span{font-size:var(--vl-meta-size);color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:var(--vl-meta-size);color:var(--status)}
-        .vl-live-wx-history-opt-in{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-top:16px;padding:12px 0;border-top:1px solid var(--hair);color:var(--muted);font-size:var(--vl-subtext-size)}
         .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-control-size);font-weight:var(--vl-control-weight);cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime);box-shadow:var(--vl-hover-shadow);transform:translateY(-1px)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
