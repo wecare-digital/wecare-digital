@@ -1,10 +1,11 @@
 # Public/customer notification system
 
-Public pages do not mount the authenticated Workspace `ToastProvider`.
-They use `src/components/public/PublicNotice.tsx` and the one-at-a-time
-`PublicToastProvider` instead. Both use the **same global action-toast CSS
-classes and design tokens**; their authentication scope and lifecycle remain
-separate.
+Public routes use the typed `PublicToastProvider` compatibility hook and
+Workspace uses its existing `ToastProvider` compatibility hook. **Both delegate
+to one `src/contexts/ActionNotificationProvider.tsx` engine and one rendered
+toast host per active route.** They share the same timers, replacement,
+validation, route-change cleanup, CSS and design tokens. Public inline,
+screen-reader, payment and access notices remain in `PublicNotice.tsx`.
 The [31 October 2026 inventory](../audits/public-notification-surface-inventory-20261031.md)
 records **61 original render sites across 16 files**, not 61 unique toasts.
 Its source links and counts describe that audit snapshot; do not replace them
@@ -14,8 +15,10 @@ with claims of current runtime coverage.
 
 All customer-facing **action feedback** now selects a trusted status key from
 `src/lib/publicActionNotices.ts`, never a raw API, Meta or provider message.
-The shared `PublicToastProvider.showToast` accepts *only* a typed status key
-and rejects unrecognized/WhatsApp-failure values at runtime. Only **one** readable, content-aligned toast is shown at a time.
+The `PublicToastProvider.showToast` adapter accepts *only* a typed status key
+and rejects unrecognized/WhatsApp-failure values at runtime. Both adapters
+share one replace-only toast state machine. Only **one** readable, content-aligned
+toast is shown at a time.
 
 | Outcome | Exact public text | Where |
 |---|---|---|
@@ -88,6 +91,27 @@ is mounted. The Workspace host receives the same canonical "Done." /
 host appropriate to the current route is mounted, never both at once.
 The Workspace dismiss button stays keyboard-accessible and unobtrusive.
 
+
+## Single owner and invalid-message rules (2 November 2026)
+
+- `ActionNotificationProvider.tsx` is the only active action-toast engine,
+  timer and host. Public and Workspace adapters do not create additional
+  toasts, timers or queues. Navigation clears stale feedback.
+- Workspace still displays context-specific operational text, but the shared
+  boundary rejects `undefined`, `null`, objects, blank messages, stack traces,
+  raw HTML, oversized payloads and secret-looking data. Invalid **success**
+  is suppressed rather than falsely displayed as `Done.`; invalid error
+  and warning use approved safe fallback copy.
+- Copy feedback belongs to `hooks/useActionCopy.ts`. Its clipboard Promise
+  must resolve before `Done.` appears. Copy controls must not add separate
+  changing `Copied` labels or local 1.5–2 second timers.
+- Long-lived payment, OTP, Vault access, WhatsApp uncertainty and field
+  validation remain persistent **inside their contextual page**. A single
+  floating host does not justify converting these states to toasts.
+- Approved WhatsApp, SMS, email and push templates are **separate external
+  delivery channels**. Unifying the on-screen notice engine does not alter
+  templates, sending, provider acceptance or financial state.
+
 ## Three public modes
 
 | Mode | Used for | Lifespan | Accessibility |
@@ -110,7 +134,7 @@ completed.
   outcome permits the success; acceptance never proves WhatsApp delivery
   or that a Contribute payment was completed.
   Invoice/order errors stay persistent; generic copy success `Done.` clears
-  after 2.5 seconds, while the keyboard-copy fallback persists.
+  after 5 seconds, while the keyboard-copy fallback persists.
 - **Cart/Checkout:** Action notices remain persistent, with error severity
   announced assertively. Quote, price and payment confirmation remain on
   their existing inline screens.
@@ -131,7 +155,7 @@ completed.
   styling. No checkout, cart or payment logic changed.
 
 The other notification locations from the 61-site inventory are **not
-automatically changed**. In particular, header/search counts, translation,
+automatically changed into temporary toasts**. In particular, header/search counts, translation,
 VayuLok live/map/weather readings, VayuLok history, Blog, Elsewhere,
 Checkout Result and field-level address validation keep their existing
 on-screen or assistive-technology status behavior.
@@ -178,10 +202,11 @@ The retained release path runs `npm run typecheck`, `npm run build` and
 `python3 scripts/checkout_release_check.py --export-dir out`, followed by
 an authenticated desktop/mobile browser review before production release.
 
-For this shared toast change, manually verify top-centred placement below
-the public Header and Workspace action bar, 16px desktop / 15px mobile
-text, 5.5-second success hold, one-notice replacement, keyboard focus,
-Clipboard API failure, safe-area widths, RTL, long errors, and reduced
-motion. Copy fallbacks and payment/WhatsApp uncertainty must remain
-persistent and actionable rather than disappearing with the toast.
+For the unified toast engine, manually verify content-right-edge placement
+below the public Header and Workspace action bar, 16px desktop/mobile
+text, five-second success hold, persistent error/warning behavior,
+one-notice replacement, route-change cleanup, keyboard focus, Clipboard
+API refusal, safe-area widths, RTL, invalid/empty API messages, long
+errors and reduced motion. Copy fallbacks and payment/WhatsApp uncertainty
+must remain persistent and actionable rather than disappearing with the toast.
 CodeQL or source-only inspection does not substitute for browser QA.
