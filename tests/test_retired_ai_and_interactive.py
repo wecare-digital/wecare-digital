@@ -61,6 +61,16 @@ class LegacyRetirementTests(unittest.TestCase):
         self.assertIn("DIRECT_INTERACTIVE_RETIRED", code)
         self.assertIn("def _send_menu_placeholder(", code)
 
+    def test_business_api_blocks_direct_flows_products_and_contact_prompts(self):
+        code = source("amplify/functions/messaging/whatsapp-business-api/handler.py")
+        self.assertIn("message.get('type') == 'interactive'", code)
+        self.assertIn("DIRECT_INTERACTIVE_RETIRED", code)
+        self.assertIn("if path.rstrip('/').endswith('/flow'):", code)
+        self.assertIn("if path.rstrip('/').endswith('/product')", code)
+        self.assertIn("if path.rstrip('/').endswith('/request-contact-info'):", code)
+        # Approved template sends remain available.
+        self.assertIn("return _send_template_msg(body, internal=internal)", code)
+
     def test_calling_permission_prompt_removed(self):
         code = source("amplify/functions/messaging/whatsapp-calling/handler.py")
         self.assertIn("DIRECT_INTERACTIVE_RETIRED", code)
