@@ -10,5 +10,8 @@
   "retainedSharedModules": [
     "amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py"
   ],
-  "reason": "Legacy AI generation and automatic Meta Commerce publishing are retired. Native product pricing, checkout, messaging and shared retailer-ID parsing remain active."
+  "reason": "Legacy AI generation and automatic Meta Commerce publishing are retired. Native product pricing, checkout, messaging and shared retailer-ID parsing remain active.",
+  "retiredTables": [
+    "stack-wecare-digital-SmsOutboundTable"
+  ]
 }

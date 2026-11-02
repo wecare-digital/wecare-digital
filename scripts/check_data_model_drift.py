@@ -187,7 +187,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
     "AutomationRulesTable": "Owned by lambda_utils/automation.py.",
     "ConversationMetaTable": "Owned by core/conversation-meta.",
     "AIProviderPolicyTable": "Owned by ai/ai-config-management.",
-    "SmsOutboundTable": "Canonical outbound SMS store; see the SmsAws note in resource.ts.",
     "MessagesTable": "Declared as model `Message`; the plural physical name is matched by rule.",
     "WhatsAppPhonesTable":
         "Live with 0 items and a single reader: one lookup in "

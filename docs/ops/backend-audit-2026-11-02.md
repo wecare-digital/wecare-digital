@@ -6,15 +6,15 @@ This is a **reviewable operations change**, not a deployment. Production remains
 
 User confirmed that Meta/WhatsApp **Commerce catalog synchronization** is no longer needed. Do **not** confuse it with WhatsApp Business messaging, message templates, conversation metadata, customer orders, native product catalog, or checkout.
 
-In AWS, both retired scheduled sync rules and their targets were deleted on 2026-11-02 after verifying they were disabled and targeted only Meta catalog sync. The retired sync's drift/failure alarms had already been removed. The Lambda and aliases remain with reserved concurrency **0**. The active WhatsApp Business API still contains an admin proxy to the sync function, and deployment/IAM/catalog infrastructure references remain; coordinate their removal in a backend release before deleting the function. Do not change concurrency without explicit release approval. Products and customer records were not changed.
+The retired AI generation and Meta Commerce sync Lambdas, all their versions/aliases, the dedicated Meta sync role and its inline policy are deleted. Private KMS-encrypted rollback code/configuration and IAM snapshots were verified first. The shared role no longer grants invocation of either retired function.
 
-The route-free API Gateway integration for the retired AI generation function was also deleted, with absence verified afterward. The AI Lambda remains blocked at concurrency **0**. The inbound handler still contains unused invocation helpers; remove those and complete rollback/deployment review before deleting it. Neither Lambda was invoked to test this cleanup.
+Both old Meta schedules, both disabled ProductsTable stream mappings, both `/wa-business/catalog-sync` HTTP routes, and the orphan AI API integration are deleted. The native ProductsTable and its stream remain. The updated inbound and business API handlers are published on their `live` aliases after non-sending signature/retirement smoke checks.
 
-### Dependency review required before code removal
+Five unreferenced recovery tables from 2026-10-30 were removed only after dedicated DynamoDB backups reached AVAILABLE and current/live-alias consumers plus CloudFormation ownership were checked. The original Products, SEO and SystemConfig tables remain active. No customer/product rows were edited by this retirement.
 
-Search for references to `wecare-meta-catalog-sync`, `META_CATALOG_SYNC_*`, `meta_catalog_sync`, `META_CATALOG_ID`, `catalog-resources.ts`, `generate_shop_listings.py`, `provision_meta_catalog_sync*.py`, and `open_meta_release_gate.py`. Also check product-change stream triggers in the deployed environment; disabling scheduled rules **does not** prove all invocation paths are disabled. Do not delete `ProductsTable`, native catalog handlers, `wecare-catalog-media`, or WhatsApp messaging APIs.
+The shared `lambda_utils/ecommerce/meta_catalog_sync.py` helper remains because native basket parsing, checkout analytics and website catalog generation use its retailer-ID and projection contracts. Removing that shared module would break active consumers.
 
-Before removing the Meta catalog code: prove no deployed event source mapping, EventBridge target, API route, workflow, UI link, CI test, or stack dependency still requires it. Remove references, test native checkout/WhatsApp flows, and retire the Lambda only in a separate reviewed production release.
+The latest function inventory contains 76 Lambdas and 78 DynamoDB tables in us-east-1. Recent direct invocations and current release/rollback dependencies justify retaining checkout, invoice and catalog functions that have no HTTP route. Keep Cognito triggers, CloudFront edge handlers and scheduled/queue workers even when they have no HTTP integration. Private inventory outputs must not be committed to this public repository.
 
 ## Security
 
