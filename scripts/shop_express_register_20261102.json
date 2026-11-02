@@ -1,0 +1,210 @@
+{
+  "policyVersion": "shop-express-vault-25-2026-11-02",
+  "table": "stack-wecare-digital-ProductsTable",
+  "items": [
+    {
+      "productId": "6794847f-303e-598e-bdfb-74db0a642fed",
+      "variantId": "ANW7Q5K2",
+      "slug": "anew",
+      "basePricePaise": 59900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "24fa0f39-330b-5365-b7eb-9caf27ad37f1",
+      "variantId": "CNT5Q2M8",
+      "slug": "contribute",
+      "basePricePaise": 30000,
+      "expressPaise": 1500
+    },
+    {
+      "productId": "94af52d3-d91f-5a84-aab5-2033237aba46",
+      "variantId": "DDF8K5P2",
+      "slug": "dastavez-drafting",
+      "basePricePaise": 149900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "7d7eda2f-943a-5131-852e-32483dda0259",
+      "variantId": "DLR5P8K3",
+      "slug": "dastavez-legal-reference",
+      "basePricePaise": 59900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "3ddcc49c-86f4-59e0-b6ec-b5cffee7ea4d",
+      "variantId": "DRG7M4Q9",
+      "slug": "dastavez-registration",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "e1ca7833-5d7d-567b-837c-face04647598",
+      "variantId": "RDD9P3M7",
+      "slug": "drop-docs",
+      "basePricePaise": 19900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "native:elsewhere-activities",
+      "variantId": "467728ca-5e3e-47c2-b6ba-14e76f9b4cd6",
+      "slug": "elsewhere-activities",
+      "basePricePaise": 9900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "619ac1ba-159e-5811-b1b7-98131020cd03",
+      "variantId": "ETR6M3K8",
+      "slug": "elsewhere-trip",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "f74ed861-5945-5893-a0cc-02024511687a",
+      "variantId": "EVS9P4L7",
+      "slug": "elsewhere-visa",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "331e83ee-384e-5f4e-b348-e205990ba546",
+      "variantId": "EXP4Q7N5",
+      "slug": "expo-week",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "9e51eb4c-00f2-523e-91be-6c9d312adfa7",
+      "variantId": "CCS7K3P8",
+      "slug": "file-assist",
+      "basePricePaise": 149900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "2d5dff1a-2542-5839-9c6e-e65d10fcc643",
+      "variantId": "GOS7K4M2",
+      "slug": "grahak-os",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "c3921ac7-32d5-5852-96b8-434161bb53fd",
+      "variantId": "CGR9N6M4",
+      "slug": "guided-resolution",
+      "basePricePaise": 199900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "native:hunar-kaushal",
+      "variantId": "KSL9M2Q4",
+      "slug": "hunar-kaushal",
+      "basePricePaise": 9900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "native:hunar-prastuti",
+      "variantId": "PST7K4N2",
+      "slug": "hunar-prastuti",
+      "basePricePaise": 29900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "84eb1e0c-0d07-5a64-8cf4-cff09e8ee5be",
+      "variantId": "PKS7K5M4",
+      "slug": "kiosk",
+      "basePricePaise": 2699900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "884281fd-e6e3-537a-b58e-9c6e1342597d",
+      "variantId": "PMD9Q3P6",
+      "slug": "merchandise",
+      "basePricePaise": 199900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "abe4870e-fae3-59cc-b1a7-9bd28eff048a",
+      "variantId": "NJS5K8Q3",
+      "slug": "niji-setu",
+      "basePricePaise": 29900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "78334b88-160f-5811-9827-d958e50dfcde",
+      "variantId": "CPW5M9Q2",
+      "slug": "paperwork",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "7133c98d-de8d-5e56-94ff-8d9fea7aa331",
+      "variantId": "RAM5Q8K4",
+      "slug": "request-amendment",
+      "basePricePaise": 19900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "166370fe-69a8-5ad2-9f9a-e9ce3f92839c",
+      "variantId": "SHP7Q4N9",
+      "slug": "request-pickup",
+      "basePricePaise": 65000,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "45af1dfb-fddb-53b0-950c-da703ade9264",
+      "variantId": "RDK6P3M9",
+      "slug": "ritual-guru-diy-puja-kit",
+      "basePricePaise": 89900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "0e0cc8ea-036c-5b57-aec2-8f98e3c2df82",
+      "variantId": "RPG8N4K6",
+      "slug": "ritual-guru-puja-guidance",
+      "basePricePaise": 39900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "native:ritual-guru-ritva",
+      "variantId": "2b1655cf-198a-438d-93b6-c57612b819b6",
+      "slug": "ritual-guru-ritva",
+      "basePricePaise": 9900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "032039ce-c4ec-5d44-8fdb-d4d9ffb91f02",
+      "variantId": "BRX5N8Q3",
+      "slug": "sehat",
+      "basePricePaise": 85000,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "f45dec5c-5bcc-5fca-9c50-5f63b57554d2",
+      "variantId": "SHT8M5P3",
+      "slug": "shipments-track",
+      "basePricePaise": 4900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "f829697a-b1db-5c4e-bfce-51d1487278a7",
+      "variantId": "RSR7M2P9",
+      "slug": "submit-request",
+      "basePricePaise": 9900,
+      "expressPaise": 4500
+    },
+    {
+      "productId": "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907",
+      "variantId": "RVT6K4Q8",
+      "slug": "vault",
+      "basePricePaise": 4900,
+      "expressPaise": 2500
+    },
+    {
+      "productId": "native:vayulok",
+      "variantId": "e458f22c-bf73-42fe-8b00-9415e3561f59",
+      "slug": "vayulok",
+      "basePricePaise": 9900,
+      "expressPaise": 4500
+    }
+  ],
+  "qaExcluded": "native:commerce-test-2"
+}

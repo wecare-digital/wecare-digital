@@ -49,7 +49,7 @@ APPROVED_PAIRS = [
     ("Request · Submit Request", 9900, 1782, 58, 4500, 403, 73, 16600),
     ("Request · Amendment", 19900, 3582, 117, 4500, 697, 125, 28687),
     ("Request · Drop Docs", 19900, 3582, 117, 4500, 697, 125, 28687),
-    ("Request · Vault", 4900, 882, 28, 4500, 256, 46, 10556),
+    ("Request · Vault", 4900, 882, 28, 2500, 206, 37, 8497),
     ("Shipment · Track", 4900, 882, 28, 4500, 256, 46, 10556),
     ("Shipment · Pickup", 65000, 11700, 383, 4500, 2020, 364, 83201),
 ]
@@ -64,7 +64,7 @@ class UnifiedShopPricingTests(unittest.TestCase):
                 if name == "Contribute":
                     terms = contribute_taxable.breakdown(30_000)
                 else:
-                    terms = unified_pricing.price_components(base)
+                    terms = unified_pricing.price_components(base, express_paise=express)
                 self.assertEqual(terms["itemSubtotalPaise"], base)
                 self.assertEqual(terms["supplyGstPaise"], gst)
                 self.assertEqual(terms["delightPaise"], delight)
@@ -88,6 +88,9 @@ class UnifiedShopPricingTests(unittest.TestCase):
             "quantity": 1,
             "unitPricePaise": 9_900,
         }]
+        # A frozen quote only carries backend-registered amounts. All synthetic
+        # ordinary test lines use the Rs45 policy unless explicitly Vault.
+        items = [dict(row, expressPaise=row.get("expressPaise", 4500)) for row in items]
         subtotal = sum(row["quantity"] * row["unitPricePaise"] for row in items)
         quote = checkout_pricing.compute_quote(
             collection if collection is not None else subtotal)
@@ -160,9 +163,12 @@ class UnifiedShopPricingTests(unittest.TestCase):
     def test_five_request_services_and_shipment_preview_use_same_formula(self):
         for kind in service_requests.SERVICE_KIND_BY_SLUG.values():
             with self.subTest(service=kind):
+                expected = (express_policy.VAULT_EXPRESS_PAISE
+                            if kind == service_requests.VAULT
+                            else express_policy.STANDARD_EXPRESS_PAISE)
                 self.assertEqual(
                     service_pricing_native._collect_breakdown(kind, 9_900),
-                    unified_pricing.price_components(9_900),
+                    unified_pricing.price_components(9_900, express_paise=expected),
                 )
         self.assertIsNone(service_pricing_native._collect_breakdown("bad-kind", 9_900))
 
@@ -170,6 +176,108 @@ class UnifiedShopPricingTests(unittest.TestCase):
         terms = contribute_taxable.breakdown(30_000)
         self.assertEqual(terms["expressPaise"], express_policy.CONTRIBUTE_EXPRESS_PAISE)
         self.assertEqual(terms["totalPayablePaise"], 30_000)
+
+    def test_vault_registry_rate_and_mixed_cart_fail_closed(self):
+        vault = {
+            "lineItemId": express_policy.VAULT_VARIANT_ID,
+            "productId": express_policy.VAULT_PRODUCT_ID,
+            "variantId": express_policy.VAULT_VARIANT_ID,
+            "quantity": 1,
+            "unitPricePaise": 4_900,
+            "expressPaise": 2_500,
+        }
+        quote = unified_pricing.quote_from_base_snapshot(self.base_snapshot([vault]))
+        self.assertEqual(quote.quote.total_payable_paise, 8_497)
+        self.assertEqual(quote.frozen_data["delivery"]["paise"], 2_500)
+        self.assertEqual(quote.frozen_data["pricingMetadata"]["expressPaise"], 2_500)
+        self.assertEqual(
+            express_policy.expected_express_paise(
+                express_policy.CONTRIBUTE_PRODUCT_ID,
+                express_policy.CONTRIBUTE_VARIANT_ID), 1_500)
+        self.assertEqual(
+            express_policy.expected_express_paise(
+                express_policy.VAULT_PRODUCT_ID,
+                express_policy.VAULT_VARIANT_ID), 2_500)
+        # A missing or stale backend register is not a reason to guess fees.
+        for bad_fee in (None, 4_500, 1_500, 25.0, True):
+            with self.subTest(bad_fee=bad_fee):
+                with self.assertRaises(checkout_pricing.PricingError):
+                    unified_pricing.quote_from_base_snapshot(
+                        self.base_snapshot([dict(vault, expressPaise=bad_fee)]))
+        other = {
+            "lineItemId": "sku-ordinary", "productId": "product-ordinary",
+            "variantId": "sku-ordinary", "quantity": 2,
+            "unitPricePaise": 9_900, "expressPaise": 4_500,
+        }
+        with self.assertRaises(checkout_pricing.PricingError):
+            unified_pricing.quote_from_base_snapshot(
+                self.base_snapshot([vault, other]))
+
+    def test_backend_manifest_contains_29_approved_skus_without_test_product(self):
+        import json
+        from collections import Counter
+        root = Path(__file__).resolve().parents[1]
+        manifest = json.loads(
+            (root / "scripts/shop_express_register_20261102.json").read_text(encoding="utf-8"))
+        records = manifest["items"]
+        self.assertEqual(len(records), 29)
+        self.assertEqual(len({x["productId"] for x in records}), 29)
+        self.assertEqual(len({x["variantId"] for x in records}), 29)
+        self.assertNotIn("native:commerce-test-2", {x["productId"] for x in records})
+        self.assertEqual(Counter(x["expressPaise"] for x in records),
+                         Counter({1500: 1, 2500: 1, 4500: 27}))
+        vault = next(x for x in records if x["slug"] == "vault")
+        self.assertEqual((vault["productId"], vault["variantId"], vault["basePricePaise"]),
+                         (express_policy.VAULT_PRODUCT_ID, express_policy.VAULT_VARIANT_ID, 4900))
+        contribute = next(x for x in records if x["slug"] == "contribute")
+        self.assertEqual(contribute["basePricePaise"], 30000)
+        prices = Counter(base for name,base,*_ in APPROVED_PAIRS if name != "Contribute")
+        self.assertEqual(prices,
+                         Counter(x["basePricePaise"] for x in records if x["slug"] != "contribute"))
+        for x in records:
+            self.assertEqual(
+                express_policy.expected_express_paise(x["productId"], x["variantId"]),
+                x["expressPaise"])
+
+    def test_public_price_register_rejects_stale_vault_fee(self):
+        from lambda_utils.ecommerce import blog_contribution
+        lookup = {}
+        for kind,sku in service_requests.SERVICE_VARIANT_BY_KIND.items():
+            lookup[sku] = {"priceMinor": 4900 if kind == service_requests.VAULT else 9900,
+                           "expressPaise": (2500 if kind == service_requests.VAULT else 4500),
+                           "currency": "INR", "status": "active"}
+        lookup[service_pricing_native.SHIPMENT_TRACK_SKU] = {
+            "priceMinor": 4900, "expressPaise": 4500, "currency": "INR",
+            "status": "active"}
+        for variant in blog_contribution.CONTRIBUTION_VARIANT_IDS:
+            lookup[variant] = {"priceMinor": 30000, "expressPaise": 1500,
+                               "currency": "INR", "status": "active"}
+        priced = service_pricing_native.resolve_all(lambda sku: lookup.get(sku))
+        self.assertTrue(priced["prices"]["vault"]["available"])
+        self.assertEqual(priced["prices"]["vault"]["breakdown"]["totalPayablePaise"], 8497)
+        self.assertEqual(priced["prices"]["vault"]["breakdown"]["expressPaise"], 2500)
+        self.assertEqual(priced["prices"]["drop-docs"]["breakdown"]["expressPaise"], 4500)
+        self.assertEqual(priced["prices"]["contribute"]["breakdown"]["expressPaise"], 1500)
+        lookup[express_policy.VAULT_VARIANT_ID]["expressPaise"] = 4500
+        bad = service_pricing_native.resolve_all(lambda sku: lookup.get(sku))
+        self.assertFalse(bad["prices"]["vault"]["available"])
+        self.assertTrue(bad["prices"]["drop-docs"]["available"])
+
+    def test_invoice_preset_register_has_all_three_rate_tiers(self):
+        path = (Path(__file__).resolve().parents[1] /
+                "src/content/invoicePresets.json")
+        import json
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(rows), 29)
+        fees = {
+            r["name"]: r["expressPaise"] for r in rows
+        }
+        self.assertEqual(fees["Request · Vault"], 2500)
+        self.assertEqual(fees["Contribute"], 1500)
+        self.assertEqual(sum(v == 4500 for v in fees.values()), 27)
+        self.assertEqual(
+            next(r for r in rows if r["name"] == "Request · Vault")["totalPayablePaise"],
+            8497)
 
     def test_meta_single_sku_multiple_quantity_reconciles_exact_subtotal(self):
         import ast
