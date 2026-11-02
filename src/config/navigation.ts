@@ -397,6 +397,11 @@ export const moduleHomes: ModuleHome[] = [
  * therefore walks both trees, and a test asserts the settings paths are present.
  */
 export const contextualRoutes: { path: string; label: string; parent: string }[] = [
+  // Search shortcuts choose a type in the same Payments workspace. They are
+  // intentionally absent from visible menu children: the owner wants one dropdown.
+  { path: '/workspace/payments?view=collect', label: 'Collect', parent: 'Payments' },
+  { path: '/workspace/payments?view=vault', label: 'Vault', parent: 'Payments' },
+  { path: '/workspace/payments?view=contribute', label: 'Contribute', parent: 'Payments' },
   { path: '/workspace/content', label: 'Publishing', parent: 'Contextual workflows' },
   { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools', parent: 'Publishing' },
