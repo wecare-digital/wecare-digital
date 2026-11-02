@@ -100,12 +100,15 @@ def check_checkout_basket_source():
         failures.append('checkout: quote parser must retain server-owned Express label')
     # The only checkout UI must show each approved GST-exclusive money component
     # separately, never fold a 29-item taxable base into a fake gross catalog price.
+    receipt_path = ROOT / 'src/components/cart/CheckoutReceipt.tsx'
+    receipt = receipt_path.read_text(encoding='utf-8') if receipt_path.exists() else ''
     required_price_labels = (
         "Base price subtotal", "Supply GST (18%)", "Delight (0.5%)",
-        "Convenience (2.5%)", "GST on convenience (18%)", "AMOUNT PAYABLE",
+        "Convenience fee (2.5%)", "GST on convenience fee (18%)", "Amount payable",
     )
-    if any(label not in body for label in required_price_labels):
-        failures.append('checkout: unified owner-approved price-breakdown label missing')
+    if ("<CheckoutReceipt quote={ quote }" not in body
+            or any(label not in receipt for label in required_price_labels)):
+        failures.append('checkout: complete server-quoted price breakdown missing')
     return failures
 
 

@@ -261,7 +261,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                 { listing.formattedPrice && (
                   <span className="shop-card-foot">
                     { listing.formattedPrice && (
-                      <span className="shop-card-price" data-wc-no-translate="true">{ listing.formattedPrice }</span>
+                      <span className="shop-card-price" data-wc-no-translate="true">{ listing.formattedPrice } <small>base</small></span>
                     ) }
                   </span>
                 ) }

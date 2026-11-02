@@ -164,7 +164,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               Checkout
             </CheckoutAction>
 
-            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
+            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice } <span>base price</span></p>
             <p className="shopd-offer-note">One-time purchase</p>
 
             { sku && policy && (

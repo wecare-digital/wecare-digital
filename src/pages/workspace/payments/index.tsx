@@ -15,9 +15,8 @@ import PageShell from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
 import PaymentsActivity from '../../../components/workspace/pay/PaymentsActivity';
 import InvoiceRecords from '../../../components/workspace/pay/InvoiceRecords';
-import PaymentTemplateMedia from '../../../components/workspace/pay/PaymentTemplateMedia';
-import { SERVICE_CHOICES, type ServiceChoice, type ServiceSlug } from '../../../config/services';
-import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../../lib/servicePricing';
+import FixedInvoiceItems from '../../../components/workspace/pay/FixedInvoiceItems';
+import { SERVICE_CHOICES, type ServiceSlug } from '../../../config/services';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -77,80 +76,6 @@ export function resolvePaymentsLocation(
   return {section: 'collect', tab: 'create', legacy: null};
 }
 
-const money = ( paise: number | undefined ): string =>
-  typeof paise === 'number' ? `₹${ rupeesFromPaise( paise ) }` : '—';
-
-const DefaultInvoiceItems: React.FC<{ onUse: ( choice: ServiceChoice ) => void }> = ( { onUse } ) => {
-  const [ prices, setPrices ] = React.useState<Record<string, ServicePrice>>( {} );
-  const [ loading, setLoading ] = React.useState( true );
-
-  React.useEffect( () => {
-    let active = true;
-    setLoading( true );
-    fetchServicePrices()
-      .then( next => { if ( active ) setPrices( next ); } )
-      .finally( () => { if ( active ) setLoading( false ); } );
-    return () => { active = false; };
-  }, [] );
-
-  // All five request services now expose the same approved Meta images.
-  // Preview whichever live server-priced service supplied the verified media;
-  // do not couple the shared asset display to Vault availability.
-  const templatePreview = SERVICE_CHOICES
-    .map( choice => prices[ choice.slug ] )
-    .find( price => price?.available && !!price.templates );
-
-  return (
-    <section className="default-items" aria-label="Default invoice items">
-      <div className="default-items-panel">
-      <div className="default-items-head">
-        <div>
-          <div className="default-items-kicker">Server-priced presets</div>
-          <h2>Default invoice items</h2>
-          <p>All amounts come from live server pricing. File-bound services open their own verified service workflow; a generic invoice cannot unlock a Vault file.</p>
-        </div>
-        <span>{ loading ? 'Loading live prices' : 'Live pricing' }</span>
-      </div>
-      <div className="default-items-table-wrap">
-        <table className="default-items-table">
-          <thead>
-            <tr><th>Request item</th><th>Item price</th><th>GST</th><th>Delight</th><th>Express</th><th>Payable</th><th></th></tr>
-          </thead>
-          <tbody>
-            { SERVICE_CHOICES.map( choice => {
-              const price = prices[ choice.slug ];
-              const b = price?.available ? price.breakdown : undefined;
-              return (
-                <tr key={ choice.kind }>
-                  <td><strong>{ choice.label }</strong><small>{ choice.sku }</small></td>
-                  <td>{ price?.available ? `₹${ price.rupees }` : 'Unavailable' }</td>
-                  <td>{ b ? money( b.supplyGstPaise ) : 'Auto' }</td>
-                  <td>{ b ? `−${ money( b.delightPaise ) }` : 'Auto' }</td>
-                  <td>{ b && b.expressPaise > 0 ? money( b.expressPaise ) : '—' }</td>
-                  <td>{ b ? money( b.totalPayablePaise ) : 'Preview after use' }</td>
-                  <td>
-                    <button type="button" disabled={ !price?.available } onClick={ () => onUse( choice ) }>
-                      { choice.needsTarget ? 'Open service' : 'Use in Collect' }
-                    </button>
-                  </td>
-                </tr>
-              );
-            } ) }
-          </tbody>
-        </table>
-      </div>
-      <details className="default-media-preview">
-        <summary>Approved WhatsApp Review &amp; Pay header and item icon</summary>
-        <PaymentTemplateMedia
-          serviceLabel="All request services"
-          templates={ templatePreview?.available ? templatePreview.templates : null }
-        />
-      </details>
-      </div>
-    </section>
-  );
-};
-
 const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
   const router = useRouter();
   const location = resolvePaymentsLocation(
@@ -179,16 +104,6 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
     if (invoice && next === 'invoices') query.invoice = invoice;
     navigate(query);
   };
-  const useDefaultItem = (choice: ServiceChoice) => {
-    // File or service targets must always go through their bound workflow.
-    if (choice.needsTarget) {
-      void router.push(choice.kind === 'VAULT'
-        ? '/workspace/payments?view=vault&tab=create' : choice.path);
-      return;
-    }
-    navigate({view: 'collect', tab: 'create', preset: choice.slug});
-  };
-
   const nav = <nav className="payment-rail" aria-label="Payment sections">
     <p className="rail-label">PAYMENTS</p>
     {SECTION_OPTIONS.map(option=><button type="button" key={option.value} aria-pressed={section===option.value} onClick={()=>changeSection(option.value)}><strong>{option.label}</strong><small>{option.value==='collect'?'Invoices & collections':option.value==='vault'?'Files & paid access':'₹300 contribution'}</small></button>)}
@@ -197,10 +112,10 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
 
   return (
     <>
-      <SEO title="Pay & Flow"
-        description="Collect, Vault and Contribute: Display, Create and Ledger." noindex />
+      <SEO title="Payments"
+        description="Live invoices, Vault delivery and contributions." noindex />
       <PageShell key={`${section}-${tab}`} className="payments-shell"
-        title="Pay & Flow"
+        title="Payments"
         subtitle="Choose a customer, review the total and send an approved payment request."
         tabs={[]} showChrome={false}
       >
@@ -209,8 +124,9 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
             <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div><span>Live customer records · approved WhatsApp payments</span></header>
             <div className="console-layout"><aside>{nav}</aside><div className="console-main">
             <nav className="console-tools" aria-label="Payment tools">
-              <Link className={!showFramework && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'create'}}}>Workspace</Link>
+              <Link className={!showFramework && legacy!=='defaults' && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'create'}}}>Workspace</Link>
               <Link className={!showFramework && tab==='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'ledger'}}}>Records</Link>
+              <Link className={legacy==='defaults'?'current':''} href="/workspace/payments?view=defaults">Invoice items (29)</Link>
               <Link className={showFramework?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'display',panel:'framework'}}}>Messages &amp; timing</Link>
             </nav>
             {showFramework ? <PaymentFramework section={section} /> : <>
@@ -222,7 +138,7 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
                     <div className="pay-context-link">
                       <Link href="/workspace/payments?view=collect&tab=create">Back to Collect Create</Link>
                     </div>
-                    <DefaultInvoiceItems onUse={useDefaultItem} />
+                    <FixedInvoiceItems />
                   </>
                 ) : (
                   <>
@@ -234,7 +150,7 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
                         Saved invoices · Review &amp; send
                       </Link>
                       <Link href="/workspace/payments?view=defaults">
-                        Default invoice items and pricing presets
+                        Invoice items · all 29 prices
                       </Link>
                     </nav>
                     {one(router.query.invoices) === 'saved'

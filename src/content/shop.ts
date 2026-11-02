@@ -1,3 +1,4 @@
+import FIXED_ITEMS from './invoicePresets.json';
 import { buildPageTitle } from '../lib/page-title';
 /**
  * The shop catalogue projection.
@@ -198,7 +199,7 @@ const project = ( raw: RawProduct ): ShopProduct => {
     id: String( raw.id || '' ),
     name,
     slug: String( raw.slug || '' ),
-    formattedPrice: String( raw.formattedPrice || '' ),
+    formattedPrice: isContributionRow(raw) ? `₹${(FIXED_ITEMS.find(item => item.workflow === 'contribute')!.basePaise/100).toFixed(2)}` : String( raw.formattedPrice || '' ),
     price: String( raw.price || '' ),
     currency: String( raw.currency || 'INR' ),
     inStock: true,
