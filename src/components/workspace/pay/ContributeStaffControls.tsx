@@ -55,8 +55,8 @@ const ContributeStaffControls: React.FC<Props> = ({
   const [feedback, setFeedback] = React.useState('');
   const [templateRefresh, setTemplateRefresh] = React.useState(0);
   const [approval, setApproval] = React.useState<Approval>('unverified');
-  // Exact production Commerce alias + owner-controlled release flag, not
-  // browser build version or local template metadata, controls Send.
+  // The live backend's current catalog and exact-quote readiness, not the
+  // browser build or template preview, controls whether Send can be attempted.
   const [backendReady, setBackendReady] = React.useState<'checking' | 'enabled' | 'blocked'>('checking');
   const [backendReason, setBackendReason] = React.useState('Checking production payment availability…');
   const [sending, setSending] = React.useState(false);
@@ -91,7 +91,7 @@ const ContributeStaffControls: React.FC<Props> = ({
   React.useEffect(() => {
     let active = true;
     setBackendReady('checking');
-    setBackendReason('Checking live Commerce release…');
+    setBackendReason('Checking server payment readiness…');
     void api.getStaffContributionSendReadiness().then(result => {
       if (!active) return;
       setBackendReady(result.sendEnabled && result.amountPaise === TARGET_PAISE
@@ -160,7 +160,7 @@ const ContributeStaffControls: React.FC<Props> = ({
     'Server quote matches ₹300 taxable quote: ' + (priceMatches ? 'YES' : 'NO'),
     'Native Meta template: ' + (templateName || 'Unavailable'),
     'Meta status readback: ' + (approval === 'approved' ? 'Approved' : 'Not confirmed'),
-    'Commerce send release: ' + (backendReady === 'enabled' ? 'Enabled' : 'Blocked: ' + backendReason),
+    'Commerce payment readiness: ' + (backendReady === 'enabled' ? 'Enabled' : 'Blocked: ' + backendReason),
     'Internal note (not sent): ' + (internalNote.trim() || 'None'),
     sendLocked
       ? 'A send was attempted; check staff outcome and customer payment records.'
@@ -244,7 +244,7 @@ const ContributeStaffControls: React.FC<Props> = ({
         <div><strong>Exact ₹300 taxable quote</strong><span>{loadingPrice ? 'Checking…' : priceMatches ? 'Matches' : 'Blocked: mismatch'}</span></div>
         <div><strong>Native Meta template</strong><span>{approval === 'checking' ? 'Checking…'
           : approval === 'approved' ? 'Approved in staff lookup' : 'Not confirmed here'}</span></div>
-        <div><strong>Commerce send release</strong><span>{backendReady === 'checking'
+        <div><strong>Commerce payment readiness</strong><span>{backendReady === 'checking'
           ? 'Checking…' : backendReady === 'enabled' ? 'Enabled' : `Blocked: ${backendReason}`}</span></div>
         <div><strong>Customer recipient</strong><span>{selected ? 'Selected, backend verification required' : 'Not selected'}</span></div>
       </div>
@@ -298,12 +298,12 @@ const ContributeStaffControls: React.FC<Props> = ({
           <button className="secondary" type="button" onClick={reset}>Clear draft</button>
           <button className="primary send-payment" type="button"
             onClick={() => { void sendOnce(); }} disabled={!canSend}
-            title={backendReady !== 'enabled' ? 'Commerce release must be verified before sending' : undefined}>
+            title={backendReady !== 'enabled' ? 'Commerce payment readiness must be verified before sending' : undefined}>
             {sending ? 'Sending once…' : sendLocked ? 'Send locked · check ledger' : 'Send ₹300 Review & Pay'}
           </button>
         </div>
         <p className="send-explanation" role="note">
-          Admin-only sending requires a reviewed draft, an enabled live Commerce release,
+          Admin-only sending requires a reviewed draft, live backend payment readiness,
           a fresh exact ₹300 server quote, an approved native Meta template, and explicit final confirmation. The backend
           re-verifies the customer, current price and provider readiness before reserving
           a payment. A request is not proof of delivery or payment. Express is a ₹15

@@ -360,18 +360,14 @@ _STAFF_CONTRIBUTION_CONTACT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 
-def _staff_contribution_release_enabled() -> bool:
-    """Explicit owner-controlled release switch. Default OFF on every alias."""
-    return os.environ.get("STAFF_CONTRIBUTE_NATIVE_SEND_ENABLED", "").lower() == "true"
-
-def _contribute_taxable_release_enabled() -> bool:
-    """Independent default-off gate for all ₹300 taxable Contribute money paths."""
-    return os.environ.get("CONTRIBUTE_TAXABLE_NATIVE_PAYMENT_ENABLED", "") == "true"
-
-
-
 def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> bool:
     """Strongly-consistent price check before any staff payment reservation."""
+    # An unset product id must fail locally, never become a DynamoDB GetItem.
+    # Do not rely on the configured contribution set to exclude empty strings.
+    if (not product_id or not variant_id
+            or product_id not in CONTRIBUTION_PRODUCT_IDS
+            or variant_id not in CONTRIBUTION_CHOICES_PAISE):
+        return False
     try:
         product = _products_table().get_item(
             Key={"id": product_id}, ConsistentRead=True,
@@ -385,54 +381,45 @@ def _staff_contribution_catalog_is_current(product_id: str, variant_id: str) -> 
 
 
 def _staff_contribution_readiness(origin: str) -> Dict[str, Any]:
-    """Read-only Admin capability probe; no payment, slot or message side effect.
+    """Read-only server capability probe: no payment, slot or message side effect.
 
-    The site may deploy before the Commerce Lambda. Old versions refuse the
-    action, leaving the Send button disabled. A new backend remains disabled
-    until its flag AND the current ProductsTable exempt amount both match.
+    The published backend independently checks one strongly-consistent
+    canonical ₹300 product and its six-line taxable quote. Approval for
+    treating the SKU as a taxable supply is a prerequisite to publishing
+    this code; runtime price drift still fails closed.
     """
-    enabled = (_staff_contribution_release_enabled()
-               and _contribute_taxable_release_enabled())
-    quote_matches = False
-    if enabled:
-        # A variant-index SCAN is eventually consistent: staff payment-readiness
-        # must use an exact strongly-consistent product GetItem instead.
-        variants = list(CONTRIBUTION_CHOICES_PAISE.items())
-        quote_matches = (
-            len(CONTRIBUTION_PRODUCT_IDS) == 1
-            and CONTRIBUTION_PRODUCT_ID in CONTRIBUTION_PRODUCT_IDS
-            and len(variants) == 1
-            and variants[0][1] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
-            and _staff_contribution_catalog_is_current(
-                CONTRIBUTION_PRODUCT_ID, variants[0][0])
-        )
-        if quote_matches:
-            # Verify the exact owner-specified native Contribute calculation;
-            # no browser-supplied price, invoice or Vault/Drop Docs amount.
-            try:
-                terms = service_pricing_native._contribution_breakdown(
-                    staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
-                quote_matches = (
-                    terms.get("itemSubtotalPaise") == 23541
-                    and terms.get("catalogGrossPaise") == 30000
-                    and terms.get("supplyGstPaise") == 4237
-                    and terms.get("delightPaise") == 138
-                    and terms.get("expressPaise") == 1500
-                    and terms.get("collectionBeforeConveniencePaise") == 29140
-                    and terms.get("convenienceFeePaise") == 729
-                    and terms.get("convenienceGstPaise") == 131
-                    and terms.get("totalPayablePaise") == 30000
-                )
-            except ValueError:
-                quote_matches = False
-    available = enabled and quote_matches
+    variants = list(CONTRIBUTION_CHOICES_PAISE.items())
+    quote_matches = (
+        len(CONTRIBUTION_PRODUCT_IDS) == 1
+        and CONTRIBUTION_PRODUCT_ID in CONTRIBUTION_PRODUCT_IDS
+        and len(variants) == 1
+        and variants[0][1] == staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE
+        and _staff_contribution_catalog_is_current(
+            CONTRIBUTION_PRODUCT_ID, variants[0][0])
+    )
+    if quote_matches:
+        try:
+            terms = service_pricing_native._contribution_breakdown(
+                staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE)
+            quote_matches = (
+                terms.get("itemSubtotalPaise") == 23541
+                and terms.get("catalogGrossPaise") == 30000
+                and terms.get("supplyGstPaise") == 4237
+                and terms.get("delightPaise") == 138
+                and terms.get("expressPaise") == 1500
+                and terms.get("collectionBeforeConveniencePaise") == 29140
+                and terms.get("convenienceFeePaise") == 729
+                and terms.get("convenienceGstPaise") == 131
+                and terms.get("totalPayablePaise") == 30000
+            )
+        except ValueError:
+            quote_matches = False
     return cors_response(200, {
-        "status": "STAFF_CONTRIBUTE_READY" if available else "STAFF_CONTRIBUTE_BLOCKED",
-        "sendEnabled": available,
+        "status": "STAFF_CONTRIBUTE_READY" if quote_matches else "STAFF_CONTRIBUTE_BLOCKED",
+        "sendEnabled": quote_matches,
         "amountPaise": staff_contribution.STAFF_CONTRIBUTION_TOTAL_PAISE,
         "currency": "INR",
-        "reason": ("READY" if available else
-                   "RELEASE_NOT_ENABLED" if not enabled else "PRICE_OR_POLICY_UNVERIFIED"),
+        "reason": "READY" if quote_matches else "PRICE_OR_POLICY_UNVERIFIED",
     }, origin)
 
 
@@ -445,12 +432,6 @@ def _staff_contribution_send(
     configuration, line details or quote. This reuses _create so the
     canonical reservation, provider readiness and capture rails stay intact.
     """
-    if not (_staff_contribution_release_enabled()
-            and _contribute_taxable_release_enabled()):
-        return cors_response(409, {
-            "error": "CONTRIBUTION_SEND_NOT_RELEASED",
-            "message": "Staff payment sending has not been released. Nothing was sent.",
-        }, origin)
     if (not isinstance(staff_actor_hash, str) or len(staff_actor_hash) != 64
             or not all(ch in "0123456789abcdef" for ch in staff_actor_hash)):
         return cors_response(403, {"error": "STAFF_ACTOR_UNVERIFIED"}, origin)
@@ -1311,11 +1292,6 @@ def _contribution_quote(identity: customer_auth.CustomerIdentity, ephemeral_cart
         raise ContributionRejected("UNKNOWN_CONTRIBUTION_VARIANT")
     if quantity != 1:
         raise ContributionRejected("CONTRIBUTION_QUANTITY_MUST_BE_ONE")
-    # Explicit release authority: do not convert any existing voluntary
-    # contribution into a taxable payment while the finance gate is OFF.
-    if not _contribute_taxable_release_enabled():
-        raise ContributionRejected("CONTRIBUTION_TAXABLE_NOT_RELEASED")
-
     base = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
