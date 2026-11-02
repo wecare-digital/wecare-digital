@@ -28,8 +28,9 @@ assert(live.includes('grid-template-rows:var(--vl-map-height) auto'),
   'narrow map must have a separate real grid track before the detail card');
 assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:24px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height)'),
   'desktop map and placeholder must share a full-size sticky viewport');
-assert(live.includes('.vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height)'),
-  'desktop weather visual must align with the map, not cover the details');
+assert(live.includes('.vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height)') &&
+  live.includes('clip-path:inset(0 0 48px 0 round var(--panel-r))'),
+  'weather visual must align with the map and leave attribution visible');
 assert(live.includes('.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/2;'),
   'full Air/Weather card must be a separate desktop grid column');
 assert(!live.includes('max-height:calc(100% - 32px)') &&
