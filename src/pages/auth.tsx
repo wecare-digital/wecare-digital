@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import PublicNotice from '../components/public/PublicNotice';
-import { DEFAULT_DIAL_CODE, DIAL_CODES, findDialCode, isValidNationalLength, nationalLengthHint } from '../lib/dialCodes';
+import { DEFAULT_DIAL_CODE, DIAL_CODES, isValidNationalLength } from '../lib/dialCodes';
 import { authStateQuery } from '../lib/authStateQuery';
 import { publicActionText, publicApiFailureText } from '../lib/publicActionNotices';
-import { SECTION_6_MESSAGES, BAD_CODE } from '../lib/signInMessages';
 
 type AuthPhase = 'phone' | 'code' | 'registration';
 
@@ -109,10 +108,7 @@ const AuthPage: React.FC = () => {
       if ( next.phase === 'phone' ) setPhone( '' );
       // Auth's response is API input, not an approved UI message. Only known
       // non-enumerating sign-in messages may pass; all other text is normalized.
-      if ( next.message ) {
-        const approved = SECTION_6_MESSAGES.find( text => text === next.message.trim() );
-        setError( approved || ( step.phase === 'code' ? BAD_CODE : publicActionText( 'failure' ) ) );
-      }
+      if ( next.message ) setError( publicActionText( 'failure' ) );
     } catch {
       setError( publicActionText( 'failure' ) );
     } finally {
@@ -126,19 +122,18 @@ const AuthPage: React.FC = () => {
     if ( step.phase === 'phone' ) {
       const national = phone.replace( /\D/g, '' ).replace( /^0+/, '' );
       if ( !national ) {
-        setError( 'Enter your WhatsApp number.' );
+        setError( publicActionText( 'failure' ) );
         return;
       }
       if ( !isValidNationalLength( dialCode, national ) ) {
-        const hint = nationalLengthHint( dialCode );
-        setError( hint ? `Enter a valid ${hint} number for ${findDialCode( dialCode )?.country || 'this country'}.` : 'Check the number and try again.' );
+        setError( publicActionText( 'failure' ) );
         return;
       }
       void submitStep( { country: dialCode, phone: national } );
       return;
     }
     if ( !/^\d{6}$/.test( code ) ) {
-      setError( 'Enter the 6-digit code.' );
+      setError( publicActionText( 'failure' ) );
       return;
     }
     void submitStep( { code } );
