@@ -54,6 +54,24 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         self.assertEqual(summary["manifest_functions"], 72)
         self.assertGreaterEqual(summary["specs_total"], 60)
 
+    def test_specs_mapped_count_fields_are_unambiguous(self):
+        # The 62-vs-63 ambiguity must be resolved by two explicit fields whose
+        # difference is exactly the strangler alias count. This fails if the fix
+        # were reverted to a single ambiguous specs_mapped_functions field.
+        summary = self.report["summary"]
+        self.assertIn("specs_total_names", summary)
+        self.assertIn("emitted_spec_mapped_handlers", summary)
+        self.assertEqual(
+            summary["specs_total_names"] - summary["emitted_spec_mapped_handlers"],
+            summary["strangler_alias_specs"],
+            "the gap between SPECS names and emitted spec-mapped handlers must "
+            "equal the strangler alias count, not unexplained drift",
+        )
+        # The strangler alias (wecare-commerce) is held in spec_aliases, not an
+        # emitted handler, so it accounts for the difference.
+        alias_names = {a["name"] for a in self.report["spec_aliases"]}
+        self.assertIn("wecare-commerce", alias_names)
+
     def _find(self, domain, name):
         for entry in self.report["domains"][domain]:
             if entry["name"] == name:
@@ -116,6 +134,75 @@ class BuildHandlerInventoryTest(unittest.TestCase):
         for entries in self.report["domains"].values():
             for entry in entries:
                 self.assertNotIn("/shared/", entry["source_path"])
+
+    def test_cdk_cloudformation_entry_is_real(self):
+        # At least one entry must actually carry classification cdk-cloudformation
+        # and cite the CloudFormation stack file. This fails if the synthetic
+        # emission is reverted (the former dead-code path produced zero such
+        # entries), keeping the two docs' wording true.
+        cdk_entries = [
+            e
+            for entries in self.report["domains"].values()
+            for e in entries
+            if e.get("classification") == "cdk-cloudformation"
+        ]
+        self.assertGreaterEqual(len(cdk_entries), 1,
+                                "expected at least one cdk-cloudformation entry")
+        self.assertEqual(self.report["summary"]["cdk_cloudformation_functions"],
+                         len(cdk_entries))
+        enforcer = next(
+            (e for e in cdk_entries if e["name"] == "wecare-log-retention-enforcer"),
+            None,
+        )
+        self.assertIsNotNone(
+            enforcer,
+            "wecare-log-retention-enforcer must be classified cdk-cloudformation")
+        self.assertEqual(enforcer["cdk_source"],
+                         "infra/cloudwatch-retention-enforcer.yml")
+        self.assertEqual(enforcer["source_path"],
+                         "infra/cloudwatch-retention-enforcer.yml")
+
+    def test_non_specs_handlers_are_unclassified_not_script_managed(self):
+        # Handlers with no SPECS row and not in the CDK/CFN table must NOT be
+        # asserted script-managed (that would mislabel CloudFormation/image-package
+        # owned functions). They are emitted as unclassified with a null name.
+        # This fails if the blanket script-managed default is reinstated.
+        expected_unclassified = {
+            "amplify/functions/ai/customer-commerce-mcp/handler.py",
+            "amplify/functions/ai/mcp/handler.py",
+            "amplify/functions/ai/workspace-mcp/handler.py",
+            "amplify/functions/ecommerce/catalog-media/handler.py",
+            "amplify/functions/ecommerce/native-catalog-admin/handler.py",
+            "amplify/functions/edge/get-miss-redirect/handler.py",
+            "amplify/functions/operations/blog-auto-audit/handler.py",
+            "amplify/functions/operations/blog-public/handler.py",
+            "amplify/functions/operations/docs-scraper/handler.py",
+            "amplify/functions/operations/seo-tools/handler.py",
+            "amplify/functions/operations/whatsapp-analytics-export/handler.py",
+        }
+        all_entries = [
+            e
+            for entries in self.report["domains"].values()
+            for e in entries
+        ]
+        # No emitted handler entry may carry a null name AND script-managed.
+        for e in all_entries:
+            if e["name"] is None:
+                self.assertNotEqual(
+                    e["classification"], "script-managed",
+                    f"{e['source_path']} must not be asserted script-managed")
+        unclassified_paths = {
+            e["source_path"] for e in all_entries
+            if e.get("classification") == "unclassified"
+        }
+        self.assertEqual(unclassified_paths, expected_unclassified)
+        self.assertEqual(self.report["summary"]["unclassified_handlers"],
+                         len(expected_unclassified))
+        # Every script-managed entry must be SPECS-mapped with a real name.
+        for e in all_entries:
+            if e.get("classification") == "script-managed":
+                self.assertTrue(e["spec_mapped"])
+                self.assertIsNotNone(e["name"])
 
     def test_env_keys_are_names_not_values(self):
         # The output must carry env KEY names only, never recorded values.

@@ -187,6 +187,7 @@ def build_inventory() -> Dict[str, Any]:
 
     shared_module_count = 0
     standalone_handler_count = 0
+    unclassified_handler_count = 0
 
     seen_sources: set = set()
 
@@ -217,11 +218,25 @@ def build_inventory() -> Dict[str, Any]:
             # KEY names only, never the recorded values.
             manifest_env_keys = sorted(manifest_functions[function_name].keys())
 
-        classification = "script-managed"
+        # A handler mapped to a SPECS row is script-managed (the SPECS table in
+        # deploy_all_lambdas.py creates and updates its shell). A CloudFormation
+        # /CDK-owned function is handled separately, outside this walk (see the
+        # synthetic entries appended below), because such functions do not carry
+        # a SPECS row. A handler with NO SPECS row is NOT asserted script-managed:
+        # several (the MCP functions, the image-package docs-scraper) are
+        # delegated to a dedicated script or a CloudFormation stack. Asserting
+        # "script-managed" for a CloudFormation-owned resource is exactly the
+        # mislabel the audit section 7 guardrail 4 guards against, so unmapped
+        # handlers are emitted "unclassified" with the owning script/stack left
+        # null for code-review assignment (mirroring the live generator).
         cdk_source = None
         if function_name in CDK_CLOUDFORMATION_FUNCTIONS:
             classification = "cdk-cloudformation"
             cdk_source = CDK_CLOUDFORMATION_FUNCTIONS[function_name]
+        elif spec is not None:
+            classification = "script-managed"
+        else:
+            classification = "unclassified"
 
         retired = bool(function_name and function_name in retired_functions)
 
@@ -239,8 +254,50 @@ def build_inventory() -> Dict[str, Any]:
         }
         domains.setdefault(domain, []).append(entry)
         standalone_handler_count += 1
+        if classification == "unclassified":
+            unclassified_handler_count += 1
         if spec:
             seen_sources.add(source_dir)
+
+    # Synthetic entries for CloudFormation/CDK-owned functions that have NO
+    # handler.py under amplify/functions/ and no SPECS row (so the handler walk
+    # above never reaches them). The log-retention enforcer is owned by the
+    # standalone CloudFormation stack infra/cloudwatch-retention-enforcer.yml.
+    # Emitting it here is what makes the inventory actually carry at least one
+    # classification == "cdk-cloudformation" entry, matching the classification
+    # doc and the design doc, and representing the CDK/CFN subset the audit
+    # section 7 wants visible in the inventory.
+    cdk_cloudformation_count = 0
+    for function_name, cfn_source in sorted(CDK_CLOUDFORMATION_FUNCTIONS.items()):
+        # Skip any that DID resolve to a handler in the walk (none today, but keep
+        # the inventory honest if one is ever added with a handler.py).
+        already_emitted = any(
+            e["name"] == function_name
+            for entries in domains.values()
+            for e in entries
+        )
+        if already_emitted:
+            continue
+        domain = _domain_of(cfn_source) if "/" in cfn_source else "root"
+        # infra/*.yml lives outside amplify/functions, so it has no domain here.
+        domain = "operations" if domain not in DOMAINS else domain
+        entry = {
+            "name": function_name,
+            "source_path": cfn_source,
+            "domain": domain,
+            "classification": "cdk-cloudformation",
+            "cdk_source": cfn_source,
+            "spec_mapped": False,
+            "referenced_env_keys": [],
+            "manifest_env_keys": (
+                sorted(manifest_functions[function_name].keys())
+                if function_name in manifest_functions else []
+            ),
+            "packaging": None,
+            "retired": bool(function_name in retired_functions),
+        }
+        domains.setdefault(domain, []).append(entry)
+        cdk_cloudformation_count += 1
 
     # SPECS entries whose source did not resolve to a handler.py on disk
     # (two SPECS can share one source, e.g. wecare-commerce reuses
@@ -308,7 +365,26 @@ def build_inventory() -> Dict[str, Any]:
             "shared_modules": shared_module_count,
             "standalone_handlers": standalone_handler_count,
             "specs_total": len(specs),
+            # NOTE: these two SPECS counts measure different things and are NOT a
+            # drift signal when they differ by the number of strangler aliases:
+            #   specs_total_names      = count of distinct SPECS function NAMES
+            #                            (includes strangler aliases such as
+            #                            wecare-commerce held in spec_aliases).
+            #   emitted_spec_mapped_handlers = count of emitted handler entries
+            #                            that resolved to a SPECS source on disk.
+            # The difference equals strangler_alias_specs (aliases share one
+            # source directory, so they are recorded as aliases, not as a second
+            # emitted handler). See spec_aliases for the held names.
+            "specs_total_names": len(spec_mapped_names),
+            "emitted_spec_mapped_handlers": sum(
+                1 for entries in domains.values() for e in entries
+                if e.get("spec_mapped")
+            ),
+            # Kept as an alias of specs_total_names for backward compatibility
+            # with earlier consumers/tests; prefer the two explicit fields above.
             "specs_mapped_functions": len(spec_mapped_names),
+            "cdk_cloudformation_functions": cdk_cloudformation_count,
+            "unclassified_handlers": unclassified_handler_count,
             "manifest_functions": len(manifest_functions),
             "retired_functions": len(retired_functions),
             "retired_routes": len(retirement.get("retiredRoutes", [])),

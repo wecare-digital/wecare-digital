@@ -61,6 +61,16 @@ one source directory as a strangler pair, so the number of source directories is
 smaller than the number of function names. One such pair is visible today:
 `wecare-checkout` and `wecare-commerce` both package `ecommerce/checkout`.
 
+Because of that strangler pair, the inventory reports two deliberately distinct
+SPECS counts rather than one that could read as drift: `summary.specs_total_names`
+is 63 (the count of distinct `SPECS` function names, which includes the
+`wecare-commerce` alias held in `spec_aliases`), while
+`summary.emitted_spec_mapped_handlers` is 62 (the count of emitted handler entries
+that resolved to a `SPECS` source on disk). The difference of 1 is exactly
+`summary.strangler_alias_specs`, not an unexplained gap. The legacy
+`summary.specs_mapped_functions` field is kept as an alias of `specs_total_names`
+for earlier consumers.
+
 ## CDK/CloudFormation-owned versus script-managed
 
 Two ownership classes exist, and the distinction is about WHICH tool owns the
@@ -91,9 +101,13 @@ From `amplify/backend.ts` (`defineBackend({ auth, data, storage })` plus
 
 Separately, `infra/cloudwatch-retention-enforcer.yml` is a standalone
 CloudFormation stack (`wecare-cloudwatch-retention-enforcer`) that owns the
-`wecare-log-retention-enforcer` function, its role, and its log group. The
-inventory builder labels `wecare-log-retention-enforcer` as cdk-cloudformation and
-cites that file.
+`wecare-log-retention-enforcer` function, its role, and its log group. This
+function has no `handler.py` under `amplify/functions/` and no `SPECS` row, so the
+inventory builder emits it as a synthetic entry (outside the handler walk) labelled
+`cdk-cloudformation` with `cdk_source` set to `infra/cloudwatch-retention-enforcer.yml`.
+That is the one `cdk-cloudformation` entry in the report
+(`summary.cdk_cloudformation_functions` is 1), so the CDK/CloudFormation subset is
+represented in the inventory rather than only described here.
 
 ### Script-managed standalone handlers by domain
 
@@ -116,7 +130,19 @@ handlers the inventory builder resolved per domain from `SPECS`.
 Domains also contain handler directories that have no `SPECS` mapping because a
 dedicated script or a CloudFormation stack owns them (for example the MCP and SEO
 functions, and the image-package `wecare-docs-scraper`). Those are listed as
-delegated in `scripts/deploy_all_lambdas.py` and are not reclassified here.
+delegated in `scripts/deploy_all_lambdas.py`. The inventory builder does NOT
+assert an ownership class for them: because several are CloudFormation-owned (the
+MCP functions `wecare-workspace-mcp` and `wecare-customer-commerce-mcp`) or
+image-package (`wecare-docs-scraper`), calling them script-managed would risk
+authorizing the wrong deploy path later, which is exactly what audit section 7
+guardrail 4 guards against. The builder therefore emits these eleven handlers
+(`ai/customer-commerce-mcp`, `ai/mcp`, `ai/workspace-mcp`,
+`ecommerce/catalog-media`, `ecommerce/native-catalog-admin`,
+`edge/get-miss-redirect`, `operations/blog-auto-audit`, `operations/blog-public`,
+`operations/docs-scraper`, `operations/seo-tools`,
+`operations/whatsapp-analytics-export`) with `classification: "unclassified"` and
+a null name, leaving the owning script or stack for code-review assignment during
+reconciliation (mirroring the null fields the live registry generator leaves).
 
 ## Retired entries (not resurrected)
 
