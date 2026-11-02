@@ -63,9 +63,10 @@ check(callingUi.includes('if ( !response.ok )') &&
 const page = read('src/pages/workspace/payments/index.tsx');
 const framework = read('src/components/workspace/pay/PaymentFramework.tsx');
 const definitions = read('src/lib/paymentFramework.ts');
-check(page.includes('PaymentFramework') && page.includes("panel: 'framework'") &&
-      page.includes('pay-flow-sections') && page.includes('pay-flow-work-tabs'),
-      'Collect/Vault/Contribute Framework and section navigation missing');
+check(page.includes('PaymentFramework') && /panel:\s*['"]framework['"]/.test(page) &&
+      page.includes('payment-rail') && page.includes('console-tools') &&
+      page.includes('changeSection(option.value)') && page.includes('tab:\'create\''),
+      'Live payment section navigation, working forms or message inspector missing');
 for (const role of ['payment', 'status', 'invoice', 'access']) {
   check(definitions.includes('  ' + role + ':'), 'Payment framework template missing: ' + role);
 }
@@ -78,8 +79,15 @@ const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');
 const contribute = read('src/components/workspace/pay/ContributePaymentPlan.tsx');
-check(contribute.includes('Live customer total:'),
-      'Contribute headline is not sourced from live quote');
+check(contribute.includes('fetchContributionPrice()') &&
+      contribute.includes('price.available ? price.breakdown') &&
+      contribute.includes('money(b.totalPayablePaise)') &&
+      contribute.includes('ContributeStaffControls'),
+      'Contribute must show a live server total beside working customer/payment controls');
+const staff = read('src/components/workspace/pay/ContributeStaffControls.tsx');
+check(staff.includes('api.searchContactsResult') && staff.includes('PaymentCustomerEditor') &&
+      staff.includes('api.sendStaffContributionPaymentOnce') && staff.includes('const exact='),
+      'Live customer search, editing or verified fixed-total send guard missing');
 
 if (failures.length) {
   for (const issue of failures) console.error('FAIL:', issue);
