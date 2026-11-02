@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import RotatingHero from '../RotatingHero';
 import CheckoutProfile from '../CheckoutProfile';
 import PublicNotice from '../public/PublicNotice';
+import { publicActionText } from '../../lib/publicActionNotices';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
 import type { StoredAddress } from '../AddressFields';
@@ -192,7 +193,7 @@ const SIGN_IN_PATH = '/auth?return=/checkout/';
  * A constant rather than four string literals so the claim has exactly one definition to audit, and
  * so a future edit cannot drift one copy of it onto a path that cannot support it.
  */
-const NOT_PREPARED = 'We could not start this order. No charge was made. Please try again shortly.';
+const NOT_PREPARED = publicActionText( 'blocked' );
 
 /** The inline states this page can show without leaving it. Handoffs navigate instead. */
 type Notice =
@@ -487,6 +488,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ quoteFor, setQuoteFor ] = useState( '' );
   const [ quoteLoading, setQuoteLoading ] = useState( false );
   const [ quoteNotice, setQuoteNotice ] = useState( '' );
+  const [ quoteSignInRequired, setQuoteSignInRequired ] = useState( false );
   const [ quoteRevision, setQuoteRevision ] = useState( 0 );
   const [ busy, setBusy ] = useState<boolean>( false );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
@@ -598,6 +600,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   // No payment attempt or provider order is created by this effect.
   useEffect( () => {
     let live = true;
+    setQuoteSignInRequired( false );
     if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
       setQuote( null );
       setQuoteFor( '' );
@@ -637,7 +640,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       try {
         const session = getSession() || await restoreSession();
         if ( !session ) {
-          if ( live ) setQuoteNotice( 'Sign in to view final price.' );
+          if ( live ) { setQuoteSignInRequired( true ); setQuoteNotice( publicActionText( 'blocked' ) ); }
           return;
         }
         const serviceIntent = serviceIntentFor( lines );
@@ -661,11 +664,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             setProfileStatus( 'required' );
             setShowProfile( true );
           }
-          setQuoteNotice( error === 'PROFILE_REQUIRED' ? 'Enter your name to view price.'
-            : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Confirm address to view final price.'
+          if ( response.status === 401 ) setQuoteSignInRequired( true );
+          setQuoteNotice( error === 'PROFILE_REQUIRED' ? publicActionText( 'blocked' )
+            : error === 'DELIVERY_DETAILS_REQUIRED' ? publicActionText( 'blocked' )
               : error === 'CART_NOT_PAYABLE' ? 'Item price unavailable. Review cart.'
-                : response.status === 401 ? 'Sign in again to view price.'
-                  : 'Verified price unavailable. Payment disabled.' );
+                : publicActionText( 'blocked' ) );
           return;
         }
         // A stale response must never price a different basket selected meanwhile.
@@ -674,7 +677,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         setQuoteFor( fingerprint );
         setQuoteNotice( '' );
       } catch {
-        if ( live ) setQuoteNotice( 'Price service unavailable. Payment disabled.' );
+        if ( live ) setQuoteNotice( publicActionText( 'blocked' ) );
       } finally {
         if ( live ) setQuoteLoading( false );
       }
@@ -1011,16 +1014,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             }
           },
           modal: {
-            ondismiss: () => setNotice( {
-              kind: 'quiet',
-              message: 'Payment window closed. Your cart is unchanged.',
-            } ),
+            ondismiss: () => setNotice( { kind: 'none' } ),
           },
         } );
         razorpay.on( 'payment.failed', () => {
           setNotice( {
             kind: 'error',
-            message: 'Payment was not completed. Check your orders before trying again.',
+            message: publicActionText( 'failure' ),
           } );
         } );
         razorpay.open();
@@ -1370,13 +1370,16 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     if ( outcome.kind === 'SDK_UNAVAILABLE' )
     {
-      setNotice( { kind: 'error', message: 'Secure payment could not open. Your cart is unchanged.' } );
+      setNotice( { kind: 'error', message: publicActionText( 'failure' ) } );
       return;
     }
 
     // MALFORMED, LOST and UNRECOGNISED. Safe to claim nothing: a lost response cannot prove the
     // request never reached the server, and the others carried no live attempt to be wrong about.
-    setNotice( { kind: 'error', message: 'We could not confirm checkout. Check your orders before trying again.' } );
+    // An unknown result may represent an active payment. Do not invite another attempt.
+    railTerminalRef.current = true;
+    setRailTerminal( true );
+    setNotice( { kind: 'error', message: publicActionText( 'blocked' ) } );
   }, [] );
 
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
@@ -1849,9 +1852,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     Refresh prices
                   </button>
                 </div>
-                { quoteLoading && <p className="cart-body" role="status">Checking prices…</p> }
+                { quoteLoading && <p className="cart-body" role="status">{ publicActionText( 'processing' ) }</p> }
                 { quoteNotice && <p className="cart-status" role="status">{ quoteNotice }</p> }
-                { quoteNotice.startsWith( 'Sign in' ) && (
+                { quoteSignInRequired && (
                   <Link className="cart-auth-action" href="/auth?return=/checkout/">
                     Sign in on WhatsApp
                   </Link>
