@@ -23,11 +23,11 @@
     "cap:public:open:ios": "npx cap open ios --config capacitor.public.config.ts",
     "cap:public:open:android": "npx cap open android --config capacitor.public.config.ts",
     "amplify:install": "npm install --prefix amplify --no-audit --no-fund",
-    "postinstall": "node scripts/guard_braces_depth.cjs",
-    "prebuild": "node scripts/guard_braces_depth.cjs --check && node scripts/check-retired-public-pages.cjs",
-    "preamplify": "node scripts/guard_braces_depth.cjs --check",
-    "preamplify:deploy": "node scripts/guard_braces_depth.cjs --check",
-    "precap:build": "node scripts/guard_braces_depth.cjs --check"
+    "postinstall": "node scripts/guard_braces_depth.cjs && node scripts/guard_minimatch_preprocess.cjs",
+    "prebuild": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check && node scripts/check-retired-public-pages.cjs && node scripts/check_minimatch_preprocess.cjs",
+    "preamplify": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check",
+    "preamplify:deploy": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check",
+    "precap:build": "node scripts/guard_braces_depth.cjs --check && node scripts/guard_minimatch_preprocess.cjs --check"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.7",
@@ -68,6 +68,8 @@
     "csv-parse": "7.0.2",
     "xcode": {
       "uuid": "11.1.1"
-    }
+    },
+    "glob@>=9 <14.0.2": "14.0.2",
+    "minimatch@>=9": "11.0.4"
   }
 }
