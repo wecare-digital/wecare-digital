@@ -12,29 +12,21 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import SEO from '../../../components/SEO';
 import PageShell from '../../../components/PageShell';
-import PayFlowPage from '../../../components/workspace/pay/PayFlow';
-import PaymentsActivity from '../../../components/workspace/pay/PaymentsActivity';
 import InvoiceRecords from '../../../components/workspace/pay/InvoiceRecords';
 import FixedInvoiceItems from '../../../components/workspace/pay/FixedInvoiceItems';
+import UnifiedPaymentWorkspace from '../../../components/workspace/pay/UnifiedPaymentWorkspace';
 import { SERVICE_CHOICES, type ServiceSlug } from '../../../config/services';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
 const PaymentFramework = dynamic(() => import('../../../components/workspace/pay/PaymentFramework'), {ssr: false});
-const VaultWorkbench = dynamic( () => import('../../../components/workspace/pay/VaultWorkbench'), { ssr: false } );
 const VaultDeliveryTiming = dynamic( () => import('../../../components/workspace/pay/VaultDeliveryTiming'), { ssr: false } );
-const ContributePaymentPlan = dynamic( () => import('../../../components/workspace/pay/ContributePaymentPlan'), { ssr: false } );
 
 type PaymentSection = 'collect' | 'vault' | 'contribute';
 type PaymentTab = 'display' | 'create' | 'ledger';
 type LedgerView = 'invoices' | 'activity' | ServiceSlug;
 type LegacyPanel = 'defaults' | 'timing' | null;
 
-const SECTION_OPTIONS: {value: PaymentSection; label: string}[] = [
-  {value: 'collect', label: 'Collect'},
-  {value: 'vault', label: 'Vault'},
-  {value: 'contribute', label: 'Contribute'},
-];
 function one(raw: string | string[] | undefined): string {
   return Array.isArray(raw) ? (raw[0] || '') : (raw || '');
 }
@@ -83,185 +75,35 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
   );
   const {section, tab, legacy} = location;
   const showFramework = one(router.query.panel) === 'framework';
-  const ledgerView = ledgerMode(router.query.view, router.query.ledger);
-  const serviceLedger = SERVICE_CHOICES.find(choice => choice.slug === ledgerView);
 
-  const navigate = (query: Record<string, string>) => {
-    void router.push({pathname: '/workspace/payments', query});
-  };
-  const changeSection = (next: PaymentSection) => {
-    // Open the live workbench immediately; preserve the message inspector when selected.
-    navigate({view: next, tab: showFramework ? 'display' : 'create', ...(showFramework ? {panel: 'framework'} : {})});
-  };
-  const goLedger = (next: LedgerView) => {
-    const query: Record<string, string> = {
-      view: 'ledger',
-      ledger: next,
-      section: next === 'vault' ? 'vault' : next === 'invoices' || next === 'activity'
-        ? 'collect' : section,
-    };
-    const invoice = one(router.query.invoice);
-    if (invoice && next === 'invoices') query.invoice = invoice;
-    navigate(query);
-  };
-  const paymentTypePicker = (
-    <label className="payment-type-picker" htmlFor="payment-type">
-      <span>Payment type</span>
-      <select id="payment-type" value={section} onChange={event => {
-        const choice = SECTION_OPTIONS.find(option => option.value === event.target.value);
-        if (choice) changeSection(choice.value);
-      }}>
-        {SECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </label>
-  );
+
+
+
 
   return (
     <>
       <SEO title="Payments"
         description="Live invoices, Vault delivery and contributions." noindex />
-      <PageShell key={`${section}-${tab}`} className="payments-shell"
+      <PageShell key={`payments-${tab}`} className="payments-shell"
         title="Payments"
         subtitle="Choose a customer, review the total and send an approved payment request."
         tabs={[]} showChrome={false}
       >
         {() => (
           <div className="payment-console">
-            <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div>{paymentTypePicker}</header>
+            <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div></header>
             <div className="console-layout"><div className="console-main">
             <nav className="console-tools" aria-label="Payment tools">
-              <Link className={!showFramework && legacy!=='defaults' && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'create'}}}>Workspace</Link>
+              <Link className={!showFramework && legacy!=='defaults' && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:'collect',tab:'create',...(one(router.query.item)?{item:one(router.query.item)}:{})}}}>Workspace</Link>
               <Link className={!showFramework && tab==='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'ledger'}}}>Records</Link>
               <Link className={legacy==='defaults'?'current':''} href="/workspace/payments?view=defaults">Invoice items (29)</Link>
-              <Link className={showFramework?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'display',panel:'framework'}}}>Messages &amp; timing</Link>
+              <Link className={showFramework?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'display',panel:'framework',...(one(router.query.item)?{item:one(router.query.item)}:{})}}}>Messages &amp; timing</Link>
             </nav>
-            {showFramework ? <PaymentFramework section={section} /> : <>
-            {section === 'collect' && tab === 'display' && <PayFlowPage signOut={signOut} user={user} embedded mode="collect" />}
-            {section === 'collect' && tab === 'create' && (
-              <section aria-label="Collect payment creation">
-                {legacy === 'defaults' ? (
-                  <>
-                    <div className="pay-context-link">
-                      <Link href="/workspace/payments?view=collect&tab=create">Back to Collect Create</Link>
-                    </div>
-                    <FixedInvoiceItems />
-                  </>
-                ) : (
-                  <>
-                    <nav className="pay-collect-create-links" aria-label="Collect creation tools">
-                      <Link href="/workspace/payments?view=collect&tab=create">
-                        Compose new invoice
-                      </Link>
-                      <Link href="/workspace/payments?view=collect&tab=create&invoices=saved">
-                        Saved invoices · Review &amp; send
-                      </Link>
-                      <Link href="/workspace/payments?view=defaults">
-                        Invoice items · all 29 prices
-                      </Link>
-                    </nav>
-                    {one(router.query.invoices) === 'saved'
-                      ? <PayFlowPage key="saved-invoices" signOut={signOut} user={user} embedded
-                          mode="invoices" allowSendInInvoices />
-                      : <PayFlowPage key="create-invoice" signOut={signOut} user={user}
-                          embedded mode="collect" />}
-                  </>
-                )}
-              </section>
-            )}
-            {section === 'vault' && tab === 'display' && (
-              <VaultWorkbench signOut={signOut} user={user} embedded workspaceView="create" />
-            )}
-            {section === 'vault' && tab === 'create' && (
-              legacy === 'timing' ? (
-                <section aria-label="Vault access delay settings">
-                  <VaultDeliveryTiming />
-                </section>
-              ) : (
-                <VaultWorkbench signOut={signOut} user={user} embedded workspaceView="create" />
-              )
-            )}
-            {section === 'contribute' && tab === 'display' && (
-              <ContributePaymentPlan workspaceView="display" />
-            )}
-            {section === 'contribute' && tab === 'create' && (
-              <ContributePaymentPlan workspaceView="create" />
-            )}
-            {section === 'vault' && tab === 'ledger' && (
-              <section className="pay-ledger-scoped" aria-label="Vault ledger">
-                <nav className="pay-collect-create-links" aria-label="Vault ledger records">
-                  <Link href="/workspace/payments?view=vault&tab=ledger"
-                    aria-current={one(router.query.records) !== 'files' ? 'page' : undefined}>
-                    Vault invoices
-                  </Link>
-                  <Link href="/workspace/payments?view=vault&tab=ledger&records=files"
-                    aria-current={one(router.query.records) === 'files' ? 'page' : undefined}>
-                    File and delivery history
-                  </Link>
-                </nav>
-                {one(router.query.records) === 'files'
-                  ? <VaultWorkbench key="vault-history" embedded workspaceView="display" initialHistorical />
-                  : <InvoiceRecords signOut={signOut} user={user} embedded serviceKind="VAULT" />}
-              </section>
-            )}
-            {section === 'contribute' && tab === 'ledger' && (
-              <section className="pay-contribute-ledger" aria-labelledby="contribute-ledger-heading">
-                <p className="pay-contribute-kicker">CONTRIBUTE / LEDGER</p>
-                <h2 id="contribute-ledger-heading">Contribution payment records</h2>
-                <p>Contribute is a catalog-order payment, not a Vault-style request-service
-                  purchase. Its money and receipt evidence stay in the existing Commerce
-                  order, payment and invoice records. A name or amount alone is not verified
-                  proof that an invoice belongs to a contribution.</p>
-                <div className="pay-contribute-ledger-links">
-                  <Link href="/workspace/service?view=contribute&tab=payments">
-                    Existing Contribute records
-                  </Link>
-                  <Link href="/workspace/commerce?view=orders">Staff orders</Link>
-                  <Link href="/workspace/payments?view=ledger&ledger=invoices">
-                    All invoice records
-                  </Link>
-                  <Link href="/workspace/payments?view=ledger&ledger=activity">
-                    Payment activity
-                  </Link>
-                </div>
-                <p className="pay-contribute-note">
-                  No separate contribution ledger or unsupported invoice service filter is
-                  created. Verify the catalog order reference and provider capture before
-                  marking a contribution received.
-                </p>
-              </section>
-            )}
-            {section === 'collect' && tab === 'ledger' && (
-              <section className="ledger" aria-label="Invoice and payment ledger">
-                <div className="ledger-switch" role="group" aria-label="Ledger view">
-                  <button type="button" className={ledgerView === 'invoices' ? 'active' : ''}
-                    aria-pressed={ledgerView === 'invoices'}
-                    onClick={() => goLedger('invoices')}>Invoices</button>
-                  <button type="button" className={ledgerView === 'activity' ? 'active' : ''}
-                    aria-pressed={ledgerView === 'activity'}
-                    onClick={() => goLedger('activity')}>Activity</button>
-                  <label htmlFor="pay-service-ledger">Service ledger</label>
-                  <select id="pay-service-ledger" aria-label="Select service ledger"
-                    value={serviceLedger?.slug || ''}
-                    onChange={event => {
-                      const choice = SERVICE_CHOICES.find(item => item.slug === event.target.value);
-                      if (choice) goLedger(choice.slug);
-                      else goLedger('invoices');
-                    }}>
-                    <option value="">All services</option>
-                    {SERVICE_CHOICES.map(choice => (
-                      <option key={choice.kind} value={choice.slug}>{choice.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {ledgerView === 'invoices'
-                  ? <PayFlowPage signOut={signOut} user={user} embedded mode="invoices" />
-                  : serviceLedger
-                    ? <InvoiceRecords signOut={signOut} user={user} embedded
-                        serviceKind={serviceLedger.kind} />
-                    : <PaymentsActivity />}
-              </section>
-            )}
-            </>}
+            {showFramework ? <PaymentFramework section={section} /> :
+              tab === 'ledger' ? <InvoiceRecords signOut={signOut} user={user} embedded /> :
+                legacy === 'defaults' ? <FixedInvoiceItems /> :
+                  legacy === 'timing' ? <VaultDeliveryTiming /> :
+                    <UnifiedPaymentWorkspace signOut={signOut} user={user} />}
             </div></div>
           </div>
         )}

@@ -15,6 +15,7 @@ import {fetchServicePrices, rupeesFromPaise} from '../../../lib/servicePricing';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
 interface Props {
+  customer?: api.Contact|null; unified?: boolean;
   signOut?: () => void;
   user?: unknown;
   embedded?: boolean;
@@ -44,7 +45,7 @@ const when = (v?: string | number | null): string => {
 const outcomeText = (file: api.SecureFile): string =>
   file.accessState || file.vaultPaymentStatus || file.deliveryStatus || 'Not verified';
 
-const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHistorical = false }) => {
+const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHistorical = false, customer, unified = false }) => {
   const confirm = useConfirm();
   const [files, setFiles] = React.useState<api.SecureFile[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -55,6 +56,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
   const [historical, setHistorical] = React.useState(initialHistorical);
   const [fileName, setFileName] = React.useState('');
   const [ownerMobile, setOwnerMobile] = React.useState('');
+  React.useEffect(()=>{if(unified&&customer){setFileName(customer.name||'');setOwnerMobile(customer.phone);setMobileFilter(customer.phone);setAppliedMobile(customer.phone);}},[customer,unified]);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [uploadOutcome, setUploadOutcome] = React.useState('');
@@ -265,7 +267,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
 
   return (
     <section className="vault-workbench" aria-label="Exact-file Vault workbench">
-      <header className="vault-intro">
+      <header className="vault-intro" style={unified?{display:'none'}:undefined}>
         <div>
           <p className="eyebrow">PAY &amp; FLOW / VAULT</p>
           <h2>{workspaceView === 'display' ? 'Vault · File and delivery register' : 'Vault · Verify and request payment'}</h2>
@@ -282,9 +284,9 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
           <h3>1. Register a private file</h3>
           <p>Upload alone does not request payment or give the customer access. The server must confirm the file is active.</p>
           <div className="vault-fields">
-            <label>Customer name<input value={fileName} onChange={e => setFileName(e.target.value)}
+            <label style={unified?{display:'none'}:undefined}>Customer name<input value={fileName} onChange={e => setFileName(e.target.value)}
               maxLength={160} required placeholder="Verified customer name" /></label>
-            <label>Customer WhatsApp mobile<input value={ownerMobile}
+            <label style={unified?{display:'none'}:undefined}>Customer WhatsApp mobile<input value={ownerMobile}
               onChange={e => setOwnerMobile(e.target.value)}
               required inputMode="tel" autoComplete="off" placeholder="91XXXXXXXXXX" /></label>
             <label>Private file (PDF / JPEG / PNG)<input type="file"
@@ -306,7 +308,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
             onChange={e => { ++listRequest.current; ++deliveryRequest.current; setHistorical(e.target.checked); setDelivery(null); setDeliveryFile(''); }} />
             Show historical audit rows</label>
         </div>
-        <form className="vault-filter" onSubmit={applySearch}>
+        <form className="vault-filter" onSubmit={applySearch} style={unified?{display:'none'}:undefined}>
           <label htmlFor="vault-search-mobile">Filter by customer mobile</label>
           <input id="vault-search-mobile" value={mobileFilter}
             onChange={e => setMobileFilter(e.target.value)} inputMode="tel"

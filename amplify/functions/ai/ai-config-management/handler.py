@@ -91,7 +91,9 @@ SUPPORTED_LANGUAGES = {
 #: keyword-to-Flow triggers (including the F001 Subscribe switch) and the F001 Subscribe copy.
 #: Every other row in the table (dedup markers, cleanup confirmations, captured webhook events,
 #: account wiring) is not a setting, and this route refuses to read or rewrite it.
-SETTINGS_CONFIG_KEYS = frozenset({
+from lambda_utils.ecommerce import item_processes
+
+SETTINGS_CONFIG_KEYS = item_processes.CONFIG_KEYS | frozenset({
     'ai_config', 'welcome_message', 'welcome_message_2', 'welcome_message_config',
     'customerservice_menu_config', 'wa_auto_response',
     'flow_triggers_config', 'subscribe_messages_config',
@@ -336,6 +338,11 @@ def _update_config(body: Dict, request_id: str, config_key: str = 'ai_config') -
                     or type(proposed['postReceiptAccessGapSeconds']) is not int
                     or not 0 <= proposed['postReceiptAccessGapSeconds'] <= 5):
                 return _error_response(400, 'Access Vault delay must be a whole number of seconds (0-5)')
+
+        if config_key in item_processes.CONFIG_KEYS:
+            error = item_processes.validate_draft(config_key, body.get('config'))
+            if error:
+                return _error_response(400, error)
 
         # If a specific key is provided (non-ai_config), do a raw put
         if config_key != 'ai_config':

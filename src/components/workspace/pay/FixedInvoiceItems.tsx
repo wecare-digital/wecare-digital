@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import ITEMS from '../../../content/invoicePresets.json';
-import { SERVICE_CHOICES } from '../../../config/services';
 import { formatPaiseINR } from '../../../lib/money';
 
 /** Approved fixed prices; the owning workspace validates the final quote before sending. */
@@ -9,11 +8,7 @@ export default function FixedInvoiceItems (): React.ReactElement {
   const [ search, setSearch ] = useState( '' );
   const shown = ITEMS.filter( item => item.name.toLowerCase().includes( search.trim().toLowerCase() ) );
   const money = ( paise: number ) => formatPaiseINR( paise, 'INR' );
-  const hrefFor = ( item: typeof ITEMS[number] ) => {
-    if ( item.workflow === 'collect' ) return `/workspace/payments?view=collect&tab=create&item=${item.id}`;
-    if ( item.workflow === 'contribute' || item.workflow === 'vault' ) return `/workspace/payments?view=${item.workflow}&tab=create`;
-    return SERVICE_CHOICES.find( service => service.slug === item.workflow )?.path || '/workspace/service?view=requests';
-  };
+  const hrefFor = (item: typeof ITEMS[number]) => `/workspace/payments?view=collect&tab=create&item=${item.id}`;
   return (
     <section className="fixed-items" aria-labelledby="fixed-items-title">
       <header><div><h2 id="fixed-items-title">Invoice items <span>29</span></h2><p>Choose an item to start its payment workflow. The server verifies the final price before payment.</p></div>
@@ -24,7 +19,7 @@ export default function FixedInvoiceItems (): React.ReactElement {
           <thead><tr><th scope="col">Item</th><th scope="col">Base</th><th scope="col">GST 18%</th><th scope="col">Delight −</th><th scope="col">Express +</th><th scope="col">Conv. +</th><th scope="col">Fee GST +</th><th scope="col">Final</th><th scope="col">Action</th></tr></thead>
           <tbody>{shown.map(item => <tr key={item.id}><th scope="row">{item.name}</th>
             {[item.basePaise,item.supplyGstPaise,item.delightPaise,item.expressPaise,item.convenienceFeePaise,item.convenienceGstPaise].map((amount,index)=><td key={index} data-wc-no-translate="true">{money(amount)}</td>)}
-            <td data-wc-no-translate="true"><strong>{money(item.totalPayablePaise)}</strong></td><td><Link href={hrefFor(item)} aria-label={`Use ${item.name}`}>{item.workflow === 'collect' ? 'Use item' : 'Open service'}</Link></td>
+            <td data-wc-no-translate="true"><strong>{money(item.totalPayablePaise)}</strong></td><td><Link href={hrefFor(item)} aria-label={`Use ${item.name}`}>Use item</Link></td>
           </tr>)}</tbody>
         </table>
       </div>

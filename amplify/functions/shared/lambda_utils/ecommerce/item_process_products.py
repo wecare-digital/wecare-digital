@@ -1,0 +1,33 @@
+"""Canonical ProductsTable identities for the 29 item processes; no prices."""
+
+ITEM_BY_PRODUCT_ID = {
+    "2d5dff1a-2542-5839-9c6e-e65d10fcc643": "fixed-01",
+    "e458f22c-bf73-42fe-8b00-9415e3561f59": "fixed-02",
+    "032039ce-c4ec-5d44-8fdb-d4d9ffb91f02": "fixed-03",
+    "f74ed861-5945-5893-a0cc-02024511687a": "fixed-04",
+    "619ac1ba-159e-5811-b1b7-98131020cd03": "fixed-05",
+    "467728ca-5e3e-47c2-b6ba-14e76f9b4cd6": "fixed-06",
+    "331e83ee-384e-5f4e-b348-e205990ba546": "fixed-07",
+    "94af52d3-d91f-5a84-aab5-2033237aba46": "fixed-08",
+    "3ddcc49c-86f4-59e0-b6ec-b5cffee7ea4d": "fixed-09",
+    "7d7eda2f-943a-5131-852e-32483dda0259": "fixed-10",
+    "c3921ac7-32d5-5852-96b8-434161bb53fd": "fixed-11",
+    "9e51eb4c-00f2-523e-91be-6c9d312adfa7": "fixed-12",
+    "78334b88-160f-5811-9827-d958e50dfcde": "fixed-13",
+    "0e0cc8ea-036c-5b57-aec2-8f98e3c2df82": "fixed-14",
+    "45af1dfb-fddb-53b0-950c-da703ade9264": "fixed-15",
+    "2b1655cf-198a-438d-93b6-c57612b819b6": "fixed-16",
+    "6794847f-303e-598e-bdfb-74db0a642fed": "fixed-17",
+    "native:hunar-kaushal": "fixed-18",
+    "native:hunar-prastuti": "fixed-19",
+    "abe4870e-fae3-59cc-b1a7-9bd28eff048a": "fixed-20",
+    "884281fd-e6e3-537a-b58e-9c6e1342597d": "fixed-21",
+    "84eb1e0c-0d07-5a64-8cf4-cff09e8ee5be": "fixed-22",
+    "24fa0f39-330b-5365-b7eb-9caf27ad37f1": "fixed-23",
+    "f829697a-b1db-5c4e-bfce-51d1487278a7": "fixed-24",
+    "7133c98d-de8d-5e56-94ff-8d9fea7aa331": "fixed-25",
+    "e1ca7833-5d7d-567b-837c-face04647598": "fixed-26",
+    "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907": "fixed-27",
+    "f45dec5c-5bcc-5fca-9c50-5f63b57554d2": "fixed-28",
+    "166370fe-69a8-5ad2-9f9a-e9ce3f92839c": "fixed-29"
+}

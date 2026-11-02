@@ -1,10 +1,11 @@
 import React from 'react';
+import type {Contact} from '../../../api/client';
 import ContributeStaffControls from './ContributeStaffControls';
 import PaymentTemplateMedia from './PaymentTemplateMedia';
 import {fetchContributionPrice, rupeesFromPaise, type ServicePrice} from '../../../lib/servicePricing';
 
 /** One live working surface. Both legacy Display/Create bookmarks reach the form. */
-export default function ContributePaymentPlan(_props: {workspaceView?: 'display' | 'create'}) {
+export default function ContributePaymentPlan(_props: {workspaceView?: 'display' | 'create';customer?:Contact|null;unified?:boolean}) {
   const [price, setPrice] = React.useState<ServicePrice>({available:false});
   const [loading, setLoading] = React.useState(true);
   const [revision, setRevision] = React.useState(0);
@@ -19,8 +20,8 @@ export default function ContributePaymentPlan(_props: {workspaceView?: 'display'
   const b = price.available ? price.breakdown : undefined;
   const money = (n: number) => (n<0?'−':'')+'₹'+rupeesFromPaise(Math.abs(n));
   return <section className="contribute-live" aria-label="Live contribution payment">
-    <header className="contribute-top"><div><p>CONTRIBUTE</p><h2>Request a contribution</h2><span>Select a customer, review ₹300 and send Review &amp; Pay.</span></div><div className="contribute-amount"><small>Customer pays</small><strong>{loading?'Checking…':b?money(b.totalPayablePaise):'Unavailable'}</strong><small>{loading?'Reading live quote':checkedAt?`Checked ${checkedAt}`:'Quote unavailable'}</small></div></header>
-    <div className="contribute-layout"><ContributeStaffControls price={price} templates={price.available?price.templates||null:null} loadingPrice={loading} refreshPrice={() => setRevision(n=>n+1)} />
+    <header className="contribute-top" style={_props.unified?{display:'none'}:undefined}><div><p>CONTRIBUTE</p><h2>Request a contribution</h2><span>Select a customer, review ₹300 and send Review &amp; Pay.</span></div><div className="contribute-amount"><small>Customer pays</small><strong>{loading?'Checking…':b?money(b.totalPayablePaise):'Unavailable'}</strong><small>{loading?'Reading live quote':checkedAt?`Checked ${checkedAt}`:'Quote unavailable'}</small></div></header>
+    <div className="contribute-layout"><ContributeStaffControls customer={_props.customer} unified={_props.unified} price={price} templates={price.available?price.templates||null:null} loadingPrice={loading} refreshPrice={() => setRevision(n=>n+1)} />
       <aside className="quote-panel"><h3>Payment breakdown</h3>{b?<dl>{[['Item',b.itemSubtotalPaise],['Supply GST',b.supplyGstPaise],['Delight',-b.delightPaise],['Express',b.expressPaise],['Convenience',b.convenienceFeePaise],['GST on convenience',b.convenienceGstPaise],['Total',b.totalPayablePaise]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{money(Number(value))}</dd></div>)}</dl>:<p role="status">Live quote unavailable. Reload to continue.</p>}<button type="button" disabled={loading} onClick={()=>setRevision(n=>n+1)}>{loading?'Checking quote…':'Reload quote'}</button><p>Express, GST and fees are included in ₹300. The server verifies the amount again before sending.</p><details><summary>WhatsApp message and images</summary><p>💳 Your order is ready for payment. Tap Review and Pay to complete it securely.</p><PaymentTemplateMedia templates={price.available?price.templates||null:null} serviceLabel="Contribute" signedPreview /></details></aside>
     </div>
     <style jsx>{`

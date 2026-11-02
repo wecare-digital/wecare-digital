@@ -1644,6 +1644,9 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'orderId': body.get('orderId', ''),
         'referenceId': reference_id,
         'entryPoint': entry_point,
+        'fixedPresetId': body.get('fixedPresetId', ''),
+        'itemProcessId': ('payment-item-' + body['fixedPresetId']) if body.get('fixedPresetId') else '',
+        'postPaymentProcessState': 'AWAITING_CAPTURE' if body.get('fixedPresetId') else '',
         # Where the customer placed the order, so the invoice can print its own Source line
         # (GST Rule 46 carries no such requirement; this is for the customer and for support).
         # `entryPoint` is NOT a substitute: it records which internal flow minted the invoice
@@ -2080,7 +2083,7 @@ _INVOICE_FINANCIAL_FIELDS = frozenset({
 #: only sometimes client-writable is a field whose guard can be bypassed by finding the state
 #: where it is permitted. An issued unpaid invoice used to be markable `paid`/`captured` by a
 #: PUT with no payment anywhere behind it.
-_INVOICE_SERVER_OWNED_FIELDS = frozenset({'status', 'paymentStatus'})
+_INVOICE_SERVER_OWNED_FIELDS = frozenset({'status', 'paymentStatus', 'fixedPresetId', 'itemProcessId', 'itemProcessItemId', 'postPaymentProcessState', 'itemProcessCapturedPaymentId', 'itemProcessIds', 'itemProcessStates'})
 
 #: The server transitions that DO own them, named in the refusal so the operator is not left
 #: guessing which button to press instead.
@@ -5874,6 +5877,11 @@ def _normalize_invoice(item: Dict) -> Dict:
         'orderId': item.get('orderId', ''),
         'referenceId': item.get('referenceId', ''),
         'entryPoint': item.get('entryPoint', ''),
+        'fixedPresetId': item.get('fixedPresetId', ''),
+        'itemProcessId': item.get('itemProcessId', ''),
+        'itemProcessIds': item.get('itemProcessIds') or [],
+        'itemProcessStates': item.get('itemProcessStates') or {},
+        'postPaymentProcessState': item.get('postPaymentProcessState', ''),
         'status': item.get('status', ''),
         'paymentStatus': item.get('paymentStatus', ''),
         'contactId': item.get('contactId', ''),
