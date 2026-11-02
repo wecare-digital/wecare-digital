@@ -42,7 +42,7 @@ function PublicNotificationAdapter({ children }: { children: React.ReactNode }) 
   ): number => {
     // An unsafe/unknown key, including an unconfirmed WhatsApp send, is NEVER
     // converted to a floating message even if called from plain JavaScript.
-    if (kind === 'whatsappFailed') return 0;
+    if (String(kind) === 'whatsappFailed') return 0;
     const message = publicActionText(kind);
     if (typeof message !== 'string' || !message) return 0;
 
