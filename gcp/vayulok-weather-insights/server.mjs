@@ -578,7 +578,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/v1/weather-insights/status') {
     const status = await statusPayload();
-    return json(res, status.ok ? 200 : 503, status);
+    return json(res, status.ok ? 200 : 503, status, String(req.headers.origin || ''));
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/weather-insights') {

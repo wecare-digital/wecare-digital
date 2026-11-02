@@ -36,6 +36,8 @@ assert(insights.includes('HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000'),
   'history cache must have a bounded freshness window');
 assert(insights.includes('query_cost_cap_exceeded'),
   'quota failure must have an honest unavailable state');
+assert(insights.includes("fetch( `${INSIGHTS_URL}/v1/weather-insights/status`"),
+  '1Y/5Y must verify a live server query guard before allowing expensive requests');
 
 // Cloud Run has a hard 1GiB query cap and a bounded instance-level daily
 // attempt budget. Project-wide Cloud quotas still must be configured in GCP.

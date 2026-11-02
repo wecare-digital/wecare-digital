@@ -36,3 +36,8 @@
 
 ## Remaining limitation
 The frontend changes reduce unnecessary event consumption, and the backend code has extra query caps. **No frontend-only safeguard guarantees the Google Maps Platform or BigQuery monthly free limits.** Only actual project-level quota and billing controls plus licensing verification can support that claim.
+
+## Long-range production fail-closed bridge
+- Before the Google Cloud Run server revision is deployed and verified, the public website **does not send uncached 1Y/5Y queries** to the older 15GB/40GB-budget backend. It first checks the separate Cloud Run status endpoint for an active maximum of <=1 GiB; if no safe status is available, it uses saved browser results or shows the budget-protection message.
+- The Cloud Run `/v1/weather-insights/status` response must include CORS for the approved VayuLok origin as well as `costGuard` metadata. The static website can check the guard on each longer-range selection without any billable BigQuery query.
+- This fail-closed protection is deliberately asymmetric: the 30D default still attempts automatic history, while 1Y/5Y remain restricted until independent Cloud Run deployment is verified.
