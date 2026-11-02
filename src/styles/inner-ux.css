@@ -591,7 +591,7 @@
    the base rule's `width: 100%` has to be re-declared here or every workspace select shrinks
    to its intrinsic content width across ~50 pages. That would be a bigger visible change than
    anything else in Layer 1, arrived at by deleting a line nobody was looking at.
-   src/test/FormControlsCss.test.ts asserts this rule EXISTS. */
+   Keep this rule during refactors; the former CSS unit test has been retired. */
 .inner-page select { width: 100% }
 
 .inner-page input:hover:not(:disabled),

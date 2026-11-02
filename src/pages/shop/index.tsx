@@ -11,7 +11,7 @@ import {
  * /shop 301 rules were removed from live Amplify Hosting customRules, and '/shop' is in
  * PUBLIC_PAGE_META (src/pages/_app.tsx) and PUBLIC_EXACT (scripts/generate-sitemap.js). Those two
  * are what make this route render at HTTP 200 with a public shell rather than the staff sign-in
- * page, and keep it in the sitemap. src/test/ShopIndexRedirect.test.ts pins all of it.
+ * page, and keep it in the sitemap. The retired ShopIndexRedirect test no longer runs.
  *
  * THIN ON PURPOSE. This file was 130 lines of markup and styles over the eight catalogue rows; it is
  * now a route that says "page 1". The view lives in components/ShopListingView.tsx and the data
@@ -19,11 +19,10 @@ import {
  * render the identical page and a copy of either would drift.
  *
  * IT KEEPS BOTH A DEFAULT EXPORT AND A getStaticProps, and both are load-bearing: output:
- * 'export' builds the page from that pair, and item (i) of ShopIndexRedirect.test.ts asserts
- * exactly it.
+ * 'export' builds the page from that pair. Keep both exports during refactors.
  *
  * NO Header AND NO Footer. _app.tsx mounts the chrome for every public route, and
- * src/test/PublicRouteRegistration.test.ts fails any public page that mounts it per page.
+ * Centralized public chrome must not be mounted again on this page.
  *
  * ShopListingView uses the public PageShell for metadata and one breadcrumb input for UI
  * and JSON-LD. _app still owns the allowlist, WebPage/Service graph and central chrome.

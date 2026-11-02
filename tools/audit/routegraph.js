@@ -5,9 +5,8 @@
  *
  * WHY THIS IS NOT A BROWSER HARNESS. Everything it checks - which routes exist, which
  * routes are linked, which links resolve - is a property of the emitted HTML, so it needs
- * no Chromium and no server. It is deliberately in tools/audit/ rather than tools/browser/
- * for that reason: tools/browser/README.md promises every script there renders in real
- * Chromium, and a pure-fs script sitting among them would make that claim false.
+ * no Chromium and no server. It remains in tools/audit/ because it verifies the
+ * static export; the earlier tools/browser/ QA suite was retired separately.
  *
  * WHAT IT ANSWERS
  *   1. every route the export emits, classified public / workspace / other
