@@ -6,7 +6,7 @@ This is a **reviewable operations change**, not a deployment. Production remains
 
 User confirmed that Meta/WhatsApp **Commerce catalog synchronization** is no longer needed. Do **not** confuse it with WhatsApp Business messaging, message templates, conversation metadata, customer orders, native product catalog, or checkout.
 
-In AWS, both retired scheduled sync rules and their targets were deleted on 2026-11-02 after verifying they were disabled and targeted only Meta catalog sync. The retired sync's drift/failure alarms had already been removed. The Lambda and aliases remain with reserved concurrency **0**. The active WhatsApp Business API still contains an admin proxy to the sync function, and deployment/IAM/catalog infrastructure references remain; coordinate their removal in a backend release before deleting the function. Do not change concurrency without explicit release approval. Products and customer records were not changed.
+In AWS, both retired scheduled sync rules and their targets were deleted on 2026-11-02. A deeper alias-qualified audit revealed two additional ProductsTable stream mappings, both of which were **disabled and verified Disabled** on 2026-11-02 without changing the table or its stream. The retired sync's drift/failure alarms had already been removed. The Lambda and aliases remain with reserved concurrency **0**. The active WhatsApp Business API still contains an admin proxy to the sync function, and deployment/IAM/catalog infrastructure references remain; coordinate their removal in a backend release before deleting the function. Do not change concurrency without explicit release approval. Products and customer records were not changed.
 
 The route-free API Gateway integration for the retired AI generation function was also deleted, with absence verified afterward. The AI Lambda remains blocked at concurrency **0**. The inbound handler still contains unused invocation helpers; remove those and complete rollback/deployment review before deleting it. Neither Lambda was invoked to test this cleanup.
 
@@ -15,6 +15,14 @@ The route-free API Gateway integration for the retired AI generation function wa
 Search for references to `wecare-meta-catalog-sync`, `META_CATALOG_SYNC_*`, `meta_catalog_sync`, `META_CATALOG_ID`, `catalog-resources.ts`, `generate_shop_listings.py`, `provision_meta_catalog_sync*.py`, and `open_meta_release_gate.py`. Also check product-change stream triggers in the deployed environment; disabling scheduled rules **does not** prove all invocation paths are disabled. Do not delete `ProductsTable`, native catalog handlers, `wecare-catalog-media`, or WhatsApp messaging APIs.
 
 Before removing the Meta catalog code: prove no deployed event source mapping, EventBridge target, API route, workflow, UI link, CI test, or stack dependency still requires it. Remove references, test native checkout/WhatsApp flows, and retire the Lambda only in a separate reviewed production release.
+
+## Fresh inventory correction (2026-11-02)
+
+AWS Lambda inventory in `us-east-1` has **78 total functions**: **77** names begin with `wecare-`; the remaining function is `stack-wecare-url-shortener`. Both blocked legacy AI and Meta Commerce sync functions still exist, with reserved concurrency 0. The main HTTP API currently has **376 routes**, after the retired Meta catalog control routes were removed. Earlier counts of 50 Lambda functions omitted paginated results.
+
+An earlier inventory found 83 DynamoDB tables, including five real recovery copies dated October 30. AWS CloudTrail confirmed those **five recovery tables were deleted by concurrent operations** on November 2, leaving **78 tables**. The canonical ProductsTable, SeoToolsTable and SystemConfigTable were independently rechecked afterward and remain ACTIVE with deletion protection and PITR enabled. Do not assume the deleted copies were mock data.
+
+The notification-worker SQS event mapping remains disabled, with its queue empty at inspection. Investigate active notification delivery and avoid enabling or deleting it on traffic counts alone. Do not delete any of the retained Lambda runtimes, customer tables, provider APIs, shared IAM roles, or rollback sources without an independent backend release.
 
 ## Security
 

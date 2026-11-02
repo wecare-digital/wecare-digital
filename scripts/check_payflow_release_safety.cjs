@@ -64,8 +64,12 @@ const page = read('src/pages/workspace/payments/index.tsx');
 const framework = read('src/components/workspace/pay/PaymentFramework.tsx');
 const definitions = read('src/lib/paymentFramework.ts');
 check(page.includes('PaymentFramework') && page.includes("panel: 'framework'") &&
-      page.includes('pay-flow-sections') && page.includes('pay-flow-work-tabs'),
-      'Collect/Vault/Contribute Framework and section navigation missing');
+      page.includes('const SECTION_OPTIONS:') &&
+      ['collect', 'vault', 'contribute'].every(v => page.includes("value: '" + v + "'")) &&
+      page.includes('className="payment-rail"') &&
+      page.includes('className="console-tools"') &&
+      page.includes('onClick={()=>changeSection(option.value)}'),
+      'Collect/Vault/Contribute Framework and active section navigation missing');
 for (const role of ['payment', 'status', 'invoice', 'access']) {
   check(definitions.includes('  ' + role + ':'), 'Payment framework template missing: ' + role);
 }
@@ -78,8 +82,12 @@ const vault = read('src/components/workspace/pay/VaultWorkbench.tsx');
 check(vault.includes('deliveryRequest') && vault.includes('listRequest'),
       'Vault stale file/response identity guard missing');
 const contribute = read('src/components/workspace/pay/ContributePaymentPlan.tsx');
-check(contribute.includes('Live customer total:'),
-      'Contribute headline is not sourced from live quote');
+check(contribute.includes('fetchContributionPrice()') &&
+      contribute.includes('price.available ? price.breakdown : undefined') &&
+      contribute.includes('b?money(b.totalPayablePaise)') &&
+      contribute.includes('Live quote unavailable. Reload to continue.') &&
+      contribute.includes('ContributeStaffControls price={price}'),
+      'Contribute must show server-priced payable total and fail closed when its live quote is unavailable');
 
 if (failures.length) {
   for (const issue of failures) console.error('FAIL:', issue);
