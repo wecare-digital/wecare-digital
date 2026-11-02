@@ -53,8 +53,8 @@ HANDLER = (
     Path(__file__).resolve().parents[1]
     / "amplify/functions/core/vayulok-environment/handler.py"
 )
-RATE_LIMIT = 3.0
-BURST_LIMIT = 10
+RATE_LIMIT = 2.0
+BURST_LIMIT = 4
 
 
 def iam():
