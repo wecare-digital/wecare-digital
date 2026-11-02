@@ -5,7 +5,8 @@ import { buildPageTitle } from '../../lib/page-title';
  * convenience fee and fee GST before payment. Neither cart prices nor browser
  * calculations are sent as money; prepare must match the reviewed server total.
  * A verified captured attempt is the only successful order transition.
- * WhatsApp checkout is a separate follow-up route and is not initiated here.
+ * One /checkout/ review surface offers website Razorpay and native WhatsApp Review and Pay.
+ * Both rails use the same server-priced quote and one-live-payment-per-basket guard.
  */
 import Head from 'next/head';
 import Link from 'next/link';
@@ -59,6 +60,7 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
+const WHATSAPP_CHECKOUT_URL = `${API_BASE}/ecommerce/checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
 // The old production checkout Lambda treats unknown actions as CREATE. Until
@@ -834,20 +836,26 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         rememberServiceIntent( submit.variantId, intent.intent.intentId );
         serviceIntent = intent.intent.intentId;
       }
-      const response = await fetch( PREPARE_CHECKOUT_URL, {
+      // The selected rail changes only the server action, never the customer checkout URL.
+      // Both use the same opaque cart references, shared request key and reviewed total.
+      const isWhatsApp = channel === 'whatsapp';
+      const response = await fetch( isWhatsApp ? WHATSAPP_CHECKOUT_URL : PREPARE_CHECKOUT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify( {
-          action: 'prepare',
+          action: isWhatsApp ? 'create' : 'prepare',
           lineItems,
           requestKey: getCheckoutRequestKey( lineItems ),
+          // The WhatsApp sender must refuse an out-of-date quote BEFORE sending its
+          // approved Review and Pay template. Website Razorpay is checked after prepare.
+          ...( isWhatsApp ? { expectedTotalPaise } : {} ),
           // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
           // what it was. The server reads `body.get("resetCart") is True` -- an identity
           // comparison, no coercion -- so an absent key and a false one are the same thing.
-          ...( resetCart ? { resetCart: true } : {} ),
+          ...( resetCart && !isWhatsApp ? { resetCart: true } : {} ),
           // Phase O-1: only a services basket carries its intent id; every other body is
           // byte-identical to before.
           ...( serviceIntent ? { serviceIntentId: serviceIntent } : {} ),
@@ -864,6 +872,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         status?: string;
         error?: string;
         paymentAttemptId?: string;
+        amountPaise?: number;
+        sendUnconfirmed?: boolean;
         message?: string;
         /**
          * The refusal reason on a `CHECKOUT_REJECTED`. Read because exactly one value --
@@ -880,6 +890,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         };
       };
       const status = String( data.status || data.error || '' ).toUpperCase();
+
+      if ( status === 'QUOTE_CHANGED' ) return { kind: 'QUOTE_CHANGED' };
 
       // THE THREE READINESS REFUSALS. The server is the authority on readiness, which is why
       // 'unknown' is allowed to reach this call at all - these arms are what catch it.
@@ -1068,7 +1080,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // direction: the request has left and only the server knows where it stands.
       if ( status === 'PAYMENT_REQUEST_SENT' && data.paymentAttemptId )
       {
-        // Keep the cart until the server confirms a paid order; the status screen empties it then.
+        // If a server/provider mismatch ever slips past the pre-send check, do not
+        // invite another request. Inspect the in-flight attempt on the status screen.
+        if ( data.amountPaise !== expectedTotalPaise )
+        {
+          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          return { kind: 'NAVIGATED' };
+        }
+        // Message acceptance is NOT a charge; status waits for verified capture.
         goToCheckoutStatus( String( data.paymentAttemptId ) );
         return { kind: 'NAVIGATED' };
       }
@@ -1081,7 +1100,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // Empty cart per the server.
       if ( status === 'LINE_ITEMS_REQUIRED' ) return { kind: 'LINE_ITEMS_REQUIRED' };
 
-      // The message did not go out. The attempt exists and nothing was charged.
+      // A sender timeout can happen AFTER Meta accepted Review and Pay. Never
+      // tell the customer to retry or claim no message was sent in this case.
+      if ( status === 'SEND_FAILED' && data.sendUnconfirmed === true )
+      {
+        if ( data.paymentAttemptId )
+        {
+          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          return { kind: 'NAVIGATED' };
+        }
+        return { kind: 'LOST' };
+      }
+      // A definite sender refusal is different: no payment request was delivered.
       if ( status === 'SEND_FAILED' ) return { kind: 'SEND_FAILED' };
 
       // A cart item is no longer available in the store (retired/out-of-stock product or variant).
@@ -1376,17 +1406,14 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [] );
 
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    // Website payment is the ordinary cart action. An explicit WhatsApp choice still uses
-    // the existing native leg, and survives the profile editor / sign-in round trip.
+    // One checkout screen; the explicit payment choice selects the server-owned rail.
+    // The decision survives the profile editor and sign-in without becoming a URL parameter.
     if ( !WEBSITE_FULL_CART_QUOTE_ENABLED ) {
       setNotice( { kind: 'quiet', message:
         'Secure checkout is being prepared. No payment has been started.' } );
       return;
     }
-    // Website checkout is the only payment rail on this page. WhatsApp has its
-    // own route, where no payment is started until that separate project ships.
-    const chosenChannel: CheckoutChannel = 'website';
-    void channel;
+    const chosenChannel: CheckoutChannel = channel === 'whatsapp' ? 'whatsapp' : 'website';
     void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
@@ -1548,7 +1575,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     }
     if ( !quote || quoteFor !== basketFingerprint( lineItems ) || quoteLoading ) {
       setNotice( { kind: 'quiet', message:
-        'Wait for the verified price breakdown before opening Razorpay.' } );
+        'Wait for the verified price breakdown before choosing a payment method.' } );
       setQuoteRevision( previous => previous + 1 );
       return;
     }
@@ -1712,6 +1739,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
     && quoteFor && quoteFor === reviewedBasketFingerprint
     && !items.some( needsVariantSelection ) );
+  // Native WhatsApp checkout is currently provider-gated to one line, quantity one.
+  // Do not show an enabled button for a basket the backend will refuse.
+  const whatsappEligible = items.length === 1 && items[ 0 ].quantity === 1
+    && !items.some( needsVariantSelection );
 
   /**
    * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
@@ -1839,7 +1870,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
               <section className="cart-quote" aria-labelledby="cart-price-heading">
                 <div className="cart-quote-title">
-                  <h2 className="cart-subheading" id="cart-price-heading">Price breakdown</h2>
+                  <h2 className="cart-subheading cart-breakdown-heading" id="cart-price-heading">CHECKOUT BREAKDOWN</h2>
                   <button className="cart-quiet-refresh" type="button" disabled={ quoteLoading }
                     onClick={ () => setQuoteRevision( previous => previous + 1 ) }>
                     Refresh prices
@@ -1873,16 +1904,17 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                     <dl className="cart-summary">
                       <div><dt>Items subtotal</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.merchandisePaise, quote.currency ) }</dd></div>
                       { quote.charges.supplyGstPaise > 0 && <div><dt>GST on products / services</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.supplyGstPaise, quote.currency ) }</dd></div> }
-                      { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel || 'Discount' }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
-                      <div><dt>Delivery</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
+                      { quote.charges.discountPaise > 0 && <div><dt>{ quote.charges.discountLabel === 'Delight' ? 'Delight (0.5%)' : ( quote.charges.discountLabel || 'Discount' ) }</dt><dd data-wc-no-translate="true">−{ formatPaiseINR( quote.charges.discountPaise, quote.currency ) }</dd></div> }
+                      <div><dt>{ quote.charges.deliveryLabel || 'Delivery' }</dt><dd>{ quote.charges.deliveryPaise > 0 ? formatPaiseINR( quote.charges.deliveryPaise, quote.currency ) : 'Free' }</dd></div>
                       <div><dt>Convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceFeePaise, quote.currency ) }</dd></div>
                       <div><dt>GST on convenience fee</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.convenienceGstPaise, quote.currency ) }</dd></div>
-                      <div className="cart-summary-total"><dt>Final amount to pay</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
+                      <div className="cart-summary-total"><dt>AMOUNT PAYABLE</dt><dd data-wc-no-translate="true">{ formatPaiseINR( quote.charges.totalPaise, quote.currency ) }</dd></div>
                     </dl>
                   </>
                 ) }
                 <p className="cart-price-note">The total comes from the live server quotation.
-                  Razorpay must show this same amount before you authorise payment.</p>
+                  Website and WhatsApp payment both use the same server-priced basket.
+                  No payment is completed until the provider confirms capture.</p>
               </section>
 
               {/* The always-on Delight discount, stated (not applied) here. Every figure is
@@ -1992,21 +2024,42 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 </p>
               ) }
 
-              <div className="cart-actions">
+              <div className="cart-actions" role="group" aria-label="Choose payment method">
                 { railTerminal
                   ? <Link className="cart-auth-action cart-auth-primary" href="/orders/">Orders</Link>
                   : <>
                     <button
-                      className="cart-auth-action cart-auth-primary"
+                      className="cart-auth-action cart-auth-primary cart-pay-website"
                       type="button"
                       onClick={ () => { void proceed( 'website' ); } }
                       disabled={ busy || !quoteReady }
                       aria-busy={ busy ? 'true' : undefined }
                     >
-                      { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again' : 'Pay here' ) }
+                      { busy ? 'Preparing…' : ( paymentBlocked ? 'Try again on website' : 'Pay on Website' ) }
+                    </button>
+                    <button
+                      className="cart-auth-action cart-pay-whatsapp"
+                      type="button"
+                      onClick={ () => { void proceed( 'whatsapp' ); } }
+                      disabled={ busy || !quoteReady || !whatsappEligible }
+                      aria-busy={ busy ? 'true' : undefined }
+                    >
+                      Pay on WhatsApp
                     </button>
                   </> }
               </div>
+              { !railTerminal && !whatsappEligible && (
+                <p className="cart-price-note" role="status">
+                  WhatsApp Review and Pay currently supports one item, quantity one.
+                  For larger carts use Pay on Website, or review one item at a time.
+                </p>
+              ) }
+              { !railTerminal && whatsappEligible && (
+                <p className="cart-price-note">
+                  WhatsApp sends the approved Review and Pay message to your verified number.
+                  Pay only inside WhatsApp; receiving the message does not mean you have paid.
+                </p>
+              ) }
             </>
           )}
 
@@ -2029,6 +2082,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-qty button:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .cart-qty span{min-width:26px;text-align:center}
           .cart-quote{margin-top:26px;padding-top:24px;border-top:1px solid var(--public-hairline)}
+          .cart-breakdown-heading{padding:13px 16px;border-radius:12px;background:var(--public-brand-lime);color:#111;font-size:20px;font-weight:800;letter-spacing:.01em}
           .cart-quote-title{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
           .cart-quiet-refresh{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--public-brand-green);text-decoration:underline;cursor:pointer}
           .cart-quiet-refresh:disabled{opacity:.5}
@@ -2042,8 +2096,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-summary>div{display:flex;gap:18px;justify-content:space-between;align-items:baseline}
           .cart-summary dt{color:var(--public-muted)}
           .cart-summary dd{margin:0;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--public-heading)}
-          .cart-summary-total{padding-top:14px;border-top:1px solid var(--public-hairline);font-size:19px}
-          .cart-summary-total dt,.cart-summary-total dd{font-weight:700;color:var(--public-brand-green)}
+          .cart-summary-total{padding:16px 14px;margin-top:6px;border:0;border-radius:12px;background:var(--public-brand-lime);font-size:19px}
+          .cart-summary-total dt,.cart-summary-total dd{font-weight:800;color:#111}
           .cart-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
           .cart-in{width:min(100%,560px);max-width:100%;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);box-sizing:border-box;color:var(--public-text);font-family:var(--font-sans)}
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
@@ -2146,6 +2200,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           .cart-status-firm{border-inline-start-width:4px;font-weight:700}
 
           .cart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:28px}
+          .cart-pay-website,.cart-pay-whatsapp{flex:1 1 190px;text-decoration:none}
+          .cart-pay-website{background:#111;color:#fff}
+          .cart-pay-website:hover{background:var(--public-brand-green);color:#fff}
+          .cart-pay-whatsapp{border:2px solid var(--public-brand-green);background:#fff}
+          .cart-pay-whatsapp:hover{background:var(--public-lime-tint)}
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .cart-auth-action{
             min-height:48px;min-width:48px;padding:8px 14px;border:0;border-radius:10px;

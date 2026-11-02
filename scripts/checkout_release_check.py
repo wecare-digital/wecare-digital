@@ -79,6 +79,25 @@ def check_checkout_basket_source():
             or 'claimBasket( session.accessToken, token )' not in body
             or "const SIGN_IN_PATH = '/auth?return=/checkout/';" not in body):
         failures.append('checkout: secure basket claim/sign-in handoff was lost')
+    # One checkout URL, two explicit actions, one reviewed server total.
+    backend = (ROOT / 'amplify/functions/ecommerce/checkout/handler.py').read_text(encoding='utf-8')
+    quote = (ROOT / 'src/lib/checkoutQuote.ts').read_text(encoding='utf-8')
+    if ('WHATSAPP_CHECKOUT_URL' not in body
+            or "action: isWhatsApp ? 'create' : 'prepare'" not in body
+            or "void proceed( 'website' )" not in body
+            or "void proceed( 'whatsapp' )" not in body
+            or 'expectedTotalPaise' not in body):
+        failures.append('checkout: two payment methods must share the reviewed /checkout/ cart')
+    if ('data.sendUnconfirmed === true' not in body
+            or 'goToCheckoutStatus( String( data.paymentAttemptId ) )' not in body):
+        failures.append('checkout: uncertain WhatsApp sends must not invite another payment')
+    if ('if "expectedTotalPaise" in body:' not in backend
+            or 'if reviewed_paise != amount_paise:' not in backend
+            or 'if sent != SEND_SENT:' not in backend
+            or 'whatsapp_templates.PAY.name' not in backend):
+        failures.append('checkout: native WhatsApp pricing, sender, or review guard missing')
+    if ("deliveryLabel?: 'Delivery' | 'Express'" not in quote):
+        failures.append('checkout: quote parser must retain server-owned Express label')
     return failures
 
 
