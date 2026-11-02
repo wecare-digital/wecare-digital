@@ -7,12 +7,10 @@ Signals are intentionally event-specific rather than generic Lambda Errors:
 - scheduled order-status retry error/query failure
 - paid-invoice WhatsApp delivery failure
 - Vault send/payment/runtime failures
-- catalog synchronization failures
 - Flow validation/health failures
 - a captured payment whose order, invoice or receipt did not complete (paid state incomplete)
 - a paid Vault file with no entitlement, or whose Access Vault link did not go out
 - the live payment-readiness readback refusing WhatsApp payment requests
-- the WhatsApp catalogs drifting from ProductsTable across two scheduled syncs
 
 Every filter/alarm is idempotent and sends to the standard WECARE alarm topic. Several log groups
 may feed one alarm: each such signal names the same metric and alarm, with its own filter.
@@ -112,15 +110,6 @@ SIGNALS = [
         "description": "Vault offer invocation, payment confirmation, or secure-files runtime failed.",
     },
     {
-        "logGroup": "/aws/lambda/wecare-meta-catalog-sync",
-        "pattern": '{ $.event = "meta_catalog_sync_read_failed" || $.event = "meta_catalog_batch_rejected" || $.event = "meta_catalog_sync_unconfigured" }',
-        "filterName": "wecare-catalog-sync-failure",
-        "metricName": "CatalogSyncFailure",
-        "alarmName": "wecare-catalog-sync-failure",
-        "threshold": 0.0,
-        "description": "Meta catalog sync could not read, was rejected, or was unconfigured.",
-    },
-    {
         "logGroup": "/aws/lambda/wecare-whatsapp-business-api",
         "pattern": '{ $.event = "flow_health_blocked" || $.event = "flow_validation_error" }',
         "filterName": "wecare-flow-health-failure",
@@ -192,22 +181,6 @@ SIGNALS = [
         "threshold": 0.0,
         "description": ("Payment readiness refused a WhatsApp payment request; nothing was charged. Read "
                         "the readiness state on the log line before treating it as an outage."),
-    },
-    # A scheduled sync that still finds create/update/retire work: the WhatsApp catalog shows
-    # names or prices ProductsTable no longer has, and stays that way until the exact plan is
-    # approved and applied. Two consecutive six-hourly runs, so a fresh product edit is not paged.
-    {
-        "logGroup": "/aws/lambda/wecare-meta-catalog-sync",
-        "pattern": ('{ $.event = "meta_catalog_sync_planned" && $.source = "schedule" && '
-                    '($.create > 0 || $.update > 0 || $.retire > 0) }'),
-        "filterName": "catalog-sync-drift",
-        "metricName": "CatalogSyncDrift",
-        "alarmName": "wecare-catalog-sync-drift",
-        "threshold": 0.0,
-        "period": 21600,
-        "evaluationPeriods": 2,
-        "description": ("The WhatsApp catalog has differed from ProductsTable for two scheduled syncs. "
-                        "Review and approve the exact plan in Catalog sync, or correct the product."),
     },
 ]
 

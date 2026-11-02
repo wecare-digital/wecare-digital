@@ -319,27 +319,7 @@ SPECS: List[Spec] = [
         "ecommerce/customer-invoice",
         provisioned_by="python scripts/provision_customer_invoice.py",
     ),
-    # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked by the ProductsTable
-    # change stream through an event-source mapping on its `live` alias, with a six-hourly
-    # EventBridge schedule as the backstop. No HTTP API route and no function URL: it has no
-    # public surface at all.
-    #
-    # IT WRITES TO A CUSTOMER-VISIBLE META COMMERCE CATALOG - an item created there appears in
-    # WhatsApp. Product-level metaEnabled owns desired publication scope. Production intentionally
-    # keeps `META_CATALOG_SYNC_ENABLED=true` with `META_CATALOG_SYNC_DRY_RUN=true`: inspect and
-    # exact-plan approval remain available while normal runs cannot write. The dedicated deploy
-    # workflow refuses to leave dry-run and also removes the retired forced-out-of-stock control.
-    #
-    # Its own least-privilege role: two statements, one GetSecretValue naming two secrets and
-    # CloudWatch Logs. wecare-digital-lambda-role is NOT involved.
-    # Now LIVE and recorded in the env manifest, so the awaiting-provisioning marker
-    # was dropped. First creation was owned by
-    # scripts/provision_meta_catalog_sync.py --apply.
-    Spec(
-        "wecare-meta-catalog-sync",
-        "ecommerce/meta-catalog-sync",
-    ),
-    # Cognito CustomMessage trigger: branded HTML for MFA, verification and
+    # Retired Meta Commerce catalog sync (2026-11-02): intentionally excluded from\n    # routine releases. Both EventBridge schedules are disabled and AWS reserved\n    # concurrency is 0. Do not reintroduce without explicit owner approval.\n    # Cognito CustomMessage trigger: branded HTML for MFA, verification and
     # recovery email. First creation is owned by
     # scripts/provision_cognito_custom_message.py, which also gives it a
     # least-privilege role of its own rather than the shared secrets-reading one.
