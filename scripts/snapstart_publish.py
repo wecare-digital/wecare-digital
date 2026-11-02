@@ -279,8 +279,13 @@ def main() -> int:
 
     tally: Dict[str, int] = {"updated": 0, "skipped": 0, "failed": 0}
     for name in targets:
-        tally[publish_and_move(lam, name, args.dry_run, args.only_stale,
-                               expected.get(name))] += 1
+        try:
+            outcome = publish_and_move(lam, name, args.dry_run, args.only_stale,
+                                       expected.get(name))
+        except ValueError as error:
+            print(f"  {name}: {error}")
+            outcome = "failed"
+        tally[outcome] += 1
         print()
 
     print(f"updated={tally['updated']} skipped={tally['skipped']} "

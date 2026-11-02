@@ -30,18 +30,18 @@ class BackendRetirementTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_concurrent_code_change_still_blocks_publication(self):
-        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str)])('1', 'old', 'other-deployer')
+        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str), ('alias_revision', str), ('latest_revision', str)])('1', 'old', 'other-deployer', None, None)
         publish, calls = self.publisher(state)
         self.assertEqual(publish(object(), 'wecare-contacts', False, False, expected_sha='my-release'), 'failed')
         self.assertEqual(len(calls), 1)
 
     def test_matching_alias_skips_without_client_mutation(self):
-        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str)])('1', 'same', 'same')
+        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str), ('alias_revision', str), ('latest_revision', str)])('1', 'same', 'same', None, None)
         publish, _ = self.publisher(state)
         self.assertEqual(publish(object(), 'wecare-contacts', False, True), 'skipped')
 
     def test_current_function_dry_run_never_uses_client_mutations(self):
-        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str)])('1', 'old', 'new')
+        state = typing.NamedTuple('State', [('alias_version', str), ('alias_sha', str), ('latest_sha', str), ('alias_revision', str), ('latest_revision', str)])('1', 'old', 'new', None, None)
         publish, _ = self.publisher(state)
         self.assertEqual(publish(object(), 'wecare-contacts', True, False, expected_sha='new'), 'skipped')
 
