@@ -44,6 +44,12 @@ frontend:
         # Read-only source guards: Collect, Vault and Contribute stay in their
         # canonical workspace after a directory deletion; no Meta or S3 calls.
         - python3 -m unittest discover -s tests -p 'test_payflow_workspace_architecture_20261102.py' -v
+        # Read-only backend regression suites using in-memory owners, orders and files.
+        # They cannot send WhatsApp messages, charge cards or access live documents.
+        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_vault_website_no_renew.py' -v
+        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_vault_exact_file_and_activity.py' -v
+        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_payflow_no_renew_and_collect_saved.py' -v
+        - PYTHONPATH=amplify/functions/shared python3 -m unittest discover -s tests -p 'test_retired_ai_and_interactive.py' -v
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
@@ -70,6 +76,8 @@ frontend:
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
         - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+        # Catch deleted active Workspace imports and Orders/notification drift before tsc.
+        - node scripts/check_action_ui_contracts.cjs
         # DEPLOY GATE. Store private diagnostics before failing so release blockers are inspectable
         # without relying on Amplify's service-owned log bucket.
         - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-unknown}"

@@ -920,6 +920,19 @@
   }
 }
 
+/* Touch users cannot hover to discover a persistent Workspace error close.
+   Give the button a visible target without changing public non-blocking toasts. */
+@media (hover: none) {
+  .wc-action-toast.toast { padding-inline-end: 50px; }
+  .toast-close {
+    inset-block-start: 5px;
+    inset-inline-end: 5px;
+    min-inline-size: 38px;
+    min-block-size: 38px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .toast, .toast-exit { animation: none; }
 }
