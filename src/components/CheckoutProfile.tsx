@@ -102,12 +102,12 @@ const CheckoutProfile: React.FC<Props> = ( {
       const reply = await response.json().catch( () => ( {} ) );
       if ( !response.ok || reply.status !== 'PROFILE_READY' ) {
         if ( reply.error === 'CONTACT_IDENTITY_CONFLICT' ) {
-          setMessage( 'We could not link these details to your signed-in WhatsApp account.' );
+          setMessage( publicActionText( 'blocked' ) );
         } else if ( reply.error === 'INVALID_ADDRESS' ) {
           setAddressField( String( reply.field || '' ) );
-          setMessage( 'Please check your delivery address.' );
+          setMessage( publicActionText( 'failure' ) );
         } else if ( reply.error === 'NAME_REQUIRED' ) {
-          setMessage( 'Enter your full name.' );
+          setMessage( publicActionText( 'failure' ) );
         } else {
           setMessage( publicActionText( 'failure' ) );
         }
