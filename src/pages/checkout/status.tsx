@@ -9,6 +9,7 @@ import { orderPagePath } from '../../lib/orderPage';
 import { settlePaidCheckout } from '../../lib/checkoutHandoff';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
+import { publicActionText } from '../../lib/publicActionNotices';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const CHECKOUT_STATUS_URL = `${ API_BASE }/ecommerce/checkout/status`;
@@ -38,11 +39,11 @@ function attemptIdFromUrl (): string {
 }
 
 const COPY: Record<View, { title: string }> = {
-  confirming: { title: 'Confirming payment…' },
-  paid: { title: 'Payment received' },
-  finalizing: { title: 'Payment received' },
-  failed: { title: 'Payment incomplete' },
-  unavailable: { title: 'Status unavailable' },
+  confirming: { title: publicActionText( 'processing' ) },
+  paid: { title: publicActionText( 'success' ) },
+  finalizing: { title: publicActionText( 'processing' ) },
+  failed: { title: publicActionText( 'failure' ) },
+  unavailable: { title: publicActionText( 'blocked' ) },
 };
 
 export default function CheckoutStatus (): React.ReactElement {
@@ -198,7 +199,9 @@ export default function CheckoutStatus (): React.ReactElement {
           ) }
 
           { view === 'finalizing' && !stalled && (
-            <p className="co-note">Do not pay again.</p>
+            <div className="co-actions">
+              <Link className="co-auth-action" href="/orders/">View orders</Link>
+            </div>
           ) }
 
           { stalled && ( view === 'confirming' || view === 'finalizing' ) && (
