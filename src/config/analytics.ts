@@ -113,7 +113,7 @@ export const META_AD_ACCOUNTS = {
  * or used as a browser target. Events for it are sent server-to-server.
  *
  * `catalogId` is the canonical WECARE.DIGITAL service catalogue and mirrors the
- * META_CATALOG_ID default in amplify/functions/ecommerce/meta-catalog-sync/handler.py.
+ * existing Meta asset configuration. Automatic catalog publishing is retired.
  * The older ids 1607047307067517 and 1088514403989109 are RETIRED - they name catalogues
  * this property no longer syncs, and they survive only in dated evidence under docs/.
  *

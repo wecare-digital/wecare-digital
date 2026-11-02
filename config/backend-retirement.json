@@ -1,0 +1,14 @@
+{
+  "retiredFunctions": [
+    "wecare-ai-generate-response",
+    "wecare-meta-catalog-sync"
+  ],
+  "retiredRoutes": [
+    "GET /wa-business/catalog-sync",
+    "POST /wa-business/catalog-sync"
+  ],
+  "retainedSharedModules": [
+    "amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py"
+  ],
+  "reason": "Legacy AI generation and automatic Meta Commerce publishing are retired. Native product pricing, checkout, messaging and shared retailer-ID parsing remain active."
+}

@@ -110,7 +110,6 @@ SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 # AI Lambda function names. Every invoke target is the `live` alias: an unqualified name runs
 # $LATEST, which an upload reaches before it is published and verified.
 AI_QUERY_KB_FUNCTION = os.environ.get('AI_QUERY_KB_FUNCTION', 'wecare-ai-query-kb:live')
-AI_GENERATE_RESPONSE_FUNCTION = os.environ.get('AI_GENERATE_RESPONSE_FUNCTION', 'wecare-ai-generate-response:live')
 
 # Outbound WhatsApp Lambda function name
 OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp:live')
@@ -7787,97 +7786,8 @@ def _invoke_ai_query_kb(query: str, message_id: str, request_id: str) -> Optiona
         return None
 
 
-def _invoke_ai_generate_response(content: str, kb_context: Optional[Dict], 
-                                  message_id: str, contact_id: str, request_id: str) -> Optional[Dict]:
-    """Invoke ai-generate-response Lambda function (legacy, used for internal)."""
-    try:
-        response = lambda_client.invoke(
-            FunctionName=AI_GENERATE_RESPONSE_FUNCTION,
-            InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'messageContent': content,
-                'kbContext': kb_context,
-                'messageId': message_id,
-                'contactId': contact_id,
-                'requestId': request_id
-            })
-        )
-        if response.get('StatusCode') == 200:
-            body = json.loads(json.loads(response['Payload'].read().decode('utf-8')).get('body', '{}'))
-            _store_ai_interaction(message_id, content, body.get('suggestion', '') or body.get('suggestedResponse', ''), request_id)
-            return body
-        return None
-    except Exception:
-        return None
 
 
-def _invoke_ai_generate_response_v2(
-    content: str, message_id: str, contact_id: str, sender_phone: str,
-    message_type: str, s3_key: str, mime_type: str, request_id: str,
-    phone_number_id: str = '',
-) -> Optional[Dict]:
-    """
-    Invoke ai-generate-response Lambda with multimodal payload.
-    Passes sender phone, message type, S3 key, and mime type for
-    the Converse API path to handle images, audio, video, documents.
-    Passes phoneNumberId so AI sessions are separated per WABA.
-    """
-    try:
-        payload = {
-            'messageContent': content,
-            'messageId': message_id,
-            'contactId': contact_id,
-            'senderPhone': sender_phone,
-            'context': 'external',
-            'messageType': message_type,
-            's3Key': s3_key,
-            'mediaType': message_type if message_type in ('image', 'audio', 'video', 'document') else '',
-            'mimeType': mime_type,
-            'requestId': request_id,
-            'phoneNumberId': phone_number_id,
-        }
-
-        logger.info(json.dumps({
-            'event': 'ai_generate_v2_invoke',
-            'messageType': message_type,
-            'hasMedia': bool(s3_key),
-            'messageId': message_id,
-            'requestId': request_id
-        }))
-
-        # Use a shorter boto3 read timeout for AI invocation to prevent
-        # this Lambda from timing out waiting for the AI Lambda.
-        # Default boto3 read_timeout is 60s; we cap at 45s here.
-        import botocore.config
-        _ai_lambda_config = botocore.config.Config(read_timeout=45, retries={'max_attempts': 0})
-        _ai_lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'), config=_ai_lambda_config)
-        
-        response = _ai_lambda_client.invoke(
-            FunctionName=AI_GENERATE_RESPONSE_FUNCTION,
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload)
-        )
-
-        if response.get('StatusCode') == 200:
-            raw = response['Payload'].read().decode('utf-8')
-            parsed = json.loads(raw)
-            body = json.loads(parsed.get('body', '{}'))
-
-            # Store AI interaction for audit
-            suggestion = body.get('suggestion', '') or body.get('suggestedResponse', '')
-            if suggestion and not body.get('locked'):
-                _store_ai_interaction(message_id, content or f'[{message_type}]', suggestion, request_id)
-
-            return body
-        return None
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'ai_generate_v2_error',
-            'error': str(e),
-            'messageId': message_id,
-            'requestId': request_id
-        }))
-        return None
 
 
 def _send_typing_indicator(sender_phone: str, phone_number_id: str, request_id: str) -> None:

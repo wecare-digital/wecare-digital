@@ -16,7 +16,7 @@ Every WhatsApp menu was deleted on 2026-10-02. Both `welcome_message` (phone 1)
 and `welcome_message_2` (phone 2) still ended with "Tap *Menu* to get started",
 pointing a customer at something that no longer exists. Both rows ARE read at
 runtime - `inbound-whatsapp-handler._load_welcome_text` and
-`ai-generate-response._get_welcome_config` both read `textMessage` - so this is a
+the shared welcome configuration both use `textMessage` - so this is a
 real customer-facing copy change, which is why the before-value is printed and
 the default behaviour is a dry run.
 

@@ -140,68 +140,6 @@ def wait_active(lam, name: str, version: str) -> bool:
     return False
 
 
-
-META_CATALOG_SYNC_FUNCTION = "wecare-meta-catalog-sync"
-META_CATALOG_TARGET_ENV_KEYS = ("META_CATALOG_ID", "META_TOKEN_FIELD")
-
-
-def _stage_primary_catalog_env(lam, name: str, dry_run: bool):
-    """For meta-catalog-sync only, publish `:live` with WABA1's frozen environment.
-
-    The unqualified function is the dedicated WABA2 sync target. A code-only deploy updates
-    $LATEST in place, so before publishing the next `:live` version we temporarily copy the
-    two public target selectors from the currently served WABA1 version onto $LATEST. After the
-    alias moves, the caller restores the original $LATEST environment for WABA2.
-
-    Returns (original_latest_environment, changed).
-    """
-    if name != META_CATALOG_SYNC_FUNCTION:
-        return None, False
-    latest = lam.get_function_configuration(FunctionName=name)
-    original = dict((latest.get("Environment") or {}).get("Variables") or {})
-    live_alias = lam.get_alias(FunctionName=name, Name=ALIAS)
-    live_cfg = lam.get_function_configuration(
-        FunctionName=f"{name}:{live_alias['FunctionVersion']}"
-    )
-    live_env = dict((live_cfg.get("Environment") or {}).get("Variables") or {})
-    staged = dict(original)
-    for key in META_CATALOG_TARGET_ENV_KEYS:
-        if key in live_env:
-            staged[key] = live_env[key]
-    if staged == original:
-        return original, False
-    if dry_run:
-        return original, True
-    revision = latest.get("RevisionId")
-    kwargs = {
-        "FunctionName": name,
-        "Environment": {"Variables": staged},
-    }
-    if revision:
-        kwargs["RevisionId"] = revision
-    lam.update_function_configuration(**kwargs)
-    lam.get_waiter("function_updated_v2").wait(FunctionName=name)
-    return original, True
-
-
-def _restore_secondary_catalog_env(lam, name: str, original_environment, dry_run: bool) -> None:
-    """Restore the WABA2 $LATEST target after publishing WABA1's immutable version."""
-    if name != META_CATALOG_SYNC_FUNCTION or original_environment is None or dry_run:
-        return
-    latest = lam.get_function_configuration(FunctionName=name)
-    if dict((latest.get("Environment") or {}).get("Variables") or {}) == original_environment:
-        return
-    kwargs = {
-        "FunctionName": name,
-        "Environment": {"Variables": original_environment},
-    }
-    revision = latest.get("RevisionId")
-    if revision:
-        kwargs["RevisionId"] = revision
-    lam.update_function_configuration(**kwargs)
-    lam.get_waiter("function_updated_v2").wait(FunctionName=name)
-
-
 def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
                      expected_sha: Optional[str] = None) -> str:
     """Returns one of: 'updated', 'skipped', 'failed'.
@@ -209,6 +147,8 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
     expected_sha: the CodeSha256 the calling deploy uploaded. When given, a $LATEST holding
     anything else means another deploy replaced it, and nothing is published.
     """
+    if name in {'wecare-meta-catalog-sync', 'wecare-ai-generate-response'}:
+        raise ValueError('Retired function cannot be published: ' + name)
     state = current_state(lam, name)
     alias_version, alias_sha, latest_sha = state.alias_version, state.alias_sha, state.latest_sha
 
@@ -246,19 +186,7 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
         print("    already serving $LATEST, skipping")
         return "skipped"
 
-    original_catalog_env = None
-    catalog_env_changed = False
-    try:
-        original_catalog_env, catalog_env_changed = _stage_primary_catalog_env(
-            lam, name, dry_run
-        )
-    except ClientError as exc:
-        print(f"    cannot stage WABA1 catalog environment: {exc.response['Error']['Code']}")
-        return "failed"
-
     if dry_run:
-        if catalog_env_changed:
-            print("    DRY RUN: would stage WABA1 target selectors for publication, then restore WABA2")
         print(f"    DRY RUN: would publish a version and move {ALIAS} onto it")
         return "skipped"
 
@@ -268,17 +196,12 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
         # Exactly the code inspected above, never a $LATEST another deploy swapped in since.
         "CodeSha256": latest_sha,
     }
-    if state.latest_revision and not catalog_env_changed:
-        # Staging the catalog environment is this run's own write and moves the revision.
+    if state.latest_revision:
         publish_request["RevisionId"] = state.latest_revision
     try:
         published = lam.publish_version(**publish_request)
     except ClientError as exc:
         print(f"    publish_version failed: {exc}")
-        try:
-            _restore_secondary_catalog_env(lam, name, original_catalog_env, dry_run=False)
-        except ClientError as restore_exc:
-            print(f"    WABA2 environment restore failed: {restore_exc.response['Error']['Code']}")
         return "failed"
 
     new_version = published["Version"]
@@ -301,10 +224,6 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
                   f"v{new_version} is published but not live.")
         else:
             print(f"    update_alias failed: {exc}")
-        try:
-            _restore_secondary_catalog_env(lam, name, original_catalog_env, dry_run=False)
-        except ClientError as restore_exc:
-            print(f"    WABA2 environment restore failed: {restore_exc.response['Error']['Code']}")
         return "failed"
 
     # verify rather than assume
@@ -313,17 +232,10 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
         print(f"    VERIFY FAILED: {ALIAS} is v{check.alias_version}, expected v{new_version}")
         return "failed"
 
-    try:
-        _restore_secondary_catalog_env(lam, name, original_catalog_env, dry_run=False)
-    except ClientError as exc:
-        print(f"    VERIFY FAILED: WABA2 $LATEST environment restore failed: {exc.response['Error']['Code']}")
-        return "failed"
 
     print(f"    {ALIAS}: v{alias_version} -> v{new_version}  "
           f"(rollback: aws lambda update-alias --function-name {name} "
           f"--name {ALIAS} --function-version {alias_version})")
-    if catalog_env_changed:
-        print("    catalog targets preserved: live=WABA1, $LATEST=WABA2")
     return "updated"
 
 
@@ -352,7 +264,8 @@ def main() -> int:
 
     lam = client()
 
-    targets = args.functions or functions_with_live_alias(lam)
+    targets = args.functions or [name for name in functions_with_live_alias(lam)
+                                 if name not in {'wecare-ai-generate-response', 'wecare-meta-catalog-sync'}]
     if not targets:
         print("no functions with a `live` alias found")
         return 0

@@ -382,7 +382,7 @@ export const IAM_POLICIES = {
         ],
         Resource: [
           'ai-query-kb', 'billing', 'bulk-worker', 'checkout', 'commerce',
-          'inbound-whatsapp', 'meta-catalog-sync', 'outbound-email', 'outbound-sms',
+          'inbound-whatsapp', 'outbound-email', 'outbound-sms',
           'outbound-whatsapp', 'razorpay-webhook', 'rcs-send', 'scheduled-messages', 'secure-files',
           'service-requests', 'sms-aws', 'voice-aws', 'voice-cdr-read', 'whatsapp-business-api',
           'whatsapp-voice',

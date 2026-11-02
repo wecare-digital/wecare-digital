@@ -17,7 +17,7 @@ meta-catalog-sync _native_products):
 Item attrs (schemaless, written by the seed): title, slug, priceMinor (int paise),
 currency, inventory, variants[], categories[], imageRefs[], tagline,
 descriptionHtml, status, sourceId, updatedAt. A DynamoDB stream (NEW_AND_OLD_IMAGES)
-is enabled so product changes drive meta-catalog-sync.
+is retained for native consumers; retired Meta publishing has no mapping.
 
 Usage:
     python scripts/provision_products_table.py            # dry run (default)

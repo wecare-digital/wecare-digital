@@ -1,21 +1,12 @@
 {
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 74,
-  "_variables": 525,
-  "_aliases": 2,
-  "_alias_variables": 4,
+  "_functions": 72,
+  "_variables": 496,
+  "_aliases": 0,
+  "_alias_variables": 0,
   "_fingerprinted": 22,
-  "aliases": {
-    "wecare-meta-catalog-sync:live": {
-      "META_CATALOG_ID": "1457045652952851",
-      "META_TOKEN_FIELD": "access_token"
-    },
-    "wecare-meta-catalog-sync:waba2": {
-      "META_CATALOG_ID": "1317472650427643",
-      "META_TOKEN_FIELD": "access_token_waba2"
-    }
-  },
+  "aliases": {},
   "functions": {
     "stack-wecare-url-shortener": {
       "LINK_CLICKS_TABLE": "stack-wecare-digital-LinkClicksTable",
@@ -349,20 +340,6 @@
       "S3_BUCKET": "wecare-digital-get"
     },
     "wecare-meta-business-agent": {},
-    "wecare-meta-catalog-sync": {
-      "CATALOG_SOURCE": "aws",
-      "LOG_LEVEL": "INFO",
-      "META_CATALOG_APPROVALS_TABLE": "stack-wecare-digital-AgentApprovalsTable",
-      "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
-      "META_CATALOG_AUTO_APPLY_SAFE": "false",
-      "META_CATALOG_ID": "1317472650427643",
-      "META_CATALOG_SYNC_DRY_RUN": "false",
-      "META_CATALOG_SYNC_ENABLED": "true",
-      "META_CATALOG_SYNC_VARIANT_IDS": "",
-      "META_TOKEN_FIELD": "access_token_waba2",
-      "META_TOKEN_SECRET": "wecare/meta-system-user-token",
-      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable"
-    },
     "wecare-native-catalog-admin": {
       "AUTH_SKIP_PATHS": "sha256:e3b0c44298fc",
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",

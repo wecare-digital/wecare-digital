@@ -62,7 +62,6 @@ const CODE_ASSETS: CodeAsset[] = [
 
   // ── AI Lambdas ──
   { id: 'lambda-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query the static FAQ knowledge base for contextual responses.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'lambda' },
-  { id: 'lambda-ai-gen', category: 'AI', name: 'AI Generate Response', description: 'Generate AI responses using Bedrock Claude — context-aware, multi-turn.', path: 'amplify/functions/ai/ai-generate-response/handler.py', type: 'lambda' },
   { id: 'lambda-ai-config', category: 'AI', name: 'AI Config Management', description: 'AI configuration — system prompts, model settings, knowledge base config.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'lambda' },
   { id: 'lambda-agent', category: 'AI', name: 'Agent Action Group', description: 'Governed internal agent action handler exposed through the authenticated AI route.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'lambda' },
 

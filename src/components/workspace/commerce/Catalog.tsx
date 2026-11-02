@@ -40,20 +40,11 @@ interface NativeProduct {
   metaEnabled?: boolean;
   categories?: string[];
 }
-type Tab = 'products' | 'meta';
+type Tab = 'products';
 type VariantDraft = { price: string; label: string };
 
 const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api')
   .replace(/\/$/, '') + '/native-catalog/products';
-const LEGACY_CATALOG_IMAGE_PREFIX = 'secure/public/catalog-deploy/catalog/products/';
-const CANONICAL_CATALOG_IMAGE_PREFIX = 'secure/d/public/catalog-deploy/catalog/products/';
-const CATALOG_MEDIA_BASE = 'https://wecare.digital/api/catalog-media/';
-const APPROVED_28_CATALOG_PROMOTIONS = [
-  { id: 'native:elsewhere-activities', title: 'Activities' },
-  { id: 'native:ritual-guru-ritva', title: 'Ritva' },
-  { id: 'native:vayulok', title: 'VayuLok' },
-] as const;
-
 class NativeCatalogHttpError extends Error {
   status: number;
 
@@ -119,70 +110,6 @@ async function nativeCall(
   return data;
 }
 
-async function getNativeProduct(productId: string): Promise<NativeProduct> {
-  const data = await nativeCall('/' + encodeURIComponent(productId));
-  if (!data?.product) throw new Error('Invalid native product response');
-  return data.product as NativeProduct;
-}
-
-async function patchNativeProductWithRetry(
-  product: NativeProduct,
-  changes: Record<string, unknown>,
-): Promise<NativeProduct> {
-  let current = product;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const data = await nativeCall('/' + encodeURIComponent(current.id), {
-        method: 'PATCH',
-        body: JSON.stringify({
-          expectedUpdatedAt: current.updatedAt,
-          ...changes,
-        }),
-      });
-      if (!data?.product) throw new Error('Invalid native product PATCH response');
-      return data.product as NativeProduct;
-    } catch (cause) {
-      if (cause instanceof NativeCatalogHttpError && cause.status === 409 && attempt === 0) {
-        current = await getNativeProduct(current.id);
-        continue;
-      }
-      throw cause;
-    }
-  }
-  throw new Error('Catalog update did not complete');
-}
-
-async function patchNativeVariantWithRetry(
-  product: NativeProduct,
-  sku: string,
-  changes: Record<string, unknown>,
-): Promise<NativeProduct> {
-  let current = product;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const data = await nativeCall(
-        '/' + encodeURIComponent(current.id) + '/variants/' + encodeURIComponent(sku),
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            expectedUpdatedAt: current.updatedAt,
-            ...changes,
-          }),
-        },
-      );
-      if (!data?.product) throw new Error('Invalid native variant PATCH response');
-      return data.product as NativeProduct;
-    } catch (cause) {
-      if (cause instanceof NativeCatalogHttpError && cause.status === 409 && attempt === 0) {
-        current = await getNativeProduct(current.id);
-        continue;
-      }
-      throw cause;
-    }
-  }
-  throw new Error('Catalog variant update did not complete');
-}
-
 const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [tab, setTab] = useState<Tab>('products');
   const [products, setProducts] = useState<NativeProduct[]>([]);
@@ -199,7 +126,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [editCatalogImageKey, setEditCatalogImageKey] = useState('');
   const [editCanonicalPath, setEditCanonicalPath] = useState('');
   const [editWebsiteEnabled, setEditWebsiteEnabled] = useState(false);
-  const [editMetaEnabled, setEditMetaEnabled] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, VariantDraft>>({});
   const [newTitle, setNewTitle] = useState('');
   const [newSlug, setNewSlug] = useState('');
@@ -207,11 +133,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [newDescription, setNewDescription] = useState('');
   const [newCatalogImageKey, setNewCatalogImageKey] = useState('');
   const [newCanonicalPath, setNewCanonicalPath] = useState('');
-  const [metaCatalog, setMetaCatalog] = useState<api.MetaCatalogSyncControl | null>(null);
-  const [metaCatalogBusy, setMetaCatalogBusy] = useState(false);
-  const [metaCatalogMessage, setMetaCatalogMessage] = useState('');
-  const [bulkMigrationProgress, setBulkMigrationProgress] = useState('');
-  const [bulkMigrationSummary, setBulkMigrationSummary] = useState('');
 
   const reloadProducts = useCallback(async () => {
     const data = await nativeCall('');
@@ -239,7 +160,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     setEditCatalogImageKey(p.catalogImageKey || '');
     setEditCanonicalPath(p.canonicalPath || ('/shop/' + p.slug + '/'));
     setEditWebsiteEnabled(p.websiteEnabled !== false);
-    setEditMetaEnabled(p.metaEnabled !== false);
     setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
       label: v.label || 'Standard',
       price: (v.priceMinor / 100).toFixed(2),
@@ -249,339 +169,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   useEffect(() => {
     void run(async () => { await reloadProducts(); });
   }, [reloadProducts, run]);
-
-  useEffect(() => {
-    if (tab === 'meta') {
-      void run(async () => {
-        const result = await api.getMetaCatalogSyncPlan();
-        if (result.ok) setMetaCatalog(result.data);
-        else throw new Error(result.failure.message);
-      });
-    }
-  }, [tab, run]);
-
-  const promoteApprovedCatalogThree = () => {
-    void (async () => {
-      setError('');
-      setMessage('');
-      setBulkMigrationProgress('');
-      setBulkMigrationSummary('');
-
-      let current: NativeProduct[];
-      try {
-        current = await reloadProducts();
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'Catalog refresh failed');
-        return;
-      }
-
-      const byId = new Map(current.map(product => [product.id, product]));
-      const missing = APPROVED_28_CATALOG_PROMOTIONS.filter(target => !byId.has(target.id));
-      if (missing.length > 0) {
-        setError('Approved catalog rows missing: ' + missing.map(target => target.title).join(', '));
-        return;
-      }
-
-      const targets = APPROVED_28_CATALOG_PROMOTIONS.map(target => byId.get(target.id)!);
-      const badArtwork = targets.filter(product =>
-        !(product.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
-      if (badArtwork.length > 0) {
-        setError(
-          'Promotion blocked until canonical artwork exists for: ' +
-          badArtwork.map(product => product.title).join(', '),
-        );
-        return;
-      }
-
-      const pending = targets.filter(product =>
-        product.status !== 'active' ||
-        product.websiteEnabled !== true ||
-        product.metaEnabled !== true);
-
-      const ok = await confirm({
-        title: 'Publish the 3 approved catalog products?',
-        message:
-          'This explicitly promotes Activities, Ritva and VayuLok to Active, enables website ' +
-          'publication and includes them in the Meta / WhatsApp catalog plan. It also sets ' +
-          'VayuLok Standard to the approved ₹99.00 price. No other draft or price is touched. ' +
-          'Meta provider writes remain locked; the action only regenerates the read-only 28-item plan.',
-        confirmText: 'Promote 3 + prepare 28 plan',
-      });
-      if (!ok) return;
-
-      await run(async () => {
-        let promoted = 0;
-
-        let vayulok = current.find(product => product.id === 'native:vayulok');
-        if (!vayulok) throw new Error('VayuLok catalog row is missing');
-        if ((vayulok.variants || []).length !== 1) {
-          throw new Error('VayuLok must have exactly one Standard variant before price publication');
-        }
-        const vayulokVariant = vayulok.variants[0];
-        if (vayulokVariant.priceMinor !== 9900) {
-          setBulkMigrationProgress('Setting VayuLok Standard price to ₹99.00…');
-          vayulok = await patchNativeVariantWithRetry(vayulok, vayulokVariant.sku, {
-            priceMinor: 9900,
-            label: vayulokVariant.label || 'Standard',
-          });
-          const savedVariant = (vayulok.variants || []).find(v => v.sku === vayulokVariant.sku);
-          if (!savedVariant || Number(savedVariant.priceMinor) !== 9900) {
-            throw new Error('VayuLok ₹99.00 variant price readback failed');
-          }
-          current = current.map(product => product.id === vayulok!.id ? vayulok! : product);
-        }
-
-        for (const product of pending) {
-          const saved = await patchNativeProductWithRetry(product, {
-            status: 'active',
-            websiteEnabled: true,
-            metaEnabled: true,
-          });
-          if (saved.status !== 'active' ||
-              saved.websiteEnabled !== true ||
-              saved.metaEnabled !== true ||
-              !(saved.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)) {
-            throw new Error(product.title + ': publication readback failed');
-          }
-          promoted += 1;
-          setBulkMigrationProgress(
-            'Approved promotion ' + promoted + '/' + pending.length + ': ' + saved.title,
-          );
-        }
-
-        current = await reloadProducts();
-        const failed = APPROVED_28_CATALOG_PROMOTIONS
-          .map(target => current.find(product => product.id === target.id))
-          .filter(product =>
-            !product ||
-            product.status !== 'active' ||
-            product.websiteEnabled !== true ||
-            product.metaEnabled !== true ||
-            !(product.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
-        if (failed.length > 0) {
-          throw new Error('The 3-product publication readback is incomplete.');
-        }
-        const verifiedVayuLok = current.find(product => product.id === 'native:vayulok');
-        const verifiedVayuLokVariant = verifiedVayuLok?.variants?.[0];
-        if (!verifiedVayuLok || Number(verifiedVayuLok.priceMinor) !== 9900 ||
-            Number(verifiedVayuLokVariant?.priceMinor) !== 9900) {
-          throw new Error('VayuLok must read back at ₹99.00 before Meta planning.');
-        }
-
-        setBulkMigrationProgress('Refreshing 28-item read-only Meta plan…');
-        const planResult = await api.getMetaCatalogSyncPlan();
-        if (!planResult.ok) throw new Error(planResult.failure.message);
-        const plan = planResult.data;
-        setMetaCatalog(plan);
-
-        const planHash = plan.planHash || plan.currentPlanHash || '';
-        const desiredCount = Array.isArray(plan.desiredItems) ? plan.desiredItems.length : 0;
-        if (!planHash) throw new Error('Meta inspect returned no exact plan hash');
-        if (desiredCount !== 28) {
-          throw new Error(
-            'Expected 28 desired Meta items after promotion, got ' + desiredCount + '.',
-          );
-        }
-        if ((plan.blocked || []).length > 0) {
-          throw new Error('Meta plan has blocked item(s): ' + plan.blocked?.join(', '));
-        }
-
-        setBulkMigrationSummary(
-          'Approved drafts promoted now: ' + promoted +
-          ' · VayuLok price: ₹99.00' +
-          ' · Desired Meta items: ' + desiredCount +
-          ' · Plan create/update/retire/foreign: ' +
-          Number(plan.counts?.create || 0) + '/' +
-          Number(plan.counts?.update || 0) + '/' +
-          Number(plan.counts?.retire || 0) + '/' +
-          Number(plan.counts?.foreign || 0) +
-          ' · PLAN_HASH=' + planHash +
-          ' · Provider writes: none',
-        );
-        setMessage(
-          '28-item catalog plan prepared. The previous 25-item approval is stale; approve only this new exact plan.',
-        );
-        setBulkMigrationProgress('');
-      });
-    })();
-  };
-
-  const runBulkCatalogMigration = () => {
-    void (async () => {
-      setError('');
-      setMessage('');
-      setBulkMigrationProgress('');
-      setBulkMigrationSummary('');
-
-      let initial: NativeProduct[];
-      try {
-        initial = await reloadProducts();
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'Catalog refresh failed');
-        return;
-      }
-
-      const legacy = initial.filter(p =>
-        (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
-      const eligibleAfterMigration = initial.filter(p =>
-        p.status === 'active' &&
-        p.websiteEnabled === true &&
-        (
-          (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX) ||
-          (p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)
-        ));
-      const metaToEnable = eligibleAfterMigration.filter(p => p.metaEnabled !== true);
-
-      const ok = await confirm({
-        title: 'Run bulk catalog release migration?',
-        message:
-          'Admin-only operation. It will migrate ' + legacy.length +
-          ' legacy artwork key(s), enable Meta on up to ' + metaToEnable.length +
-          ' active website product(s) with approved artwork, verify readback, then refresh the ' +
-          'read-only Meta plan. It will NOT approve or apply the Meta provider plan.',
-        confirmText: 'Run bulk migration',
-      });
-      if (!ok) return;
-
-      await run(async () => {
-        try {
-          let current = await reloadProducts();
-          const legacyRows = current.filter(p =>
-            (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
-
-          let migrated = 0;
-          for (const product of legacyRows) {
-            const oldKey = product.catalogImageKey || '';
-            const filename = oldKey.slice(LEGACY_CATALOG_IMAGE_PREFIX.length);
-            const newKey = CANONICAL_CATALOG_IMAGE_PREFIX + filename;
-            const saved = await patchNativeProductWithRetry(product, { catalogImageKey: newKey });
-            const expectedUrl = CATALOG_MEDIA_BASE + filename;
-            if (saved.catalogImageKey !== newKey || (saved.imageRefs || []).length !== 1 ||
-                saved.imageRefs?.[0] !== expectedUrl) {
-              throw new Error(product.title + ': artwork readback did not match the canonical key');
-            }
-            migrated += 1;
-            setBulkMigrationProgress(
-              'Artwork migration ' + migrated + '/' + legacyRows.length + ': ' + saved.title,
-            );
-          }
-
-          current = await reloadProducts();
-          const legacyLeft = current.filter(p =>
-            (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
-          if (legacyLeft.length > 0) {
-            throw new Error(
-              'Bulk migration stopped: ' + legacyLeft.length + ' legacy artwork key(s) remain.',
-            );
-          }
-
-          const eligible = current.filter(p =>
-            p.status === 'active' &&
-            p.websiteEnabled === true &&
-            (p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
-          const metaRows = eligible.filter(p => p.metaEnabled !== true);
-
-          let metaEnabled = 0;
-          for (const product of metaRows) {
-            const saved = await patchNativeProductWithRetry(product, { metaEnabled: true });
-            if (saved.metaEnabled !== true) {
-              throw new Error(product.title + ': metaEnabled readback failed');
-            }
-            metaEnabled += 1;
-            setBulkMigrationProgress(
-              'Meta enablement ' + metaEnabled + '/' + metaRows.length + ': ' + saved.title,
-            );
-          }
-
-          current = await reloadProducts();
-          const invalidPublished = current.filter(p =>
-            p.metaEnabled === true &&
-            (
-              p.status !== 'active' ||
-              !(p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)
-            ));
-          if (invalidPublished.length > 0) {
-            throw new Error(
-              'Bulk migration stopped: Meta-enabled rows include draft or noncanonical products: ' +
-              invalidPublished.map(p => p.title).join(', '),
-            );
-          }
-
-          setBulkMigrationProgress('Refreshing read-only Meta plan…');
-          const planResult = await api.getMetaCatalogSyncPlan();
-          if (!planResult.ok) throw new Error(planResult.failure.message);
-          const plan = planResult.data;
-          setMetaCatalog(plan);
-
-          const planHash = plan.planHash || plan.currentPlanHash || '';
-          if (!planHash) throw new Error('Meta inspect returned no exact plan hash');
-
-          const foreignCount = Number(plan.counts?.foreign || 0);
-          if (Array.isArray(plan.existingItems) && plan.existingItems.length > 0) {
-            const wixForeign = plan.existingItems.filter(item =>
-              String(item?.retailer_id || '').toLowerCase().startsWith('wix:')).length;
-            if (foreignCount !== wixForeign) {
-              throw new Error(
-                'Meta foreign-item readback is not exclusively the preserved wix: namespace.',
-              );
-            }
-          }
-
-          const blocked = plan.blocked || [];
-          setBulkMigrationSummary(
-            'Artwork migrated: ' + migrated +
-            ' · Legacy keys remaining: 0' +
-            ' · Meta enabled now: ' + metaEnabled +
-            ' · Plan create/update/retire/foreign: ' +
-            Number(plan.counts?.create || 0) + '/' +
-            Number(plan.counts?.update || 0) + '/' +
-            Number(plan.counts?.retire || 0) + '/' +
-            foreignCount +
-            ' · PLAN_HASH=' + planHash +
-            ' · Provider writes: none',
-          );
-          if (blocked.length > 0) {
-            throw new Error('Meta plan has blocked item(s): ' + blocked.join(', '));
-          }
-          setMessage(
-            'Bulk catalog migration verified. Review the exact Meta plan below before proposing it.',
-          );
-        } finally {
-          setBulkMigrationProgress('');
-        }
-      });
-    })();
-  };
-
-  // THE META CATALOG APPROVAL GATE. Publishing to Meta is owner-gated by an EXACT-PLAN approval:
-  // a plan is proposed against its hash, approved against that same hash, and only then can Apply
-  // run - and even then only when the release gates (enabled + not dry-run) are open. This mirrors
-  // the server contract in meta_catalog_sync.py; the browser never supplies an approver identity.
-  const runMetaCatalogAction = async (action: 'propose' | 'approve' | 'apply' | 'readback') => {
-    const planHash = metaCatalog?.planHash || metaCatalog?.currentPlanHash || '';
-    if (action !== 'propose' && !planHash) {
-      setMetaCatalogMessage('Refresh the live plan before continuing.');
-      return;
-    }
-    setMetaCatalogBusy(true);
-    setMetaCatalogMessage('');
-    const result = await api.controlMetaCatalogSync(action, action === 'propose' ? undefined : planHash);
-    if (result.ok) {
-      setMetaCatalog(prev => ({ ...(prev || {} as api.MetaCatalogSyncControl), ...result.data }));
-      setMetaCatalogMessage(
-        action === 'propose' ? 'Proposal recorded against this exact plan.' :
-          action === 'approve' ? 'Exact plan approved. Release gates remain unchanged.' :
-            action === 'apply' ? 'Apply submitted. Use Readback to verify provider state.' :
-              'Provider readback refreshed.');
-    } else {
-      setMetaCatalogMessage(result.failure.message);
-      // A 409 may carry useful server state, but apiCallResult normalises failures. Refresh so the
-      // operator sees the current plan rather than acting on stale UI.
-      const fresh = await api.getMetaCatalogSyncPlan();
-      if (fresh.ok) setMetaCatalog(fresh.data);
-    }
-    setMetaCatalogBusy(false);
-  };
 
   const updateProduct = () => {
     if (!selected) return;
