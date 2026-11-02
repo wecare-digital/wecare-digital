@@ -17,6 +17,7 @@ export interface CheckoutQuoteCharges {
   convenienceGstPaise: number;
   totalPaise: number;
   discountLabel?: string;
+  deliveryLabel?: 'Delivery' | 'Express';
 }
 export interface CheckoutQuote {
   currency: 'INR';
@@ -64,6 +65,10 @@ export function parseCheckoutQuote ( body: unknown ): CheckoutQuote | null {
         + charges.convenienceGstPaise !== charges.totalPaise ) return null;
   if ( typeof c.discountLabel === 'string' ) {
     charges.discountLabel = c.discountLabel.slice( 0, 70 );
+  }
+  // Express is a server-owned delivery option, not inferred from the rupee amount.
+  if ( c.deliveryLabel === 'Express' || c.deliveryLabel === 'Delivery' ) {
+    charges.deliveryLabel = c.deliveryLabel;
   }
   return { currency: 'INR', items, charges };
 }
