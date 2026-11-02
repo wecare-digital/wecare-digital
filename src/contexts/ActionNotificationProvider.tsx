@@ -108,9 +108,12 @@ export function ActionNotificationProvider({
     // Public errors are persistent. Workspace errors and warnings also stay
     // readable until dismissed/replaced. Ordinary success/info lasts 5 seconds.
     const requested = options.durationMs;
-    const duration = typeof requested === 'number' && Number.isFinite(requested)
-      ? Math.min(60000, Math.max(0, requested))
-      : (type === 'error' || type === 'warning') ? 0 : 5000;
+    // Callers cannot accidentally auto-dismiss an error by passing a timeout.
+    // Processing (info) can still explicitly request durationMs: 0.
+    const duration = (type === 'error' || type === 'warning') ? 0
+      : typeof requested === 'number' && Number.isFinite(requested)
+        ? Math.min(60000, Math.max(0, requested))
+        : 5000;
     if (duration > 0) {
       timer.current = setTimeout(() => {
         if (activeId.current !== id) return;

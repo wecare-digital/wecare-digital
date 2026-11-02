@@ -95,7 +95,7 @@ type View = 'loading' | 'ready' | 'empty' | 'error';
 type Failure = 'rate' | 'unavailable';
 
 type AlertSource = 'orders' | 'link' | 'pagination' | 'invoice' | 'service' | 'copy';
-interface OrdersAlert { source: AlertSource; message: string; key?: string; }
+interface OrdersAlert { source: AlertSource; message: string; key?: string; tone?: 'info' | 'error'; }
 
 type Outcome =
   | { kind: 'ok'; data: OrdersResponse }
@@ -350,6 +350,7 @@ export default function OrdersPage (): React.ReactElement {
   const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
   const { showToast, hideToast } = usePublicToast();
   const inviteToastId = useRef( 0 );
+  const copyRequestId = useRef( 0 );
   // One actionable inline failure across invoices, Orders, invitations and copy
   // fallback. Passive refresh failures cannot bury a direct WhatsApp action error.
   const [ ordersAlert, setOrdersAlert ] = useState<OrdersAlert | null>( null );
@@ -357,7 +358,10 @@ export default function OrdersPage (): React.ReactElement {
   const inviteInFlight = useRef( false );
 
   const liveRef = useRef( true );
-  useEffect( () => () => { liveRef.current = false; }, [] );
+  useEffect( () => {
+    liveRef.current = true;
+    return () => { liveRef.current = false; };
+  }, [] );
 
   // Copy stays visible for every real order identifier. Clipboard availability
   // differs across browsers; hiding the button was hiding the fallback too.
@@ -371,18 +375,23 @@ export default function OrdersPage (): React.ReactElement {
    * the text was selected if the browser refused selection too.
    */
   const copyId = async ( value: string, index: number ) => {
+    const requestId = ++copyRequestId.current;
     setOrdersAlert( current => current?.source === 'copy' ? null : current );
     try
     {
       if ( !navigator.clipboard?.writeText ) throw new Error( 'Clipboard unavailable' );
       await navigator.clipboard.writeText( value );
+      // The user may have tapped another Copy or navigated away meanwhile.
+      if ( !liveRef.current || requestId !== copyRequestId.current ) return;
       showToast( 'success' );
     }
     catch
     {
+      if ( !liveRef.current || requestId !== copyRequestId.current ) return;
       const selected = selectText( document.getElementById( `ord-id-${ index }` ) );
       setOrdersAlert( {
         source: 'copy',
+        tone: selected ? 'info' : 'error',
         message: selected ? 'Selected. Copy with keyboard.' : publicActionText( 'failure' ),
       } );
     }
@@ -694,7 +703,7 @@ export default function OrdersPage (): React.ReactElement {
               WhatsApp-style toast belongs to PublicToastProvider, not each page. */}
           { ordersAlert && (
             <div className="ord-inline-rail">
-              <PublicNotice mode="inline" tone="error" message={ ordersAlert.message } />
+              <PublicNotice mode="inline" tone={ ordersAlert.tone ?? 'error' } message={ ordersAlert.message } />
             </div>
           ) }
 
