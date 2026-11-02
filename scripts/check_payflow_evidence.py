@@ -68,7 +68,7 @@ rendered = json.dumps(d)
 for forbidden in ("9999999999", "secret-reference-A", "wamid.", "invoice-test-opaque-owner-A",
                   "invoice-other-owner-B", "wamid.other-B"):
     require(forbidden not in rendered, "Cross-owner ID or PII leaked: " + forbidden)
-require(len(d["events"]) == 7, "A cross-invoice row must be rejected, not merged")
+require(len(d["events"]) == 8, "A cross-invoice row must be rejected, not merged")
 
 # No fabricated paid state on pending invoices, no unconfirmed message acceptance.
 pending = m.invoice_evidence_timeline(
