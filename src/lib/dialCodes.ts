@@ -2,10 +2,9 @@
  * Country dial codes, in one place.
  *
  * MOVED HERE RATHER THAN COPIED. This list already existed as a `COUNTRY_CODES` literal inside
- * src/pages/workspace/contacts/index.tsx, which is a workspace page a shopper never sees. The
- * public sign-in field needs the same entries, and a second literal would have been two lists to
- * keep in step - the kind of duplication that ends with the workspace offering a code the
- * storefront refuses. The contacts page imports from here.
+ * the former Contacts workspace, since consolidated into /workspace/customers. The
+ * public sign-in field needs the same entries; keeping a single list avoids divergence
+ * between customer sign-in and the Workspace customer editor.
  *
  * ORDER IS DELIBERATE AND NOT ALPHABETICAL. India is first because it is the store's market; the
  * rest follow broadly by how likely they are for this audience (Gulf and SE Asia before Europe,
