@@ -4170,6 +4170,64 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </div>
                         ) }
 
+
+                        {/* WeatherNext 3 model context. Google announced WeatherNext 3
+                            integration in its Maps Platform Weather API (September 2026).
+                            These are REAL Weather API rows already fetched above, not a
+                            separate WeatherNext 3 BigQuery dataset or a claim that each
+                            reading can be attributed to a particular model run. No
+                            additional API requests, credentials, or background jobs. */}
+                        { weatherHourly.length > 0 && (
+                          <section className="vl-live-wn3-outlook" aria-label={ 'WeatherNext 3 model context for ' + place.name }>
+                            <div className="vl-live-wn3-head">
+                              <h2>WeatherNext 3 in Google Forecasts</h2>
+                              <span>Model-informed outlook</span>
+                            </div>
+                            <p className="vl-live-wn3-intro">
+                              Google has integrated WeatherNext 3 into its Weather API. These next-24-hour
+                              highlights use VayuLok&apos;s existing live Google Weather forecast;
+                              the API does not identify which model produced an individual value.
+                            </p>
+                            { ( () => {
+                              const hours = weatherHourly.slice( 0, 24 );
+                              const peak = ( key: 'temp' | 'rainProb' | 'windSpeed' ): WeatherHour | null =>
+                                hours.reduce<WeatherHour | null>( ( best, hour ) => (
+                                  Number.isFinite( hour[ key ] )
+                                  && ( !best || Number( hour[ key ] ) > Number( best[ key ] ) )
+                                    ? hour
+                                    : best
+                                ), null );
+                              const hottest = peak( 'temp' );
+                              const rainiest = peak( 'rainProb' );
+                              const windiest = peak( 'windSpeed' );
+                              const rows = [
+                                hottest ? { title: 'Peak forecast temperature', value: String( hottest.temp ) + '°C', at: hottest.time } : null,
+                                rainiest ? { title: 'Highest hourly rain chance', value: String( rainiest.rainProb ) + '%', at: rainiest.time } : null,
+                                windiest ? { title: 'Strongest forecast wind', value: String( windiest.windSpeed ) + ' ' + ( windiest.windUnit || 'km/h' ), at: windiest.time } : null,
+                              ].filter( ( row ): row is { title: string; value: string; at: number } => row !== null );
+                              return rows.length ? (
+                                <ul className="vl-live-wn3-metrics" aria-label="Highlights from Google Weather API for the next 24 hours">
+                                  { rows.map( row => (
+                                    <li key={ row.title }>
+                                      <span>{ row.title }</span>
+                                      <strong data-wc-no-translate="true">{ row.value }</strong>
+                                      <small data-wc-no-translate="true">{ formatHistoryPointLabel( row.at, displayTimeZoneId, locationZoneLabel ) }</small>
+                                    </li>
+                                  ) ) }
+                                </ul>
+                              ) : null;
+                            } )() }
+                            <p className="vl-live-wn3-provenance">
+                              Source: Google Maps Platform Weather API. This is not a standalone
+                              WeatherNext 3 ensemble or BigQuery prediction. Experimental model
+                              predictions are not official weather warnings.
+                              {' '}<a href="https://deepmind.google.com/science/weatherlab" target="_blank" rel="noopener noreferrer">
+                                Explore Google&apos;s WeatherNext 3 research forecasts
+                              </a>
+                            </p>
+                          </section>
+                        ) }
+
                         {/* LAST 24 HOURS - weather history with a metric toggle. */}
                         { weatherHistory.length > 0 && (
                           <div className="vl-live-wx-history">
@@ -5122,6 +5180,20 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-placeholder strong{font-size:var(--vl-subtext-size);letter-spacing:0}
         .vl-live-map-placeholder span{font-size:var(--vl-meta-size);color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:var(--vl-meta-size);color:var(--status)}
+
+        .vl-live-wn3-outlook{display:flex;flex-direction:column;gap:12px;margin-top:var(--vl-section-gap);padding:18px;border:1px solid var(--hair);border-radius:var(--panel-r);background:var(--lime-tint)}
+        .vl-live-wn3-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+        .vl-live-wn3-head h2{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:700;line-height:1.35;letter-spacing:-.2px}
+        .vl-live-wn3-head>span{color:var(--green);font-size:var(--vl-meta-size);font-weight:700}
+        .vl-live-wn3-intro,.vl-live-wn3-provenance{margin:0;color:var(--body);font-size:var(--vl-subtext-size);line-height:1.5}
+        .vl-live-wn3-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}
+        .vl-live-wn3-metrics li{display:flex;min-width:0;flex-direction:column;gap:5px;padding:12px;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff}
+        .vl-live-wn3-metrics li>span{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
+        .vl-live-wn3-metrics li>strong{color:var(--heading);font-size:var(--vl-data-size);font-weight:700;font-variant-numeric:tabular-nums}
+        .vl-live-wn3-metrics li>small{color:var(--muted);font-size:var(--vl-meta-size)}
+        .vl-live-wn3-provenance a{color:var(--green);text-decoration:underline;text-underline-offset:3px}
+        .vl-live-wn3-provenance a:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+        @media(max-width:767px){.vl-live-wn3-outlook{padding:14px}.vl-live-wn3-metrics{grid-template-columns:1fr}.vl-live-wn3-metrics li{gap:3px}}
         .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-control-size);font-weight:var(--vl-control-weight);cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime);box-shadow:var(--vl-hover-shadow);transform:translateY(-1px)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
