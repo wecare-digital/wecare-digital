@@ -145,6 +145,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     try
     {
       const resp = await fetch( `${API_BASE}/links` );
+      if ( !resp.ok ) throw new Error( 'Links unavailable' );
       const data = await resp.json();
       setLinks( ( data.links || [] ).map( ( l: any ) => ( {
         ...l,
@@ -160,7 +161,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     {
       setLoading( false );
     }
-  }, [] );
+  }, [ toast ] );
 
   useEffect( () => { loadLinks(); }, [ loadLinks ] );
 
@@ -369,7 +370,9 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     try
     {
       const resp = await fetch( `${API_BASE}/links/${code}` );
+      if ( !resp.ok ) throw new Error( 'Link analytics unavailable' );
       const data = await resp.json();
+      if ( data?.success === false ) throw new Error( 'Link analytics unavailable' );
       setAnalyticsData( data );
       setAnalyticsCode( code );
     } catch
