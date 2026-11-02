@@ -1832,17 +1832,32 @@ def _get_auto_pickup_audio_url() -> Optional[str]:
     return DEFAULT_IVR_URL
 
 
+def _sms_sender_registered() -> bool:
+    """Check the India sender before enabling post-call SMS (no message is sent)."""
+    try:
+        result = boto3.client('pinpoint-sms-voice-v2', region_name='ap-south-1').describe_sender_ids()
+        return any(
+            item.get('SenderId') == 'WDBEEP'
+            and item.get('IsoCountryCode') == 'IN'
+            and item.get('Registered') is True
+            for item in result.get('SenderIds', [])
+        )
+    except Exception as exc:
+        logger.warning('SMS sender readiness unavailable: %s', type(exc).__name__)
+        return False
+
+
 def _is_sms_on_call_enabled() -> bool:
-    """Check if SMS-on-incoming-call is enabled via SystemConfig table. Default: True."""
+    """Check explicit SMS-on-call opt-in; default off until sender is registered."""
     try:
         table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
         result = table.get_item(Key={'id': 'whatsapp_calling_sms_on_call'})
         item = result.get('Item')
         if item:
-            return str(item.get('configValue', 'true')).lower() == 'true'
+            return str(item.get('configValue', 'false')).lower() == 'true'
     except Exception as e:
         logger.warning(f"Failed to read sms_on_call config: {e}")
-    return True  # Default: enabled
+    return False  # Default: disabled until sender registration is verified
 
 
 def _is_postcall_wa_enabled() -> bool:
@@ -2297,6 +2312,11 @@ def _update_config(event: Dict, request_id: str) -> Dict[str, Any]:
 
     sms_on_call = body.get('smsOnCall')
     if sms_on_call is not None:
+        if type(sms_on_call) is not bool:
+            return _response(400, {'error': 'smsOnCall must be a boolean'})
+        if sms_on_call and not _sms_sender_registered():
+            return _response(409, {'error': 'SMS_SENDER_NOT_REGISTERED',
+                                   'detail': 'Register and verify WDBEEP in ap-south-1 before enabling call SMS.'})
         try:
             table.put_item(Item={
                 'id': 'whatsapp_calling_sms_on_call',
