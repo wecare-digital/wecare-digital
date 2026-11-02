@@ -9,11 +9,11 @@ invoice/capture consistency have been approved and checked.
 """
 from __future__ import annotations
 
-from lambda_utils.ecommerce import checkout_pricing, default_coupon
+from lambda_utils.ecommerce import checkout_pricing, default_coupon, express_policy
 
 CATALOG_TOTAL_PAISE = 30000
 ITEM_BASE_PAISE = 23541
-EXPRESS_PAISE = 1500
+EXPRESS_PAISE = express_policy.CONTRIBUTE_EXPRESS_PAISE
 SUPPLY_GST_BPS = 1800
 POLICY = "contribute-taxable-review-2026-11-01"
 

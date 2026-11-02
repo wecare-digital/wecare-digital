@@ -89,7 +89,7 @@ def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str
 def _contribution_breakdown(catalog_gross_paise: int) -> Dict[str, int]:
     """Exact 30000-paise Contribute quote under its own taxable policy.
 
-    This does NOT borrow Vault/Drop Docs' service SKU or their Rs25 Express
+    This does NOT borrow Vault/Drop Docs' service SKU or their Rs45 Express
     policy. Product catalog stores the gross 30000 paise while the mandatory
     native payment lines transparently reconcile back to that same total.
     A missing/drifting price fails closed instead of silently repricing.

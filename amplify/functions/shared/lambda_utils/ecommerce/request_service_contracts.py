@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Optional
 
+from lambda_utils.ecommerce import express_policy
+
 NATIVE_PAY_TEMPLATE = "wecare_whatapp_native_pay_template"
 INVOICE_TEMPLATE = "wecare_default_invoice_image_template"
 ORDER_DETAILS_THUMBNAIL_KEY = (
@@ -42,7 +44,7 @@ class RequestServiceContract:
     one_payment_one_fulfillment: bool = True
     catalog_visible: bool = False
     supply_gst_bps: int = 0
-    express_paise: int = 0
+    express_paise: int = express_policy.STANDARD_EXPRESS_PAISE
     pay_template: str = NATIVE_PAY_TEMPLATE
     invoice_template: str = INVOICE_TEMPLATE
     order_details_thumbnail_key: str = ORDER_DETAILS_THUMBNAIL_KEY
@@ -70,7 +72,7 @@ _CONTRACTS = (
         sku="RDD9P3M7",
         flow_capability="drop_docs",
         supply_gst_bps=1800,
-        express_paise=2500,
+        express_paise=express_policy.STANDARD_EXPRESS_PAISE,
     ),
     RequestServiceContract(
         service_code="VAULT",
@@ -80,7 +82,7 @@ _CONTRACTS = (
         flow_capability="",
         fulfillment_kind="secure_download",
         supply_gst_bps=1800,
-        express_paise=2500,
+        express_paise=express_policy.STANDARD_EXPRESS_PAISE,
     ),
     RequestServiceContract(
         service_code="REQUEST_PICKUP",

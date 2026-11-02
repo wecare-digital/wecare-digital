@@ -15,13 +15,13 @@
 
 /** Payment status labels, keyed on the canonical payment word. */
 export const PAYMENT_STATUS_LABEL: Readonly<Record<string, string>> = {
-  captured: 'Paid',
+  captured: 'Payment captured',
   authorized: 'Payment held',
-  pending: 'Payment confirming',
+  pending: 'Awaiting confirmation',
   created: 'Started',
-  failed: 'Not paid',
-  refunded: 'Refunded',
-  disputed: 'Under review',
+  failed: 'Payment unsuccessful',
+  refunded: 'Refund issued',
+  disputed: 'Payment disputed',
 };
 
 /** The one-line explanation shown beside a payment status that needs one. */
@@ -37,7 +37,7 @@ export const PAYMENT_STATUS_NOTE: Readonly<Record<string, string>> = {
 /** Fulfilment status labels, keyed on Meta's order_status word. */
 export const FULFILMENT_STATUS_LABEL: Readonly<Record<string, string>> = {
   // Not a payment word: a paid order is `pending` here until work starts, and the payment line
-  // beside it already says Paid. "Awaiting payment" contradicted it.
+  // beside it already reports the captured payment. "Awaiting payment" contradicted it.
   pending: 'Order received',
   processing: 'Being prepared',
   'partially-shipped': 'Partly shipped',
