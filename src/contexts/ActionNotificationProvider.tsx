@@ -95,7 +95,11 @@ export function ActionNotificationProvider({
   ): number => {
     const normalized = normalizeActionNotification(message, type);
     if (!normalized) return 0;
-    if (options.ownerId !== undefined && options.ownerId !== activeId.current) return 0;
+    // 0 is the "no pending toast" sentinel, never a valid action owner.
+    // Otherwise idle state could mistakenly admit a result with ownerId: 0.
+    if (options.ownerId !== undefined
+      && (!Number.isSafeInteger(options.ownerId) || options.ownerId < 1
+        || options.ownerId !== activeId.current)) return 0;
     stopTimer();
     const id = ++nextId.current;
     activeId.current = id;
