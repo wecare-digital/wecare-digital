@@ -8,7 +8,7 @@ import Link from 'next/link';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { fetchServicePrices, type ServicePaymentTemplates } from '../../../lib/servicePricing';
-import { parseVaultJourney, type VaultRegistryJourney } from '../service/VaultJourneyPreview';
+import { parseVaultJourney, type VaultRegistryJourney } from './VaultJourneyPreview';
 import PaymentTemplateMedia from './PaymentTemplateMedia';
 
 const CONFIG_KEY = 'vault_delivery_timing_v1';

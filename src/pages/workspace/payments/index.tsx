@@ -22,7 +22,7 @@ import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../..
 
 interface PageProps { signOut?: () => void; user?: any; }
 
-const VaultWorkbench = dynamic( () => import('../../../components/workspace/service/SecureFiles'), { ssr: false } );
+const VaultWorkbench = dynamic( () => import('../../../components/workspace/pay/VaultWorkbench'), { ssr: false } );
 const VaultDeliveryTiming = dynamic( () => import('../../../components/workspace/pay/VaultDeliveryTiming'), { ssr: false } );
 const ContributePaymentPlan = dynamic( () => import('../../../components/workspace/pay/ContributePaymentPlan'), { ssr: false } );
 

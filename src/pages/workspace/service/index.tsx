@@ -33,7 +33,7 @@ import ServicePriceOverview from '../../../components/workspace/service/ServiceP
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const SecureFiles = dynamic(
-  () => import('../../../components/workspace/service/SecureFiles'),
+  () => import('../../../components/workspace/pay/VaultWorkbench'),
   { ssr: false },
 );
 const CustomerDropDocs = dynamic(
@@ -41,7 +41,7 @@ const CustomerDropDocs = dynamic(
   { ssr: false },
 );
 const Contribute = dynamic(
-  () => import('../../../components/workspace/service/Contribute'),
+  () => import('../../../components/workspace/pay/ContributePaymentPlan'),
   { ssr: false },
 );
 const VaultLogs = dynamic(
@@ -231,7 +231,7 @@ export default function ServicePage({ signOut, user }: PageProps) {
           <Link href="/workspace/payments?view=ledger&ledger=activity">Open payment activity</Link>
         </section>
       );
-      return <Contribute />;
+      return <Contribute workspaceView="display" />;
     }
     if (active === 'request-amendment') {
       return tab === 'ledger' ? serviceLedger('REQUEST_AMENDMENT') : pricePanel('request-amendment');
