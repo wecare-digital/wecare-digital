@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/**/*.test.mjs\"",
     "amplify": "amplify/node_modules/.bin/ampx sandbox",
     "amplify:deploy": "amplify/node_modules/.bin/ampx pipeline-deploy",
     "cap:init": "npx cap init \"Stack CRM\" digital.wecare.stackcrm --web-dir out",
