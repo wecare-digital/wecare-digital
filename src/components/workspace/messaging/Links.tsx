@@ -11,6 +11,7 @@ import SEO from '../../SEO';
 import Button from '../../ui/Button';
 import DateField from '../../ui/DateField';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useActionCopy } from '../../../hooks/useActionCopy';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
 // The link CRUD API. wecare.digital/api is now the ONLY way to reach HTTP API
@@ -114,7 +115,6 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const [ loading, setLoading ] = useState( true );
   const [ loadError, setLoadError ] = useState( false );
   const [ creating, setCreating ] = useState( false );
-  const [ copied, setCopied ] = useState<string | null>( null );
   const [ showForm, setShowForm ] = useState( false );
   const [ formUrl, setFormUrl ] = useState( '' );
   const [ formTitle, setFormTitle ] = useState( '' );
@@ -133,6 +133,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const [ analyticsData, setAnalyticsData ] = useState<any>( null );
 
   const toast = useToastContext();
+  const copyAction = useActionCopy();
   const confirm = useConfirm();
 
   const totalClicks = links.reduce( ( s, l ) => s + ( Number( l.clicks ) || 0 ), 0 );
@@ -377,12 +378,6 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     }
   };
 
-  const copyLink = ( url: string, code: string ) => {
-    navigator.clipboard.writeText( url );
-    setCopied( code );
-    setTimeout( () => setCopied( null ), 2000 );
-  };
-
   const content = (
       <div className="link-page">
         <div className="link-page-header">
@@ -436,8 +431,8 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                       <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ l.createdAt ? new Date( l.createdAt ).toLocaleDateString() : '-' }</td>
                       <td>
                         <div className="link-actions">
-                          <button className="link-act-btn" onClick={ () => copyLink( l.shortUrl, l.shortCode ) } title="Copy" aria-label="Copy link">
-                            { copied === l.shortCode ? <span style={ { fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Copied</span> : <CopyIcon /> }
+                          <button className="link-act-btn" onClick={ () => { void copyAction( l.shortUrl ); } } title="Copy" aria-label="Copy link">
+                            <CopyIcon />
                           </button>
                           <button className="link-act-btn" onClick={ () => openEdit( l ) } title="Edit" aria-label="Edit link" disabled={ lifecycle === 'RETIRED' }><EditIcon /></button>
                           <button className="link-act-btn" onClick={ () => handleAnalytics( l.shortCode ) } title="Analytics" aria-label="View analytics"><BarChartIcon /></button>
