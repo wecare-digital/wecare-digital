@@ -37,13 +37,13 @@ import os
 from typing import Dict, Optional
 
 # --- registered identity -----------------------------------------------------
-# PE / entity id and the DLT-registered header. Verified live in ap-south-1:
-# sender id WDBEEP, IN, Promotional+Transactional, Registered=True;
-# IN_SENDER_ID_REGISTRATION = COMPLETE.
+# Historical configuration identifiers, NOT evidence of a live registration.
+# On 2026-11-02 AWS returned no registered sender IDs in ap-south-1.
+# Call-triggered SMS is disabled until the approved WDBEEP identity is reverified.
 ENTITY_ID = os.environ.get("AWS_INDIA_DLT_ENTITY_ID", "1201161991108627443")
 SENDER_ID = os.environ.get("AWS_INDIA_SENDER_ID", "WDBEEP")
 
-# Sender-id DLT registration: 1405170900886606599, REGISTERED, permanent.
+# Historical sender-id registration reference; must be checked live before sending.
 SENDER_ID_REGISTRATION = "1405170900886606599"
 
 # --- approved content templates ----------------------------------------------

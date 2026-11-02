@@ -93,13 +93,12 @@ IVR_AUDIO_URL = os.environ.get('IVR_AUDIO_URL', f'{MEDIA_BASE}/{IVR_AUDIO_KEY}')
 # character for character. The operator silently drops mismatched content even
 # though the API call succeeds, so do not "improve" this copy.
 SMS_FUNCTION = os.environ.get('SMS_FUNCTION', 'wecare-sms-aws:live')
-# Post-call follow-up is ALWAYS ON. It is the only connected-call notification reaching
-# customers today, and an env value is no longer allowed to silence it: a disabled flag left
-# in a deployment was a silent way to stop every caller getting a follow-up. A deployment that
-# genuinely needs it off retires the trigger (the Phase 9 manifest work), not a kill switch.
-# The constant is kept True-by-name so the gate and logs read unchanged; the env var is no
-# longer consulted.
-POST_CALL_SMS_ENABLED = True
+# Fail closed when the regulated sender identity is unavailable. Production may
+# explicitly enable this only after checking the registered sender in AWS End User
+# Messaging and matching the DLT content. Never ignore the deployment flag: that
+# previously kept enqueueing an SMS whose sender ID did not exist in the account.
+POST_CALL_SMS_ENABLED = os.environ.get(
+    'POST_CALL_SMS_ENABLED', 'false').strip().lower() == 'true'
 DLT_TEMPLATE_KEY = os.environ.get('DLT_TEMPLATE_KEY', 'ivr-default')
 IVR_SMS_BODY = os.environ.get('IVR_SMS_BODY', (
     "Thanks for contacting WECARE.DIGITAL!\n\n"
