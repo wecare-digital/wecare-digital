@@ -1,7 +1,5 @@
-import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { RemovalPolicy, Stack } from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 
 /**
  * AWS-native product catalog table — the authoritative product catalogue
@@ -16,11 +14,10 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
  * seo-resources.ts — PAY_PER_REQUEST, point-in-time recovery, RETAIN on destroy
  * (a catalog is business data; never auto-deleted) — not an a.model().
  *
- * NOT YET WIRED. This module is a prepared, reviewable artifact. Calling
- * addCatalogResources() from backend.ts creates a billable DynamoDB table on the
- * next deploy, which is an owner-approval-gated production change. It is left
- * un-called in backend.ts on purpose; wiring it is a deliberate step in Phase 4
- * of the migration tasks.
+ * LEGACY DECLARATION, NOT THE DEPLOY PATH. ProductsTable already exists as a
+ * separately provisioned live table. addCatalogResources() remains uncalled in
+ * backend.ts: wiring it to Amplify Gen2 would attempt to create a second owner
+ * for a real table. Do not deploy this construct over the existing table.
  *
  * SHAPE. Mirrors the fields catalog_pricing.CatalogLine and the shop/meta-sync
  * consumers need:
@@ -43,8 +40,8 @@ export function addCatalogResources ( stack: Stack ) {
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         pointInTimeRecovery: true,
         removalPolicy: RemovalPolicy.RETAIN,
-        // A product-change stream drives meta-catalog-sync natively (see
-        // addCatalogStreamTrigger below).
+        // Preserve the live ProductsTable stream, but do not attach the retired
+        // Meta Commerce projection: its alias-qualified mappings were disabled.
         stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     } );
 
@@ -112,55 +109,4 @@ export function addCartResources ( stack: Stack ) {
     } );
 
     return { table };
-}
-
-/**
- * NATIVE CATALOG-CHANGE TRIGGER — a ProductsTable write prompts a Meta catalogue re-sync.
- *
- * THE FLOW. A write to our own authoritative `ProductsTable` emits a DynamoDB stream record
- * (the table is declared with `stream: NEW_AND_OLD_IMAGES`). This event source mapping delivers that
- * record straight to `wecare-meta-catalog-sync`, whose `_trigger` classifies it as `ddb-stream` and
- * re-reads the whole catalogue. The trigger originates inside our own account, so there is no
- * inbound internet webhook to verify. The six-hourly EventBridge schedule stays as the backstop.
- *
- * WHY `bisectBatchOnError` + a DLQ-less retry bound. The sync is idempotent (a full re-read + diff +
- * gated write), so re-delivery is safe; a poison record must not wedge the shard, hence a bounded
- * `retryAttempts` and `bisectBatchOnError`. The meta-sync Lambda is addressed by its `live` ALIAS,
- * because an unqualified invoke would run unpublished code (see backend.ts / the lambda-snapstart
- * steering).
- *
- * NOT YET WIRED. Like addCatalogResources, this is a prepared, reviewable artifact. Calling
- * addCatalogStreamTrigger() from backend.ts creates a live event source mapping on a billable table
- * and must be deployed with owner approval. Until then the six-hourly EventBridge schedule
- * (`wecare-meta-catalog-sync-schedule`) is the only trigger. Either way, the sync's own release
- * gates (META_CATALOG_SYNC_ENABLED / META_CATALOG_SYNC_DRY_RUN) decide whether anything is written.
- */
-export const META_CATALOG_SYNC_FUNCTION_NAME =
-    process.env.META_CATALOG_SYNC_FUNCTION_NAME ?? 'wecare-meta-catalog-sync';
-
-export function addCatalogStreamTrigger (
-    stack: Stack,
-    productsTable: dynamodb.ITable,
-) {
-    // The deployed, separately-managed meta-sync Lambda, addressed by its `live` alias so the
-    // mapping invokes published code rather than $LATEST.
-    const metaSync = lambda.Function.fromFunctionAttributes( stack, 'MetaCatalogSyncRef', {
-        functionArn:
-            `arn:aws:lambda:${stack.region}:${stack.account}:function:${META_CATALOG_SYNC_FUNCTION_NAME}:live`,
-        sameEnvironment: true,
-    } );
-
-    metaSync.addEventSource( new DynamoEventSource( productsTable, {
-        startingPosition: lambda.StartingPosition.LATEST,
-        batchSize: 10,
-        maxBatchingWindow: Duration.seconds( 10 ),
-        retryAttempts: 3,
-        bisectBatchOnError: true,
-        reportBatchItemFailures: true,
-        // Only a product write should fan out; a key-only projection is enough since the sync
-        // re-reads the whole catalogue and uses the record only for correlation.
-        enabled: true,
-    } ) );
-
-    return { metaSync };
 }

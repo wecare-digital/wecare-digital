@@ -27,13 +27,14 @@ value until every sandbox recycled; that is the defect fixed in `payments/razorp
 `py/clear-text-logging-sensitive-data` tracks taint across function boundaries and has already
 failed this build twice on exactly that shape.
 
-AUTHORIZATION
--------------
-There is none, because there is no public surface: no HTTP API route, no function URL. The only
-callers are the webhook's role (one `lambda:InvokeFunction` grant, added by
-`scripts/provision_meta_catalog_sync.py` to the WEBHOOK's role) and an EventBridge schedule. Its
-own role grants exactly one secret read and CloudWatch Logs; `wecare-digital-lambda-role` is not
-touched.
+HISTORICAL INVOCATION SURFACES — RETIRED 2026-11-02
+----------------------------------------------------
+There is no public HTTP route or function URL. The formerly scheduled EventBridge rules
+were removed and both ProductsTable stream mappings to the `live` and `waba2` aliases
+were disabled. The Lambda has reserved concurrency zero. A historical webhook IAM
+invoke grant and an internal WhatsApp Business admin proxy still need separate
+dependency retirement. Retired provisioning scripts are recoverable in Git history.
+Do not re-enable this function or its stream triggers as part of a frontend release.
 """
 
 from __future__ import annotations

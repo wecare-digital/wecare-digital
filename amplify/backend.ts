@@ -15,7 +15,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  *
  * This backend defines:
  * - Auth: Cognito (existing user pool via referenceAuth)
- * - Data: DynamoDB (~58 tables via AppSync)
+ * - Data: physical DynamoDB tables independently provisioned; no live AppSync API
  * - Storage: S3 (existing bucket: wecare-digital-get, public objects under `o/` and
  *   `secure/d/public/`, gated objects under the rest of `secure/`)
  *
@@ -24,7 +24,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  * - CloudWatch Alarms, Dashboard, Log Retention
  * - Durable Admin SEO audit/log storage and Lambda
  *
- * Lambda functions (42+ Python functions) are deployed separately
+ * Lambda functions are deployed separately from the Amplify website
  * and already exist in AWS. They are not managed by Amplify Gen 2.
  */
 const backend = defineBackend( {
