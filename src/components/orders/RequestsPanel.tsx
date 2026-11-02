@@ -3,6 +3,7 @@ import { fetchMyRequests } from '../../lib/serviceRequests';
 import type { ServiceRequestRow } from '../../lib/serviceRequests';
 import { serviceByKind } from '../../config/services';
 import { useCopyFeedback } from '../../lib/useCopyFeedback';
+import { publicActionText } from '../../lib/publicActionNotices';
 import { colors, fontSize, radius, space } from '../../lib/design-tokens';
 
 /**
@@ -31,7 +32,7 @@ function dateLabel ( createdAt: number | null ): string {
 const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpired } ) => {
   const [ state, setState ] = useState<State>( 'loading' );
   const [ rows, setRows ] = useState<ServiceRequestRow[]>( [] );
-  const { canCopy, failedKey, copy } = useCopyFeedback();
+  const { canCopy, copy } = useCopyFeedback();
   const referenceKey = paidReferenceIds.join( '|' );
 
   useEffect( () => {
@@ -52,8 +53,8 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
   return (
     <section className="rqp" aria-labelledby="rqp-title">
       <h2 className="rqp-title" id="rqp-title">Your requests</h2>
-      { state === 'loading' && <p className="rqp-p" role="status">Loading your requests…</p> }
-      { state === 'failed' && <p className="rqp-p">Requests are unavailable right now.</p> }
+      { state === 'loading' && <p className="rqp-p" role="status">{ publicActionText( 'processing' ) }</p> }
+      { state === 'failed' && <p className="rqp-p" role="status">{ publicActionText( 'blocked' ) }</p> }
       { state === 'ready' && rows.length === 0 && (
         <p className="rqp-p">
           No requests yet.{ ' ' }
@@ -86,7 +87,7 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
                         Copy
                       </button>
                       <span className="rqp-hint" id={ `rqp-copy-hint-${ index }` } aria-live="polite">
-                        { failedKey === row.requestId ? 'Selected. Copy with keyboard.' : 'Copy request ID' }
+                        Copy request ID
                       </span>
                     </span>
                   ) }
