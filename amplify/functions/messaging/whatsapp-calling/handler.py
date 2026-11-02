@@ -1515,33 +1515,13 @@ def _outbound_call(event: Dict, request_id: str) -> Dict[str, Any]:
     if not phone_number_id or (not to_number and not recipient_bsuid):
         return _response(400, {'error': 'phoneNumberId and to (or recipientBsuid) required'})
 
-    # Send a free-form call permission request (interactive). Per Meta docs this is only
-    # valid inside an open 24h customer service window; outside it, a pre-approved
-    # call_permission_request *template* is required instead.
+    # Direct interactive call-permission prompts were retired with the other
+    # standalone interactive sends. Calls with previously granted permission remain.
     if action == 'permission_request':
-        body_text = (body.get('bodyText') or 'May we call you on WhatsApp to help with your query?').strip()
-        perm_interactive = {
-            'type': 'call_permission_request',
-            'action': {'name': 'call_permission_request'},
-        }
-        if body_text:
-            perm_interactive['body'] = {'text': body_text[:1024]}
-        perm_payload = {
-            'messaging_product': 'whatsapp',
-            'recipient_type': 'individual',
-            'to': to_number,
-            'type': 'interactive',
-            'interactive': perm_interactive,
-        }
-        if recipient_bsuid:
-            perm_payload['recipient'] = recipient_bsuid
-        result = _meta_api_call(f"{phone_number_id}/messages", 'POST', perm_payload, phone_number_id=phone_number_id)
-        ok = not result.get('error')
-        if ok:
-            logger.info(f"call_permission_request sent to {mask_phone(to_number)} via {phone_number_id}")
-        else:
-            logger.error(f"call_permission_request failed to {mask_phone(to_number)}: {json.dumps(result)[:500]}")
-        return _response(200, {'success': ok, 'action': 'permission_request', 'result': result})
+        return _response(410, {
+            'error': 'DIRECT_INTERACTIVE_RETIRED',
+            'message': 'Use an approved call-permission template; none was sent.',
+        })
 
     # Check the current call-permission state for a business+user pair (GET /call_permissions).
     if action == 'check_permission':
@@ -1697,7 +1677,7 @@ IVR_SMS_CONTENT = (
 # WhatsApp follow-up sends this plain text instead of an interactive menu. The
 # wording is shared verbatim with the inbound handler's MENU_PLACEHOLDER_TEXT,
 # as a separate module-level copy because the two Lambdas share no module.
-MENU_PLACEHOLDER_TEXT = "We're refreshing our menu - please type *menu* and we'll help you."
+MENU_PLACEHOLDER_TEXT = "Our old WhatsApp menu is retired. Visit https://wecare.digital/ for services, or tell us what you need here."
 
 # Order SMS. Body must match approved DLT template wd_order character for
 # character; the key is ORDER_SMS_DLT_TEMPLATE_KEY above.
