@@ -36,7 +36,7 @@ _NOT_PREPARED = frozenset({
     'WHATSAPP_IDENTITY_REQUIRED', 'PAYMENT_SENDER_NOT_PERMITTED',
     'CATALOG_SERVICE_INTENT_UNAVAILABLE', 'CATALOG_SERVICE_UNAVAILABLE',
     'NATIVE_SERVICE_ROLLOUT_DISABLED', 'NATIVE_SERVICE_META_NOT_READY',
-    'NATIVE_SERVICE_WRITEBACK_NOT_READY',
+    'NATIVE_SERVICE_WRITEBACK_NOT_READY', 'VAULT_QUOTE_CHANGED',
 })
 #: `_create` answers that leave no payable message on the customer's phone.
 _NOT_SENT = _NOT_PREPARED | {'PAYMENT_REQUEST_NOT_SENT', 'PAYMENT_REQUEST_REFUSED',
@@ -141,6 +141,8 @@ def _payment_outcome(result):
         body = json.loads(result.get('body') or '{}')
     except (TypeError, ValueError):
         body = {}
+    if body.get('error') == 'QUOTE_CHANGED':
+        return 'VAULT_QUOTE_CHANGED'
     if code == 200:
         return str(body.get('status') or 'PAYMENT_REQUEST_SENT')
     if code == 502:
@@ -597,6 +599,9 @@ def _send_native_payment(event, client, db, keys, contacts, now):
 
     variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
     token = secrets.token_urlsafe(24)
+    expected_total = event.get('expectedTotalPaise')
+    if expected_total is not None and (type(expected_total) is not int or expected_total <= 0):
+        return {'outcome': 'VAULT_QUOTE_CHANGED'}
     row = {
         'orderId': catalog.SESSION_PREFIX + token,
         'token': token,
@@ -617,6 +622,7 @@ def _send_native_payment(event, client, db, keys, contacts, now):
         'origin': 'STAFF_VAULT',
         'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
         'paymentItemDescription': description,
+        **({'expectedTotalPaise': expected_total} if expected_total is not None else {}),
     }
     try:
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')

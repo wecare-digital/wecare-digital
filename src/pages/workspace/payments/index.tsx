@@ -14,7 +14,6 @@ import SEO from '../../../components/SEO';
 import PageShell from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
 import PaymentsActivity from '../../../components/workspace/pay/PaymentsActivity';
-import CollectOverview from '../../../components/workspace/pay/CollectOverview';
 import InvoiceRecords from '../../../components/workspace/pay/InvoiceRecords';
 import PaymentTemplateMedia from '../../../components/workspace/pay/PaymentTemplateMedia';
 import { SERVICE_CHOICES, type ServiceChoice, type ServiceSlug } from '../../../config/services';
@@ -37,21 +36,6 @@ const SECTION_OPTIONS: {value: PaymentSection; label: string}[] = [
   {value: 'vault', label: 'Vault'},
   {value: 'contribute', label: 'Contribute'},
 ];
-const SECTION_DETAILS: Record<PaymentSection, {summary: string; display: string; create: string; ledger: string}> = {
-  collect: {summary: 'Invoices and customer payments', display: 'Invoice overview',
-    create: 'New or saved invoice · approved Review & Pay', ledger: 'Invoices and payment activity'},
-  vault: {summary: 'Private files and paid access', display: 'Private-file register and delivery evidence',
-    create: 'Verified upload · exact-file payment · paid access link', ledger: 'Vault invoices and delivery history'},
-  contribute: {summary: 'A server-priced ₹300 catalog order', display: 'Live ₹300 quote',
-    create: 'Admin-controlled payment request', ledger: 'Commerce orders and payment evidence'},
-};
-
-const WORK_TABS: {value: PaymentTab; label: string}[] = [
-  {value: 'display', label: 'Display'},
-  {value: 'create', label: 'Create'},
-  {value: 'ledger', label: 'Ledger'},
-];
-
 function one(raw: string | string[] | undefined): string {
   return Array.isArray(raw) ? (raw[0] || '') : (raw || '');
 }
@@ -65,7 +49,7 @@ function ledgerMode(rawView: string | string[] | undefined,
 }
 
 /** A bookmark's old meaning wins when no new tab was supplied.
- * The bare canonical page opens Collect / Display.
+ * The bare canonical page opens the live Collect workbench.
  */
 export function resolvePaymentsLocation(
   viewRaw: string | string[] | undefined,
@@ -90,7 +74,7 @@ export function resolvePaymentsLocation(
       ? tab : 'create';
     return {section: view, tab: chosenTab, legacy: null};
   }
-  return {section: 'collect', tab: 'display', legacy: null};
+  return {section: 'collect', tab: 'create', legacy: null};
 }
 
 const money = ( paise: number | undefined ): string =>
@@ -181,8 +165,8 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
     void router.push({pathname: '/workspace/payments', query});
   };
   const changeSection = (next: PaymentSection) => {
-    // Switching sections starts with its read-only overview.
-    navigate({view: next, tab: 'display', ...(showFramework ? {panel: 'framework'} : {})});
+    // Open the live workbench immediately; preserve the message inspector when selected.
+    navigate({view: next, tab: showFramework ? 'display' : 'create', ...(showFramework ? {panel: 'framework'} : {})});
   };
   const goLedger = (next: LedgerView) => {
     const query: Record<string, string> = {
@@ -205,53 +189,11 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
     navigate({view: 'collect', tab: 'create', preset: choice.slug});
   };
 
-  const nav = (
-    <div className="pay-flow-navigation" aria-label="Pay and Flow navigation">
-      <div className="pay-flow-sections" role="group" aria-label="Payment section">
-        {SECTION_OPTIONS.map(option => (
-          <button key={option.value} type="button" aria-pressed={section === option.value}
-            className={section === option.value ? 'selected' : ''}
-            onClick={() => changeSection(option.value)}>
-            <strong>{option.label}</strong>
-            <span>{SECTION_DETAILS[option.value].summary}</span>
-          </button>
-        ))}
-      </div>
-      <div className="pay-framework-link">
-        <Link href={{pathname: '/workspace/payments', query: {view: section, tab: 'display', panel: 'framework'}}}
-          aria-current={showFramework ? 'page' : undefined}>Framework · templates, order, timing, inputs and gaps</Link>
-      </div>
-      <nav className="pay-flow-work-tabs" aria-label={`${section} workspace views`}>
-        {WORK_TABS.map(option => (
-          <Link key={option.value}
-            href={{pathname: '/workspace/payments', query: {view: section, tab: option.value}}}
-            aria-current={!showFramework && tab === option.value ? 'page' : undefined}
-            className={!showFramework && tab === option.value ? 'active' : ''}>
-            <strong>{option.label}</strong>
-            <span>{SECTION_DETAILS[section][option.value]}</span>
-          </Link>
-        ))}
-      </nav>
-      <style jsx>{`
-        .pay-flow-navigation{width:100%;max-width:1340px;display:grid;gap:16px;padding:2px 0 18px;min-width:0}
-        .pay-framework-link :global(a){display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);background:var(--surface);text-decoration:none;font-size:12px;font-weight:750}
-        .pay-framework-link :global(a[aria-current=page]){background:var(--lime);border-color:var(--accent)}
-        .pay-framework-link :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
-        .pay-flow-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-        .pay-flow-sections button{display:grid;gap:7px;min-width:0;min-height:92px;text-align:left;padding:16px;border:1px solid var(--border);border-radius:13px;background:var(--surface);color:var(--text-primary);font:inherit;cursor:pointer}
-        .pay-flow-sections button.selected{background:var(--lime);border-color:var(--accent)}
-        .pay-flow-sections strong{font-size:17px}
-        .pay-flow-sections span,.pay-flow-work-tabs span{font-size:12px;line-height:1.5;color:var(--text-muted);overflow-wrap:anywhere}
-        .pay-flow-work-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;border:1px solid var(--border);padding:5px;background:var(--bg-secondary);border-radius:13px}
-        .pay-flow-work-tabs :global(a){display:grid;align-content:start;gap:5px;min-width:0;min-height:76px;box-sizing:border-box;border:1px solid transparent;border-radius:9px;text-decoration:none;color:var(--text-primary);padding:12px}
-        .pay-flow-work-tabs :global(a.active){border-color:var(--border);background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.06)}
-        .pay-flow-work-tabs strong{font-size:13px}
-        .pay-flow-sections button:hover,.pay-flow-work-tabs :global(a:hover){border-color:var(--accent)}
-        .pay-flow-sections button:focus-visible,.pay-flow-work-tabs :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
-        @media(max-width:700px){.pay-flow-sections{gap:6px}.pay-flow-sections button{padding:12px 9px;min-height:102px}.pay-flow-sections strong{font-size:14px}.pay-flow-sections span{font-size:11px}.pay-flow-work-tabs{grid-template-columns:1fr}.pay-flow-work-tabs :global(a){min-height:60px;padding:10px 12px}}
-      `}</style>
-    </div>
-  );
+  const nav = <nav className="payment-rail" aria-label="Payment sections">
+    <p className="rail-label">PAYMENTS</p>
+    {SECTION_OPTIONS.map(option=><button type="button" key={option.value} aria-pressed={section===option.value} onClick={()=>changeSection(option.value)}><strong>{option.label}</strong><small>{option.value==='collect'?'Invoices & collections':option.value==='vault'?'Files & paid access':'₹300 contribution'}</small></button>)}
+    <div className="rail-help"><strong>One customer. One request.</strong><p>Review the customer and total before confirming a WhatsApp send.</p></div>
+  </nav>;
 
   return (
     <>
@@ -259,13 +201,20 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
         description="Collect, Vault and Contribute: Display, Create and Ledger." noindex />
       <PageShell key={`${section}-${tab}`} className="payments-shell"
         title="Pay & Flow"
-        subtitle="One workspace for payment creation, verified Vault delivery and collection records."
-        tabs={[]} navigation={nav}
+        subtitle="Choose a customer, review the total and send an approved payment request."
+        tabs={[]} showChrome={false}
       >
         {() => (
-          <>
+          <div className="payment-console">
+            <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div><span>Live customer records · approved WhatsApp payments</span></header>
+            <div className="console-layout"><aside>{nav}</aside><div className="console-main">
+            <nav className="console-tools" aria-label="Payment tools">
+              <Link className={!showFramework && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'create'}}}>Workspace</Link>
+              <Link className={!showFramework && tab==='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'ledger'}}}>Records</Link>
+              <Link className={showFramework?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'display',panel:'framework'}}}>Messages &amp; timing</Link>
+            </nav>
             {showFramework ? <PaymentFramework section={section} /> : <>
-            {section === 'collect' && tab === 'display' && <CollectOverview />}
+            {section === 'collect' && tab === 'display' && <PayFlowPage signOut={signOut} user={user} embedded mode="collect" />}
             {section === 'collect' && tab === 'create' && (
               <section aria-label="Collect payment creation">
                 {legacy === 'defaults' ? (
@@ -298,7 +247,7 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
               </section>
             )}
             {section === 'vault' && tab === 'display' && (
-              <VaultWorkbench signOut={signOut} user={user} embedded workspaceView="display" />
+              <VaultWorkbench signOut={signOut} user={user} embedded workspaceView="create" />
             )}
             {section === 'vault' && tab === 'create' && (
               legacy === 'timing' ? (
@@ -391,10 +340,13 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
               </section>
             )}
             </>}
-          </>
+            </div></div>
+          </div>
         )}
       </PageShell>
       <style jsx>{`
+        .payment-console{width:100%;min-width:0;padding:22px 0 40px}.console-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 0 22px;border-bottom:1px solid var(--border);margin-bottom:22px}.console-header p,.rail-label{font-size:10px;letter-spacing:.14em;font-weight:750;color:var(--text-muted);margin:0 0 5px}.console-header h1{font-size:30px;line-height:1.1;margin:0}.console-header>span{font-size:12px;color:var(--text-muted)}.console-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:30px;align-items:start}.console-main{min-width:0}.console-tools{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 24px;border-bottom:1px solid var(--border);padding-bottom:10px}.console-tools :global(a){display:inline-flex;align-items:center;min-height:42px;padding:9px 15px;text-decoration:none;font-size:13px;color:var(--text-muted);border-radius:8px}.console-tools :global(a.current){color:var(--text-primary);background:var(--bg-secondary);font-weight:750}.payment-rail{display:grid;gap:8px}.payment-rail button{display:grid;gap:4px;text-align:left;border:1px solid transparent;padding:14px;border-radius:12px;min-height:66px;color:var(--text-primary);background:transparent;cursor:pointer;font:inherit}.payment-rail button[aria-pressed=true]{background:var(--lime);border-color:var(--accent)}.payment-rail small{font-size:11px;color:var(--text-muted)}.rail-help{margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}.rail-help strong{font-size:12px}.rail-help p{font-size:12px;color:var(--text-muted);line-height:1.6}.console-tools :global(a:focus-visible),.payment-rail button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}@media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:18px}.payment-rail{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.rail-label,.rail-help{display:none}.payment-rail button{padding:12px;min-height:58px}.console-header>span{display:none}.console-tools{margin-bottom:18px}.console-header{margin-bottom:16px;padding-bottom:16px}}@media(max-width:430px){.payment-rail button{padding:10px 7px}.payment-rail small{font-size:10px}.console-tools :global(a){padding:8px 10px;font-size:12px}}
+
         .pay-collect-create-links{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 16px}
         .pay-collect-create-links :global(a){display:inline-flex;align-items:center;min-height:44px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--surface);color:var(--text-primary);font-size:12px;font-weight:750;text-decoration:none}
         .pay-collect-create-links :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}

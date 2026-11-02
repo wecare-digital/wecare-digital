@@ -8,6 +8,7 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, CreateInvoiceEngineResult, ApiResult, SendPaymentLinkResult } from '../../../api/client';
+import FIXED_ITEMS from '../../../content/invoicePresets.json';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import { SERVICE_CHOICES, type ServiceChoice } from '../../../config/services';
@@ -23,7 +24,7 @@ interface PP {
   allowSendInInvoices?: boolean;
 }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
-interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; hsnSac: string; }
+interface IR { presetId?: string; name: string; unitPrice: string; quantity: string; gstRate: string; hsnSac: string; }
 
 /*
  * ONE ADDRESS FIELD SET, shared with the Contacts form through src/lib/address-format.ts.
@@ -376,9 +377,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   /* Loaders */
   const loadCustomers = useCallback( async () => {
     setCustLoading( true );
-    try { const c = await api.listContacts(); setCustomers( c || [] ); } catch ( e ) { console.error( e ); }
+    try { const result = await api.listContactsResult(); if (!result.ok) throw new Error(result.failure.message); setCustomers(result.data); } catch { setCustomers([]); showMsg('Customers could not be loaded. Retry the lookup.', 'error'); }
     setCustLoading( false );
   }, [] );
+  useEffect(() => {
+    if (!custSearch.trim()) return;
+    let active=true;
+    const timer=setTimeout(() => {setCustLoading(true); void api.searchContactsResult(custSearch,40).then(result=>{
+      if (!active) return;
+      if(result.ok) setCustomers(result.data); else {setCustomers([]);showMsg(result.failure.message||'Customer search failed.','error');}
+    }).catch(()=>{if(active){setCustomers([]);showMsg('Customer search could not be completed.','error');}}).finally(()=>{if(active)setCustLoading(false);});},250);
+    return()=>{active=false;clearTimeout(timer);};
+  },[custSearch]);
   const loadInvoices = useCallback( async () => {
     setInvLoading( true );
     try
@@ -464,7 +474,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   };
   const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); setCustError( '' ); };
   const saveCust = async () => {
-    if ( !editCust ) return;
+    if ( !editCust || custSaving ) return;
     if ( !custForm.name.trim() ) { setCustError( 'Enter the full name.' ); return; }
     if ( !custForm.phone.trim() ) { setCustError( 'Enter the WhatsApp number, including its country code.' ); return; }
     setCustError( '' );
@@ -536,7 +546,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
           showMsg( message, 'error' );
           return;
         }
-        showMsg( 'Customer created' );
+        if (!result.data?.id) { setCustError('No saved customer was returned. Search before retrying.'); return; }
+        setSelCustomer(result.data);
+        setCustomers(current => [result.data!, ...current.filter(c => c.id !== result.data!.id)]);
+        showMsg( 'Customer created and selected' );
       }
       closeEditCust();
       void loadCustomers();
@@ -607,6 +620,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
       landmark: a.locality,
       countryCode: a.countryCode || countryCodeForName( a.country ),
       goodsType,
+      ...(invForm.items.length===1 && invForm.items[0].presetId ? {fixedPresetId:invForm.items[0].presetId}:{}),
       items: invForm.items.map( it => ( {
         name: it.name || config.default_item_name,
         amount: parseFloat( it.unitPrice ) || 0,
@@ -1057,7 +1071,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
           { activeTab === 'customers' && (
             <div className="pf-tab-body">
               <div className="pf-toolbar">
-                <input className="search-input" placeholder="Search customers\u2026" value={ custSearch } onChange={ e => setCustSearch( e.target.value ) } />
+                <input className="search-input" placeholder="Search customers\u2026" value={ custSearch } onChange={ e => {setCustSearch(e.target.value);if(!e.target.value.trim())void loadCustomers();} } />
                 <Button variant="primary" size="sm" onClick={ () => { setEditCust( {} as Contact ); setCustForm( EMPTY_FORM ); } }>+ New Customer</Button>
                 <Button variant="secondary" size="sm" icon="refresh" loading={ custLoading } onClick={ loadCustomers }>Refresh</Button>
               </div>
@@ -1123,7 +1137,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
               { !selCustomer ? (
                 <div>
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 1 { '\u2014' } Select Customer</h3>
-                  <input className="search-input" placeholder="Search\u2026" value={ custSearch } onChange={ e => setCustSearch( e.target.value ) } style={ { marginBottom: 16, maxWidth: 400 } } />
+                  <Button variant="primary" size="sm" onClick={() => { setEditCust({}); setCustForm(EMPTY_FORM); setCustError(''); }}>New customer</Button>
+                  <Button variant="secondary" size="sm" loading={custLoading} onClick={loadCustomers}>Reload customers</Button>
+                  <input className="search-input" placeholder="Search\u2026" value={ custSearch } onChange={ e => {setCustSearch(e.target.value);if(!e.target.value.trim())void loadCustomers();} } style={ { marginBottom: 16, maxWidth: 400 } } />
                   <div className="pf-cust-grid">
                     { filteredCust.map( c => (
                       <div key={ c.id } onClick={ () => {
@@ -1138,7 +1154,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                         </div>
                       </div>
                     ) ) }
-                    { filteredCust.length === 0 && <div className="pf-empty">No customers. Create one in the Customers tab.</div> }
+                    { filteredCust.length === 0 && <div className="pf-empty">No matching customers. Use New customer above, or reload customers.</div> }
                   </div>
                 </div>
               ) : (
@@ -1194,6 +1210,12 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                       </div>
                       <Button variant="secondary" size="sm" onClick={ addItem }>+ Add item</Button>
                     </div>
+                    <div className="form-group"><label htmlFor="pf-fixed-item">Fixed invoice item</label><select id="pf-fixed-item" value={invForm.items.length===1?invForm.items[0].presetId||'':''} onChange={e=>{
+                      const preset=FIXED_ITEMS.find(p=>p.id===e.target.value);
+                      if(!preset){setInvForm(current=>({...current,shipping:String(config.default_shipping),items:[NEW_ITEM()]}));return;}
+                      if(preset.workflow!=='collect'){const service=SERVICE_CHOICES.find(s=>s.slug===preset.workflow);void router.push(preset.workflow==='contribute'||preset.workflow==='vault'?{pathname:'/workspace/payments',query:{view:preset.workflow,tab:'create'}}:service?.path||'/workspace/service?view=requests');return;}
+                      setInvForm(current=>({...current,shipping:(preset.expressPaise/100).toFixed(2),items:[{presetId:preset.id,name:preset.name,unitPrice:(preset.basePaise/100).toFixed(2),quantity:'1',gstRate:'18',hsnSac:''}]}));
+                    }}><option value="">Custom item</option>{FIXED_ITEMS.map(p=><option key={p.id} value={p.id}>{p.name} · ₹{(p.totalPayablePaise/100).toFixed(2)} final</option>)}</select><small>29 fixed items. Target-bound services open their existing workflow; Contribute opens its ₹300 payment form. The server verifies preset prices.</small></div>
                     <div className="pf-item-card-list">
                       { invForm.items.map( ( it, i ) => (
                         <div className="pf-item-card" key={ i }>
@@ -1203,16 +1225,16 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                           </div>
                           <div className="form-group pf-item-name">
                             <label htmlFor={ `pf-item-name-${i}` }>Description</label>
-                            <input id={ `pf-item-name-${i}` } type="text" value={ it.name } onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } />
+                            <input id={ `pf-item-name-${i}` } type="text" value={ it.name } disabled={!!it.presetId} onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } />
                           </div>
                           <div className="pf-item-fields">
                             <div className="form-group">
                               <label htmlFor={ `pf-item-price-${i}` }>Unit amount ({ '\u20B9' })</label>
-                              <input id={ `pf-item-price-${i}` } type="number" min="0" step="0.01" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } />
+                              <input id={ `pf-item-price-${i}` } type="number" min="0" step="0.01" value={ it.unitPrice } disabled={!!it.presetId} onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } />
                             </div>
                             <div className="form-group">
                               <label htmlFor={ `pf-item-qty-${i}` }>Qty</label>
-                              <input id={ `pf-item-qty-${i}` } type="number" min="1" step="1" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } />
+                              <input id={ `pf-item-qty-${i}` } type="number" min="1" step="1" value={ it.quantity } disabled={!!it.presetId} onChange={ e => updateItem( i, 'quantity', e.target.value ) } />
                             </div>
                             <div className="form-group">
                               <label htmlFor={ `pf-item-gst-${i}` }>GST %</label>
