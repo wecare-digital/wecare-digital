@@ -23,7 +23,7 @@ import logging
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from lambda_utils import template_media, whatsapp_templates
-from lambda_utils.ecommerce import blog_contribution, checkout_pricing, contribute_taxable, default_coupon, service_requests
+from lambda_utils.ecommerce import blog_contribution, contribute_taxable, service_requests, unified_pricing
 from lambda_utils.ecommerce.money import positive_paise
 
 logger = logging.getLogger(__name__)
@@ -59,38 +59,22 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
 
 
 def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str, int]]:
-    """Collect-style server breakdown for Vault/Drop Docs only.
+    """Public preview from the SAME unified checkout calculator, for all five services.
 
-    ProductsTable carries the pre-GST service item price for these two services. Add 18% supply
-    GST first, calculate Delight on item + supply GST, then add Express. The shared checkout
-    calculator adds the 2.5% Convenience Fee and 18% GST on that fee.
+    ProductsTable remains the base-price authority; no price is hard-coded.
+    Contribute has its own exact Rs300 gross contract and is not a request service.
     """
-    if kind not in (service_requests.VAULT, service_requests.DROP_DOCS):
+    if kind not in service_requests.SERVICE_KIND_BY_VARIANT.values():
         return None
-    supply_gst = checkout_pricing.round_half_up(item_subtotal_paise, 1800)
-    delight = default_coupon.delight_paise(item_subtotal_paise + supply_gst)
-    express = service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
-    collection = item_subtotal_paise + supply_gst - delight + express
-    quote = checkout_pricing.compute_quote(collection, currency=SERVICE_CURRENCY)
-    return {
-        "itemSubtotalPaise": item_subtotal_paise,
-        "supplyGstPaise": supply_gst,
-        "supplyGstBps": 1800,
-        "delightPaise": delight,
-        "expressPaise": express,
-        "collectionBeforeConveniencePaise": quote.collection_before_convenience_paise,
-        "convenienceFeePaise": quote.convenience_fee_paise,
-        "convenienceGstPaise": quote.convenience_gst_paise,
-        "convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS,
-        "totalPayablePaise": quote.total_payable_paise,
-    }
+    return unified_pricing.price_components(item_subtotal_paise)
+
 
 
 def _contribution_breakdown(catalog_gross_paise: int) -> Dict[str, int]:
     """Exact 30000-paise Contribute quote under its own taxable policy.
 
-    This does NOT borrow Vault/Drop Docs' service SKU or their Rs45 Express
-    policy. Product catalog stores the gross 30000 paise while the mandatory
+    This preserves Contribute's separate Rs15 Express and exact gross target
+    rather than applying the Rs45 customer-service policy. Product catalog stores the gross 30000 paise while the mandatory
     native payment lines transparently reconcile back to that same total.
     A missing/drifting price fails closed instead of silently repricing.
     """
@@ -164,12 +148,14 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
             logger.warning(json.dumps({"event": "service_price_unavailable_native",
                                        "slug": slug, "error": type(error).__name__}))
             prices[slug] = {"available": False}
-    # Track Shipping is an ordinary priced catalog SKU, NOT a service intent.
-    # Return a separate read-only item price for Workspace without inventing a
-    # paid tracking Flow, an invoice, or a sixth service in SERVICE_KIND_BY_SLUG.
+    # Track Shipping is ordinary merchandise, not a sixth request service.
+    # Its public price preview still uses the SAME per-item checkout calculator.
     try:
         paise = _variant_paise(product_reader(SHIPMENT_TRACK_SKU))
-        prices["shipments-track"] = {"available": True, "paise": paise}
+        prices["shipments-track"] = {
+            "available": True, "paise": paise,
+            "breakdown": unified_pricing.price_components(paise),
+        }
     except Exception as error:  # noqa: BLE001 - one product must not blank other prices
         logger.warning(json.dumps({"event": "shipment_track_price_unavailable_native",
                                    "error": type(error).__name__}))
