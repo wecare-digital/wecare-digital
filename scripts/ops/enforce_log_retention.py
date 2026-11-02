@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Reconcile log-group retention safely (dry-run unless --apply).
+"""Apply retention only to groups missing it (dry-run unless --apply).
 
-Use only with a scoped IAM role. No log groups, logs or filters are deleted.
+Use only with a scoped IAM role. Existing longer/shorter explicit policies are preserved. No log groups, logs or filters are deleted.
 """
 import argparse
 import json
@@ -36,7 +36,7 @@ def main():
             if name.startswith("aws-waf-logs-") or "cloudtrail" in name.lower() or "audit" in name.lower():
                 continue  # Security logs require a separate retention policy.
             required = days(name)
-            if group.get("retentionInDays") != required:
+            if group.get("retentionInDays") is None:
                 changes.append({"name": name, "current": group.get("retentionInDays"), "desired": required})
     if args.apply:
         for item in changes:
