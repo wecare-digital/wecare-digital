@@ -1550,7 +1550,7 @@ def _admin_staff_download(file_id: str, origin: str) -> Dict[str, Any]:
         return _vault_storage_unavailable(origin)
     logger.info(json.dumps({"event": "vault_staff_download_authorized", "fileId": file_id[:120]}))
     return _no_store(cors_response(
-        200, {"url": _download_url(item), "expiresInSeconds": DOWNLOAD_URL_TTL}, origin))
+        200, {"url": _download_url(item, inline=True), "expiresInSeconds": DOWNLOAD_URL_TTL}, origin))
 
 
 def _file_access_state(item: Dict[str, Any], now: int) -> str:
@@ -2456,7 +2456,7 @@ def _safe_download_filename(item: Dict[str, Any]) -> str:
     return safe
 
 
-def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
+def _download_url(item: Dict[str, Any], ttl: Optional[int] = None, *, inline: bool = False) -> str:
     """A presigned GET that downloads under the readable filename.
 
     ``ttl`` defaults to the short web value: the browser follows the redeem redirect at once.
@@ -2469,7 +2469,7 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
             # Keep content-disposition strictly ASCII, even for a legacy row with
             # arbitrary displayName. New names remain exactly wecare-digital-UUID.ext.
             "ResponseContentDisposition": (
-                f'attachment; filename="{_safe_download_filename(item)}"'
+                f'{"inline" if inline and item.get("contentType") in DELIVERABLE_TYPES else "attachment"}; filename="{_safe_download_filename(item)}"'
             ),
         },
         ExpiresIn=int(ttl or DOWNLOAD_URL_TTL),

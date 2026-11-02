@@ -115,3 +115,27 @@ def test_accepted_link_stays_unresolved_if_ready_window_transition_fails():
             'requestId': '11111111-1111-4111-8111-111111111111'})}, '')
     assert result['statusCode'] == 202
     assert row['accessResendState'] == 'LINK_ACCEPTED'
+
+
+def test_staff_pdf_preview_is_inline_but_customer_download_stays_attachment():
+    from typing import Optional
+    node = next(n for n in ast.parse(HANDLER.read_text()).body
+                if isinstance(n, ast.FunctionDef) and n.name == '_download_url')
+    calls = []
+    def sign(operation, **kwargs):
+        calls.append(kwargs)
+        return 'https://private.example/signed'
+    env = {'Dict': dict, 'Any': object, 'Optional': Optional,
+           'BUCKET': 'private-bucket', 'DOWNLOAD_URL_TTL': 60,
+           'DELIVERABLE_TYPES': {'application/pdf': 'pdf', 'image/png': 'image'},
+           '_safe_download_filename': lambda item: 'wecare-digital-id.pdf',
+           '_s3_client': lambda: SimpleNamespace(generate_presigned_url=sign)}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
+    item = {'s3Key': 'private/id.pdf', 'contentType': 'application/pdf'}
+    env['_download_url'](item)
+    env['_download_url'](item, inline=True)
+    env['_download_url'](dict(item, contentType='text/html'), inline=True)
+    assert calls[0]['Params']['ResponseContentDisposition'].startswith('attachment;')
+    assert calls[1]['Params']['ResponseContentDisposition'].startswith('inline;')
+    assert calls[2]['Params']['ResponseContentDisposition'].startswith('attachment;')
+    assert all(call['ExpiresIn'] == 60 for call in calls)
