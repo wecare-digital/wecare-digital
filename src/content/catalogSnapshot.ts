@@ -15,7 +15,6 @@ export interface CatalogSnapshotProduct {
   inStock?: boolean;
   visible?: boolean;
   descriptionHtml?: string;
-  image?: string;
   canonicalPath?: string;
   websiteEnabled?: boolean;
   metaEnabled?: boolean;

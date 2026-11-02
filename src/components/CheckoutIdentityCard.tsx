@@ -7,6 +7,8 @@ export interface CheckoutIdentity {
   username?: string;
   companyName?: string;
   designation?: string;
+  email?: string;
+  customerId?: string;
   phone: string;
   address: StoredAddress | null;
 }
@@ -74,6 +76,20 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dt>WhatsApp</dt>
           <dd><span className="identity-value">{ maskPhone( identity.phone ) }</span></dd>
         </div>
+
+        { identity.email && (
+          <div className="identity-row">
+            <dt>Email</dt>
+            <dd><span className="identity-value">{ identity.email }</span></dd>
+          </div>
+        ) }
+
+        { identity.customerId && (
+          <div className="identity-row">
+            <dt>Customer ID</dt>
+            <dd><span className="identity-value" data-wc-no-translate="true">{ identity.customerId }</span></dd>
+          </div>
+        ) }
 
         { showAddress && <div className="identity-row identity-address-row">
           <dt>Deliver</dt>
