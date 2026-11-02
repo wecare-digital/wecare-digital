@@ -3835,8 +3835,9 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     public_uuid = customer_uuid.from_contact(contact)
     if public_uuid:
         row['customerUuid'] = public_uuid
-    return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
-                   origin, catalog_session=row)
+    return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId'],
+                   **({'expectedTotalPaise': int(row['expectedTotalPaise'])}
+                      if 'expectedTotalPaise' in row else {})}, origin, catalog_session=row)
 
 
 

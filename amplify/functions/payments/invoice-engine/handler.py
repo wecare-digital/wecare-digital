@@ -973,8 +973,37 @@ def _release_unnumbered_claim(claim: Dict[str, Any], request_id: str) -> None:
                                  'error': type(err).__name__, 'requestId': request_id}))
 
 
+def _apply_fixed_invoice_preset(body: Dict) -> Dict:
+    """Resolve a staff-selected preset on the server; browser prices are not authority."""
+    preset_id = body.get('fixedPresetId')
+    if not preset_id:
+        return body
+    from pathlib import Path
+    source = Path(__file__).with_name('invoice_presets.json')
+    if not source.is_file():
+        source = Path(__file__).resolve().parents[4] / 'src/content/invoicePresets.json'
+    try:
+        presets = json.loads(source.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as error:
+        raise ValueError('Fixed item registry unavailable') from error
+    preset = next((p for p in presets if p['id'] == preset_id), None)
+    if not preset:
+        raise ValueError('Unknown fixed invoice item')
+    if preset.get('workflow') != 'collect':
+        raise ValueError('Use the dedicated Vault or Contribute workspace for this item')
+    if body.get('amountIsTaxInclusive'):
+        raise ValueError('A new fixed item cannot be supplied as a captured total')
+    return {**body, 'items': [{'name': preset['name'], 'amount': preset['basePaise'] / 100,
+            'quantity': 1, 'gstRate': 18}], 'shipping': preset['expressPaise'] / 100,
+            'gstRate': 18}
+
+
 def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     """`create_invoice` proper. Records its claim in `claim` so the wrapper can release it."""
+    try:
+        body = _apply_fixed_invoice_preset(body)
+    except ValueError as error:
+        return _resp(400, {'error': str(error), 'errorCode': 'FIXED_ITEM_INVALID'})
     now = int(time.time())
 
     # ── Deduplication: check if invoice already exists for this referenceId or paymentId ──
@@ -5501,6 +5530,11 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     invoice = table.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item')
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
+    # The approved receipt body asserts payment. Enforce this for every caller,
+    # including manual/forced resends, before any claim, render or token write.
+    if pay_status.canonical(invoice.get('paymentStatus')) != pay_status.CAPTURED:
+        return _resp(409, {'error': 'Verified captured payment required for a paid receipt',
+                           'code': 'PAID_RECEIPT_REQUIRED'})
     from lambda_utils.comms.numbers import to_e164
     try:
         recipient = to_e164(to_phone)

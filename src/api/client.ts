@@ -574,14 +574,15 @@ export interface Contact {
   consentHistory?: ConsentEvent[];
 }
 
+export async function listContactsResult (): Promise<ApiResult<Contact[]>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts` );
+  if (!result.ok) return result;
+  const contacts = Array.isArray(result.data) ? result.data : (result.data?.contacts || []);
+  return {ok: true, data: contacts.map(normalizeContact)};
+}
 export async function listContacts (): Promise<Contact[]> {
-  const data = await apiCall<any>( `${API_BASE}/contacts` );
-  if ( data )
-  {
-    const contacts = Array.isArray( data ) ? data : ( data.contacts || [] );
-    return contacts.map( normalizeContact );
-  }
-  return [];
+  const result = await listContactsResult();
+  return result.ok ? result.data : [];
 }
 
 export async function searchContactsResult ( query: string, limit = 20 ): Promise<ApiResult<Contact[]>> {
@@ -4913,6 +4914,7 @@ export interface Invoice {
 }
 
 export interface CreateInvoiceEngineRequest {
+  fixedPresetId?: string;
   customerPhone: string;
   paidByPhone?: string;
   customerEmail: string;
@@ -7539,10 +7541,12 @@ export function sendSecureFileOffer (
 
 /** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
 export function requestSecureFilePayment (
-  fileId: string, paymentItemDescription?: string,
+  fileId: string, paymentItemDescription?: string, expectedTotalPaise?: number,
 ): Promise<SecureFileActionResult> {
-  return secureFileAction( fileId, 'request-payment',
-    paymentItemDescription === undefined ? undefined : { paymentItemDescription } );
+  return secureFileAction(fileId, 'request-payment', {
+    ...(paymentItemDescription === undefined ? {} : {paymentItemDescription}),
+    ...(expectedTotalPaise === undefined ? {} : {expectedTotalPaise}),
+  });
 }
 
 /** Resend the Access Vault link for a paid file. Never charges. */

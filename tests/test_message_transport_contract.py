@@ -168,3 +168,82 @@ class VaultCapturedEvidenceTests(unittest.TestCase):
         for state in ('pending', 'failed', 'refunded', 'authorized'):
             invoice['paymentStatus'] = state
             self.assertEqual(reader(item)['invoice']['status'], 'NOT_TRACKED')
+
+class PaidReceiptGuardTests(unittest.TestCase):
+    def test_unpaid_and_refunded_receipts_refused_before_claim_even_when_forced(self):
+        from types import SimpleNamespace
+        calls = []
+        invoice = {'invoiceId': 'demo', 'paymentStatus': 'pending'}
+        def table(name):
+            calls.append(name)
+            if name != 'invoices': raise AssertionError('Delivery claim reached')
+            return SimpleNamespace(get_item=lambda **kw: {'Item': invoice})
+        sender = isolated('amplify/functions/payments/invoice-engine/handler.py',
+                          'send_invoice_whatsapp', dynamodb=SimpleNamespace(Table=table),
+                          INVOICES_TABLE='invoices', pay_status=SimpleNamespace(
+                              canonical=lambda value: str(value or '').lower(), CAPTURED='captured'))
+        for state in ('pending', 'authorized', 'failed', 'refunded', '', None):
+            for force in (False, True):
+                invoice['paymentStatus'] = state
+                result = sender('demo', 'demo-recipient', 'demo-sender', 'offline', force=force)
+                self.assertEqual(result['statusCode'], 409)
+                self.assertEqual(result['body']['code'], 'PAID_RECEIPT_REQUIRED')
+        self.assertEqual(set(calls), {'invoices'})
+
+    def test_reviewed_quote_is_refused_before_payment_when_total_changes(self):
+        tree = ast.parse(read('amplify/functions/ecommerce/checkout/handler.py'))
+        create = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_create')
+        guard = next(n for n in create.body if isinstance(n, ast.If)
+                     and isinstance(n.test, ast.Compare)
+                     and isinstance(n.test.left, ast.Constant)
+                     and n.test.left.value == 'expectedTotalPaise')
+        fn = ast.FunctionDef(name='validate', args=ast.arguments(posonlyargs=[],args=[ast.arg(arg='body'),ast.arg(arg='amount_paise')],kwonlyargs=[],kw_defaults=[],defaults=[]),body=[guard,ast.Return(value=ast.Constant(value=None))],decorator_list=[])
+        env={'cors_response':lambda status, body, origin: {'statusCode':status,'body':body},'origin':''}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[fn],type_ignores=[])),'quote-boundary','exec'),env)
+        self.assertIsNone(env['validate']({'expectedTotalPaise':8497},8497))
+        self.assertEqual(env['validate']({'expectedTotalPaise':4900},8497)['statusCode'],409)
+        for value in (True,0,-1,'8497'):
+            self.assertEqual(env['validate']({'expectedTotalPaise':value},8497)['statusCode'],400)
+
+    def test_vault_quote_change_records_no_send_attempt(self):
+        from types import SimpleNamespace
+        import io
+        sent=[]
+        def invoke(**kw):
+            sent.append(json.loads(kw['Payload']))
+            return {'Payload':io.BytesIO(b'{"outcome":"VAULT_QUOTE_CHANGED"}')}
+        start=isolated('amplify/functions/core/secure-files/handler.py','_start_native_vault_payment',
+            catalog_service_checkout=SimpleNamespace(VAULT_ITEM_DESCRIPTION_DEFAULT='Vault',valid_vault_item_description=lambda v:True),
+            _paid_marks=lambda item:False,_vault_file_storage_ready=lambda item:True,
+            _lambda_client=lambda:SimpleNamespace(invoke=invoke),BUSINESS_API_FUNCTION='business:live',
+            _no_store=lambda x:x,cors_response=lambda status,body,origin:{'statusCode':status,'body':body})
+        result=start({'fileId':'demo','ownerCustomerId':'demo-owner','ownerPhone':'demo-phone'},'UNPAID','',requested_by='staff',expected_total_paise=8497)
+        self.assertEqual(result['statusCode'],409)
+        self.assertEqual(sent[0]['expectedTotalPaise'],8497)
+
+class FixedInvoicePresetTests(unittest.TestCase):
+    def test_all_29_fixed_totals_match_canonical_fee_and_delight_math(self):
+        import importlib.util
+        from decimal import Decimal, ROUND_HALF_UP
+        presets=json.loads(read('src/content/invoicePresets.json'))
+        self.assertEqual(len(presets),29)
+        self.assertEqual(len({p['id'] for p in presets}),29)
+        def rounding(n):return int(Decimal(str(n)).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+        for p in presets:
+            with self.subTest(item=p['name']):
+                self.assertEqual(p['supplyGstPaise'],rounding(Decimal(p['basePaise'])*Decimal('0.18')))
+                # Delight floors to whole paise, capped at ₹50.
+                self.assertEqual(p['delightPaise'],min(5000,int(Decimal(p['basePaise']+p['supplyGstPaise'])*Decimal('0.005'))))
+                collection=p['basePaise']+p['supplyGstPaise']-p['delightPaise']+p['expressPaise']
+                self.assertEqual(p['convenienceFeePaise'],rounding(Decimal(collection)*Decimal('0.025')))
+                self.assertEqual(p['convenienceGstPaise'],rounding(Decimal(p['convenienceFeePaise'])*Decimal('0.18')))
+                self.assertEqual(p['totalPayablePaise'],collection+p['convenienceFeePaise']+p['convenienceGstPaise'])
+
+    def test_server_resolves_fixed_price_and_refuses_unbound_special_workflows(self):
+        resolver=isolated('amplify/functions/payments/invoice-engine/handler.py','_apply_fixed_invoice_preset',
+                          __file__=str(ROOT/'amplify/functions/payments/invoice-engine/handler.py'))
+        resolved=resolver({'fixedPresetId':'fixed-01','shipping':0,'items':[{'amount':1,'name':'tampered'}]})
+        self.assertEqual(resolved['shipping'],45)
+        self.assertEqual(resolved['items'][0],{'name':'Grahak OS','amount':899,'quantity':1,'gstRate':18})
+        for preset in ('fixed-23','fixed-27','unknown'):
+            with self.assertRaises(ValueError):resolver({'fixedPresetId':preset})

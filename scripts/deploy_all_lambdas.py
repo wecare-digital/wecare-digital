@@ -424,7 +424,7 @@ SPECS: List[Spec] = [
     Spec("wecare-razorpay-webhook", "payments/razorpay-webhook"),
     Spec("wecare-payments-read", "payments/payments-read"),
     Spec("wecare-invoice-engine", "payments/invoice-engine", extra_dirs=("fonts",),
-         extra_files=("receipt_layout.py",), required_layers=[PILLOW_LAYER_ARN]),
+         extra_files=("receipt_layout.py",), external_files=(("../../src/content/invoicePresets.json", "invoice_presets.json"),), required_layers=[PILLOW_LAYER_ARN]),
     # --- ecommerce ---
     Spec("wecare-product-image-gen", "ecommerce/product-image-gen", required_layers=[PILLOW_LAYER_ARN]),
     Spec("wecare-catalog-management", "ecommerce/catalog-management"),

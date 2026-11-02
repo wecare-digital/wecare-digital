@@ -8,6 +8,8 @@ on:
       - 'src/api/client.ts'
       - 'src/components/workspace/**'
       - 'src/content/paymentTemplateSnapshot.json'
+      - 'src/content/invoicePresets.json'
+      - 'scripts/deploy_all_lambdas.py'
       - 'src/lib/paymentFramework.ts'
       - 'amplify/functions/**'
       - 'scripts/check_f001_subscribe.py'

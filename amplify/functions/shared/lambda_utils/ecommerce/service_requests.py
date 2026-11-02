@@ -159,7 +159,7 @@ SERVICE_LINE_MAX_PAISE = 5_000_000
 #: Customer-facing "Express" row for Vault and Drop Docs. This is a service delivery/handling
 #: charge, not physical courier postage, and is included in the frozen supply quote before payment.
 #: Rs.25 = 2,500 paise. It does NOT increase Delight's basis.
-VAULT_DROP_DOCS_EXPRESS_PAISE = 2_500
+VAULT_DROP_DOCS_EXPRESS_PAISE = 4_500
 
 #: The five PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
 #: public price endpoint (`service_pricing_native.resolve_all`) and mirrored in

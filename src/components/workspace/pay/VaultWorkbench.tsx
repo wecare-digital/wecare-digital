@@ -11,6 +11,7 @@
 import React from 'react';
 import Link from 'next/link';
 import * as api from '../../../api/client';
+import {fetchServicePrices, rupeesFromPaise} from '../../../lib/servicePricing';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
 interface Props {
@@ -181,10 +182,22 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
       && !file.lastPaymentRequestedAt && !attempted.has(file.fileId);
     const canAccess = file.accessState === 'READY' || file.accessState === 'OPEN';
     if ((action === 'payment' && !canPay) || (action === 'access' && !canAccess)) return;
+    let reviewedTotal: number | undefined;
+    if (action === 'payment') {
+      inFlight.current = true; setActionFile(file.fileId); setActionOutcome('Checking the current Vault total…');
+      try {
+        const quote = (await fetchServicePrices()).vault;
+        reviewedTotal = quote.available ? quote.breakdown?.totalPayablePaise : undefined;
+        if (!Number.isInteger(reviewedTotal) || !reviewedTotal || reviewedTotal <= 0) {
+          setActionOutcome('The live Vault total is unavailable. Reload pricing before requesting payment.'); return;
+        }
+      } catch { setActionOutcome('Vault quote could not be loaded. Nothing was sent.'); return; }
+      finally {inFlight.current = false; setActionFile('');}
+    }
     const approved = await confirm({
       title: action === 'payment' ? 'Request native Review & Pay?' : 'Resend Access Vault link?',
       message: action === 'payment'
-        ? 'The backend will verify this exact file and owner, live price, payment configuration and approved Meta template. This requests payment; it does not mark anything paid. An ambiguous send must never be retried blindly.'
+        ? `Customer: ${file.ownerName || file.displayName || 'Selected owner'}. Total ₹${rupeesFromPaise(reviewedTotal!)} including GST, Express and fees. Send one request for this exact file? If the quote changes, the backend will refuse it.`
         : 'The backend must re-check a verified paid entitlement. This sends only the approved Access Vault URL template; it cannot charge the customer.',
       confirmText: action === 'payment' ? 'Send payment request once' : 'Send approved access link',
     });
@@ -197,8 +210,11 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
     }
     try {
       const response = action === 'payment'
-        ? await api.requestSecureFilePayment(file.fileId)
+        ? await api.requestSecureFilePayment(file.fileId, undefined, reviewedTotal)
         : await api.sendSecureFileAccess(file.fileId);
+      if (action === 'payment' && response.outcome === 'VAULT_QUOTE_CHANGED') {
+        setAttempted(current => {const next=new Set(current);next.delete(file.fileId);return next;});
+      }
       setActionOutcome((response.ok ? 'Server accepted: ' : 'Not confirmed: ')
         + response.outcome + ' · ' + response.message
         + ' Check the provider message log and payment ledger before further action.');
