@@ -9,9 +9,9 @@ const live = read('src/components/VayuLokLive.tsx');
 const insights = read('src/components/VayuLokWeatherInsights.tsx');
 const backend = read('gcp/vayulok-weather-insights/server.mjs');
 
-// The 2D map has a REAL, generously-sized viewport (not a cropped 300px
-// padding-top placeholder); its visual layers share the same height and
-// the India camera still fits the full mainland and islands.
+// The 2D map has a real, generously-sized viewport and its own column on
+// desktop. The whole Air/Weather card follows normal page scrolling without
+// clipping; phones/tablets show the full map before the complete detail card.
 assert(live.includes("fitBounds?.( INDIA_OVERVIEW_BOUNDS, 24 )"), 'India overview fit is missing');
 assert(live.includes('north: 37.5,') && live.includes('south: 6.0,')
   && live.includes('east: 98.0,') && live.includes('west: 67.5,'),
@@ -22,12 +22,19 @@ assert(live.includes('--vl-map-height:clamp(460px,77vw,720px)'),
   'tablet map viewport must not be artificially cropped');
 assert(live.includes('--vl-map-height:clamp(440px,112vw,640px)'),
   'phone map viewport must show the whole India overview');
+assert(live.includes('grid-template-columns:minmax(0,1fr) minmax(320px,416px)'),
+  'desktop map must have an unobstructed column alongside the detail card');
 assert(live.includes('grid-template-rows:var(--vl-map-height) auto'),
   'narrow map must have a separate real grid track before the detail card');
-assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0 0 auto;width:100%;height:var(--vl-map-height)'),
-  'map canvas and fallback must match the full map viewport');
-assert(live.includes('.vl-live-weather-visual{position:absolute;inset:0 0 auto;height:var(--vl-map-height)'),
-  'weather overlay must not paint across the data card');
+assert(live.includes('.vl-live-map-canvas,.vl-live-map-placeholder{position:sticky;top:24px;grid-area:1/1;align-self:start;width:100%;height:var(--vl-map-height)'),
+  'desktop map and placeholder must share a full-size sticky viewport');
+assert(live.includes('.vl-live-weather-visual{position:sticky;top:24px;grid-area:1/1;align-self:start;height:var(--vl-map-height)'),
+  'desktop weather visual must align with the map, not cover the details');
+assert(live.includes('.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/2;'),
+  'full Air/Weather card must be a separate desktop grid column');
+assert(!live.includes('max-height:calc(100% - 32px)') &&
+  !live.includes('overflow-y:auto;overscroll-behavior-y:contain;scrollbar-gutter:stable'),
+  'Air/Weather card must use page scrolling, not an inner clipped scroll area');
 assert(!live.includes('padding-top:clamp(300px,50vw,440px)')
   && !live.includes('padding-top:clamp(300px,75vw,360px)')
   && !live.includes('max-height:740px'),
@@ -41,11 +48,13 @@ assert(live.includes("const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null
 assert(live.includes('mapViewRequested'), 'paid Maps loading must be deferred');
 assert(live.includes('const SEARCH_DEBOUNCE_MS = 300;'), 'autocomplete debounce missing');
 
-// Do not regress user-selected automatic history or attribution presentation.
+// Keep history automatic, preserve Google's map attribution and avoid hiding it.
 assert(live.includes('<VayuLokWeatherInsights\n                          lat={ place.lat }'),
   'weather history must continue to mount automatically');
-assert(live.includes('.vl-live :global(.gm-style-cc),'),
-  'existing attribution display was changed unexpectedly');
+assert(!live.includes('.vl-live :global(.gm-style-cc),') &&
+  !live.includes('.vl-live :global(img[alt="Google"])') &&
+  !live.includes('.vl-live :global(a[aria-label="Google Maps"])'),
+  'Google Maps attribution must remain visible');
 assert(insights.includes('void run();'), 'automatic long-term history fetch missing');
 assert(insights.includes('localStorage.setItem( LOCAL_HISTORY_STORE'),
   'persistent browser history cache missing');
