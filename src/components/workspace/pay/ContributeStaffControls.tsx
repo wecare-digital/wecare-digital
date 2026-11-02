@@ -3,20 +3,22 @@ import * as api from '../../../api/client';
 import {useConfirm} from '../../../contexts/ConfirmContext';
 import PaymentCustomerEditor from './PaymentCustomerEditor';
 import type {ServicePrice,ServicePaymentTemplates} from '../../../lib/servicePricing';
-interface Props{price:ServicePrice;templates:ServicePaymentTemplates|null;loadingPrice:boolean;refreshPrice:()=>void;}
-const usable=(c:api.Contact)=>!!c.id&&!!c.phone&&!c.deletedAt&&!c.archivedAt&&!c.locked;
-export default function ContributeStaffControls({price,templates,loadingPrice,refreshPrice}:Props){
+interface Props{customer?:api.Contact|null;unified?:boolean;price:ServicePrice;templates:ServicePaymentTemplates|null;loadingPrice:boolean;refreshPrice:()=>void;}
+const usable=(c:api.Contact)=>!!c.id&&!!c.phone&&!c.deletedAt&&!c.archivedAt;
+export default function ContributeStaffControls({price,templates,loadingPrice,refreshPrice,customer,unified=false}:Props){
  const [contacts,setContacts]=React.useState<api.Contact[]>([]),[query,setQuery]=React.useState(''),[selected,setSelected]=React.useState<api.Contact|null>(null);
  const [loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[editing,setEditing]=React.useState<'new'|'edit'|null>(null),[refresh,setRefresh]=React.useState(0);
- const [readiness,setReadiness]=React.useState<'checking'|'ready'|'blocked'>('checking'),[reason,setReason]=React.useState(''),[approved,setApproved]=React.useState(false);
+ const [readiness,setReadiness]=React.useState<'checking'|'ready'|'blocked'>('checking'),[reason,setReason]=React.useState(''),[approved,setApproved]=React.useState(false),[templateReason,setTemplateReason]=React.useState('');
  const [review,setReview]=React.useState(false),[sending,setSending]=React.useState(false),[locked,setLocked]=React.useState(false),[outcome,setOutcome]=React.useState('');
  const busy=React.useRef(false);const confirm=useConfirm();
- React.useEffect(()=>{let active=true;setLoading(true);setError('');setContacts([]);
+ React.useEffect(()=>{if(unified){setSelected(customer||null);setReview(false);}},[customer,unified]);
+
+ React.useEffect(()=>{if(unified)return;let active=true;setLoading(true);setError('');setContacts([]);
   const timer=setTimeout(()=>{void (query.trim()?api.searchContactsResult(query,40):api.listContactsResult()).then(result=>{if(!active)return;if(!result.ok){setError(result.failure.message||'Customer lookup failed.');return;}setContacts(result.data.filter(usable));}).catch(()=>{if(active)setError('Customers could not be loaded. Reload to retry.');}).finally(()=>{if(active)setLoading(false);});},query.trim()?250:0);
   return()=>{active=false;clearTimeout(timer);};
- },[query,refresh]);
+ },[query,refresh,unified]);
  React.useEffect(()=>{let active=true;setReadiness('checking');setApproved(false);
-  void Promise.all([api.getStaffContributionSendReadiness(),templates?.templateIds?.nativePay?api.getTemplateDetails(templates.templateIds.nativePay):Promise.resolve(null)]).then(([ready,t])=>{if(!active)return;setReadiness(ready.sendEnabled&&ready.amountPaise===30000?'ready':'blocked');setReason(ready.reason);const parts=Array.isArray(t?.components)?t.components:[];setApproved(t?.status==='APPROVED'&&t?.name===templates?.nativePay&&(!t?.id||String(t.id)===templates?.templateIds?.nativePay)&&parts.some((p:any)=>p.type==='HEADER'&&p.format==='IMAGE')&&parts.some((p:any)=>p.type==='BUTTONS'&&p.buttons?.some((b:any)=>b.type==='ORDER_DETAILS')));}).catch(()=>{if(active){setReadiness('blocked');setReason('Payment checks unavailable.');}});
+  void Promise.all([api.getStaffContributionSendReadiness(),templates?.templateIds?.nativePay?api.getTemplateDetailsResult(templates.templateIds.nativePay):Promise.resolve(null)]).then(([ready,result])=>{if(!active)return;const t=result?.ok?result.data:null;setTemplateReason(result&&!result.ok?result.failure.message:!templates?.templateIds?.nativePay?'Payment template reference is missing.':'');setReadiness(ready.sendEnabled&&ready.amountPaise===30000?'ready':'blocked');setReason(ready.reason);const parts=Array.isArray(t?.components)?t.components:[];setApproved(t?.status==='APPROVED'&&t?.name===templates?.nativePay&&(!t?.id||String(t.id)===templates?.templateIds?.nativePay)&&parts.some((p:any)=>p.type==='HEADER'&&p.format==='IMAGE')&&parts.some((p:any)=>p.type==='BUTTONS'&&p.buttons?.some((b:any)=>b.type==='ORDER_DETAILS')));}).catch(()=>{if(active){setReadiness('blocked');setReason('Payment checks unavailable.');}});
   return()=>{active=false;};
  },[templates?.templateIds?.nativePay,templates?.nativePay,refresh]);
  const b=price.available?price.breakdown:undefined;
@@ -33,14 +35,15 @@ export default function ContributeStaffControls({price,templates,loadingPrice,re
  const select=(c:api.Contact)=>{setSelected(c);setReview(false);setError('');};
  const reload=()=>{setReview(false);refreshPrice();setRefresh(n=>n+1);};
  return <section className="contribution-controls" aria-label="Contribution customer and payment controls">
-  <header><h3>1. Customer</h3><button type="button" onClick={()=>{setEditing('new');setReview(false);}} disabled={sending||locked}>New customer</button></header>
+  {!unified&&<><header><h3>1. Customer</h3><button type="button" onClick={()=>{setEditing('new');setReview(false);}} disabled={sending||locked}>New customer</button></header>
   {editing?<PaymentCustomerEditor customer={editing==='edit'?selected||undefined:undefined} onCancel={()=>setEditing(null)} onSaved={c=>{select(c);setContacts(rows=>[c,...rows.filter(r=>r.id!==c.id)]);setEditing(null);}}/>:<>
    <label htmlFor="contribution-search">Find by name, WhatsApp number or email</label><div className="search-row"><input id="contribution-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search all saved customers" autoComplete="off"/><button type="button" disabled={loading} onClick={()=>setRefresh(n=>n+1)}>{loading?'Loading…':'Reload customers'}</button></div>
    {error&&<p role="alert">{error}</p>}
    {selected?<div className="selected-customer"><div><strong>{selected.name||'Customer'}</strong><span>{selected.phone}</span></div><div><button type="button" onClick={()=>{setEditing('edit');setReview(false);}} disabled={sending||locked}>Edit details</button><button type="button" onClick={()=>{setSelected(null);setReview(false);}} disabled={sending||locked}>Change</button></div></div>:null}
    <div className="customer-results" aria-busy={loading}>{loading?<p role="status">Loading customers…</p>:contacts.length?contacts.slice(0,40).map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} onClick={()=>select(c)} disabled={sending||locked}><strong>{c.name||'Unnamed customer'}</strong><span>{c.phone}</span></button>):!error?<p>No matching saved customers. Add a new customer above.</p>:null}</div>
   </>}
-  <div className="payment-checks"><h3>2. Review &amp; send</h3><p role="status">{loadingPrice||readiness==='checking'?'Checking payment availability…':!exact?'The live quote is unavailable or changed. Reload before sending.':readiness!=='ready'?`Payment unavailable: ${reason}`:!approved?'Approved payment template could not be verified.':'Payment service ready · ₹300 final'}</p><button type="button" onClick={reload} disabled={sending||loadingPrice}>Recheck payment availability</button></div>
+  </>}
+  <div className="payment-checks"><h3>2. Review &amp; send</h3><p role="status">{loadingPrice||readiness==='checking'?'Checking payment availability…':!exact?'The live quote is unavailable or changed. Reload before sending.':readiness!=='ready'?`Payment unavailable: ${reason}`:!approved?(templateReason||'Payment template approval or native payment button does not match. Reload to recheck.'):'Payment service ready · ₹300 final'}</p><button type="button" onClick={reload} disabled={sending||loadingPrice}>Recheck payment availability</button></div>
   {review&&selected&&<div className="review" aria-live="polite"><strong>{selected.name} · {selected.phone}</strong><p>Customer pays ₹300.00 including all fees and taxes.</p><p>💳 Your order is ready for payment. Tap Review and Pay to complete it securely.</p><small>Button: Review and Pay · WECARE.DIGITAL</small><button type="button" disabled={sending||locked} onClick={()=>setReview(false)}>Edit selection</button></div>}
   <div className="send-actions">{!review?<button className="primary" type="button" disabled={!canReview} onClick={()=>setReview(true)}>Review ₹300 request</button>:<button className="primary" type="button" disabled={!canReview||readiness!=='ready'||!approved} onClick={()=>{void send();}}>{sending?'Sending…':locked?'Check send outcome':'Send ₹300 Review & Pay'}</button>}</div>
   {outcome&&<p role="status" className="outcome">{outcome}</p>}

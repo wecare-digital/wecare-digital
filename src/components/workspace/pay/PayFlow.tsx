@@ -19,6 +19,7 @@ import {
 } from '../../../lib/address-format';
 
 interface PP {
+  customer?: Contact|null; fixedItemId?: string; unified?: boolean;
   signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices';
   /** Only Collect -> Create -> Saved invoices may send existing Collect invoices. */
   allowSendInInvoices?: boolean;
@@ -294,7 +295,7 @@ const AddressFieldGroup: React.FC<{
 };
 
 /* ── Component ── */
-const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect', allowSendInInvoices = false } ) => {
+const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect', allowSendInInvoices = false, customer, fixedItemId, unified = false } ) => {
   const router = useRouter();
   const [ flowTab, setFlowTab ] = useState( mode === 'invoices' ? 'invoices' : 'create' );
   const activeFlowTab = embedded ? ( mode === 'invoices' ? 'invoices' : 'create' ) : flowTab;
@@ -306,7 +307,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   const [ custForm, setCustForm ] = useState( EMPTY_FORM );
   const [ custSaving, setCustSaving ] = useState( false );
   const [ custError, setCustError ] = useState( '' );
-  const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
+  const [ selCustomer, setSelCustomer ] = useState<Contact | null>( customer || null );
+  useEffect(()=>{if(unified)setSelCustomer(customer||null);},[customer,unified]);
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
   const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
   const [ invoicePreview, setInvoicePreview ] = useState<api.InvoiceEnginePreview | null>( null );
@@ -403,7 +405,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   const loadDeliveryLogs = useCallback( async ( id: string ) => {
     try { const r = await api.getInvoiceDeliveryLog( id ); setDeliveryLogs( r.deliveryLogs || [] ); } catch ( e ) { console.error( e ); }
   }, [] );
-  useEffect( () => { loadCustomers(); loadInvoices(); }, [ loadCustomers, loadInvoices ] );
+  useEffect( () => { if(!unified){loadCustomers(); loadInvoices();} }, [ loadCustomers, loadInvoices, unified ] );
 
   // After creating an invoice, the new Collect -> Create -> Saved invoices link
   // carries the exact invoice id. The summary list may not contain it because
@@ -565,14 +567,14 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
 
   const appliedFixedItemRef = useRef('');
   useEffect(() => {
-    const requested = router.query.item;
+    const requested = fixedItemId || router.query.item;
     const id = Array.isArray(requested) ? requested[0] : requested;
     if (!id || appliedFixedItemRef.current === id) return;
-    const item = FIXED_ITEMS.find(row => row.id === id && row.workflow === 'collect');
+    const item = FIXED_ITEMS.find(row => row.id === id && !['contribute','vault'].includes(row.workflow));
     if (!item) return;
     appliedFixedItemRef.current = id;
     setInvForm(current => ({...current, shipping:(item.expressPaise/100).toFixed(2), items:[{presetId:item.id,name:item.name,unitPrice:(item.basePaise/100).toFixed(2),quantity:'1',gstRate:'18',hsnSac:''}]}));
-  }, [router.query.item]);
+  }, [router.query.item,fixedItemId]);
 
   const applyServicePreset = ( choice: ServiceChoice ) => {
     if ( choice.needsTarget ) {
@@ -1171,7 +1173,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
               ) : (
                 <div className="pf-create-layout">
                   <div className="pf-composer-main">
-                  <div className="pf-context-grid">
+                  <div className="pf-context-grid" style={unified?{display:'none'}:undefined}>
                     <div className="info-banner pf-customer-summary">
                       <div className="pf-context-copy">
                         <span className="pf-context-label">Customer</span>
@@ -1205,7 +1207,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                       </div>
                     ) }
                   </div>
-                  <div className="pf-composer-heading">
+                  <div className="pf-composer-heading" style={unified?{display:'none'}:undefined}>
                     <div>
                       <div className="pf-composer-kicker">Step 2</div>
                       <h3>Invoice composer</h3>
@@ -1219,9 +1221,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                         <h4>Items</h4>
                         <p>Use one card per line. HSN/SAC stays under Advanced tax details.</p>
                       </div>
-                      <Button variant="secondary" size="sm" onClick={ addItem }>+ Add item</Button>
+                      {!unified&&<Button variant="secondary" size="sm" onClick={ addItem }>+ Add item</Button>}
                     </div>
-                    <div className="form-group"><label htmlFor="pf-fixed-item">Fixed invoice item</label><select id="pf-fixed-item" value={invForm.items.length===1?invForm.items[0].presetId||'':''} onChange={e=>{
+                    <div className="form-group" style={unified?{display:'none'}:undefined}><label htmlFor="pf-fixed-item">Fixed invoice item</label><select id="pf-fixed-item" value={invForm.items.length===1?invForm.items[0].presetId||'':''} onChange={e=>{
                       const preset=FIXED_ITEMS.find(p=>p.id===e.target.value);
                       if(!preset){setInvForm(current=>({...current,shipping:String(config.default_shipping),items:[NEW_ITEM()]}));return;}
                       if(preset.workflow!=='collect'){const service=SERVICE_CHOICES.find(s=>s.slug===preset.workflow);void router.push(preset.workflow==='contribute'||preset.workflow==='vault'?{pathname:'/workspace/payments',query:{view:preset.workflow,tab:'create'}}:service?.path||'/workspace/service?view=requests');return;}

@@ -2895,6 +2895,22 @@ def _post_payment_handler(payment_id: str, contact: str,
                 'referenceId': reference_id, 'requestId': request_id,
                 'alert': 'RECEIPT_DELIVERY_EXHAUSTED'}))
 
+    # Prepare this item's distinct process only after capture and receipt. Missing
+    # owner-supplied Flows remain explicitly pending; this path never sends one.
+    if delivered and invoice_id:
+        try:
+            from lambda_utils.ecommerce import item_processes
+            reservation = order_keys.resolve_payment_reference(
+                dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {} if reference_id else {}
+            attempt_id = str(reservation.get('paymentAttemptId') or '')
+            attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {} if attempt_id else {}
+            item_processes.record_captured(dynamodb.Table(INVOICES_TABLE), invoice_id, payment_id,
+                                          reservation=reservation, attempt=attempt)
+        except Exception as process_error:
+            logger.warning(json.dumps({'event': 'item_process_checkpoint_unavailable',
+                                       'invoiceId': invoice_id, 'error': type(process_error).__name__}))
+
     # The invoice template itself contains the Leave Review Flow button.
     # Do not send a second standalone review template from the payment webhook.
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,

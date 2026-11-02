@@ -1121,6 +1121,22 @@ export async function getStaffContributionSendReadiness (): Promise<StaffContrib
   }
 }
 
+export type StaffItemServiceSendResult =
+  | {state:'ACCEPTED';paymentAttemptId:string;amountPaise:number}
+  | {state:'REFUSED'|'UNCONFIRMED';code:string;message:string};
+export async function sendStaffItemServicePaymentOnce(input:{contactId:string;itemId:string;selectedOrderNumber:string;expectedTotalPaise:number}):Promise<StaffItemServiceSendResult> {
+  try {
+    // One explicit staff send, never the retrying apiCallResult transport.
+    const response=await authFetch(`${API_BASE}/ecommerce/checkout`,{method:'POST',cache:'no-store',body:JSON.stringify({action:'staff-item-service-send',...input})});
+    const data=await response.json().catch(()=>({})) as Record<string,unknown>;
+    if(response.ok&&data.status==='PAYMENT_REQUEST_SENT'&&data.currency==='INR'&&data.amountPaise===input.expectedTotalPaise&&typeof data.paymentAttemptId==='string')
+      return {state:'ACCEPTED',paymentAttemptId:data.paymentAttemptId,amountPaise:input.expectedTotalPaise};
+    const code=typeof data.error==='string'?data.error:'SEND_NOT_CONFIRMED';
+    const message=typeof data.message==='string'?data.message:`Request not sent: ${code}. Check the customer, paid order and current quote.`;
+    return {state:response.status>=500||data.sendUnconfirmed===true||(response.ok&&data.status==='PAYMENT_REQUEST_SENT')?'UNCONFIRMED':'REFUSED',code,message};
+  }catch{return {state:'UNCONFIRMED',code:'NETWORK_UNCONFIRMED',message:'The send outcome is unknown. Check WhatsApp and payment records before retrying.'};}
+}
+
 export async function sendStaffContributionPaymentOnce (
   contactId: string,
 ): Promise<StaffContributeSendResult> {
@@ -2704,14 +2720,18 @@ export async function applyCors ( request: { origins: string[] } ): Promise<{ su
  * Get template details
  * API: GetWhatsAppMessageTemplate
  */
-export async function getTemplateDetails ( templateId: string, wabaId?: string ): Promise<NormalizedWhatsAppTemplateDetail | null> {
+export async function getTemplateDetailsResult ( templateId: string, wabaId?: string ): Promise<ApiResult<NormalizedWhatsAppTemplateDetail>> {
   let url = `${API_BASE}/whatsapp/templates/${templateId}`;
-  if ( wabaId ) url += `?wabaId=${wabaId}`;
-
-  const data = await apiCall<unknown>( url );
-  // Meta's staff endpoint returns templateStatus/templateName/metaTemplateId, while
-  // callers expect status/name/id. Normalize only matching live template identities.
-  return normalizeWhatsAppTemplateDetails( data, templateId );
+  if (wabaId) url += `?wabaId=${encodeURIComponent(wabaId)}`;
+  const result = await apiCallResult<unknown>(url);
+  if (!result.ok) return result;
+  const template = normalizeWhatsAppTemplateDetails(result.data, templateId);
+  if (!template) return {ok:false,failure:recordFailure('server',200,'Template metadata did not match the requested template. Reload to recheck.',url,'TEMPLATE_METADATA_INVALID')};
+  return {ok:true,data:template};
+}
+export async function getTemplateDetails ( templateId: string, wabaId?: string ): Promise<NormalizedWhatsAppTemplateDetail | null> {
+  const result = await getTemplateDetailsResult(templateId,wabaId);
+  return result.ok ? result.data : null;
 }
 
 /**
@@ -3994,7 +4014,7 @@ export interface SystemConfig {
  * Lambda: wecare-ai-config-management
  */
 export async function getSystemConfig ( configKey: string ): Promise<SystemConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}` );
+  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}`, {cache:'no-store'} );
   if ( data && data.config )
   {
     return data.config;
@@ -4004,7 +4024,7 @@ export async function getSystemConfig ( configKey: string ): Promise<SystemConfi
 
 /** Distinguish a missing setting from a failed read before offering an editor. */
 export async function getSystemConfigResult ( configKey: string ): Promise<ApiResult<{ config: SystemConfig | null }>> {
-  return apiCallResult<{ config: SystemConfig | null }>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}` );
+  return apiCallResult<{ config: SystemConfig | null }>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}`, {cache:'no-store'} );
 }
 
 // The backend merges object settings, so retained keys are allowed. Arrays are
@@ -4688,6 +4708,11 @@ export interface InvoiceDeliveryLog {
 }
 
 export interface Invoice {
+  fixedPresetId?: string;
+  itemProcessId?: string;
+  itemProcessIds?: string[];
+  itemProcessStates?: Record<string,string>;
+  postPaymentProcessState?: string;
   invoiceId: string;
   invoiceNumber: string;
   paymentId: string;

@@ -68,18 +68,16 @@ const definitions = read('src/lib/paymentFramework.ts');
 // when the working Collect/Vault/Contribute console was rebuilt. The new checks
 // bind navigation to the section values, scoped work tabs, and actual framework
 // route. Missing any one of them still blocks production.
-check(page.includes("type PaymentSection = 'collect' | 'vault' | 'contribute'") &&
-      page.includes("type PaymentTab = 'display' | 'create' | 'ledger'") &&
-      page.includes('SECTION_OPTIONS.map') &&
-      page.includes('id="payment-type"') &&
-      page.includes('<select id="payment-type" value={section}') &&
-      page.includes('changeSection(choice.value)') &&
-      page.includes('className="console-tools"') &&
-      page.includes("panel: 'framework'") &&
-      page.includes('<PaymentFramework section={section} />') &&
-      page.includes("tab:'create'") &&
-      page.includes("tab:'ledger'"),
-      'Collect/Vault/Contribute navigation or message framework is unavailable');
+const unified = read('src/components/workspace/pay/UnifiedPaymentWorkspace.tsx');
+const customerPicker = read('src/components/workspace/pay/PaymentCustomerPicker.tsx');
+check(page.includes('<UnifiedPaymentWorkspace signOut={signOut} user={user} />') &&
+      !page.includes('id="payment-type"') &&
+      unified.includes('id="payment-invoice-item"') && unified.includes('ITEMS.map') &&
+      unified.includes('<PaymentCustomerPicker') && unified.includes('<ItemPaymentProcess') &&
+      customerPicker.includes('api.searchContactsResult') &&
+      !customerPicker.includes('!row.locked') &&
+      page.includes('<PaymentFramework section={section} />'),
+      'All29 must share one item selector, customer selector and per-item process setup');
 for (const role of ['payment', 'status', 'invoice', 'access']) {
   check(definitions.includes('  ' + role + ':'), 'Payment framework template missing: ' + role);
 }
@@ -89,7 +87,7 @@ check(framework.includes('OutgoingMessageContent'),
 // took over Collect's invoice list and totals. Keep a *functional* guard against
 // stale lists and incorrect paid-state claims, but do not import deleted UI.
 const collect = read('src/components/workspace/pay/PayFlow.tsx');
-check(page.includes('<PayFlowPage') &&
+check(unified.includes('<PayFlow key={item.id}') &&
       collect.includes('const loadInvoices = useCallback') &&
       collect.includes('api.listInvoicesEngine( params )') &&
       collect.includes("setInvoices( statusFilter === 'active' ? rows.filter") &&
@@ -139,7 +137,7 @@ check(contribute.includes('fetchContributionPrice()') &&
       contribute.includes('Customer pays') &&
       contribute.includes('b?money(b.totalPayablePaise)') &&
       contribute.includes("'Quote unavailable'") &&
-      contribute.includes('ContributeStaffControls price={price}'),
+      contribute.includes('<ContributeStaffControls') && contribute.includes('price={price}'),
       'Contribute must present the server-quoted amount with safe loading states');
 
 if (failures.length) {

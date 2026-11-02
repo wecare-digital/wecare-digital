@@ -457,7 +457,7 @@ def _staff_contribution_send(
     except contact_key.ContactKeyMismatch:
         return cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin)
     if (not contact_store.is_live(contact) or contact.get("archivedAt")
-            or contact.get("locked") or contact_key.resolve(contact) != body["contactId"]
+            or contact_key.resolve(contact) != body["contactId"]
             or not customer_auth.is_cognito_subject(str(contact.get("checkoutCustomerId") or ""))
             or not str(contact.get("name") or "").strip()):
         return cors_response(409, {
@@ -483,7 +483,7 @@ def _staff_contribution_send(
         return cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin)
     if (identity.customer_id != str(contact["checkoutCustomerId"])
             or not contact_store.is_live(proven) or proven.get("archivedAt")
-            or proven.get("locked") or not str(proven.get("name") or "").strip()):
+            or not str(proven.get("name") or "").strip()):
         return cors_response(409, {"error": "CONTRIBUTION_CUSTOMER_UNVERIFIED"}, origin)
 
     lines = [{
@@ -548,6 +548,76 @@ def _staff_contribution_send(
     if accepted or uncertain:
         _record_wa_cart(live_key, token,
                         str(payload.get("paymentAttemptId") or ""), now)
+    else:
+        _release_wa_cart(live_key, token)
+    return result
+
+
+_STAFF_ITEM_ACTION = "staff-item-service-send"
+_STAFF_ITEM_SERVICES = {"fixed-24": "SUBMIT_REQUEST", "fixed-25": "REQUEST_AMENDMENT",
+                        "fixed-26": "DROP_DOCS", "fixed-29": "REQUEST_PICKUP"}
+
+
+def _staff_item_service_send(body: Dict[str, Any], origin: str, *, staff_actor_hash: str) -> Dict[str, Any]:
+    """Shared staff form adapter; customer/order/price proofs remain server-owned."""
+    required = {"action", "contactId", "itemId", "selectedOrderNumber", "expectedTotalPaise"}
+    if (not isinstance(body, dict) or set(body) != required or body.get("action") != _STAFF_ITEM_ACTION
+            or not isinstance(body.get("contactId"), str)
+            or not _STAFF_CONTRIBUTION_CONTACT_ID.fullmatch(body["contactId"])
+            or not isinstance(body.get("itemId"), str) or body["itemId"] not in _STAFF_ITEM_SERVICES
+            or type(body.get("expectedTotalPaise")) is not int or body["expectedTotalPaise"] <= 0
+            or not isinstance(body.get("selectedOrderNumber"), str)
+            or not order_keys.is_public_order_number(body["selectedOrderNumber"].strip().upper())
+            or not isinstance(staff_actor_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", staff_actor_hash)):
+        return cors_response(400, {"error": "STAFF_ITEM_REQUEST_INVALID"}, origin)
+    contact = _table(CONTACTS_TABLE).get_item(
+        Key={"id": body["contactId"]}, ConsistentRead=True).get("Item") or {}
+    try:
+        contact_key.assert_consistent(contact)
+    except contact_key.ContactKeyMismatch:
+        return cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin)
+    if (not contact_store.is_live(contact) or contact.get("archivedAt")
+            or contact_key.resolve(contact) != body["contactId"]
+            or not customer_auth.is_cognito_subject(str(contact.get("checkoutCustomerId") or ""))
+            or not str(contact.get("name") or "").strip()):
+        return cors_response(409, {"error": "CUSTOMER_UNVERIFIED"}, origin)
+    sender = wa_payment_request.PHONE_NUMBER_ID_1
+    if sender not in wa_payment_request.PAYMENT_SENDERS:
+        return cors_response(409, {"error": "PAYMENT_SENDER_NOT_PERMITTED"}, origin)
+    try:
+        identity, proven = _native_whatsapp_identity(body["contactId"], str(contact.get("phone") or ""), sender, "")
+        contact_key.assert_consistent(proven)
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber,
+            contact_key.ContactKeyMismatch):
+        return cors_response(409, {"error": "CUSTOMER_UNVERIFIED"}, origin)
+    if (identity.customer_id != contact.get("checkoutCustomerId") or not contact_store.is_live(proven)
+            or proven.get("archivedAt") or not str(proven.get("name") or "").strip()):
+        return cors_response(409, {"error": "CUSTOMER_UNVERIFIED"}, origin)
+    contract = request_service_contracts.request_service_contract(_STAFF_ITEM_SERVICES[body["itemId"]])
+    lines = [{"catalogReference": {"catalogItemId": contract.product_id,
+               "options": {"variantId": contract.sku}}, "quantity": 1}]
+    preview = _native_quote(identity, lines, int(time.time()))
+    if preview.quote.total_payable_paise != body["expectedTotalPaise"]:
+        return cors_response(409, {"error": "QUOTE_CHANGED", "message": "Review the updated total before sending."}, origin)
+    live_key, now = _wa_cart_live_key(identity.customer_id, lines), int(time.time())
+    token = _claim_wa_cart(live_key, identity.customer_id, now) or _take_over_settled_wa_cart(live_key, identity.customer_id, now)
+    if not token:
+        return cors_response(409, {"error": "PAYMENT_REQUEST_ALREADY_OPEN"}, origin)
+    try:
+        # Reuse the existing paid-order ownership check and service context.
+        # Neither a free-text target nor the staff actor can bypass that check.
+        result = _request_service_start(identity, {
+            "serviceCode": contract.service_code,
+            "selectedOrderNumber": body["selectedOrderNumber"],
+        }, origin, native_contact=proven, expected_total_paise=body["expectedTotalPaise"],
+           staff_actor_hash=staff_actor_hash, staff_item_process_id=body["itemId"])
+    except Exception:
+        _record_wa_cart(live_key, token, "", now)
+        return cors_response(503, {"error": "STAFF_ITEM_SEND_UNCONFIRMED", "sendUnconfirmed": True}, origin)
+    status = int(result.get("statusCode") or 0)
+    payload = json.loads(result.get("body") or "{}")
+    if (status == 200 and payload.get("status") == "PAYMENT_REQUEST_SENT") or status >= 500 or payload.get("sendUnconfirmed"):
+        _record_wa_cart(live_key, token, str(payload.get("paymentAttemptId") or ""), now)
     else:
         _release_wa_cart(live_key, token)
     return result
@@ -729,7 +799,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     staff_candidate = _body(event)
     staff_action = (str(staff_candidate.get("action") or "").strip().lower()
                     if isinstance(staff_candidate, dict) else "")
-    if staff_action in (_STAFF_CONTRIBUTION_ACTION, _STAFF_CONTRIBUTION_READINESS):
+    if staff_action in (_STAFF_CONTRIBUTION_ACTION, _STAFF_CONTRIBUTION_READINESS, _STAFF_ITEM_ACTION):
         from lambda_utils.middleware import require_auth
         staff_path = str(event.get("rawPath") or event.get("path")
                          or rc.get("http", {}).get("path") or "").rstrip("/").lower()
@@ -758,6 +828,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             actor_hash = hashlib.sha256(
                 ("wecare-contribute-staff:" + username).encode("utf-8")
             ).hexdigest()
+            if staff_action == _STAFF_ITEM_ACTION:
+                return _staff_item_service_send(staff_candidate, origin, staff_actor_hash=actor_hash)
             return _staff_contribution_send(
                 staff_candidate, origin, staff_actor_hash=actor_hash)
         except Exception as error:
@@ -2901,7 +2973,8 @@ def _website_verify(identity: customer_auth.CustomerIdentity, body: Dict[str, An
 
 
 def _request_service_start(identity: customer_auth.CustomerIdentity,
-                           body: Dict[str, Any], origin: str) -> Dict[str, Any]:
+                           body: Dict[str, Any], origin: str, *, native_contact=None,
+                           expected_total_paise=None, staff_actor_hash="", staff_item_process_id="") -> Dict[str, Any]:
     """Start one paid request service against one EXISTING owned order.
 
     Public input for Flow-backed services is deliberately only
@@ -2970,9 +3043,10 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
     # authorization boundary that prevents a browser from forging an owned order.
     return _create(
         identity,
-        {"lineItems": line_items},
+        {"lineItems": line_items, **({"expectedTotalPaise": expected_total_paise} if expected_total_paise is not None else {})},
         origin,
-        verified_service_context=verified_context,
+        verified_service_context=verified_context, native_contact=native_contact,
+        staff_actor_hash=staff_actor_hash, staff_item_process_id=staff_item_process_id,
     )
 
 
@@ -2981,7 +3055,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             native_contact: Optional[Dict[str, Any]] = None,
             verified_service_context: Optional[Dict[str, Any]] = None,
             required_staff_contribution: bool = False,
-            staff_actor_hash: str = "") -> Dict[str, Any]:
+            staff_actor_hash: str = "", staff_item_process_id: str = "") -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -3291,6 +3365,9 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = checkout_mode
+    if staff_item_process_id in _STAFF_ITEM_SERVICES:
+        attempt["staffItemProcessId"] = staff_item_process_id
+        attempt["staffActorHash"] = staff_actor_hash
     if required_staff_contribution:
         attempt["staffContribute"] = True
         attempt["staffActorHash"] = staff_actor_hash

@@ -1,0 +1,182 @@
+[
+  {
+    "id": "1596216325046969",
+    "name": "wecare_referal_update",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Update Referral",
+        "id": "1933489271340286",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1782246473079550",
+    "name": "wecare_default_invoice_image_template",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Leave Review",
+        "id": "993862443003108",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1428669922724280",
+    "name": "wecare_pdf_direct_download",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Subscribe",
+        "id": "2413873616105042",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "30181571061431980",
+    "name": "submit_request_flow",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Submit Request",
+        "id": "993516553092471",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "4034771700165582",
+    "name": "request_amendment_flow",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Request Amendment",
+        "id": "2408621596338289",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1041974032198332",
+    "name": "_dropdoc_flow",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Drop Docs",
+        "id": "39581903361452878",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1449099850671553",
+    "name": "pickup_request_flow",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Pickup Request",
+        "id": "2988393421499259",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1801972550682516",
+    "name": "wecare_leave_review",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Leave Review",
+        "id": "993862443003108",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1107523855531222",
+    "name": "track_ship_flow",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "Track Shipment",
+        "id": "1804165164183485",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "2419125382263851",
+    "name": "service_details",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": [
+      {
+        "label": "View Details",
+        "id": "2413873616105042",
+        "action": "DATA_EXCHANGE"
+      }
+    ]
+  },
+  {
+    "id": "1628859001974131",
+    "name": "wecare_location_share_pin",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": []
+  },
+  {
+    "id": "1410998911012572",
+    "name": "wecare_default_download",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": []
+  },
+  {
+    "id": "2714938845570815",
+    "name": "wecare_whatapp_native_pay_template",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": []
+  },
+  {
+    "id": "1754227779211208",
+    "name": "wecare_order_status_v3",
+    "status": "APPROVED",
+    "category": "UTILITY",
+    "language": "en",
+    "flows": []
+  },
+  {
+    "id": "1292079089453029",
+    "name": "wecare_otp",
+    "status": "APPROVED",
+    "category": "AUTHENTICATION",
+    "language": "en",
+    "flows": []
+  }
+]
