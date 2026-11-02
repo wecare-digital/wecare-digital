@@ -14,7 +14,8 @@
  * Styles are inline on purpose. styled-jsx does not scope composite components,
  * so a class name declared by either parent would arrive here unstyled.
  */
-import React, { useCallback, useState } from 'react';
+import React from 'react';
+import { useActionCopy } from '../hooks/useActionCopy';
 import type { WaContactCard } from '../api/client';
 import { colors } from '../lib/design-tokens';
 
@@ -32,23 +33,7 @@ const displayName = ( c: WaContactCard, fallbackLabel: string ): string => {
 };
 
 const ContactCardBubble: React.FC<ContactCardBubbleProps> = ( { contacts, fallbackLabel = 'Contact card' } ) => {
-  const [ copied, setCopied ] = useState<string | null>( null );
-
-  const copy = useCallback( async ( phone: string ) => {
-    // navigator.clipboard is undefined in an insecure context and in jsdom, so the
-    // button has to survive its absence rather than throw on click.
-    try
-    {
-      if ( typeof navigator === 'undefined' || !navigator.clipboard ) return;
-      await navigator.clipboard.writeText( phone );
-      setCopied( phone );
-      setTimeout( () => setCopied( null ), 2000 );
-    } catch
-    {
-      // A rejected write is a denied permission. The number is still selectable
-      // in the bubble, so there is nothing to recover and nothing to report.
-    }
-  }, [] );
+  const copy = useActionCopy();
 
   // Returning null lets each caller fall back to its own plain label — which is
   // what the one already-stored row with no payload keeps using.
@@ -88,7 +73,7 @@ const ContactCardBubble: React.FC<ContactCardBubbleProps> = ( { contacts, fallba
               { p.type && <span style={ { fontSize: 11, color: colors.textMuted } }>{ p.type }</span> }
               <button
                 type="button"
-                onClick={ () => copy( p.phone as string ) }
+                onClick={ () => { void copy( p.phone as string ); } }
                 title={ `Copy ${p.phone}` }
                 aria-label={ `Copy phone number ${p.phone}` }
                 style={ {
@@ -101,7 +86,7 @@ const ContactCardBubble: React.FC<ContactCardBubbleProps> = ( { contacts, fallba
                   cursor: 'pointer',
                 } }
               >
-                { copied === p.phone ? 'Copied' : 'Copy' }
+                Copy
               </button>
             </div>
           ) ) }

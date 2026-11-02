@@ -75,7 +75,7 @@ export function useCustomerMenuQuickSend () {
         }
         if ( outcome.kind === 'accepted' ) {
           // Accepted by Meta is not delivered, read, or Flow completed.
-          if ( publicToast ) publicToast.showToast( 'whatsappAccepted' );
+          if ( publicToast ) publicToast.showToast( 'whatsappAccepted', { ownerId: pendingToast } );
           else workspaceToast?.success( customerMenuNotice( 'accepted' ).message );
           return;
         }

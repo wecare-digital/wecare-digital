@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { publicActionText } from '../lib/publicActionNotices';
-import { useOptionalPublicToast } from './public/PublicToastProvider';
-import { useOptionalToastContext } from '../contexts/ToastContext';
+import { useActionCopy } from '../hooks/useActionCopy';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, stashCustomerMenuAction } from '../lib/customerMenuActions';
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
@@ -43,12 +41,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   title,
   label = 'Share',
 } ) => {
-  const publicToast = useOptionalPublicToast();
-  const workspaceToast = useOptionalToastContext();
+  const copyAction = useActionCopy();
   const quickSend = useCustomerMenuQuickSend();
-  const showToast = publicToast?.showToast;
-  const workspaceSuccess = workspaceToast?.success;
-  const workspaceError = workspaceToast?.error;
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
   const [ resolvedTitle, setResolvedTitle ] = useState( title || '' );
   const [ openMenu, setOpenMenu ] = useState<OpenMenu>( null );
@@ -122,19 +116,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     } );
   }, [ resolvedTitle, resolvedUrl ] );
 
-  const onCopy = useCallback( async () => {
-    if ( !resolvedUrl || typeof navigator === 'undefined' || !navigator.clipboard ) return;
-    try {
-      await navigator.clipboard.writeText( resolvedUrl );
-      // Copy feedback has one owner: the mounted public or Workspace toast host.
-      // Do not also replace the button label, icon or accessible name with "Copied".
-      if ( showToast ) showToast( 'success' );
-      else workspaceSuccess?.( publicActionText( 'success' ) );
-    } catch {
-      if ( showToast ) showToast( 'failure', { durationMs: 6500 } );
-      else workspaceError?.( publicActionText( 'failure' ) );
-    }
-  }, [ resolvedUrl, showToast, workspaceSuccess, workspaceError ] );
+  const onCopy = useCallback( () => {
+    if ( !resolvedUrl ) return;
+    // Exactly one result, after the clipboard write settles. No local Copied
+    // state or second toast and never a false success on permission refusal.
+    void copyAction( resolvedUrl );
+  }, [ resolvedUrl, copyAction ] );
 
   const shareMenuClass = 'ps-menu ps-share-menu has-contribute';
 

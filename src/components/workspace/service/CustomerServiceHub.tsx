@@ -10,6 +10,7 @@ import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useActionCopy } from '../../../hooks/useActionCopy';
 import * as api from '../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -68,6 +69,7 @@ const fmtDate = (ts: number) => {
 
 const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const toast = useToastContext();
+  const copyAction = useActionCopy();
   const [activeTab, setActiveTab] = useState<'flows' | 'submissions' | 'links'>('flows');
   const [submissions, setSubmissions] = useState<FlowSubmission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -195,7 +197,7 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
                       <td style={{ fontWeight: 600 }}>{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td>
                       <td>
                         <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: '#0369a1', fontSize: 'var(--text-xs)' }}>{link}</a>
-                        <button onClick={() => { navigator.clipboard.writeText(link); toast.success('Copied'); }}
+                        <button type="button" onClick={() => { void copyAction(link); }}
                                 style={{ marginLeft: 6, background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 'var(--text-xs)' }}>
                           Copy
                         </button>
