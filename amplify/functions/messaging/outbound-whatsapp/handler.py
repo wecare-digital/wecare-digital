@@ -296,8 +296,6 @@ def _send_direct_api(phone_number_id: str, message_json: str) -> Dict:
     
     token = _direct_api_cache['token']
     app_secret = _direct_api_cache['app_secret']
-    meta_phone_id = DIRECT_API_META_PHONE_MAP.get(phone_number_id, '')
-    
     meta_phone_id = _resolve_meta_phone_id(phone_number_id)
 
     url = f"https://graph.facebook.com/{META_API_VERSION}/{meta_phone_id}/messages"
@@ -3211,7 +3209,7 @@ def _upload_media(media_file: str, media_type: str, message_id: str, phone_numbe
             
             token = _direct_api_cache['token']
             app_secret = _direct_api_cache['app_secret']
-            meta_phone_id = DIRECT_API_META_PHONE_MAP.get(phone_number_id, '')
+            meta_phone_id = _resolve_meta_phone_id(phone_number_id)
             url = f"https://graph.facebook.com/{META_API_VERSION}/{meta_phone_id}/media"
             if app_secret:
                 proof = _hmac.new(app_secret.encode(), token.encode(), _hashlib.sha256).hexdigest()
