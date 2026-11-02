@@ -160,14 +160,32 @@ async function getAuthToken (): Promise<string | null> {
   }
 }
 
+/** Keep staff credentials within the configured API origin and path prefix. */
+function trustedApiUrl ( input: string ): string {
+  const base = new URL( API_BASE );
+  const target = new URL( input, base );
+  const prefix = base.pathname.replace( /\/$/, '' );
+  if ( target.origin !== base.origin || target.username || target.password
+    || ( target.pathname !== prefix && !target.pathname.startsWith( `${prefix}/` ) ) )
+  {
+    throw new TypeError( 'Request destination is outside the configured API' );
+  }
+  // Reconstruct from the trusted base; callers control only the validated path/query.
+  base.pathname = target.pathname;
+  base.search = target.search;
+  base.hash = '';
+  return base.href;
+}
+
 /**
  * Authenticated fetch — attaches the Cognito access token as a Bearer header.
  * Use on pages that make raw fetch() calls to protected API routes instead of
  * going through apiCall(). Unauthenticated/webhook routes simply ignore it.
  */
 export async function authFetch ( input: string, init: RequestInit = {} ): Promise<Response> {
+  const destination = trustedApiUrl( input );
   const token = await getAuthToken();
-  return fetch( input, {
+  return fetch( destination, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -201,6 +219,13 @@ async function apiCall<T> ( url: string, options?: RequestInit ): Promise<T | nu
  * and network errors up to `RETRY_CONFIG.maxRetries`.
  */
 export async function apiCallResult<T> ( url: string, options?: RequestInit, retryCount = 0 ): Promise<ApiResult<T>> {
+  let destination: string;
+  try { destination = trustedApiUrl( url ); }
+  catch {
+    return { ok: false, failure: recordFailure(
+      'http', null, 'Request destination is outside the configured API', API_BASE,
+    ) };
+  }
   try
   {
     const controller = new AbortController();
@@ -210,7 +235,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
     const token = await getAuthToken();
     const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const response = await fetch( url, {
+    const response = await fetch( destination, {
       ...options,
       signal: controller.signal,
       headers: {
