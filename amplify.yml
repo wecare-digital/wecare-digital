@@ -40,11 +40,10 @@ frontend:
         # docstring/import boundary; Amplify #467 passed while its backend tests
         # failed. Standard-library syntax compilation is safe and runs offline:
         # no messages, payments, AWS mutation or runtime import side effects.
-        - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/core/secure-files amplify/functions/shared/lambda_utils > /tmp/wecare-python-compile.log 2>&1 || { aws s3 cp /tmp/wecare-python-compile.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/python-compile-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-python-compile.log; exit 1; }; tail -n 20 /tmp/wecare-python-compile.log
-        # The historical browser and Python test suites were retired; a dedicated
-        # transport-contract test now runs in GitHub's Payflow safety workflow.
-        # Amplify independently enforces Python compilation, real-data safety,
-        # source/UI contracts, TypeScript, export and credential checks.
+        - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/messaging/outbound-whatsapp amplify/functions/messaging/whatsapp-calling amplify/functions/messaging/plivo-answer amplify/functions/core/secure-files amplify/functions/shared/lambda_utils > /tmp/wecare-python-compile.log 2>&1 || { aws s3 cp /tmp/wecare-python-compile.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/python-compile-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-python-compile.log; exit 1; }; tail -n 20 /tmp/wecare-python-compile.log
+        # Owner retired tests/ and GitHub workflows. Enforce the small no-send
+        # Pay & Flow / WhatsApp sender / SMS readiness source contract in Amplify
+        # itself, beside existing source, TypeScript and credential gates.
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
@@ -79,6 +78,9 @@ frontend:
         - node scripts/check_action_ui_contracts.cjs > /tmp/wecare-action-ui-contracts.log 2>&1 || { aws s3 cp /tmp/wecare-action-ui-contracts.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/action-ui-contracts-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-action-ui-contracts.log; exit 1; }; tail -n 20 /tmp/wecare-action-ui-contracts.log
         # Reject fictional provider offers, fabricated analytics and test-template sends in every production build.
         - node scripts/check_production_data_safety.cjs > /tmp/wecare-production-data-safety.log 2>&1 || { aws s3 cp /tmp/wecare-production-data-safety.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/production-data-safety-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-production-data-safety.log; exit 1; }; tail -n 20 /tmp/wecare-production-data-safety.log
+        # No external provider calls or customer data; this validates the source
+        # of Pay & Flow and the fail-closed SMS/approved-template sender contracts.
+        - node scripts/check_payflow_release_safety.cjs > /tmp/wecare-payflow-safety.log 2>&1 || { aws s3 cp /tmp/wecare-payflow-safety.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/payflow-safety-failure.log" --only-show-errors || true; tail -n 80 /tmp/wecare-payflow-safety.log; exit 1; }; tail -n 12 /tmp/wecare-payflow-safety.log
         # DEPLOY GATE. Store private diagnostics before failing so release blockers are inspectable
         # without relying on Amplify's service-owned log bucket.
         - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-unknown}"
