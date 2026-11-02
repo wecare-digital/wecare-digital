@@ -46,6 +46,25 @@ class ProcessContracts(unittest.TestCase):
         self.assertEqual(processes.record_captured(t,'i','p'),'ALREADY_RECORDED')
         self.assertEqual(len(t.writes),1)
         self.assertIn('paymentId = :payment',t.writes[0]['ConditionExpression'])
+    def test_concurrent_checkpoint_conflict_rechecks_same_verified_payment(self):
+        class ConditionalConflict(Exception):
+            response={'Error':{'Code':'ConditionalCheckFailedException'}}
+        class RacingTable(Table):
+            def update_item(self,**kwargs):
+                self.row['itemProcessCapturedPaymentId']='p'
+                raise ConditionalConflict()
+        row=dict(invoiceId='i',fixedPresetId='fixed-01',paymentStatus='captured',paymentId='p')
+        self.assertEqual(processes.record_captured(RacingTable(row),'i','p'),'ALREADY_RECORDED')
+        class ChangedTable(Table):
+            def update_item(self,**kwargs):
+                self.row['paymentStatus']='refunded'
+                raise ConditionalConflict()
+        self.assertEqual(processes.record_captured(ChangedTable({**row,'itemProcessCapturedPaymentId':''}),'i','p'),'PAYMENT_NOT_VERIFIED')
+        class FailedTable(Table):
+            def update_item(self,**kwargs):raise RuntimeError('unavailable')
+        with self.assertRaises(RuntimeError):
+            processes.record_captured(FailedTable({**row,'itemProcessCapturedPaymentId':''}),'i','p')
+
     def test_service_attribution_requires_exact_paid_lineage_and_file_target(self):
         i=dict(invoiceId='i',paymentId='p',referenceId='ref',total='105.56',currency='INR')
         r=dict(referenceId='ref',paymentAttemptId='a')

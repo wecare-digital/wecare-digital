@@ -10,7 +10,7 @@ export default function ItemPaymentProcess({itemId,itemName}:{itemId:string;item
   const [draft,setDraft]=React.useState<Draft>(()=>initial(itemId));
   const [custom,setCustom]=React.useState(false);
   const [loading,setLoading]=React.useState(true),[saving,setSaving]=React.useState(false),[notice,setNotice]=React.useState(''),[error,setError]=React.useState('');
-  const key=`payment_item_process_${itemId.replace('-','_')}`;
+  const key=`payment_item_process_${itemId.replaceAll('-','_')}`;
   React.useEffect(()=>{let active=true;setLoading(true);setNotice('');setError('');setDraft(initial(itemId));void api.getSystemConfigResult(key).then(result=>{if(!active)return;if(!result.ok){setError(result.failure.message||'Process setup could not be loaded.');return;}const config=result.data.config;if(config?.itemId===itemId){setDraft({...initial(itemId),...config,enabled:false});setCustom(!!config.templateId&&!TEMPLATE_LIBRARY.some(row=>row.id===config.templateId));}}).catch(()=>{if(active)setError('Process setup could not be loaded.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[itemId,key]);
   const save=async()=>{setSaving(true);setNotice('');try{const ok=await api.updateSystemConfig(key,draft);setNotice(ok?'Process draft saved and read back from the backend.':'Save could not be confirmed. Reload before editing again.');}catch{setNotice('Process draft could not be saved.');}finally{setSaving(false);}};
   return <section className="item-process" aria-labelledby="item-process-title"><div className="process-title"><div><small>3 · AFTER VERIFIED PAYMENT</small><h2 id="item-process-title">{itemName} process</h2></div><span>Flow setup pending</span></div>

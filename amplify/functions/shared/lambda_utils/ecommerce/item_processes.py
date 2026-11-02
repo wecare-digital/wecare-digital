@@ -123,18 +123,29 @@ def record_captured(invoice_table: Any, invoice_id: str, payment_id: str, *,
     if invoice.get("itemProcessCapturedPaymentId"):
         return "ALREADY_RECORDED"
     item_id = item_ids[0] if len(item_ids) == 1 else "MULTI_ITEM"
-    invoice_table.update_item(
-        Key={"invoiceId": invoice_id},
-        UpdateExpression="SET itemProcessId = :process, itemProcessItemId = :item, "
-                         "postPaymentProcessState = :state, itemProcessCapturedPaymentId = :payment, "
-                         "itemProcessIds = :processes, itemProcessStates = :states",
-        ConditionExpression="attribute_not_exists(itemProcessCapturedPaymentId) AND "
-                            "(paymentStatus = :captured OR paymentStatus = :paid) AND "
-                            "(paymentId = :payment OR providerPaymentId = :payment)",
-        ExpressionAttributeValues={":process": "payment-item-" + item_id, ":item": item_id,
-                                   ":state": "AWAITING_FLOW_SETUP", ":payment": payment_id,
-                                   ":captured": "captured", ":paid": "paid",
-                                   ":processes": ["payment-item-" + value for value in item_ids],
-                                   ":states": {value: "AWAITING_FLOW_SETUP" for value in item_ids}},
-    )
+    try:
+        invoice_table.update_item(
+            Key={"invoiceId": invoice_id},
+            UpdateExpression="SET itemProcessId = :process, itemProcessItemId = :item, "
+                             "postPaymentProcessState = :state, itemProcessCapturedPaymentId = :payment, "
+                             "itemProcessIds = :processes, itemProcessStates = :states",
+            ConditionExpression="attribute_not_exists(itemProcessCapturedPaymentId) AND "
+                                "(paymentStatus = :captured OR paymentStatus = :paid) AND "
+                                "(paymentId = :payment OR providerPaymentId = :payment)",
+            ExpressionAttributeValues={":process": "payment-item-" + item_id, ":item": item_id,
+                                       ":state": "AWAITING_FLOW_SETUP", ":payment": payment_id,
+                                       ":captured": "captured", ":paid": "paid",
+                                       ":processes": ["payment-item-" + value for value in item_ids],
+                                       ":states": {value: "AWAITING_FLOW_SETUP" for value in item_ids}},
+        )
+    except Exception as error:
+        if getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        # A competing capture checkpoint is success only for this exact payment.
+        current = invoice_table.get_item(Key={"invoiceId": invoice_id}, ConsistentRead=True).get("Item") or {}
+        if (current.get("itemProcessCapturedPaymentId") == payment_id
+                and current.get("paymentStatus") in ("captured", "paid")
+                and str(current.get("paymentId") or current.get("providerPaymentId") or "") == payment_id):
+            return "ALREADY_RECORDED"
+        return "PAYMENT_NOT_VERIFIED"
     return "AWAITING_FLOW_SETUP"

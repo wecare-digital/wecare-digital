@@ -1646,7 +1646,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'entryPoint': entry_point,
         'fixedPresetId': body.get('fixedPresetId', ''),
         'itemProcessId': ('payment-item-' + body['fixedPresetId']) if body.get('fixedPresetId') else '',
-        'postPaymentProcessState': ('AWAITING_FLOW_SETUP' if payment_status == 'captured' else 'AWAITING_CAPTURE') if body.get('fixedPresetId') else '',
+        'postPaymentProcessState': 'AWAITING_CAPTURE' if body.get('fixedPresetId') else '',
         # Where the customer placed the order, so the invoice can print its own Source line
         # (GST Rule 46 carries no such requirement; this is for the customer and for support).
         # `entryPoint` is NOT a substitute: it records which internal flow minted the invoice
