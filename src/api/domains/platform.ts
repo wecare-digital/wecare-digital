@@ -811,6 +811,8 @@ export interface SecureFile {
   lastPaymentRequestedBy?: string;
   lastPaymentRequestedAt?: string;
   lastPaymentRequestOutcome?: string;
+  accessResendRequestId?: string;
+  accessResendState?: string;
   lastAccessSentBy?: string;
   lastAccessSentAt?: string;
   lastAccessSendOutcome?: string;
@@ -851,16 +853,16 @@ export interface SecureFileActionResult {
  */
 async function secureFileAction (
   fileId: string, action: 'send-offer' | 'request-payment' | 'send-access',
-  options?: { offerBodyText?: string; paymentItemDescription?: string },
+  options?: { offerBodyText?: string; paymentItemDescription?: string; expectedTotalPaise?: number; requestId?: string; previousRequestId?: string },
 ): Promise<SecureFileActionResult> {
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
   {
     const requestBody = action === 'send-offer' && options?.offerBodyText !== undefined
       ? JSON.stringify( { offerBodyText: options.offerBodyText } )
-      : action === 'request-payment' && options?.paymentItemDescription !== undefined
-        ? JSON.stringify( { paymentItemDescription: options.paymentItemDescription } )
-        : '{}';
+      : action === 'request-payment'
+        ? JSON.stringify( { ...(options?.paymentItemDescription === undefined ? {} : {paymentItemDescription: options.paymentItemDescription}), ...(options?.expectedTotalPaise === undefined ? {} : {expectedTotalPaise: options.expectedTotalPaise}) } )
+        : action === 'send-access' ? JSON.stringify({requestId: options?.requestId, previousRequestId: options?.previousRequestId}) : '{}';
     const response = await authFetch( url, { method: 'POST', body: requestBody } );
     let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
     try { body = await response.json(); } catch { body = {}; }
@@ -910,8 +912,8 @@ export function requestSecureFilePayment (
 }
 
 /** Resend the Access Vault link for a paid file. Never charges. */
-export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActionResult> {
-  return secureFileAction( fileId, 'send-access' );
+export function sendSecureFileAccess ( fileId: string, requestId?: string, previousRequestId?: string ): Promise<SecureFileActionResult> {
+  return secureFileAction( fileId, 'send-access', {requestId, previousRequestId} );
 }
 
 /** Authenticated, 60-second S3 GET preview of the two already-approved payment assets.
@@ -1056,6 +1058,7 @@ export interface VaultMessageDeliveryEvidence {
 }
 export interface VaultMessageDeliveryLog {
   fileId: string;
+  verifiedInvoice?: {invoiceId: string; invoiceNumber: string} | null;
   evidence: {
     offer: VaultMessageDeliveryEvidence;
     nativePay?: VaultMessageDeliveryEvidence;

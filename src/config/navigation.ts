@@ -121,6 +121,7 @@ export const navigationConfig: NavItem[] = [
     icon: 'payment',
     children: [
       { path: '/workspace/collect', label: 'Collect · custom invoices' },
+      { path: '/workspace/vault', label: 'Vault · private files' },
       { path: '/workspace/payments?view=defaults', label: 'Invoice items (29)' },
       { path: '/workspace/payments?view=timing', label: 'Access Vault delay' },
       { path: '/workspace/payments?view=ledger', label: 'Ledger' },
@@ -400,7 +401,7 @@ export const contextualRoutes: { path: string; label: string; parent: string }[]
   // Search shortcuts choose a type in the same Payments workspace. They are
   // intentionally absent from visible menu children: the owner wants one dropdown.
   { path: '/workspace/collect', label: 'Collect', parent: 'Payments' },
-  { path: '/workspace/payments?view=vault', label: 'Vault', parent: 'Payments' },
+  { path: '/workspace/vault', label: 'Vault', parent: 'Payments' },
   { path: '/workspace/payments?view=contribute', label: 'Contribute', parent: 'Payments' },
   { path: '/workspace/content', label: 'Publishing', parent: 'Contextual workflows' },
   { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },

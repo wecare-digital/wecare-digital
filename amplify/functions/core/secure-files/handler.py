@@ -549,6 +549,8 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["lastPaymentRequestOutcome"] = item.get("lastPaymentRequestOutcome")
         out["lastAccessSentBy"] = item.get("lastAccessSentBy")
         out["lastAccessSentAt"] = item.get("lastAccessSentAt")
+        out["accessResendRequestId"] = item.get("accessResendRequestId")
+        out["accessResendState"] = item.get("accessResendState")
         out["lastAccessSendOutcome"] = item.get("lastAccessSendOutcome")
     return _decimal_safe(out)
 
@@ -1355,6 +1357,7 @@ def _verified_vault_payment_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     if len(invoices) != 1 or len(paid) != 1:
         return result
     invoice_id = str(paid[0]["invoiceId"])
+    result["_verifiedInvoice"] = {"invoiceId": invoice_id, "invoiceNumber": str(paid[0].get("invoiceNumber") or "")}
     logs = _table(os.environ.get(
         "INVOICE_DELIVERY_TABLE", "stack-wecare-digital-InvoiceDeliveryLogTable")).query(
         KeyConditionExpression="invoiceId = :id",
@@ -1408,6 +1411,7 @@ def _admin_message_log(file_id: str, origin: str) -> Dict[str, Any]:
         scope = "file_bound_only_paid_audit_unavailable"
     return _no_store(cors_response(200, {
         "fileId": file_id,
+        "verifiedInvoice": paid_evidence.pop("_verifiedInvoice", None),
         "evidence": {"offer": offer, **paid_evidence, "access": access},
         "scope": scope,
         "otherStages": "NO_GUESSED_WAMIDS_OR_DELIVERY",
@@ -1833,8 +1837,50 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
     from whatsapp_delivery import send_vault_link
 
     actor = str((event.get("_auth") or {}).get("username", "staff"))[:128]
-    ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (TypeError, ValueError):
+        return cors_response(400, {"error": "INVALID_ACCESS_REQUEST"}, origin)
+    request_id = str(body.get("requestId") or "") if isinstance(body, dict) else ""
+    previous = str(body.get("previousRequestId") or "") if isinstance(body, dict) else ""
+    # Every manual staff resend requires a durable identity.
+    if not request_id:
+        return cors_response(400, {"error": "ACCESS_REQUEST_ID_REQUIRED",
+            "message": "Refresh the Vault workspace before resending access."}, origin)
+    if request_id:
+        if not re.fullmatch(r"[a-f0-9-]{36}", request_id):
+            return cors_response(400, {"error": "INVALID_ACCESS_REQUEST"}, origin)
+        current = str(item.get("accessResendRequestId") or "")
+        if current != request_id:
+            if current != previous or (current and item.get("accessResendState") != "ACCEPTED"):
+                return cors_response(409, {"error": "ACCESS_RESEND_UNRESOLVED",
+                    "message": "Refresh the file. A previous access send needs reconciliation."}, origin)
+            try:
+                _table(FILES_TABLE).update_item(
+                    Key={"fileId": file_id},
+                    UpdateExpression="SET accessResendRequestId=:id, accessResendState=:sending",
+                    ConditionExpression=("accessResendRequestId=:previous AND accessResendState=:accepted"
+                        if current else "attribute_not_exists(accessResendRequestId)"),
+                    ExpressionAttributeValues=({":id": request_id, ":sending": "SENDING",
+                        ":previous": previous, ":accepted": "ACCEPTED"} if current else
+                        {":id": request_id, ":sending": "SENDING"}),
+                )
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+                return cors_response(409, {"error": "ACCESS_RESEND_CHANGED"}, origin)
+    ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item,
+                               request_id=request_id)
     outcome = "VAULT_LINK_SENT" if ok else "VAULT_LINK_NOT_SENT"
+    if request_id:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": file_id},
+            UpdateExpression="SET accessResendState=:state",
+            ConditionExpression="accessResendRequestId=:id",
+            ExpressionAttributeValues={":id": request_id,
+                ":state": ("LINK_ACCEPTED" if ok and state == "READY"
+                           else "ACCEPTED" if ok else "UNCONFIRMED")},
+        )
     # Only a confirmed provider ID can later be joined to webhook delivery events.
     wamid = str(detail) if ok and str(detail).startswith("wamid.") and len(str(detail)) <= 512 else ""
     try:
@@ -1883,6 +1929,13 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
                 "outcome": "VAULT_LINK_ACCEPTED_WINDOW_UNVERIFIED",
                 "message": "WhatsApp accepted the link, but the 24-hour window needs reconciliation. Do not resend automatically.",
             }, origin)
+    if request_id and state == "OPEN":
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": file_id},
+            UpdateExpression="SET accessResendState=:accepted",
+            ConditionExpression="accessResendRequestId=:id",
+            ExpressionAttributeValues={":id": request_id, ":accepted": "ACCEPTED"},
+        )
     return cors_response(200, {"outcome": outcome, "fileId": file_id,
                                "accessState": state,
                                "message": "The Access Vault link was accepted by WhatsApp. Delivery is not yet verified."}, origin)
@@ -3190,6 +3243,10 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
             or catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT})
         answer = _admin_request_payment(file_id, internal_event, "")
     else:
+        internal_event["body"] = json.dumps({
+            "requestId": str(uuid.uuid5(uuid.NAMESPACE_URL, "wecare:vault-access:" + schedule_id)),
+            "previousRequestId": str(file_row.get("accessResendRequestId") or ""),
+        })
         answer = _admin_send_access(file_id, internal_event, "")
 
     code = answer.get("statusCode")
