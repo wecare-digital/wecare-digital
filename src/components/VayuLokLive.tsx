@@ -68,12 +68,10 @@ const DOT_LINE_RGBA: [ number, number, number, number ] = [ 255, 255, 255, 230 ]
 // is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
 // is allowed to move the camera.
 
-// Place-autocomplete debounce. 120ms is a deliberately snappy value: it keeps ONE
-// Autocomplete Data API request per settled keystroke (so a fast typist does not spam the
-// SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
-// (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
-const SEARCH_DEBOUNCE_MS = 120;
-const WORLD_SEARCH_DEBOUNCE_MS = 65;
+// Wait for settled input before requesting Google's paid Places Autocomplete SKU.
+// Search still works worldwide and retains its existing session token handling.
+const SEARCH_DEBOUNCE_MS = 300;
+const WORLD_SEARCH_DEBOUNCE_MS = 300;
 const WORLD_SEARCH_MIN_CHARS = 2;
 const FX_API_BASE = 'https://api.frankfurter.dev/v2';
 const ROUTE_REQUEST_ENABLED = process.env.NEXT_PUBLIC_VAYULOK_ROUTE_ENABLED === 'true';
@@ -1039,6 +1037,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( mode );
+  // VayuLok's weather/AQI map is below the hero. Defer paid Google calls until
+  // the visitor is approaching this real map, not on every landing-page view.
+  const [ mapViewRequested, setMapViewRequested ] = useState( false );
   const [ mapVisible, setMapVisible ] = useState( false );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
@@ -1061,6 +1062,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ weatherDayPeriod, setWeatherDayPeriod ] = useState<'day' | 'night'>( 'day' );
   const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity' | 'pressure' | 'wind' | 'cloud'>( 'temp' );
   const [ weatherHistoryInspectIdx, setWeatherHistoryInspectIdx ] = useState<number | null>( null );
+  // BigQuery-backed long-term history is only requested when a visitor asks for
+  // that specific location. Changing places requires a fresh explicit action.
+  const [ insightsRequestedFor, setInsightsRequestedFor ] = useState<string | null>( null );
   // Explicit Air-forecast state machine so the section can show loading skeletons, the real
   // strip, an honest "no rows" empty state, or a concise error - instead of silently rendering
   // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
@@ -1142,6 +1146,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Touch/pointer/keyboard inspection is the Hourly History navigation; no separate arrow pager.
   const [ historyInspectIdx, setHistoryInspectIdx ] = useState<number | null>( null );
 
+  const mapRegionRef = useRef<HTMLElement | null>( null );
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   // Do not zoom into the default example city when the initial map is fitted to
@@ -1150,6 +1155,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Bumped by every selection, map or search. A step that finishes later (a reverse geocode,
   // Place details) applies its result only if no newer selection has started since.
   const selectionSeqRef = useRef( 0 );
+  // Discard old Places results if a newer query/selection has superseded them.
+  const searchRequestSeqRef = useRef( 0 );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
@@ -1199,6 +1206,25 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     return () => window.clearInterval( timer );
   }, [] );
 
+  // Load the main map, Weather and Air Quality APIs only when it approaches the
+  // viewport. A generous rootMargin starts work before a user scrolls into view.
+  // Legacy browsers without IntersectionObserver keep the existing eager path.
+  useEffect( () => {
+    const target = mapRegionRef.current;
+    if ( !target || typeof IntersectionObserver === 'undefined' ) {
+      setMapViewRequested( true );
+      return;
+    }
+    const observer = new IntersectionObserver( entries => {
+      if ( entries.some( entry => entry.isIntersecting ) ) {
+        setMapViewRequested( true );
+        observer.disconnect();
+      }
+    }, { rootMargin: '480px 0px', threshold: 0.01 } );
+    observer.observe( target );
+    return () => observer.disconnect();
+  }, [] );
+
   // Keep first paint light. Forecast/history panels are below the immediate "Now" experience,
   // so start those larger requests only when the browser has breathing room.
   useEffect( () => {
@@ -1229,6 +1255,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       ...( externalLocation.regionCode ? { regionCode: externalLocation.regionCode } : {} ),
     };
     ++selectionSeqRef.current;
+    ++searchRequestSeqRef.current;
+    if ( searchTimer.current ) clearTimeout( searchTimer.current );
     rememberPlace( next );
     setPlace( next );
     setHasSelection( true );
@@ -1271,7 +1299,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ place.lat, place.lng, weatherHours, weatherHourly.length ] );
 
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) {
+    if ( !MAPS_KEY || !hasSelection || !mapViewRequested || typeof window === 'undefined' ) {
+      setLocationTime( DEFAULT_LOCATION_TIME );
+      return;
+    }
+
+    // Every supported Indian location uses IST with no daylight-saving change.
+    // Don't bill Google's Time Zone API for an already-known Indian zone.
+    if ( ( place.regionCode || '' ).toUpperCase() === 'IN' ) {
       setLocationTime( DEFAULT_LOCATION_TIME );
       return;
     }
@@ -1317,7 +1352,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       } );
 
     return () => ac.abort();
-  }, [ place.lat, place.lng, hasSelection ] );
+  }, [ place.lat, place.lng, hasSelection, mapViewRequested, place.regionCode ] );
 
   const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
     if ( typeof window === 'undefined' ) return;
@@ -1449,18 +1484,18 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ place.lat, place.lng, clearAlertBoundary ] );
 
   useEffect( () => {
-    if ( !MAPS_KEY || mapReady ) return;
+    if ( !MAPS_KEY || !mapViewRequested || mapReady ) return;
     setMapFailed( false );
     const id = window.setTimeout( () => setMapFailed( true ), 12_000 );
     return () => window.clearTimeout( id );
-  }, [ mapReady, mapInitNonce ] );
+  }, [ mapReady, mapInitNonce, mapViewRequested ] );
 
   /* ---------------------------------------------------------------------------------
      MAP. Fires on load WHEN a key is present. The Maps JS script is injected once per
      document with id 'gmaps-js' and reused across remounts, exactly as ContactLocation.
      Guarded by `if(!MAPS_KEY) return;` so no key means no script and no map. */
   useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' ) return;
+    if ( !MAPS_KEY || !mapViewRequested || typeof window === 'undefined' ) return;
     const w = window as unknown as {
       google?: { maps?: Record<string, unknown> & {
         importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
@@ -1639,14 +1674,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
     };
     // mapInitNonce lets the map-failed "Try again" button re-run initialisation.
-  }, [ mapInitNonce ] );
+  }, [ mapInitNonce, mapViewRequested ] );
 
   /* ---------------------------------------------------------------------------------
      GOOGLE AIR HEATMAP TILES. AQI and PM2.5 both use Google's documented ImageMapType tile
      products. Only one tile overlay is attached at a time; the selected destination still owns
      current conditions, forecast and history data independently of the visual map layer. */
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !MAPS_KEY || !mapReady || !mapViewRequested || !hasSelection || typeof window === 'undefined' ) return;
 
     const map = mapRef.current;
 
@@ -1722,7 +1757,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     }
 
     return undefined;
-  }, [ layer, place, refreshNonce, mapReady, hasSelection, detailTab ] );
+  }, [ layer, place, refreshNonce, mapReady, hasSelection, detailTab, mapViewRequested ] );
 
 
   /* ---------------------------------------------------------------------------------
@@ -1795,7 +1830,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
      the place changes AND a key is present. Each call is independently guarded,
      uses AbortController + Number.isFinite + silent degradation, and caches per place. */
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !MAPS_KEY || !mapViewRequested || !hasSelection || typeof window === 'undefined' ) return;
     const { lat, lng } = place;
     const cacheKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
 
@@ -1933,7 +1968,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       await Promise.all( [ fetchAir(), fetchWeather() ] );
       if ( ac.signal.aborted ) return;
       const fetchedAt = Date.now();
-      cache.current[ cacheKey ] = { ts: fetchedAt, ...store };
+      // Never cache a complete provider failure as if it were a valid snapshot.
+      if ( store.air || store.weather ) cache.current[ cacheKey ] = { ts: fetchedAt, ...store };
       // First setState via rAF to avoid react-hooks/set-state-in-effect.
       requestAnimationFrame( () => {
         if ( ac.signal.aborted ) return;
@@ -1946,12 +1982,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     } )();
 
     return () => ac.abort();
-  }, [ place, refreshNonce, hasSelection ] );
+  }, [ place, refreshNonce, hasSelection, mapViewRequested ] );
 
   /* Extended forecast/history calls are separate from current conditions so a slow
      long-range endpoint never blocks the "Now" experience. */
   useEffect( () => {
-    if ( !deferredDataReady || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || !mapViewRequested || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const forecastKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
@@ -2267,10 +2303,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       setForecastFetchedAt( fetchedAt );
     } );
     return () => ac.abort();
-  }, [ deferredDataReady, detailTab, place, hasSelection, airForecastHours ] );
+  }, [ deferredDataReady, detailTab, place, hasSelection, airForecastHours, mapViewRequested ] );
 
   useEffect( () => {
-    if ( !deferredDataReady || detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
@@ -2306,10 +2342,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run();
     return () => ac.abort();
-  }, [ deferredDataReady, detailTab, place, hasSelection ] );
+  }, [ deferredDataReady, detailTab, place, hasSelection, mapViewRequested ] );
 
   useEffect( () => {
-    if ( !deferredDataReady || detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || !mapViewRequested || detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     setHistoryInspectIdx( null );
@@ -2372,7 +2408,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
-  }, [ deferredDataReady, detailTab, place, historyRange, hasSelection ] );
+  }, [ deferredDataReady, detailTab, place, historyRange, hasSelection, mapViewRequested ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists).
@@ -2939,6 +2975,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   const runSearch = useCallback( async ( text: string ) => {
+    const requestSeq = ++searchRequestSeqRef.current;
     if ( !MAPS_KEY || !text.trim() ) {
       setResults( [] );
       setOpen( false );
@@ -2947,6 +2984,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     }
     setSearchStatus( 'searching' );
     const lib = await ensurePlacesLibrary();
+    if ( requestSeq !== searchRequestSeqRef.current ) return;
     const Auto = lib?.AutocompleteSuggestion as {
       fetchAutocompleteSuggestions?: ( req: Record<string, unknown> ) => Promise<{ suggestions?: unknown[] }>;
     } | undefined;
@@ -2965,6 +3003,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         input: text,
         sessionToken: autocompleteTokenRef.current,
       } );
+      if ( requestSeq !== searchRequestSeqRef.current ) return;
       const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
         .map( suggestion => {
           const prediction = ( suggestion as { placePrediction?: SearchResult['prediction'] & {
@@ -2989,6 +3028,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       setOpen( mapped.length > 0 );
       setSearchStatus( mapped.length ? 'idle' : 'no-results' );
     } catch {
+      if ( requestSeq !== searchRequestSeqRef.current ) return;
       autocompleteTokenRef.current = null;
       setResults( [] );
       setOpen( false );
@@ -2999,6 +3039,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const v = e.target.value;
+    ++searchRequestSeqRef.current;
     setQuery( v );
     if ( searchTimer.current ) clearTimeout( searchTimer.current );
     if ( !v.trim() ) {
@@ -3009,11 +3050,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       setSearchStatus( 'idle' );
       return;
     }
-    // SEARCH_DEBOUNCE_MS (120ms) keeps one request per settled keystroke while feeling instant.
+    // SEARCH_DEBOUNCE_MS limits billable autocomplete requests while typing.
     searchTimer.current = setTimeout( () => { void runSearch( v ); }, SEARCH_DEBOUNCE_MS );
   };
 
   const choose = useCallback( async ( r: SearchResult ) => {
+    ++searchRequestSeqRef.current;
+    if ( searchTimer.current ) clearTimeout( searchTimer.current );
     const seq = ++selectionSeqRef.current;
     let next = r.place;
 
@@ -3272,7 +3315,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
 
         <div className="vl-live-workspace">
-          <section className="vl-live-map-region" aria-label="Map">
+          <section className="vl-live-map-region" ref={ mapRegionRef } aria-label="Weather and air-quality map">
             <div className="vl-live-map-shell">
 
               { detailTab === 'weather' && weatherVisual && mapVisible && (
@@ -4208,14 +4251,24 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           );
                         } )() }
 
-                        <VayuLokWeatherInsights
-                          lat={ place.lat }
-                          lng={ place.lng }
-                          placeName={ place.name }
-                          timeZoneId={ locationTime.timeZoneId }
-                          zoneLabel={ locationZoneLabel }
-                          includeUiStyles={ false }
-                        />
+                        { insightsRequestedFor === `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}` ? (
+                          <VayuLokWeatherInsights
+                            key={ insightsRequestedFor }
+                            lat={ place.lat }
+                            lng={ place.lng }
+                            placeName={ place.name }
+                            timeZoneId={ locationTime.timeZoneId }
+                            zoneLabel={ locationZoneLabel }
+                            includeUiStyles={ false }
+                          />
+                        ) : (
+                          <div className="vl-live-wx-history-opt-in">
+                            <span>Long-term history is available on request. It may use BigQuery processing.</span>
+                            <VayuLokCompactPill onClick={ () => setInsightsRequestedFor( `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}` ) }>
+                              Load long-term history
+                            </VayuLokCompactPill>
+                          </div>
+                        ) }
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
@@ -4258,7 +4311,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       <span className="vl-live-map-loading-dot" aria-hidden="true" />
                     </div>
                   ) }
-                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
+                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ place === DEFAULT_PLACE ? `Map of India; weather and air quality readings are for ${place.name}` : `Weather and air-quality map around ${place.name}` } />
                 </>
               ) }
 
@@ -5074,14 +5127,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-cloud-field i:nth-child(1){width:42%;height:28%;left:-4%;top:8%}.vl-live-cloud-field i:nth-child(2){width:48%;height:32%;right:-8%;top:18%}
         .vl-live-cloud-field i:nth-child(3){width:38%;height:26%;left:24%;top:44%}.vl-live-cloud-field i:nth-child(4){width:44%;height:30%;right:4%;bottom:0}
         @keyframes vl-live-cloud-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(3%,1.5%,0)}}
-        /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
-        .vl-live :global(.gm-style-cc),
-        .vl-live :global(a[aria-label="Google Maps"]),
-        .vl-live :global(img[alt="Google"]){display:none!important}
+        /* Always preserve Google's visible logo, attribution and legal notices.
+           Never hide .gm-style-cc or Google Maps brand elements. */
         .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:var(--lime-tint);color:var(--green)}
         .vl-live-map-placeholder strong{font-size:var(--vl-subtext-size);letter-spacing:0}
         .vl-live-map-placeholder span{font-size:var(--vl-meta-size);color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:var(--vl-meta-size);color:var(--status)}
+        .vl-live-wx-history-opt-in{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-top:16px;padding:12px 0;border-top:1px solid var(--hair);color:var(--muted);font-size:var(--vl-subtext-size)}
         .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-control-size);font-weight:var(--vl-control-weight);cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime);box-shadow:var(--vl-hover-shadow);transform:translateY(-1px)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-subtext-size)}
