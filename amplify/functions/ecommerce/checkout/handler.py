@@ -26,7 +26,7 @@ Four rules it enforces, each load-bearing
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
    `checkout_pricing.compute_quote` adds the convenience fee and its GST. Vault and Drop Docs
-   use the owner-approved sequence at this seam: item price, 18% supply GST, Delight, Rs25
+   use the owner-approved sequence at this seam: item price, 18% supply GST, Delight, Rs45
    Express, then convenience fee and 18% GST on that fee. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
@@ -1223,7 +1223,7 @@ class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
 def _vault_dropdocs_quote(identity, ephemeral_cart: dict, reader, now: int):
     """Owner-approved Vault/Drop Docs sequence in exact integer paise.
 
-    ProductsTable line price -> 18% supply GST -> Delight -> Rs25 Express ->
+    ProductsTable line price -> 18% supply GST -> Delight -> Rs45 Express ->
     canonical 2.5% Convenience Fee -> 18% GST on that fee -> Amount Payable.
     """
     from lambda_utils.ecommerce import default_coupon, service_requests
@@ -1416,9 +1416,11 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
             raise ContributionRejected("CONTRIBUTION_MUST_BE_SEPARATE")
         return _contribution_quote(identity, ephemeral_cart, reader, now, canonical)
 
-    # Delight is server-owned. Vault/Drop Docs use the explicit owner-approved service sequence;
-    # every other basket keeps its existing native pricing contract.
-    from lambda_utils.ecommerce import default_coupon, service_requests
+    # Delight is server-owned. Vault/Drop Docs keep their explicit 18% supply-GST
+    # sequence; other customer carts add one mandatory Rs45 Express AFTER the
+    # existing GST-inclusive catalog/discount quote, but BEFORE fee and fee GST.
+    # The unlisted Rs2 internal QA SKU stays usable for cheap payment verification.
+    from lambda_utils.ecommerce import default_coupon, service_requests, express_policy
     service_line = service_requests.service_line(line_items)
     if service_line is not None and service_line.kind in (
             service_requests.VAULT, service_requests.DROP_DOCS):
@@ -1429,7 +1431,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         if not service_requests.has_service_line(line_items)
         else None
     )
-    return native_checkout.quote_native_cart(
+    base = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
         customer_id=identity.customer_id,
@@ -1439,6 +1441,9 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         gst_bps=0,
         coupon_definition=coupon_definition,
     )
+    if express_policy.is_internal_qa_cart(canonical):
+        return base
+    return express_policy.with_standard_express(base)
 
 
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
