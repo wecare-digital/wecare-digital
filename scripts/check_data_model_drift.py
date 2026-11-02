@@ -140,16 +140,16 @@ EXPLICIT_TABLE: dict[str, str] = {
 PHANTOM_ALLOWED: dict[str, str] = {}
 
 UNDECLARED_ALLOWED: dict[str, str] = {
-    "CouponsTable":
-        "RETIRED 2026-10-18: the coupon system was removed entirely (no coupon Lambda, no "
-        "coupon_store, no /coupons routes). The only discount is now the standalone Delight "
-        "policy, pure arithmetic in default_coupon.py with no table. This live table is pending "
-        "deletion from AWS; it is allowed here so the gate stays green until that destructive "
-        "infra step runs, and must be removed from this allowlist once the table is gone.",
-    "ProductsTable": "AWS-native catalog authority (10 products, 23 variants), provisioned by scripts/provision_products_table.py and declared in amplify/catalog-resources.ts.",
-    "CartTable": "AWS-native cart store with TTL, declared in amplify/catalog-resources.ts; operational state, not a CRM model.",
-    "CustomerSessionsTable": "Customer session store owned by amplify/infra/customer-sessions.json (CloudFormation stack wecare-customer-sessions).",
-    "ServiceRequestsTable": "Paid service requests, provisioned by scripts/provision_service_requests.py.",
+    "IdentityClaimsTable":
+        "Customer identity uniqueness registry provisioned by scripts/provision_identity_claims.py "
+        "and consumed by lambda_utils/identity_claims.py; operational auth state outside GraphQL.",
+    "WhatsAppTemplateFlowMappingTable":
+        "Template-to-Flow reconciliation store used by whatsapp-business-api/handler.py and "
+        "flows/template_flow_sync.py. Recent reads and writes verified 2026-11-02; not a CRM model.",
+    "WhatsAppTemplateRegistryTable":
+        "Backend template registry retained by the 2026-11-02 operations review. Recent "
+        "DynamoDB reads and writes independently verified; ownership is outside Amplify GraphQL. "
+        "Do not infer that the table is unused from absent Python name literals.",
     "AgentApprovalsTable":
         "Provisioned 2026-09-24 by scripts/provision_agent_approvals_table.py for "
         "the agent action approval path. Deliberately not modelled here: it is "
@@ -242,13 +242,18 @@ def expected_table(model: str) -> str:
     return f"{plural}Table"
 
 
-def live_tables(offline: bool) -> set[str]:
-    if offline:
-        if not SNAPSHOT.exists():
-            print(f"ERROR: --offline needs {SNAPSHOT.relative_to(ROOT)}", file=sys.stderr)
+def live_tables(offline: bool, tables_file: Path | None = None) -> set[str]:
+    if offline or tables_file is not None:
+        source = tables_file if tables_file is not None else SNAPSHOT
+        try:
+            data = json.loads(source.read_text())
+            names = data.get("TableNames", data.get("tables")) if isinstance(data, dict) else data
+            if not isinstance(names, list) or not all(isinstance(n, str) and n for n in names):
+                raise ValueError("expected a table-name list or an object with TableNames/tables")
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: cannot read table inventory {source}: {exc}", file=sys.stderr)
             sys.exit(2)
-        data = json.loads(SNAPSHOT.read_text())
-        return set(data["tables"])
+        return set(names)
     try:
         out = run(["aws", "dynamodb", "list-tables", "--output", "json",
                    "--query", "TableNames"])
@@ -262,12 +267,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", action="store_true", help="exit non-zero on unexpected drift")
-    ap.add_argument("--offline", action="store_true", help="use the committed table snapshot")
+    source = ap.add_mutually_exclusive_group()
+    source.add_argument("--offline", action="store_true", help="use the committed table snapshot")
+    source.add_argument("--tables-file", type=Path,
+                        help="use a private JSON ListTables result or table-name list; no AWS calls")
     ap.add_argument("--snapshot", action="store_true", help="refresh the snapshot from AWS")
     ap.add_argument("--json", action="store_true", dest="as_json")
     args = ap.parse_args()
+    if args.tables_file is not None and args.snapshot:
+        ap.error("--tables-file cannot be combined with --snapshot; keep private inventory outside Git")
 
-    live = live_tables(offline=args.offline)
+    live = live_tables(offline=args.offline, tables_file=args.tables_file)
 
     if args.snapshot:
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)

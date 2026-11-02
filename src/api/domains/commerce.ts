@@ -74,6 +74,13 @@ export interface InvoiceEvidenceTimeline {
 }
 
 export interface Invoice {
+  internalOrderId?: string;
+  orderNumber?: string;
+  receiptStatus?: string;
+  receiptSentAt?: number;
+  collectResendRequestId?: string;
+  collectResendState?: string;
+  collectResendMessageId?: string;
   fixedPresetId?: string;
   itemProcessId?: string;
   itemProcessIds?: string[];
@@ -179,6 +186,9 @@ export interface Invoice {
 }
 
 export interface CreateInvoiceEngineRequest {
+  collectWorkspace?: true;
+  collectSavedAddress?: Record<string,unknown>;
+  confirmedPreviewFingerprint?: string;
   fixedPresetId?: string;
   customerPhone: string;
   paidByPhone?: string;
@@ -238,6 +248,7 @@ export interface CreateInvoiceEngineResponse {
 
 /** Pre-issue quote from the invoice engine. No invoice row/number is created. */
 export interface InvoiceEnginePreview {
+  previewFingerprint?: string;
   preview: true;
   subtotal: string;
   discount: string;
