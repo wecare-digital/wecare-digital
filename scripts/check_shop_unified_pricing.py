@@ -213,6 +213,56 @@ class UnifiedShopPricingTests(unittest.TestCase):
             unified_pricing.quote_from_base_snapshot(
                 self.base_snapshot([vault, other]))
 
+    def test_backend_manifest_contains_29_approved_skus_without_test_product(self):
+        import json
+        from collections import Counter
+        root = Path(__file__).resolve().parents[1]
+        manifest = json.loads(
+            (root / "scripts/shop_express_register_20261102.json").read_text(encoding="utf-8"))
+        records = manifest["items"]
+        self.assertEqual(len(records), 29)
+        self.assertEqual(len({x["productId"] for x in records}), 29)
+        self.assertEqual(len({x["variantId"] for x in records}), 29)
+        self.assertNotIn("native:commerce-test-2", {x["productId"] for x in records})
+        self.assertEqual(Counter(x["expressPaise"] for x in records),
+                         Counter({1500: 1, 2500: 1, 4500: 27}))
+        vault = next(x for x in records if x["slug"] == "vault")
+        self.assertEqual((vault["productId"], vault["variantId"], vault["basePricePaise"]),
+                         (express_policy.VAULT_PRODUCT_ID, express_policy.VAULT_VARIANT_ID, 4900))
+        contribute = next(x for x in records if x["slug"] == "contribute")
+        self.assertEqual(contribute["basePricePaise"], 30000)
+        prices = Counter(base for name,base,*_ in APPROVED_PAIRS if name != "Contribute")
+        self.assertEqual(prices,
+                         Counter(x["basePricePaise"] for x in records if x["slug"] != "contribute"))
+        for x in records:
+            self.assertEqual(
+                express_policy.expected_express_paise(x["productId"], x["variantId"]),
+                x["expressPaise"])
+
+    def test_public_price_register_rejects_stale_vault_fee(self):
+        from lambda_utils.ecommerce import blog_contribution
+        lookup = {}
+        for kind,sku in service_requests.SERVICE_VARIANT_BY_KIND.items():
+            lookup[sku] = {"priceMinor": 4900 if kind == service_requests.VAULT else 9900,
+                           "expressPaise": (2500 if kind == service_requests.VAULT else 4500),
+                           "currency": "INR", "status": "active"}
+        lookup[service_pricing_native.SHIPMENT_TRACK_SKU] = {
+            "priceMinor": 4900, "expressPaise": 4500, "currency": "INR",
+            "status": "active"}
+        for variant in blog_contribution.CONTRIBUTION_VARIANT_IDS:
+            lookup[variant] = {"priceMinor": 30000, "expressPaise": 1500,
+                               "currency": "INR", "status": "active"}
+        priced = service_pricing_native.resolve_all(lambda sku: lookup.get(sku))
+        self.assertTrue(priced["prices"]["vault"]["available"])
+        self.assertEqual(priced["prices"]["vault"]["breakdown"]["totalPayablePaise"], 8497)
+        self.assertEqual(priced["prices"]["vault"]["breakdown"]["expressPaise"], 2500)
+        self.assertEqual(priced["prices"]["drop-docs"]["breakdown"]["expressPaise"], 4500)
+        self.assertEqual(priced["prices"]["contribute"]["breakdown"]["expressPaise"], 1500)
+        lookup[express_policy.VAULT_VARIANT_ID]["expressPaise"] = 4500
+        bad = service_pricing_native.resolve_all(lambda sku: lookup.get(sku))
+        self.assertFalse(bad["prices"]["vault"]["available"])
+        self.assertTrue(bad["prices"]["drop-docs"]["available"])
+
     def test_invoice_preset_register_has_all_three_rate_tiers(self):
         path = (Path(__file__).resolve().parents[1] /
                 "src/content/invoicePresets.json")
