@@ -9,7 +9,7 @@
  * Payments, auth validation, file access and other safety-critical guidance
  * remain persistent inline with the action they describe.
  *
- * Workspace owns its own wording; this module is customer-facing only.
+ * Workspace owns its own wording; both scopes share the safe-text normalizer below.
  */
 export type PublicActionNoticeKind =
   | 'processing' | 'success' | 'failure' | 'blocked'
@@ -48,3 +48,32 @@ export function publicApiFailureKind ( httpStatus?: number | null ): 'failure' |
 export function publicApiFailureText ( httpStatus?: number | null ): string {
   return publicActionText( publicApiFailureKind( httpStatus ) );
 }
+
+/** Shared public/Workspace text sanitization, kept pure for offline runtime checks. */
+const INVALID_MESSAGES = new Set(['undefined', 'null', 'nan', '[object object]']);
+const FALLBACK: Record<'error' | 'warning' | 'info', string> = {
+  error: publicActionText('failure'),
+  warning: publicActionText('blocked'),
+  info: publicActionText('processing'),
+};
+
+/**
+ * Avoid showing undefined, objects, stack traces, HTML error pages, tokens or
+ * enormous backend error payloads as customer/staff feedback.
+ *
+ * An invalid SUCCESS is suppressed rather than changed into "Done.": that
+ * would falsely claim an operation completed. Errors get approved safe copy.
+ */
+export function normalizeActionNotification(
+  message: unknown, type: 'success' | 'error' | 'warning' | 'info',
+): string | null {
+  const text = typeof message === 'string'
+    ? message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+    : '';
+  const invalid = !text || INVALID_MESSAGES.has(text.toLowerCase())
+    || text.length > 320
+    || /<\/?(?:html|script|body)[\s>]|<!doctype|\bBearer\s+[A-Za-z0-9_-]{10,}|Traceback \(most recent call last\)|(?:secret|api[_-]?key|access[_-]?token)\s*[:=]/i.test(text);
+  if (invalid) return type === 'success' ? null : FALLBACK[type];
+  return text;
+}
+

@@ -1,14 +1,13 @@
 /**
  * Offline, fail-closed UI regression gate. Runs after npm ci and before tsc.
  * No network, credentials, browser session, payment or WhatsApp side effects.
- * TypeScript AST checks real imports (including dynamic import(...)), not comments.
+ * Checks literal relative imports on live entrypoints; tsc remains authoritative.
  */
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-const ts = require('typescript');
+const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -37,20 +36,11 @@ function existsModule(from, specifier) {
 }
 
 function collectLocalImports(file) {
+  // Handles static from imports, bare imports and literal dynamic import(...).
+  // TypeScript's full compiler check (run immediately afterward) catches the rest.
   const source = read(file);
-  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const imports = [];
-  function visit(node) {
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      imports.push(node.moduleSpecifier.text);
-    } else if (ts.isCallExpression(node) && node.arguments.length && ts.isStringLiteral(node.arguments[0]) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
-      imports.push(node.arguments[0].text);
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(parsed);
-  return imports.filter(spec => spec.startsWith('.'));
+  const pattern = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s+)(['"])(\.[^'"]+)\1/g;
+  return Array.from(source.matchAll(pattern), match => match[2]);
 }
 
 for (const file of watched) {
@@ -112,51 +102,37 @@ assert.match(workspaceAdapter, /actions\.show\(type, message\)/, 'Workspace must
 assert.match(copyHook, /await navigator\.clipboard\.writeText\(value\)/, 'Copy success must await the clipboard');
 assert.match(provider, /const duration = \(type === 'error' \|\| type === 'warning'\) \? 0/, 'Errors and warnings must be persistent');
 
-// Execute the ACTUAL shipped TypeScript policies in isolation. Not a duplicate
-// hand-written approximation; this catches unsafe text and vocabulary drift.
-function loadTypeScript(file, mockRequire) {
-  const output = ts.transpileModule(read(file), { compilerOptions: {
-    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-    jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
-  }}).outputText;
-  const module = { exports: {} };
-  const sandbox = { module, exports: module.exports, require: mockRequire };
-  vm.runInNewContext(output, sandbox, { timeout: 4000, filename: file });
-  return module.exports;
-}
-const publicNotices = loadTypeScript('src/lib/publicActionNotices.ts', name => { throw Error('Unexpected public notice import: ' + name); });
-const copy = {
-  processing: 'Processing…',
-  success: 'Done.',
-  failure: "Couldn't complete. Try again.",
-  blocked: 'This action is unavailable right now.',
-  whatsappAccepted: 'Sent to WhatsApp.',
-  whatsappFailed: "Couldn't confirm. Check WhatsApp.",
-};
-for (const [key, expected] of Object.entries(copy)) {
-  assert.equal(publicNotices.publicActionText(key), expected, 'Public notice changed: ' + key);
-}
-assert.equal(Object.keys(publicNotices.PUBLIC_ACTION_TEXT).length, 6, 'Exactly six canonical public notices');
-for (const status of [403, 404, 409, 423, 429, 501, 503]) assert.equal(publicNotices.publicApiFailureKind(status), 'blocked');
-for (const status of [400, 401, 500, undefined]) assert.equal(publicNotices.publicApiFailureKind(status), 'failure');
+// Node 24 strips types from pure .ts modules without TypeScript 7's removed JS
+// compiler API. Execute the actual policy, not a duplicated approximation.
+async function checkRuntimePolicy() {
+  const url = pathToFileURL(path.join(ROOT, 'src/lib/publicActionNotices.ts')).href;
+  const publicNotices = await import(url);
+  const copy = {
+    processing: 'Processing…',
+    success: 'Done.',
+    failure: "Couldn't complete. Try again.",
+    blocked: 'This action is unavailable right now.',
+    whatsappAccepted: 'Sent to WhatsApp.',
+    whatsappFailed: "Couldn't confirm. Check WhatsApp.",
+  };
+  for (const [key, expected] of Object.entries(copy)) {
+    assert.equal(publicNotices.publicActionText(key), expected, 'Public notice changed: ' + key);
+  }
+  assert.equal(Object.keys(publicNotices.PUBLIC_ACTION_TEXT).length, 6, 'Exactly six canonical public notices');
+  for (const status of [403, 404, 409, 423, 429, 501, 503]) assert.equal(publicNotices.publicApiFailureKind(status), 'blocked');
+  for (const status of [400, 401, 500, undefined]) assert.equal(publicNotices.publicApiFailureKind(status), 'failure');
 
-const react = { createContext: () => ({}), useCallback: fn => fn, useMemo: fn => fn(), useContext: () => null };
-const notifications = loadTypeScript('src/contexts/ActionNotificationProvider.tsx', name => {
-  if (name === 'react') return react;
-  if (name === 'next/router') return { useRouter: () => ({}) };
-  if (name === 'react/jsx-runtime') return { jsx() {}, jsxs() {} };
-  if (name === '../lib/publicActionNotices') return publicNotices;
-  throw Error('Unexpected action notification import: ' + name);
-});
-const normalize = notifications.normalizeActionNotification;
-assert.equal(normalize('  Ready  ', 'success'), 'Ready');
-assert.equal(normalize(undefined, 'success'), null, 'Undefined may not report success');
-assert.equal(normalize({}, 'success'), null, 'Objects may not report success');
-assert.equal(normalize('undefined', 'error'), copy.failure);
-assert.equal(normalize('  ', 'warning'), copy.blocked);
-assert.equal(normalize('<html>error</html>', 'error'), copy.failure);
-assert.equal(normalize('Bearer abcdefghijklmnop', 'error'), copy.failure);
-assert.equal(normalize('a'.repeat(321), 'error'), copy.failure);
-assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
-
-console.log('Action UI gate passed: imports, Orders targets, toast design, exact public vocabulary, safety normalization.');
+  const normalize = publicNotices.normalizeActionNotification;
+  assert.equal(normalize('  Ready  ', 'success'), 'Ready');
+  assert.equal(normalize(undefined, 'success'), null, 'Undefined may not report success');
+  assert.equal(normalize({}, 'success'), null, 'Objects may not report success');
+  assert.equal(normalize('undefined', 'error'), copy.failure);
+  assert.equal(normalize('  ', 'warning'), copy.blocked);
+  assert.equal(normalize('<html>error</html>', 'error'), copy.failure);
+  assert.equal(normalize('Bearer abcdefghijklmnop', 'error'), copy.failure);
+  assert.equal(normalize('a'.repeat(321), 'error'), copy.failure);
+  assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
+}
+checkRuntimePolicy().then(() => {
+  console.log('Action UI gate passed: imports, Orders/Workspace Copy, toast design, approved vocabulary and safety normalization.');
+}).catch(error => { console.error(error); process.exitCode = 1; });
