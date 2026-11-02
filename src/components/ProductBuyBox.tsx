@@ -7,6 +7,7 @@ import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 import CheckoutAction from './CheckoutAction';
 import PublicNotice from './public/PublicNotice';
+import { publicActionText } from '../lib/publicActionNotices';
 import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } from '../lib/metaPixel';
 
 /**
@@ -70,7 +71,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       await router.push( CHECKOUT_PATH );
     } catch {
       if ( alive.current ) {
-        setError( 'Checkout could not start. No charge made. Try again.' );
+        setError( publicActionText( 'failure' ) );
         setBusy( false );
       }
     }
