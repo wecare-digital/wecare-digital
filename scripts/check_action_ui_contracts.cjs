@@ -165,6 +165,14 @@ assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
 // Prevent reintroduction of the explicitly retired customer-facing messages.
 // Compile TSX without executing it: the transform strips non-rendered comments.
 const publicScreens = [
+  'src/components/orders/RequestsPanel.tsx',
+  'src/components/ProductBuyBox.tsx',
+  'src/components/cart/CheckoutPriceBreakdown.tsx',
+  'src/components/VayuLokLive.tsx',
+  'src/components/SupportWidget.tsx',
+  'src/lib/whatsappBasket.ts',
+  'src/lib/serviceRequests.ts',
+  'src/lib/orderStatusLabels.ts',
   'src/components/orders/OrdersPage.tsx',
   'src/pages/auth.tsx',
   'src/components/cart/CartPage.tsx',
@@ -174,6 +182,32 @@ const publicScreens = [
   'src/components/get/GetPage.tsx',
 ];
 const retiredPublicCopy = [
+  "Checkout not ready. Payment unavailable.",
+  "Item price unavailable. Review cart.",
+  "Choose product options to see total.",
+  "Choose a quantity from 1 to 99.",
+  "Review the quantities in your cart.",
+  "Some items are no longer available. Please review your cart.",
+  "Secure checkout is being prepared. No payment has been started.",
+  "We could not open the payment. No charge was made - please try again.",
+  "Verify and save your checkout details again.",
+  "Confirm your delivery address to continue.",
+  "Verifying payment",
+  "Access locked",
+  "The secure file link is invalid. Please try downloading again.",
+  "This cart link is no longer available.",
+  "This service is not offered yet. Nothing has been charged.",
+  "The price of this service has changed. Nothing has been charged.",
+  "Air quality unavailable.",
+  "Weather unavailable.",
+  "Alerts unavailable.",
+  "Currency unavailable.",
+  "English restored.",
+  "Translation unavailable.",
+  "Translating to",
+  "Translated to",
+  "Checkout could not start. No charge made. Try again.",
+  "Calculating your total securely…",
   'Selected. Copy with keyboard.',
   'Checking orders…',
   'Requests are unavailable right now.',
@@ -221,6 +255,31 @@ for (const file of publicScreens) {
 }
 assert.ok(!fs.existsSync(path.join(ROOT, 'src/lib/signInMessages.ts')),
   'Retired sign-in notification vocabulary must not be restored');
+
+const customerPayments = loadTypeScript('src/lib/orderStatusLabels.ts', name => {
+  throw Error('Unexpected payment-label import: ' + name);
+}).PAYMENT_STATUS_LABEL;
+assert.deepEqual(
+  Object.keys(customerPayments).sort(),
+  ['authorized', 'captured', 'created', 'disputed', 'failed', 'pending', 'refunded'],
+  'Every payment outcome must still have a visible, truthful label',
+);
+for (const [state, oldText] of Object.entries({
+  captured: 'Paid',
+  pending: 'Payment confirming',
+  failed: 'Not paid',
+  refunded: 'Refunded',
+  disputed: 'Under review',
+})) {
+  assert.notEqual(customerPayments[state], oldText,
+    'Retired payment state copy must not return: ' + state);
+}
+assert.equal(new Set(Object.values(customerPayments)).size, Object.keys(customerPayments).length,
+  'Paid, unpaid, pending, refund and dispute states must stay distinguishable');
+const refusalSource = read('src/lib/serviceRequests.ts');
+assert.equal((refusalSource.match(/SERVICE_[A-Z_]+: publicActionText\(/g) || []).length, 11,
+  'Every public service refusal should use the shared action vocabulary');
+
 
 const cartFeedback = read('src/components/cart/CartPage.tsx');
 assert.match(cartFeedback, /railTerminalRef\.current = true;\s+setRailTerminal\( true \);\s+setNotice\( \{ kind: 'error', message: publicActionText\( 'blocked' \) \} \)/,
