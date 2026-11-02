@@ -10,7 +10,7 @@
 - In the revised layout, wide screens give the full 2D India map its own sticky column alongside the complete Air/Weather card. The card scrolls with the page, not inside a cropped overlay; Google attribution stays unobscured.
 - At 1050px and below, display a full-size India map (tablet height 460–720px, phone height 440–640px), followed by the full Air/Weather card. Hide the duplicate floating mobile summary and preserve India-wide fitBounds until an explicit city is selected.
 - Keep AQI readings/forecast automatic but start with the **paid AQI/PM2.5 heatmap tile overlay off**. The user can still switch it on intentionally. Map JS and other provider requests remain lazy near the viewport.
-- The long-term history remains automatic when Weather is displayed. Requests are snapped to the shared ~0.1-degree grid; per-browser history summaries persist in localStorage for 24 hours, bounded to 48 entries, with stale fallback for up to seven days if the upstream service cannot respond.
+- The long-term history remains automatic when Weather is displayed, but **every uncached request including 30D first checks the deployed Cloud Run 1 GiB guard** and fails closed if it is not verified. Requests use the ~0.1-degree grid; browser history summaries persist for 24 hours (up to 48 entries), with a seven-day stale fallback.
 - Show actual history coverage dates and grid distance when present. If the server enforces budget, display an honest unavailable message rather than fabricated readings.
 
 ## Cloud Run history service code (separate deployment required)
@@ -31,13 +31,13 @@
 - Build TypeScript, execute scripts/check_vayulok_cost_and_map.cjs in the production gate and check Cloud Run server.mjs syntax.
 - Review responsive viewports at 390x844, 768x1024, 1024x768 and 1366x768; inspect India, islands, attribution, page-scrolling card, correct narrow-screen stacking, and city-search recentering.
 - In a browser, check initial Air view makes zero **heatmap tile** requests until switching on Heatmap; regular weather/AQI calls may still occur. On desktop, scroll the whole card and confirm map stickiness does not obscure controls or provider attribution.
-- In Weather mode, verify history loads automatically, cache survives reload and 1Y/5Y yield a clear budget message if not precomputed.
+- In Weather mode, verify history attempts are automatic, cached data survives reload and **30D/1Y/5Y all fail closed with an honest budget message** if the live Cloud Run guard is absent or unsafe.
 - For Cloud Run, deploy separately and verify actual service revision; do not conflate AWS Amplify success with GCP Cloud Run. Do not run unbounded WeatherNext 3 BigQuery queries.
 
 ## Remaining limitation
 The frontend changes reduce unnecessary event consumption, and the backend code has extra query caps. **No frontend-only safeguard guarantees the Google Maps Platform or BigQuery monthly free limits.** Only actual project-level quota and billing controls plus licensing verification can support that claim. Google Weather API terms also restrict weather-first products; obtain written permission before relying on it as the public product's primary data engine.
 
 ## Long-range production fail-closed bridge
-- Before the Google Cloud Run server revision is deployed and verified, the public website **does not send uncached 1Y/5Y queries** to the older 15GB/40GB-budget backend. It first checks the separate Cloud Run status endpoint for an active maximum of <=1 GiB; if no safe status is available, it uses saved browser results or shows the budget-protection message.
+- Before the Google Cloud Run server revision is deployed and verified, the public website **does not send any uncached 30D/1Y/5Y queries** to the older 1.2GB/15GB/40GB-budget backend. It first checks the separate Cloud Run status endpoint for an active maximum of <=1 GiB; otherwise it uses saved browser results or shows the budget-protection message.
 - The Cloud Run `/v1/weather-insights/status` response must include CORS for the approved VayuLok origin as well as `costGuard` metadata. The static website can check the guard on each longer-range selection without any billable BigQuery query.
-- This fail-closed protection is deliberately asymmetric: the 30D default still attempts automatic history, while 1Y/5Y remain restricted until independent Cloud Run deployment is verified.
+- This protection is deliberately consistent across all ranges: the automatic 30D history component remains mounted, but no uncached BigQuery history request is sent until the independently deployed Cloud Run revision passes the guard check.
