@@ -1878,7 +1878,8 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
             UpdateExpression="SET accessResendState=:state",
             ConditionExpression="accessResendRequestId=:id",
             ExpressionAttributeValues={":id": request_id,
-                ":state": "ACCEPTED" if ok else "UNCONFIRMED"},
+                ":state": ("LINK_ACCEPTED" if ok and state == "READY"
+                           else "ACCEPTED" if ok else "UNCONFIRMED")},
         )
     # Only a confirmed provider ID can later be joined to webhook delivery events.
     wamid = str(detail) if ok and str(detail).startswith("wamid.") and len(str(detail)) <= 512 else ""
@@ -1928,6 +1929,13 @@ def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict
                 "outcome": "VAULT_LINK_ACCEPTED_WINDOW_UNVERIFIED",
                 "message": "WhatsApp accepted the link, but the 24-hour window needs reconciliation. Do not resend automatically.",
             }, origin)
+    if request_id and state == "OPEN":
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": file_id},
+            UpdateExpression="SET accessResendState=:accepted",
+            ConditionExpression="accessResendRequestId=:id",
+            ExpressionAttributeValues={":id": request_id, ":accepted": "ACCEPTED"},
+        )
     return cors_response(200, {"outcome": outcome, "fileId": file_id,
                                "accessState": state,
                                "message": "The Access Vault link was accepted by WhatsApp. Delivery is not yet verified."}, origin)

@@ -101,3 +101,17 @@ def test_scheduled_access_supplies_stable_resend_identity():
     assert calls[0] == calls[1]
     assert calls[0]['previousRequestId'] == 'previous'
     assert str(uuid.UUID(calls[0]['requestId'])) == calls[0]['requestId']
+
+
+def test_accepted_link_stays_unresolved_if_ready_window_transition_fails():
+    fn, row, _ = access_handler(state='READY')
+    fn.__globals__.update({
+        '_entitlement_for_file': lambda *args: {'ownerPhone': '919000000001'},
+        'vault_window': SimpleNamespace(access_state=lambda *args: 'READY'),
+        '_open_access_window': lambda *args: (_ for _ in ()).throw(ValueError('unavailable'))})
+    with patch.dict(sys.modules, {'whatsapp_delivery': SimpleNamespace(
+            send_vault_link=lambda **kw: (True, 'wamid.accepted'))}):
+        result = fn('file-one', {'body': json.dumps({
+            'requestId': '11111111-1111-4111-8111-111111111111'})}, '')
+    assert result['statusCode'] == 202
+    assert row['accessResendState'] == 'LINK_ACCEPTED'
