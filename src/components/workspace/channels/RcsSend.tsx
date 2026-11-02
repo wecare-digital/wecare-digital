@@ -10,15 +10,6 @@ import MaybeLayout from '../../../components/MaybeLayout';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-/*
- * The fallback rows, kept exactly as they were. They are what the native control showed
- * before `listRcsTemplates` answered, and `templateId` is seeded at 'test16' to match.
- */
-const FALLBACK_TEMPLATE_OPTIONS: SelectOption[] = [
-    { value: 'test16', label: 'test16' },
-    { value: 'test17', label: 'test17' },
-];
-
 /* LAYOUT ONLY - what the inline `width: '100%'` carried; the box is the trigger's. */
 const FULL_WIDTH: React.CSSProperties = { width: '100%' };
 
@@ -26,33 +17,43 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
     const [ phone, setPhone ] = useState( '' );
     const [ messageType, setMessageType ] = useState<'text' | 'template'>( 'template' );
     const [ text, setText ] = useState( '' );
-    const [ templateId, setTemplateId ] = useState( 'test16' );
+    const [ templateId, setTemplateId ] = useState( '' );
     const [ parameters, setParameters ] = useState( '' );
     const [ sending, setSending ] = useState( false );
     const [ result, setResult ] = useState<any>( null );
     const [ templates, setTemplates ] = useState<any[]>( [] );
+    const [ templatesLoading, setTemplatesLoading ] = useState( true );
+    const [ templatesError, setTemplatesError ] = useState( false );
     const toast = useToastContext();
 
     useEffect( () => {
-        // Load templates via authenticated API
-        api.listRcsTemplates().then( t => setTemplates( t ) ).catch( () => { } );
+        let active = true;
+        api.listRcsTemplates()
+            .then( t => { if ( active ) setTemplates( Array.isArray( t ) ? t : [] ); } )
+            .catch( () => {
+                if ( active ) { setTemplates( [] ); setTemplatesError( true ); }
+            } )
+            .finally( () => { if ( active ) setTemplatesLoading( false ); } );
+        return () => { active = false; };
     }, [] );
 
-    /* The fetched list, memoised on `templates`, with the same fallback branch the native
-       control had: the two hardcoded rows until the API answers. */
+    // Only allow confirmed live templates; test-template IDs are never send defaults.
     const templateOptions: SelectOption[] = useMemo(
-        () => ( templates.length > 0
-            ? templates.map( t => ( {
+        () => templates
+            .filter( t => typeof t?.name === 'string' && t.name.trim() && !/^(test16|test17|wecare_test_create|wecare_v2_test)$/i.test( t.name ) )
+            .map( t => ( {
                 value: t.name,
-                label: `${ t.name } — ${ t.textMessageContent?.substring( 0, 50 ) }...`,
-            } ) )
-            : FALLBACK_TEMPLATE_OPTIONS ),
+                label: `${ t.name } — ${ t.textMessageContent?.substring( 0, 50 ) || '' }...`,
+            } ) ),
         [ templates ]
     );
 
     const handleSend = async () => {
         if ( !phone ) { toast.error( 'Phone number required' ); return; }
         if ( messageType === 'text' && !text ) { toast.error( 'Message text required' ); return; }
+        if ( messageType === 'template' && ( !templateId || !templateOptions.some( option => option.value === templateId ) ) ) {
+            toast.error( 'Select a confirmed RCS template before sending' ); return;
+        }
         setSending( true ); setResult( null );
         try
         {
@@ -112,6 +113,8 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
                         <Select ariaLabel="Template" value={ templateId }
                             onChange={ v => setTemplateId( v ) }
                             options={ templateOptions } style={ FULL_WIDTH } />
+                        { templatesLoading && <div role="status">Loading verified templates...</div> }
+                        { !templatesLoading && ( templatesError || templateOptions.length === 0 ) && <div role="alert">No verified RCS templates available. Template sending is disabled.</div> }
                     </div>
                     <div style={ { marginBottom: 12 } }>
                         <label style={ { display: 'block', fontWeight: 500, marginBottom: 4 } }>Parameters (JSON, optional)</label>
@@ -126,7 +129,7 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
                 </div>
             ) }
 
-            <Button variant="primary" onClick={ handleSend } loading={ sending } disabled={ sending || !phone }>Send RCS</Button>
+            <Button variant="primary" onClick={ handleSend } loading={ sending } disabled={ sending || !phone || ( messageType === 'template' && ( !templateId || !templateOptions.some( option => option.value === templateId ) ) ) }>Send RCS</Button>
 
             { result && (
                 <div style={ { marginTop: 16, padding: 12, background: result.success || result.messageId || result.message_id ? '#f0fdf4' : '#fef2f2', border: `1px solid ${result.success || result.messageId || result.message_id ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, fontSize: 'var(--text-xs)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' } }>
