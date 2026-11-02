@@ -17,6 +17,8 @@ export type ActionNotificationScope = 'public' | 'workspace';
 export interface ActionNotificationOptions {
   /** Zero pins a contextual action until replaced, cleared or route changed. */
   durationMs?: number;
+  /** Do not let an old async result replace a newer action or new page. */
+  ownerId?: number;
 }
 
 interface ActiveNotification {
@@ -93,6 +95,7 @@ export function ActionNotificationProvider({
   ): number => {
     const normalized = normalizeActionNotification(message, type);
     if (!normalized) return 0;
+    if (options.ownerId !== undefined && options.ownerId !== activeId.current) return 0;
     stopTimer();
     const id = ++nextId.current;
     activeId.current = id;
