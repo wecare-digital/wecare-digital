@@ -268,7 +268,6 @@
   "POST /wa-business/groups",
   "POST /wa-business/groups/participants",
   "POST /wa-business/groups/send",
-  "POST /wa-business/interactive-list",
   "POST /wa-business/marketing-message",
   "POST /wa-business/orders",
   "POST /wa-business/phone-settings",

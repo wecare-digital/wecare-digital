@@ -1,63 +1,13 @@
-"""WhatsApp Direct Send API — the one home for every fact both senders need.
+"""Shared Direct Send utility-message policy: account allowlist, TTL and error classification.
 
-Direct Send lets a business-initiated utility or authentication message go out
-without pre-creating a template: the same `POST /{phone_id}/messages` endpoint,
-the same Cloud API body, plus a **top-level `category`** sibling of `type`. Meta
-auto-generates or matches a template from the body.
-
-Why this module exists
-----------------------
-Two functions need the same answers - `messaging/outbound-whatsapp` (the
-production sender) and `messaging/whatsapp-business-api` (the admin/diagnostic
-surface, and the sign-in code sender). Phase 1 put the Direct Send knowledge in
-the second one only, and got three of its four facts wrong. Keeping the flags,
-the WABA map, the TTL table, the error classifier and the authentication OTP
-shape here means the two senders cannot disagree.
-
-Why an id allowlist and not `DIRECT_SEND_ENABLED=true`
-------------------------------------------------------
-Eligibility is granted by Meta **per WABA**. WABA1 may be onboarded while WABA2
-is not, and a single global boolean would send WABA2's traffic into a guaranteed
-error. An allowlist of ids also has no state that can disagree with itself:
-turning it on for one WABA is adding one id, turning everything off is clearing
-one variable, and a third WABA needs no code change. Unknown input is off by
-construction, which matches the stance `outbound-whatsapp._resolve_meta_phone_id`
-already takes for sender resolution.
-
-Why a deploy-time env var and NOT a SystemConfigTable row
----------------------------------------------------------
-`outbound-whatsapp` already has a runtime-toggle pattern for
-`whatsapp_auto_thumb`: read the table, `except Exception -> fall back to the
-default`, cache for 300 seconds. That is right for a cosmetic toggle, where the
-worst case is a stray reaction emoji. It is wrong here. This flag changes the
-**billing category** of a message, and Meta polices misclassification with an
-account-level enforcement ladder that ends in permanent revocation. A swallowed
-read failure must not be able to turn it on, and "turn it off now" must mean
-now, not within five minutes. An env var requires a publish and an alias move,
-which is a feature: the change is atomic, recorded and reviewable.
-
-OFF is byte-identical to today
-------------------------------
-Omitting `category` is Meta's own definition of a service message, not a trick -
-so with the flag empty the request body is exactly the one we send now. That is
-what makes the rollback complete without a code revert.
-
-One allowlist per category
---------------------------
-Meta grants the two categories separately: utility by messaging-limit
-eligibility (the WhatsApp Manager banner), authentication through an
-access-restricted beta arranged by a partner or client manager. A WABA can hold
-one without the other, so one shared list would force an authentication attempt
-on a WABA that only has utility, and every sign-in code would pay a refused
-round trip before its fallback. `DIRECT_SEND_ENABLED_WABAS` keeps its name and
-meaning (utility) because that is what the live functions carry.
+Only the utility category is enabled here. Sign-in codes use approved authentication
+message templates. No message payload is constructed by this module.
 """
 
 from __future__ import annotations
 
 import os
-import string
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # The flags
@@ -67,19 +17,17 @@ UTILITY = "utility"
 AUTHENTICATION = "authentication"
 
 FLAG_ENV = "DIRECT_SEND_ENABLED_WABAS"  # utility
-AUTHENTICATION_FLAG_ENV = "DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS"
 DEFAULT = ""  # empty -> OFF for every WABA. Shipped state.
 
 CATEGORY_FLAG_ENVS: Dict[str, str] = {
     UTILITY: FLAG_ENV,
-    AUTHENTICATION: AUTHENTICATION_FLAG_ENV,
 }
 
 
 def enabled_wabas(category: str = UTILITY) -> Tuple[str, ...]:
     """The WABA ids enabled for `category`, whitespace trimmed, empties dropped.
 
-    A category with no allowlist (anything but utility and authentication)
+    A category with no allowlist (anything but utility)
     returns `()`, so it can never be switched on by configuration alone.
     """
     env = CATEGORY_FLAG_ENVS.get(str(category or "").strip().lower())
@@ -93,8 +41,7 @@ def enabled_for_waba(waba_id: str, category: str = UTILITY) -> bool:
     """True only when `waba_id` is explicitly listed in `category`'s allowlist.
 
     The default category is utility, so existing callers read
-    `DIRECT_SEND_ENABLED_WABAS` exactly as before. Authentication reads
-    `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS`.
+    `DIRECT_SEND_ENABLED_WABAS` exactly as before. Other categories have no enabled-account list.
 
     FAILS CLOSED. Unset, `""`, whitespace-only, `None`, an unknown category, and
     any id that is not listed all return False. A falsy `waba_id` returns False
@@ -256,13 +203,6 @@ def classify_error(code, details: Optional[str] = "") -> str:
     message template instead." - and both tokens match it. That is still the
     documentation, not a captured response.
 
-    The interactive authentication OTP is refused differently, and this one IS a
-    captured response (WABA 2094615664435155, 2026-10-26 08:39 UTC): code
-    **131009**, details "The otp button type is only supported for Direct Send
-    authentication messages." Meta did not treat the message as Direct Send at
-    all, so the account is not enabled for the category, and the documented 100
-    never arrived. Any other 131009 is an ordinary invalid parameter and keeps
-    today's handling.
     """
     key = str(code) if code is not None else ""
     if key in ("139200", "131064"):
@@ -272,109 +212,4 @@ def classify_error(code, details: Optional[str] = "") -> str:
         if "direct send" in blob and "categor" in blob:
             return NOT_ONBOARDED
         return OTHER_100
-    if key == "131009":
-        if "only supported for direct send" in str(details or "").lower():
-            return NOT_ONBOARDED
-        return ""
     return ""
-
-
-# ---------------------------------------------------------------------------
-# Authentication: the one-time-password message
-# ---------------------------------------------------------------------------
-#
-# Meta's documented shape (Direct Send > Supported message types > Interactive
-# authentication messages): top-level `category: "authentication"`, `type:
-# "interactive"`, `interactive.type: "button"`, and EXACTLY one button, of type
-# `otp`, with `otp_type: "copy_code"`. The code is 4 to 10 ASCII alphanumerics and
-# must also appear as a standalone value in the body text.
-# `code_expiration_minutes` is 1..90 and defaults to 10. Authentication cannot
-# address a business-scoped user id, so the recipient is always a phone number in
-# `to`.
-#
-# The body copy is fixed here and says only the code and the security line.
-# Authentication is billed and policed as authentication; copy a caller could set
-# is copy that could be misclassified, and misclassification is what Meta's
-# enforcement ladder punishes.
-
-OTP_CODE_LENGTH: Tuple[int, int] = (4, 10)
-OTP_EXPIRATION_MINUTES: Tuple[int, int] = (1, 90)
-OTP_DEFAULT_EXPIRATION_MINUTES = 10
-
-# Explicit ASCII sets rather than str.isdigit()/isalnum(), which accept hundreds of
-# non-ASCII codepoints that Meta's "ASCII alphanumeric" rule does not.
-_OTP_CODE_CHARS = frozenset(string.ascii_letters + string.digits)
-_PHONE_DIGITS = frozenset(string.digits)
-
-
-def otp_body_text(code: str) -> str:
-    """The authentication body. The code stands alone, as Meta requires."""
-    return f"{code} is your verification code. For your security, do not share this code."
-
-
-def otp_expiration_minutes(expires_in_seconds: Any) -> int:
-    """Whole minutes for `code_expiration_minutes`, clamped to Meta's 1..90.
-
-    Rounded DOWN: telling a customer a code lasts longer than it does is the
-    failure that matters, so a 90-second code says 1 minute, not 2. A value that
-    is not a positive integer gets Meta's own default of 10, which is also the
-    lifetime every sender here issues today.
-    """
-    try:
-        seconds = int(expires_in_seconds)
-    except (TypeError, ValueError):
-        return OTP_DEFAULT_EXPIRATION_MINUTES
-    if seconds <= 0:
-        return OTP_DEFAULT_EXPIRATION_MINUTES
-    low, high = OTP_EXPIRATION_MINUTES
-    return max(low, min(high, seconds // 60))
-
-
-def build_authentication_otp_payload(
-        to: Any, code: Any,
-        expiration_minutes: Any = OTP_DEFAULT_EXPIRATION_MINUTES) -> Dict[str, Any]:
-    """The Direct Send authentication message for one code, or `ValueError`.
-
-    The error messages never repeat the input. The code is a credential and `to`
-    is a phone number, and these messages reach logs.
-    """
-    recipient = str(to or "").strip()
-    if recipient.startswith("+"):
-        recipient = recipient[1:]
-    # E.164 allows at most 15 digits.
-    if not 8 <= len(recipient) <= 15 or not set(recipient) <= _PHONE_DIGITS:
-        raise ValueError("recipient must be a phone number in digits (authentication "
-                         "cannot address a business-scoped user id)")
-
-    otp = str(code or "")
-    low, high = OTP_CODE_LENGTH
-    if not low <= len(otp) <= high or not set(otp) <= _OTP_CODE_CHARS:
-        raise ValueError("code must be 4 to 10 ASCII letters or digits")
-
-    try:
-        minutes = int(expiration_minutes)
-    except (TypeError, ValueError):
-        raise ValueError("code_expiration_minutes must be an integer") from None
-    low, high = OTP_EXPIRATION_MINUTES
-    if not low <= minutes <= high:
-        raise ValueError("code_expiration_minutes must be between 1 and 90")
-
-    return {
-        "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": recipient,
-        "type": "interactive",
-        "category": AUTHENTICATION,
-        "interactive": {
-            "type": "button",
-            "body": {"text": otp_body_text(otp)},
-            "action": {"buttons": [{
-                "type": "otp",
-                "otp": {
-                    "code": otp,
-                    "otp_type": "copy_code",
-                    "code_expiration_minutes": minutes,
-                },
-            }]},
-        },
-    }

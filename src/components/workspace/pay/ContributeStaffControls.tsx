@@ -63,30 +63,37 @@ const ContributeStaffControls: React.FC<Props> = ({
   const [sendLocked, setSendLocked] = React.useState(false);
   const [sendOutcome, setSendOutcome] = React.useState('');
   const inFlight = React.useRef(false);
+  const contactsRequest = React.useRef(0);
   const confirm = useConfirm();
 
   const templateName = templates?.nativePay || '';
   const templateId = templates?.templateIds?.nativePay || '';
 
   const loadContacts = React.useCallback(async () => {
+    const request = ++contactsRequest.current;
     setLoadingContacts(true);
     setContactsMessage('');
     setContacts([]); // No stale recipient may be reviewed during a refresh.
     try {
       const records = await api.listContacts();
+      if (request !== contactsRequest.current) return;
       const usable = records.filter(usableContact);
       setContacts(usable);
       setSelectedId(current => usable.some(c => keyOf(c) === current) ? current : '');
       if (!usable.length) setContactsMessage('No usable saved contacts were returned. Check Contacts and retry; no recipient has been selected.');
     } catch {
+      if (request !== contactsRequest.current) return;
       setContacts([]);
       setContactsMessage('The Contacts lookup was not completed. Refresh before preparing a new draft.');
     } finally {
-      setLoadingContacts(false);
+      if (request === contactsRequest.current) setLoadingContacts(false);
     }
   }, []);
 
-  React.useEffect(() => { void loadContacts(); }, [loadContacts]);
+  React.useEffect(() => {
+    void loadContacts();
+    return () => { ++contactsRequest.current; };
+  }, [loadContacts]);
 
   React.useEffect(() => {
     let active = true;
@@ -170,6 +177,7 @@ const ContributeStaffControls: React.FC<Props> = ({
   const sendOnce = async () => {
     if (!canSend || !selected || inFlight.current) return;
     inFlight.current = true;
+    let attemptedSend = false;
     try {
       const accepted = await confirm({
         title: 'Send ₹300 Review & Pay?',
@@ -179,6 +187,7 @@ const ContributeStaffControls: React.FC<Props> = ({
       if (!accepted) return;
       // Once a request has left the browser, NEVER retry automatically or
       // unlock this draft on a network failure (Meta may have accepted it).
+      attemptedSend = true;
       setSendLocked(true);
       setSending(true);
       setSendOutcome('');
@@ -191,6 +200,10 @@ const ContributeStaffControls: React.FC<Props> = ({
         setSendOutcome(`Server refused the request (${outcome.code}): ${outcome.message} Check the live customer and payment status before trying again.`);
       }
     } catch {
+      if (!attemptedSend) {
+        setFeedback('The confirmation could not be opened. No payment request was sent.');
+        return;
+      }
       setSendLocked(true);
       setSendOutcome('Send confirmation failed or its outcome is unknown. Check the chat and payment ledger before any retry.');
     } finally {

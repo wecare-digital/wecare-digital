@@ -164,8 +164,8 @@ def verify() -> int:
         status = template.get("status", "?")
         if status != "APPROVED":
             print(f"\n{TEMPLATE_NAME} is {status}. Approval is Meta's; re-run --verify later.")
-            print("Until it is APPROVED, updates inside the 24-hour window still go out as the")
-            print("interactive order_status message; outside it they are deferred, not sent.")
+            print("Until it is APPROVED, payment status updates remain deferred.")
+            print("No alternate status message is sent.")
         return 1
 
     print(f"\n{TEMPLATE_NAME} is ready. Ensure the outbound function env matches:")

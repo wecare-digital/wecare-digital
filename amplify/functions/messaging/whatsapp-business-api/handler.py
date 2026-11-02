@@ -23,7 +23,6 @@ Routes:
   POST      /wa-business/media/resumable/{sessionId}/chunk  → Append chunk
   POST      /wa-business/media/resumable/{sessionId}/finish → Assemble + upload (handle/media)
   POST      /wa-business/messages/send/text|template|media|flow → Send test messages
-  POST      /wa-business/messages/send/interactive → REMOVED 2026-10-02, answers 410
   GET       /wa-business/message-history/events → Read Meta delivery-history events (audit only)
   GET       /wa-business/flow-encryption-status → Read Flow public-key signature readiness
   GET       /wa-business/preverified-numbers → Read pre-verified phone inventory (diagnostic only)
@@ -1216,15 +1215,18 @@ _DIRECT_SEND_ERROR_HINTS = direct_send_util.ERROR_HINTS
 
 
 def _direct_send(phone_id: str, body: Dict) -> Dict:
-    """Direct Send API (beta). Supports text (+ optional interactive buttons),
+    """Direct Send API (beta). Supports plain text,
     category utility|authentication, optional business-named template, optional TTL."""
+    if not isinstance(body, dict) or set(body) - {
+            'to', 'recipientPhone', 'category', 'text', 'content',
+            'templateName', 'ttlSeconds', 'phoneId'}:
+        return _resp(400, {'error': 'UNSUPPORTED_MESSAGE_FIELDS'})
     import re as _re
     to = (body.get('to') or body.get('recipientPhone') or '').strip()
     category = (body.get('category') or 'utility').lower()
     text = body.get('text') or body.get('content') or ''
     template_name = (body.get('templateName') or '').strip()
     ttl_seconds = body.get('ttlSeconds')
-    buttons = body.get('buttons') or []  # [{type:'reply'|'url', text, id?, url?}]
 
     if not to:
         return _resp(400, {'error': 'to (recipient phone, digits or +E.164) is required'})
@@ -1256,7 +1258,7 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
     # 1024 is OURS, not a verified Meta limit. The docs say Direct Send matches the
     # limits for business-initiated template messages, but that table does not render
     # in text extraction, so the specific number is unverified. The documented 1024s
-    # are the voice-call body and the CTA/reply interactive body — plausible here and
+    # are the voice-call body — plausible here and
     # deliberately conservative. Kept rather than raised, because refusing locally is
     # a clear error and Meta's refusal would not be.
     if len(text) > 1024:
@@ -1269,38 +1271,8 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
         'category': category,
     }
 
-    # Interactive buttons are utility-only in the beta (max 10 reply, max 2 CTA URL).
-    reply_btns = [b for b in buttons if (b.get('type') or 'reply') == 'reply']
-    url_btns = [b for b in buttons if b.get('type') == 'url']
-    if buttons and category == 'utility':
-        if len(reply_btns) > 10:
-            return _resp(400, {'error': 'Max 10 quick-reply buttons'})
-        if len(url_btns) > 2:
-            return _resp(400, {'error': 'Max 2 call-to-action URL buttons'})
-        action_buttons = []
-        for i, b in enumerate(reply_btns):
-            action_buttons.append({'type': 'reply', 'reply': {
-                'id': b.get('id') or f'btn_{i}', 'title': (b.get('text') or '')[:20]}})
-        if url_btns and not action_buttons:
-            # Pure CTA URL button → cta_url interactive
-            b = url_btns[0]
-            payload['type'] = 'interactive'
-            payload['interactive'] = {
-                'type': 'cta_url',
-                'body': {'text': text},
-                'action': {'name': 'cta_url', 'parameters': {
-                    'display_text': (b.get('text') or 'Open')[:20], 'url': b.get('url') or ''}},
-            }
-        else:
-            payload['type'] = 'interactive'
-            payload['interactive'] = {
-                'type': 'button',
-                'body': {'text': text},
-                'action': {'buttons': action_buttons},
-            }
-    else:
-        payload['type'] = 'text'
-        payload['text'] = {'body': text}
+    payload['type'] = 'text'
+    payload['text'] = {'body': text}
 
     if template_name:
         if not _re.match(r'^[a-z0-9_]+$', template_name) or len(template_name) > 512:
@@ -2461,8 +2433,6 @@ def _resumable_finish(session_id: str, body: Dict) -> Dict:
 #   POST /wa-business/messages/send/text        → text
 #   POST /wa-business/messages/send/template    → template (incl. flow template)
 #   POST /wa-business/messages/send/media       → image/video/document/audio/sticker
-#   POST /wa-business/messages/send/interactive → REMOVED 2026-10-02, answers 410
-#   POST /wa-business/messages/send/flow        → flow message by id or name (draft/published)
 # All post to {phone_id}/messages via the Graph API.
 # ============================================================================
 def _send_message(phone_id: str, message: Dict, body: Dict = None) -> Dict:
@@ -2471,14 +2441,8 @@ def _send_message(phone_id: str, message: Dict, body: Dict = None) -> Dict:
     Destination: pass `body` to resolve `to` (phone) and/or `recipient` (BSUID or
     parent BSUID) per Meta's BSUID API. If both are given, Meta uses `to`.
     """
-    # A template may have a FLOW button, but standalone interactive payloads
-    # are retired across the platform. Guard at the Meta wire boundary so no
-    # internal caller can bypass the API route restriction.
-    if message.get('type') == 'interactive':
-        logger.warning(json.dumps({'event': 'direct_interactive_retired',
-                                   'reason': 'template_only_policy'}))
-        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
-                           'detail': 'Send an approved WhatsApp template instead.'})
+    if message.get('type') not in {'text', 'template', 'image', 'video', 'audio', 'document', 'sticker', 'contacts', 'location', 'reaction'}:
+        return _resp(400, {'error': 'UNSUPPORTED_MESSAGE_TYPE'})
     message.setdefault('messaging_product', 'whatsapp')
     message.setdefault('recipient_type', 'individual')
     if body is not None:
@@ -2521,148 +2485,9 @@ _DIRECT_SEND_OTP_TIMEOUT_SECONDS = 2.0
 #: template for this long without trying again. A WABA that is allowlisted but not onboarded
 #: otherwise pays a refused round trip on every sign-in, inside the same 5-second window.
 #: Skipping only ever costs Direct Send usage, never delivery: the template is today's path.
-_DIRECT_SEND_OTP_RETRY_AFTER_SECONDS = 900
-_direct_send_otp_paused_until: Dict[str, float] = {}
 
 
-def _pause_direct_send_otp(waba_id: str) -> None:
-    _direct_send_otp_paused_until[waba_id] = time.monotonic() + _DIRECT_SEND_OTP_RETRY_AFTER_SECONDS
-
-
-def _direct_send_otp(phone_id: str, body: Dict) -> Optional[Dict]:
-    """Deliver a sign-in code as a Direct Send authentication message, or return None.
-
-    None means "send the approved template exactly as before". That is the answer to every
-    case except a confirmed Meta acceptance: the WABA is not in
-    `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS`, a recent account-level failure paused
-    Direct Send for this WABA in this container, the request cannot make a valid
-    authentication message, smoke mode is on, Meta refuses it for any reason, or the
-    transport fails.
-
-    Falling back to the template on EVERY failure is deliberate, and it is the opposite of
-    the utility path in outbound-whatsapp, which never retries as a template. That rule
-    exists because guessing a template for free-form copy can send the customer a different
-    message. Here there is nothing to guess: the caller named the approved AUTHENTICATION
-    template that carries this same code. The worst case of falling back after an ambiguous
-    failure (a timeout Meta had in fact accepted) is the same code arriving twice. The
-    alternative is a customer locked out of sign-in, because no SMS fallback exists.
-    """
-    waba_id = direct_send_util.waba_for_meta_phone(phone_id)
-    if not waba_id:
-        logger.info(json.dumps({'event': 'direct_send_waba_unresolved',
-                                'category': direct_send_util.AUTHENTICATION,
-                                'phoneId': phone_id}))
-        return None
-    if not direct_send_util.enabled_for_waba(waba_id, direct_send_util.AUTHENTICATION):
-        return None
-    if time.monotonic() < _direct_send_otp_paused_until.get(waba_id, 0.0):
-        logger.info(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'paused_after_failure',
-                                'wabaId': waba_id, 'fallback': 'template'}))
-        return None
-
-    otp = str(body.get('otpCode') or '')
-    try:
-        payload = direct_send_util.build_authentication_otp_payload(
-            body.get('to'), otp,
-            direct_send_util.otp_expiration_minutes(body.get('otpExpiresInSeconds')))
-    except ValueError as exc:
-        # The builder's messages never echo the code or the number.
-        logger.warning(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'invalid_request',
-                                   'detail': str(exc), 'wabaId': waba_id, 'fallback': 'template'}))
-        return None
-
-    # The template route this falls back to has no smoke guard, so skipping Direct Send keeps
-    # smoke mode exactly as it is today rather than adding a second path past it.
-    allowed, smoke_reason = live_smoke.check_recipient(payload['to'])
-    if not allowed:
-        logger.warning(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'smoke_mode',
-                                   'smokeReason': smoke_reason, 'wabaId': waba_id,
-                                   'fallback': 'template'}))
-        return None
-
-    logger.info(json.dumps({'event': 'direct_send_attempt',
-                            'category': direct_send_util.AUTHENTICATION, 'wabaId': waba_id}))
-    try:
-        result = _graph_api(f'{phone_id}/messages', method='POST', payload=payload,
-                            phone_id=phone_id, timeout=_DIRECT_SEND_OTP_TIMEOUT_SECONDS)
-    except Exception as exc:  # noqa: BLE001 - timeout, DNS, TLS: the template still has to go
-        _pause_direct_send_otp(waba_id)
-        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'transport_error',
-                                   'errorType': type(exc).__name__, 'wabaId': waba_id,
-                                   'fallback': 'template'}))
-        return None
-
-    if not isinstance(result, dict):
-        logger.warning(json.dumps({'event': 'direct_send_otp_fallback',
-                                   'reason': 'unexpected_response', 'wabaId': waba_id,
-                                   'fallback': 'template'}))
-        return None
-    if 'error' not in result:
-        messages = result.get('messages')
-        first = messages[0] if isinstance(messages, list) and messages else {}
-        message_id = first.get('id', '') if isinstance(first, dict) else ''
-        if message_id:
-            logger.info(json.dumps({'event': 'direct_send_otp_sent',
-                                    'category': direct_send_util.AUTHENTICATION,
-                                    'wabaId': waba_id}))
-            return _resp(200, {'success': True, 'messageId': message_id,
-                               'deliveredVia': 'direct_send',
-                               'category': direct_send_util.AUTHENTICATION})
-        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'no_message_id',
-                                   'wabaId': waba_id, 'fallback': 'template'}))
-        return None
-
-    err = result.get('error') if isinstance(result.get('error'), dict) else {}
-    # `_graph_api` wraps Meta's whole envelope, so the Meta error is usually one level down.
-    inner = err.get('error') if isinstance(err.get('error'), dict) else err
-    meta_code = inner.get('code')
-    error_data = inner.get('error_data') if isinstance(inner.get('error_data'), dict) else {}
-    details = str(error_data.get('details') or '')
-    kind = direct_send_util.classify_error(meta_code, details)
-    # Classified on the raw text; logged without the code (a credential Meta may echo back)
-    # and with phone numbers redacted.
-    safe_details = redact_string(details.replace(otp, '[code]') if otp else details)[:200]
-    fields = {
-        'category': direct_send_util.AUTHENTICATION,
-        'wabaId': waba_id,
-        'metaCode': meta_code,
-        'metaSubcode': inner.get('error_subcode'),
-        'fbtraceId': inner.get('fbtrace_id'),
-        'metaDetails': safe_details,
-        'fallback': 'template',
-    }
-    # Pause only on the account-level outcomes, which will repeat for the next code too.
-    # Any other Meta error (an undeliverable number, a pair rate limit) is about this
-    # recipient, and the next customer should still get Direct Send.
-    if kind in (direct_send_util.NOT_ONBOARDED, direct_send_util.RESTRICTED,
-                direct_send_util.OTHER_100):
-        _pause_direct_send_otp(waba_id)
-    if kind == direct_send_util.NOT_ONBOARDED:
-        logger.warning(json.dumps({
-            'event': 'direct_send_not_onboarded',
-            'note': 'WABA is not onboarded to Direct Send authentication - clear it from '
-                    'DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS or complete onboarding. The '
-                    'approved template was sent instead.',
-            **fields}))
-    elif kind == direct_send_util.RESTRICTED:
-        logger.error(json.dumps({
-            'event': 'direct_send_restricted',
-            'note': 'Direct Send access restricted or capped by Meta enforcement - investigate '
-                    'category misclassification. The approved template was sent instead.',
-            **fields}))
-    elif kind == direct_send_util.OTHER_100:
-        logger.error(json.dumps({
-            'event': 'direct_send_rejected',
-            'note': 'Direct Send authentication request rejected for an unclassified reason - '
-                    'treat as our defect. The approved template was sent instead.',
-            **fields}))
-    else:
-        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'meta_error',
-                                   **fields}))
-    return None
-
-
-def _send_template_msg(body: Dict, internal: bool = False) -> Dict:
+def _send_template_msg(body: Dict) -> Dict:
     """Send a template by name with caller components. Never a payment request.
 
     `components` reach Meta verbatim, so an order details button action here would bill a
@@ -2670,13 +2495,6 @@ def _send_template_msg(body: Dict, internal: bool = False) -> Dict:
     `outbound-whatsapp` applies to the one approved payment template. Refused before any
     Meta call; payment requests go through Pay Flow, Inbox or Commerce.
 
-    `otpCode` (with optional `otpExpiresInSeconds`) marks the send as a sign-in code. It is
-    honoured only on an internal invoke, which is how customer-whatsapp-auth,
-    customer-registration and blog-subscribe call this route: there the code may go out as
-    a Direct Send authentication message instead (`_direct_send_otp`), and the template in
-    this body is the fallback. From API Gateway the field is ignored and the template is
-    sent as before. Either way the template message is built from the same fields as
-    always, so a fallback is byte-identical to a send that never tried Direct Send.
     """
     from lambda_utils import template_validation as tv
     if tv.send_components_request_payment(body.get('components')):
@@ -2690,10 +2508,6 @@ def _send_template_msg(body: Dict, internal: bool = False) -> Dict:
     if not name:
         return _resp(400, {'error': 'templateName is required'})
     phone_id = body.get('phoneId') or PHONE1_META_ID
-    if internal and body.get('otpCode'):
-        delivered = _direct_send_otp(phone_id, body)
-        if delivered is not None:
-            return delivered
     template = {'name': name, 'language': {'code': body.get('language', 'en')}}
     if body.get('components'):
         template['components'] = body['components']
@@ -2721,323 +2535,6 @@ def _send_media_msg(body: Dict) -> Dict:
     return _send_message(phone_id, {'type': media_type, media_type: obj}, body)
 
 
-def _send_request_contact_info(body: Dict) -> Dict:
-    """Send a request_contact_info interactive message to collect a user's phone
-    number (useful for username-adopters whose phone is hidden). BSUID-friendly."""
-    phone_id = body.get('phoneId') or PHONE1_META_ID
-    interactive = {
-        'type': 'request_contact_info',
-        'body': {'text': body.get('bodyText', 'Please share your contact info so we can assist you.')},
-        'action': {'name': 'request_contact_info'},
-    }
-    return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
-
-
-def _send_contract_flow(capability: str, record: Dict, body: Dict, mode: str,
-                        auth: Optional[Dict]) -> Dict:
-    """Manual staff send of a Flow with a canonical launch contract (today: F001 Subscribe).
-
-    The controlled QA / support door: Operator or Admin only, every publication control must
-    agree (`flow_launch.manual_launch_decision`), the server mints the session token and
-    records who sent it BEFORE delivery, the Flow always opens with data_exchange so INIT
-    prefills from ContactsTable, and the copy is the Workspace-managed copy, so what QA sees
-    is what customers see. The keyword switch is deliberately not required: this is how a
-    Flow is tested before keyword launch is enabled.
-    """
-    from flows import common as flow_common, subscribe_profile
-    from lambda_utils import canonical_flows, contact_store, subscribe_messages
-
-    contract = canonical_flows.canonical_contract(capability) or {}
-    flow_code = str(contract.get('flowCode') or '')
-    funnel_table = dynamodb.Table(flow_funnel.table_name())
-    actor = _actor(auth)
-    role = str((auth or {}).get('role') or '')
-
-    def count(stage: str, **fields: Any) -> None:
-        flow_funnel.record(funnel_table, flow_code, stage, logger=logger,
-                           launchChannel=flow_sessions.LAUNCH_STAFF,
-                           actor=_actor_ref(actor), role=role, **fields)
-
-    def refuse(status: int, reason: str, message: str) -> Dict:
-        count('launch_blocked', reason=reason)
-        return _resp(status, {'error': message, 'reason': reason})
-
-    count('launch_attempted')
-    if mode == 'draft':
-        return refuse(400, 'draft_mode', f"{contract.get('flowNumber')} sends always use the published Flow.")
-    if body.get('flowToken'):
-        return refuse(400, 'client_token', 'Flow tokens for this Flow are issued by the server.')
-    if not actor:
-        return refuse(403, 'no_actor', 'Authenticated staff identity required')
-    try:
-        registry_row = flow_launch.read_registry_row(dynamodb.Table(FLOW_REGISTRY_TABLE), record['flowId'])
-    except Exception as e:
-        logger.error(json.dumps({'event': 'flow_registry_read_failed', 'errorType': type(e).__name__}))
-        return refuse(503, 'registry_unreadable', flow_launch.explain('registry_unreadable'))
-    decision = flow_launch.manual_launch_decision(capability=capability,
-                                                  registry_row=registry_row, role=role)
-    if not decision.allowed:
-        status = 403 if decision.reason == 'role_insufficient' else 409
-        return refuse(status, decision.reason, flow_launch.explain(decision.reason))
-
-    # The session is bound to a phone, and the message is delivered to that same phone.
-    table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
-    to = str(body.get('to') or '').strip()
-    bsuid = str(body.get('recipient') or '').strip()
-    try:
-        if to:
-            phone = contact_store.digits(to)
-            if not phone:
-                return refuse(400, 'bad_recipient', 'to must be a WhatsApp phone number')
-            contact_row = contact_store.lookup(table, phone) or {}
-        elif bsuid:
-            contact_row = contact_store.find_by_bsuid(table, bsuid) or {}
-            phone = contact_store.digits(contact_row.get('phone'))
-            if not phone:
-                return refuse(400, 'bad_recipient', 'That WhatsApp ID has no phone-backed customer profile')
-        else:
-            return refuse(400, 'bad_recipient', 'to (phone number) or recipient (BSUID) is required')
-    except contact_store.IdentityConflict:
-        return refuse(409, 'identity_conflict', 'More than one customer profile claims this '
-                                                'customer. Resolve it in Customers first.')
-
-    copy = subscribe_messages.copy_for(
-        subscribe_messages.is_returning(contact_row),
-        flow_common.dynamodb.Table(subscribe_messages.system_config_table_name()))
-    try:
-        token, session = subscribe_profile.launch_session_token(
-            phone, launch_channel=flow_sessions.LAUNCH_STAFF, initiated_by=actor)
-    except (flow_sessions.FlowSessionUnavailable, ValueError) as e:
-        count('launch_failed', reason=f'session_{type(e).__name__}')
-        return _resp(503, {'error': 'Could not start a Flow session; nothing was sent.'})
-    interactive: Dict[str, Any] = {
-        'type': 'flow',
-        'body': {'text': copy['body']},
-        'footer': {'text': subscribe_messages.FOOTER},
-        'action': {'name': 'flow', 'parameters': {
-            'flow_message_version': '3', 'flow_token': token, 'flow_id': record['flowId'],
-            'flow_cta': copy['flowCta'], 'flow_action': 'data_exchange',
-        }},
-    }
-    response = _send_message(PHONE1_META_ID, {'type': 'interactive', 'interactive': interactive},
-                             {'to': phone})
-    if response.get('statusCode') != 200:
-        count('launch_failed', reason='graph_error')
-        return response
-    count('launch_sent')
-    sent = json.loads(response.get('body') or '{}')
-    sent.update({'flowCode': flow_code, 'launchChannel': flow_sessions.LAUNCH_STAFF,
-                 'sessionExpiresAt': session.expires_at})
-    return _resp(200, sent)
-
-
-
-def _send_shipments_flow(record: Dict, body: Dict, mode: str,
-                         auth: Optional[Dict]) -> Dict:
-    """Controlled staff send for F006 Track Shipping.
-
-    F006 has a dynamic first screen, so a server-issued session is recorded before Meta
-    receives the message.  FlowRegistry keeps this door manual: no keyword/menu route is
-    enabled here, and caller-supplied flow tokens are refused.
-    """
-    from flows import common as flow_common
-    from lambda_utils import contact_store
-
-    if mode == 'draft':
-        return _resp(400, {'error': 'F006 sends use the published Flow.'})
-    if body.get('flowToken'):
-        return _resp(400, {'error': 'Flow tokens for F006 are issued by the server.'})
-
-    actor = _actor(auth)
-    role = str((auth or {}).get('role') or '')
-    if not actor or flow_launch._ROLE_RANK.get(role, 0) < flow_launch._ROLE_RANK[flow_launch.MANUAL_SEND_MIN_ROLE]:
-        return _resp(403, {'error': 'Operator or Admin is required to send F006.'})
-
-    try:
-        registry = flow_launch.read_registry_row(
-            dynamodb.Table(FLOW_REGISTRY_TABLE), str(record.get('flowId') or ''))
-    except Exception as e:
-        logger.error(json.dumps({'event': 'f006_registry_read_failed',
-                                 'errorType': type(e).__name__}))
-        return _resp(503, {'error': 'Could not read FlowRegistry; nothing was sent.'})
-    if not registry:
-        return _resp(409, {'error': 'F006 is not registered for sending.'})
-    if (str(registry.get('status') or '') != 'PUBLISHED'
-            or str(registry.get('metaStatus') or '').upper() not in ('PUBLISHED', 'THROTTLED')
-            or str(registry.get('entryMode') or '') != 'manual'
-            or flow_launch.parse_bool(registry.get('requiresPayment'))
-            or str(registry.get('flowCode') or '') != 'shipments'):
-        return _resp(409, {'error': 'F006 FlowRegistry controls do not allow this send.'})
-
-    table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
-    to = str(body.get('to') or '').strip()
-    bsuid = str(body.get('recipient') or '').strip()
-    try:
-        if to:
-            phone = contact_store.digits(to)
-            if not phone:
-                return _resp(400, {'error': 'to must be a WhatsApp phone number'})
-        elif bsuid:
-            contact_row = contact_store.find_by_bsuid(table, bsuid) or {}
-            phone = contact_store.digits(contact_row.get('phone'))
-            if not phone:
-                return _resp(400, {'error': 'That WhatsApp ID has no phone-backed customer profile'})
-        else:
-            return _resp(400, {'error': 'to (phone number) or recipient (BSUID) is required'})
-    except contact_store.IdentityConflict:
-        return _resp(409, {'error': 'More than one customer profile claims this customer. '
-                                    'Resolve it in Customers first.'})
-
-    token = flow_sessions.mint_token('shipments', phone, '1')
-    try:
-        session = flow_sessions.record_session(
-            dynamodb.Table(flow_sessions.table_name()),
-            capability='shipments',
-            token=token,
-            launch_channel=flow_sessions.LAUNCH_STAFF,
-            initiated_by=actor,
-        )
-    except (flow_sessions.FlowSessionUnavailable, ValueError):
-        return _resp(503, {'error': 'Could not start the F006 Flow session; nothing was sent.'})
-
-    parameters: Dict[str, Any] = {
-        'flow_message_version': '3',
-        'flow_token': token,
-        'flow_id': record['flowId'],
-        'flow_cta': body.get('flowCta', 'Open'),
-        'flow_action': 'data_exchange',
-    }
-    interactive: Dict[str, Any] = {
-        'type': 'flow',
-        'body': {'text': body.get('bodyText', 'Tap below to continue')},
-        'action': {'name': 'flow', 'parameters': parameters},
-    }
-    if body.get('headerText'):
-        interactive['header'] = {'type': 'text', 'text': body['headerText']}
-    if body.get('footerText'):
-        interactive['footer'] = {'text': body['footerText']}
-
-    response = _send_message(
-        PHONE1_META_ID, {'type': 'interactive', 'interactive': interactive}, {'to': phone})
-    if response.get('statusCode') != 200:
-        return response
-    sent = json.loads(response.get('body') or '{}')
-    sent.update({
-        'flowCode': 'shipments',
-        'launchChannel': flow_sessions.LAUNCH_STAFF,
-        'sessionExpiresAt': session.expires_at,
-    })
-    return _resp(200, sent)
-
-
-def _send_flow_msg(body: Dict, auth: Optional[Dict] = None) -> Dict:
-    """Send a WhatsApp Flow through the canonical published-flow registry.
-
-    Prefer `flowKey` for production sends. A caller may also provide a published canonical
-    `flowId` or `flowName`; both resolve back to the same registry record. Draft mode may still
-    send an explicit non-canonical id/name for workspace testing.
-
-    A Flow with a canonical launch contract (F001) goes through `_send_contract_flow`, which
-    adds staff authorization, server-issued sessions and launch-policy checks.
-
-    Other canonical production sends receive a phone-backed token:
-      {routing-prefix}-{uuid}-waba-1-ph-{phone}
-    so Flow responses resolve the same ContactsTable person used by Inbox and checkout.
-    """
-    from flows import common as flow_common
-    from lambda_utils import canonical_flows, contact_store
-
-    requested_key = str(body.get('flowKey') or '').strip()
-    requested_id = str(body.get('flowId') or '').strip()
-    requested_name = str(body.get('flowName') or '').strip()
-    mode = str(body.get('mode') or 'published').strip().lower()
-
-    if not requested_key and not requested_id and not requested_name:
-        return _resp(400, {'error': 'one of flowKey/flowId/flowName is required'})
-
-    record = None
-    if requested_key:
-        record = canonical_flows.published_flow(requested_key)
-    elif requested_id:
-        record = canonical_flows.published_flow_by_id(requested_id)
-    elif requested_name:
-        record = canonical_flows.published_flow_by_name(requested_name)
-
-    # F006 is a manual-only published Flow with a dynamic first screen.  Keep its
-    # server-issued session path separate from legacy generic sends.
-    if record and str(record.get('capability') or '') == 'shipments':
-        return _send_shipments_flow(record, body, mode, auth)
-
-    # A contract Flow is recognised by id even when its canonical record is not published,
-    # so a draft-mode send can never reach it through the generic path below.
-    contract_match = (canonical_flows.contract_for_flow_id(requested_id) if requested_id else None)
-    contract_capability = (str(record.get('capability')) if record else
-                           (contract_match[0] if contract_match else requested_key))
-    if canonical_flows.canonical_contract(contract_capability):
-        if not record:
-            return _resp(409, {'error': flow_launch.explain('canonical_not_published'),
-                               'reason': 'canonical_not_published'})
-        return _send_contract_flow(contract_capability, record, body, mode, auth)
-
-    if mode != 'draft' and not record:
-        return _resp(400, {'error': 'flow is not registered as published'})
-
-    capability = str((record or {}).get('capability') or requested_key)
-    flow_id = str((record or {}).get('flowId') or requested_id)
-    flow_name = str((record or {}).get('metaName') or requested_name)
-    phone_id = PHONE1_META_ID if record else (body.get('phoneId') or PHONE1_META_ID)
-
-    contact_row: Dict[str, Any] = {}
-    recipient = str(body.get('to') or body.get('recipient') or '').strip()
-    direct_phone = contact_store.digits(recipient)
-
-    if record:
-        if not body.get('flowToken') and not direct_phone:
-            table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
-            contact_row = contact_store.find_by_bsuid(table, recipient) or {}
-
-        if not body.get('flowToken'):
-            token_phone = direct_phone or contact_store.digits(contact_row.get('phone') or '')
-            if not token_phone:
-                return _resp(400, {
-                    'error': 'Published Flow sends require a phone-backed customer or explicit flowToken'
-                })
-            token_prefix = canonical_flows.published_flow_token_prefix(capability)
-            body = {
-                **body,
-                'flowToken': f'{token_prefix}-{uuid.uuid4().hex}-waba-1-ph-{token_phone}',
-            }
-
-    parameters: Dict[str, Any] = {
-        'flow_message_version': '3',
-        'flow_token': body.get('flowToken') or f'test-{uuid.uuid4().hex[:12]}',
-        'flow_cta': body.get('flowCta', 'Open'),
-        'flow_action': body.get('flowAction', 'navigate'),
-    }
-    if flow_id:
-        parameters['flow_id'] = flow_id
-    else:
-        parameters['flow_name'] = flow_name
-    if mode == 'draft':
-        parameters['mode'] = 'draft'
-    if parameters['flow_action'] == 'navigate':
-        parameters['flow_action_payload'] = body.get('flowActionPayload') or {
-            'screen': body.get('screen', 'WELCOME'),
-            'data': body.get('data', {}),
-        }
-
-    interactive: Dict[str, Any] = {
-        'type': 'flow',
-        'body': {'text': body.get('bodyText', 'Tap below to continue')},
-        'action': {'name': 'flow', 'parameters': parameters},
-    }
-    if body.get('headerText'):
-        interactive['header'] = {'type': 'text', 'text': body['headerText']}
-    if body.get('footerText'):
-        interactive['footer'] = {'text': body['footerText']}
-
-    return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
-
 def _send_contacts_msg(body: Dict) -> Dict:
     contacts = body.get('contacts')
     if not contacts:
@@ -3063,105 +2560,8 @@ def _send_location_msg(body: Dict) -> Dict:
 _PRODUCT_CAROUSEL_MIN_CARDS = 2
 _PRODUCT_CAROUSEL_MAX_CARDS = 10
 # Meta's current service-message contract (v25 docs, updated 2026-06-18):
-# interactive.type = "carousel", action.cards[], each card has card_index, type="product"
 # and its own {catalog_id, product_retailer_id}. Header/footer/buttons are not allowed.
 _PRODUCT_CAROUSEL_TYPE = 'carousel'
-
-
-def _send_product_msg(body: Dict) -> Dict:
-    """Single product (interactive 'product') or multi-product ('product_list').
-
-    Precedence: carouselCards > catalogMessage|viewCatalog > sections > single
-    product. The most specific body shape wins; a caller supplying two is served the
-    most specific one, and the superseded shape is named in the product_carousel_built
-    log line.
-    """
-    catalog_id = body.get('catalogId')
-    if not catalog_id:
-        return _resp(400, {'error': 'catalogId is required'})
-    phone_id = body.get('phoneId') or PHONE1_META_ID
-    sections = body.get('sections')
-    cards = body.get('carouselCards') or body.get('cards')
-    if cards:
-        # A product carousel is a CATALOG PRESENTATION. It must never accept or emit an
-        # order_details component, a payment configuration name or an amount -- pinned by
-        # tests/test_product_carousel_send.py::test_carousel_carries_no_order_details.
-        #
-        # Which more-general shape this carousel is superseding, so an override is visible
-        # in CloudWatch rather than inferred from the absence of a catalog_message.
-        superseded = ('catalog_message' if (body.get('catalogMessage') or body.get('viewCatalog'))
-                      else ('sections' if sections else ''))
-        if not isinstance(cards, list):
-            return _resp(400, {'error': 'carouselCards must be a list'})
-        if not (_PRODUCT_CAROUSEL_MIN_CARDS <= len(cards) <= _PRODUCT_CAROUSEL_MAX_CARDS):
-            return _resp(400, {'error': f'product_carousel needs {_PRODUCT_CAROUSEL_MIN_CARDS}-'
-                                        f'{_PRODUCT_CAROUSEL_MAX_CARDS} cards'})
-        built_cards = []
-        for i, card in enumerate(cards):
-            rid = (card.get('productRetailerId') or card.get('product_retailer_id') or '') \
-                if isinstance(card, dict) else str(card or '')
-            if not rid:
-                return _resp(400, {'error': f'card {i} is missing productRetailerId'})
-            built_cards.append({
-                'card_index': i,
-                'type': 'product',
-                'action': {
-                    'product_retailer_id': str(rid),
-                    'catalog_id': str(catalog_id),
-                },
-            })
-        body_text = body.get('bodyText')
-        if not body_text:
-            return _resp(400, {'error': 'bodyText is required for a product carousel'})
-        if body.get('headerText') or body.get('footerText') or body.get('buttons'):
-            return _resp(400, {
-                'error': 'Interactive product carousel messages support body text and product cards only; '
-                         'header, footer and buttons are not allowed'
-            })
-        interactive = {
-            'type': _PRODUCT_CAROUSEL_TYPE,
-            'body': {'text': str(body_text)[:1024]},
-            'action': {'cards': built_cards},
-        }
-        logger.info(json.dumps({'event': 'product_carousel_built', 'catalogId': catalog_id,
-                                'cardCount': len(built_cards), 'supersededShape': superseded}))
-        return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
-    if body.get('catalogMessage') or body.get('viewCatalog'):
-        # Full catalog message — opens the whole catalog with a "View catalog"
-        # button so the customer browses ALL products, adds to cart, and checks out.
-        interactive = {
-            'type': 'catalog_message',
-            'body': {'text': body.get('bodyText', 'Browse our catalog and add items to your cart.')},
-            'action': {'name': 'catalog_message'},
-        }
-        thumb = body.get('productRetailerId') or body.get('thumbnailProductRetailerId')
-        if thumb:
-            interactive['action']['parameters'] = {'thumbnail_product_retailer_id': thumb}
-        if body.get('footerText'):
-            interactive['footer'] = {'text': body['footerText']}
-        return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
-    if sections:
-        # Multi-product message
-        interactive = {
-            'type': 'product_list',
-            'header': {'type': 'text', 'text': body.get('headerText', 'Products')},
-            'body': {'text': body.get('bodyText', 'Browse our products')},
-            'action': {'catalog_id': catalog_id, 'sections': sections},
-        }
-        if body.get('footerText'):
-            interactive['footer'] = {'text': body['footerText']}
-    else:
-        retailer_id = body.get('productRetailerId')
-        if not retailer_id:
-            return _resp(400, {'error': 'productRetailerId required for a single product (or provide sections[] for multi-product)'})
-        interactive = {
-            'type': 'product',
-            'body': {'text': body.get('bodyText', '')} if body.get('bodyText') else {'text': ' '},
-            'action': {'catalog_id': catalog_id, 'product_retailer_id': retailer_id},
-        }
-        if not body.get('bodyText'):
-            interactive.pop('body', None)
-    return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
 
 
 def _is_internal_invoke(event: Dict[str, Any]) -> bool:
@@ -3182,38 +2582,18 @@ def _is_internal_invoke(event: Dict[str, Any]) -> bool:
     return not (rc.get('apiId') or rc.get('domainName') or http.get('sourceIp'))
 
 
-def _route_send_message(path: str, body: Dict, auth: Optional[Dict] = None,
-                        internal: bool = False) -> Dict:
-    """Dispatch /messages/send/{type}. `auth` is the caller's verified staff identity.
-
-    `internal` is `_is_internal_invoke(event)`. Only the template route reads it.
-    """
+def _route_send_message(path: str, body: Dict) -> Dict:
+    """Dispatch supported message routes after the handler's authorization check."""
     if path.rstrip('/').endswith('/text'):
         return _send_text(body)
     if path.rstrip('/').endswith('/template'):
-        return _send_template_msg(body, internal=internal)
+        return _send_template_msg(body)
     if path.rstrip('/').endswith('/media'):
         return _send_media_msg(body)
-    if path.rstrip('/').endswith('/interactive'):
-        # The generic interactive pass-through was deleted with every WhatsApp
-        # menu on 2026-10-02. 410 rather than the 404 below, because the route
-        # still exists - it was withdrawn, it is not unknown.
-        return _resp(410, {'error': 'interactive messaging removed',
-                           'detail': 'generic interactive sends were deleted on '
-                                     '2026-10-02; use /text, /template, /media or /flow'})
-    if path.rstrip('/').endswith('/flow'):
-        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
-                           'detail': 'Use an approved Flow-button template.'})
     if path.rstrip('/').endswith('/contacts'):
         return _send_contacts_msg(body)
     if path.rstrip('/').endswith('/location'):
         return _send_location_msg(body)
-    if path.rstrip('/').endswith('/product') or path.rstrip('/').endswith('/products'):
-        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
-                           'detail': 'Standalone product interactive sends are retired.'})
-    if path.rstrip('/').endswith('/request-contact-info'):
-        return _resp(410, {'error': 'DIRECT_INTERACTIVE_RETIRED',
-                           'detail': 'Use an approved template.'})
     return _resp(404, {'error': f'Unknown send path: {path}'})
 
 
@@ -5276,7 +4656,7 @@ def _flow_launch_status(params: Dict, auth: Optional[Dict] = None) -> Dict:
     """GET /wa-business/flow-launch-status?capability=subscribe
 
     One answer to "can customers open this Flow right now, and why not?", computed with the
-    same `lambda_utils.flow_launch` decisions the keyword dispatcher and the staff send use.
+    same `lambda_utils.flow_launch` decision as the keyword service-link dispatcher.
     Read-only, and contains no customer data, so the Viewer floor applies.
     """
     from lambda_utils import canonical_flows
@@ -5298,12 +4678,9 @@ def _flow_launch_status(params: Dict, auth: Optional[Dict] = None) -> Dict:
     trigger = flow_launch.runtime_trigger(capability, stored)
     if registry_error:
         keyword = flow_launch.LaunchDecision(False, 'registry_unreadable')
-        manual = keyword
     else:
         keyword = flow_launch.keyword_launch_decision(capability=capability,
                                                       registry_row=registry_row, trigger=trigger)
-        manual = flow_launch.manual_launch_decision(capability=capability, registry_row=registry_row,
-                                                    role=str((auth or {}).get('role') or ''))
     if runtime_error and keyword.allowed:
         keyword = flow_launch.LaunchDecision(False, 'runtime_disabled')
     registry_view = _plain_numbers(dict(registry_row)) if registry_row else None
@@ -5318,9 +4695,6 @@ def _flow_launch_status(params: Dict, auth: Optional[Dict] = None) -> Dict:
         'runtime': {**trigger, 'readError': runtime_error},
         'keywordLaunch': {'allowed': keyword.allowed, 'reason': keyword.reason,
                           'explanation': flow_launch.explain(keyword.reason)},
-        'manualLaunch': {'allowed': manual.allowed, 'reason': manual.reason,
-                         'explanation': flow_launch.explain(manual.reason),
-                         'minimumRole': flow_launch.MANUAL_SEND_MIN_ROLE},
         'session': {'ttlSeconds': flow_sessions.SESSION_TTL_SECONDS},
         'endpoint': (registry_row or {}).get('endpointUri') or _REGISTRY_DEFAULTS['endpointUri'],
     })
@@ -6095,8 +5469,6 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
         return _resp(500, {'error': 'Encryption failed'})
 
 
-
-
 # `_save_submit_request` was removed here (2026-10-15). It wrote a second, unguarded copy of a
 # Submit Request into SubmitRequestsTable and had zero callers: every submission is written
 # once, to the shared flow-response table, by `flow_completion.claim_completion`.
@@ -6285,7 +5657,7 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
                 'requestId': request_id,
             }))
             # No fallback send. `_send_payment_direct_fallback` used to fire here: a free-form
-            # interactive order_details with float GST, no reservation, no interlock and no
+            # unreserved payment details with float GST, no reservation, no interlock and no
             # readiness check. Now that the invoice path is readiness-gated, an invoice-engine
             # refusal is a LEGITIMATE outcome, and papering over it with an ungated, unreserved
             # send is the one path that could take money while every gate says no. The flow now
@@ -6573,7 +5945,6 @@ def _find_contact_by_phone(phone: str) -> str:
     except Exception as e:
         logger.warning(f'Contact lookup failed for {mask_phone(phone)}: {type(e).__name__}')
     return ''
-
 
 
 def _fetch_orders_for_flow(phone: str, email: str) -> list:
@@ -7295,8 +6666,6 @@ def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
     return {'error': 'INVALID_SCOPE'}
 
 
-
-
 def _track_customer_menu_template_send(*, phone: str, contact: Dict[str, Any],
                                        template_name: str, content: str,
                                        response: Dict[str, Any]) -> str:
@@ -7442,7 +6811,7 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
         'templateName': template.name,
         'language': template.language,
         'components': components,
-    }, internal=True)
+    })
     if response.get('statusCode') != 200:
         count('launch_failed', reason='graph_error')
         return response
@@ -7460,7 +6829,6 @@ def _customer_profile_update_template(event: Dict[str, Any]) -> Dict[str, Any]:
         'launchChannel': flow_sessions.LAUNCH_WEB,
         'sessionExpiresAt': session.expires_at,
     })
-
 
 
 def _customer_leave_review_template(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -7528,7 +6896,7 @@ def _customer_leave_review_template(event: Dict[str, Any]) -> Dict[str, Any]:
         'to': phone, 'phoneId': PHONE1_META_ID,
         'templateName': template.name, 'language': template.language,
         'components': components,
-    }, internal=True)
+    })
     if response.get('statusCode') != 200:
         count('launch_failed', reason='graph_error')
         return response
@@ -7544,7 +6912,6 @@ def _customer_leave_review_template(event: Dict[str, Any]) -> Dict[str, Any]:
         'flowCode': flow_code,
         'launchChannel': flow_sessions.LAUNCH_WEB,
     })
-
 
 
 def _customer_referral_template(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -7612,7 +6979,7 @@ def _customer_referral_template(event: Dict[str, Any]) -> Dict[str, Any]:
         'to': phone, 'phoneId': PHONE1_META_ID,
         'templateName': template.name, 'language': template.language,
         'components': components,
-    }, internal=True)
+    })
     if response.get('statusCode') != 200:
         count('launch_failed', reason='graph_error')
         return response
@@ -7811,8 +7178,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/messages/send/' in path:
             if method == 'POST':
-                return _route_send_message(path, body, auth=event.get('_auth'),
-                                           internal=_is_internal_invoke(event))
+                return _route_send_message(path, body)
             return _resp(405, {'error': 'POST only'})
 
         elif '/message-history/events' in path:
@@ -8203,11 +7569,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _update_group(group_id or '', body)
             elif method == 'DELETE':
                 return _delete_group(group_id or '')
-
-        elif '/interactive-list' in path:
-            # The route stays declared so it answers honestly rather than 404ing.
-            return _resp(410, {'error': 'interactive messaging removed',
-                               'detail': 'the interactive-list sender was deleted on 2026-10-02'})
 
         elif '/calling-settings' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

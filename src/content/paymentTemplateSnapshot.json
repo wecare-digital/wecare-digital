@@ -1,0 +1,140 @@
+{
+  "checkedAt": "2026-11-02T04:20:40Z",
+  "business": "Wecare.Digital",
+  "messagingAccount": "WECARE.DIGITAL",
+  "templates": [
+    {
+      "id": "2714938845570815",
+      "name": "wecare_whatapp_native_pay_template",
+      "status": "APPROVED",
+      "language": "en",
+      "category": "UTILITY",
+      "sub_category": "ORDER_DETAILS",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "IMAGE",
+          "example": {
+            "header_handle": [
+              "https://scontent.whatsapp.net/v/t61.29466-34/849978168_2714938848904148_129101011653302898_n.png?ccb=1-7&_nc_sid=8b1bef&_nc_ohc=35Kxl5QeZr8Q7kNvwGEZbf9&_nc_oc=AdrmEiwMkRmAO1mzhtR6xRGGGUYwau-aKYpnqTwT8U8y9vXIUYqnfk9WtEYrwBQhz4A&_nc_zt=3&_nc_ht=scontent.whatsapp.net&edm=AO-7yr8EAAAA&_nc_gid=vztigfoatz8aSQNhhnaa7Q&_nc_tpa=Q5bMBQLpkbGMMtUKOJhkBnP9wV2TLZQercFqjTSEoqhJb7VSJlrhnfykjQ0EbR3Ke8T6tIWZxpHlAf6twQ&oh=01_Q5Aa6AGMdiPRbK5yBAk5FYhy7_YsPmWs6Js6HfbpTikx6KcBpQ&oe=6B0F8362"
+            ]
+          }
+        },
+        {
+          "type": "BODY",
+          "text": "💳 Your order is ready for payment. Tap Review and Pay to complete it securely."
+        },
+        {
+          "type": "FOOTER",
+          "text": "WECARE.DIGITAL"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "ORDER_DETAILS",
+              "text": "Review and Pay"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1754227779211208",
+      "name": "wecare_order_status_v3",
+      "status": "APPROVED",
+      "language": "en",
+      "category": "UTILITY",
+      "sub_category": "ORDER_STATUS",
+      "components": [
+        {
+          "type": "BODY",
+          "text": "📦 Your order status has been updated."
+        },
+        {
+          "type": "FOOTER",
+          "text": "WECARE.DIGITAL"
+        }
+      ]
+    },
+    {
+      "id": "1782246473079550",
+      "name": "wecare_default_invoice_image_template",
+      "status": "APPROVED",
+      "language": "en",
+      "category": "UTILITY",
+      "sub_category": "CUSTOM",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "IMAGE",
+          "example": {
+            "header_handle": [
+              "https://scontent.whatsapp.net/v/t61.29466-34/771430475_1782246476412883_2127185207110003497_n.png?ccb=1-7&_nc_sid=8b1bef&_nc_ohc=47QXe6GeB98Q7kNvwHE_YCi&_nc_oc=Adq-6PP8o5T3xY61d8UIfSB3zBugiNTBFbZ63e49bOeeqo_xbYLPV_a125cqvMsvge0&_nc_zt=3&_nc_ht=scontent.whatsapp.net&edm=AO-7yr8EAAAA&_nc_gid=WwIZ0SfLTx_EcrNaq2eJXw&_nc_tpa=Q5bMBQJ8q8NDcHAcsly95iGY9QcUnvxpF86xSbT4KpVTxJhxT1QkvVnOeR3R2M9fZkF1ynPtGF2eNgm_rQ&oh=01_Q5Aa6AHqv6NeYM9Ks09mqkvdcUA-ByJXDwz6m-jrECG00-xQtw&oe=6B0F73BC"
+            ]
+          }
+        },
+        {
+          "type": "BODY",
+          "text": "✅ Payment received. Your transaction has been confirmed."
+        },
+        {
+          "type": "FOOTER",
+          "text": "WECARE.DIGITAL"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "FLOW",
+              "text": "Leave Review",
+              "flow_id": 993862443003108,
+              "flow_action": "DATA_EXCHANGE",
+              "icon": "REVIEW"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1410998911012572",
+      "name": "wecare_default_download",
+      "status": "APPROVED",
+      "language": "en",
+      "category": "UTILITY",
+      "sub_category": "CUSTOM",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "IMAGE",
+          "example": {
+            "header_handle": [
+              "https://scontent.whatsapp.net/v/t61.29466-34/602305894_1410998921012571_6992550227399303027_n.png?ccb=1-7&_nc_sid=8b1bef&_nc_ohc=BpnEth7JctwQ7kNvwEJQ6Gl&_nc_oc=AdoWEYXcbpcud0-Nglv0ZWgZELH4ARfMfWe0LbT0THXBnjNwmrB03R0ABIO3vXELrfg&_nc_zt=3&_nc_ht=scontent.whatsapp.net&edm=AO-7yr8EAAAA&_nc_gid=OTGFvsv-axTSHgoixedULA&_nc_tpa=Q5bMBQLrq_OEnLlJPD5wnvflZRQZ6oq3TcjIkCI47Y7CmBorhS_imhAS03X8rS0-7ZuE-PCDBXP6yq0ilQ&oh=01_Q5Aa6AECjoZFPA683uWox1-FUGLw6u4fa0Wn-PnWBG2zEMM0tQ&oe=6B0F68B1"
+            ]
+          }
+        },
+        {
+          "type": "BODY",
+          "text": "📄 Your requested document is ready. Tap below to access it."
+        },
+        {
+          "type": "FOOTER",
+          "text": "WECARE.DIGITAL"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Access Vault",
+              "url": "https://wecare.digital/vault/?file={{1}}",
+              "example": [
+                "https://wecare.digital/vault/?file=doc.pdf"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

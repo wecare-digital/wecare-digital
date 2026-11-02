@@ -9,7 +9,6 @@ import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 import { WHATSAPP_PHONES } from '../../../config/constants';
-import ProductMessageComposer from '../../../components/ProductMessageComposer';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -26,10 +25,6 @@ const PHONE_OPTIONS: SelectOption[] = PHONES.map( ( p, i ) => ( {
 } ) );
 const MEDIA_TYPE_OPTIONS: SelectOption[] = [ 'image', 'video', 'document', 'audio', 'sticker' ]
     .map( t => ( { value: t, label: t } ) );
-const FLOW_MODE_OPTIONS: SelectOption[] = [
-    { value: 'published', label: 'published' },
-    { value: 'draft', label: 'draft' },
-];
 const TTL_CATEGORY_OPTIONS: SelectOption[] = [ 'AUTHENTICATION', 'UTILITY', 'MARKETING' ]
     .map( c => ( { value: c, label: c } ) );
 const RESUME_TARGET_OPTIONS: SelectOption[] = [
@@ -37,7 +32,7 @@ const RESUME_TARGET_OPTIONS: SelectOption[] = [
     { value: 'media', label: 'media id (for sending)' },
 ];
 
-type SendTab = 'text' | 'template' | 'media' | 'flow' | 'tools' | 'mediamgmt' | 'flowadmin' | 'product';
+type SendTab = 'text' | 'template' | 'media' | 'tools' | 'mediamgmt' | 'flowadmin';
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 'var(--text-md)' };
@@ -65,13 +60,6 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
     const [ mediaType, setMediaType ] = useState<'image' | 'video' | 'document' | 'audio' | 'sticker'>( 'image' );
     const [ mediaUrl, setMediaUrl ] = useState( '' );
     const [ caption, setCaption ] = useState( '' );
-    // flow
-    const [ flowName, setFlowName ] = useState( '' );
-    const [ flowScreen, setFlowScreen ] = useState( 'WELCOME' );
-    const [ flowMode, setFlowMode ] = useState<'published' | 'draft'>( 'published' );
-    const [ flowCta, setFlowCta ] = useState( 'Open' );
-    const [ flowBody, setFlowBody ] = useState( 'Tap below to continue' );
-
     // tools
     const [ ttlRules, setTtlRules ] = useState<api.TtlRules | null>( null );
     const [ ttlCategory, setTtlCategory ] = useState( 'UTILITY' );
@@ -132,7 +120,6 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
     const sendText = () => requireTo() && doSend( () => api.sendTestText( to, text, { phoneId: phone.metaPhoneId } ) );
     const sendTpl = () => requireTo() && doSend( () => api.sendTestTemplate( to, tplName, { language: tplLang, phoneId: phone.metaPhoneId } ) );
     const sendMedia = () => requireTo() && doSend( () => api.sendTestMedia( to, mediaType, { mediaUrl, caption, phoneId: phone.metaPhoneId } ) );
-    const sendFlow = () => requireTo() && doSend( () => api.sendTestFlow( to, { flowName, screen: flowScreen, mode: flowMode, flowCta, bodyText: flowBody, phoneId: phone.metaPhoneId } ) );
 
     const runValidateTtl = async () => {
         try { setTtlResult( await api.validateTemplateTtl( ttlCategory, Number( ttlSeconds ) ) ); }
@@ -259,7 +246,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
             </div>
 
             <div style={ { display: 'flex', gap: 4, borderBottom: '1px solid #e5e5e5', marginBottom: 16 } }>
-                { ( [ 'text', 'template', 'media', 'product', 'flow', 'tools', 'mediamgmt', 'flowadmin' ] as SendTab[] ).map( t => (
+                { ( [ 'text', 'template', 'media', 'tools', 'mediamgmt', 'flowadmin' ] as SendTab[] ).map( t => (
                     <button key={ t } style={ tabBtn( tab === t ) } onClick={ () => setTab( t ) }>{ t === 'mediamgmt' ? 'Media Mgmt' : t === 'flowadmin' ? 'Flow Admin' : t[ 0 ].toUpperCase() + t.slice( 1 ) }</button>
                 ) ) }
             </div>
@@ -293,39 +280,6 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                     <div style={ label }>Caption (image/video/document)</div>
                     <input style={ input } value={ caption } onChange={ e => setCaption( e.target.value ) } />
                     <button style={ btn } disabled={ busy } onClick={ sendMedia }>Send media</button>
-                </div>
-            ) }
-
-            { tab === 'product' && (
-                <ProductMessageComposer
-                    phoneNumberId={ phone.metaPhoneId }
-                    recipient={ to }
-                    onSent={ () => toast.success( 'Product message sent' ) }
-                    onError={ ( m ) => toast.error( m ) }
-                />
-            ) }
-
-            { tab === 'flow' && (
-                <div style={ card }>
-                    <div style={ label }>Flow name</div>
-                    <input style={ input } value={ flowName } onChange={ e => setFlowName( e.target.value ) } placeholder="lead-generation-flow" />
-                    <div style={ { display: 'flex', gap: 12 } }>
-                        <div style={ { flex: 1 } }>
-                            <div style={ label }>Initial screen</div>
-                            <input style={ input } value={ flowScreen } onChange={ e => setFlowScreen( e.target.value ) } />
-                        </div>
-                        <div style={ { flex: 1 } }>
-                            <div style={ label }>Mode</div>
-                            <Select ariaLabel="Mode" value={ flowMode }
-                                onChange={ v => setFlowMode( v as any ) }
-                                options={ FLOW_MODE_OPTIONS } style={ selectLayout } />
-                        </div>
-                    </div>
-                    <div style={ label }>CTA label</div>
-                    <input style={ input } value={ flowCta } onChange={ e => setFlowCta( e.target.value ) } />
-                    <div style={ label }>Body text</div>
-                    <input style={ input } value={ flowBody } onChange={ e => setFlowBody( e.target.value ) } />
-                    <button style={ btn } disabled={ busy } onClick={ sendFlow }>Send flow</button>
                 </div>
             ) }
 

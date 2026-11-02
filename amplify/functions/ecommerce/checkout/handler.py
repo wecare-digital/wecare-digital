@@ -3640,13 +3640,6 @@ def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
     `order_details`, so the configuration `payment_readiness` proved is the configuration Meta is
     told to use.
 
-    THE ROUTE IT USED TO CALL DID NOT EXIST. It POSTed
-    `/wa-business/messages/send/interactive-payment` at the business-API Lambda, whose send
-    dispatcher handles ten paths and then falls through to a 404 `Unknown send path`. The 404 read
-    as a non-2xx and surfaced as this handler's 502 `SEND_FAILED`, so the function could never
-    have sent anything. It is repaired onto `wecare-outbound-whatsapp:live` with the envelope that
-    function's checkout-template branch owns.
-
     `headerImageUrl` is deliberately not passed. The `isCheckoutTemplate` branch forces its own
     fixed header for the approved template and ignores a per-call value, so supplying one is
     misleading.

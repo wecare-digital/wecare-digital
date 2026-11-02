@@ -88,20 +88,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
     const digits = ( p: string ) => p.replace( /\D/g, '' );
 
-    /**
-     * Raise an invoice, then ask the server to send its payment request.
-     *
-     * This browser composes NO payment any more. It used to build a free-form interactive
-     * order_details here, with a `reference_id` of `ADMINBILL-${Date.now()}` that was reserved
-     * nowhere. A free-form interactive message is not the approved template and is now refused
-     * at the server boundary, and an unreserved reference has no `PAYREF#` row, so a capture
-     * against it quarantines as PAID_BUT_NO_ORDER.
-     *
-     * The toast also used to promise "18% GST + 2% convenience" while the server-side free-form
-     * branch charged 2.5% plus 18% GST on the fee — a live money discrepancy. After this change
-     * the fee is computed once, in the invoice engine, and shown as its own line, so no figure is
-     * quoted here at all.
-     */
+    /** Raise an invoice and send its approved payment request through server-owned pricing. */
     const sendBill = async () => {
         const li = items
             .filter( i => i.name.trim() && Number( i.amount ) > 0 )

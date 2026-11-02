@@ -408,13 +408,6 @@ def _send_otp(phone: str, otp: str, route: dict) -> str:
                 "parameters": [{"type": "text", "text": otp}],
             },
         ],
-        # Direct Send authentication. The sender delivers the code as a Direct Send
-        # authentication message when DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS lists this
-        # route's WABA, and sends the template above unchanged otherwise or on any Direct
-        # Send failure. A sender that predates these fields ignores them, so the deploy
-        # order of the two functions does not matter.
-        "otpCode": otp,
-        "otpExpiresInSeconds": OTP_TTL_SECONDS,
     }
     event = {
         "httpMethod": "POST",

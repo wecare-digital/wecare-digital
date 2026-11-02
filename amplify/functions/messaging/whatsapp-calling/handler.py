@@ -1029,7 +1029,7 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
         )
 
         # ── Auto-grant call permission after any completed call ──
-        # This removes the need for interactive call_permission_request messages.
+        # Completed calls update the permission state.
         # Once a user has had a call (any direction), permission is auto-stored as GRANTED.
         if from_number and duration and int(duration) > 0:
             _store_call_log({
@@ -1211,9 +1211,9 @@ def _react_thumbs_up(meta_id: str, to_phone: str, message_id: str,
         return False
 
 
-def _send_menu_placeholder_text(meta_id: str, to_phone: str,
+def _send_call_followup_text(meta_id: str, to_phone: str,
                                 request_id: str = '') -> str:
-    """Send MENU_PLACEHOLDER_TEXT as a plain WhatsApp text from meta_id.
+    """Send CALL_FOLLOWUP_TEXT as a plain WhatsApp text from meta_id.
 
     This is a TEXT send, so it needs an open 24-hour customer-service window.
     The WhatsApp menu template this replaced was deleted at Meta, and a template
@@ -1233,7 +1233,7 @@ def _send_menu_placeholder_text(meta_id: str, to_phone: str,
             'recipient_type': 'individual',
             'to': to_phone.lstrip('+'),
             'type': 'text',
-            'text': {'body': MENU_PLACEHOLDER_TEXT},
+            'text': {'body': CALL_FOLLOWUP_TEXT},
         }, phone_number_id=meta_id)
         if isinstance(result, dict):
             msgs = result.get('messages', [])
@@ -1252,7 +1252,7 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
     Called via Lambda invoke after a WhatsApp call ends on Asterisk.
     Sends the plain-text menu placeholder from the WABA that received the call
     + WABA1 if different. Text, not a template, so it needs an open 24-hour
-    window — see _send_menu_placeholder_text.
+    window — see _send_call_followup_text.
     """
     caller_phone = event.get('callerPhone', '')
     # No default sender. This used to fall back to WABA2's phone, which meant a
@@ -1310,7 +1310,7 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
     wa_enabled = _is_postcall_wa_enabled()
     first_msg_id = ''
     for meta_id, label in (send_from if wa_enabled else []):
-        msg_id = _send_menu_placeholder_text(meta_id, caller_phone, request_id)
+        msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
         if msg_id:
             logger.info(f"Post-call SIP menu placeholder sent via {label}: {msg_id}")
             # Auto 👍 from the SAME WABA that sent this message (works on both WABAs).
@@ -1340,7 +1340,7 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
                 'messageId': store_id,
                 'contactId': contact_id,
                 'contactPhone': caller_phone,
-                'content': MENU_PLACEHOLDER_TEXT,
+                'content': CALL_FOLLOWUP_TEXT,
                 'channel': 'whatsapp',
                 'direction': 'outbound',
                 'status': 'sent',
@@ -1497,11 +1497,10 @@ def _terminate_call(event: Dict, request_id: str) -> Dict[str, Any]:
 
 def _outbound_call(event: Dict, request_id: str) -> Dict[str, Any]:
     """
-    Initiate outbound call directly (no interactive permission request).
+    Initiate an outbound call using an allowed action.
     Body: { phoneNumberId, to, action: 'create', sdpOffer, recipientBsuid? }
 
     Permission is auto-granted after any completed call (see terminate handler).
-    The old 'permission_request' action is removed — no interactive messages sent.
     """
     try:
         body = json.loads(event.get('body', '{}'))
@@ -1511,17 +1510,12 @@ def _outbound_call(event: Dict, request_id: str) -> Dict[str, Any]:
     to_number = body.get('to', '')
     action = body.get('action', 'create')
     recipient_bsuid = body.get('recipientBsuid', '')
+    if action not in {'create', 'connect', 'check_permission', 'create_permission_template', 'send_permission_template'}:
+        return _response(400, {'error': 'UNSUPPORTED_CALL_ACTION'})
+
 
     if not phone_number_id or (not to_number and not recipient_bsuid):
         return _response(400, {'error': 'phoneNumberId and to (or recipientBsuid) required'})
-
-    # Direct interactive call-permission prompts were retired with the other
-    # standalone interactive sends. Calls with previously granted permission remain.
-    if action == 'permission_request':
-        return _response(410, {
-            'error': 'DIRECT_INTERACTIVE_RETIRED',
-            'message': 'Use an approved call-permission template; none was sent.',
-        })
 
     # Check the current call-permission state for a business+user pair (GET /call_permissions).
     if action == 'check_permission':
@@ -1673,11 +1667,8 @@ IVR_SMS_CONTENT = (
     "We'll review it and follow up if needed."
 )
 
-# Stand-in for the WhatsApp menu, which has been deleted. Every call-related
-# WhatsApp follow-up sends this plain text instead of an interactive menu. The
-# wording is shared verbatim with the inbound handler's MENU_PLACEHOLDER_TEXT,
-# as a separate module-level copy because the two Lambdas share no module.
-MENU_PLACEHOLDER_TEXT = "Our old WhatsApp menu is retired. Visit https://wecare.digital/ for services, or tell us what you need here."
+# Plain-text customer support follow-up after a call.
+CALL_FOLLOWUP_TEXT = "Visit https://wecare.digital/ for services, or tell us what you need here."
 
 # Order SMS. Body must match approved DLT template wd_order character for
 # character; the key is ORDER_SMS_DLT_TEMPLATE_KEY above.
@@ -2591,7 +2582,7 @@ def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_
     - Call on WABA2 (+919903300044) → send from BOTH WABA1 AND WABA2
 
     This is a TEXT send and therefore needs an open 24-hour window — see
-    _send_menu_placeholder_text. Both WABAs use the same token
+    _send_call_followup_text. Both WABAs use the same token
     (WECARE.DIGITAL app / token1).
 
     DELIVERY TROUBLESHOOTING:
@@ -2613,13 +2604,13 @@ def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_
         for meta_id, label in send_from:
             try:
                 # Try sending with 1 retry on failure (2s delay)
-                msg_id = _send_menu_placeholder_text(meta_id, caller_phone, request_id)
+                msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
 
                 # Retry once on failure (Meta API can have transient errors)
                 if not msg_id:
                     time.sleep(2)
                     logger.info(f'{label} menu placeholder retry after 2s...')
-                    msg_id = _send_menu_placeholder_text(meta_id, caller_phone, request_id)
+                    msg_id = _send_call_followup_text(meta_id, caller_phone, request_id)
 
                 if msg_id:
                     logger.info(json.dumps({
@@ -2637,7 +2628,7 @@ def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_
                         message_id=msg_id,
                         contact_id=contact_id,
                         contact_phone=caller_phone,
-                        content=MENU_PLACEHOLDER_TEXT,
+                        content=CALL_FOLLOWUP_TEXT,
                         channel='whatsapp',
                         status='sent',
                         message_type='incoming_call',

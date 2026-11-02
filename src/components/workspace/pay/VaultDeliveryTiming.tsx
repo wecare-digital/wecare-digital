@@ -118,7 +118,7 @@ const VaultDeliveryTiming: React.FC = () => {
     }
     const approved = await confirm( {
       title: 'Save Access Vault delivery delay?',
-      message: 'This changes only the pause after the paid invoice is accepted and before Access Vault. Processing, completed and receipt have no added wait. Payment capture and owner-bound access remain mandatory.',
+      message: 'This changes only the pause after the paid invoice is accepted and before Access Vault. Processing → Completed keeps its fixed 1-second gap; Completed → receipt has no added wait. Payment capture and owner-bound access remain mandatory.',
       confirmText: 'Save timing',
     } );
     if ( !approved ) return;

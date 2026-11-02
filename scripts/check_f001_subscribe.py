@@ -356,7 +356,7 @@ def install_stubs() -> None:
                  'cryptography.hazmat.primitives.asymmetric.padding',
                  'cryptography.hazmat.primitives.ciphers', 'cryptography.hazmat.primitives.serialization'):
         stub = types.ModuleType(name)
-        for attr in ('OAEP', 'MGF1', 'hashes', 'Cipher', 'algorithms', 'modes', 'load_pem_private_key'):
+        for attr in ('OAEP', 'MGF1', 'hashes', 'Cipher', 'algorithms', 'modes', 'load_pem_private_key', 'Encoding', 'PublicFormat'):
             setattr(stub, attr, object())
         modules[name] = stub
     sys.modules.update(modules)
@@ -1220,42 +1220,19 @@ def _() -> None:
     biz = M['bizapi']
     status, body = _resp(biz._flow_launch_status({'capability': 'subscribe'}, auth=OPERATOR))
     expect(status == 200 and body['keywordLaunch']['reason'] == 'runtime_disabled', f'{body.get("keywordLaunch")}')
-    expect(body['manualLaunch']['reason'] == 'registry_missing', 'manual needs the registry')
     registry().items[F001_ID()] = published_registry_row()
     system_config().items['flow_triggers_config'] = {'id': 'flow_triggers_config', 'configValue': json.dumps(
         {'subscribe': {'enabled': True, 'keywords': ['subscribe'], 'entryMode': 'keyword_interactive'}})}
     status, body = _resp(biz._flow_launch_status({'capability': 'subscribe'}, auth=OPERATOR))
-    expect(body['keywordLaunch']['allowed'] and body['manualLaunch']['allowed'], f'{body}')
+    expect(body['keywordLaunch']['allowed'], f'{body}')
     expect(_resp(biz._flow_launch_status({'capability': 'nope'}))[0] == 404, 'unknown capability')
 
 
-@check('E4 staff send: Operator+, server-minted session with initiator, data_exchange, managed copy')
+@check('E4 unknown send routes are absent')
 def _() -> None:
-    FAKE_DB.reset()
     biz = M['bizapi']
-    sent: List[Dict[str, Any]] = []
-    biz._send_message = lambda phone_id, message, body=None: (sent.append({'message': message, 'body': body})
-                                                              or biz._resp(200, {'success': True, 'messageId': 'wamid.X'}))
-    request = {'flowKey': 'subscribe', 'to': f'+{PHONE_A}'}
-    expect(_resp(biz._send_flow_msg(dict(request), auth=VIEWER))[0] == 403, 'Viewer could send F001')
-    expect(_resp(biz._send_flow_msg(dict(request), auth=OPERATOR))[0] == 409, 'sent with no registry row')
-    registry().items[F001_ID()] = published_registry_row()
-    expect(_resp(biz._send_flow_msg({**request, 'flowToken': 'subscribe-x-waba-1-ph-1'}, auth=OPERATOR))[0] == 400,
-           'client token accepted')
-    expect(_resp(biz._send_flow_msg({**request, 'mode': 'draft'}, auth=OPERATOR))[0] == 400, 'draft mode accepted')
-    status, body = _resp(biz._send_flow_msg(dict(request), auth=OPERATOR))
-    expect(status == 200 and body['flowCode'] == F001_CODE() and body['sessionExpiresAt'] > time.time(), f'{body}')
-    params = sent[-1]['message']['interactive']['action']['parameters']
-    expect(params['flow_action'] == 'data_exchange' and params['flow_id'] == F001_ID(), 'opens with INIT')
-    expect(params['flow_token'].startswith('subscribe-') and params['flow_token'].endswith(f'-waba-1-ph-{PHONE_A}'),
-           'session token shape')
-    expect(sent[-1]['body'] == {'to': PHONE_A}, 'delivered to the session phone')
-    expect(sent[-1]['message']['interactive']['body']['text'] == M['subscribe_messages'].DEFAULTS['newCustomer']['body'],
-           'managed new-customer copy')
-    session_rows = list(sessions().items.values())
-    expect(len(session_rows) == 1 and session_rows[0]['launchChannel'] == 'staff_send'
-           and session_rows[0]['initiatedBy'] == OPERATOR['username'], 'initiator recorded on the session')
-    expect(flow_call('INIT', '', {}, params['flow_token'])['status'] == 200, 'the staff-sent link opens')
+    status, body = _resp(biz._route_send_message('/messages/send/unknown', {}))
+    expect(status == 404, f'{body}')
 
 
 @check('E5 route authorization: Admin for registry/publish, Operator for customer records')
@@ -1287,8 +1264,7 @@ def _() -> None:
         expect(call('GET', '/wa-business/flow-logs', 'Viewer') == 403, 'Viewer read flow logs')
         expect(call('GET', '/wa-business/flow-customer-journey', 'Viewer') == 403, 'Viewer read journeys')
         expect(call('GET', '/wa-business/flow-launch-status', 'Viewer') == 200, 'status hidden from Viewer')
-        expect(call('POST', '/wa-business/messages/send/flow', 'Viewer', {'flowKey': 'subscribe', 'to': PHONE_A}) == 403,
-               'Viewer sent F001')
+
     finally:
         biz.require_auth, middleware.require_auth = saved
 
@@ -1460,7 +1436,7 @@ class FakeLambda:
 
     def invoke(self, FunctionName: str, InvocationType: str, Payload: str, **_: Any) -> Dict[str, Any]:
         body = json.loads(json.loads(Payload)['body'])
-        token = (body.get('interactiveData') or {}).get('flowToken', '')
+        token = ''
         fs = M['flow_sessions']
         session_present = bool(token) and fs.session_key(fs.phone_from_token(token), token) in sessions().items
         self.invocations.append({'body': body, 'session_present': session_present})
@@ -1473,7 +1449,7 @@ def load_inbound() -> None:
                      'CUSTOMER_IDEA_KEYWORDS', 'FLOW_LINKS', 'FLOW_LINK_DEFAULT', 'FLOW_LINK_BODIES',
                      'UNREADABLE_MESSAGE_LABELS', 'UNREADABLE_HINT_TEXT',
                      'UNREADABLE_HINT_INTERVAL_SECONDS'}
-    wanted_func = {'_get_flow_triggers_config', '_send_generic_flow', '_launch_subscribe_flow',
+    wanted_func = {'_get_flow_triggers_config', '_launch_subscribe_flow',
                    '_send_flow_link', '_send_unreadable_hint'}
     nodes: List[ast.stmt] = [n for n in tree.body if (
         isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in wanted_assign for t in n.targets)
@@ -1519,7 +1495,7 @@ def load_inbound() -> None:
         'subscribe_messages': M['subscribe_messages'], 'customer_uuid': M['customer_uuid'],
         'canonical_flow_id': M['canonical_flows'].canonical_flow_id,
         'canonical_contract': M['canonical_flows'].canonical_contract, '_may_send': lambda purpose: True,
-        '_send_cta_button': lambda *a, **k: M['cta'].append({'args': a, 'kwargs': k}),
+        '_send_service_link': lambda *a, **k: M['cta'].append({'args': a, 'kwargs': k}),
         '_send_ai_auto_reply': lambda contact_id, content, *a: M['replies'].append(content),
     }
     exec(compile(module, str(INBOUND), 'exec'), ns)  # noqa: S102 - our own handler source
@@ -1565,52 +1541,16 @@ def _() -> None:
     expect(totals['launch_attempted'] == 4 and totals['launch_blocked'] == 4, f'funnel {totals}')
 
 
-@check('F3 published + enabled: exact keyword sends the Flow with a session recorded first')
+@check('F3 enabled Subscribe keyword routes to the website without creating a session')
 def _() -> None:
     reset_inbound()
-    set_triggers({'subscribe': {'enabled': True, 'flowId': '999999999'}})
+    set_triggers({'subscribe': {'enabled': True}})
     registry().items[F001_ID()] = published_registry_row()
-    expect(dispatch('sign up') is None, 'exact keyword did not launch')
-    call = M['lambda'].invocations[-1]
-    data = call['body']['interactiveData']
-    expect(data['flowId'] == F001_ID(), 'stored flowId override must not change the Flow')
-    expect(data['flowAction'] == 'data_exchange' and data['flowToken'].startswith('subscribe-'), 'opens with INIT')
-    expect(data['flowToken'].endswith(f'-waba-1-ph-{PHONE_A}') and call['session_present'], 'session before send')
-    expect(data['body'] == M['subscribe_messages'].DEFAULTS['newCustomer']['body'], 'new-customer copy')
-    expect(flow_call('INIT', '', {}, data['flowToken'])['status'] == 200, 'the keyword link opens')
+    expect(dispatch('sign up') is None, 'exact keyword was not handled')
+    expect(M['cta'] and not M['lambda'].invocations, 'expected a service link only')
+    expect(not sessions().items, 'service link must not create a Flow session')
     for near_miss in ('subscribe now', 'please subscribe', 'subscribed', 'sub'):
-        expect(dispatch(near_miss) == 'fell_through', f'{near_miss!r} launched (not exact)')
-
-
-@check('F4 returning customers get the returning copy; WABA 2 is sent on to WABA 1, with no session')
-def _() -> None:
-    reset_inbound()
-    set_triggers({'subscribe': {'enabled': True}})
-    registry().items[F001_ID()] = published_registry_row()
-    contacts().items[f'wa{PHONE_B}'] = {'id': f'wa{PHONE_B}', 'contactId': f'wa{PHONE_B}', 'phone': f'+{PHONE_B}',
-                                        'checkoutDeliveryAddress': {'addressLine1': STREET_A, 'city': 'Springfield',
-                                                                    'state': 'Oregon', 'postalCode': '97477',
-                                                                    'country': 'United States', 'countryCode': 'US'}}
-    dispatch('subscribe', PHONE_B)
-    expect(M['lambda'].invocations[-1]['body']['interactiveData']['body']
-           == M['subscribe_messages'].DEFAULTS['returningCustomer']['body'], 'returning copy')
-    before = len(sessions().items)
-    dispatch('subscribe', PHONE_A, waba='phone2')
-    expect(M['cta'] and M['cta'][-1]['args'][3] == 'https://wa.me/919330994400?text=subscribe',
-           f'WABA 2 must continue on WABA 1 with the keyword typed, got {M["cta"][-1]["args"][3] if M["cta"] else None}')
-    expect(len(sessions().items) == before, 'no session for the link fallback')
-
-
-@check('F5 a session-store failure sends no Flow and tells the customer to retry')
-def _() -> None:
-    reset_inbound()
-    set_triggers({'subscribe': {'enabled': True}})
-    registry().items[F001_ID()] = published_registry_row()
-    sessions().fail_next['put_item'] = FakeClientError({'Error': {'Code': 'InternalServerError'}}, 'PutItem')
-    dispatch('subscribe')
-    expect(not M['lambda'].invocations, 'Flow sent without a session')
-    expect(M['replies'] and 'try again' in M['replies'][-1], 'customer not told')
-    expect(funnel_totals()['launch_failed'] == 1, 'failure not counted')
+        expect(dispatch(near_miss) == 'fell_through', 'keyword matching changed')
 
 
 @check('F6 generic triggers: payment or contract Flows never open from a keyword')
@@ -1624,7 +1564,7 @@ def _() -> None:
     registry().items['8888'] = {'flowId': '8888', 'status': 'PUBLISHED', 'metaStatus': 'PUBLISHED'}
     expect(dispatch('vipform') == 'fell_through' and not M['lambda'].invocations, 'F001 opened via a custom key')
     expect(dispatch('paidform') == 'fell_through' and not M['lambda'].invocations, 'paid Flow opened by keyword')
-    expect(dispatch('okform') is None and M['lambda'].invocations, 'ordinary keyword Flow stopped working')
+    expect(dispatch('okform') is None and M['cta'] and not M['lambda'].invocations, 'service keyword must use a website link')
 
 
 def _cta_link() -> Optional[str]:
@@ -1650,9 +1590,9 @@ def _() -> None:
     expect(dispatch('liveform') is None and _cta_link() == M['inbound']['FLOW_LINK_DEFAULT']
            and not M['lambda'].invocations, 'a deprecated Flow was sent')
     registry().items['8888']['metaStatus'] = 'PUBLISHED'
-    expect(dispatch('liveform') is None and M['lambda'].invocations
-           and M['lambda'].invocations[-1]['body']['interactiveData']['flowId'] == '8888',
-           'a live Flow stopped opening')
+    expect(dispatch('liveform') is None and not M['lambda'].invocations
+           and _cta_link() == M['inbound']['FLOW_LINK_DEFAULT'],
+           'published registry row must still use the website link')
     cta_before = len(M['cta'])
     expect(dispatch('pharmacy', waba='phone2') is None and len(M['cta']) == cta_before + 1
            and _cta_link() == links['rx_slot'], 'WABA 2 link path changed')
@@ -1662,14 +1602,14 @@ def _() -> None:
 def _() -> None:
     reset_inbound()
     ns, content = M['inbound'], M['inbound_content']
-    expect(ns['UNREADABLE_MESSAGE_LABELS'] == {content.UNSUPPORTED_UNKNOWN, content.UNSUPPORTED_DISAPPEARING},
+    expect(ns['UNREADABLE_MESSAGE_LABELS'] == {content.UNSUPPORTED_DISAPPEARING},
            'labels drifted from modules.content')
     unknown = {'type': 'unsupported', 'unsupported': {'type': 'unknown'},
                'errors': [{'code': 131051, 'title': 'Message type unknown',
                            'error_data': {'details': 'Message type is currently not supported.'}}]}
     otp = {'type': 'unsupported', 'errors': [{'code': 131051, 'error_data': {
         'details': 'OTP authentication message not supported'}}]}
-    expect(content.extract_unsupported_content(unknown) in ns['UNREADABLE_MESSAGE_LABELS'], 'measured payload not covered')
+    expect(content.extract_unsupported_content(unknown) not in ns['UNREADABLE_MESSAGE_LABELS'], 'unknown provider message must not trigger a hint')
     expect(content.extract_unsupported_content(otp) not in ns['UNREADABLE_MESSAGE_LABELS'], 'Meta OTP would be answered')
     contact_id = f'wa{PHONE_A}'
     contacts().items[contact_id] = {'id': contact_id, 'phone': f'+{PHONE_A}'}

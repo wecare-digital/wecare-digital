@@ -123,21 +123,6 @@ POST /{phone-number-id}/calls
   },
   {
     step: 5, done: false,
-    title: 'Request Call Permission (for Outbound)',
-    desc: 'Send an interactive message with type "call_permission_request" or use a template. Limits: 1 request per 24h, 2 per 7 days per user. Once granted: up to 100 connected calls/day per user (updated Dec 2025).',
-    code: `POST /{phone-number-id}/messages
-{
-  "messaging_product": "whatsapp",
-  "to": "919330994400",
-  "type": "interactive",
-  "interactive": {
-    "type": "call_permission_request",
-    "body": { "text": "Can we call you to discuss your query?" }
-  }
-}`,
-  },
-  {
-    step: 6, done: false,
     title: 'Make Business-Initiated Calls (Outbound)',
     desc: 'After permission is granted, initiate a call with an SDP offer. The user receives a ringing notification in WhatsApp. You get a "connect" webhook with their SDP answer when they pick up. Note: Business-initiated calling is NOT available in USA, Canada, Egypt, Vietnam, Nigeria.',
     code: `POST /{phone-number-id}/calls
@@ -148,7 +133,7 @@ POST /{phone-number-id}/calls
 }`,
   },
   {
-    step: 7, done: false,
+    step: 6, done: false,
     title: 'Deploy Call Handler Lambda',
     desc: 'Lambda processes call webhooks (connect, terminate), manages WebRTC signaling, integrates Amazon Polly for IVR prompts, and logs calls to DynamoDB.',
   },

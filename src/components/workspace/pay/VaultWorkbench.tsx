@@ -18,6 +18,7 @@ interface Props {
   user?: unknown;
   embedded?: boolean;
   workspaceView?: 'display' | 'create';
+  initialHistorical?: boolean;
 }
 type DeliveryRecord = api.VaultMessageDeliveryEvidence;
 type DeliveryKey = keyof api.VaultMessageDeliveryLog['evidence'];
@@ -42,7 +43,7 @@ const when = (v?: string | number | null): string => {
 const outcomeText = (file: api.SecureFile): string =>
   file.accessState || file.vaultPaymentStatus || file.deliveryStatus || 'Not verified';
 
-const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
+const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHistorical = false }) => {
   const confirm = useConfirm();
   const [files, setFiles] = React.useState<api.SecureFile[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -50,7 +51,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
   const [truncated, setTruncated] = React.useState(false);
   const [mobileFilter, setMobileFilter] = React.useState('');
   const [appliedMobile, setAppliedMobile] = React.useState('');
-  const [historical, setHistorical] = React.useState(false);
+  const [historical, setHistorical] = React.useState(initialHistorical);
   const [fileName, setFileName] = React.useState('');
   const [ownerMobile, setOwnerMobile] = React.useState('');
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -63,32 +64,45 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
   const [delivery, setDelivery] = React.useState<api.VaultMessageDeliveryLog | null>(null);
   const [deliveryMessage, setDeliveryMessage] = React.useState('');
   const inFlight = React.useRef(false);
+  const listRequest = React.useRef(0);
+  const deliveryRequest = React.useRef(0);
 
   const load = React.useCallback(async (phone = appliedMobile, history = historical) => {
+    const request = ++listRequest.current;
+    ++deliveryRequest.current;
+    setDeliveryFile('');
+    setDelivery(null);
+    setTruncated(false);
     setLoading(true);
     setListError('');
     setFiles([]);
     try {
       if (history) {
         const answer = await api.listSecureFileLogs(phone || undefined);
+        if (request !== listRequest.current) return;
         if (!answer.ok) throw new Error(answer.failure.message);
         // Historical listing is read-only, and deliberately cannot drive staff sends.
         setFiles(answer.data.logs);
         setTruncated(!!answer.data.truncated);
       } else {
         const answer = await api.listSecureFiles(phone || undefined);
+        if (request !== listRequest.current) return;
         if (!answer.ok) throw new Error(answer.failure.message);
         setFiles(answer.data.files || []);
         setTruncated(!!answer.data.truncated);
       }
     } catch {
+      if (request !== listRequest.current) return;
       setListError('Vault file register is unavailable. No file may be assumed payable or accessible.');
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [appliedMobile, historical]);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => {
+    void load();
+    return () => { ++listRequest.current; ++deliveryRequest.current; };
+  }, [load]);
 
   const applySearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -107,9 +121,11 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
       setUploadOutcome('Choose a PDF, JPEG or PNG. Other file types need server-side review.');
       return;
     }
+    // Preserve the exact file and owner presented for approval across the dialog.
+    const draft = {name: fileName.trim(), mobile: digits(ownerMobile), file: selectedFile};
     const approved = await confirm({
       title: 'Upload this private Vault file?',
-      message: 'The backend will bind the private file to the entered customer and verify it. Uploading does not send WhatsApp, create a payment or grant access.',
+      message: `File: ${draft.file.name}. Customer: ${draft.name} (${draft.mobile}). The backend will bind and verify this private file. Uploading does not send WhatsApp, create a payment or grant access.`,
       confirmText: 'Upload private file',
     });
     if (!approved || inFlight.current) return;
@@ -119,11 +135,11 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
     let createdId = '';
     try {
       const init = await api.initVaultFileUpload({
-        name: fileName.trim(),
-        mobile: digits(ownerMobile),
-        originalFilename: selectedFile.name,
-        contentType: selectedFile.type,
-        sizeBytes: selectedFile.size,
+        name: draft.name,
+        mobile: draft.mobile,
+        originalFilename: draft.file.name,
+        contentType: draft.file.type,
+        sizeBytes: draft.file.size,
       });
       if (!init.ok) {
         setUploadOutcome('Upload not authorized: ' + init.failure.message);
@@ -131,7 +147,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
       }
       createdId = init.data.fileId;
       const received = await api.uploadVaultFileBytes(
-        init.data.uploadUrl, selectedFile, init.data.contentType);
+        init.data.uploadUrl, draft.file, init.data.contentType);
       if (!received) {
         setUploadOutcome('Upload could not be confirmed for file ' + createdId
           + '. Check the register before starting a second upload.');
@@ -197,6 +213,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
   };
 
   const showDelivery = async (fileId: string) => {
+    const request = ++deliveryRequest.current;
     if (deliveryFile === fileId) {
       setDeliveryFile('');
       setDelivery(null);
@@ -207,6 +224,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
     setDeliveryMessage('Reading provider evidence…');
     try {
       const result = await api.readVaultMessageDeliveryLog(fileId);
+      if (request !== deliveryRequest.current) return;
       if (result.ok) {
         setDelivery(result.data);
         setDeliveryMessage('');
@@ -214,6 +232,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
         setDeliveryMessage('Provider evidence unavailable: ' + result.failure.message);
       }
     } catch {
+      if (request !== deliveryRequest.current) return;
       setDeliveryMessage('Provider evidence could not be loaded.');
     }
   };
@@ -234,7 +253,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
         <div>
           <p className="eyebrow">PAY &amp; FLOW / VAULT</p>
           <h2>{workspaceView === 'display' ? 'Vault · File and delivery register' : 'Vault · Verify and request payment'}</h2>
-          <p>Private, owner-bound files. Approved native Review &amp; Pay is sent only from the verified backend. There is no WhatsApp interactive menu or raw-document attachment.</p>
+          <p>Private, owner-bound files. Approved native Review &amp; Pay is sent only from the verified backend. Paid delivery uses the owner-bound Access Vault link.</p>
         </div>
         <div className="vault-links">
           <Link href="/workspace/payments?view=vault&tab=ledger">Vault ledger</Link>
@@ -264,11 +283,11 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
 
       <div className="vault-register">
         <div className="vault-register-heading">
-          <div><h3>{historical ? 'Retained file history · read only' : 'Current Vault files'}</h3>
+          <div><h3>{workspaceView === 'create' ? '2. Review the exact file · ' : ''}{historical ? 'Retained file history · read only' : 'Current Vault files'}</h3>
             <p>{loading ? 'Checking live records…' : files.length + ' records'}
               {truncated ? ' · The backend truncated the listing; filter by owner.' : ''}</p></div>
           <label className="history-switch"><input type="checkbox" checked={historical}
-            onChange={e => { setHistorical(e.target.checked); setDelivery(null); setDeliveryFile(''); }} />
+            onChange={e => { ++listRequest.current; ++deliveryRequest.current; setHistorical(e.target.checked); setDelivery(null); setDeliveryFile(''); }} />
             Show historical audit rows</label>
         </div>
         <form className="vault-filter" onSubmit={applySearch}>
@@ -291,7 +310,6 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
             const canAccess = workspaceView === 'create' && !historical
               && file.status === 'active'
               && (file.accessState === 'READY' || file.accessState === 'OPEN');
-            const rowBusy = actionFile === file.fileId;
             return (
               <article className="vault-file" key={file.fileId}>
                 <div className="vault-file-heading">
@@ -308,9 +326,9 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
                     {deliveryFile === file.fileId ? 'Hide delivery evidence' : 'Provider delivery evidence'}</button>
                   <button type="button" onClick={() => void downloadForStaff(file.fileId)}>
                     Staff file preview</button>
-                  {canPay && <button type="button" disabled={rowBusy || uploading}
+                  {canPay && <button type="button" disabled={!!actionFile || uploading}
                     onClick={() => void send(file, 'payment')}>Send approved Review &amp; Pay once</button>}
-                  {canAccess && <button type="button" disabled={rowBusy || uploading}
+                  {canAccess && <button type="button" disabled={!!actionFile || uploading}
                     onClick={() => void send(file, 'access')}>Resend approved Access Vault</button>}
                 </div>
                 {workspaceView === 'create' && !historical && !canPay && !canAccess && (
@@ -344,7 +362,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display' }) => {
         entitlement and statutory-history review; this workbench does not silently erase paid records.
       </footer>
       <style jsx>{`
-        .vault-workbench{display:grid;gap:20px;max-width:1230px;padding:8px 0 36px}
+        .vault-workbench{min-width:0;display:grid;gap:20px;max-width:1230px;padding:8px 0 36px}
         .vault-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
         .eyebrow{font-size:11px;letter-spacing:.1em;font-weight:800;color:var(--text-muted);margin:0 0 7px}
         h2{font-size:clamp(23px,3vw,31px);margin:0 0 7px;color:var(--text-primary)}

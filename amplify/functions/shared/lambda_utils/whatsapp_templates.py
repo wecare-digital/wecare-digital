@@ -50,7 +50,7 @@ After a verified WhatsApp ORDER_DETAILS payment the customer receives, in order:
     3. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
        its FLOW button.
 
-    There is no interactive order_status fallback. Temporary template unavailability is deferred
+    Temporary status-template unavailability is deferred
     and retried by the payment rail; invoice delivery remains independently idempotent. Workspace
     does not manually send these payment-order states. Shipment/service fulfilment is a separate
     OrderTable / Track Order concern.
@@ -90,9 +90,7 @@ INVOICE = Template(
     name=os.environ.get("WA_INVOICE_TEMPLATE", "wecare_default_invoice_image_template"),
     language="en", category="UTILITY", header="image", buttons=("flow",))
 
-#: Fulfilment updates outside the customer-service window. Inside the window the interactive
-#: `order_status` message is used instead and needs no template. `_v3` because Meta still holds
-#: the deleted `_v2` name (error_subcode 2388023 refuses new English content under it).
+#: Payment lifecycle updates always use the approved ORDER_STATUS template.
 ORDER_STATUS = Template(
     name=os.environ.get("WA_ORDER_STATUS_TEMPLATE", "wecare_order_status_v3"),
     language="en", category="UTILITY", sub_category="ORDER_STATUS")
