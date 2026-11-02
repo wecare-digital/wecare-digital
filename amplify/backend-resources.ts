@@ -176,7 +176,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-whatsapp-business-api', 'wecare-whatsapp-voice', 'wecare-whatsapp-template-management',
     'wecare-scheduled-messages', 'wecare-bulk-job-create',
     'wecare-bulk-worker', 'wecare-bulk-job-control', 'wecare-ai-query-kb',
-    'wecare-ai-generate-response', 'wecare-ai-config-management', 'wecare-agent-action-group',
+    'wecare-ai-config-management', 'wecare-agent-action-group',
     'wecare-razorpay-webhook', 'wecare-payments-read', 'wecare-invoice-engine',
     'wecare-dlq-replay', 'wecare-contacts', 'wecare-catalog-management',
     'wecare-outbound-sms', 'wecare-outbound-email',
@@ -209,7 +209,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-inbound-whatsapp', 'wecare-outbound-whatsapp', 'wecare-whatsapp-calling',
     'wecare-whatsapp-business-api', 'wecare-razorpay-webhook',
     'wecare-invoice-engine', 'wecare-scheduled-messages', 'wecare-bulk-worker',
-    'wecare-contacts', 'wecare-ai-generate-response', 'wecare-service-api',
+    'wecare-contacts', 'wecare-service-api',
     'wecare-waba-management', 'wecare-sms-aws', 'wecare-voice-aws',
   ];
 
