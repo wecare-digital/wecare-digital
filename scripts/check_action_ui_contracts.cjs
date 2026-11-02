@@ -231,4 +231,21 @@ assert.match(cartFeedback, /quoteSignInRequired && \(/,
 const statusScreen = read('src/pages/checkout/status.tsx');
 assert.match(statusScreen, /view === 'finalizing' && !stalled[\s\S]*?href="\/orders\/"/,
   'Pending payment finalization must offer Orders, not another charge');
+
+// Fail closed if any retired mock or synthetic catalog data is reintroduced into live pages.
+for (const [path, forbidden] of [
+  ['src/components/ElsewhereTravelAssistant.tsx', /demoResponse\s*\(|eta-demo-checkout/],
+  ['src/components/workspace/whatsapp/templates.tsx', /totalTemplatesSent: templates\.length \* 50/],
+  ['src/components/workspace/channels/RcsSend.tsx', /FALLBACK_TEMPLATE_OPTIONS|useState\( 'test16' \)/],
+  ['src/config/services.ts', /TEST_SERVICE_CHOICES/],
+  ['src/config/contribution.ts', /TEST_CONTRIBUTION_CHOICES/],
+  ['src/content/catalogSnapshot.ts', /TEST_PRODUCTS|synthetic-test-catalog/],
+]) {
+  assert.doesNotMatch(read(path), forbidden, 'Production mock data must not be restored: ' + path);
+}
+assert.match(read('src/components/ElsewhereTravelAssistant.tsx'),
+  /Live travel search is unavailable/, 'Travel search must refuse invented provider results');
+assert.match(read('src/components/workspace/channels/RcsSend.tsx'),
+  /Select a confirmed RCS template before sending/, 'RCS must refuse an unverified template');
+
 console.log('Action UI gate passed: imports, Orders targets, six public notices, retired copy, payment guardrails.');

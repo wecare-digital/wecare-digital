@@ -124,7 +124,7 @@ export default [
   },
   // ── No native browser dialogs ─────────────────────────────────────────────────────
   //
-  // THESE TWO OBJECTS MUST STAY THE LAST TWO ENTRIES OF THIS ARRAY, and they are
+  // This object must stay the last entry of this array. It is
   // deliberately NOT part of the 'wecare/react-compiler-advisory' block above: that block's
   // own comment ends "this block should be deleted rather than extended", so a gate living
   // inside it would silently disappear the day React Compiler is enabled.
@@ -137,8 +137,6 @@ export default [
   // A grep would need forty exceptions and would still break MFA setup the first time
   // someone ran a sed over its hits.
   //
-  // Flat config resolves by order, so the src/test/** exemption MUST come second. It keeps
-  // the XSS fixtures asserting `javascript:alert(1)` working.
   {
     name: 'wecare/no-native-dialogs',
     rules: {
@@ -153,10 +151,5 @@ export default [
         { object: 'window', property: 'prompt', message: 'Use usePromptDialog().' },
       ],
     },
-  },
-  {
-    name: 'wecare/no-native-dialogs-test-exempt',
-    files: [ 'src/test/**' ],
-    rules: { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off' },
   },
 ];

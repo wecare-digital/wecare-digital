@@ -2,6 +2,6 @@
   "name": "wecare-audit",
   "version": "1.0.0",
   "private": true,
-  "description": "Static-export audits that need no browser. type:commonjs is REQUIRED - the app's package.json sets type:module, so a .js file here would otherwise be loaded as ESM and require() would throw. tools/browser/package.json exists for the same reason.",
+  "description": "Static-export audits that need no browser. type:commonjs is REQUIRED - the app's package.json sets type:module, so a .js file here would otherwise be loaded as ESM and require() would throw. the retired browser QA package no longer exists.",
   "type": "commonjs"
 }
