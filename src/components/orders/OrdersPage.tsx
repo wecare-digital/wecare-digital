@@ -796,7 +796,7 @@ export default function OrdersPage (): React.ReactElement {
                       const amount = order.currencyUnexpected
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
-                      const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      const label = STATUS_LABEL[ order.status ] || publicActionText( 'blocked' );
                       const note = order.status
                         ? ( STATUS_NOTE[ order.status ] || '' )
                         : 'Contact us and we will check.';
