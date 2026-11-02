@@ -96,7 +96,9 @@ The Workspace dismiss button stays keyboard-accessible and unobtrusive.
 
 - `ActionNotificationProvider.tsx` is the only active action-toast engine,
   timer and host. Public and Workspace adapters do not create additional
-  toasts, timers or queues. Navigation clears stale feedback.
+  toasts, timers or queues. Navigation clears stale feedback. Async WhatsApp
+  results pass a **positive owner ID** from their original processing notice;
+  an older result cannot overwrite a newer Copy action or a new page.
 - Workspace still displays context-specific operational text, but the shared
   boundary rejects `undefined`, `null`, objects, blank messages, stack traces,
   raw HTML, oversized payloads and secret-looking data. Invalid **success**
