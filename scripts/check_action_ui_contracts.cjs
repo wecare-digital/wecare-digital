@@ -15,6 +15,26 @@ const esbuild = require('esbuild');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// Source-read dependencies are operational consumers too. Inspect the scripts
+// invoked by the production pipeline, so an unmounted component cannot be
+// deleted while a release gate still reads it.
+const packageScripts = Object.values(JSON.parse(read('package.json')).scripts).join('\n');
+const amplifyCommands = read('amplify.yml').split('\n')
+  .filter(line => !/^\s*#/.test(line)).join('\n');
+const productionScripts = new Set(
+  [...(packageScripts + '\n' + amplifyCommands).matchAll(/\bnode\s+(scripts\/[A-Za-z0-9_./-]+\.(?:cjs|mjs|js))\b/g)]
+    .map(match => match[1])
+);
+for (const script of productionScripts) {
+  const compiled = esbuild.transformSync(read(script), {
+    loader: 'js', format: 'cjs', target: 'es2022', legalComments: 'none',
+  }).code;
+  for (const match of compiled.matchAll(/\bread\(\s*(['"])(src\/[^'"]+)\1\s*\)/g)) {
+    assert.ok(fs.existsSync(path.join(ROOT, match[2])),
+      'Deleted production gate dependency: ' + script + ' reads ' + match[2]);
+  }
+}
+
 const watched = [
   'src/pages/_app.tsx',
   'src/pages/orders.tsx',
