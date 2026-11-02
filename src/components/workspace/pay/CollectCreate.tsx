@@ -42,7 +42,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
       if(!result.ok){if(result.status!==null&&result.status<500){sessionStorage.removeItem(PENDING_KEY);setPending('');setQuote(null);onPreview(null);}setNotice(result.message||'Creation is unconfirmed. Check the saved invoice before another action.');return;}
       const inv=await collectApi.collectInvoice(result.invoice.invoiceId);setCreated(inv);sessionStorage.removeItem(PENDING_KEY);setPending('');onCreated();
       if(Number(inv.total).toFixed(2)!==Number(reviewed.total).toFixed(2)){setNotice('Invoice saved, but its total differs from the reviewed preview. Payment was not sent. Review Log.');return;}
-      const sent=await api.sendPaymentLinkResult(inv.invoiceId,'phone-number-id-waba1-direct-1016149501586345');
+      const sent=await api.sendPaymentLinkResult(inv.invoiceId);
       setNotice(sent.ok&&sent.data.status==='payment_link_sent'?'Invoice saved. The approved payment request was accepted; delivery and payment remain separate.':'Invoice saved. Payment-request delivery is not confirmed. Check Log before another send.');
     }catch{setNotice('The action outcome is unconfirmed. Use the saved recovery reference or Log before another action.');}
     finally{flight.current=false;setBusy(false);}
