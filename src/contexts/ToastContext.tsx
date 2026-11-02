@@ -1,10 +1,17 @@
 /**
- * Toast Context - Global Toast Management
- * Provides one action toast at a time across the authenticated Workspace
+ * Workspace compatibility hooks.
+ *
+ * The authenticated Workspace and public pages now use exactly the SAME
+ * action notification state machine, host and lifecycle implementation.
+ * Staff-specific wording remains allowed after runtime message validation.
+ * Keep this interface stable for existing Workspace consumers.
  */
-
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
-import Toast, { ToastMessage, ToastType } from '../components/Toast';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import type { ReactNode } from 'react';
+import {
+  ActionNotificationProvider, useActionNotification,
+} from './ActionNotificationProvider';
+import type { ActionNotificationType } from './ActionNotificationProvider';
 
 interface ToastContextType {
   success: (message: string) => void;
@@ -15,44 +22,36 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const nextToastId = useRef(0);
+function WorkspaceNotificationAdapter({ children }: { children: ReactNode }) {
+  const actions = useActionNotification();
+  const send = useCallback((type: ActionNotificationType, message: string) => {
+    // Do not stringify an arbitrary object/undefined returned by an API.
+    // Shared engine suppresses invalid success and maps unsafe errors to safe copy.
+    actions.show(type, message);
+  }, [actions]);
 
-  const addToast = useCallback((type: ToastType, message: string) => {
-    const id = String(++nextToastId.current);
-    // Show the latest action, never stack competing notifications.
-    setToasts([{ id, type, message }]);
-  }, []);
+  const success = useCallback((message: string) => send('success', message), [send]);
+  const error = useCallback((message: string) => send('error', message), [send]);
+  const warning = useCallback((message: string) => send('warning', message), [send]);
+  const info = useCallback((message: string) => send('info', message), [send]);
+  const value = useMemo(() => ({ success, error, warning, info }),
+    [success, error, warning, info]);
 
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
+}
 
-  const value: ToastContextType = {
-    success: (message: string) => addToast('success', message),
-    error: (message: string) => addToast('error', message),
-    warning: (message: string) => addToast('warning', message),
-    info: (message: string) => addToast('info', message),
-  };
+export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => (
+  <ActionNotificationProvider scope="workspace">
+    <WorkspaceNotificationAdapter>{children}</WorkspaceNotificationAdapter>
+  </ActionNotificationProvider>
+);
 
-  return (
-    <ToastContext.Provider value={value}>
-      {children}
-      <Toast toasts={toasts} onRemove={removeToast} />
-    </ToastContext.Provider>
-  );
-};
-
-/** Optional consumer for shared components also rendered outside Workspace. */
 export const useOptionalToastContext = (): ToastContextType | null =>
   useContext(ToastContext) ?? null;
 
 export const useToastContext = (): ToastContextType => {
   const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToastContext must be used within a ToastProvider');
-  }
+  if (!context) throw new Error('useToastContext must be used within a ToastProvider');
   return context;
 };
 
