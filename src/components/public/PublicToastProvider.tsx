@@ -14,6 +14,8 @@ export interface PublicToastOptions {
   tone?: PublicNoticeTone;
   /** Zero keeps a processing state until the owner replaces/clears it. */
   durationMs?: number;
+  /** Result belongs to an existing processing toast; ignore if superseded. */
+  ownerId?: number;
 }
 
 type PublicToastKind = Exclude<PublicActionNoticeKind, 'whatsappFailed'>;
@@ -52,7 +54,7 @@ function PublicNotificationAdapter({ children }: { children: React.ReactNode }) 
           : kind === 'success' || kind === 'whatsappAccepted' ? 'success'
             : kind === 'failure' || kind === 'blocked' ? 'error' : 'info';
 
-    return actions.show(type, message, { durationMs: options.durationMs });
+    return actions.show(type, message, { durationMs: options.durationMs, ownerId: options.ownerId });
   }, [actions]);
   const hideToast = useCallback((id?: number) => actions.hide(id), [actions]);
   const value = useMemo(() => ({ showToast, hideToast }), [showToast, hideToast]);
