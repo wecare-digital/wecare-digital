@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useActionCopy } from '../../../hooks/useActionCopy';
 import * as api from '../../../api/client';
 import { acquireAudioStream } from '../../../lib/pstn/mediaCapability';
 import { safeHttpHref } from '../../../lib/randomToken';
@@ -211,6 +212,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
   const [ callLogs, setCallLogs ] = useState<any[]>( [] );
   const [ loadingCalls, setLoadingCalls ] = useState( false );
   const toast = useToastContext();
+  const copy = useActionCopy();
 
   const API_BASE = 'https://wecare.digital/api';
 
@@ -1063,8 +1065,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
   }, [ activeTab, autoPickup, autoAnswerCall ] );
 
   const copyCode = ( code: string ) => {
-    navigator.clipboard.writeText( code );
-    toast.success( 'Copied to clipboard' );
+    void copy( code );
   };
 
   const s = {
@@ -1918,11 +1919,13 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                         { step.code }
                       </pre>
                       <button
+                        type="button"
+                        aria-label="Copy calling example code"
                         onClick={ ( e ) => { e.stopPropagation(); copyCode( step.code! ); } }
                         style={ {
                           position: 'absolute', top: '8px', right: '8px',
                           background: '#334155', border: 'none', color: 'rgba(255, 255, 255, 0.72)',
-                          padding: '4px 8px', borderRadius: '4px', fontSize: 'var(--text-xs)', cursor: 'pointer',
+                          padding: '4px 8px', minWidth: '44px', minHeight: '44px', borderRadius: '4px', fontSize: 'var(--text-xs)', cursor: 'pointer',
                         } }
                       >
                         Copy
