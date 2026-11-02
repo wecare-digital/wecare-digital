@@ -14,6 +14,7 @@ import Pagination from '../../../components/ui/Pagination';
 import EmptyState from '../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useActionCopy } from '../../../hooks/useActionCopy';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
@@ -214,21 +215,27 @@ function Badge ( { status }: { status: string } ) {
 
 function CopyableId ( { id, short }: { id: string; short?: string } ) {
   const display = short || extractShortId( id ) || id.slice( 0, 8 );
-  const handleCopy = () => {
-    navigator.clipboard.writeText( id ).catch( () => { } );
+  const copy = useActionCopy();
+  const handleCopy = ( event: React.MouseEvent<HTMLButtonElement> ) => {
+    // The surrounding row opens order details; Copy must stay a separate action.
+    event.stopPropagation();
+    void copy( id );
   };
   return (
-    <span
+    <button
+      type="button"
       onClick={ handleCopy }
-      title={ `Click to copy: ${id}` }
+      aria-label={ `Copy full order ID ${id}` }
+      title={ `Copy order ID: ${id}` }
       style={ {
         fontFamily: 'monospace', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)',
-        cursor: 'pointer', borderBottom: '1px dashed #9ca3af',
+        cursor: 'pointer', border: 0, borderBottom: '1px dashed #9ca3af',
+        background: 'transparent', minWidth: 44, minHeight: 44, padding: '8px 4px',
         whiteSpace: 'nowrap',
       } }
     >
       { display }
-    </span>
+    </button>
   );
 }
 
