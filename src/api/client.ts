@@ -1568,66 +1568,6 @@ export async function deleteBulkJob ( jobId: string ): Promise<boolean> {
 // Use getBedrockAIConfig(), updateBedrockAIConfig(), testBedrockAIResponse() instead
 
 // ============================================================================
-// DASHBOARD STATS API
-// ============================================================================
-
-export interface DashboardStats {
-  messagesToday: number;
-  messagesWeek: number;
-  activeContacts: number;
-  bulkJobs: number;
-  deliveryRate: number;
-  aiResponses: number;
-  dlqDepth: number;
-}
-
-export async function getDashboardStats (): Promise<DashboardStats> {
-  // Use lightweight count-only endpoints to avoid fetching all records
-  try
-  {
-    const [ msgStats, contactStats, bulkJobs ] = await Promise.all( [
-      apiCall<any>( `${API_BASE}/messages?stats=count` ),
-      apiCall<any>( `${API_BASE}/contacts?stats=count` ),
-      listBulkJobs(),
-    ] );
-
-    const activeBulkJobs = bulkJobs.filter( j =>
-      j.status === 'PENDING' || j.status === 'IN_PROGRESS'
-    ).length;
-
-    // Try to get DLQ depth
-    let dlqDepth = 0;
-    try
-    {
-      const dlqData = await apiCall<any>( `${API_BASE}/dlq` );
-      dlqDepth = dlqData?.count ?? dlqData?.messages?.length ?? 0;
-    } catch { /* non-critical */ }
-
-    return {
-      messagesToday: msgStats?.messagesToday ?? 0,
-      messagesWeek: msgStats?.messagesWeek ?? 0,
-      activeContacts: contactStats?.activeContacts ?? 0,
-      bulkJobs: activeBulkJobs,
-      deliveryRate: msgStats?.deliveryRate ?? 100,
-      aiResponses: 0,
-      dlqDepth,
-    };
-  } catch
-  {
-    // Fallback: return safe defaults on any error
-    return {
-      messagesToday: 0,
-      messagesWeek: 0,
-      activeContacts: 0,
-      bulkJobs: 0,
-      deliveryRate: 100,
-      aiResponses: 0,
-      dlqDepth: 0,
-    };
-  }
-}
-
-// ============================================================================
 // SYSTEM HEALTH API
 // ============================================================================
 

@@ -9,7 +9,7 @@ resource names appearing only inside authorised Technical Details surfaces. Meas
 DynamoDB table names, 46 ARNs and one raw API Gateway id.
 
 Most of that concentration is legitimate and must stay: `system-architecture.tsx`,
-`lambda-functions.tsx` and `SystemTab.tsx` exist precisely to show
+`lambda-functions.tsx` exist precisely to show
 operators the topology. A scan that failed on those would be turned off within a day.
 
 So the gate is built around an explicit allowlist of authorised surfaces, each with a
@@ -77,10 +77,6 @@ AUTHORISED_SURFACES = {
         "Technical Details: repository and deployment surface for operators.",
     "src/components/workspace/platform/DesignReference.tsx":
         "Internal design reference, not a customer-facing screen.",
-    "src/components/dashboard/tabs/SystemTab.tsx":
-        "Technical Details tab: system state per resource.",
-    "src/components/dashboard/tabs/DataTab.tsx":
-        "Technical Details tab: per-table row counts.",
     "src/pages/workspace/platform/index.tsx":
         "Operator Platform hub shell that hosts the Technical Details tabs "
         "(workspace redesign FEAT-006; replaced the removed dashboard shell).",
