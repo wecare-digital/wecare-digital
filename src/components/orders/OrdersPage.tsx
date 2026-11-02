@@ -392,7 +392,7 @@ export default function OrdersPage (): React.ReactElement {
       setOrdersAlert( {
         source: 'copy',
         tone: selected ? 'info' : 'error',
-        message: selected ? 'Selected. Copy with keyboard.' : publicActionText( 'failure' ),
+        message: publicActionText( selected ? 'blocked' : 'failure' ),
       } );
     }
   };
@@ -796,7 +796,7 @@ export default function OrdersPage (): React.ReactElement {
                       const amount = order.currencyUnexpected
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
-                      const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      const label = STATUS_LABEL[ order.status ] || publicActionText( 'blocked' );
                       const note = order.status
                         ? ( STATUS_NOTE[ order.status ] || '' )
                         : 'Contact us and we will check.';
@@ -927,7 +927,7 @@ export default function OrdersPage (): React.ReactElement {
                   // payment exists - it only knows the first page was empty, and the common
                   // visitor on that branch has never bought anything. "Your order is being
                   // confirmed" would be a confident wrong statement to most of them.
-                  <p className="ord-p" role="status">Checking orders…</p>
+                  <p className="ord-p" role="status">{ publicActionText( 'processing' ) }</p>
                 )
                 : (
                   <>

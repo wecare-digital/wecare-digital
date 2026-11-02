@@ -96,7 +96,7 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
         case 'OPEN': return '';
         case 'READY': return 'Payment verified';
         case 'PAID_UNVERIFIED': return 'Verifying payment';
-        case 'EXPIRED': return 'Access expired';
+        case 'EXPIRED': return publicActionText( 'blocked' );
         default: return 'Access locked';
     }
 }
@@ -269,7 +269,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         };
     }, [ stage, files, paymentWaiting, loadFiles ] );
 
-    // Switch an already-open page to Access expired at the paid cutoff, including mobile
+    // Switch an already-open page to the expired state at the paid cutoff, including mobile
     // tabs resumed later. A server refresh confirms the authoritative state.
     useEffect( () => {
         if ( stage !== 'files' ) return;
@@ -325,7 +325,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         };
         if ( !accessId )
         {
-            feedback( 'error', 'Paid Vault access is not ready for this file yet.' );
+            feedback( 'error', publicActionText( 'blocked' ) );
             return;
         }
         setWorking( file.fileId );
@@ -357,7 +357,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 feedback(
                     'error',
                     code === 'NOT_REGISTERED'
-                        ? 'This file is not registered to your verified number.'
+                        ? publicActionText( 'blocked' )
                         : code === 'ACCESS_NOT_AUTHORIZED'
                             ? 'We could not confirm paid access for this file. If you already paid, do not pay again.'
                             : publicApiFailureText( result.failure.status )
@@ -366,7 +366,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             }
             if ( !result.data.downloadUrl )
             {
-                feedback( 'error', 'The download URL was not returned. Please try again.' );
+                feedback( 'error', publicActionText( 'failure' ) );
                 return;
             }
             // Only the approved private S3 bucket is a valid transport destination.
@@ -439,7 +439,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 const message = response.kind === 'refused'
                     ? response.message
                     : response.kind === 'rate'
-                        ? 'Too many attempts. Try again shortly.'
+                        ? publicActionText( 'blocked' )
                         : 'We could not verify this file for website payment. Nothing has been charged.';
                 setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', message } } ) );
                 if ( response.kind === 'refused' ) void loadFiles();
@@ -682,7 +682,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
                                                         ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : 'Payment verified. Your 24-hour access begins on your first authenticated download.' }
+                                                        : publicActionText( 'success' ) }
                                                 </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
@@ -690,12 +690,12 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <button type="button"
                                                     className="sf-file-action-button sf-download-button sf-expired-button"
                                                     disabled>
-                                                    Access expired
+                                                    { publicActionText( 'blocked' ) }
                                                 </button>
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
-                                                Payment recorded. Confirming access. Do not pay again.
+                                                { publicActionText( 'processing' ) }
                                             </p>
                                         ) : state === 'UNPAID' ? (
                                             <>

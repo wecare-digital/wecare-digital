@@ -1,4 +1,5 @@
 import React from 'react';
+import { publicActionText } from '../lib/publicActionNotices';
 
 import { COUNTRY_OPTIONS, countryCodeForName, countryNameForCode } from '../config/countryOptions';
 import { INDIA_SUBDIVISION_NAMES } from '../config/indiaSubdivisions';
@@ -224,7 +225,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
       { pinBad && (
         <p id="address-postal-help" className="address-help" role="alert">
-          Enter a valid 6-digit PIN.
+          { publicActionText( 'failure' ) }
         </p>
       ) }
 
