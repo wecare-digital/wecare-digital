@@ -8,6 +8,7 @@ function read(path) { return readFileSync(path, 'utf8'); }
 const live = read('src/components/VayuLokLive.tsx');
 const insights = read('src/components/VayuLokWeatherInsights.tsx');
 const backend = read('gcp/vayulok-weather-insights/server.mjs');
+const gateway = read('scripts/provision_vayulok_environment.py');
 
 // The 2D map has a real, generously-sized viewport and its own column on
 // desktop. The whole Air/Weather card follows normal page scrolling without
@@ -43,7 +44,10 @@ assert(!live.includes('padding-top:clamp(300px,50vw,440px)')
 assert(live.lastIndexOf('.vl-live-mobile-snapshot{display:none}') >
   live.lastIndexOf('display:block;position:absolute;z-index:13;'), 'mobile summary must not cover India');
 
-// Cost protection: paid AQI heatmap tiles should require an explicit user action.
+// Cost protection: public AWS gateway throttle stays narrow on future provisioning.
+assert(gateway.includes('RATE_LIMIT = 2.0') && gateway.includes('BURST_LIMIT = 4'),
+  'VayuLok AWS route throttling must preserve the audited 2 rps / 4 burst cap');
+// Paid AQI heatmap tiles should require an explicit user action.
 assert(live.includes("const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );"),
   'paid heatmap tiles must be off on first load');
 assert(live.includes('mapViewRequested'), 'paid Maps loading must be deferred');
