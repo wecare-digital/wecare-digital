@@ -127,12 +127,12 @@ const DB_TABLES: TableDef[] = [
 // ─── Data: Lambda Functions ───
 interface LambdaDef { name: string; category: string; trigger: string; tables: string; description: string; apiRoute: string; }
 const LAMBDAS: LambdaDef[] = [
-  { name: 'contacts', category: 'Core', trigger: 'API Gateway', tables: 'Contact, WhatsAppInbound, WhatsAppOutbound', description: 'Contact CRUD operations', apiRoute: '/workspace/contacts' },
+  { name: 'contacts', category: 'Core', trigger: 'API Gateway', tables: 'Contact, WhatsAppInbound, WhatsAppOutbound', description: 'Contact CRUD operations', apiRoute: '/contacts' },
   { name: 'auth-middleware', category: 'Core', trigger: 'API GW Authorizer', tables: 'User', description: 'Cognito token validation', apiRoute: '/auth' },
   { name: 'messages-read', category: 'Core', trigger: 'API Gateway', tables: 'WhatsAppInbound, WhatsAppOutbound', description: 'Read messages from all channels', apiRoute: '/messages' },
   { name: 'messages-delete', category: 'Core', trigger: 'API Gateway', tables: 'WhatsAppInbound, WhatsAppOutbound', description: 'Delete messages by ID', apiRoute: '/messages/{id}' },
   { name: 'faq-handler', category: 'Core', trigger: 'API Gateway', tables: 'SystemConfig', description: 'FAQ auto-response engine', apiRoute: '/faq' },
-  { name: 'url-shortener', category: 'Core', trigger: 'API Gateway', tables: '-', description: 'Short link creation (wecare.digital/r)', apiRoute: '/workspace/link' },
+  { name: 'url-shortener', category: 'Core', trigger: 'API Gateway', tables: '-', description: 'Short link creation (wecare.digital/r)', apiRoute: '/r/{code}' },
   { name: 'inbound-whatsapp-handler', category: 'Messaging', trigger: 'API GW Webhook', tables: 'WhatsAppInbound, Contact, MediaFile, WebhookDedup', description: 'Process incoming WhatsApp messages', apiRoute: '/webhook/whatsapp' },
   { name: 'outbound-whatsapp', category: 'Messaging', trigger: 'API Gateway, SQS', tables: 'WhatsAppOutbound', description: 'Send WhatsApp messages via Cloud API', apiRoute: '/whatsapp/send' },
   { name: 'outbound-sms', category: 'Messaging', trigger: 'API Gateway', tables: 'Messages', description: 'Send SMS via AWS End User Messaging', apiRoute: '/sms/send' },
@@ -445,9 +445,7 @@ const CODE_MAP: CodeFolder[] = [
   { path: 'src/pages/workspace/platform/', purpose: 'Canonical Platform workspace hub', files: '1 page', linkedTo: '/workspace/platform' },
   { path: 'src/components/workspace/platform/', purpose: 'Platform tools embedded by the canonical hub', files: '7 components', linkedTo: '/workspace/platform?view=*' },
   { path: 'src/components/workspace/whatsapp/', purpose: 'WhatsApp tools embedded by Communications', files: 'shared components', linkedTo: '/workspace/communications?view=manage&section=whatsapp' },
-  { path: 'src/pages/workspace/engage/', purpose: 'Remaining channel hubs and compatibility routes', files: 'hubs + redirects', linkedTo: '/workspace/engage/channels?tab=sms' },
-  { path: 'src/pages/workspace/pay/', purpose: 'Retained Pay compatibility redirect', files: '1 route', linkedTo: '/workspace/payments' },
-  { path: 'src/pages/workspace/link/', purpose: 'Retained Short Links compatibility redirect', files: '1 route', linkedTo: '/workspace/communications?view=manage&section=links' },
+  { path: 'src/pages/workspace/engage/', purpose: 'Active channels, inbox, logs and partner account pages', files: 'active routes', linkedTo: '/workspace/engage/channels?tab=sms' },
   { path: 'src/components/', purpose: 'Reusable UI components', files: '~25 components', linkedTo: 'All pages' },
   { path: 'src/components/ui/', purpose: 'Base UI primitives (Button, Modal, Tabs, Table)', files: '~10 components', linkedTo: 'All pages' },
   { path: 'src/components/dashboard/', purpose: 'Shared workspace widgets', files: '~5 components', linkedTo: '/workspace/*' },
@@ -476,7 +474,7 @@ const CODE_MAP: CodeFolder[] = [
 // ─── Data: Lambda Detailed (with env vars, runtime, memory) ───
 interface LambdaDetailed { name: string; displayName: string; category: string; runtime: string; timeout: number; memory: number; description: string; apiRoute: string; envVars: Record<string, string>; triggers: string[]; status: 'active' | 'warning' | 'error'; }
 const LAMBDA_DETAILED: LambdaDetailed[] = [
-  { name: 'wecare-contacts', displayName: 'Contacts', category: 'Core', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'CRUD operations for contacts', apiRoute: '/workspace/contacts', envVars: { CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable', INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'wecare-contacts', displayName: 'Contacts', category: 'Core', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'CRUD operations for contacts', apiRoute: '/contacts', envVars: { CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable', INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-auth-middleware', displayName: 'Auth Middleware', category: 'Core', runtime: 'Python 3.12', timeout: 10, memory: 128, description: 'Cognito token validation for API Gateway', apiRoute: '/auth', envVars: { USER_POOL_ID: 'us-east-1_*', CLIENT_ID: '*' }, triggers: [ 'API Gateway Authorizer' ], status: 'active' },
   { name: 'wecare-messages-read', displayName: 'Messages Read', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Read messages from all channels', apiRoute: '/messages', envVars: { INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-messages-delete', displayName: 'Messages Delete', category: 'Core', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Delete messages by ID', apiRoute: '/messages/{id}', envVars: { INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable', OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable' }, triggers: [ 'API Gateway' ], status: 'active' },
@@ -530,19 +528,19 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'flow-shipping', category: 'WhatsApp Flows', name: 'F006 · Track Shipment', description: 'Retained canonical published Meta Flow asset.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/published/shipments.json', type: 'Flow JSON', status: 'Published' },
   // Track Request is a service endpoint, not a Meta Flow.
   { id: 'ss-track', category: 'Customer Service Flows', name: 'Track Request', description: 'Order/request status via service API and /orders/.', path: 'GET /wa-business/service/track/{orderId}', type: 'API', status: 'Active' },
-  { id: 'ss-faq', category: 'Customer Service Flows', name: 'FAQ', description: 'Help from the Workspace FAQ configuration.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
+  { id: 'ss-faq', category: 'Customer Service Flows', name: 'FAQ', description: 'Help from the Workspace FAQ configuration.', path: '/workspace/service?view=requests&action=faq', type: 'Page Link', status: 'Active' },
   // Frontend Pages
-  { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard, single source of truth.', path: 'src/pages/workspace/settings/platform/system-architecture.tsx', type: 'Page' },
-  { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Bookmark signpost to the unified inbox filtered to WhatsApp.', path: 'src/pages/workspace/engage/whatsapp/index.tsx', type: 'Page' },
-  { id: 'p-wa-templates', category: 'Frontend Pages', name: 'WhatsApp Templates', description: 'Template management — create, edit, send, analytics.', path: 'src/pages/workspace/engage/whatsapp/templates.tsx', type: 'Page' },
-  { id: 'p-wa-flows', category: 'Frontend Pages', name: 'WhatsApp Flows', description: 'Flow builder and management for WhatsApp Business Flows.', path: 'src/pages/workspace/engage/whatsapp/flows.tsx', type: 'Page' },
-  { id: 'p-wa-flowhub', category: 'Frontend Pages', name: 'Flow Hub', description: 'Centralized flow registry, submissions, and analytics.', path: 'src/pages/workspace/engage/whatsapp/flow-hub.tsx', type: 'Page' },
-  { id: 'p-wa-calling', category: 'Frontend Pages', name: 'WhatsApp Calling', description: 'Voice/video call logs and WebRTC integration.', path: 'src/pages/workspace/engage/whatsapp/calling.tsx', type: 'Page' },
-  { id: 'p-wa-groups', category: 'Frontend Pages', name: 'WhatsApp Groups', description: 'Group management — create, participants, messaging.', path: 'src/pages/workspace/engage/whatsapp/groups.tsx', type: 'Page' },
-  { id: 'p-pay', category: 'Frontend Pages', name: 'Payments', description: 'Payment dashboard — Razorpay transactions.', path: 'src/pages/workspace/pay/index.tsx', type: 'Page' },
-  { id: 'p-pay-flow', category: 'Frontend Pages', name: 'Pay Flow', description: 'WhatsApp payment flow — invoice + collect via chat.', path: 'src/pages/workspace/pay/flow/index.tsx', type: 'Page' },
-  { id: 'p-contacts', category: 'Frontend Pages', name: 'Contacts', description: 'Contact management with opt-in, addresses, BSUID.', path: 'src/pages/workspace/contacts/index.tsx', type: 'Page' },
-  { id: 'p-store', category: 'Frontend Pages', name: 'Store', description: 'AWS-native store catalog and order administration.', path: 'src/pages/store/index.tsx', type: 'Page' },
+  { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard, single source of truth.', path: 'src/components/workspace/platform/SystemArchitecture.tsx', type: 'Component' },
+  { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Unified inbox component embedded in Communications.', path: 'src/components/workspace/whatsapp/inbox.tsx', type: 'Component' },
+  { id: 'p-wa-templates', category: 'Frontend Pages', name: 'WhatsApp Templates', description: 'Template management — create, edit, send, analytics.', path: 'src/components/workspace/whatsapp/templates.tsx', type: 'Component' },
+  { id: 'p-wa-flows', category: 'Frontend Pages', name: 'WhatsApp Flows', description: 'Flow builder and management for WhatsApp Business Flows.', path: 'src/components/workspace/whatsapp/flows.tsx', type: 'Component' },
+  { id: 'p-wa-flowhub', category: 'Frontend Pages', name: 'Flow Hub', description: 'Centralized flow registry, submissions, and analytics.', path: 'src/components/workspace/whatsapp/flow-hub.tsx', type: 'Component' },
+  { id: 'p-wa-calling', category: 'Frontend Pages', name: 'WhatsApp Calling', description: 'Voice/video call logs and WebRTC integration.', path: 'src/components/workspace/whatsapp/calling.tsx', type: 'Component' },
+  { id: 'p-wa-groups', category: 'Frontend Pages', name: 'WhatsApp Groups', description: 'Group management — create, participants, messaging.', path: 'src/components/workspace/whatsapp/groups.tsx', type: 'Component' },
+  { id: 'p-pay', category: 'Frontend Pages', name: 'Payments', description: 'Payment dashboard — Razorpay transactions.', path: 'src/pages/workspace/payments/index.tsx', type: 'Page' },
+  { id: 'p-pay-flow', category: 'Frontend Pages', name: 'Pay Flow', description: 'WhatsApp payment flow — invoice + collect via chat.', path: 'src/components/workspace/pay/PayFlow.tsx', type: 'Component' },
+  { id: 'p-contacts', category: 'Frontend Pages', name: 'Contacts', description: 'Contact management with opt-in, addresses, BSUID.', path: 'src/pages/workspace/customers/index.tsx', type: 'Page' },
+  { id: 'p-store', category: 'Frontend Pages', name: 'Shop', description: 'Public Shop catalogue.', path: 'src/pages/shop/index.tsx', type: 'Page' },
   // Core Lambdas
   { id: 'l-auth', category: 'Core Lambdas', name: 'Auth Middleware', description: 'Cognito JWT validation, API Gateway authorizer.', path: 'amplify/functions/core/auth-middleware/handler.py', type: 'Lambda' },
   { id: 'l-contacts', category: 'Core Lambdas', name: 'Contacts', description: 'CRUD for contacts with structured addresses.', path: 'amplify/functions/core/contacts/handler.py', type: 'Lambda' },

@@ -227,9 +227,8 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'message',
     hint: 'SMS, RCS, Email, Voice, Push',
     items: [
-      // `/workspace/engage` is a real 160-line page (the Messages hub), not just a section
-      // container. It was the old sidebar's "Messages" parent, so dropping the
-      // parent would have orphaned an actual route.
+      // The old /workspace/engage parent was a redirect-only alias and has been
+      // removed. Communications and active channel pages own these controls.
       { path: '/workspace/communications?view=manage&section=sms', label: 'SMS' },
       { path: '/workspace/communications?view=manage&section=rcs', label: 'RCS' },
       { path: '/workspace/communications?view=manage&section=email', label: 'Email' },
@@ -244,8 +243,8 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'settings',
     hint: 'Automation, content, analytics, cost',
     items: [
-      // FEAT-005: these automation/content/analytics tools are in-page tabs on the Messages hub
-      // now; each deep-links /workspace/engage with its ?tab= id.
+      // Automation, content and analytics are tabs under the canonical
+      // Communications Manage page, not standalone legacy Engage pages.
       { path: '/workspace/communications?view=manage&section=automation', label: 'Automation' },
       { path: '/workspace/communications?view=manage&section=templates', label: 'Content Library' },
       { path: '/workspace/communications?view=manage&section=analytics', label: 'Analytics' },
@@ -253,9 +252,8 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      // /workspace/link remains a compatibility redirect, while the canonical
-      // operator destination is Communications > Manage > Short Links. Keep the
-      // command palette pointed at the live embedded panel rather than the signpost.
+      // Short Links is inside Communications > Manage. The retired /workspace/link
+      // alias no longer exists and must not reappear in menu entries.
       { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
     ],
   },
@@ -276,9 +274,8 @@ export const settingsConfig: SettingsGroup[] = [
   },
   // #956 (Rebuild Content as one publishing workspace) retired standalone SEO from
   // navigation: the gear 'seo' group's rows all pointed at /workspace/seo and
-  // /workspace/seo?tab=tools|blog|pages, which is now a router.replace compatibility
-  // redirect to /workspace/content. Those links therefore pointed at a signpost page
-  // rather than a live surface. SEO now lives in the Content workspace
+  // /workspace/seo?tab=tools|blog|pages. These obsolete redirect-only routes
+  // have been deleted. SEO now lives in the Content workspace
   // (/workspace/content?view=seo&area=tools|pages), which the primary Content sidebar
   // section already exposes and which the command palette (getAllNavItems) already
   // indexes, so the gear group is removed rather than repointed.

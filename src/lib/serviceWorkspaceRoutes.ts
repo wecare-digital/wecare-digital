@@ -1,5 +1,5 @@
 /**
- * One URL contract for the Service workspace, including legacy Forms links.
+ * One URL contract for the Service workspace, including historical view aliases.
  * Keeps old Vault deep links recognizable for redirect to Pay & Flow and ensures
  * the button choice is passed through as the actual query value.
  *
@@ -30,7 +30,7 @@ export function serviceWorkspaceView (
   value: string | string[] | undefined,
 ): ServiceWorkspaceView {
   const raw = first( value );
-  // Old /workspace/forms forwards to ?view=requests.
+  // Normalize historical requests view to canonical submit-request.
   if ( raw === 'requests' ) return 'submit-request';
   return SERVICE_WORKSPACE_VIEWS.find( view => view === raw ) || 'submit-request';
 }

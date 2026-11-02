@@ -25,6 +25,24 @@ const retired = [
   '/checkout/whatsapp', // Inactive payment-channel placeholder removed by owner.
   '/cart', // Retired browser-only redirect; canonical basket checkout is /checkout/.
 ];
+// Owner-approved permanent removal: redirect-only Workspace bookmark pages.
+// Nested active routes (Inbox, Channels, My WhatsApp Account, etc.) are NOT
+// included. Never remove customer Vault or verified payment-return pages.
+const retiredWorkspaceRoutes = [
+  '/workspace/admin',
+  '/workspace/contacts',
+  '/workspace/dashboard/waba-usernames',
+  '/workspace/docs',
+  '/workspace/engage',
+  '/workspace/engage/service-ops',
+  '/workspace/engage/whatsapp',
+  '/workspace/engage/whatsapp/settings',
+  '/workspace/forms',
+  '/workspace/link',
+  '/workspace/pay',
+  '/workspace/seo',
+  '/workspace/settings/platform',
+];
 const deadModules = [
   'src/content/customerservice.ts',
   'src/content/shipments.ts',
@@ -43,6 +61,15 @@ for (const route of retired) {
     base + '/index.jsx', base + '/index.js',
   ]) {
     if (exists(candidate)) failures.push('Retired public page reappeared: ' + candidate);
+  }
+}
+for (const route of retiredWorkspaceRoutes) {
+  const base = 'src/pages' + route;
+  for (const candidate of [
+    base + '.tsx', base + '.ts', base + '.jsx', base + '.js',
+    base + '/index.tsx', base + '/index.ts', base + '/index.jsx', base + '/index.js',
+  ]) {
+    if (exists(candidate)) failures.push('Retired Workspace redirect reappeared: ' + candidate);
   }
 }
 for (const relative of deadModules) {
@@ -234,6 +261,12 @@ if (!routeCondition.test(handoffCondition)
 // The CloudFront /get/<*> media rewrite is also intentionally out of scope.
 if (!exists('src/pages/vault.tsx')) failures.push('Protected exact-file Vault route is missing');
 if (!exists('src/pages/orders.tsx')) failures.push('Customer Orders route is missing');
+// These two are real payment state views (the success path aliases status),
+// not legacy redirects. Removing them could misreport paid orders.
+if (!exists('src/pages/checkout/status.tsx')
+    || !exists('src/pages/checkout/success.tsx')) {
+  failures.push('Verified checkout payment return routes are missing');
+}
 
 // Active Workspace UI must not point to deleted pages. Compatibility redirect
 // files can remain for old bookmarks, but current controls must link to the
@@ -266,6 +299,15 @@ for (const filename of WORKSPACE_LINK_SOURCES) {
     if (!workspaceRouteExists(match[1])) {
       failures.push('Broken Workspace UI destination: ' + filename + ' -> ' + match[1]);
     }
+  }
+}
+
+// Every declared Workspace menu entry must resolve to a real page. Route
+// aliases are not allowed to creep back into navigation as broken links.
+const navigationSource = fs.readFileSync(path.join(root, 'src/config/navigation.ts'), 'utf8');
+for (const match of navigationSource.matchAll(/\bpath:\s*'(\/workspace[^']*)'/g)) {
+  if (!workspaceRouteExists(match[1])) {
+    failures.push('Broken Workspace navigation item: ' + match[1]);
   }
 }
 
