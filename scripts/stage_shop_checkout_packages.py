@@ -11,7 +11,11 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 
+# Direct execution sets sys.path to scripts/ instead of the checkout repo root.
+# Add the root explicitly so the canonical packager is imported from THIS SHA.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import deploy_all_lambdas as deploy
 
 TARGETS = ("wecare-commerce", "wecare-checkout", "wecare-invoice-engine")
