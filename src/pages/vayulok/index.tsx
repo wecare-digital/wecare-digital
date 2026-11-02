@@ -164,10 +164,10 @@ const VayuLokPage: React.FC = () => {
           mobileFoundation
           ariaLabel="VayuLok"
           badgeLabel="VayuLok by WECARE.DIGITAL"
-          frame="Nano Climates"
+          frame="Explore"
           words={ cycleWords }
           pillKey={ mode }
-          sub={ <>Ultra-precise air and weather intelligence<br />to understand conditions, change,<br />and emerging patterns.</> }
+          sub={ <>Explore air quality and weather data<br />for selected places in India.<br />Forecasts are estimates, not safety alerts.</> }
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe
