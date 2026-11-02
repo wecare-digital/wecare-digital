@@ -162,4 +162,73 @@ assert.equal(normalize('Bearer abcdefghijklmnop', 'error'), copy.failure);
 assert.equal(normalize('a'.repeat(321), 'error'), copy.failure);
 assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
 
-console.log('Action UI gate passed: imports, Orders targets, toast design, exact public vocabulary, safety normalization.');
+// Prevent reintroduction of the explicitly retired customer-facing messages.
+// Compile TSX without executing it: the transform strips non-rendered comments.
+const publicScreens = [
+  'src/components/orders/OrdersPage.tsx',
+  'src/components/orders/RequestsPanel.tsx',
+  'src/pages/auth.tsx',
+  'src/components/cart/CartPage.tsx',
+  'src/pages/checkout/status.tsx',
+  'src/components/CheckoutProfile.tsx',
+  'src/components/AddressFields.tsx',
+  'src/components/get/GetPage.tsx',
+];
+const retiredPublicCopy = [
+  'Selected. Copy with keyboard.',
+  'Checking orders…',
+  'Requests are unavailable right now.',
+  'Enter your WhatsApp number.',
+  'Enter a valid number.',
+  'Couldn’t send a code. Check your number.',
+  'Check your code.',
+  'Code expired. Send a new one.',
+  'Wait before trying again.',
+  'Enter the 6-digit code.',
+  'Check the number and try again.',
+  'Checking prices…',
+  'Verified price unavailable. Payment disabled.',
+  'Price service unavailable. Payment disabled.',
+  'Sign in to view final price.',
+  'Confirm address to view final price.',
+  'Payment window closed. Your cart is unchanged.',
+  'Payment was not completed. Check your orders before trying again.',
+  'We could not start this order. No charge was made. Please try again shortly.',
+  'Secure payment could not open. Your cart is unchanged.',
+  'We could not confirm checkout. Check your orders before trying again.',
+  'Confirming payment…',
+  'Payment received',
+  'Payment incomplete',
+  'Status unavailable',
+  'Do not pay again.',
+  'Enter your full name.',
+  'Please check your delivery address.',
+  'Enter a valid 6-digit PIN.',
+  'Paid Vault access is not ready for this file yet.',
+  'This file is not registered to your verified number.',
+  'The download URL was not returned. Please try again.',
+  'Payment recorded. Confirming access. Do not pay again.',
+  'Payment verified. Your 24-hour access begins on your first authenticated download.',
+  'Access expired',
+];
+for (const file of publicScreens) {
+  const compiled = esbuild.transformSync(read(file), {
+    loader: 'tsx', format: 'cjs', target: 'es2022', legalComments: 'none',
+  }).code;
+  for (const message of retiredPublicCopy) {
+    assert.ok(!compiled.includes(message),
+      'Retired public notification copy still rendered in ' + file + ': ' + message);
+  }
+}
+assert.ok(!fs.existsSync(path.join(ROOT, 'src/lib/signInMessages.ts')),
+  'Retired sign-in notification vocabulary must not be restored');
+
+const cartFeedback = read('src/components/cart/CartPage.tsx');
+assert.match(cartFeedback, /railTerminalRef\.current = true;\s+setRailTerminal\( true \);\s+setNotice\( \{ kind: 'error', message: publicActionText\( 'blocked' \) \} \)/,
+  'Unknown payment outcomes must disarm checkout before showing a generic notice');
+assert.match(cartFeedback, /quoteSignInRequired && \(/,
+  'Retiring old sign-in copy must preserve a sign-in action');
+const statusScreen = read('src/pages/checkout/status.tsx');
+assert.match(statusScreen, /view === 'finalizing' && !stalled[\s\S]*?href="\/orders\/"/,
+  'Pending payment finalization must offer Orders, not another charge');
+console.log('Action UI gate passed: imports, Orders targets, six public notices, retired copy, payment guardrails.');
