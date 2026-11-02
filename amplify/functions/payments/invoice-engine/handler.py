@@ -54,7 +54,7 @@ from lambda_utils.ecommerce import order_channel, business_identity, checkout_pr
 # Identity reservation for a native WhatsApp collection, and the key prefixes it reserves on.
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
-from lambda_utils.ecommerce import order_keys, service_invoice_ledger, wa_payment_request
+from lambda_utils.ecommerce import order_keys, payment_evidence, service_invoice_ledger, wa_payment_request
 # The fulfilment-status vocabulary and legal transitions for a WhatsApp order_status update. A
 # SEPARATE lifecycle from the payment's money state — this is what the merchant did (shipped,
 # completed), not what the money did. One home for the rules `send_order_status` validates.
@@ -5804,19 +5804,33 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
 # ─── Delivery Log ───
 
 def get_delivery_log(invoice_id: str, request_id: str) -> Dict:
-    """Get delivery log for an invoice."""
+    """Staff-only exact-invoice send log plus bounded measured evidence.
+
+    invoiceId is the DynamoDB PK, never a browser-supplied payment reference.
+    The new projection joins ONLY its server-owned InvoiceDeliveryLog partition
+    and never guesses handset-delivered/paid/refunded states from Meta receipts.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
 
+    invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+        Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item')
+    if not invoice:
+        return _resp(404, {'error': 'Invoice not found'})
+
     table = dynamodb.Table(INVOICE_DELIVERY_TABLE)
     resp = table.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id)
+        KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id),
+        ConsistentRead=True,
     )
-    logs = resp.get('Items', [])
+    logs = [row for row in resp.get('Items', [])
+            if str(row.get('invoiceId') or '') == str(invoice_id)]
     logs.sort(key=lambda x: int(x.get('timestamp', 0)), reverse=True)
+    measured = payment_evidence.invoice_evidence_timeline(invoice, logs)
 
     return _resp(200, {
         'invoiceId': invoice_id,
+        'evidenceTimeline': measured,
         'deliveryLogs': [{
             'timestamp': int(l.get('timestamp', 0)),
             'channel': l.get('channel', ''),

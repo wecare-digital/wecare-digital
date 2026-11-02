@@ -4707,6 +4707,32 @@ export interface InvoiceDeliveryLog {
   imageUrl: string;
 }
 
+/** Invoice-PK-bound, backend-projected evidence. Never a browser-side join. */
+export interface InvoiceEvidenceEvent {
+  role: string;
+  label: string;
+  at: number;
+  utc: string;
+  source: string;
+  actor: string;
+  verificationClass: string;
+  /** SHA-256 fragment, never an unmasked provider ID, phone or reference. */
+  recordFragment: string;
+}
+export interface InvoiceEvidenceGap {
+  label: string;
+  seconds: number | null;
+  status: 'measured' | 'unverified';
+  basis: string;
+}
+export interface InvoiceEvidenceTimeline {
+  scope: 'authoritative_invoice_id';
+  invoiceFragment: string;
+  events: InvoiceEvidenceEvent[];
+  gaps: InvoiceEvidenceGap[];
+  note: string;
+}
+
 export interface Invoice {
   fixedPresetId?: string;
   itemProcessId?: string;
@@ -5129,9 +5155,19 @@ export interface CheckoutShippingAddress {
 // same reason as `sendWhatsAppPaymentMessage` above: no payment is composed outside `amplify/`.
 
 // Get delivery log for an invoice
-export async function getInvoiceDeliveryLog ( invoiceId: string ): Promise<{ deliveryLogs: InvoiceDeliveryLog[]; count: number }> {
-  const data = await apiCall<any>( `${INVOICE_BASE}/${invoiceId}/delivery-log` );
-  return { deliveryLogs: data?.deliveryLogs || [], count: data?.count || 0 };
+export async function getInvoiceDeliveryLog ( invoiceId: string ): Promise<{
+  deliveryLogs: InvoiceDeliveryLog[];
+  count: number;
+  evidenceTimeline: InvoiceEvidenceTimeline | null;
+}> {
+  const data = await apiCall<any>( `${INVOICE_BASE}/${encodeURIComponent(invoiceId)}/delivery-log`, { cache: 'no-store' } );
+  // Old invoice-engine deployments do not return a server-scoped chronology.
+  // Do not synthesize one from unrelated browser rows.
+  const evidenceTimeline = data?.evidenceTimeline?.scope === 'authoritative_invoice_id'
+    && Array.isArray(data?.evidenceTimeline?.events)
+    && Array.isArray(data?.evidenceTimeline?.gaps)
+    ? data.evidenceTimeline as InvoiceEvidenceTimeline : null;
+  return { deliveryLogs: data?.deliveryLogs || [], count: data?.count || 0, evidenceTimeline };
 }
 
 // Preview next invoice number (without incrementing)
