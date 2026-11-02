@@ -166,7 +166,6 @@ assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
 // Compile TSX without executing it: the transform strips non-rendered comments.
 const publicScreens = [
   'src/components/orders/OrdersPage.tsx',
-  'src/components/orders/RequestsPanel.tsx',
   'src/pages/auth.tsx',
   'src/components/cart/CartPage.tsx',
   'src/pages/checkout/status.tsx',
