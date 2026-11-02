@@ -33,7 +33,7 @@ export function useCopyFeedback () {
           if ( selection ) {
             selection.removeAllRanges();
             selection.addRange( range );
-            selected = true;
+            selected = selection.toString().trim() === element.textContent?.trim();
           }
         }
       } catch { /* Clipboard recovery is best-effort. */ }
