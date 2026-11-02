@@ -1871,7 +1871,8 @@ export async function listRcsTemplates (): Promise<any[]> {
     method: 'POST',
     body: JSON.stringify( { action: 'templates' } ),
   } );
-  return data?.templates || [];
+  if ( !Array.isArray( data?.templates ) ) throw new Error( 'RCS templates unavailable' );
+  return data.templates;
 }
 
 export async function createRcsTemplate ( name: string, text: string, type?: string, suggestions?: any[] ): Promise<any> {
@@ -3537,7 +3538,7 @@ export async function getTemplateAnalyticsSummary ( wabaId?: string ): Promise<T
       byCategory: data.byCategory || {},
     };
   }
-  return { totalTemplatesSent: 0, avgDeliveryRate: 0, avgReadRate: 0, topTemplates: [], byCategory: {} };
+  throw new Error( 'Template analytics unavailable' );
 }
 
 // ============================================================================

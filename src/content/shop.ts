@@ -283,16 +283,7 @@ export const CONTRIBUTION_CONFIGURED: boolean =
   !!CONTRIBUTION_PRODUCT_ID && CONTRIBUTION_CHOICES.length > 0
   && CONTRIBUTION_CHOICES.every( choice => !!choice.variantId );
 
-/**
- * The projection, exposed so a test can drive it from an injected row.
- *
- * The contribution entry does not exist in the committed snapshot until the owner creates the
- * product in the catalog, so asserting the projection against `CONTRIBUTION_PRODUCT` would be asserting
- * against `null` - and re-implementing the projection inside the test would be testing a copy of
- * the thing rather than the thing. Named `projectForTest` rather than `project` so nothing in a
- * page is tempted to call it: a page gets a projected product from `SHOP_PRODUCTS`.
- */
-export const projectForTest = project;
+
 
 export const shopProductBySlug = ( slug: string ): ShopProduct | null =>
   SHOP_PRODUCTS.find( product => product.slug === slug ) || null;
