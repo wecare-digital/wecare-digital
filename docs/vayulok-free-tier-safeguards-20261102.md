@@ -19,6 +19,9 @@
 - Coalesce in-flight requests for the same 0.1-degree grid/range, use aligned rounded coordinates for BigQuery result cache, bound in-memory entries, and label expired cache results as stale.
 - The Cloud Run service must be **deployed independently** using the existing gcp/vayulok-weather-insights/cloudbuild.yaml pipeline. Merging to AWS Amplify alone does **not** deploy this service.
 
+## AWS public proxy protection (verified 2026-11-02)
+The existing API Gateway HTTP API stage now applies **2 requests/second, burst 4** to `POST /vayulok/environment`, down from 3/10, with other route settings preserved. Its provisioning script mirrors these values. The Lambda still has a strict origin/operation allowlist, request size cap, and server key in Secrets Manager. This gateway throttle does **not** apply to direct browser-to-Google calls and is not a monthly spending cap; Google quotas remain mandatory.
+
 ## Still required in Google Cloud Console before claiming zero overage risk
 1. Project wecaredigitalbw: configure a custom **BigQuery daily query usage quota** around **10 GiB/day** or lower as an initial conservative value, validate it applies to all relevant workloads/users, and monitor the actual project-billed bytes. The current connector cannot write service quotas. As a comparison, the monthly BigQuery free allowance is 1 TiB of on-demand query processing subject to eligibility/pricing conditions.
 2. Confirm the production Maps browser key's **owning Google Cloud project and India-pricing eligibility**. BigQuery project identity does not prove either.
