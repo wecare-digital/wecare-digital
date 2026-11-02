@@ -8,7 +8,7 @@ This note records the additive test safety net stood up in Phase 2 and how to ru
 
 - New tests around `src/api/client.ts`:
   - `apiCallResult` failure and retry classification: which HTTP/network outcomes are treated as retryable versus terminal, and how the result envelope is shaped.
-  - The pure normalizers (`normalizeTimestamp`, `normalizeEpochSeconds`, `normalizeCheckoutAddress`, `normalizeContact`): input shaping and edge cases with no external dependencies.
+  - The pure normalizers (`normalizeTimestamp`, `normalizeEpochSeconds`, `normalizeCheckoutAddress`): input shaping and edge cases with no external dependencies.
 - Run by `npm test` alongside the existing JS tests.
 
 ### Python (pytest, new harness)
