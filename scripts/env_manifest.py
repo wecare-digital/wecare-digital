@@ -86,13 +86,8 @@ PLAINTEXT_EXPECTATION_KEYS = {"EXPECTED_PROVIDER_MID", "EXPECTED_CONFIGURATION_N
 
 # Published aliases can intentionally carry immutable configuration that differs from $LATEST.
 # Track only the alias-scoped keys whose difference is part of the deployment contract. This keeps
-# the manifest honest for dual-catalog publication without snapshotting every alias environment.
-TRACKED_ALIAS_KEYS = {
-    "wecare-meta-catalog-sync": {
-        "live": ("META_CATALOG_ID", "META_TOKEN_FIELD"),
-        "waba2": ("META_CATALOG_ID", "META_TOKEN_FIELD"),
-    },
-}
+# future alias-specific contracts without snapshotting every alias environment.
+TRACKED_ALIAS_KEYS = {}
 
 
 def live_alias_env(lam) -> dict[str, dict[str, str]]:

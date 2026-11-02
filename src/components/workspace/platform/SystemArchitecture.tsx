@@ -879,7 +879,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 │    │                                │                                │               │
 │    ▼                                ▼                                ▼               │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│  │ Core (6) │  │ Msg (22) │  │ AI (4)   │  │ Pay (4)  │  │ Ops (6)  │             │
+│  │ Core (6) │  │ Msg (22) │  │ AI (3)   │  │ Pay (4)  │  │ Ops (6)  │             │
 │  │ Lambda   │  │ Lambda   │  │ Lambda   │  │ Lambda   │  │ Lambda   │             │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘             │
 │       │              │              │              │              │                  │
@@ -1115,7 +1115,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             name: '⚡ Compute — Lambda (42 functions)', children: [
               { name: 'Core (6): contacts, auth, messages, faq, url-shortener' },
               { name: 'Messaging (22): whatsapp, sms, voice, email, push' },
-              { name: 'AI (4): generate-response, query-kb, config, agent' },
+              { name: 'AI (3): query-kb, config, agent' },
               { name: 'Payments (3): razorpay, payments-read, invoice' },
               { name: 'Operations (6): bulk-jobs, dlq, cleanup, billing' },
               { name: 'Ecommerce (3): native-catalog-admin, catalog, image-gen' },

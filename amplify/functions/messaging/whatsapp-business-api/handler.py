@@ -154,8 +154,6 @@ MEDIA_ALLOWED_MIME = {
     'text/plain',
 }
 INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-commerce:live')
-META_CATALOG_SYNC_FUNCTION = os.environ.get(
-    'META_CATALOG_SYNC_FUNCTION', 'wecare-meta-catalog-sync:live')
 # The shared stores (contacts, orders, flow responses, flow logs, status history) resolve in
 # one place, `lambda_utils.shared_tables`, so this Lambda reads and writes the same tables as
 # the inbox, the catalog-order path and the website checkout.
@@ -6304,73 +6302,6 @@ def _svc_path_param(path: str, resource: str) -> str:
     return path.split(marker, 1)[1].split('/')[0].split('?')[0]
 
 
-def _catalog_sync_admin_control(event: Dict[str, Any], method: str,
-                                params: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
-    """Admin-only durable proposal/approval/apply/readback proxy to the private sync Lambda.
-
-    API Gateway itself uses AuthorizationType NONE for this shared integration, so the application
-    guard is the security boundary. Re-run require_auth with Admin explicitly: the earlier generic
-    guard proves a user, this proves the privilege needed to authorize a customer-visible catalog
-    mutation and enforces the configured Admin MFA policy.
-    """
-    auth_result = require_auth(event, required_role='Admin')
-    if auth_result is not None:
-        return auth_result
-
-    auth = event.get('_auth') or {}
-    actor = str(auth.get('username') or auth.get('email') or '').strip()
-    if not actor:
-        return _resp(403, {'error': 'Authenticated administrator identity required'})
-
-    if method == 'GET':
-        action = str(params.get('action') or 'inspect').strip().lower()
-        if action == 'inspect':
-            payload = {'inspect': True}
-        elif action == 'status':
-            plan_hash = str(params.get('planHash') or '').strip().lower()
-            if not plan_hash:
-                return _resp(400, {'error': 'planHash required'})
-            payload = {'catalogAction': 'status', 'planHash': plan_hash}
-        else:
-            return _resp(400, {'error': 'Unsupported catalog sync read action'})
-    elif method == 'POST':
-        action = str(body.get('action') or '').strip().lower()
-        if action not in ('propose', 'approve', 'apply', 'readback'):
-            return _resp(400, {'error': 'Unsupported catalog sync action'})
-        payload = {'catalogAction': action}
-        if action == 'propose':
-            payload['proposedBy'] = actor
-        else:
-            plan_hash = str(body.get('planHash') or '').strip().lower()
-            if not plan_hash:
-                return _resp(400, {'error': 'planHash required'})
-            payload['planHash'] = plan_hash
-            if action == 'approve':
-                payload['approvedBy'] = actor
-    else:
-        return _resp(405, {'error': 'GET/POST only'})
-
-    response = lambda_client.invoke(
-        FunctionName=META_CATALOG_SYNC_FUNCTION,
-        InvocationType='RequestResponse',
-        Payload=json.dumps(payload).encode('utf-8'),
-    )
-    if response.get('FunctionError'):
-        logger.error(json.dumps({
-            'event': 'catalog_sync_control_invoke_failed',
-            'action': payload.get('catalogAction') or 'inspect',
-        }))
-        return _resp(502, {'error': 'Catalog sync control is unavailable'})
-
-    raw = response.get('Payload').read()
-    result = json.loads(raw.decode('utf-8')) if raw else {}
-    if not isinstance(result, dict):
-        return _resp(502, {'error': 'Catalog sync control returned an invalid response'})
-
-    status = 200 if result.get('ok') is not False else 409
-    if result.get('reason') == 'approval_store_unavailable':
-        status = 503
-    return _resp(status, result)
 
 
 #: Route fragments that carry CUSTOMER-SUBMITTED records and therefore need Operator
@@ -7490,7 +7421,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _resp(405, {'error': 'POST only'})
 
         elif '/catalog-sync' in path:
-            return _catalog_sync_admin_control(event, method, params, body)
+            return _resp(410, {'error': 'Meta Commerce catalog synchronization is retired'})
 
         elif '/ai-routing' in path:
             if method == 'GET':
