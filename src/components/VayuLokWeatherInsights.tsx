@@ -244,12 +244,12 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
   if ( !INSIGHTS_URL ) return null;
 
   return (
-    <section className="vl-wi" aria-label="Weather history">
+    <section className="vl-wi" aria-label="Historical weather model data">
       { includeUiStyles && <VayuLokUiStyles /> }
       <div className="vl-wi-head">
         <div>
-          <VayuLokSectionHeading>Weather history</VayuLokSectionHeading>
-          <p>Past weather for { placeName || 'this place' }</p>
+          <VayuLokSectionHeading>Historical weather data</VayuLokSectionHeading>
+          <p>Past modelled weather for { placeName || 'this place' }</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (
@@ -268,7 +268,11 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         </div>
       </div>
 
-      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading history…</span> }
+      <p className="vl-wi-source-note">
+        These Google long-term weather records describe modelled forecast conditions,
+        not independently verified weather-station observations or official alerts.
+      </p>
+      { status === 'loading' && <span className="vl-wi-sr" role="status">Loading model data…</span> }
 
       { status === 'unavailable' && (
         <div className="vl-wi-note" role="status">
@@ -295,7 +299,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           ) }
           { data.coverageStart && data.coverageEnd && (
             <p className="vl-wi-coverage" data-wc-no-translate="true">
-              Data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
+              Model-data coverage: { new Date( data.coverageStart ).toLocaleDateString( 'en-IN' ) } – { new Date( data.coverageEnd ).toLocaleDateString( 'en-IN' ) }
               { Number.isFinite( data.gridDistanceKm ) ? ` · nearest grid ~${Number( data.gridDistanceKm ).toFixed( 1 )} km` : '' }
             </p>
           ) }
@@ -305,7 +309,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
             <div><span>High</span><strong data-wc-no-translate="true">{ fmt( data.maxTemperatureC, '°C' ) }</strong></div>
             <div><span>Rain</span><strong data-wc-no-translate="true">{ fmt( data.precipitationMm, ' mm' ) }</strong></div>
             <div><span>Humidity</span><strong data-wc-no-translate="true">{ fmt( data.meanHumidityPct, '%' ) }</strong></div>
-            <div><span>Hours</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
+            <div><span>Model hours</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
           </div>
 
           { monthly.length > 1 && (
@@ -355,6 +359,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         .vl-wi-range::-webkit-scrollbar{height:6px}
         .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-coverage{margin:var(--space-3) 0 0;color:var(--public-muted);font-size:var(--vl-meta-size,var(--public-meta-size));line-height:1.5}
+         .vl-wi-source-note{margin:var(--space-3) 0 0;color:var(--public-muted);font-size:var(--vl-meta-size,var(--public-meta-size));line-height:1.5}
         .vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
         .vl-wi-grid>div{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);background:#fff}
