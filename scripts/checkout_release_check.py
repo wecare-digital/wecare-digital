@@ -98,6 +98,14 @@ def check_checkout_basket_source():
         failures.append('checkout: native WhatsApp pricing, sender, or review guard missing')
     if ("deliveryLabel?: 'Delivery' | 'Express'" not in quote):
         failures.append('checkout: quote parser must retain server-owned Express label')
+    # The only checkout UI must show each approved GST-exclusive money component
+    # separately, never fold a 29-item taxable base into a fake gross catalog price.
+    required_price_labels = (
+        "Base price subtotal", "Supply GST (18%)", "Delight (0.5%)",
+        "Convenience (2.5%)", "GST on convenience (18%)", "AMOUNT PAYABLE",
+    )
+    if any(label not in body for label in required_price_labels):
+        failures.append('checkout: unified owner-approved price-breakdown label missing')
     return failures
 
 
