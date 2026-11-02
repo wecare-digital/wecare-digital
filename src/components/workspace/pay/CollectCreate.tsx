@@ -1,0 +1,69 @@
+import React from 'react';
+import * as api from '../../../api/client';
+import * as collectApi from '../../../api/collect';
+import {blankCollectLine,collectDraft,collectInputKey,type CollectLine} from '../../../lib/collect';
+import {useConfirm} from '../../../contexts/ConfirmContext';
+import PaymentCustomerPicker from './PaymentCustomerPicker';
+
+export interface CollectPreview {src:string;label:string;}
+const PENDING_KEY='wecare.collect.pending-create.v1';
+export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:CollectPreview|null)=>void;onCreated:()=>void}) {
+  const confirm=useConfirm();
+  const [customer,setCustomer]=React.useState<api.Contact|null>(null),[gstin,setGstin]=React.useState('');
+  const [lines,setLines]=React.useState<CollectLine[]>([blankCollectLine()]);
+  const [quote,setQuote]=React.useState<{key:string;value:api.InvoiceEnginePreview}|null>(null);
+  const [previewRevision,setPreviewRevision]=React.useState(0),[loading,setLoading]=React.useState(false),[busy,setBusy]=React.useState(false),[notice,setNotice]=React.useState('');
+  const [pending,setPending]=React.useState(''),[created,setCreated]=React.useState<api.Invoice|null>(null);
+  const flight=React.useRef(false),currentKey=React.useRef('');
+  const request=React.useMemo(()=>collectDraft(customer,lines,gstin),[customer,lines,gstin]);
+  const key=collectInputKey(request);
+  React.useLayoutEffect(()=>{currentKey.current=key;},[key]);
+  const ready=!!key&&quote?.key===key&&!!quote.value.previewFingerprint&&!!quote.value.previewImageBase64&&!loading;
+  React.useEffect(()=>{try{const saved=sessionStorage.getItem(PENDING_KEY);if(saved)setPending(saved);}catch{/* The server reference still guards this page's intent. */}},[]);
+  React.useEffect(()=>{let active=true;setQuote(null);onPreview(null);setLoading(!!key);if(!request||!key)return()=>{active=false;};
+    const timer=setTimeout(()=>{void collectApi.quoteCollect(request).then(value=>{
+      if(!active||currentKey.current!==key)return;
+      if(!value?.previewFingerprint||!value.previewImageBase64){setNotice('A current server quote and invoice image are required before confirmation. Reload the customer if their saved details changed.');return;}
+      setQuote({key,value});setNotice('');onPreview({src:`data:image/png;base64,${value.previewImageBase64}`,label:'Server-rendered draft · no invoice number issued'});
+    }).catch(()=>{if(active)setNotice('Server preview could not be loaded. Nothing can be confirmed yet.');}).finally(()=>{if(active)setLoading(false);});},350);
+    return()=>{active=false;clearTimeout(timer);};
+  },[key,request,onPreview,previewRevision]);
+  const select=(c:api.Contact|null)=>{setCustomer(c);setGstin(c?.gstin||'');setCreated(null);};
+  const update=(index:number,field:keyof CollectLine,value:string)=>setLines(rows=>rows.map((row,n)=>n===index?{...row,[field]:value}:row));
+  const recover=async()=>{if(!pending||flight.current)return;flight.current=true;setBusy(true);try{const rows=await collectApi.collectInvoices(pending);if(rows.length===1){setCreated(rows[0]);setPending('');sessionStorage.removeItem(PENDING_KEY);setNotice('The existing invoice was found. No new invoice or payment request was sent. Open Log to review it.');onCreated();}else setNotice('Creation is not yet reconciled. Keep this request pending and check Log; do not raise a second invoice.');}catch{setNotice('Recovery read failed. The pending request is retained.');}finally{flight.current=false;setBusy(false);}};
+  const create=async()=>{if(!ready||!request||!quote||pending||flight.current)return;flight.current=true;setBusy(true);const reviewedKey=key,reviewed=quote.value;
+    try{const yes=await confirm({title:'Confirm custom invoice and payment template',message:`${customer?.name} · ${customer?.phone}. Amount ₹${reviewed.total}. Create this invoice and send one approved Review and Pay template?`,confirmText:'Create & send template'});if(!yes)return;
+      if(currentKey.current!==reviewedKey){setNotice('The draft changed. Review the new server preview.');return;}
+      const reference='WD-PAY-'+crypto.randomUUID().replaceAll('-','').slice(0,16).toUpperCase();
+      // Persist only the opaque recovery reference, never customer data or credentials.
+      try{sessionStorage.setItem(PENDING_KEY,reference);}catch{setNotice('This browser cannot retain the invoice recovery reference. Enable session storage before creating.');return;}
+      setPending(reference);
+      const result=await collectApi.createCollectOnce({...request,referenceId:reference,confirmedPreviewFingerprint:reviewed.previewFingerprint});
+      if(!result.ok){if(result.status!==null&&result.status<500){sessionStorage.removeItem(PENDING_KEY);setPending('');setQuote(null);onPreview(null);}setNotice(result.message||'Creation is unconfirmed. Check the saved invoice before another action.');return;}
+      const inv=await collectApi.collectInvoice(result.invoice.invoiceId);setCreated(inv);sessionStorage.removeItem(PENDING_KEY);setPending('');onCreated();
+      if(Number(inv.total).toFixed(2)!==Number(reviewed.total).toFixed(2)){setNotice('Invoice saved, but its total differs from the reviewed preview. Payment was not sent. Review Log.');return;}
+      const sent=await api.sendPaymentLinkResult(inv.invoiceId);
+      setNotice(sent.ok&&sent.data.status==='payment_link_sent'?'Invoice saved. The approved payment request was accepted; delivery and payment remain separate.':'Invoice saved. Payment-request delivery is not confirmed. Check Log before another send.');
+    }catch{setNotice('The action outcome is unconfirmed. Use the saved recovery reference or Log before another action.');}
+    finally{flight.current=false;setBusy(false);}
+  };
+  return <div className="collect-create">
+    {pending&&<div className="recovery" role="status"><strong>Creation needs reconciliation</strong><p>Reference: {pending}</p><button type="button" disabled={busy} onClick={()=>void recover()}>Check saved invoice</button></div>}
+    <fieldset disabled={busy||!!pending||!!created}><PaymentCustomerPicker customer={customer} onSelect={select}/>
+      <section className="card"><h2>Custom invoice items</h2><label>Customer GST number (GSTIN)<input value={gstin} maxLength={15} onChange={e=>setGstin(e.target.value.toUpperCase())} placeholder="If applicable"/></label>
+        {lines.map((line,index)=><div className="line" key={index}><label className="description">Description<input value={line.name} onChange={e=>update(index,'name',e.target.value)}/></label><label>Quantity<input type="number" min="1" step="1" value={line.quantity} onChange={e=>update(index,'quantity',e.target.value)}/></label><label>Unit amount ₹<input type="number" min="0.01" step="0.01" value={line.amount} onChange={e=>update(index,'amount',e.target.value)}/></label><label>GST %<input type="number" min="0" max="100" step="0.01" value={line.gstRate} onChange={e=>update(index,'gstRate',e.target.value)}/></label><button type="button" disabled={lines.length===1} aria-label={`Remove item ${index+1}`} onClick={()=>setLines(rows=>rows.filter((_,n)=>n!==index))}>×</button></div>)}
+        <button type="button" onClick={()=>setLines(rows=>[...rows,blankCollectLine()])}>＋ Add item</button>
+      </section>
+    </fieldset>
+    <section className="card"><h2>Preview &amp; confirmation</h2><p>{loading?'Updating the server quote and image…':ready?'The current server invoice image is shown on the right.': 'Select a saved customer with a complete address and enter valid invoice rows. Confirmation requires a current server quote and image.'}</p>
+      {customer&&!request&&<p role="alert">Check the saved customer address, GSTIN and item values. Use Edit customer to correct their saved details.</p>}
+      {ready&&quote&&<dl>{[['Item base',quote.value.subtotal],['Supply GST',quote.value.tax],['Delight −',quote.value.discount],['Express +',quote.value.shipping],['Convenience +',quote.value.convenienceFeeNet],['Fee GST +',quote.value.convenienceFeeGst],['Customer pays',quote.value.total]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>₹{value}</dd></div>)}</dl>}
+      <button type="button" disabled={busy||!!pending||!request} onClick={()=>setPreviewRevision(n=>n+1)}>Refresh server preview</button>
+      <button className="primary" type="button" disabled={!ready||busy||!!pending||!!created} onClick={()=>void create()}>{busy?'Checking…':'Confirm invoice & send template'}</button>
+      {created&&<p>Saved invoice <strong>{created.invoiceNumber}</strong>. Review payment, receipt and order evidence in Log.</p>}
+      {created&&<button type="button" onClick={()=>{setCreated(null);setLines([blankCollectLine()]);select(null);setNotice('');onPreview(null);}}>New custom invoice</button>}
+      {notice&&<p role="status">{notice}</p>}
+    </section>
+    <style jsx>{`.collect-create{display:grid;gap:18px;min-width:0}fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:18px}.card,.recovery{padding:20px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}h2{font-size:17px;margin:0 0 16px}.line{display:grid;grid-template-columns:minmax(110px,1fr) 65px 100px 70px 28px;gap:8px;align-items:end;margin:16px 0;padding-top:14px;border-top:1px solid var(--border)}label{display:grid;gap:6px;font-size:12px}input,button{min-height:42px;border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--text-primary);font:inherit;min-width:0;width:100%}button{width:auto;cursor:pointer;font-size:12px}button:disabled{opacity:.45;cursor:default}.primary{background:var(--text-primary);color:var(--surface);font-weight:650}p{font-size:12px;line-height:1.7;color:var(--text-muted)}dl{margin:12px 0 20px}dl>div{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:7px 0}dd{margin:0;font-variant-numeric:tabular-nums}@media(max-width:700px){.line{grid-template-columns:1fr 1fr}.description{grid-column:1/-1}.card{padding:16px}}`}</style>
+  </div>;
+}
