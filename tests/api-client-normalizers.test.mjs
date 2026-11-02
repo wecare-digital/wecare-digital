@@ -1,5 +1,5 @@
 // Behavioural regression tests for the pure timestamp/address normalizers in
-// src/api/client.ts (normalizeTimestamp, normalizeEpochSeconds,
+// src/api/core.ts (normalizeTimestamp, normalizeEpochSeconds,
 // normalizeCheckoutAddress). These are pure functions with no external imports,
 // so we extract each function body from the source text, compile it with
 // esbuild and run it in a node:vm with NO injected dependencies. Inputs are
@@ -11,7 +11,11 @@ import vm from 'node:vm';
 
 import { compileTsx, readSource } from './helpers/loadTsx.mjs';
 
-const CLIENT_FILE = 'src/api/client.ts';
+// FEAT-002: the three pure normalizers (normalizeTimestamp, normalizeEpochSeconds,
+// normalizeCheckoutAddress) were relocated verbatim from src/api/client.ts into
+// src/api/core.ts during the domain-module decomposition. Every assertion below is
+// unchanged; only the source file this test slices from moved.
+const CLIENT_FILE = 'src/api/core.ts';
 
 // Brace-walk one `function <name> (...) { ... }` body out of the source.
 function extractFn( source, name ) {

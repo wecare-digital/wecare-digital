@@ -1,8 +1,9 @@
 // Behavioural regression tests for the api-client failure-classification core.
 //
-// src/api/client.ts is a ~7800-line module with heavy top-level imports
-// (aws-amplify, config, lib helpers) that cannot be evaluated wholesale
-// offline. Following the established extract-and-run-in-vm idiom (see
+// src/api/core.ts is the shared engine extracted from the api-client module and
+// still carries heavy top-level imports (aws-amplify, config, lib helpers) that
+// cannot be evaluated wholesale offline. Following the established
+// extract-and-run-in-vm idiom (see
 // tests/whatsapp-analytics.test.mjs) we slice the REAL apiCallResult function
 // body — together with its supporting recordFailure/delay/getAuthToken and the
 // RETRYABLE_KINDS plumbing — out of the source text, compile it with esbuild
@@ -19,7 +20,11 @@ import vm from 'node:vm';
 
 import { compileTsx, readSource } from './helpers/loadTsx.mjs';
 
-const CLIENT_FILE = 'src/api/client.ts';
+// FEAT-002: the shared failure-classification core (RETRYABLE_KINDS .. apiCallResult)
+// was relocated verbatim from src/api/client.ts into src/api/core.ts during the
+// domain-module decomposition. The extracted span and every assertion below are
+// unchanged; only the source file this test slices from moved.
+const CLIENT_FILE = 'src/api/core.ts';
 
 // Extract the real module slice from `const RETRYABLE_KINDS` through the end of
 // `apiCallResult`. That span carries recordFailure, delay, getAuthToken,
