@@ -50,14 +50,12 @@ is why it can sit above nothing and still not shadow the ~123 exported pages. Do
 "fix" it to a plain 200: a 200 on `/<*>` matches unconditionally and would serve the home
 page for the entire site.
 
-A NOTE ON scripts/provision_legacy_redirects.py
------------------------------------------------
-That script rebuilds the rule list as `[its own redirects] + [pre-existing non-redirect
-rules]`, and recognises a rule as its own only when the source is in its `RETIRED` set.
-Its own comments warn that a rule it does not model survives "by luck, not by design".
-The `/mcp` rules are status-200 rewrites, so they land in the non-redirect bucket it
-preserves - the same bucket that has kept `/api/<*>` and `/get/<*>` alive. That is why
-`--verify` exists here: run it after any run of that script.
+SHARED HOSTING RULES AND VERIFICATION
+-------------------------------------
+Changes to Amplify Hosting customRules can replace or reorder the `/mcp` status-200
+rewrites. Preserve `/mcp`, `/mcp/`, shared `/api/<*>` and `/get/<*>` rewrites, and
+the terminal 404 rule when editing hosting configuration. Run `--verify` after
+any change to the live Amplify rules.
 
 Usage
 -----
@@ -136,10 +134,7 @@ HOSTING_RULES = [
 ]
 CATCH_ALL_SOURCE = "/<*>"
 
-# The apex endpoint an MCP client actually talks to. `SITE` matches the constant name in
-# scripts/provision_legacy_redirects.py and scripts/retired_url_probe.py, which probe the same
-# origin over stdlib urllib for the same reason: no credential should be needed to read a
-# public URL.
+# The public apex endpoint; stdlib urllib can check it without credentials.
 SITE = "https://wecare.digital"
 PUBLIC_ENDPOINT = f"{SITE}/mcp"
 

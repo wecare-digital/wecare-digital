@@ -8,7 +8,7 @@ import {
  * /shop/ - page 1 of the catalogue listing.
  *
  * RESTORED 2026-10-10, on owner instruction, after being withdrawn on 2026-10-04: the three
- * /shop 301 rules were removed from scripts/provision_legacy_redirects.py, and '/shop' is in
+ * /shop 301 rules were removed from live Amplify Hosting customRules, and '/shop' is in
  * PUBLIC_PAGE_META (src/pages/_app.tsx) and PUBLIC_EXACT (scripts/generate-sitemap.js). Those two
  * are what make this route render at HTTP 200 with a public shell rather than the staff sign-in
  * page, and keep it in the sitemap. src/test/ShopIndexRedirect.test.ts pins all of it.
