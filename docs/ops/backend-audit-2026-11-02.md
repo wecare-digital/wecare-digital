@@ -18,7 +18,7 @@ Before deleting the remaining Meta sync Lambda and runtime modules: prove no **e
 
 ## Fresh production inventory (2026-11-02)
 
-The `us-east-1` audit enumerated **78 Lambda functions, 83 DynamoDB tables, seven HTTP APIs, 378 primary API routes, 75 fully routed primary API integrations and eight SQS queues**. No orphan integration remained in the primary API. The five recovery-named DynamoDB tables contain data and lack PITR and deletion protection: retain them until a written recovery/backup decision, not a filename-based deletion. The one Lambda with zero 30-day invocations still has a configured API route. The notification-worker SQS mapping is disabled, but its queue was empty at inspection; investigate delivery architecture before enabling it.
+The `us-east-1` audit initially enumerated **78 Lambda functions, 83 DynamoDB tables, seven HTTP APIs, 378 primary API routes, 75 fully routed primary API integrations and eight SQS queues**. No orphan integration remained in the primary API. AWS CloudTrail subsequently recorded deletion of all **five October 30 recovery-copy tables** on 2026-11-02 between 06:53:27 and 06:53:31 UTC by concurrent operations, reducing the current DynamoDB count to **78**. These were real data copies, not empty fixtures. The canonical ProductsTable, SeoToolsTable and SystemConfigTable were rechecked afterward: all are ACTIVE, protected against deletion, and have enabled PITR with current restorable windows. Do not recreate or delete any canonical table during this source cleanup. The one Lambda with zero 30-day invocations still has a configured API route. The notification-worker SQS mapping is disabled, but its queue was empty at inspection; investigate delivery architecture before enabling it.
 
 ## Security
 
