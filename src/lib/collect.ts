@@ -10,7 +10,8 @@ export function latestInvoiceImage(i:Invoice):InvoiceAsset|undefined {
   return [...(i.assets||[])].filter(a=>a.contentType==='image/png'&&a.s3Key)
     .sort((a,b)=>(b.version||1)-(a.version||1)||(b.generatedAt||0)-(a.generatedAt||0))[0];
 }
-export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:string):CreateInvoiceEngineRequest|null {
+export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:string,express:string):CreateInvoiceEngineRequest|null {
+  if(!/^\d+(\.\d{1,2})?$/.test(express)||!Number.isFinite(Number(express))||Number(express)<0)return null;
   if(!customer||!customer.name?.trim()||!customer.phone||customer.archivedAt||customer.deletedAt||!lines.length)return null;
   if(lines.some(l=>!l.name.trim()||!/^\d+(\.\d{1,2})?$/.test(l.amount)||Number(l.amount)<=0||!/^\d+$/.test(l.quantity)||Number(l.quantity)<1||!/^\d+(\.\d{1,2})?$/.test(l.gstRate)||Number(l.gstRate)>100))return null;
   const a=addressFieldsFromContact(customer);
@@ -20,7 +21,7 @@ export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:str
     customerEmail:customer.email||'',shippingAddress:contactDeliveryAddress(customer),billingAddress:contactDeliveryAddress(customer),
     addressLine1:a.addressLine1,addressLine2:a.addressLine2,city:a.city,state:a.state,postalCode:a.postalCode,
     landmark:a.locality,countryCode:a.countryCode||countryCodeForName(a.country),goodsType:'physical-goods',
-    buyerGstin:gstin||undefined,entryPoint:'pay_flow',purpose:'WECARE.DIGITAL',
+    shipping:Number(express),buyerGstin:gstin||undefined,entryPoint:'pay_flow',purpose:'WECARE.DIGITAL',
     items:lines.map(l=>({name:l.name.trim(),amount:Number(l.amount),quantity:Number(l.quantity),gstRate:Number(l.gstRate)}))};
 }
 
