@@ -1,14 +1,17 @@
 /**
  * Offline, fail-closed UI regression gate. Runs after npm ci and before tsc.
  * No network, credentials, browser session, payment or WhatsApp side effects.
- * TypeScript AST checks real imports (including dynamic import(...)), not comments.
+ * esbuild transpilation checks real runtime imports (including dynamic imports),
+ * and tsc validates type-only imports later in this pipeline.
  */
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require('typescript');
+// TypeScript 7 no longer provides the old ScriptTarget/transpileModule JS API.
+// esbuild is already a direct, locked devDependency and supports TS + TSX here.
+const esbuild = require('esbuild');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -34,20 +37,18 @@ function existsModule(from, specifier) {
 }
 
 function collectLocalImports(file) {
-  const source = read(file);
-  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const imports = [];
-  function visit(node) {
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      imports.push(node.moduleSpecifier.text);
-    } else if (ts.isCallExpression(node) && node.arguments.length && ts.isStringLiteral(node.arguments[0]) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
-      imports.push(node.arguments[0].text);
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(parsed);
-  return imports.filter(spec => spec.startsWith('.'));
+  // Transform only: this never executes the page. esbuild removes comments,
+  // rewrites static imports/exports and dynamic import() as CJS require calls.
+  // It is intentionally fail-closed if the TS/TSX source cannot be transformed.
+  const code = esbuild.transformSync(read(file), {
+    loader: file.endsWith('.tsx') ? 'tsx' : 'ts',
+    format: 'cjs',
+    target: 'es2022',
+    legalComments: 'none',
+  }).code;
+  return [...code.matchAll(/\brequire\(\s*["']([^"']+)["']\s*\)/g)]
+    .map(match => match[1])
+    .filter(spec => spec.startsWith('.'));
 }
 
 for (const file of watched) {
@@ -100,10 +101,12 @@ assert.match(provider, /const duration = \(type === 'error' \|\| type === 'warni
 // Execute the ACTUAL shipped TypeScript policies in isolation. Not a duplicate
 // hand-written approximation; this catches unsafe text and vocabulary drift.
 function loadTypeScript(file, mockRequire) {
-  const output = ts.transpileModule(read(file), { compilerOptions: {
-    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-    jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
-  }}).outputText;
+  const output = esbuild.transformSync(read(file), {
+    loader: file.endsWith('.tsx') ? 'tsx' : 'ts',
+    format: 'cjs',
+    target: 'es2022',
+    jsx: 'automatic',
+  }).code;
   const module = { exports: {} };
   const sandbox = { module, exports: module.exports, require: mockRequire };
   vm.runInNewContext(output, sandbox, { timeout: 4000, filename: file });
