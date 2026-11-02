@@ -439,7 +439,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 const message = response.kind === 'refused'
                     ? response.message
                     : response.kind === 'rate'
-                        ? 'Too many attempts. Try again shortly.'
+                        ? publicActionText( 'blocked' )
                         : 'We could not verify this file for website payment. Nothing has been charged.';
                 setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', message } } ) );
                 if ( response.kind === 'refused' ) void loadFiles();
