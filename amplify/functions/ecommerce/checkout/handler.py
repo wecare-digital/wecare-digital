@@ -2094,6 +2094,12 @@ def _website_quote(identity: customer_auth.CustomerIdentity, body: Dict[str, Any
         charges = _order_charges(spec, items, int(snapshot.quote.total_payable_paise))
         if not items or charges is None:
             return answer(503, {"error": "QUOTE_BREAKDOWN_UNAVAILABLE"})
+        # The checkout labels Express only when the frozen server delivery
+        # option actually says Express. Never guess from a ₹25/₹15 amount.
+        frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+        delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
+        if delivery.get("optionId") in ("express", "contribute-express"):
+            charges["deliveryLabel"] = "Express"
         return answer(200, {"status": "QUOTE_READY",
                             "quote": {"currency": "INR",
                                       "items": items,
@@ -3080,6 +3086,17 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
                                    "message": "We could not price this cart. Please try "
                                               "again."}, origin)
+
+    # Browser-led WhatsApp checkout supplies the exact quote the customer reviewed.
+    # Compare it BEFORE any payment reference, attempt, provider call or send.
+    # Internal Meta-origin orders and legacy callers omit this optional precondition.
+    if "expectedTotalPaise" in body:
+        reviewed_paise = body.get("expectedTotalPaise")
+        if type(reviewed_paise) is not int or reviewed_paise <= 0:
+            return cors_response(400, {"error": "EXPECTED_TOTAL_INVALID"}, origin)
+        if reviewed_paise != amount_paise:
+            return cors_response(409, {"error": "QUOTE_CHANGED",
+                                       "message": "Review the updated total before paying."}, origin)
 
     if required_staff_contribution:
         # Last-before-write check: even if the staff preflight saw ₹300,
