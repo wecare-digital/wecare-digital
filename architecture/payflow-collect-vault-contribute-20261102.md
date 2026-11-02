@@ -102,23 +102,27 @@ The approved FLOW button embedded inside a `type=template` message is legal and
 is **not** a standalone `type=interactive` send. Do not create a second payable
 template, use a retired Vault offer or modify the canonical payment rail.
 
-## Removed-frontend directory migration and safeguards
+## Frontend migration and build repair
 
-- `src/components/workspace/service/` and `src/components/workspace/seo/`
-  were deleted. Do **not** silently restore old interactive menu/payment code.
-- New Vault UI resides at `src/components/workspace/pay/VaultWorkbench.tsx`.
-  Historical journey metadata adapter is read-only:
-  `src/components/workspace/pay/VaultJourneyPreview.ts`.
-- `src/pages/workspace/service/index.tsx` retains read-only server prices,
-  invoice ledgers, F003 document evidence and links to canonical Pay & Flow.
-  It does not pretend a deleted review/upload tool still exists.
-- `src/pages/workspace/content/index.tsx` keeps its route and short links,
-  but marks deleted Blog/SEO editors as retired instead of importing missing
-  modules or inventing editing APIs.
-- Runtime web production remains on the **last successful Amplify release**
-  until a new branch passes `npx tsc --noEmit` and the Amplify build gates.
-- No infrastructure, secure files, payment attempts, messages, templates,
-  customer entitlements or DynamoDB financial records are deleted here.
+- Build #510 failed after `src/components/workspace/service/` and
+  `src/components/workspace/seo/` were deleted while still imported.
+  PR #2193 **independently restored those modules** and production Amplify
+  build #511 succeeded on 2 November 2026. This proposal does **not** delete
+  or degrade the restored Blog, SEO, Drop Docs, shipment or service tools.
+- The new canonical Vault UI lives at
+  `src/components/workspace/pay/VaultWorkbench.tsx`, linked from Pay & Flow
+  and any lingering Service/Vault route during its client-side redirect.
+- Service/Contribute opens the existing read-only
+  `ContributePaymentPlan` rather than the legacy Contribute creator;
+  Contribute/Create is exclusively `/workspace/payments?view=contribute&tab=create`.
+- The historical journey metadata adapter in
+  `src/components/workspace/pay/VaultJourneyPreview.ts` is display-only:
+  it excludes retired `ready_offer` steps and cannot send anything.
+- The earlier Service and SEO components remain for their other, separately
+  authorized operations until an independently reviewed migration retires
+  their full feature contracts.
+- No infrastructure, files, payment attempts, messages, Meta templates,
+  customer entitlements or DynamoDB financial records are deleted by this PR.
 
 ## Release validation checklist
 
