@@ -98,7 +98,7 @@ SMS_FUNCTION = os.environ.get('SMS_FUNCTION', 'wecare-sms-aws:live')
 # Messaging and matching the DLT content. Never ignore the deployment flag: that
 # previously kept enqueueing an SMS whose sender ID did not exist in the account.
 POST_CALL_SMS_ENABLED = os.environ.get(
-    'POST_CALL_SMS_ENABLED', 'false').strip().lower() == 'true
+    'POST_CALL_SMS_ENABLED', 'false').strip().lower() == 'true'
 DLT_TEMPLATE_KEY = os.environ.get('DLT_TEMPLATE_KEY', 'ivr-default')
 IVR_SMS_BODY = os.environ.get('IVR_SMS_BODY', (
     "Thanks for contacting WECARE.DIGITAL!\n\n"
