@@ -1056,7 +1056,7 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     # existing convenience-fee line this does NOT invent a retailer_id. Both
     # representations reconcile exactly to the checkout's separate GST row.
     if supply_gst_paise:
-        if len(items) == 1:
+        if len(items) == 1 and items[0]["quantity"] == 1:
             items[0]["amount"]["value"] += supply_gst_paise
             items[0]["name"] = (items[0]["name"] + " (incl. GST 18%)")[:60]
         else:

@@ -171,6 +171,21 @@ class UnifiedShopPricingTests(unittest.TestCase):
         self.assertEqual(terms["expressPaise"], express_policy.CONTRIBUTE_EXPRESS_PAISE)
         self.assertEqual(terms["totalPayablePaise"], 30_000)
 
+    def test_meta_single_sku_multiple_quantity_reconciles_exact_subtotal(self):
+        import ast
+        from typing import Dict, Any
+        path=Path(__file__).resolve().parents[1]/'amplify/functions/ecommerce/checkout/handler.py'
+        node=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='_cart_order_details')
+        env={'Dict':Dict,'Any':Any,'_native_product_reader':lambda:lambda pid:{'title':'Sample'},'EXPECTED_CONFIGURATION_NAME':'offline'}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),env)
+        for quantity in (1,2,3):
+            items=[{'lineItemId':'sku-one','productId':'one','variantId':'sku-one','quantity':quantity,'unitPricePaise':9900}]
+            snapshot=unified_pricing.quote_from_base_snapshot(self.base_snapshot(items))
+            details=env['_cart_order_details'](snapshot,'offline',{}, {},1800000000,requires_delivery=False)
+            order=details['order']
+            self.assertEqual(sum(line['amount']['value']*line['quantity'] for line in order['items']),order['subtotal']['value'])
+            self.assertEqual(order['subtotal']['value']+order['shipping']['value']+order['tax']['value']-order['discount']['value'],details['total_amount']['value'])
+
     def test_payment_handler_preserves_one_source_and_meta_itemization(self):
         path = (Path(__file__).resolve().parents[1]
                 / "amplify/functions/ecommerce/checkout/handler.py")
