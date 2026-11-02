@@ -104,11 +104,17 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
     if (invoice && next === 'invoices') query.invoice = invoice;
     navigate(query);
   };
-  const nav = <nav className="payment-rail" aria-label="Payment sections">
-    <p className="rail-label">PAYMENTS</p>
-    {SECTION_OPTIONS.map(option=><button type="button" key={option.value} aria-pressed={section===option.value} onClick={()=>changeSection(option.value)}><strong>{option.label}</strong><small>{option.value==='collect'?'Invoices & collections':option.value==='vault'?'Files & paid access':'₹300 contribution'}</small></button>)}
-    <div className="rail-help"><strong>One customer. One request.</strong><p>Review the customer and total before confirming a WhatsApp send.</p></div>
-  </nav>;
+  const paymentTypePicker = (
+    <label className="payment-type-picker" htmlFor="payment-type">
+      <span>Payment type</span>
+      <select id="payment-type" value={section} onChange={event => {
+        const choice = SECTION_OPTIONS.find(option => option.value === event.target.value);
+        if (choice) changeSection(choice.value);
+      }}>
+        {SECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+  );
 
   return (
     <>
@@ -121,8 +127,8 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
       >
         {() => (
           <div className="payment-console">
-            <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div><span>Live customer records · approved WhatsApp payments</span></header>
-            <div className="console-layout"><aside>{nav}</aside><div className="console-main">
+            <header className="console-header"><div><p>WORKSPACE</p><h1>Payments</h1></div>{paymentTypePicker}</header>
+            <div className="console-layout"><div className="console-main">
             <nav className="console-tools" aria-label="Payment tools">
               <Link className={!showFramework && legacy!=='defaults' && tab!=='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'create'}}}>Workspace</Link>
               <Link className={!showFramework && tab==='ledger'?'current':''} href={{pathname:'/workspace/payments',query:{view:section,tab:'ledger'}}}>Records</Link>
@@ -261,7 +267,17 @@ const PaymentsPage: React.FC<PageProps> = ({signOut, user}) => {
         )}
       </PageShell>
       <style jsx>{`
-        .payment-console{width:100%;min-width:0;padding:22px 0 40px}.console-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 0 22px;border-bottom:1px solid var(--border);margin-bottom:22px}.console-header p,.rail-label{font-size:10px;letter-spacing:.14em;font-weight:750;color:var(--text-muted);margin:0 0 5px}.console-header h1{font-size:30px;line-height:1.1;margin:0}.console-header>span{font-size:12px;color:var(--text-muted)}.console-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:30px;align-items:start}.console-main{min-width:0}.console-tools{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 24px;border-bottom:1px solid var(--border);padding-bottom:10px}.console-tools :global(a){display:inline-flex;align-items:center;min-height:42px;padding:9px 15px;text-decoration:none;font-size:13px;color:var(--text-muted);border-radius:8px}.console-tools :global(a.current){color:var(--text-primary);background:var(--bg-secondary);font-weight:750}.payment-rail{display:grid;gap:8px}.payment-rail button{display:grid;gap:4px;text-align:left;border:1px solid transparent;padding:14px;border-radius:12px;min-height:66px;color:var(--text-primary);background:transparent;cursor:pointer;font:inherit}.payment-rail button[aria-pressed=true]{background:var(--lime);border-color:var(--accent)}.payment-rail small{font-size:11px;color:var(--text-muted)}.rail-help{margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}.rail-help strong{font-size:12px}.rail-help p{font-size:12px;color:var(--text-muted);line-height:1.6}.console-tools :global(a:focus-visible),.payment-rail button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}@media(max-width:900px){.console-layout{grid-template-columns:1fr;gap:18px}.payment-rail{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.rail-label,.rail-help{display:none}.payment-rail button{padding:12px;min-height:58px}.console-header>span{display:none}.console-tools{margin-bottom:18px}.console-header{margin-bottom:16px;padding-bottom:16px}}@media(max-width:430px){.payment-rail button{padding:10px 7px}.payment-rail small{font-size:10px}.console-tools :global(a){padding:8px 10px;font-size:12px}}
+        .payment-console{width:100%;min-width:0;padding:22px 0 40px}
+        .console-header{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:0 0 22px;border-bottom:1px solid var(--border);margin-bottom:22px}
+        .console-header p{font-size:10px;letter-spacing:.14em;font-weight:750;color:var(--text-muted);margin:0 0 5px}.console-header h1{font-size:30px;line-height:1.1;margin:0}
+        .payment-type-picker{display:grid;gap:7px;min-width:240px;font-size:12px;font-weight:650;color:var(--text-muted)}
+        .payment-type-picker select{width:100%;min-height:46px;padding:10px 36px 10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font:inherit;font-size:15px;font-weight:650;color:var(--text-primary);cursor:pointer}
+        .payment-type-picker select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+        .console-layout,.console-main{width:100%;min-width:0}
+        .console-tools{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 24px;border-bottom:1px solid var(--border);padding-bottom:10px}.console-tools :global(a){display:inline-flex;align-items:center;min-height:42px;padding:9px 15px;text-decoration:none;font-size:13px;color:var(--text-muted);border-radius:8px}.console-tools :global(a.current){color:var(--text-primary);background:var(--bg-secondary);font-weight:750}.console-tools :global(a:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
+        @media(max-width:600px){.console-header{align-items:stretch;flex-direction:column;gap:18px;margin-bottom:16px;padding-bottom:16px}.payment-type-picker{min-width:0}.console-tools{margin-bottom:18px}}
+        @media(max-width:430px){.console-tools :global(a){padding:8px 10px;font-size:12px}}
+
 
         .pay-collect-create-links{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 16px}
         .pay-collect-create-links :global(a){display:inline-flex;align-items:center;min-height:44px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--surface);color:var(--text-primary);font-size:12px;font-weight:750;text-decoration:none}
