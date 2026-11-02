@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WECARE daily CloudWatch log retention for groups with no existing policy. Preserves explicit retention and security logs.
+Resources:
+  RetentionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/wecare-log-retention-enforcer
+      RetentionInDays: 3
+  RetentionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchRetentionOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: '*'
+              - Effect: Allow
+                Action: logs:PutRetentionPolicy
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/wecare-log-retention-enforcer:*'
+  RetentionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: wecare-log-retention-enforcer
+      Role: !GetAtt RetentionRole.Arn
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import boto3
+          import logging
+          log = logging.getLogger(__name__)
+          log.setLevel(logging.INFO)
+          logs = boto3.client("logs")
+
+          def desired(name):
+              n = name.lower()
+              if n.startswith("/aws/apigateway/") or any(k in n for k in ("auth", "cognito", "checkout", "payment", "razorpay", "billing", "invoice", "secure-files")):
+                  return 14
+              if any(k in n for k in ("whatsapp", "waba", "message", "notification", "sms", "rcs")):
+                  return 7
+              return 3
+
+          def handler(event, context):
+              changed = []
+              for page in logs.get_paginator("describe_log_groups").paginate():
+                  for item in page["logGroups"]:
+                      name = item["logGroupName"]
+                      if name.startswith("aws-waf-logs-") or "cloudtrail" in name.lower() or "audit" in name.lower():
+                          continue
+                      if item.get("retentionInDays") is not None:
+                          continue
+                      days = desired(name)
+                      logs.put_retention_policy(logGroupName=name, retentionInDays=days)
+                      changed.append({"group": name, "days": days})
+              log.info("Retention applied to %d new groups", len(changed))
+              return {"updated": len(changed)}
+  RetentionSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Apply default retention to newly created routine log groups once daily
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt RetentionFunction.Arn
+          Id: RetentionFunction
+  RetentionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RetentionFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt RetentionSchedule.Arn
