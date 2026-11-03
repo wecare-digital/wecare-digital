@@ -277,6 +277,48 @@ const WsNotionTheme: React.FC = () => (
     border-radius:12px;
     text-decoration:none;
   }
+  /* Official S3 SVG has large whitespace in its 5000x5000 viewBox.
+     Crop only the whitespace inside the white frame; do not distort the mark.
+     Keep the public WECARE.DIGITAL two-line wordmark next to the actual SVG. */
+  .wsauth-shell.ws-notion-auth .wsauth-brandlockup {
+    display:inline-flex;
+    align-items:center;
+    gap:11px;
+    max-width:100%;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-svg-frame {
+    width:54px;
+    height:54px;
+    flex:0 0 54px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+    border-radius:12px;
+    background:#fff;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-svg-frame img {
+    display:block;
+    width:166px;
+    height:166px;
+    max-width:none;
+    flex:0 0 166px;
+    object-fit:contain;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-wordmark {
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    line-height:1.06;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-wordmark strong {
+    font-size:22px;
+    font-weight:800;
+    letter-spacing:-.04em;
+    color:var(--ws-login-ink);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-wordmark-dot {color:#ff0040}
+
   .wsauth-shell.ws-notion-auth .wsauth-public-home:focus-visible,
   .wsauth-shell.ws-notion-auth :is(.wsauth-form-footer a,.wsauth-backsite):focus-visible {
     outline:3px solid var(--ws-login-deep);
@@ -700,6 +742,9 @@ const WsNotionTheme: React.FC = () => (
     .wsauth-shell.ws-notion-auth .wsauth-form-frame {gap:25px}
   }
   @media(max-width:420px) {
+    .wsauth-shell.ws-notion-auth .wsauth-svg-frame {width:48px;height:48px;flex-basis:48px}
+    .wsauth-shell.ws-notion-auth .wsauth-svg-frame img {width:148px;height:148px;flex-basis:148px}
+    .wsauth-shell.ws-notion-auth .wsauth-wordmark strong {font-size:20px}
     .wsauth-shell.ws-notion-auth .wsauth-story {padding-inline:18px}
     .wsauth-shell.ws-notion-auth .wsauth-signin-side {padding-inline:18px}
     .wsauth-shell.ws-notion-auth .wsauth-form-header h2 {font-size:34px}
