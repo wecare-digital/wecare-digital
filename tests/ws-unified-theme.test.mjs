@@ -115,7 +115,18 @@ test('login has a real split design, homepage logo, Material 3 glyphs and real p
     assert.ok(icons.includes("'" + name + "'"), 'Material 3 font subset must contain ' + name);
     assert.ok(auth.includes("symbol('" + name + "')"), 'login must use typed Material 3 icon ' + name);
   }
-  assert.ok(auth.includes('<BrandLockup compact />'), 'use the actual public site brand asset');
+  assert.ok(auth.includes("https://wecare.digital/get/o/stream/media/m/wecare-digital.svg"),
+    'login logo must use the actual verified WECARE SVG hosted in the canonical S3 media prefix');
+  assert.ok(!auth.includes('<BrandLockup compact />'),
+    'the PNG homepage logo must not override the requested S3 SVG');
+  assert.ok(auth.includes('<span className="wsauth-svg-frame" aria-hidden="true">'),
+    'SVG icon is decorative next to the visible WECARE.DIGITAL name');
+  assert.ok(auth.includes('<strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>'),
+    'retain public two-line WECARE.DIGITAL brand treatment');
+  assert.ok(auth.includes('wsauth-form-kicker">WECARE.DIGITAL</p>'),
+    'keep the requested WECARE.DIGITAL login section label');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-svg-frame img'),
+    'the original SVG viewBox whitespace must be cropped without changing its artwork');
   assert.ok(auth.includes('className="wsauth-layout"'), 'a real responsive layout is required');
   assert.ok(auth.includes('className="wsauth-workbook"'), 'the split-panel workspace preview is required');
   assert.ok(theme.includes('grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)'),
