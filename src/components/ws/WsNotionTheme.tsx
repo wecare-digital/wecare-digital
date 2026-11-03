@@ -338,10 +338,12 @@ const WsNotionTheme: React.FC = () => (
     opacity:1;
   }
   /* Chrome/Android autofill must not recolor the lime-tint field yellow.
-     The inset fill is not a visible border; focus outline remains separate. */
+     Browser autofill needs an OPAQUE inset color to cover its native yellow.
+     #f5fde0 is exactly the #d1f470 public tint at 22% over the white canvas,
+     not a new brand color. The inset fill is not a border or focus ring. */
   .wsauth-shell.ws-notion-auth .amplify-input:-webkit-autofill {
     -webkit-text-fill-color:var(--ws-login-ink)!important;
-    -webkit-box-shadow:0 0 0 1000px var(--ws-login-field) inset!important;
+    -webkit-box-shadow:0 0 0 1000px #f5fde0 inset!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-field-group__control {
     background:var(--ws-login-field);
