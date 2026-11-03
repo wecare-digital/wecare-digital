@@ -40,6 +40,7 @@ import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import CustomerVaultChrome from '../public/CustomerVaultChrome';
+import { ConfirmProvider, useConfirm } from '../../contexts/ConfirmContext';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
@@ -118,7 +119,20 @@ interface FilesPageProps {
 
 type FileFeedback = { kind: 'status' | 'error'; message: string; source: 'download' | 'website' | 'whatsapp' };
 
+/* /vault bypasses _app's protected ConfirmProvider and its public chrome
+   on purpose. The provider lives inside this exact-file page, so ownership
+   checks and silent redirects still work, and address approval cannot crash
+   with "useConfirm must be used within a ConfirmProvider". */
 export default function FilesPage ( { targetFileId }: FilesPageProps ) {
+    return (
+        <ConfirmProvider>
+            <VaultFileContent targetFileId={ targetFileId } />
+        </ConfirmProvider>
+    );
+}
+
+function VaultFileContent ( { targetFileId }: FilesPageProps ) {
+    const confirm = useConfirm();
     const [ stage, setStage ] = useState<Stage>( 'loading' );
     const [ error, setError ] = useState( '' );
 
@@ -507,7 +521,48 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 return;
             }
 
-            const result = await api.requestMySecureFilePayment( file.fileId );
+            // Vault is always physical goods. The authenticated customer must
+            // affirm the CURRENT saved shipping address; profile presence alone
+            // never authorizes a payment request.
+            const profile = identityReady.data || {};
+            const savedAddress = profile.address;
+            const revision = Number( profile.checkoutAddressUpdatedAt );
+            const address = savedAddress && typeof savedAddress === 'object'
+                ? savedAddress as Record<string, unknown> : null;
+            const displayAddress = address
+                ? String( address.fullAddress || [
+                    address.addressLine1, address.addressLine2, address.locality,
+                    address.city, address.state, address.postalCode, address.country,
+                ].filter( Boolean ).join( ', ' ) ).trim() : '';
+            if ( profile.addressComplete !== true || !address || !displayAddress
+                || !Number.isSafeInteger( revision ) || revision <= 0 ) {
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                    kind: 'error', source: 'whatsapp',
+                    message: 'A complete saved delivery address is required for physical-goods Vault payment. Update and save your checkout address before paying. Nothing was sent.',
+                } } ) );
+                return;
+            }
+            // The shared accessible confirmation dialog replaces window.confirm:
+            // /vault does not mount the authenticated shell's ConfirmProvider.
+            // Do not send a payment request until the customer explicitly approves
+            // the saved, current address revision shown here.
+            const approvedAddress = await confirm( {
+                title: 'Confirm delivery address',
+                message: (
+                    <div>
+                        <p>Confirm your CURRENT and CORRECT delivery address for this physical-goods Vault order:</p>
+                        <p style={ { overflowWrap: 'anywhere', fontWeight: 700, whiteSpace: 'pre-wrap' } }>
+                            { displayAddress }
+                        </p>
+                        <p>Send the WhatsApp Review &amp; Pay request only if this is correct?</p>
+                    </div>
+                ),
+                confirmText: 'Confirm address & send request',
+                cancelText: 'Not now',
+            } );
+            if ( !approvedAddress ) return;
+            const result = await api.requestMySecureFilePayment(
+                file.fileId, { confirmed: true, checkoutAddressUpdatedAt: revision } );
             if ( !result.ok ) {
                 if ( result.failure.status === 401 ) {
                     clearSession();
@@ -735,7 +790,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         </div>
                                                         <div className="sf-payment-option">
                                                             <strong>WhatsApp Review &amp; Pay</strong>
-                                                            <span>Receive the server-priced Review &amp; Pay request on your registered WhatsApp number. Check the amount before approving.</span>
+                                                            <span>Confirm your current saved physical delivery address, then receive the server-priced Review &amp; Pay request on your registered WhatsApp number. No address, no payment request.</span>
                                                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                                 onClick={ () => { void handleVaultPayment( file ); } }
                                                                 disabled={ working === file.fileId }

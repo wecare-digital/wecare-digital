@@ -1461,18 +1461,9 @@ def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str,
 BUSINESS_API_FUNCTION = os.environ.get(
     "VAULT_PAYMENT_FUNCTION", "wecare-whatsapp-business-api:live")
 
-#: The invoice-engine Lambda. Vault payment now rides the SAME proven money rail Collect uses
-#: (`create_invoice` + `send_payment_link`) instead of the catalog-service rail that answered
-#: PAYMENT_REQUEST_REFUSED. Invoked through the `:live` alias, like every other cross-Lambda call.
-INVOICE_ENGINE_FUNCTION = os.environ.get(
-    "INVOICE_ENGINE_FUNCTION", "wecare-invoice-engine:live")
-
-#: The ₹25 Express line every Vault payment carries, in paise. The ₹49 item itself is priced by
-#: the invoice engine from the body item; Express is a fixed physical-goods shipping line, the
-#: same value the catalog-service rail used and the UI asserts (`expressPaise === 2500`).
-VAULT_EXPRESS_PAISE = 2500
-VAULT_ITEM_RUPEES = 49
-VAULT_EXPRESS_RUPEES = 25
+#: Vault uses the owner-bound native commerce service; Collect invoice-engine
+#: initiation is intentionally not involved. Keep the old invoice settlement
+#: handler below for in-flight payments initiated before this restoration.
 
 #: One interpretation of the native Vault payment sender's outcomes for both customer and staff
 #: callers. The sender is the existing WhatsApp ORDER_DETAILS / Review and Pay rail; this Lambda
@@ -1514,6 +1505,8 @@ _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
         502, "The payment request was not sent. Nothing was charged."),
     "PAYMENT_REQUEST_REFUSED": (
         502, "The payment request was refused before payment. Nothing was charged."),
+    "VAULT_DELIVERY_CONFIRMATION_REQUIRED": (
+        409, "Review and confirm the current complete delivery address before Vault payment. Nothing was sent."),
     "PAYMENT_INITIATION_DISABLED": (
         503, "WhatsApp payment is temporarily unavailable. Nothing was sent."),
 }
@@ -1581,152 +1574,21 @@ def _file_access_state(item: Dict[str, Any], now: int) -> str:
     return _access_state(item, entitlement, now)
 
 
-def _invoke_invoice_engine(payload: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
-    """Invoke the invoice-engine Lambda with an API-Gateway-shaped event; return (status, body).
-
-    Shapes the event the same way `razorpay-webhook._ensure_invoice_asset` already does, through
-    the ONE-attempt payment client so a read timeout is never retried into a second money message.
-    Any transport failure is reported as a transient (503) so the caller never claims a send that
-    did not provably happen.
-    """
-    try:
-        response = _lambda_client().invoke(
-            FunctionName=INVOICE_ENGINE_FUNCTION,
-            InvocationType="RequestResponse",
-            Payload=json.dumps(payload).encode("utf-8"),
-        )
-        if response.get("FunctionError"):
-            return 503, {}
-        result = json.loads(response["Payload"].read() or b"{}")
-        status = int(result.get("statusCode") or 0)
-        body = json.loads(result.get("body") or "{}") if isinstance(result.get("body"), str) else {}
-        return status, body if isinstance(body, dict) else {}
-    except Exception as exc:  # noqa: BLE001 - a money message must never be auto-retried from here
-        logger.warning(json.dumps({"event": "vault_invoice_engine_invoke_failed",
-                                   "error": type(exc).__name__}))
-        return 503, {}
-
-
-def _invoice_engine_vault_payment(
-    item: Dict[str, Any], payment_description: str, requested_by: str) -> str:
-    """Mint a Vault ₹49 invoice on the Collect rail and send its payment link. Returns an outcome.
-
-    The invoice is an ordinary `pay_flow` physical-goods invoice: one ₹49 service item named with
-    the approved description, ₹25 Express as shipping, 18% GST. The owner's delivery address is
-    resolved by the invoice engine from the owner's saved contact (by phone), exactly as a Collect
-    send does, so no address is trusted from this caller. The file binding
-    (`vaultFileId` + the server-resolved `vaultCustomerId`) rides on the invoice row for the
-    webhook to read after capture.
-
-    Outcomes map onto `_PAYMENT_REQUEST_REPLIES`:
-      * PAYMENT_REQUEST_SENT        - the engine sent the approved ORDER_DETAILS template.
-      * PAYMENT_REQUEST_REFUSED     - the engine refused before any send (e.g. no payable address).
-      * PAYMENT_REQUEST_UNCONFIRMED - a send may have happened but the answer was not a clean 200.
-      * NATIVE_SERVICE_META_NOT_READY / CATALOG_SERVICE_UNAVAILABLE - transient, nothing sent.
-    """
-    file_id = str(item.get("fileId") or "")
-    owner_phone = str(item.get("ownerPhone") or "")
-    owner_customer_id = str(item.get("ownerCustomerId") or "")
-    owner_name = str(item.get("ownerName") or "Customer")
-
-    # Resolve the owner's real ContactsTable id (keyed by `id`) from the phone. The invoice
-    # engine universally treats `contactId` as the ContactsTable partition key: the create-time
-    # delivery gate, the send-time saved-recipient guard, and the post-capture
-    # `paid_invoice_order` projection all read the contact via `{'id': contactId}` or compare
-    # `contact_key.resolve(contact) == invoice.contactId`. The owner's permanent id
-    # (`ownerCustomerId`, a Cognito sub) is NOT that key - it is stored on the contact row as
-    # `checkoutCustomerId` - so passing it as `contactId` made every one of those paths miss the
-    # contact and refuse (DELIVERY_REQUIRED, 409 saved-recipient, and the projection ValueError
-    # that aborted the webhook before Vault settlement). Pass the TRUE contact id here; keep the
-    # Cognito id as `vaultCustomerId`, which is the field settlement matches against the file's
-    # owner. If the lookup misses, fall back to the Cognito id so behaviour is no worse than
-    # before. `contact_store.lookup_id` is the canonical resolver (tries every stored spelling via
-    # phone-index, skips deleted rows).
-    from lambda_utils import contact_store
-    try:
-        resolved_contact_id = contact_store.lookup_id(
-            _table(contact_store.table_name()), owner_phone) or owner_customer_id
-    except Exception as exc:  # noqa: BLE001 - a lookup failure must not block a payable owner
-        logger.warning(json.dumps({"event": "vault_contact_resolve_failed",
-                                   "fileId": file_id, "error": type(exc).__name__}))
-        resolved_contact_id = owner_customer_id
-
-    # 1) Create the ₹49 pay_flow invoice carrying the Vault file binding.
-    create_body = {
-        "entryPoint": "pay_flow",
-        "purpose": "WECARE.DIGITAL",
-        "goodsType": "physical-goods",
-        "customerPhone": owner_phone,
-        "paidByPhone": owner_phone,
-        "customerName": owner_name,
-        # The TRUE ContactsTable id (resolved by phone above), which every invoice-engine path
-        # expects `contactId` to be. NOT the Cognito owner id - that rides as `vaultCustomerId`.
-        "contactId": resolved_contact_id,
-        "vaultFileId": file_id,
-        "vaultCustomerId": owner_customer_id,
-        # One ₹49 service line. The engine applies per-item 18% GST and the convenience fee.
-        "items": [{"name": catalog_service_checkout.vault_item_description(payment_description),
-                   "amount": VAULT_ITEM_RUPEES, "quantity": 1, "gstRate": 18}],
-        # ₹25 Express as shipping, the fixed physical-goods Vault policy.
-        "shipping": VAULT_EXPRESS_RUPEES,
-        "gstRate": 18,
-    }
-    status, created = _invoke_invoice_engine({
-        "rawPath": "/invoices",
-        "requestContext": {"http": {"method": "POST"}},
-        "body": json.dumps(create_body),
-    })
-    invoice_id = str(created.get("invoiceId") or "")
-    if status not in (200, 201) or not invoice_id:
-        code = str(created.get("errorCode") or "")
-        if code in ("DELIVERY_REQUIRED", "FIXED_ITEM_INVALID", "INVALID_AMOUNT"):
-            logger.warning(json.dumps({"event": "vault_invoice_create_refused",
-                                       "fileId": file_id, "errorCode": code, "status": status}))
-            return "PAYMENT_REQUEST_REFUSED"
-        if status in (0, 502, 503) or bool(created.get("retryable")):
-            return "CATALOG_SERVICE_UNAVAILABLE"
-        logger.warning(json.dumps({"event": "vault_invoice_create_failed",
-                                   "fileId": file_id, "errorCode": code, "status": status}))
-        return "PAYMENT_REQUEST_REFUSED"
-
-    # 2) Send the approved WhatsApp payment template for that invoice.
-    send_status, sent = _invoke_invoice_engine({
-        "rawPath": f"/invoices/{invoice_id}/send-payment-link",
-        "requestContext": {"http": {"method": "POST"}},
-        "pathParameters": {"invoiceId": invoice_id},
-        "body": json.dumps({"invoiceId": invoice_id}),
-    })
-    sent_status_field = str(sent.get("status") or "")
-    if send_status == 200 and sent_status_field in ("payment_link_sent", "send_in_progress"):
-        logger.info(json.dumps({"event": "vault_invoice_payment_sent", "fileId": file_id,
-                                "invoiceId": invoice_id, "sendStatus": sent_status_field}))
-        return "PAYMENT_REQUEST_SENT"
-    if send_status in (0, 502, 503):
-        # The invoice exists but the send answer was transient. Do not claim a clean send.
-        return "PAYMENT_REQUEST_UNCONFIRMED"
-    # A 4xx/409 refusal from the send path (readiness, sender not permitted, already paid).
-    logger.warning(json.dumps({"event": "vault_invoice_send_refused", "fileId": file_id,
-                               "invoiceId": invoice_id, "status": send_status,
-                               "sendStatus": sent_status_field}))
-    return "PAYMENT_REQUEST_REFUSED"
-
-
 def _start_native_vault_payment(
     item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
     payment_description: str = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT,
     expected_total_paise: Optional[int] = None,
+    delivery_address_confirmation: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Mint a Vault ₹49 invoice on the Collect rail and send its payment link.
+    """Send one exact-file Vault purchase on its own native WhatsApp commerce rail.
 
-    Every value that crosses into the invoice engine is re-read from the owner-bound file row
-    (fileId, ownerPhone, ownerCustomerId); the engine resolves the owner's saved contact and
-    payable delivery address itself, owns GST/fees and the PaymentAttempt/PAYREF reservation, and
-    sends the one approved Meta ORDER_DETAILS template. There is no website cart, no browser
-    amount and no Meta Flow in this Vault path. The file binding rides on the invoice row for the
-    webhook to settle after capture.
+    Restore the proven owner-bound Vault -> native service -> payment attempt path; do not
+    create an ordinary Collect invoice. Commerce prices, reserves and sends the approved
+    ORDER_DETAILS template and finalizes the file-specific entitlement after capture.
+    The file and permanent owner are re-read server-side, never chosen by the caller.
     """
     # Defense in depth: no caller may sell a second window on an expired file.
-    # The invoice engine independently re-checks before it reserves and sends.
+    # The business API and intent store independently re-check before reservation.
     if state != "UNPAID" or _paid_marks(item):
         return _no_store(cors_response(409, {
             "error": "VAULT_ALREADY_PAID",
@@ -1738,44 +1600,66 @@ def _start_native_vault_payment(
         return _vault_storage_unavailable(origin)
     if not catalog_service_checkout.valid_vault_item_description(payment_description):
         return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
-    # ── Vault payment now rides the Collect money rail ──────────────────────────────────────
-    #
-    # Historically this invoked the business-api `catalogService/sendPayment` action, which fanned
-    # out through `prepareNativeCatalogService` / `_native_catalog_service` and kept answering
-    # PAYMENT_REQUEST_REFUSED for a silent reason on the catalog-service path. Collect's
-    # invoice-engine rail (`create_invoice` + `send_payment_link`) is the proven one that never
-    # refuses for those reasons, so a Vault purchase is now minted as an ordinary `pay_flow`
-    # invoice carrying the file binding (`vaultFileId` + the server-resolved `vaultCustomerId`).
-    # The webhook reads that binding after capture to mint the paid download grant and send the
-    # Access Vault link. The file-identity values cross the boundary re-read from the owner-bound
-    # file row, never from a browser.
-    #
-    # The ₹49 item and ₹25 Express are passed as an ordinary physical-goods invoice; the invoice
-    # engine owns GST, convenience fee and the Meta ORDER_DETAILS send exactly as it does for
-    # Collect.
-    #
-    # Price protection runs BEFORE any invoice is minted, so a stale operator total can never
-    # produce a send: refuse while nothing has been created. The advertised ₹49 item is checked
-    # against the live ProductsTable Vault variant (the same gate `_admin_request_payment` applies
-    # to a customized description), and the operator-reviewed total, when supplied, must equal the
-    # fixed ₹49 + ₹25 Express + 18% GST the engine will bill.
+    # A physical-goods Vault purchase never treats a stored address as confirmation.
+    # Only an explicit, currently bound operator review may reach the native sender.
+    approved = delivery_address_confirmation
+    if (not isinstance(approved, dict) or approved.get('confirmed') is not True
+            or type(approved.get('checkoutAddressUpdatedAt')) is not int
+            or approved['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            'error': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'outcome': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'message': 'Review and confirm the saved delivery address before Vault payment.',
+        }, origin))
+    # The amount remains ProductsTable-owned; refuse a stale ₹49 offer before dispatching
+    # any native payment request. The commerce rail performs its own quote check again.
     try:
         if not _vault_offer_catalog_price_valid():
             return _no_store(cors_response(409, {
                 "error": "VAULT_QUOTE_CHANGED", "outcome": "VAULT_QUOTE_CHANGED",
                 "message": "The Vault total changed. Review the new quote before sending.",
                 "fileId": str(item.get("fileId") or "")}, origin))
-    except Exception as error:  # noqa: BLE001 - a price we cannot read is not a price we may charge
+    except Exception as error:  # noqa: BLE001 - unknown price must never initiate money
         logger.warning(json.dumps({"event": "vault_price_read_failed_before_send",
                                    "reason": type(error).__name__}))
         return cors_response(503, {"error": "VAULT_PRICE_UNAVAILABLE",
                                    "message": "Vault pricing is temporarily unavailable. Nothing was sent."}, origin)
-    # `expected_total_paise` is the operator-reviewed figure from the live quote. The authoritative
-    # total is the invoice engine's; the ₹49 catalogue gate above is the real stale-price guard, so
-    # the reviewed figure is recorded for audit (below) but is not recomputed here into a second
-    # pricing authority that could spuriously refuse a legitimate send.
+    try:
+        response = _lambda_client().invoke(
+            FunctionName=BUSINESS_API_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "catalogService", "action": "sendPayment",
+                "fileId": str(item["fileId"]),
+                "ownerCustomerId": str(item["ownerCustomerId"]),
+                "ownerPhone": str(item["ownerPhone"]),
+                "requestedBy": str(requested_by or "")[:64],
+                "paymentItemDescription": payment_description,
+                "deliveryAddressConfirmation": approved,
+                **({"expectedTotalPaise": expected_total_paise} if expected_total_paise is not None else {}),
+            }).encode("utf-8"),
+        )
+        answer = json.loads(response["Payload"].read() or b"{}")
+        if response.get("FunctionError"):
+            answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+    except Exception as exc:  # noqa: BLE001
+        # A timeout may happen after Meta accepted the idempotent send. Never auto-retry a money
+        # message from here; tell the caller to check WhatsApp.
+        logger.warning(json.dumps({"event": "vault_native_payment_invoke_unconfirmed",
+                                   "error": type(exc).__name__}))
+        answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
 
-    outcome = _invoice_engine_vault_payment(item, payment_description, requested_by)
+    outcome = str(answer.get("outcome") or "PAYMENT_REQUEST_UNCONFIRMED")
+    if outcome == 'VAULT_QUOTE_CHANGED':
+        return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
+            'message': 'The Vault total changed. Review the new quote before sending.',
+            'fileId': str(item.get('fileId') or '')}, origin))
+    if outcome == 'VAULT_DELIVERY_CONFIRMATION_REQUIRED':
+        # This is a definitive, pre-send refusal; do not poison the file's
+        # one-shot payment audit marker. Another address review remains safe.
+        return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
+            'message': _PAYMENT_REQUEST_REPLIES[outcome][1],
+            'fileId': str(item.get('fileId') or '')}, origin))
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": str(item.get("fileId") or "")},
@@ -1840,8 +1724,27 @@ def _customer_request_payment(
             "error": "VAULT_ALREADY_PAID",
             "message": "No additional payment is available for this Vault file.",
         }, origin))
+    # The authenticated owner must expressly confirm their current complete
+    # physical delivery address, just as the staff-initiated Vault path does.
+    # This body never selects a file/owner or supplies money or a shipping address.
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (ValueError, TypeError):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    confirmed = body.get("deliveryAddressConfirmation")
+    if (not isinstance(confirmed, dict) or confirmed.get('confirmed') is not True
+            or type(confirmed.get('checkoutAddressUpdatedAt')) is not int
+            or confirmed['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            "error": "VAULT_DELIVERY_CONFIRMATION_REQUIRED",
+            "outcome": "VAULT_DELIVERY_CONFIRMATION_REQUIRED",
+            "message": "Confirm the current complete delivery address before paying.",
+        }, origin))
     return _start_native_vault_payment(
-        item, state, origin, requested_by="customer")
+        item, state, origin, requested_by="customer",
+        delivery_address_confirmation=confirmed)
 
 
 
@@ -1927,6 +1830,15 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
     expected_total = body.get('expectedTotalPaise')
     if expected_total is not None and (type(expected_total) is not int or expected_total <= 0):
         return cors_response(400, {'error': 'EXPECTED_TOTAL_INVALID'}, origin)
+    confirmation = body.get('deliveryAddressConfirmation')
+    if (not isinstance(confirmation, dict) or confirmation.get('confirmed') is not True
+            or type(confirmation.get('checkoutAddressUpdatedAt')) is not int
+            or confirmation['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            'error': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'outcome': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'message': 'Confirm the current complete delivery address before requesting payment.',
+        }, origin))
     description = body.get(
         "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
     if not catalog_service_checkout.valid_vault_item_description(description):
@@ -1963,7 +1875,8 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
     return _start_native_vault_payment(
         item, state, origin,
         requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
-        payment_description=description, expected_total_paise=expected_total)
+        payment_description=description, expected_total_paise=expected_total,
+        delivery_address_confirmation=confirmation)
 
 
 def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:

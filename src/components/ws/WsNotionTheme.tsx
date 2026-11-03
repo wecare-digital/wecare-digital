@@ -8,9 +8,8 @@ import React from 'react';
 const WsNotionTheme: React.FC = () => (
   <style jsx global>{`
 
-  /* Scope every rule to /ws only. No public page or /workspace regression. */
-  .ws-shell.ws-notion,
-  .wsauth-shell.ws-notion-auth {
+  /* Workspace document tokens must NOT leak into the shared public header, share dock or footer on the /ws login. */
+  .ws-shell.ws-notion {
     --ws-canvas:#fbfbfa;
     --ws-paper:#ffffff;
     --ws-sidebar:#f7f7f5;
@@ -214,124 +213,288 @@ const WsNotionTheme: React.FC = () => (
     border-color:var(--ws-green);
   }
 
-  /* Login matches the workspace without changing the Cognito Authenticator. */
+  /* /ws login reproduces the supplied minimal form and reuses the exact
+     homepage Header, PublicShare and Footer components. Everything below is
+     scoped to the unauthenticated gate; the workspace pages remain unchanged. */
   .wsauth-shell.ws-notion-auth {
-    background:var(--ws-canvas);
+    --ws-login-lime:var(--public-brand-lime,#d1f470);
+    --ws-login-lime-hover:var(--lime-hover,#c5e866);
+    --ws-login-deep:var(--public-brand-green,#1a3a2a);
+    --ws-login-ink:#1a1a1a;
+    --ws-login-field:#f4f5f2;
+    --ws-login-muted:#747873;
+    width:100%;
+    min-height:100vh;
+    min-height:100dvh;
+    background:#fff;
+    color:var(--ws-login-ink);
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
   }
-  .wsauth-shell.ws-notion-auth .wsauth-centre {
-    display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(330px,420px);
-    gap:clamp(32px,6vw,104px);
+  .wsauth-shell.ws-notion-auth * {box-sizing:border-box}
+  /* The homepage header is fixed: 108px desktop, 96px on phones. */
+  .wsauth-shell.ws-notion-auth .wsauth-site {
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    min-height:100dvh;
+    padding-top:108px;
+    background:#fff;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-login-main {
+    width:100%;
+    background:#fff;
+    flex:1;
+    min-height:calc(100vh - 108px);
+    min-height:calc(100dvh - 108px);
+    display:flex;
     align-items:center;
-    width:100%;
-    max-width:1030px;
+    justify-content:center;
+    padding:64px 24px 76px;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-intro {
-    display:grid;
-    justify-items:start;
-    gap:17px;
+  .wsauth-shell.ws-notion-auth .wsauth-form {
+    width:100%;
+    max-width:440px;
     min-width:0;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-kicker {
+  .wsauth-shell.ws-notion-auth .wsauth-public-share {
+    width:100%;
+    max-width:var(--public-content-max,1300px);
+    min-width:0;
+    margin-inline:auto;
+    padding:0 var(--public-page-gutter,24px) 48px;
+    overflow-x:hidden;
+    overflow-x:clip;
+  }
+  [dir='rtl'] [data-amplify-theme='ws-homepage-lime-auth'] {
+    direction:rtl;
+    unicode-bidi:isolate;
+  }
+
+  /* The public header owns the brand mark. Only the company-name
+     eyebrow sits above the login form; no duplicate icon or wordmark. */
+  .wsauth-shell.ws-notion-auth .wsauth-eyebrow {
+    display:table;
+    width:max-content;
+    max-width:100%;
+    margin:0 0 26px;
+    padding:9px 14px;
+    border:0;
+    border-radius:999px;
+    background:#eff7d8;
+    color:var(--ws-login-deep);
     font-size:12px;
-    letter-spacing:.08em;
-    font-weight:750;
-    color:var(--ws-green);
-    margin:0;
+    line-height:1.35;
+    font-weight:800;
+    letter-spacing:.09em;
+    white-space:nowrap;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-intro h1 {
-    font-size:clamp(38px,5vw,57px);
-    line-height:1.12;
-    letter-spacing:-.06em;
-    font-weight:740;
-    margin:0;
-    max-width:520px;
-    color:var(--ws-ink);
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-description {
-    max-width:420px;
-    font-size:16px;
-    line-height:1.75;
-    color:var(--ws-muted);
-    margin:0;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-line {
-    width:46px;
-    height:4px;
-    background:var(--ws-green);
-    border-radius:4px;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-form-column {
+
+  /* Remove the previous card/marketing treatment, not just its outline. */
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator],
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator] [data-amplify-container] {
+    max-width:none;
     width:100%;
-    display:grid;
-    gap:13px;
-    min-width:0;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-card {
-    background:var(--ws-paper);
-    border:1px solid var(--ws-hairline);
-    border-radius:12px;
-    box-shadow:0 12px 44px rgba(35,35,35,.055);
-    padding:30px 28px 32px;
-    overflow:hidden;
+  .wsauth-shell.ws-notion-auth [data-amplify-router] {
+    width:100%;
+    background:transparent;
+    border:0;
+    border-radius:0;
+    padding:0;
+    box-shadow:none;
+    overflow:visible;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-brand-tile {
-    background:#e9eee8;
-    color:var(--ws-green);
-    border-radius:8px;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-brand-name,
+  .wsauth-shell.ws-notion-auth [data-amplify-form] {padding:0}
   .wsauth-shell.ws-notion-auth .amplify-heading {
-    color:var(--ws-ink);
-    letter-spacing:-.04em;
+    color:var(--ws-login-ink);
+    font-size:20px;
+    font-weight:700;
+    line-height:1.3;
+    letter-spacing:-.03em;
   }
-  .wsauth-shell.ws-notion-auth .amplify-input,
-  .wsauth-shell.ws-notion-auth .amplify-select {
-    border-radius:8px;
-    border-color:var(--ws-hairline);
-    background:var(--ws-paper);
+  .wsauth-shell.ws-notion-auth .amplify-label {
+    display:block;
+    margin-bottom:9px;
+    font-size:15px;
+    font-weight:700;
+    color:var(--ws-login-ink);
   }
+  /* Truly borderless gray fields, including the password-visibility control.
+     The ring exists only on focus, to preserve keyboard accessibility. */
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select),
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input {
+    width:100%;
+    min-height:56px;
+    border:0!important;
+    border-radius:14px!important;
+    background:var(--ws-login-field)!important;
+    box-shadow:none!important;
+    color:var(--ws-login-ink)!important;
+    font-family:inherit;
+    font-size:16px!important;
+    padding-inline:17px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field-group__control {
+    background:var(--ws-login-field);
+    border:0!important;
+    border-radius:14px;
+    box-shadow:none!important;
+  }
+  /* No hover border, border-color or shadow on username, password or the eye.
+     Preserve focus outlines for keyboard input and validation errors. */
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):hover,
+  .wsauth-shell.ws-notion-auth .amplify-field-group__control:hover,
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield:hover .amplify-field-group__control,
+  .wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button:hover:not(:disabled) {
+    border:0!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
+    border:0!important;
+    outline:2px solid var(--ws-login-deep)!important;
+    outline-offset:2px!important;
+    box-shadow:none!important;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input:focus {
+    outline:0!important;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-field-group__control:focus-within {
+    outline:2px solid var(--ws-login-deep);
+    outline-offset:2px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:48px;
+    min-height:56px;
+    border:0!important;
+    border-radius:0 14px 14px 0;
+    color:var(--ws-login-ink);
+    background:var(--ws-login-field);
+  }
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select)[aria-invalid='true'] {
+    outline:2px solid #b91c1c!important;
+    outline-offset:2px!important;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field__error-message {
+    color:#b91c1c;
+    font-size:13px;
+  }
+
+  /* Lime sign-in CTA: Google's Material 3 login glyph, never a Next arrow. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
-    background:var(--ws-green);
-    color:#fff;
-    border-radius:8px;
-    min-height:46px;
+    gap:10px;
+    width:100%;
+    min-height:54px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:0!important;
+    border-radius:999px;
+    background-color:var(--ws-login-lime);
+    color:var(--ws-login-deep);
+    box-shadow:none;
+    font-size:17px;
+    font-weight:750;
+    transition:background-color .16s ease;
   }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover {
-    background:#193e2b;
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']::before {
+    content:'login';
+    display:inline-block;
+    font-family:'Material Symbols Rounded';
+    font-size:23px;
+    line-height:1;
+    font-weight:400;
+    font-style:normal;
+    white-space:nowrap;
+    letter-spacing:normal;
+    text-transform:none;
+    font-feature-settings:'liga';
+    -webkit-font-feature-settings:'liga';
+    font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
   }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled) {
+    background-color:var(--ws-login-lime-hover);
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:focus-visible {
+    outline:3px solid var(--ws-login-deep);
+    outline-offset:3px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active:not(:disabled) {
+    background-color:#b8df56;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:disabled {
+    opacity:.55;
+    cursor:not-allowed;
+  }
+  /* Screenshot: the Forgot password action is a centered gray pill. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link'] {
-    color:var(--ws-green);
+    display:inline-flex;
+    width:max-content;
+    max-width:100%;
+    margin-inline:auto;
+    min-height:44px;
+    padding-inline:20px;
+    border:0;
+    border-radius:999px;
+    background:var(--ws-login-field);
+    color:var(--ws-login-deep);
+    font-size:14px;
+    font-weight:700;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover {
-    background:var(--ws-selected);
+    background:#e9f3cb;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-note {
-    font-size:12px;
-    color:var(--ws-muted);
-    line-height:1.55;
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator] :is(a,button):focus-visible {
+    outline:3px solid var(--ws-login-deep);
+    outline-offset:3px;
   }
-  @media(max-width:780px) {
-    .wsauth-shell.ws-notion-auth .wsauth-centre {
-      grid-template-columns:minmax(0,1fr);
-      max-width:430px;
-      gap:0;
+
+  /* MFA/radio choices must remain interactive in the same borderless form. */
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio {
+    min-height:50px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    border:0;
+    border-radius:12px;
+    background:var(--ws-login-field);
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio:focus-within {
+    outline:2px solid var(--ws-login-deep);
+    outline-offset:2px;
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio__button {
+    --amplify-components-radio-button-color:var(--ws-login-deep);
+    --amplify-components-radio-button-border-color:#74786f;
+  }
+  @media(max-width:767px) {
+    .wsauth-shell.ws-notion-auth .wsauth-site {padding-top:96px}
+    .wsauth-shell.ws-notion-auth .wsauth-login-main {
+      min-height:calc(100vh - 96px);
+      min-height:calc(100dvh - 96px);
+      padding:38px 18px 54px;
     }
-    .wsauth-shell.ws-notion-auth .wsauth-intro {
-      display:none;
+    .wsauth-shell.ws-notion-auth .wsauth-public-share {
+      padding-inline:16px;
+      padding-bottom:40px;
     }
   }
-  @media(max-width:480px) {
-    .wsauth-shell.ws-notion-auth .wsauth-card {padding:22px 18px 25px}
-    .ws-shell.ws-notion .ws-content {padding-top:22px}
+  @media(max-width:360px) {
+    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {font-size:11px;padding:8px 12px}
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {transition:none}
   }
   @media(forced-colors:active) {
     .ws-shell.ws-notion .ws-nav-link.active,
     .ws-shell.ws-notion .ws-bottom-link.active {border:1px solid Highlight}
-    .wsauth-shell.ws-notion-auth .wsauth-card {border-color:CanvasText}
+    .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select) {outline:1px solid CanvasText!important}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {border:2px solid ButtonText!important}
   }
 
   `}</style>

@@ -23,6 +23,7 @@
  * it again rather than trusting edit order.
  */
 export const MATERIAL_SYMBOLS = [
+  'arrow_forward',
   'arrow_upward',
   'check',
   'chevron_right',
@@ -32,14 +33,20 @@ export const MATERIAL_SYMBOLS = [
   'directions_bus',
   'directions_car',
   'flight',
+  'group',
   'hotel',
+  'inbox',
   'ios_share',
   'link',
   'local_activity',
+  'lock',
+  'login',
   'neurology',
   'notifications_active',
+  'receipt_long',
   'redeem',
   'share',
+  'shopping_bag',
   'shopping_cart_checkout',
   'train',
 ] as const;

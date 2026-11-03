@@ -78,3 +78,56 @@ def test_missing_saved_address_is_refused_before_prepare_claim_or_provider():
             CustomerNotAuthorized=ValueError),customer_identity=SimpleNamespace(InvalidPhoneNumber=ValueError))
     result = fn({'internalAction':'prepareNativeCatalogService','catalogToken':'a'*24},'')
     assert result == {'outcome':'PAYMENT_REQUEST_REFUSED','reason':'DELIVERY_DETAILS_REQUIRED'}
+
+
+def test_native_vault_and_cart_require_explicit_delivery_confirmation():
+    requires = function('_native_delivery_confirmation_required',
+        contact_address=SimpleNamespace(address_message_reaches=lambda phone: True))
+    owner = SimpleNamespace(customer_id='owner-sub', phone='+919000000001')
+    session = {'origin': 'STAFF_VAULT', 'kind': service_requests.VAULT,
+               'vaultFileId': 'file-1', 'customerId': 'owner-sub'}
+    # A saved complete address, matching owner and exact-file metadata are
+    # NEVER sufficient on their own to confirm this physical-goods shipment.
+    assert requires(owner, {}, {'id': 'contact'}, session, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, None, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, {**session, 'customerId': 'other'}, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, session, None) is True
+    # Only the trusted caller may mark the freshly checked address confirmed.
+    assert requires(owner, {'deliveryConfirmed': True}, {'id': 'contact'}, session, ADDRESS) is False
+    assert requires(owner, {'deliveryConfirmed': True}, {'id': 'contact'}, None, ADDRESS) is False
+    assert requires(owner, {}, None, session, ADDRESS) is False
+
+
+def test_vault_physical_goods_still_refuse_other_country_or_missing_address():
+    # Payment payability remains separate and must refuse non-India shipping.
+    with pytest.raises(payment_address.UnpayableAddress):
+        payment_address.assert_payable({**ADDRESS, 'countryCode': 'US'},
+                                       channel=payment_address.WHATSAPP_ORDER_DETAILS)
+    with pytest.raises(payment_address.UnpayableAddress):
+        payment_address.assert_payable({**ADDRESS, 'postalCode': ''},
+                                       channel=payment_address.WHATSAPP_ORDER_DETAILS)
+
+
+def test_explicit_vault_delivery_review_is_bound_to_saved_payable_address():
+    from decimal import Decimal
+    from lambda_utils.ecommerce import contact_address
+    current = {'checkoutDeliveryAddress': ADDRESS, 'checkoutAddressUpdatedAt': Decimal('1793690000')}
+    review = {'confirmed': True, 'checkoutAddressUpdatedAt': 1793690000}
+    proof = catalog.confirmed_vault_shipping_address(current, review)
+    assert proof == {'checkoutAddressUpdatedAt': 1793690000,
+                     'addressDigest': proof['addressDigest']}
+    assert len(proof['addressDigest']) == 64
+    assert catalog.confirmed_vault_shipping_address(current, None) is None
+    assert catalog.confirmed_vault_shipping_address(current, {**review, 'confirmed': False}) is None
+    assert catalog.confirmed_vault_shipping_address(current, {**review, 'checkoutAddressUpdatedAt': 1793690001}) is None
+    assert catalog.confirmed_vault_shipping_address(current, {**review, 'checkoutAddressUpdatedAt': True}) is None
+    assert catalog.confirmed_vault_shipping_address(
+        {**current, 'checkoutDeliveryAddress': {**ADDRESS, 'postalCode': 'wrong'}}, review) is None
+    assert catalog.confirmed_vault_shipping_address(
+        {**current, 'checkoutDeliveryAddress': {**ADDRESS, 'countryCode': 'US'}}, review) is None
+
+    # A corrected address carrying the same second-level revision is still
+    # detected at commerce by comparing its canonical digest before claiming.
+    changed = {**current, 'checkoutDeliveryAddress': {**ADDRESS, 'addressLine1': 'Another street'}}
+    other = catalog.confirmed_vault_shipping_address(changed, review)
+    assert other is not None and other['addressDigest'] != proof['addressDigest']

@@ -353,8 +353,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
                     {deliveryFile === file.fileId ? 'Hide delivery evidence' : 'Provider delivery evidence'}</button>
                   <button type="button" onClick={() => void downloadForStaff(file.fileId)}>
                     Staff file preview</button>
-                  {canPay && <button type="button" disabled={!!actionFile || uploading}
-                    onClick={() => void send(file, 'payment')}>Send approved Review &amp; Pay once</button>}
+                  {canPay && <Link href="/workspace/vault/">Open Vault Create · review delivery address before payment</Link>}
                   {canAccess && <button type="button" disabled={!!actionFile || uploading}
                     onClick={() => void send(file, 'access')}>Resend approved Access Vault</button>}
                 </div>
