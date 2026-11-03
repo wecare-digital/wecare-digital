@@ -53,7 +53,7 @@ const LAUNCH: Launch[] = [
   { href: '/ws/inbox', title: 'Inbox', blurb: 'Conversations across every channel.', icon: InboxIcon },
   { href: '/ws/collect', title: 'Collect', blurb: 'Custom invoices, receipts and the private Vault.', icon: CollectIcon },
   { href: '/ws/customers', title: 'Customers', blurb: 'Your people, their history and records.', icon: CustomersIcon },
-  { href: '/ws/commerce', title: 'Commerce', blurb: 'Orders and your product catalog.', icon: CommerceIcon },
+  { href: '/ws/commerce', title: 'Commerce', blurb: 'Review and manage customer orders.', icon: CommerceIcon },
   { href: '/ws/settings', title: 'Settings', blurb: 'Your identity and account controls.', icon: SettingsIcon },
 ];
 
