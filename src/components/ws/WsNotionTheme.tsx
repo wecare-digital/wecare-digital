@@ -251,10 +251,18 @@ const WsNotionTheme: React.FC = () => (
     justify-content:center;
     padding:64px 24px 76px;
   }
+  /* Borrow the customer /auth card's white, lime-top and lifted treatment,
+     but retain the user's simpler /ws form, 13px corners, and Cognito/MFA. */
   .wsauth-shell.ws-notion-auth .wsauth-form {
     width:100%;
-    max-width:440px;
+    max-width:520px;
     min-width:0;
+    padding:clamp(26px,4vw,36px) clamp(22px,4.5vw,40px) clamp(28px,4.5vw,38px);
+    background:var(--public-bg,#fff);
+    border:1px solid var(--public-hairline,#e5e7eb);
+    border-top:4px solid var(--ws-login-lime);
+    border-radius:13px;
+    box-shadow:0 14px 38px rgba(26,58,42,.08);
   }
   .wsauth-shell.ws-notion-auth .wsauth-public-share {
     width:100%;
@@ -323,7 +331,7 @@ const WsNotionTheme: React.FC = () => (
     width:100%;
     min-height:56px;
     border:0!important;
-    border-radius:14px!important;
+    border-radius:13px!important;
     background:var(--ws-login-field)!important;
     box-shadow:none!important;
     color:var(--ws-login-ink)!important;
@@ -348,7 +356,7 @@ const WsNotionTheme: React.FC = () => (
   .wsauth-shell.ws-notion-auth .amplify-field-group__control {
     background:var(--ws-login-field);
     border:0!important;
-    border-radius:14px;
+    border-radius:13px;
     box-shadow:none!important;
   }
   /* No hover border, border-color or shadow on username, password or the eye.
@@ -362,18 +370,25 @@ const WsNotionTheme: React.FC = () => (
     box-shadow:none!important;
     background:var(--ws-login-field)!important;
   }
+  /* /auth uses a single underline rather than a heavy full-outline field.
+     Keep a visible 2px focus indicator, but never the thick green box ring
+     users saw when clicking into username/password. */
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
     border:0!important;
-    outline:2px solid var(--ws-login-deep)!important;
-    outline-offset:2px!important;
-    box-shadow:none!important;
+    outline:0!important;
+    box-shadow:inset 0 -2px 0 var(--ws-login-deep)!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input:focus {
     outline:0!important;
+    box-shadow:none!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-field-group__control:focus-within {
-    outline:2px solid var(--ws-login-deep);
-    outline-offset:2px;
+    outline:0;
+    box-shadow:inset 0 -2px 0 var(--ws-login-deep)!important;
+  }
+  /* Retain the palette on Chrome autofilled username/password during focus. */
+  .wsauth-shell.ws-notion-auth .amplify-input:-webkit-autofill:focus {
+    -webkit-box-shadow:inset 0 -2px 0 var(--ws-login-deep),0 0 0 1000px #f5fde0 inset!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button {
     display:inline-flex;
@@ -382,7 +397,7 @@ const WsNotionTheme: React.FC = () => (
     min-width:48px;
     min-height:56px;
     border:0!important;
-    border-radius:0 14px 14px 0;
+    border-radius:0 13px 13px 0;
     color:var(--ws-login-ink);
     background:var(--ws-login-field);
   }
@@ -395,16 +410,18 @@ const WsNotionTheme: React.FC = () => (
     font-size:13px;
   }
 
-  /* Lime sign-in CTA: Google's Material 3 login glyph, never a Next arrow. */
+  /* User-selected Option C: compact, right-aligned sign-in action.
+     Other MFA/recovery primary actions keep their own centered full-width
+     layout, with the same 13px corners and without a misleading login glyph. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
     gap:10px;
     width:100%;
-    min-height:54px;
+    min-height:46px;
     display:flex;
     align-items:center;
     justify-content:center;
     border:0!important;
-    border-radius:999px;
+    border-radius:13px;
     background-color:var(--ws-login-lime);
     color:var(--ws-login-deep);
     box-shadow:none;
@@ -414,7 +431,18 @@ const WsNotionTheme: React.FC = () => (
     letter-spacing:var(--public-body-tracking,-.125px);
     transition:background-color .16s ease;
   }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']::before {
+  .wsauth-shell.ws-notion-auth[data-wsauth-signin='true'] .amplify-button[data-variation='primary'] {
+    width:200px;
+    max-width:100%;
+    min-height:46px;
+    margin-inline-start:auto;
+    margin-inline-end:0;
+    align-self:flex-end;
+    border-radius:13px;
+  }
+  /* Material Symbols Rounded is loaded as a small subset; login glyph only
+     belongs to the actual Sign in route, not MFA Verify or Reset password. */
+  .wsauth-shell.ws-notion-auth[data-wsauth-signin='true'] .amplify-button[data-variation='primary']::before {
     content:'login';
     display:inline-block;
     font-family:'Material Symbols Rounded';
@@ -452,7 +480,7 @@ const WsNotionTheme: React.FC = () => (
     min-height:44px;
     padding-inline:20px;
     border:0;
-    border-radius:999px;
+    border-radius:13px;
     background:var(--ws-login-field);
     color:var(--ws-login-deep);
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
@@ -490,6 +518,7 @@ const WsNotionTheme: React.FC = () => (
   }
   @media(max-width:767px) {
     .wsauth-shell.ws-notion-auth .wsauth-site {padding-top:96px}
+    .wsauth-shell.ws-notion-auth .wsauth-form {padding:28px 20px 30px;border-radius:13px}
     .wsauth-shell.ws-notion-auth .wsauth-login-main {
       min-height:calc(100vh - 96px);
       min-height:calc(100dvh - 96px);
