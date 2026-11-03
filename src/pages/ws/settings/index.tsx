@@ -24,7 +24,7 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
       <WsShell active="settings" user={ user } signOut={ signOut }>
         <section className="ws-page">
           <header className="ws-page-head">
-            <p className="ws-page-eyebrow">Workspace</p>
+            <p className="ws-page-eyebrow">Workspace / Settings</p>
             <h1 className="ws-page-title">Settings</h1>
           </header>
 
