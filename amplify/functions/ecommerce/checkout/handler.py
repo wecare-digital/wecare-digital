@@ -3067,27 +3067,16 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
 
 def _native_delivery_confirmation_required(identity, body, native_contact,
                                            catalog_session, cart_address) -> bool:
-    """Keep address-message confirmation for carts, not owner-bound Vault purchases.
+    """Native physical orders require explicit trusted address confirmation.
 
-    A general WhatsApp cart can resume from a signed inbound Address Message and must
-    explicitly confirm its saved address. A Vault purchase is different: the server
-    minted an exact-file CATALOGSERVICE session for the verified owner and already
-    validated their saved payable address before invoking _create. There is no
-    customer cart/Address Message to resume. Exempt ONLY those server-written Vault
-    sessions; all other native carts retain the confirmation gate.
+    Being a Vault order, having a stored address or naming an owner is NOT an
+    exemption. The service caller may supply deliveryConfirmed only after its
+    server-side proof matches the current validated saved address. Ordinary native
+    cart callers still use signed WhatsApp Address Message confirmation.
     """
-    if (native_contact is None or body.get("deliveryConfirmed") is True
-            or not contact_address.address_message_reaches(identity.phone)):
-        return False
-    vault_session = (
-        isinstance(catalog_session, dict)
-        and catalog_session.get("origin") == "STAFF_VAULT"
-        and catalog_session.get("kind") == service_requests.VAULT
-        and bool(catalog_session.get("vaultFileId"))
-        and str(catalog_session.get("customerId") or "") == identity.customer_id
-        and cart_address is not None
-    )
-    return not vault_session
+    return (native_contact is not None
+            and body.get("deliveryConfirmed") is not True
+            and contact_address.address_message_reaches(identity.phone))
 
 
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
@@ -3309,10 +3298,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "message": "Payments are temporarily unavailable. No charge was made.",
         }, origin)
 
-    # 2b. An inbound WhatsApp product cart must explicitly confirm its delivery address.
-    #     Vault is not that cart: its server-created, exact-file session already passed the
-    #     saved-address/payability guard, and has no Address Message resume path. Keep the
-    #     exemption narrow; never let a caller-supplied request body choose this policy.
+    # 2b. Physical native payments require an explicit confirmed delivery address.
+    #     The signed WhatsApp Address Message confirms ordinary carts; exact-file Vault
+    #     sessions may set deliveryConfirmed only AFTER their server-stamped review
+    #     digest matches a freshly validated saved address. Never infer confirmation
+    #     from a saved address or from product classification alone.
     if _native_delivery_confirmation_required(
             identity, body, native_contact, catalog_session, cart_address):
         return cors_response(409, {
@@ -3912,6 +3902,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
                                  'sessionToken': token[:8]}))
         return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
     # Refuse before the one-shot prepare claim; a missing address must not lock a retry.
+    verified_delivery_confirmation = False
     if row.get('kind') == service_requests.VAULT:
         address = contact_address.from_contact(contact)
         try:
@@ -3920,6 +3911,18 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
             payment_address.assert_payable(address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
         except payment_address.UnpayableAddress:
             return {'outcome': 'PAYMENT_REQUEST_REFUSED', 'reason': 'DELIVERY_DETAILS_REQUIRED'}
+        # Required even for exact-file staff requests. The digest is minted only
+        # after staff explicitly reviews the saved address, and it is checked again
+        # against the fresh trusted contact before a one-shot payment claim.
+        confirmed_at = row.get('deliveryAddressConfirmedAt')
+        revision = row.get('deliveryAddressRevision')
+        confirmation = {'confirmed': type(confirmed_at) is int and confirmed_at > 0,
+                        'checkoutAddressUpdatedAt': revision}
+        proof = catalog.confirmed_vault_shipping_address(contact, confirmation)
+        if (proof is None or proof['addressDigest'] != row.get('deliveryAddressDigest')):
+            return {'outcome': 'PAYMENT_REQUEST_REFUSED',
+                    'reason': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'}
+        verified_delivery_confirmation = True
     from lambda_utils.ecommerce import service_request_store as store
     intent = _table('stack-wecare-digital-ServiceRequestsTable').get_item(
         Key={'requestId': 'INTENT#' + str(row.get('serviceIntentId') or '')}, ConsistentRead=True).get('Item') or {}
@@ -3948,6 +3951,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     if public_uuid:
         row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId'],
+                   **({'deliveryConfirmed': True} if verified_delivery_confirmation else {}),
                    **({'expectedTotalPaise': int(row['expectedTotalPaise'])}
                       if 'expectedTotalPaise' in row else {})}, origin, catalog_session=row, native_contact=contact)
 
