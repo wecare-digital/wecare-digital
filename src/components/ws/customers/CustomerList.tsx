@@ -141,7 +141,10 @@ const CustomerList: React.FC = () => {
     <section className="cl">
       <header className="cl-head">
         <div className="cl-titlerow">
-          <h1 className="cl-title">Customers</h1>
+          <div className="cl-titleblock">
+            <p className="cl-eyebrow">Workspace / Customers</p>
+            <h1 className="cl-title">Customers</h1>
+          </div>
           <div className="cl-head-actions">
             <button type="button" className="cl-ghost" onClick={ () => setManageOpen( true ) }>
               Manage data
@@ -262,6 +265,8 @@ const CustomerList: React.FC = () => {
         .cl{ width:100%; min-width:0; display:grid; gap:14px; }
         .cl-head{ display:grid; gap:12px; }
         .cl-titlerow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+        .cl-titleblock{ display:grid; gap:4px; }
+        .cl-eyebrow{ margin:0; font-size:11px; color:var(--text-muted,#6b7280); }
         .cl-title{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text,#1a1a1a); }
         .cl-head-actions{ margin-left:auto; display:flex; gap:8px; }
         .cl-ghost{

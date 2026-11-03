@@ -31,6 +31,7 @@ import type React from 'react';
 // uses. Do NOT remove: without it the Authenticator has no pool to talk to.
 import '../../lib/amplifyConfig';
 import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws-amplify/ui-react';
+import WsNotionTheme from './WsNotionTheme';
 
 /**
  * WsBrandHeader — a fresh brand line above the /ws sign-in form, handed to Amplify's
@@ -54,7 +55,7 @@ const WsBrandHeader = (): React.JSX.Element => (
     </span>
     <span className="wsauth-brand-text">
       <span className="wsauth-brand-name">WECARE</span>
-      <span className="wsauth-brand-sub">Workspace sign in</span>
+      <span className="wsauth-brand-sub">Sign in to your workspace</span>
     </span>
     <style jsx>{`
       .wsauth-brand{
@@ -102,7 +103,7 @@ const WsBrandHeader = (): React.JSX.Element => (
  * authTheme; the values are re-derived straight from the /ws tokens so the card reads as part
  * of the new workspace.
  *
- *   - primary button: lime fill (--lime), forest-green type (--accent) — the /ws action idiom.
+ *   - primary button: forest-green fill, white type — the shared /ws quiet-action idiom.
  *   - fields: 1px hairline (--border #e5e7eb) at rest; lime-tinted ring + green border on focus,
  *     matching tokens.css --focus-ring / --control-border-focus. Radius 12px (--radius-lg).
  *   - radii/space/font tuned to the /ws scale (Inter, 16px base to avoid iOS input zoom).
@@ -142,11 +143,11 @@ const wsAuthTheme: Theme = {
       },
       button: {
         primary: {
-          backgroundColor: { value: '#d1f470' },
-          color: { value: '#1a3a2a' },
-          _hover: { backgroundColor: { value: '#c5e866' } },
-          _focus: { backgroundColor: { value: '#c5e866' } },
-          _active: { backgroundColor: { value: '#b7dd4a' } },
+          backgroundColor: { value: '#24533b' },
+          color: { value: '#ffffff' },
+          _hover: { backgroundColor: { value: '#193e2b' } },
+          _focus: { backgroundColor: { value: '#193e2b' } },
+          _active: { backgroundColor: { value: '#102d21' } },
         },
         link: {
           color: { value: '#1a3a2a' },
@@ -202,12 +203,24 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
   if ( authStatus === 'authenticated' ) return <>{ children }</>;
 
   return (
-    <div className="wsauth-shell">
+    <div className="wsauth-shell ws-notion-auth">
+      <WsNotionTheme />
       <div className="wsauth-centre">
-        <div className="wsauth-card">
-          { children }
+        <aside className="wsauth-intro" aria-label="Workspace introduction">
+          <p className="wsauth-intro-kicker">WECARE / WORKSPACE</p>
+          <h1>Everything you need, in one calm workspace.</h1>
+          <p className="wsauth-intro-description">
+            Your conversations, customers, invoices, orders and price details,
+            together in a focused place to work.
+          </p>
+          <span className="wsauth-intro-line" aria-hidden="true" />
+        </aside>
+        <div className="wsauth-form-column">
+          <div className="wsauth-card">
+            { children }
+          </div>
+          <p className="wsauth-note">Staff access only. Sign in with your WECARE workspace credentials.</p>
         </div>
-        <p className="wsauth-note">Staff access only. Use your WECARE workspace credentials.</p>
       </div>
 
       <style jsx>{`

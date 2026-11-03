@@ -53,7 +53,7 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
       <WsShell active="collect" user={ user } signOut={ signOut }>
         <section className="wsc">
           <header className="wsc-head">
-            <p className="wsc-eyebrow">Workspace</p>
+            <p className="wsc-eyebrow">Workspace / Collect</p>
             <h1 className="wsc-title">Collect</h1>
             <p className="wsc-sub">Custom invoices, payment and receipt evidence, and the private Vault — all amounts are server-owned.</p>
           </header>
