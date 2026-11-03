@@ -3785,7 +3785,10 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                                          if invoice.get('couponCode') == default_coupon.DELIGHT_CODE
                                          else 'Discount')},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
-            'tax': {'value': total_gst_paise, 'offset': 100, 'description': 'GST'},
+            # Tax row labelled with the seller GSTIN, so Meta shows "Tax (<GSTIN>)" on the
+            # WhatsApp order summary (matching the paid receipt's tax line).
+            'tax': {'value': total_gst_paise, 'offset': 100,
+                    'description': invoice.get('gstin', COMPANY['gstin']) or 'GST'},
         },
     }
 
