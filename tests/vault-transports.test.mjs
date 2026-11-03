@@ -27,8 +27,11 @@ test('Vault uses an accessible customer address confirmation before a one-shot p
    'the accessible confirmation modal is obtained inside its provider');
  assert.doesNotMatch(page, /\bwindow\.confirm\s*\(/,
    'native confirm is prohibited by CI lint');
- assert.match(page, /if\s*\(\s*!approvedAddress\s*\)\s*return;\s*const result = await api\.requestMySecureFilePayment\(/,
-   'cancellation must exit before sending any payment request');
+ const approval = page.indexOf('const approvedAddress = await confirm(');
+ const cancelGuard = page.indexOf('if ( !approvedAddress ) return;');
+ const paymentSend = page.indexOf('await api.requestMySecureFilePayment(');
+ assert.ok(approval !== -1 && cancelGuard > approval && paymentSend > cancelGuard,
+   'payment request must occur only AFTER an awaited confirmation and explicit cancel guard');
  assert.match(page, /checkoutAddressUpdatedAt: revision/,
    'only the reviewed address revision is approved for payment');
  assert.equal((page.match(/await api\.requestMySecureFilePayment\(/g) || []).length, 1,
