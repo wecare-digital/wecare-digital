@@ -127,10 +127,12 @@ RETIRED_ROUTES = {
 }
 
 
-# The two explicit WhatsApp capabilities secure-files may invoke: delivery of Access Vault and
-# the native Vault payment orchestrator. No wildcard Lambda invoke permission is allowed.
+# The explicit capabilities secure-files may invoke: delivery of Access Vault, the native Vault
+# payment orchestrator, and the invoice engine (the Collect money rail a Vault payment now rides,
+# which creates the pay_flow invoice and sends its payment link). No wildcard invoke is allowed.
 WA_SENDER = "wecare-outbound-whatsapp"
 VAULT_PAYMENT_FUNCTION = "wecare-whatsapp-business-api"
+INVOICE_ENGINE_FUNCTION = "wecare-invoice-engine"
 
 EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
@@ -322,13 +324,17 @@ def policy_document() -> dict:
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
                 # Named individually rather than a wildcard: this role may deliver the Access
-                # Vault template and ask the existing business-api service rail to send native
-                # Review and Pay. It may not invoke the rest of the fleet.
+                # Vault template, ask the business-api service rail to send native Review and Pay,
+                # and invoke the invoice engine to mint a Vault pay_flow invoice and send its
+                # payment link (the Collect money rail Vault payment now rides). It may not invoke
+                # the rest of the fleet.
                 "Resource": [
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}",
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}:*",
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{VAULT_PAYMENT_FUNCTION}",
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{VAULT_PAYMENT_FUNCTION}:*",
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{INVOICE_ENGINE_FUNCTION}",
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{INVOICE_ENGINE_FUNCTION}:*",
                 ],
             },
             {
