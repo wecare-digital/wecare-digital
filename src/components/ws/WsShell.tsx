@@ -24,8 +24,9 @@ import React, { ReactNode } from 'react';
 import Link from 'next/link';
 import WsHeader from './WsHeader';
 import WsFooter from './WsFooter';
+import WsNotionTheme from './WsNotionTheme';
 
-export type WsSection = 'inbox' | 'collect' | 'customers' | 'commerce' | 'settings';
+export type WsSection = 'home' | 'inbox' | 'collect' | 'customers' | 'commerce' | 'settings';
 
 export interface WsShellProps {
   children: ReactNode;
@@ -91,7 +92,8 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
   const loginId = user?.signInDetails?.loginId || user?.email || '';
 
   return (
-    <div className="ws-shell">
+    <div className="ws-shell ws-notion">
+      <WsNotionTheme />
       {/* Desktop sidebar */}
       <aside className="ws-sidebar" aria-label="Workspace">
         <Link href="/ws" className="ws-brand ws-brand-side" aria-label="Workspace home">
