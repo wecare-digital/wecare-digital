@@ -1,9 +1,9 @@
 /**
  * Homepage-aligned /ws sign-in.
  *
- * The user sees the original WECARE SVG icon to the left of WECARE.DIGITAL
- * in a single eyebrow pill above Cognito's real credential form, while the
- * homepage Header, share rail and Footer retain their existing implementation.
+ * The user sees the site's existing BrandBadge: a transparent inline SVG
+ * mark to the left of WECARE.DIGITAL in the exact homepage lime typography,
+ * above Cognito's real credential form. Header, share and footer are shared.
  * No simulated workspace, marketing panel or second auth implementation.
  * When Cognito authenticates, the public chrome unmounts and the /ws page
  * continues rendering through its existing WsShell.
@@ -12,23 +12,19 @@ import type React from 'react';
 import '../../lib/amplifyConfig';
 import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws-amplify/ui-react';
 import Header from '../Header';
+import BrandBadge from '../BrandBadge';
 import Footer from '../Footer';
 import PublicShare from '../PublicShare';
 import PublicToastProvider from '../public/PublicToastProvider';
 import WsNotionTheme from './WsNotionTheme';
 
-/* Original WECARE SVG from the verified S3 media prefix. This small icon
-   belongs inside the eyebrow, LEFT of the one-line WECARE.DIGITAL label.
-   The homepage header retains its existing independent site brand lockup. */
-const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
-
-/* Amplify keeps this header above the actual sign-in, recovery and MFA form. */
+/* Use the SAME BrandBadge as the public product heroes and legacy sign-in.
+   Its BrandMark is the original S3 vector path with the embedded white
+   rectangle removed and viewBox tightly cropped: transparent, no icon fetch,
+   no white-square workaround. It already uses the canonical Inter text style. */
 const WsBrandHeader = (): React.JSX.Element => (
-  <div className="wsauth-eyebrow" data-wc-no-translate="true">
-    <span className="wsauth-eyebrow-icon" aria-hidden="true">
-      <img src={ WECARE_SVG_URL } alt="" width={ 96 } height={ 96 } decoding="async" />
-    </span>
-    <span className="wsauth-eyebrow-text">WECARE.DIGITAL</span>
+  <div className="wsauth-eyebrow">
+    <BrandBadge label="WECARE.DIGITAL" />
   </div>
 );
 
