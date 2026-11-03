@@ -5,8 +5,17 @@ from decimal import Decimal
 
 
 def is_collect(invoice):
+    # A Vault purchase rides the same pay_flow rail but is a SEPARATE product (secure file
+    # access, physical goods), carrying `vaultFileId`. It must not be treated as a Collect
+    # invoice: the Collect-only contracts guarded by this predicate - the saved-recipient
+    # resend guard, the Collect invoice-image/receipt/outbound-proof flows, and the Collect Log
+    # listing (scope=collect) - either assume Collect's browser-supplied fields (which the
+    # Vault server-to-server create never sets) or would leak a Vault row into the Collect Log.
+    # Vault has its own owner binding, settlement and delivery, re-verified at capture, so
+    # excluding it here is both correct and required to keep the two products separate.
     return (invoice.get('entryPoint') == 'pay_flow'
-            and not invoice.get('fixedPresetId') and not invoice.get('serviceKind'))
+            and not invoice.get('fixedPresetId') and not invoice.get('serviceKind')
+            and not invoice.get('vaultFileId'))
 
 
 def preview_fingerprint(body, quote):

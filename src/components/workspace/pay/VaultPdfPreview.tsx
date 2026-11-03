@@ -9,7 +9,11 @@ export default function VaultPdfPreview({src,onRendered}:{src:string;onRendered?
  const [pdfDoc,setPdfDoc]=React.useState<PDFDocumentProxy|null>(null),[page,setPage]=React.useState(1),[status,setStatus]=React.useState<'loading'|'ready'|'error'>('loading');
  React.useEffect(()=>{let active=true;let loading:PDFDocumentLoadingTask|undefined;setPdfDoc(null);setPage(1);setStatus('loading');
   const nativeViewer=nativeVaultPdfRequired(navigator.userAgent,typeof Promise.withResolvers==='function');setNative(nativeViewer);setNativeSource('');
-  if(nativeViewer){const controller=new AbortController();let objectUrl='';void loadNativeVaultPdf(src,controller.signal).then(file=>{if(active){objectUrl=URL.createObjectURL(file);setNativeSource(objectUrl);}}).catch(()=>{if(active)setStatus('error');});return()=>{active=false;controller.abort();if(objectUrl)URL.revokeObjectURL(objectUrl);};}
+  // A hung import/worker/getDocument would otherwise leave the panel on "loading" forever,
+  // reading as a silent blank. Bound the wait: on timeout, surface the same actionable error
+  // state (refresh the link / open the full file) instead of an indefinite spinner.
+  const stall=setTimeout(()=>{if(active)setStatus(prev=>prev==='loading'?'error':prev);},20000);
+  if(nativeViewer){const controller=new AbortController();let objectUrl='';void loadNativeVaultPdf(src,controller.signal).then(file=>{if(active){objectUrl=URL.createObjectURL(file);setNativeSource(objectUrl);}}).catch(()=>{if(active)setStatus('error');});return()=>{active=false;clearTimeout(stall);controller.abort();if(objectUrl)URL.revokeObjectURL(objectUrl);};}
   void import('pdfjs-dist/legacy/build/pdf.mjs').then(pdf=>{
    if(!active)return;
    const assets='/vendor/pdfjs/'+pdf.version+'/';
@@ -17,7 +21,7 @@ export default function VaultPdfPreview({src,onRendered}:{src:string;onRendered?
    loading=pdf.getDocument({url:src,disableRange:true,disableStream:true,enableXfa:false,disableWorkerRendering:true,cMapUrl:assets+'cmaps/',cMapPacked:true,standardFontDataUrl:assets+'standard_fonts/',wasmUrl:assets+'wasm/'});
    return loading.promise.then(value=>{if(active)setPdfDoc(value);});
   }).catch(()=>{if(active)setStatus('error');});
-  return()=>{active=false;void loading?.destroy();};
+  return()=>{active=false;clearTimeout(stall);void loading?.destroy();};
  },[src]);
  React.useEffect(()=>{if(!pdfDoc||!canvas.current)return;let active=true;let render:RenderTask|undefined;setStatus('loading');const target=canvas.current;target.dataset.rendered='false';
   void pdfDoc.getPage(page).then(value=>{if(!active)return;const original=value.getViewport({scale:1}),width=Math.max(240,target.parentElement?.clientWidth||420),density=Math.min(window.devicePixelRatio||1,2);const scale=Math.min(width/original.width*density,Math.sqrt(3000000/(original.width*original.height)));const viewport=value.getViewport({scale});target.width=Math.ceil(viewport.width);target.height=Math.ceil(viewport.height);render=value.render({canvas:target,viewport,annotationMode:0});return render.promise.then(()=>{if(active){target.dataset.rendered='true';setStatus('ready');onRendered?.();}});}).catch(()=>{if(active)setStatus('error');});
