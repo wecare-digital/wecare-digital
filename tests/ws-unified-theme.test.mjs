@@ -152,8 +152,8 @@ test('login reuses the public transparent SVG BrandBadge with homepage typograph
   assert.ok(auth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
     'render official mark LEFT and WECARE.DIGITAL text RIGHT in one shared component');
   assert.ok(badge.includes('<BrandMark />'), 'use the validated inline vector');
-  assert.ok(badge.indexOf('<BrandMark />') < badge.indexOf('{ label }'),
-    'the vector must appear before the text');
+  assert.match(badge, /<BrandMark\s*\/>\s*\{\s*label\s*\}/,
+    'the rendered vector must immediately precede the rendered text, ignoring component props');
   assert.ok(mark.includes('viewBox="1816 1604 1451 1718"'),
     'SVG is cropped in its own vector coordinate system, not by CSS magnification');
   assert.ok(mark.includes('fill="currentColor"'),
