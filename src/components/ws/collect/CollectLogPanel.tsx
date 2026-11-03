@@ -25,6 +25,21 @@ import type { WsCollectPreview } from './preview';
 
 const intentKey = ( id: string ) => 'wecare.collect.resend.v1.' + id;
 
+// Map a payment status string to a status-* chip tone (presentation only; no data is derived from
+// this beyond the colour of the chip). Distinct hues let a staffer read the state at a glance.
+const paymentChipTone = ( status?: string ): string => {
+  switch ( ( status || '' ).toLowerCase() ) {
+    case 'paid':
+    case 'captured': return 'is-read';
+    case 'authorized': return 'is-delivered';
+    case 'created':
+    case 'pending': return 'is-pending';
+    case 'failed':
+    case 'cancelled': return 'is-failed';
+    default: return 'is-queued';
+  }
+};
+
 interface Props {
   revision: number;
   onPreview: ( p: WsCollectPreview | null ) => void;
@@ -199,7 +214,9 @@ const CollectLogPanel: React.FC<Props> = ( { revision, onPreview } ) => {
           <button type="button" key={ row.invoiceId } className={ `cl-record ${ selected === row.invoiceId ? 'sel' : '' }` } onClick={ () => { setSelected( row.invoiceId ); setModal( false ); } }>
             <strong>{ row.invoiceNumber }</strong>
             <span>{ row.customerName } · ₹{ row.total }</span>
-            <small>{ capturedCollect( row ) ? 'Payment captured' : 'Payment ' + row.paymentStatus }</small>
+            <span className={ `cl-chip ${ capturedCollect( row ) ? 'is-read' : paymentChipTone( row.paymentStatus ) }` }>
+              { capturedCollect( row ) ? 'Payment captured' : 'Payment ' + row.paymentStatus }
+            </span>
           </button>
         ) ) }
       </div>
@@ -286,6 +303,17 @@ const CollectLogPanel: React.FC<Props> = ( { revision, onPreview } ) => {
         .cl-record strong{ font-size:14px; }
         .cl-record span,.cl-record small{ font-size:12px; color:var(--text-muted,#6b7280); }
         .cl-record.sel{ border-color:var(--accent,#1a3a2a); box-shadow:inset 0 0 0 1px var(--accent,#1a3a2a); }
+        /* Status chip — distinct status-* hues so payment state reads at a glance. */
+        .cl-chip{
+          justify-self:start; display:inline-flex; align-items:center;
+          padding:2px 9px; border-radius:var(--radius-full,9999px);
+          font-size:11px; font-weight:600; letter-spacing:.01em; white-space:nowrap;
+        }
+        .cl-chip.is-read{ color:var(--status-read-fg,#15803d); background:var(--status-read-bg,#f0fdf4); }
+        .cl-chip.is-delivered{ color:var(--status-delivered-fg,#0f766e); background:var(--status-delivered-bg,#f0fdfa); }
+        .cl-chip.is-pending{ color:var(--status-pending-fg,#b45309); background:var(--status-pending-bg,#fffbeb); }
+        .cl-chip.is-failed{ color:var(--status-failed-fg,#b91c1c); background:var(--status-failed-bg,#fef2f2); }
+        .cl-chip.is-queued{ color:var(--status-queued-fg,#6b7280); background:var(--status-queued-bg,#f9fafb); }
         .cl-detail{ border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-xl,14px); padding:18px; min-width:0; }
         .cl-dl{ margin:0; display:grid; gap:0; }
         .cl-dl > div{ display:flex; gap:12px; justify-content:space-between; padding:9px 0; font-size:13px; border-bottom:1px solid var(--border-light,#f0f0f0); }

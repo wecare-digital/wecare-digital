@@ -23,7 +23,10 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
       <SEO title="Settings" description="WECARE workspace settings." noindex />
       <WsShell active="settings" user={ user } signOut={ signOut }>
         <section className="ws-page">
-          <h1 className="ws-page-title">Settings</h1>
+          <header className="ws-page-head">
+            <p className="ws-page-eyebrow">Workspace</p>
+            <h1 className="ws-page-title">Settings</h1>
+          </header>
 
           <div className="ws-settings-card" data-wc-no-translate="true">
             <span className="ws-settings-label">Signed in as</span>
@@ -35,7 +38,12 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             <PushOptIn />
           </div>
 
+          {/* Matches the header's Sign out treatment: quiet hairline button, grey text, the same
+              inline glyph, danger-on-hover with the danger-light fill. */}
           <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() }>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 4h4v16h-4" /><path d="M10 12H3" /><path d="m6 8-4 4 4 4" />
+            </svg>
             Sign out
           </button>
           <p className="ws-page-note">More account controls are coming soon.</p>
@@ -43,9 +51,18 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
 
         <style jsx>{`
           .ws-page{ width:100%; min-width:0; }
+          .ws-page-head{ display:grid; gap:4px; margin-bottom:16px; }
+          .ws-page-eyebrow{
+            margin:0;
+            font-size:11px;
+            font-weight:700;
+            text-transform:uppercase;
+            letter-spacing:0.6px;
+            color:var(--text-muted,#6b7280);
+          }
           .ws-page-title{
-            margin:0 0 16px;
-            font-size:26px;
+            margin:0;
+            font-size:24px;
             font-weight:700;
             letter-spacing:-0.5px;
             color:var(--text,#1a1a1a);
@@ -85,19 +102,22 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             display:inline-flex;
             align-items:center;
             justify-content:center;
+            gap:8px;
             min-height:var(--tap-min,44px);
             padding:12px 20px;
             border:1px solid var(--border,#e5e7eb);
-            border-radius:var(--radius-lg,12px);
+            border-radius:var(--radius-md,8px);
             background:var(--surface,#fff);
-            color:var(--text,#1a1a1a);
+            color:var(--text-muted,#6b7280);
             font-size:15px;
-            font-weight:700;
+            font-weight:600;
             cursor:pointer;
+            transition:border-color var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease),background var(--transition-normal,0.15s ease);
           }
           .ws-settings-signout:hover{
             border-color:var(--danger,#dc2626);
             color:var(--danger,#dc2626);
+            background:var(--danger-light,#fef2f2);
           }
           .ws-settings-signout:focus-visible{
             outline:2px solid var(--accent,#1a3a2a);

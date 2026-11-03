@@ -291,7 +291,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
           background:var(--surface,#fff); color:var(--text,#1a1a1a); font:inherit;
         }
         .cc-field input:focus{ outline:none; border-color:var(--lime,#d1f470); box-shadow:var(--focus-ring,0 0 0 2px rgba(209,244,112,.35)); }
-                .cc-lines{ display:grid; gap:14px; }
+        .cc-lines{ display:grid; gap:14px; }
         .cc-line{
           display:grid; gap:10px; padding-top:14px; border-top:1px solid var(--border,#e5e7eb);
         }

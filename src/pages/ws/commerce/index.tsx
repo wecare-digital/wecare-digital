@@ -44,6 +44,7 @@ const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
       <WsShell active="commerce" user={ user } signOut={ signOut }>
         <section className="wsx">
           <header className="wsx-head">
+            <p className="wsx-eyebrow">Workspace</p>
             <h1 className="wsx-title">Commerce</h1>
             <p className="wsx-sub">One order queue and one authoritative catalog.</p>
           </header>
@@ -77,9 +78,15 @@ const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
         <style jsx>{ `
           .wsx{ width:100%; min-width:0; display:grid; gap:16px; }
           .wsx-head{ display:grid; gap:4px; }
+          .wsx-eyebrow{
+            margin:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px;
+            color:var(--text-muted,#6b7280);
+          }
           .wsx-title{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text,#1a1a1a); }
           .wsx-sub{ margin:0; font-size:13px; line-height:1.6; color:var(--text-muted,#6b7280); }
 
+          /* A calm Notion segmented control matching /ws/collect: the active tab lifts to a white
+             pill with forest-green text and a soft shadow, not a heavy solid-green fill. */
           .wsx-tabs{
             display:inline-flex; gap:4px; padding:4px;
             border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-full,9999px);
@@ -89,8 +96,13 @@ const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
             flex:0 0 auto; min-height:var(--tap-min,44px); padding:8px 24px;
             border:0; border-radius:var(--radius-full,9999px); background:transparent;
             color:var(--text-muted,#6b7280); font:inherit; font-weight:600; font-size:14px; cursor:pointer;
+            transition:background var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease);
           }
-          .wsx-tab.on{ background:var(--accent,#1a3a2a); color:#fff; }
+          .wsx-tab:hover:not(.on){ color:var(--text,#1a1a1a); }
+          .wsx-tab.on{
+            background:var(--surface,#fff); color:var(--accent,#1a3a2a); font-weight:700;
+            box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.04));
+          }
           .wsx-tab:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
 
           .wsx-panel{
@@ -104,6 +116,10 @@ const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
           @media (max-width:560px){
             .wsx-tabs{ display:flex; width:100%; }
             .wsx-tab{ flex:1 1 0; padding:8px 12px; }
+          }
+
+          @media (prefers-reduced-motion:reduce){
+            .wsx-tab{ transition:none; }
           }
         ` }</style>
       </WsShell>
