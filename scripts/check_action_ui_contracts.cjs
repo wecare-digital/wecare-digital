@@ -158,6 +158,23 @@ assert.doesNotMatch(vaultPage,
 assert.match(vaultPage, /<PublicNotice\s+mode="inline"\s+tone="error"/,
   'Vault must retain visible inline payment and download failure guidance');
 
+// Vault hero rotates like Home. Only its keywords change; retain the fixed
+// explanation and card heading without repeating a second security subtitle.
+const vaultKeywords = vaultPage.match(/const GET_WORDS: CycleWord\[\] = \[([\s\S]*?)\n\];/);
+assert.ok(vaultKeywords, 'Vault must retain the shared hero word list');
+for (const word of ['document', 'file', 'download', 'access']) {
+  assert.match(vaultKeywords[1], new RegExp("word:\\s*'" + word + "'"),
+    'Missing rotating Vault hero keyword: ' + word);
+}
+assert.match(vaultPage, /sub="View your access and download the file shared with you\."/,
+  'Vault explanation must not change with rotating words');
+assert.match(vaultPage, /<p className="sf-card-kicker">PRIVATE VAULT<\/p>/,
+  'Vault card label must remain unchanged');
+assert.match(vaultPage, /<h2 className="sf-card-title">Your file access<\/h2>/,
+  'Vault card title must remain unchanged');
+assert.doesNotMatch(vaultPage, /Protected by your verified account\./,
+  'Remove the redundant Vault card security subtitle');
+
 // The exact-file Vault alone renders shared public chrome after the owner-scoped
 // fetch settles. Preserve the silent redirect and no-floating-toast contracts.
 const vaultChrome = read('src/components/public/CustomerVaultChrome.tsx');
