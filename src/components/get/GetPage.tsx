@@ -507,7 +507,33 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 return;
             }
 
-            const result = await api.requestMySecureFilePayment( file.fileId );
+            // Vault is always physical goods. The authenticated customer must
+            // affirm the CURRENT saved shipping address; profile presence alone
+            // never authorizes a payment request.
+            const profile = identityReady.data || {};
+            const savedAddress = profile.address;
+            const revision = Number( profile.checkoutAddressUpdatedAt );
+            const address = savedAddress && typeof savedAddress === 'object'
+                ? savedAddress as Record<string, unknown> : null;
+            const displayAddress = address
+                ? String( address.fullAddress || [
+                    address.addressLine1, address.addressLine2, address.locality,
+                    address.city, address.state, address.postalCode, address.country,
+                ].filter( Boolean ).join( ', ' ) ).trim() : '';
+            if ( profile.addressComplete !== true || !address || !displayAddress
+                || !Number.isSafeInteger( revision ) || revision <= 0 ) {
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: {
+                    kind: 'error', source: 'whatsapp',
+                    message: 'A complete saved delivery address is required for physical-goods Vault payment. Update and save your checkout address before paying. Nothing was sent.',
+                } } ) );
+                return;
+            }
+            if ( !window.confirm(
+                'Confirm your CURRENT and CORRECT delivery address for this physical-goods Vault order:\\n\\n'
+                + displayAddress + '\\n\\nSend the WhatsApp Review & Pay request only if this is correct?'
+            ) ) return;
+            const result = await api.requestMySecureFilePayment(
+                file.fileId, { confirmed: true, checkoutAddressUpdatedAt: revision } );
             if ( !result.ok ) {
                 if ( result.failure.status === 401 ) {
                     clearSession();
@@ -735,7 +761,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         </div>
                                                         <div className="sf-payment-option">
                                                             <strong>WhatsApp Review &amp; Pay</strong>
-                                                            <span>Receive the server-priced Review &amp; Pay request on your registered WhatsApp number. Check the amount before approving.</span>
+                                                            <span>Confirm your current saved physical delivery address, then receive the server-priced Review &amp; Pay request on your registered WhatsApp number. No address, no payment request.</span>
                                                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                                 onClick={ () => { void handleVaultPayment( file ); } }
                                                                 disabled={ working === file.fileId }
