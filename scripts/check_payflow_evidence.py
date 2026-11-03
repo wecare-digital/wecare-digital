@@ -105,7 +105,7 @@ view = (ROOT / "src/components/workspace/pay/InvoiceRecords.tsx").read_text()
 require("payment_evidence.invoice_evidence_timeline(invoice, logs)" in invoice_engine,
         "Invoice backend must create timeline, never browser compose it")
 delivery_body = invoice_engine[invoice_engine.index("def get_delivery_log("):]
-require("except (ValueError, TypeError):" in delivery_body
+require("except Exception as exc:" in delivery_body
         and "measured = None" in delivery_body
         and "invalid_invoice_projection" in delivery_body,
         "Malformed or stale invoice identity must fail closed, not crash the ledger")
@@ -120,6 +120,7 @@ fy_functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
 require(len(fy_functions) == 1, "Exactly one invoice financial-year helper required")
 clock = [0]
 namespace = {"IST_OFFSET": 5 * 3600 + 30 * 60,
+             "__builtins__": __builtins__,
              "time": SimpleNamespace(time=lambda: clock[0], gmtime=time.gmtime)}
 fy_module = ast.Module(body=fy_functions, type_ignores=[])
 exec(compile(fy_module, "invoice_fy_helper", "exec"), namespace)
