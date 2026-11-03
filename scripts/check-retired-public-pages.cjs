@@ -112,6 +112,11 @@ const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/checkout', '/checkout/status', '/checkout/success',
   '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
+  // The /ws workspace is an authenticated, non-indexable staff surface (its own
+  // login skin + scoped shell), not a public marketing page. Registered here so
+  // the orphaned-page guard does not reject it; it is intentionally never in the
+  // sitemap PUBLIC_EXACT crawl allowlist.
+  '/ws', '/ws/collect', '/ws/commerce', '/ws/customers', '/ws/inbox', '/ws/settings',
 ]);
 
 function listFiles (directory) {
