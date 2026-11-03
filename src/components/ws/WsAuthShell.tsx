@@ -8,7 +8,7 @@
  * workspace and nothing else.
  *
  * WHAT IT IS, AND WHAT IT IS NOT. It is a FRESH visual skin authored from scratch in the /ws
- * design language (forest green --accent #1a3a2a, lime --lime #d1f470, --lime-tint, Inter,
+ * visual language (quiet neutral surfaces, forest-green actions and Inter typography,
  * --tap-min 44px, safe-area insets, the --radius-* scale from src/styles/tokens.css, matched
  * to src/components/ws/WsShell.tsx). It deliberately does NOT import or reuse AuthShell's
  * authTheme, AuthGate chrome, AuthBrand or its styled-jsx. The visuals here are new.
@@ -37,8 +37,8 @@ import WsNotionTheme from './WsNotionTheme';
  * WsBrandHeader — a fresh brand line above the /ws sign-in form, handed to Amplify's
  * Authenticator through its `components.Header` slot.
  *
- * Authored new for /ws: the brand mark here is the same lime-tile wordmark idiom WsShell uses
- * for its own sidebar/topbar brand (a lime rounded tile carrying the peak glyph, the WECARE
+ * Authored new for /ws: the brand mark follows the same quiet-tile idiom WsShell uses
+ * for its own sidebar/topbar brand (a rounded tile carrying the peak glyph, the WECARE
  * wordmark beside it), so the sign-in screen feels like the destination it opens into. It is
  * NOT AuthBrand/BrandBadge — those belong to the old login.
  *
@@ -103,13 +103,13 @@ const WsBrandHeader = (): React.JSX.Element => (
  * authTheme; the values are re-derived straight from the /ws tokens so the card reads as part
  * of the new workspace.
  *
- *   - primary button: forest-green fill, white type — the shared /ws quiet-action idiom.
- *   - fields: 1px hairline (--border #e5e7eb) at rest; lime-tinted ring + green border on focus,
- *     matching tokens.css --focus-ring / --control-border-focus. Radius 12px (--radius-lg).
- *   - radii/space/font tuned to the /ws scale (Inter, 16px base to avoid iOS input zoom).
+ *   - Amplify's state machine, form controls, spacing and accessible defaults are preserved.
+ *   - field fallback: neutral hairline, green focus ring and 16px to avoid iOS input zoom.
+ *   - primary and link button presentation has ONE owner, WsNotionTheme; this Theme intentionally
+ *     does not define button variations. It must not introduce a competing lime button skin.
  *
- * The router (the card itself) is deliberately left plain here and skinned by the global
- * styled-jsx below, which is scoped under .wsauth-shell so it can never leak onto /workspace.
+ * The router stays plain; only /ws has the shared login/Workspace visual system.
+ * MFA and accessibility rules below remain scoped under .wsauth-shell.
  */
 const wsAuthTheme: Theme = {
   name: 'ws-auth-theme',
@@ -141,26 +141,13 @@ const wsAuthTheme: Theme = {
           boxShadow: { value: 'none' },
         },
       },
-      button: {
-        primary: {
-          backgroundColor: { value: '#24533b' },
-          color: { value: '#ffffff' },
-          _hover: { backgroundColor: { value: '#193e2b' } },
-          _focus: { backgroundColor: { value: '#193e2b' } },
-          _active: { backgroundColor: { value: '#102d21' } },
-        },
-        link: {
-          color: { value: '#1a3a2a' },
-          _hover: { color: { value: '#0f2a1d' }, backgroundColor: { value: 'transparent' } },
-        },
-      },
       fieldcontrol: {
-        borderRadius: { value: '12px' },
-        borderColor: { value: '#e5e7eb' },
+        borderRadius: { value: '8px' },
+        borderColor: { value: '#e8e8e5' },
         fontSize: { value: '16px' },
         _focus: {
-          borderColor: { value: '#1a3a2a' },
-          boxShadow: { value: '0 0 0 3px rgba(209, 244, 112, 0.35)' },
+          borderColor: { value: '#24533b' },
+          boxShadow: { value: '0 0 0 3px rgba(36, 83, 59, 0.18)' },
         },
       },
     },
@@ -191,10 +178,9 @@ const wsAuthTheme: Theme = {
 /**
  * WsAuthGate — the fresh /ws chrome around the sign-in card.
  *
- * Mobile-first, authored new. A single centred column on a tinted surface: a lime hairline
- * banner at the top of the card, the brand header, then the Amplify form. No public Header /
- * Footer / PublicShare / SupportWidget — this is the workspace's own door, not a marketing
- * page, which also keeps it visually distinct from the old AuthGate on purpose.
+ * Mobile-first, authored new. A restrained neutral login surface with a brand header
+ * and Amplify form. No public Header / Footer / PublicShare / SupportWidget — this is
+ * the workspace's own door, visually distinct from the old AuthGate.
  *
  * Once authenticated it returns children directly; the /ws page mounts its own WsShell.
  */
@@ -237,9 +223,7 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
             max(16px,env(safe-area-inset-right,0px))
             max(24px,env(safe-area-inset-bottom,0px))
             max(16px,env(safe-area-inset-left,0px));
-          background:
-            radial-gradient(130% 90% at 50% 0%, var(--lime-tint,rgba(209,244,112,0.22)) 0%, transparent 60%),
-            var(--bg-secondary,#f9fafb);
+          background:var(--ws-canvas,var(--bg-secondary,#f9fafb));
           font-family:var(--font-sans,'Inter',system-ui,sans-serif);
           color:var(--text,#1a1a1a);
         }
@@ -255,8 +239,7 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
           position:relative;
           background:var(--surface,#fff);
           border:1px solid var(--border,#e5e7eb);
-          /* 4px lime TOP edge reads as brand without implying the fields are focused */
-          border-top:4px solid var(--lime,#d1f470);
+          /* Neutral fallback; WsNotionTheme owns the final shared card appearance. */
           border-radius:var(--radius-2xl,16px);
           box-shadow:var(--shadow-xl,0 8px 24px rgba(0,0,0,0.12));
           padding:24px 20px 28px;
@@ -309,47 +292,18 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
           letter-spacing:-0.3px;
           color:var(--accent,#1a3a2a);
         }
-        /* Field labels + inputs. 16px input text avoids the iOS focus-zoom; 44px min height
-           is the device-compat tap target. */
+        /* Accessibility-only defaults for all Amplify auth screens, including MFA.
+           Visual colors, borders, focus rings and button variants live in WsNotionTheme.
+           Keep 16px text to avoid iOS zoom and 44px tap targets. */
         .wsauth-shell .amplify-label{
           font-size:13px;
           font-weight:600;
-          color:var(--text,#1a1a1a);
         }
         .wsauth-shell .amplify-input,
         .wsauth-shell .amplify-select,
         .wsauth-shell .amplify-passwordfield .amplify-input{
           font-size:16px;
           min-height:var(--tap-min,44px);
-          border-radius:var(--radius-lg,12px);
-          border-color:var(--border,#e5e7eb);
-        }
-        .wsauth-shell .amplify-input:focus,
-        .wsauth-shell .amplify-select:focus{
-          border-color:var(--accent,#1a3a2a);
-          box-shadow:0 0 0 3px rgba(209,244,112,0.35);
-        }
-        /* Primary submit: lime fill, forest-green type, full-width, 44px+ tap target. */
-        .wsauth-shell .amplify-button[data-variation='primary']{
-          min-height:var(--tap-min,44px);
-          border-radius:var(--radius-lg,12px);
-          font-weight:700;
-          background-color:var(--lime,#d1f470);
-          color:var(--accent,#1a3a2a);
-          border:0;
-        }
-        .wsauth-shell .amplify-button[data-variation='primary']:hover{
-          background-color:var(--lime-hover,#c5e866);
-        }
-        /* Link/ghost buttons (Forgot password, Back to sign in). */
-        .wsauth-shell .amplify-button[data-variation='link']{
-          color:var(--accent,#1a3a2a);
-          min-height:var(--tap-min,44px);
-          font-weight:600;
-        }
-        .wsauth-shell .amplify-button[data-variation='link']:hover{
-          color:var(--accent-hover,#0f2a1d);
-          background-color:var(--lime-tint,rgba(209,244,112,0.22));
         }
         /* Visible keyboard focus on every interactive element in the card. */
         .wsauth-shell [data-amplify-router] :focus-visible{
@@ -377,11 +331,11 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
           transition:border-color .2s ease, box-shadow .2s ease;
         }
         .wsauth-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio:hover{
-          border-color:var(--lime,#d1f470);
+          border-color:var(--ws-green,var(--accent,#24533b));
         }
         .wsauth-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio:focus-within{
-          border-color:var(--accent,#1a3a2a);
-          box-shadow:0 0 0 3px rgba(209,244,112,0.35);
+          border-color:var(--ws-green,var(--accent,#24533b));
+          box-shadow:0 0 0 3px rgba(36,83,59,0.18);
         }
         .wsauth-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio__label{
           font-size:15px;
@@ -391,8 +345,8 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
           cursor:pointer;
         }
         .wsauth-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio__button{
-          --amplify-components-radio-button-color:#1a3a2a;
-          --amplify-components-radio-button-border-color:#e5e7eb;
+          --amplify-components-radio-button-color:var(--ws-green,#24533b);
+          --amplify-components-radio-button-border-color:var(--ws-hairline,#e8e8e5);
         }
         @media (prefers-reduced-motion:reduce){
           .wsauth-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio{
