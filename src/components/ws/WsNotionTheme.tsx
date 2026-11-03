@@ -43,53 +43,44 @@ const WsNotionTheme: React.FC = () => (
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
   }
 
-  /* Persistent document-like workspace shell: one muted sidebar, one reading surface. */
+  /* Signed-in workspace: a single sidebar and open content reading surface.
+     Keep page-specific content styles separate; the public login Header and
+     Footer are unaffected by these workspace-only selectors. */
   .ws-shell.ws-notion .ws-sidebar {
     background:var(--ws-sidebar);
     border-color:var(--ws-hairline);
   }
   .ws-shell.ws-notion .ws-brand-side {
-    border-bottom:1px solid var(--ws-hairline);
-    padding-bottom:17px;
-    margin-bottom:13px;
+    border-color:var(--ws-hairline);
   }
   .ws-shell.ws-notion .ws-brand-mark {
-    background:#e7eee6;
-    border-radius:8px;
+    background:var(--public-brand-lime,#d1f470);
+    border-radius:12px;
   }
   .ws-shell.ws-notion .ws-brand-name {
-    font-weight:750;
-    letter-spacing:-.045em;
+    color:var(--public-brand-green,#1a3a2a);
+    font-weight:800;
+    letter-spacing:-.035em;
   }
   .ws-shell.ws-notion .ws-nav-link {
-    color:#5e5d5a;
-    font-size:13px;
-    font-weight:550;
-    border-radius:7px;
+    color:var(--ws-muted);
+    font-size:14px;
+    font-weight:600;
+    border-radius:11px;
   }
   .ws-shell.ws-notion .ws-nav-link:hover {
     background:var(--ws-hover);
-  }
-  .ws-shell.ws-notion .ws-nav-link.active {
-    background:#eaeae7;
-    color:var(--ws-ink);
-    font-weight:680;
-  }
-  .ws-shell.ws-notion .ws-nav-link.active .ws-nav-icon {
     color:var(--ws-green);
   }
+  .ws-shell.ws-notion .ws-nav-link.active {
+    background:var(--public-lime-tint,rgba(209,244,112,.22));
+    color:var(--public-brand-green,#1a3a2a);
+    font-weight:700;
+  }
+  .ws-shell.ws-notion .ws-nav-link.active .ws-nav-icon {
+    color:var(--public-brand-green,#1a3a2a);
+  }
   .ws-shell.ws-notion .ws-main {
-    background:var(--ws-paper);
-  }
-  .ws-shell.ws-notion .ws-header {
-    background:rgba(255,255,255,.97);
-    border-bottom-color:var(--ws-hairline);
-  }
-  .ws-shell.ws-notion .ws-header-in {
-    min-height:58px;
-  }
-  .ws-shell.ws-notion .ws-footer {
-    border-color:var(--ws-hairline);
     background:var(--ws-paper);
   }
   .ws-shell.ws-notion .ws-bottomnav {
@@ -97,14 +88,17 @@ const WsNotionTheme: React.FC = () => (
     border-color:var(--ws-hairline);
   }
   .ws-shell.ws-notion .ws-bottom-link.active {
-    color:var(--ws-green);
-    background:#f5f7f3;
+    color:var(--public-brand-green,#1a3a2a);
+    background:var(--public-lime-tint,rgba(209,244,112,.22));
   }
   .ws-shell.ws-notion .ws-content {
     width:100%;
     max-width:1250px;
     margin:0 auto;
-    padding-top:28px;
+    padding-top:24px;
+  }
+  @media(min-width:768px) {
+    .ws-shell.ws-notion .ws-content {padding-top:40px}
   }
 
   /* Same quiet title, eyebrow and supporting-copy scale on every /ws page. */
