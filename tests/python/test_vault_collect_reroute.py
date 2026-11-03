@@ -1,13 +1,11 @@
-"""Vault payment rerouted onto the Collect invoice-engine rail, and its post-capture settlement.
+"""Keep Vault purchases on the native service rail, and honor in-flight invoice settlements.
 
-Executes the two new secure-files functions with local fakes and no AWS calls:
-  * `_invoice_engine_vault_payment` - creates a pay_flow invoice and sends its payment link,
-    mapping engine responses onto the `_PAYMENT_REQUEST_REPLIES` outcome vocabulary.
-  * `_vault_settle_from_invoice` - mints the owner-bound paid-download grant and hands off to
-    `confirm_and_deliver`, refusing when the invoice's claimed owner disagrees with the file.
+All tests use AST-loaded functions and fake AWS clients. No provider calls or charges.
+The old Vault-via-Collect invoice settlement helper remains for pre-fix in-flight invoices.
 """
 import ast
 import hashlib
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -31,86 +29,108 @@ def _load(name, env):
     return base[name]
 
 
-# ── _invoice_engine_vault_payment ─────────────────────────────────────────────
+# ── _start_native_vault_payment ──────────────────────────────────────────────
 
 ITEM = {'fileId': 'file-1', 'ownerPhone': '919000000001',
         'ownerCustomerId': 'owner-sub', 'ownerName': 'Example Customer'}
 
 
-def _payment_fn(responses):
-    """responses: list of (status, body) returned by successive invoice-engine invokes."""
+def _payment_fn(outcome='PAYMENT_REQUEST_SENT', *, price_valid=True, storage_ready=True,
+                invoke_error=False, already_paid=False):
     calls = []
-    seq = iter(responses)
+    def invoke(**kwargs):
+        calls.append(('invoke', kwargs))
+        if invoke_error:
+            raise RuntimeError('transport timed out after possible send')
+        return {'Payload': io.BytesIO(json.dumps({'outcome': outcome}).encode('utf-8'))}
 
-    def invoke(payload):
-        calls.append(payload)
-        return next(seq)
+    def update_item(**kwargs):
+        calls.append(('audit', kwargs))
 
     env = {
-        'VAULT_ITEM_RUPEES': 49, 'VAULT_EXPRESS_RUPEES': 25,
-        '_invoke_invoice_engine': invoke,
+        'BUSINESS_API_FUNCTION': 'wecare-whatsapp-business-api:live',
+        'FILES_TABLE': 'files',
+        '_lambda_client': lambda: SimpleNamespace(invoke=invoke),
+        '_table': lambda name: SimpleNamespace(update_item=update_item),
+        '_vault_file_storage_ready': lambda item: storage_ready,
+        '_vault_storage_unavailable': lambda origin: {'statusCode': 503, 'body': {'error': 'VAULT_STORAGE_UNAVAILABLE'}},
+        '_vault_offer_catalog_price_valid': lambda: price_valid,
+        '_paid_marks': lambda item: already_paid,
         'catalog_service_checkout': SimpleNamespace(
-            vault_item_description=lambda raw: raw or 'Vault Access (24 Hrs)'),
+            VAULT_ITEM_DESCRIPTION_DEFAULT='Vault Access (24 Hrs)',
+            valid_vault_item_description=lambda raw: isinstance(raw, str) and 12 <= len(raw) <= 60),
+        '_PAYMENT_REQUEST_REPLIES': {
+            'PAYMENT_REQUEST_SENT': (200, 'Payment request sent'),
+            'PAYMENT_REQUEST_REFUSED': (502, 'Nothing was charged'),
+            'PAYMENT_REQUEST_UNCONFIRMED': (202, 'Check WhatsApp'),
+        },
+        'cors_response': lambda code, body, origin: {'statusCode': code, 'body': body},
+        '_no_store': lambda result: result,
     }
-    return _load('_invoice_engine_vault_payment', env), calls
+    return _load('_start_native_vault_payment', env), calls
 
 
-def test_create_then_send_maps_to_payment_request_sent():
-    fn, calls = _payment_fn([
-        (201, {'invoiceId': 'inv-1'}),
-        (200, {'status': 'payment_link_sent'}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'PAYMENT_REQUEST_SENT'
-    # First invoke creates a pay_flow invoice carrying the file binding and the owner id.
-    create = json.loads(calls[0]['body'])
-    assert create['entryPoint'] == 'pay_flow'
-    assert create['goodsType'] == 'physical-goods'
-    assert create['vaultFileId'] == 'file-1'
-    assert create['vaultCustomerId'] == 'owner-sub'
-    assert create['items'][0]['amount'] == 49
-    assert create['shipping'] == 25
-    # Second invoke sends the payment link for the created invoice.
-    assert 'send-payment-link' in calls[1]['rawPath']
+def _invoke_calls(calls):
+    return [kwargs for kind, kwargs in calls if kind == 'invoke']
 
 
-def test_send_in_progress_is_also_a_clean_send():
-    fn, _ = _payment_fn([
-        (201, {'invoiceId': 'inv-1'}),
-        (200, {'status': 'send_in_progress'}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'PAYMENT_REQUEST_SENT'
+def test_exact_file_vault_payment_uses_native_business_rail_not_collect():
+    fn, calls = _payment_fn()
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497)
+    assert result['statusCode'] == 200
+    assert result['body']['outcome'] == 'PAYMENT_REQUEST_SENT'
+    invokes = _invoke_calls(calls)
+    assert len(invokes) == 1
+    assert invokes[0]['FunctionName'] == 'wecare-whatsapp-business-api:live'
+    assert invokes[0]['InvocationType'] == 'RequestResponse'
+    payload = json.loads(invokes[0]['Payload'])
+    assert payload['internalAction'] == 'catalogService'
+    assert payload['action'] == 'sendPayment'
+    assert payload['fileId'] == ITEM['fileId']
+    assert payload['ownerCustomerId'] == ITEM['ownerCustomerId']
+    assert payload['ownerPhone'] == ITEM['ownerPhone']
+    assert payload['paymentItemDescription'] == 'Vault Access (24 Hrs)'
+    assert payload['expectedTotalPaise'] == 8497
+    assert 'rawPath' not in payload
+    assert 'invoiceId' not in payload
 
 
-def test_delivery_required_refusal_on_create_is_refused_not_unconfirmed():
-    fn, calls = _payment_fn([
-        (400, {'errorCode': 'DELIVERY_REQUIRED'}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'PAYMENT_REQUEST_REFUSED'
-    # No send is attempted once create refused.
-    assert len(calls) == 1
+def test_native_refusal_never_claims_payment_was_sent():
+    fn, calls = _payment_fn('PAYMENT_REQUEST_REFUSED')
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    assert result['statusCode'] == 502
+    assert result['body']['outcome'] == 'PAYMENT_REQUEST_REFUSED'
+    assert len(_invoke_calls(calls)) == 1
 
 
-def test_transient_create_failure_is_unavailable_not_charged():
-    fn, _ = _payment_fn([
-        (503, {'retryable': True}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'CATALOG_SERVICE_UNAVAILABLE'
+def test_ambiguous_native_invoke_preserves_uncertain_status():
+    fn, calls = _payment_fn(invoke_error=True)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    assert result['statusCode'] == 202
+    assert result['body']['outcome'] == 'PAYMENT_REQUEST_UNCONFIRMED'
+    assert len(_invoke_calls(calls)) == 1
 
 
-def test_transient_send_failure_is_unconfirmed_never_a_clean_send():
-    fn, _ = _payment_fn([
-        (201, {'invoiceId': 'inv-1'}),
-        (503, {}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'PAYMENT_REQUEST_UNCONFIRMED'
+def test_changed_vault_price_refuses_without_issuing_payment():
+    fn, calls = _payment_fn(price_valid=False)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497)
+    assert result['statusCode'] == 409
+    assert result['body']['outcome'] == 'VAULT_QUOTE_CHANGED'
+    assert _invoke_calls(calls) == []
 
 
-def test_send_refusal_from_engine_is_refused():
-    fn, _ = _payment_fn([
-        (201, {'invoiceId': 'inv-1'}),
-        (409, {'error': 'Invoice is already paid'}),
-    ])
-    assert fn(ITEM, 'Vault Access (24 Hrs)', 'staff') == 'PAYMENT_REQUEST_REFUSED'
+def test_paid_vault_file_never_requests_another_payment():
+    fn, calls = _payment_fn(already_paid=True)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    assert result['statusCode'] == 409
+    assert _invoke_calls(calls) == []
+
+
+def test_missing_private_file_refuses_before_payment_invoke():
+    fn, calls = _payment_fn(storage_ready=False)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    assert result['statusCode'] == 503
+    assert _invoke_calls(calls) == []
 
 
 # ── _vault_settle_from_invoice ────────────────────────────────────────────────
