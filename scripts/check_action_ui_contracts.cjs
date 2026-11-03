@@ -133,7 +133,7 @@ assert.match(publicAdapter, /String\(kind\) === 'whatsappFailed'/, 'Unconfirmed 
 
 // /vault/?file=<id> is an exact-file private flow, not a public toast surface.
 // _app must render this route BEFORE its global PublicToastProvider mount.
-// Vault retains persistent inline payment, download and access guidance.
+// Vault uses actions and accessible control labels instead of inline notices.
 const vaultRoute = read('src/pages/vault.tsx');
 const vaultPage = read('src/components/get/GetPage.tsx');
 const vaultEarlyExit = app.match(
@@ -155,8 +155,25 @@ assert.match(vaultRoute, /return\s*<GetPage\s+targetFileId=\{\s*targetFileId\s*\
 assert.doesNotMatch(vaultPage,
   /\b(?:usePublicToast|useActionNotification|showToast|PublicToastProvider|ActionNotificationProvider|wc-action-toast)\b|<PublicNotice\b[^>]*\bmode=["']toast["']/,
   'No floating toast calls or toast-mode notices are allowed on the Vault page');
-assert.match(vaultPage, /<PublicNotice\s+mode="inline"\s+tone="error"/,
-  'Vault must retain visible inline payment and download failure guidance');
+assert.doesNotMatch(vaultPage, /\bPublicNotice\b|<[^>]+\brole=["'](?:status|alert)["']|\baria-live\s*=/,
+  'Vault must render no inline notices, alert/status regions or live notifications');
+for (const retiredSelector of [
+  'sf-state-note', 'sf-confirming-note', 'sf-payment-note', 'sf-file-status-row',
+  'sf-status-chip', 'sf-file-error',
+]) {
+  assert.ok(!vaultPage.includes(retiredSelector),
+    'Vault must not restore inline notification styling: ' + retiredSelector);
+}
+assert.match(vaultPage, /sf-load-error[\s\S]*?window\.location\.reload\(\)/,
+  'A failed file lookup must retain a retry control, without an inline notification');
+assert.match(vaultPage, /waitingForPayment[\s\S]*?Refresh payment status/,
+  'Unresolved WhatsApp payment must expose Refresh, not another payment attempt');
+assert.match(vaultPage, /disabled aria-label="Payment recorded\. Confirming access\. No additional payment is needed\."/,
+  'Pending paid access must remain non-payable and distinguishable without a notice');
+assert.match(vaultPage, /fileStatusLabel\( state \)/,
+  'Vault must preserve a factual paid/unpaid state in control labels');
+assert.match(vaultPage, /source: 'download'/,
+  'Vault must preserve failed-download recovery through the action label');
 
 // Vault hero rotates like Home. Only its keywords change; retain the fixed
 // explanation and card heading without repeating a second security subtitle.

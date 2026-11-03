@@ -3,8 +3,8 @@
  *
  * /vault intentionally bypasses _app's public branch: invalid/missing targets,
  * authentication handoffs and expired or foreign files must redirect silently.
- * GetPage mounts this only after the owner-scoped lookup resolves or a retryable
- * API failure needs to be shown. No toast provider or second access path is added.
+ * GetPage mounts this only after owner-scoped verification or a failed lookup
+ * needs a retry action. It must not mount a floating or inline notice surface.
  */
 import React from 'react';
 import Header from '../Header';
