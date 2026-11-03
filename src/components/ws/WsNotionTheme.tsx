@@ -238,9 +238,11 @@ const WsNotionTheme: React.FC = () => (
     min-height:100vh;
     min-height:100dvh;
     padding-top:108px;
+    background:#fff;
   }
   .wsauth-shell.ws-notion-auth .wsauth-login-main {
     width:100%;
+    background:#fff;
     flex:1;
     min-height:calc(100vh - 108px);
     min-height:calc(100dvh - 108px);
@@ -268,48 +270,24 @@ const WsNotionTheme: React.FC = () => (
     unicode-bidi:isolate;
   }
 
-  /* The original WECARE SVG, above the actual username/password form. */
-  .wsauth-shell.ws-notion-auth .wsauth-brand {
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:14px;
-    margin:0 0 34px;
-    width:100%;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-svg-frame {
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:58px;
-    height:58px;
-    flex:0 0 58px;
-    overflow:hidden;
-    border-radius:13px;
-    background:#fff;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-svg-frame img {
-    display:block;
-    flex:0 0 166px;
-    width:166px;
-    height:166px;
-    max-width:none;
-    object-fit:contain;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-wordmark {
-    display:flex;
-    flex-direction:column;
-    align-items:flex-start;
-    justify-content:center;
-    line-height:1.05;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-wordmark strong {
-    font-size:23px;
+  /* The public header owns the brand mark. Only the company-name
+     eyebrow sits above the login form; no duplicate icon or wordmark. */
+  .wsauth-shell.ws-notion-auth .wsauth-eyebrow {
+    display:table;
+    width:max-content;
+    max-width:100%;
+    margin:0 0 26px;
+    padding:9px 14px;
+    border:0;
+    border-radius:999px;
+    background:#eff7d8;
+    color:var(--ws-login-deep);
+    font-size:12px;
+    line-height:1.35;
     font-weight:800;
-    letter-spacing:-.045em;
-    color:var(--ws-login-ink);
+    letter-spacing:.09em;
+    white-space:nowrap;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-wordmark-dot {color:#ff0040}
 
   /* Remove the previous card/marketing treatment, not just its outline. */
   .wsauth-shell.ws-notion-auth [data-amplify-authenticator],
@@ -362,6 +340,16 @@ const WsNotionTheme: React.FC = () => (
     border-radius:14px;
     box-shadow:none!important;
   }
+  /* No hover border, border-color or shadow on username, password or the eye.
+     Preserve focus outlines for keyboard input and validation errors. */
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):hover,
+  .wsauth-shell.ws-notion-auth .amplify-field-group__control:hover,
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield:hover .amplify-field-group__control,
+  .wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button:hover:not(:disabled) {
+    border:0!important;
+    border-color:transparent!important;
+    box-shadow:none!important;
+  }
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
     border:0!important;
     outline:2px solid var(--ws-login-deep)!important;
@@ -395,8 +383,9 @@ const WsNotionTheme: React.FC = () => (
     font-size:13px;
   }
 
-  /* Screenshot: an uninterrupted lime oval with just the Sign in text. */
+  /* Lime sign-in CTA: Google's Material 3 login glyph, never a Next arrow. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
+    gap:10px;
     width:100%;
     min-height:54px;
     display:flex;
@@ -410,6 +399,21 @@ const WsNotionTheme: React.FC = () => (
     font-size:17px;
     font-weight:750;
     transition:background-color .16s ease;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']::before {
+    content:'login';
+    display:inline-block;
+    font-family:'Material Symbols Rounded';
+    font-size:23px;
+    line-height:1;
+    font-weight:400;
+    font-style:normal;
+    white-space:nowrap;
+    letter-spacing:normal;
+    text-transform:none;
+    font-feature-settings:'liga';
+    -webkit-font-feature-settings:'liga';
+    font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled) {
     background-color:var(--ws-login-lime-hover);
@@ -480,10 +484,7 @@ const WsNotionTheme: React.FC = () => (
     }
   }
   @media(max-width:360px) {
-    .wsauth-shell.ws-notion-auth .wsauth-brand {gap:10px}
-    .wsauth-shell.ws-notion-auth .wsauth-svg-frame {width:50px;height:50px;flex-basis:50px}
-    .wsauth-shell.ws-notion-auth .wsauth-svg-frame img {width:146px;height:146px;flex-basis:146px}
-    .wsauth-shell.ws-notion-auth .wsauth-wordmark strong {font-size:20px}
+    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {font-size:11px;padding:8px 12px}
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}

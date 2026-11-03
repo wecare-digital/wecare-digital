@@ -78,8 +78,16 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'dark ink on lime must keep the button label readable');
   assert.ok(blockMatch[1].includes('border:0!important'),
     'the CTA must not reintroduce the legacy outlined button');
+  assert.ok(theme.includes("content:'login'"),
+    'sign-in uses the Material Symbols Rounded login icon instead of Next');
   assert.ok(!theme.includes("content:'arrow_forward'"),
-    'the screenshot shows a plain Sign in button without a trailing icon');
+    'do not add a forward/Next arrow to the sign-in button');
+  assert.ok(readSource('src/config/materialSymbols.ts').includes("'login'"),
+    'the icon must be included in the Google Material 3 subset font');
+  assert.ok(theme.includes("font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24"),
+    'Material 3 icon weight must match its explicit font-weight to avoid browser fallback');
+  assert.ok(theme.includes("-webkit-font-feature-settings:'liga'"),
+    'enable ligature rendering in browsers using WebKit font-feature settings');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:focus-visible"),
     'the lime button still needs a strong keyboard focus state');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
@@ -104,6 +112,10 @@ test('credential inputs are truly borderless at rest with an accessible focus ri
     'password visibility controls must preserve a visible focus ring');
   assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
     'keyboard focus must remain visible even though field borders are removed');
+  assert.ok(theme.includes('.amplify-field-group__control:hover'),
+    'password control hover must not reintroduce an Amplify default border');
+  assert.ok(theme.includes('border-color:transparent!important'),
+    'input, group and eye-button hover borders must stay transparent');
 });
 
 test('login has exactly the minimal form and real homepage header, share block, footer', () => {
@@ -131,19 +143,20 @@ test('login has exactly the minimal form and real homepage header, share block, 
     'public chrome must unmount after sign-in, not wrap the private workspace');
 });
 
-test('WECARE.DIGITAL SVG appears above the form without any recreated logo', () => {
-  assert.ok(auth.includes('https://wecare.digital/get/o/stream/media/m/wecare-digital.svg'),
-    'use the verified original S3 WECARE SVG');
+test('only the WECARE.DIGITAL eyebrow appears above form, without duplicate logo', () => {
+  assert.ok(auth.includes('<Header />'), 'public Header remains the only page logo owner');
   assert.ok(auth.includes('const WsBrandHeader = (): React.JSX.Element => ('),
-    'the logo lives in the real Amplify header slot');
-  assert.ok(auth.includes('width={ 166 } height={ 166 }'),
-    'pre-style dimensions match the rendered original SVG');
-  assert.ok(auth.includes('<strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>'),
-    'display WECARE.DIGITAL above the form');
-  assert.ok(auth.includes('<strong>DIGITAL</strong>'), 'retain full company name');
-  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-svg-frame img'),
-    'crop the whitespace from S3 SVG inside its own logo frame');
-  assert.ok(!auth.includes('<BrandLockup compact />'), 'do not substitute the PNG brand asset');
+    'text eyebrow belongs in the actual Cognito header slot');
+  assert.ok(auth.includes('<div className="wsauth-eyebrow" data-wc-no-translate="true">WECARE.DIGITAL</div>'),
+    'the complete eyebrow label must be exactly WECARE.DIGITAL');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-eyebrow'),
+    'eyebrow pill is styled and scoped to /ws');
+  assert.ok(!auth.includes('<img '), 'the login must not render a duplicate logo image');
+  assert.ok(!auth.includes('WECARE_SVG_URL'), 'the S3 logo is already handled by shared Header');
+  assert.ok(!theme.includes('wsauth-svg-frame'), 'remove unused duplicated-logo styling');
+  assert.ok(theme.includes('background:#fff;'), 'login is on a white page, not lime-tinted');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-login-main'),
+    'centered form remains separate from public chrome');
 });
 
 test('the screenshot input and password affordances stay intact', () => {

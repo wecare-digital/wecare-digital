@@ -40,6 +40,7 @@ export const MATERIAL_SYMBOLS = [
   'link',
   'local_activity',
   'lock',
+  'login',
   'neurology',
   'notifications_active',
   'receipt_long',
