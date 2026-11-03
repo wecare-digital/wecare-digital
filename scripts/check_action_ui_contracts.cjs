@@ -129,6 +129,34 @@ assert.equal((app.match(/<PublicToastProvider>/g) || []).length, 1, 'Expected ex
 assert.equal((app.match(/<ToastProvider>/g) || []).length, 1, 'Expected exactly one Workspace provider');
 assert.equal((provider.match(/data-wc-unified-action-notice-host="true"/g) || []).length, 1, 'Expected one toast host');
 assert.match(publicAdapter, /String\(kind\) === 'whatsappFailed'/, 'Unconfirmed WhatsApp must never show a floating toast');
+
+// /vault/?file=<id> is an exact-file private flow, not a public toast surface.
+// _app must render this route BEFORE its global PublicToastProvider mount.
+// Vault retains persistent inline payment, download and access guidance.
+const vaultRoute = read('src/pages/vault.tsx');
+const vaultPage = read('src/components/get/GetPage.tsx');
+const vaultEarlyExit = app.match(
+  /if\s*\(\s*router\.pathname === '\/404' \|\| router\.pathname === '\/vault'\s*\)[\s\S]*?\n  \}/
+);
+assert.ok(vaultEarlyExit, 'Vault must bypass the global public toast provider');
+assert.ok(app.indexOf(vaultEarlyExit[0]) < app.indexOf('<PublicToastProvider>'),
+  'Vault no-toast branch must be evaluated before the public toast mount');
+assert.match(vaultEarlyExit[0],
+  /return\s*\(\s*<ErrorBoundary>\s*<Component\s*\{\s*\.\.\.pageProps\s*\}\s*\/>\s*<\/ErrorBoundary>\s*\)/,
+  'Vault must mount directly without any toast-provider wrapper');
+assert.doesNotMatch(vaultEarlyExit[0],
+  /<(?:PublicToastProvider|ToastProvider|ActionNotificationProvider)\b/,
+  'Vault route must not mount a floating notification provider');
+assert.match(vaultRoute, /fileParam\s*=\s*router\.query\.file/,
+  'The exact-file Vault route must keep the file query parameter');
+assert.match(vaultRoute, /return\s*<GetPage\s+targetFileId=\{\s*targetFileId\s*\}\s*\/>/,
+  'Vault must continue rendering the owner-scoped file page');
+assert.doesNotMatch(vaultPage,
+  /\b(?:usePublicToast|useActionNotification|showToast|PublicToastProvider|ActionNotificationProvider|wc-action-toast)\b|<PublicNotice\b[^>]*\bmode=["']toast["']/,
+  'No floating toast calls or toast-mode notices are allowed on the Vault page');
+assert.match(vaultPage, /<PublicNotice\s+mode="inline"\s+tone="error"/,
+  'Vault must retain visible inline payment and download failure guidance');
+
 assert.match(workspaceAdapter, /actions\.show\(type, message\)/, 'Workspace must use shared validated host');
 assert.match(copyHook, /await navigator\.clipboard\.writeText\(value\)/, 'Copy success must await the clipboard');
 assert.match(provider, /const duration = \(type === 'error' \|\| type === 'warning'\) \? 0/, 'Errors and warnings must be persistent');
