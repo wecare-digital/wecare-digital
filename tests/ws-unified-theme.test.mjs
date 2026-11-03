@@ -76,16 +76,18 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'dark ink on lime must keep the button label readable');
   assert.ok(blockMatch[1].includes('border:0!important'),
     'the CTA must not reintroduce the legacy outlined button');
-  assert.ok(theme.includes("content:'arrow_forward'"),
-    'the submit button should display its Material 3 arrow');
+  assert.ok(!theme.includes("content:'arrow_forward'"),
+    'the screenshot shows a plain Sign in button without a trailing icon');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:focus-visible"),
     'the lime button still needs a strong keyboard focus state');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
     'a disabled submit button needs an intentional state');
   assert.ok(theme.includes('@media(prefers-reduced-motion:reduce)'),
     'respect visitors who ask to reduce animation');
-  assert.ok(theme.includes(".amplify-button[data-variation='primary']:active:not(:disabled) {transform:none}"),
-    'the login CTA must not translate when reduced motion is enabled');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary'] {transition:none}"),
+    'the simple login CTA must respect reduced-motion preferences');
+  assert.ok(theme.includes('border-radius:999px'),
+    'the button and forgot-password affordance must be oval as pictured');
 });
 
 test('credential inputs are truly borderless at rest with an accessible focus ring', () => {
@@ -102,43 +104,58 @@ test('credential inputs are truly borderless at rest with an accessible focus ri
     'keyboard focus must remain visible even though field borders are removed');
 });
 
-test('login has a real split design, homepage logo, Material 3 glyphs and real policy routes', () => {
-  const icons = readSource('src/config/materialSymbols.ts');
-  for (const name of [
-    'arrow_forward',
-    'group',
-    'inbox',
-    'lock',
-    'receipt_long',
-    'shopping_bag',
-  ]) {
-    assert.ok(icons.includes("'" + name + "'"), 'Material 3 font subset must contain ' + name);
-    assert.ok(auth.includes("symbol('" + name + "')"), 'login must use typed Material 3 icon ' + name);
+test('login has exactly the minimal form and real homepage header, share block, footer', () => {
+  assert.ok(auth.includes("import Header from '../Header'"), 'reuse real site header');
+  assert.ok(auth.includes("import Footer from '../Footer'"), 'reuse real site footer');
+  assert.ok(auth.includes("import PublicShare from '../PublicShare'"), 'reuse real homepage share actions');
+  assert.ok(auth.includes("import PublicToastProvider from '../public/PublicToastProvider'"),
+    'share actions retain the public feedback provider');
+  assert.ok(auth.includes('<PublicToastProvider>'), 'public chrome gets its feedback context');
+  assert.ok(auth.includes('<Header />'), 'public header appears above login');
+  assert.ok(auth.includes('<Footer />'), 'public footer appears after share block');
+  assert.ok(auth.includes('<PublicShare url="https://wecare.digital/" title="WECARE.DIGITAL" />'),
+    'share the public homepage rather than the password-protected route');
+  assert.ok(auth.includes('className="wsauth-login-main"'), 'form occupies its own main area');
+  assert.ok(auth.includes('className="wsauth-form"'), 'keep one centered form');
+  assert.ok(theme.includes('padding-top:108px'), 'desktop form clears the fixed public header');
+  assert.ok(theme.includes('@media(max-width:767px)'), 'mobile header and spacing are covered');
+  assert.ok(theme.includes('padding-top:96px'), 'phone form clears the fixed mobile header');
+  for (const obsolete of ['wsauth-workbook', 'wsauth-story', 'wsauth-module', 'Welcome back.', 'STAFF WORKSPACE', 'SECURE SIGN IN']) {
+    assert.ok(!auth.includes(obsolete), 'do not bring back the previous promo UI: ' + obsolete);
   }
-  assert.ok(auth.includes("https://wecare.digital/get/o/stream/media/m/wecare-digital.svg"),
-    'login logo must use the actual verified WECARE SVG hosted in the canonical S3 media prefix');
-  assert.ok(!auth.includes('<BrandLockup compact />'),
-    'the PNG homepage logo must not override the requested S3 SVG');
-  assert.ok(auth.includes('<span className="wsauth-svg-frame" aria-hidden="true">'),
-    'SVG icon is decorative next to the visible WECARE.DIGITAL name');
+  assert.ok(!auth.includes('Back to wecare.digital'), 'the shared header already navigates home');
+  assert.ok(!auth.includes('Site policies'), 'avoid duplicating the public menu navigation');
+  assert.ok(auth.indexOf("authStatus === 'authenticated'") < auth.indexOf('<PublicToastProvider>'),
+    'public chrome must unmount after sign-in, not wrap the private workspace');
+});
+
+test('WECARE.DIGITAL SVG appears above the form without any recreated logo', () => {
+  assert.ok(auth.includes('https://wecare.digital/get/o/stream/media/m/wecare-digital.svg'),
+    'use the verified original S3 WECARE SVG');
+  assert.ok(auth.includes('const WsBrandHeader = (): React.JSX.Element => ('),
+    'the logo lives in the real Amplify header slot');
   assert.ok(auth.includes('width={ 166 } height={ 166 }'),
-    'image dimensions must match its displayed CSS size, not the 5000px viewBox');
+    'pre-style dimensions match the rendered original SVG');
   assert.ok(auth.includes('<strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>'),
-    'retain public two-line WECARE.DIGITAL brand treatment');
-  assert.ok(auth.includes('wsauth-form-kicker">WECARE.DIGITAL</p>'),
-    'keep the requested WECARE.DIGITAL login section label');
+    'display WECARE.DIGITAL above the form');
+  assert.ok(auth.includes('<strong>DIGITAL</strong>'), 'retain full company name');
   assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-svg-frame img'),
-    'the original SVG viewBox whitespace must be cropped without changing its artwork');
-  assert.ok(auth.includes('className="wsauth-layout"'), 'a real responsive layout is required');
-  assert.ok(auth.includes('className="wsauth-workbook"'), 'the split-panel workspace preview is required');
-  assert.ok(theme.includes('grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)'),
-    'desktop must render the two-column login');
-  assert.ok(theme.includes('@media(max-width:780px)'),
-    'mobile must have a deliberate compact layout');
-  assert.ok(auth.includes('href="/terms/"'), 'link to the real terms page');
-  assert.ok(auth.includes('href="/privacy/"'), 'link to the real privacy page');
-  assert.ok(auth.includes('Access is restricted to authorized staff.'),
-    'the staff-only access notice should remain visible');
-  assert.ok(!auth.includes('By signing in you agree'),
-    'do not invent terms acceptance from simply signing in');
+    'crop the whitespace from S3 SVG inside its own logo frame');
+  assert.ok(!auth.includes('<BrandLockup compact />'), 'do not substitute the PNG brand asset');
+});
+
+test('the screenshot input and password affordances stay intact', () => {
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .amplify-label'),
+    'username and password labels remain readable');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button'),
+    'the existing show-password eye is retained');
+  assert.ok(theme.includes(".wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']"),
+    'the password recovery button remains available');
+  assert.ok(theme.includes('background:var(--ws-login-field)'),
+    'forgot password has the pale gray pill surface');
+  assert.ok(theme.includes('border-radius:999px'), 'form actions are fully rounded as requested');
+  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
+    'focused password and username fields remain accessible');
+  assert.ok(theme.includes('[data-amplify-authenticator-select-mfa-type]'),
+    'MFA flow is still styled and usable');
 });
