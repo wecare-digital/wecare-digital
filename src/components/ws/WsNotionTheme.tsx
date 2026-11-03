@@ -411,26 +411,34 @@ const WsNotionTheme: React.FC = () => (
     font-size:13px;
   }
 
-  /* User-selected Option C: compact, right-aligned sign-in action.
-     Other MFA/recovery primary actions keep their own centered full-width
-     layout, with the same 13px corners and without a misleading login glyph. */
+  /* Match the public /auth action language: tinted rest, underlined Inter text,
+     bright lime hover, subtle lift, accessible focus and disabled feedback.
+     Keep Option C's 200x46 right-aligned sign-in layout and 13px corners. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
     gap:10px;
     width:100%;
-    min-height:46px;
+    min-height:52px;
     display:flex;
     align-items:center;
     justify-content:center;
+    padding:10px 18px;
     border:0!important;
     border-radius:13px;
-    background-color:var(--ws-login-lime);
-    color:var(--ws-login-deep);
+    background-color:var(--public-lime-tint,var(--ws-login-field));
+    color:var(--public-brand-green,var(--ws-login-deep));
     box-shadow:none;
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
     font-size:var(--public-cta-font-size,17px);
-    font-weight:var(--public-cta-font-weight,600);
-    letter-spacing:var(--public-body-tracking,-.125px);
-    transition:background-color .16s ease;
+    font-weight:700;
+    line-height:1.35;
+    text-align:center;
+    text-decoration:underline;
+    text-decoration-thickness:1.5px;
+    text-underline-offset:4px;
+    cursor:pointer;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    transition:background-color .18s ease,transform .18s ease,box-shadow .18s ease,text-decoration-color .18s ease;
   }
   .wsauth-shell.ws-notion-auth[data-wsauth-signin='true'] .amplify-button[data-variation='primary'] {
     width:200px;
@@ -459,42 +467,68 @@ const WsNotionTheme: React.FC = () => (
     font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled) {
-    background-color:var(--ws-login-lime-hover);
+    background-color:var(--public-brand-lime,var(--ws-login-lime));
+    transform:translateY(-1px);
+    box-shadow:var(--public-lift-shadow,0 4px 12px rgba(26,58,42,.12))!important;
+    text-decoration-color:transparent;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:focus-visible {
-    outline:3px solid var(--ws-login-deep);
+    outline:3px solid var(--public-brand-green,var(--ws-login-deep));
     outline-offset:3px;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active:not(:disabled) {
-    background-color:#b8df56;
+    background-color:var(--public-brand-lime,var(--ws-login-lime));
+    transform:none;
+    box-shadow:none!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:disabled {
-    opacity:.55;
+    opacity:.6;
     cursor:not-allowed;
+    transform:none;
+    box-shadow:none!important;
   }
-  /* Screenshot: the Forgot password action is a centered gray pill. */
+  /* Recovery links use the same /auth action fill, underline and hover-lift,
+     but retain 14px secondary text and a 44px touch target. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link'] {
     display:inline-flex;
+    align-items:center;
+    justify-content:center;
     width:max-content;
     max-width:100%;
     margin-inline:auto;
     min-height:44px;
-    padding-inline:20px;
-    border:0;
+    padding:10px 18px;
+    border:0!important;
     border-radius:13px;
-    background:var(--ws-login-field);
-    color:var(--ws-login-deep);
+    background:var(--public-lime-tint,var(--ws-login-field));
+    color:var(--public-brand-green,var(--ws-login-deep));
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
     font-size:var(--public-meta-size,14px);
-    font-weight:600;
-  }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover {
-    background:var(--ws-login-field);
+    font-weight:700;
+    line-height:1.35;
+    text-align:center;
     text-decoration:underline;
-    text-underline-offset:3px;
+    text-decoration-thickness:1.5px;
+    text-underline-offset:4px;
+    cursor:pointer;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    transition:background-color .18s ease,transform .18s ease,box-shadow .18s ease,text-decoration-color .18s ease;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover:not(:disabled) {
+    background:var(--public-brand-lime,var(--ws-login-lime));
+    transform:translateY(-1px);
+    box-shadow:var(--public-lift-shadow,0 4px 12px rgba(26,58,42,.12));
+    text-decoration-color:transparent;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:disabled {
+    opacity:.6;
+    cursor:not-allowed;
+    transform:none;
+    box-shadow:none;
   }
   .wsauth-shell.ws-notion-auth [data-amplify-authenticator] :is(a,button):focus-visible {
-    outline:3px solid var(--ws-login-deep);
+    outline:3px solid var(--public-brand-green,var(--ws-login-deep));
     outline-offset:3px;
   }
 
@@ -533,6 +567,8 @@ const WsNotionTheme: React.FC = () => (
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
     .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link'] {transition:none}
+    .wsauth-shell.ws-notion-auth :is(.amplify-button[data-variation='primary'],.amplify-button[data-variation='link']):hover:not(:disabled) {transform:none}
   }
   @media(forced-colors:active) {
     .ws-shell.ws-notion .ws-nav-link.active,

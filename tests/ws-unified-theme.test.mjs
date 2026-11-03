@@ -57,7 +57,7 @@ test('each /ws route retains its original business panel and shared theme', () =
 });
 
 
-test('homepage lime owns the sign-in CTA, without conflicting Amplify variation CSS', () => {
+test('public /auth button treatment owns /ws CTA, without conflicting Amplify variation CSS', () => {
   // The base paint rule is singular. A reduced-motion media query may repeat
   // the selector only to suppress animation, without redefining the button fill.
   const primaryBlocks = [ ...theme.matchAll(
@@ -72,10 +72,10 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
 
   const blockMatch = theme.match(/\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/);
   assert.ok(blockMatch, 'the CTA rule must be a flat, well-formed CSS declaration');
-  assert.ok(blockMatch[1].includes('background-color:var(--ws-login-lime)'),
-    'the CTA fill must be homepage lime, not solid dark green');
-  assert.ok(blockMatch[1].includes('color:var(--ws-login-deep)'),
-    'dark ink on lime must keep the button label readable');
+  assert.ok(blockMatch[1].includes('background-color:var(--public-lime-tint,var(--ws-login-field))'),
+    'Sign in must use the customer /auth tinted rest surface, not an unrelated solid button');
+  assert.ok(blockMatch[1].includes('color:var(--public-brand-green,var(--ws-login-deep))'),
+    'use the common public-brand-green ink on the button');
   assert.ok(blockMatch[1].includes('border:0!important'),
     'the CTA must not reintroduce the legacy outlined button');
   assert.ok(theme.includes("content:'login'"),
@@ -196,8 +196,8 @@ test('login fields and form fonts use public homepage tokens, not system gray', 
     'mobile inputs remain at least 16px for iOS zoom safety');
   assert.ok(theme.includes('font-size:var(--public-cta-font-size,17px)'),
     'the Sign in CTA follows the public button scale');
-  assert.ok(theme.includes('font-weight:var(--public-cta-font-weight,600)'),
-    'the Sign in CTA follows the public button weight');
+  assert.ok(theme.includes('font-weight:700'),
+    'the Sign in CTA uses the /auth action emphasis and underline');
   assert.ok(theme.includes("font-family:var(--font-sans,Inter,system-ui,sans-serif)"),
     'use the existing Inter typography instead of native font defaults');
   assert.ok(theme.includes('.amplify-input:-webkit-autofill'),
@@ -269,6 +269,59 @@ test('only Sign in uses right-aligned 200x46 CTA with 13px corners', () => {
     'credential fields should use the same 13px corner scale');
   assert.ok(theme.includes("  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']"),
     'keep forgot-password separate from the primary action');
-  assert.ok(theme.includes('background:var(--ws-login-field)'),
-    'keep the secondary action on the public lime-tint surface');
+  assert.ok(theme.includes('background:var(--public-lime-tint,var(--ws-login-field))'),
+    'keep the secondary action on the same /auth lime-tint surface');
+});
+
+test('public /auth buttons and staff /ws buttons share one visual interaction language', () => {
+  const primary = theme.match(
+    /\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/,
+  );
+  const secondary = theme.match(
+    /\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='link'\]\s*\{([^{}]*)\}/,
+  );
+  assert.ok(primary && secondary, 'both Cognito action classes require visual styling');
+  for (const [name, block] of [['primary', primary[1]], ['secondary', secondary[1]]]) {
+    for (const fragment of [
+      'border-radius:13px', 'font-weight:700', 'line-height:1.35',
+      'text-decoration:underline', 'text-decoration-thickness:1.5px',
+      'text-underline-offset:4px', 'touch-action:manipulation',
+      '-webkit-tap-highlight-color:transparent', 'transition:background-color .18s ease',
+    ]) {
+      assert.ok(block.includes(fragment), name + ' button must share /auth design contract: ' + fragment);
+    }
+  }
+  assert.ok(primary[1].includes('background-color:var(--public-lime-tint,var(--ws-login-field))'),
+    'primary resting fill comes from the same public lime-tint token as customer auth');
+  assert.ok(secondary[1].includes('background:var(--public-lime-tint,var(--ws-login-field))'),
+    'secondary resting fill uses the same tint, not a gray system fill');
+  for (const fragment of [
+    'background-color:var(--public-brand-lime,var(--ws-login-lime))',
+    'background:var(--public-brand-lime,var(--ws-login-lime))',
+    'transform:translateY(-1px)',
+    'box-shadow:var(--public-lift-shadow',
+    'text-decoration-color:transparent',
+  ]) {
+    assert.ok(theme.includes(fragment), 'hover must match /auth interaction style: ' + fragment);
+  }
+  assert.ok(theme.includes(".amplify-button[data-variation='link'] {transition:none}"),
+    'reduced-motion users must not get secondary button transitions');
+  assert.ok(theme.includes('):hover:not(:disabled) {transform:none}'),
+    'reduced-motion users must not get hover lift animation');
+  assert.ok(theme.includes(".amplify-button[data-variation='link']:disabled"),
+    'secondary buttons must have intentional disabled states');
+  for (const kind of ['primary', 'link']) {
+    const selector = `.wsauth-shell.ws-notion-auth .amplify-button[data-variation='${kind}']:disabled {`;
+    const start = theme.indexOf(selector);
+    assert.ok(start !== -1, kind + ' disabled button style is required');
+    const disabledDeclarations = theme.slice(start, theme.indexOf('}', start));
+    assert.ok(disabledDeclarations.includes('cursor:not-allowed'),
+      kind + ' disabled action must use not-allowed, never a misleading loading cursor');
+    assert.ok(!disabledDeclarations.includes('cursor:wait'),
+      kind + ' disabled action must not imply a network request is processing');
+  }
+  assert.ok(theme.includes('outline:3px solid var(--public-brand-green,var(--ws-login-deep))'),
+    'public auth palette is used for keyboard focus indicators');
+  assert.ok(auth.includes("data-wsauth-signin={ route === 'signIn' ? 'true' : undefined }"),
+    '200x46 right-aligned layout still applies only on actual Cognito signIn route');
 });
