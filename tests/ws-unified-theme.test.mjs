@@ -84,6 +84,10 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'do not add a forward/Next arrow to the sign-in button');
   assert.ok(readSource('src/config/materialSymbols.ts').includes("'login'"),
     'the icon must be included in the Google Material 3 subset font');
+  assert.ok(theme.includes("font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24"),
+    'Material 3 icon weight must match its explicit font-weight to avoid browser fallback');
+  assert.ok(theme.includes("-webkit-font-feature-settings:'liga'"),
+    'enable ligature rendering in browsers using WebKit font-feature settings');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:focus-visible"),
     'the lime button still needs a strong keyboard focus state');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
