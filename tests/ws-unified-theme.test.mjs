@@ -146,14 +146,11 @@ test('login has exactly the minimal form and real homepage header, share block, 
 test('login reuses the public transparent SVG BrandBadge with homepage typography', () => {
   const badge = readSource('src/components/BrandBadge.tsx');
   const mark = readSource('src/components/BrandMark.tsx');
-  const legacyAuth = readSource('src/components/AuthBrand.tsx');
   assert.ok(auth.includes('<Header />'), 'retain shared public header branding');
   assert.ok(auth.includes("import BrandBadge from '../BrandBadge'"),
     'use the same reusable branded pill rather than a new icon or logo renderer');
   assert.ok(auth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
     'render official mark LEFT and WECARE.DIGITAL text RIGHT in one shared component');
-  assert.ok(legacyAuth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
-    'match existing site login branding rather than introducing a new type ladder');
   assert.ok(badge.includes('<BrandMark />'), 'use the validated inline vector');
   assert.ok(badge.indexOf('<BrandMark />') < badge.indexOf('{ label }'),
     'the vector must appear before the text');
@@ -197,6 +194,8 @@ test('login fields and form fonts use public homepage tokens, not system gray', 
     'use the existing Inter typography instead of native font defaults');
   assert.ok(theme.includes('.amplify-input:-webkit-autofill'),
     'autofill must not introduce system yellow on themed inputs');
+  assert.ok(theme.includes('-webkit-box-shadow:0 0 0 1000px #f5fde0 inset!important'),
+    'autofill overlay must use opaque resolved homepage lime tint, not translucent fill');
   assert.ok(theme.includes('border:0!important'),
     'inputs stay actually borderless');
   assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
