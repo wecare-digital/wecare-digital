@@ -57,7 +57,7 @@ const wsAuthTheme: Theme = {
       fieldcontrol: {
         borderWidth: { value: '0px' },
         borderColor: { value: 'transparent' },
-        borderRadius: { value: '14px' },
+        borderRadius: { value: '13px' },
         fontSize: { value: '16px' },
       },
     },
