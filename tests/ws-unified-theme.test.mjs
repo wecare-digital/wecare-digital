@@ -206,8 +206,14 @@ test('login fields and form fonts use public homepage tokens, not system gray', 
     'autofill overlay must use opaque resolved homepage lime tint, not translucent fill');
   assert.ok(theme.includes('border:0!important'),
     'inputs stay actually borderless');
-  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
-    'focus stays visible and accessible with no hover stroke');
+  assert.match(theme,
+    /\.wsauth-shell\.ws-notion-auth :is\(\.amplify-input,\.amplify-select\):focus\s*\{[^}]*box-shadow:inset 0 -2px 0 var\(--ws-login-deep\)!important;/,
+    'username and password focus must show the 2px /auth-style underline, not the old dark box outline');
+  const passwordFocus = theme.match(
+    /\.wsauth-shell\.ws-notion-auth \.amplify-passwordfield \.amplify-input:focus\s*\{([^{}]*)\}/,
+  );
+  assert.ok(passwordFocus && !passwordFocus[1].includes('box-shadow:none'),
+    'password input must retain its own focus indicator if :focus-within is not painted');
 });
 
 test('the screenshot input and password affordances stay intact', () => {
