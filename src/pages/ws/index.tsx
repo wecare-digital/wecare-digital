@@ -5,9 +5,8 @@
  * cards to each of the five sections. Auth is automatic (see src/pages/_app.tsx): this page is
  * rendered through AuthShell and receives { signOut, user }. It is NOT public — SEO is noindex.
  *
- * NOTE: Home has no single matching bottom-nav item, so WsShell's `active` is given 'inbox' only
- * to satisfy the type; no nav item is highlighted in a way that misrepresents the current page on
- * mobile because the brand mark (not a nav item) is what points here.
+ * Home uses the explicit 'home' section so Inbox is never misleadingly highlighted
+ * while the launchpad is open. The shared brand link remains the Home affordance.
  */
 import React from 'react';
 import Link from 'next/link';
@@ -63,10 +62,10 @@ const WsHome: React.FC<PageProps> = ( { signOut, user } ) => {
   return (
     <>
       <SEO title="Workspace" description="WECARE workspace home." noindex />
-      <WsShell active="inbox" user={ user } signOut={ signOut }>
+      <WsShell active="home" user={ user } signOut={ signOut }>
         <section className="ws-home">
           <header className="ws-home-head">
-            <p className="ws-home-eyebrow">Workspace</p>
+            <p className="ws-home-eyebrow">Workspace / Home</p>
             <h1 className="ws-home-title">Welcome back</h1>
             { loginId
               ? <p className="ws-home-sub" data-wc-no-translate="true">{ loginId }</p>
