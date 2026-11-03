@@ -45,6 +45,7 @@ const watched = [
   'src/pages/workspace/service/index.tsx',
   'src/pages/workspace/content/index.tsx',
   'src/components/get/GetPage.tsx',
+  'src/components/public/CustomerVaultChrome.tsx',
   'src/components/workspace/commerce/Orders.tsx',
   'src/components/workspace/whatsapp/groups.tsx',
   'src/components/workspace/whatsapp/calling.tsx',
@@ -157,6 +158,28 @@ assert.doesNotMatch(vaultPage,
 assert.match(vaultPage, /<PublicNotice\s+mode="inline"\s+tone="error"/,
   'Vault must retain visible inline payment and download failure guidance');
 
+// The exact-file Vault alone renders shared public chrome after the owner-scoped
+// fetch settles. Preserve the silent redirect and no-floating-toast contracts.
+const vaultChrome = read('src/components/public/CustomerVaultChrome.tsx');
+assert.match(vaultPage, /if \( stage === 'loading' && !error \) return null;/,
+  'Vault must remain blank during owner verification and redirects');
+assert.match(vaultPage, /<CustomerVaultChrome>[\s\S]*<RotatingHero/,
+  'Vault customer UI must reuse the isolated shared chrome');
+assert.match(vaultPage, /data-wc-no-translate="true"/,
+  'Private file details must be excluded from automatic translation requests');
+for (const component of ['Header', 'PublicPolicyDetails', 'PublicShare', 'Footer', 'SupportWidget']) {
+  assert.match(vaultChrome, new RegExp('<' + component + '\\b'),
+    'Vault shell missing shared public component: ' + component);
+}
+assert.doesNotMatch(vaultChrome, /(?:ToastProvider|ActionNotificationProvider|showToast|usePublicToast)/,
+  'Vault shell must not add floating notifications');
+assert.match(vaultChrome, /SAFE_VAULT_SHARE_URL\s*=\s*.+SITE_ORIGIN.+\/orders\//,
+  'Vault sharing must use the safe Orders URL, not an exact-file link');
+assert.match(vaultChrome, /url=\{\s*SAFE_VAULT_SHARE_URL\s*\}/,
+  'PublicShare must receive an explicit non-file URL');
+assert.doesNotMatch(vaultChrome, /(?:targetFileId|router\.query|fileParam|window\.location\.href)/,
+  'Shared public actions must not read or publish private file identifiers');
+
 assert.match(workspaceAdapter, /actions\.show\(type, message\)/, 'Workspace must use shared validated host');
 assert.match(copyHook, /await navigator\.clipboard\.writeText\(value\)/, 'Copy success must await the clipboard');
 assert.match(provider, /const duration = \(type === 'error' \|\| type === 'warning'\) \? 0/, 'Errors and warnings must be persistent');
@@ -176,6 +199,12 @@ function loadTypeScript(file, mockRequire) {
   return loadedModule.exports;
 }
 const publicNotices = loadTypeScript('src/lib/publicActionNotices.ts', name => { throw Error('Unexpected public notice import: ' + name); });
+const vaultPolicies = loadTypeScript('src/content/publicPolicyDetails.ts',
+  name => { throw Error('Unexpected Vault policy import: ' + name); });
+assert.ok(vaultPolicies.publicPolicyDetailsForRoute('/vault'),
+  'Exact-file Vault must have a shared policy disclosure');
+assert.equal(vaultPolicies.publicPolicyDetailsForRoute('/404'), null,
+  'Redirect-only 404 must remain free of public disclosures');
 const copy = {
   processing: 'Processing…',
   success: 'Done.',
