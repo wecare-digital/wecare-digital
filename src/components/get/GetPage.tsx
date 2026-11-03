@@ -40,6 +40,7 @@ import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import CustomerVaultChrome from '../public/CustomerVaultChrome';
+import { ConfirmProvider, useConfirm } from '../../contexts/ConfirmContext';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
@@ -118,7 +119,20 @@ interface FilesPageProps {
 
 type FileFeedback = { kind: 'status' | 'error'; message: string; source: 'download' | 'website' | 'whatsapp' };
 
+/* /vault bypasses _app's protected ConfirmProvider and its public chrome
+   on purpose. The provider lives inside this exact-file page, so ownership
+   checks and silent redirects still work, and address approval cannot crash
+   with "useConfirm must be used within a ConfirmProvider". */
 export default function FilesPage ( { targetFileId }: FilesPageProps ) {
+    return (
+        <ConfirmProvider>
+            <VaultFileContent targetFileId={ targetFileId } />
+        </ConfirmProvider>
+    );
+}
+
+function VaultFileContent ( { targetFileId }: FilesPageProps ) {
+    const confirm = useConfirm();
     const [ stage, setStage ] = useState<Stage>( 'loading' );
     const [ error, setError ] = useState( '' );
 
@@ -528,10 +542,25 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 } } ) );
                 return;
             }
-            if ( !window.confirm(
-                'Confirm your CURRENT and CORRECT delivery address for this physical-goods Vault order:\\n\\n'
-                + displayAddress + '\\n\\nSend the WhatsApp Review & Pay request only if this is correct?'
-            ) ) return;
+            // The shared accessible confirmation dialog replaces window.confirm:
+            // /vault does not mount the authenticated shell's ConfirmProvider.
+            // Do not send a payment request until the customer explicitly approves
+            // the saved, current address revision shown here.
+            const approvedAddress = await confirm( {
+                title: 'Confirm delivery address',
+                message: (
+                    <div>
+                        <p>Confirm your CURRENT and CORRECT delivery address for this physical-goods Vault order:</p>
+                        <p style={ { overflowWrap: 'anywhere', fontWeight: 700, whiteSpace: 'pre-wrap' } }>
+                            { displayAddress }
+                        </p>
+                        <p>Send the WhatsApp Review &amp; Pay request only if this is correct?</p>
+                    </div>
+                ),
+                confirmText: 'Confirm address & send request',
+                cancelText: 'Not now',
+            } );
+            if ( !approvedAddress ) return;
             const result = await api.requestMySecureFilePayment(
                 file.fileId, { confirmed: true, checkoutAddressUpdatedAt: revision } );
             if ( !result.ok ) {
