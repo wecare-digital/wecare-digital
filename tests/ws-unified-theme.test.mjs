@@ -55,39 +55,69 @@ test('each /ws route retains its original business panel and shared theme', () =
 });
 
 
-test('login buttons have exactly one visual owner and accessible interaction states', () => {
+test('homepage lime owns the sign-in CTA, without conflicting Amplify variation CSS', () => {
   const selector = ".wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {";
   assert.equal(theme.split(selector).length - 1, 1,
-    'shared /ws visual system owns the base primary button style once');
-
-  // The old lime selector and redundant Amplify component token caused three
-  // competing values in the cascade; neither can be reintroduced.
+    'the scoped /ws theme owns its primary button exactly once');
   assert.ok(!auth.includes("data-variation='primary'"),
-    'WsAuthShell must never style the primary button directly');
+    'the auth component must not add a competing button selector');
   assert.ok(!/\bbutton:\s*\{\s*primary:/.test(auth),
-    'Amplify button variations must not introduce a competing primary palette');
-  // Match the full, flat CSS declaration block. The [^{}]* guard makes the
-  // assertion fail if a nested rule or stray brace is introduced later.
-  const blockMatch = theme.match(/\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/);
-  assert.ok(blockMatch, 'primary button rule must be present and well-formed');
-  const buttonRule = blockMatch[1];
-  assert.ok(buttonRule.includes('background-color:var(--ws-green)'),
-    'primary button should use the same green as /ws');
-  assert.ok(buttonRule.includes('color:#fff'),
-    'primary button should have readable white text');
-  assert.ok(theme.includes(".amplify-button[data-variation='primary']:is(:hover,:focus-visible)"),
-    'hover and keyboard focus must share an intentional green state');
-  assert.ok(theme.includes(".amplify-button[data-variation='primary']:active"),
-    'pressed state must be explicit');
-  assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
-    'disabled state must remain visually clear');
+    'Amplify theme tokens must not add a competing button variation');
 
-  assert.ok(theme.includes(':is(.amplify-input,.amplify-select):focus'),
-    'input focus should match the green action palette');
-  assert.ok(!auth.includes('rgba(209,244,112,0.35)'),
-    'obsolete lime form focus ring should not return');
-  assert.ok(!auth.includes('#d1f470') && !auth.includes('var(--lime,'),
-    'auth brand tile and Amplify fallback palette must not restore lime');
-  assert.ok(auth.includes('background:#e9eee8;'),
-    'brand tile fallback should match the neutral shared theme');
+  const blockMatch = theme.match(/\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/);
+  assert.ok(blockMatch, 'the CTA rule must be a flat, well-formed CSS declaration');
+  assert.ok(blockMatch[1].includes('background-color:var(--ws-login-lime)'),
+    'the CTA fill must be homepage lime, not solid dark green');
+  assert.ok(blockMatch[1].includes('color:var(--ws-login-deep)'),
+    'dark ink on lime must keep the button label readable');
+  assert.ok(blockMatch[1].includes('border:0!important'),
+    'the CTA must not reintroduce the legacy outlined button');
+  assert.ok(theme.includes("content:'arrow_forward'"),
+    'the submit button should display its Material 3 arrow');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:focus-visible"),
+    'the lime button still needs a strong keyboard focus state');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
+    'a disabled submit button needs an intentional state');
+});
+
+test('credential inputs are truly borderless at rest with an accessible focus ring', () => {
+  const fields = theme.match(
+    /\.wsauth-shell\.ws-notion-auth :is\(\.amplify-input,\.amplify-select\),\s*\.wsauth-shell\.ws-notion-auth \.amplify-passwordfield \.amplify-input\s*\{([^{}]*)\}/,
+  );
+  assert.ok(fields, 'the input and password field rule must exist');
+  assert.match(fields[1], /border:0!important;/, 'input borders must be ZERO, not a lighter stroke');
+  assert.match(fields[1], /background:var\(--ws-login-field\)!important;/,
+    'borderless fields use a soft surface to distinguish input areas');
+  assert.ok(theme.includes('.amplify-passwordfield .amplify-field-group__control:focus-within'),
+    'password visibility controls must preserve a visible focus ring');
+  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
+    'keyboard focus must remain visible even though field borders are removed');
+});
+
+test('login has a real split design, homepage logo, Material 3 glyphs and real policy routes', () => {
+  const icons = readSource('src/config/materialSymbols.ts');
+  for (const name of [
+    'arrow_forward',
+    'group',
+    'inbox',
+    'lock',
+    'receipt_long',
+    'shopping_bag',
+  ]) {
+    assert.ok(icons.includes("'" + name + "'"), 'Material 3 font subset must contain ' + name);
+    assert.ok(auth.includes("symbol('" + name + "')"), 'login must use typed Material 3 icon ' + name);
+  }
+  assert.ok(auth.includes('<BrandLockup compact />'), 'use the actual public site brand asset');
+  assert.ok(auth.includes('className="wsauth-layout"'), 'a real responsive layout is required');
+  assert.ok(auth.includes('className="wsauth-workbook"'), 'the split-panel workspace preview is required');
+  assert.ok(theme.includes('grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)'),
+    'desktop must render the two-column login');
+  assert.ok(theme.includes('@media(max-width:780px)'),
+    'mobile must have a deliberate compact layout');
+  assert.ok(auth.includes('href="/terms/"'), 'link to the real terms page');
+  assert.ok(auth.includes('href="/privacy/"'), 'link to the real privacy page');
+  assert.ok(auth.includes('Access is restricted to authorized staff.'),
+    'the staff-only access notice should remain visible');
+  assert.ok(!auth.includes('By signing in you agree'),
+    'do not invent terms acceptance from simply signing in');
 });
