@@ -706,6 +706,9 @@ const WsNotionTheme: React.FC = () => (
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled),
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active:not(:disabled) {transform:none}
   }
   @media(forced-colors:active) {
     .ws-shell.ws-notion .ws-nav-link.active,
