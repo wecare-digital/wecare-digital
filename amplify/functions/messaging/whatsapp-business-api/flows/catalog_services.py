@@ -37,6 +37,7 @@ _NOT_PREPARED = frozenset({
     'CATALOG_SERVICE_INTENT_UNAVAILABLE', 'CATALOG_SERVICE_UNAVAILABLE',
     'NATIVE_SERVICE_ROLLOUT_DISABLED', 'NATIVE_SERVICE_META_NOT_READY',
     'NATIVE_SERVICE_WRITEBACK_NOT_READY', 'VAULT_QUOTE_CHANGED',
+    'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
 })
 #: `_create` answers that leave no payable message on the customer's phone.
 _NOT_SENT = _NOT_PREPARED | {'PAYMENT_REQUEST_NOT_SENT', 'PAYMENT_REQUEST_REFUSED',
@@ -134,6 +135,9 @@ def _payment_outcome(result):
     """One word for what commerce's prepare did, from its two answer shapes."""
     if not isinstance(result, dict):
         return 'PAYMENT_REQUEST_UNCONFIRMED'
+    if (result.get('outcome') == 'PAYMENT_REQUEST_REFUSED'
+            and result.get('reason') == 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'):
+        return 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'
     if result.get('outcome'):
         return str(result['outcome'])
     code = int(result.get('statusCode') or 0)
