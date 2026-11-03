@@ -45,6 +45,7 @@ const watched = [
   'src/pages/workspace/service/index.tsx',
   'src/pages/workspace/content/index.tsx',
   'src/components/get/GetPage.tsx',
+  'src/components/public/CustomerVaultChrome.tsx',
   'src/components/workspace/commerce/Orders.tsx',
   'src/components/workspace/whatsapp/groups.tsx',
   'src/components/workspace/whatsapp/calling.tsx',
@@ -129,6 +130,100 @@ assert.equal((app.match(/<PublicToastProvider>/g) || []).length, 1, 'Expected ex
 assert.equal((app.match(/<ToastProvider>/g) || []).length, 1, 'Expected exactly one Workspace provider');
 assert.equal((provider.match(/data-wc-unified-action-notice-host="true"/g) || []).length, 1, 'Expected one toast host');
 assert.match(publicAdapter, /String\(kind\) === 'whatsappFailed'/, 'Unconfirmed WhatsApp must never show a floating toast');
+
+// /vault/?file=<id> is an exact-file private flow, not a public toast surface.
+// _app must render this route BEFORE its global PublicToastProvider mount.
+// Vault retains persistent inline payment, download and access guidance.
+const vaultRoute = read('src/pages/vault.tsx');
+const vaultPage = read('src/components/get/GetPage.tsx');
+const vaultEarlyExit = app.match(
+  /if\s*\(\s*router\.pathname === '\/404' \|\| router\.pathname === '\/vault'\s*\)[\s\S]*?\n  \}/
+);
+assert.ok(vaultEarlyExit, 'Vault must bypass the global public toast provider');
+assert.ok(app.indexOf(vaultEarlyExit[0]) < app.indexOf('<PublicToastProvider>'),
+  'Vault no-toast branch must be evaluated before the public toast mount');
+assert.match(vaultEarlyExit[0],
+  /return\s*\(\s*<ErrorBoundary>\s*<Component\s*\{\s*\.\.\.pageProps\s*\}\s*\/>\s*<\/ErrorBoundary>\s*\)/,
+  'Vault must mount directly without any toast-provider wrapper');
+assert.doesNotMatch(vaultEarlyExit[0],
+  /<(?:PublicToastProvider|ToastProvider|ActionNotificationProvider)\b/,
+  'Vault route must not mount a floating notification provider');
+assert.match(vaultRoute, /fileParam\s*=\s*router\.query\.file/,
+  'The exact-file Vault route must keep the file query parameter');
+assert.match(vaultRoute, /return\s*<GetPage\s+targetFileId=\{\s*targetFileId\s*\}\s*\/>/,
+  'Vault must continue rendering the owner-scoped file page');
+assert.doesNotMatch(vaultPage,
+  /\b(?:usePublicToast|useActionNotification|showToast|PublicToastProvider|ActionNotificationProvider|wc-action-toast)\b|<PublicNotice\b[^>]*\bmode=["']toast["']/,
+  'No floating toast calls or toast-mode notices are allowed on the Vault page');
+assert.match(vaultPage, /<PublicNotice\s+mode="inline"\s+tone="error"/,
+  'Vault must retain visible inline payment and download failure guidance');
+
+// Vault hero rotates like Home. Only its keywords change; retain the fixed
+// explanation and card heading without repeating a second security subtitle.
+const vaultKeywords = vaultPage.match(/const GET_WORDS: CycleWord\[\] = \[([\s\S]*?)\n\];/);
+assert.ok(vaultKeywords, 'Vault must retain the shared hero word list');
+for (const word of ['document', 'file', 'download', 'access']) {
+  assert.match(vaultKeywords[1], new RegExp("word:\\s*'" + word + "'"),
+    'Missing rotating Vault hero keyword: ' + word);
+}
+assert.match(vaultPage, /sub="Check the status and choose your next step\."/,
+  'Vault subtitle must explain the task without repeating the file heading');
+assert.match(vaultPage, /<p className="sf-card-kicker">PRIVATE VAULT<\/p>/,
+  'Vault card label must remain unchanged');
+assert.match(vaultPage, /<h2 className="sf-card-title">Shared with you<\/h2>/,
+  'Vault card heading must use the approved customer wording');
+assert.doesNotMatch(vaultPage, /Protected by your verified account\./,
+  'Remove the redundant Vault card security subtitle');
+
+assert.match(vaultPage, /case 'UNPAID': return 'Payment required';/,
+  'Unpaid customer file must identify payment required rather than a blocked action');
+assert.match(vaultPage, /case 'READY': return 'Payment verified';/,
+  'Verified payment must remain distinct from an unverified payment');
+assert.match(vaultPage, /case 'PAID_UNVERIFIED': return 'Confirming paid access';/,
+  'Payment-recorded files must not claim download authorization before verification');
+assert.match(vaultPage, /Your 24-hour access begins with your first download\./,
+  'Paid access must explain that its clock starts with the first download');
+assert.match(vaultPage, /Payment recorded\. Confirming access\. No additional payment is needed\./,
+  'Pending access must never invite double payment');
+assert.match(vaultPage, /<h3 className="sf-file-name">\{ file\.displayName \}<\/h3>/,
+  'Vault must preserve the existing file-name display per customer request');
+assert.match(vaultPage, /box-sizing:border-box;margin-top:-16px;/,
+  'Vault card alone should have the approved slightly reduced hero spacing');
+assert.match(vaultPage, /\.sf-card\{padding:28px 20px max\(30px,env\(safe-area-inset-bottom\)\);border-radius:20px;margin-top:-8px\}/,
+  'Vault must reduce the mobile gap without changing shared hero styles');
+
+
+// The fresh /ws Collect screen must use the same GSTIN-from-saved-customer
+// contract as the established Workspace Collect flow. No second input, and no
+// obsolete four-argument serializer call that fails TypeScript and production.
+const wsCollectCreate = read('src/components/ws/collect/CollectCreatePanel.tsx');
+assert.match(wsCollectCreate, /collectDraft\(\s*customer,\s*lines,\s*express\s*\)/,
+  'New WS Collect must use the current three-argument invoice draft serializer');
+assert.doesNotMatch(wsCollectCreate, /setGstin|cc-gstin|Customer GST number \(GSTIN\)/,
+  'New WS Collect must not restore the retired editable buyer GSTIN field');
+
+// The exact-file Vault alone renders shared public chrome after the owner-scoped
+// fetch settles. Preserve the silent redirect and no-floating-toast contracts.
+const vaultChrome = read('src/components/public/CustomerVaultChrome.tsx');
+assert.match(vaultPage, /if \( stage === 'loading' && !error \) return null;/,
+  'Vault must remain blank during owner verification and redirects');
+assert.match(vaultPage, /<CustomerVaultChrome>[\s\S]*<RotatingHero/,
+  'Vault customer UI must reuse the isolated shared chrome');
+assert.match(vaultPage, /data-wc-no-translate="true"/,
+  'Private file details must be excluded from automatic translation requests');
+for (const component of ['Header', 'PublicPolicyDetails', 'PublicShare', 'Footer', 'SupportWidget']) {
+  assert.match(vaultChrome, new RegExp('<' + component + '\\b'),
+    'Vault shell missing shared public component: ' + component);
+}
+assert.doesNotMatch(vaultChrome, /(?:ToastProvider|ActionNotificationProvider|showToast|usePublicToast)/,
+  'Vault shell must not add floating notifications');
+assert.match(vaultChrome, /SAFE_VAULT_SHARE_URL\s*=\s*.+SITE_ORIGIN.+\/orders\//,
+  'Vault sharing must use the safe Orders URL, not an exact-file link');
+assert.match(vaultChrome, /url=\{\s*SAFE_VAULT_SHARE_URL\s*\}/,
+  'PublicShare must receive an explicit non-file URL');
+assert.doesNotMatch(vaultChrome, /(?:targetFileId|router\.query|fileParam|window\.location\.href)/,
+  'Shared public actions must not read or publish private file identifiers');
+
 assert.match(workspaceAdapter, /actions\.show\(type, message\)/, 'Workspace must use shared validated host');
 assert.match(copyHook, /await navigator\.clipboard\.writeText\(value\)/, 'Copy success must await the clipboard');
 assert.match(provider, /const duration = \(type === 'error' \|\| type === 'warning'\) \? 0/, 'Errors and warnings must be persistent');
@@ -148,6 +243,12 @@ function loadTypeScript(file, mockRequire) {
   return loadedModule.exports;
 }
 const publicNotices = loadTypeScript('src/lib/publicActionNotices.ts', name => { throw Error('Unexpected public notice import: ' + name); });
+const vaultPolicies = loadTypeScript('src/content/publicPolicyDetails.ts',
+  name => { throw Error('Unexpected Vault policy import: ' + name); });
+assert.ok(vaultPolicies.publicPolicyDetailsForRoute('/vault'),
+  'Exact-file Vault must have a shared policy disclosure');
+assert.equal(vaultPolicies.publicPolicyDetailsForRoute('/404'), null,
+  'Redirect-only 404 must remain free of public disclosures');
 const copy = {
   processing: 'Processing…',
   success: 'Done.',

@@ -112,6 +112,9 @@ const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/checkout', '/checkout/status', '/checkout/success',
   '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
+  // Authenticated, noindex /ws workspace screens (Cognito-gated, never crawled);
+  // deliberately kept OUT of the public sitemap, same as /vault and /auth.
+  '/ws', '/ws/inbox', '/ws/collect', '/ws/customers', '/ws/commerce', '/ws/settings',
 ]);
 
 function listFiles (directory) {

@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 from lambda_utils import customer_auth, template_status, template_media
-from . import service_requests, whatsapp_basket
+from . import service_requests, whatsapp_basket, business_identity
 
 # Customer-readable Vault item label. Only the WORDING is staff-editable for
 # an explicit file-bound send; no client can change the SKU, quantity or amount.
@@ -137,7 +137,7 @@ def quick_reply_component(button: dict) -> dict:
 
 
 def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int,
-                    *, invoice_lines: dict | None = None) -> dict:
+                    *, invoice_lines: dict | None = None, shipping_info: dict | None = None) -> dict:
     """Meta Review & Pay from the same canonical breakdown stored on the attempt."""
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
@@ -186,8 +186,10 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         'items': items,
         'subtotal': {'value': unit_paise + int(quote.convenience_fee_paise), 'offset': 100},
         'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        # The tax row is labelled with the seller GSTIN, so Meta renders it as
+        # "Tax (<GSTIN>)" on the WhatsApp order summary (matching the paid receipt).
         'tax': {'value': supply_gst_paise + int(quote.convenience_gst_paise), 'offset': 100,
-                'description': 'GST'},
+                'description': business_identity.GSTIN or 'GST'},
         'expiration': {'timestamp': str(now + 900),
                        'description': 'Complete payment within 15 minutes'},
     }
@@ -202,14 +204,20 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
     if reconciled != int(quote.total_payable_paise):
         raise ValueError('catalog service ORDER_DETAILS does not reconcile to payable total')
 
-    return {
+    physical = row['kind'] == service_requests.VAULT
+    if physical and not (isinstance(shipping_info, dict) and shipping_info.get('addresses')):
+        raise ValueError('Vault physical-goods payment requires verified shipping details')
+    result = {
         'reference_id': reference_id,
-        'type': 'digital-goods',
+        'type': 'physical-goods' if physical else 'digital-goods',
         'currency': 'INR',
         'payment_configuration': configuration,
         'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
         'order': order,
     }
+    if physical:
+        result['shipping_info'] = shipping_info
+    return result
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:

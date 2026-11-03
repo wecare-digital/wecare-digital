@@ -23,7 +23,7 @@ def _epoch(value: Any) -> Optional[int]:
 
 
 def _fragment(value: Any) -> str:
-    raw = str(value or "")
+    raw = str(value) if value is not None else ""
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12] if raw else ""
 
 

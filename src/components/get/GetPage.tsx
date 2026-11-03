@@ -40,6 +40,7 @@ import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import PublicNotice from '../public/PublicNotice';
+import CustomerVaultChrome from '../public/CustomerVaultChrome';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
@@ -86,16 +87,20 @@ function windowEndLabel ( epochSeconds?: number ): string {
     }
 }
 
-/** One calm, stationary hero word for a private, single-file download task. */
+/** Home-style rotating keywords; each completes the phrase "Your secure ...". */
 const GET_WORDS: CycleWord[] = [
     { word: 'document', tint: '#e0f7c8', dot: '#3da35a' },
+    { word: 'file', tint: '#ede9fe', dot: '#9849e8' },
+    { word: 'download', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'access', tint: '#dbeafe', dot: '#2563eb' },
 ];
 
 function fileStatusLabel ( state: SecureFileAccessState ): string {
     switch ( state ) {
         case 'OPEN': return '';
         case 'READY': return 'Payment verified';
-        case 'PAID_UNVERIFIED': return publicActionText( 'processing' );
+        case 'PAID_UNVERIFIED': return 'Confirming paid access';
+        case 'UNPAID': return 'Payment required';
         case 'EXPIRED': return publicActionText( 'blocked' );
         default: return publicActionText( 'blocked' );
     }
@@ -554,10 +559,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
 
     // Blank during identity and ownership lookup. Only a verified, active file
     // may render the Vault hero. Failed requests still show a retry/error state.
+    // The shared header/footer/support shell must not flash during redirects.
     if ( stage === 'loading' && !error ) return null;
 
     return (
-        <>
+        <CustomerVaultChrome>
             {/* noindex: a personal collection point, not a marketing page. There is
                 nothing here for a crawler, and an indexed URL inviting a phone number
                 is a phishing template waiting to be copied. */}
@@ -588,7 +594,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             <RotatingHero
                 frame="Your secure"
                 words={ GET_WORDS }
-                sub="View your access and download the file shared with you."
+                sub="Check the status and choose your next step."
                 ariaLabel="Your secure document"
                 mobileFoundation
                 compact
@@ -604,8 +610,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         </span>
                         <div className="sf-card-overview-copy">
                             <p className="sf-card-kicker">PRIVATE VAULT</p>
-                            <h2 className="sf-card-title">Your file access</h2>
-                            <p className="sf-card-description">Protected by your verified account.</p>
+                            <h2 className="sf-card-title">Shared with you</h2>
                         </div>
                     </div>
                     { stage === 'loading' && error && (
@@ -636,7 +641,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                 const waitingForPayment = Boolean( paymentWaiting[ file.fileId ] );
 
                                 return (
-                                    <div key={ file.fileId } className="sf-file">
+                                    <div key={ file.fileId } className="sf-file" data-wc-no-translate="true">
                                         <div className="sf-file-head">
                                             <span className="sf-file-icon" aria-hidden="true">
                                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
@@ -682,7 +687,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
                                                         ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : publicActionText( 'success' ) }
+                                                        : 'Your 24-hour access begins with your first download.' }
                                                 </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
@@ -695,7 +700,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
-                                                { publicActionText( 'processing' ) }
+                                                Payment recorded. Confirming access. No additional payment is needed.
                                             </p>
                                         ) : state === 'UNPAID' ? (
                                             <>
@@ -777,9 +782,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                    surfaces built on it - so repeating the padding here would double it and push
                    the panel half a screen down. The panel is simply the hero's child now.
 
-                   The former min-height:100vh (removed earlier) is likewise still absent: _app.tsx
-                   wraps every public route in <Header/> + page + <Footer/>, so claiming the whole
-                   viewport pushed the shared footer a full screen down. */
+                   The former min-height:100vh remains absent: CustomerVaultChrome now
+                   renders the shared header, policy, Stay connected, footer and support widget
+                   after Vault's ownership lookup. A full-viewport panel would push that footer down. */
 
                 /* /auth is the one sign-in screen. After it returns here, Vault uses the same
                    card language: 560px measure, lime top rule, 24px radius and quiet lift. */
@@ -787,7 +792,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   width:100%;max-width:560px;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);
                   border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
                   border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
-                  box-sizing:border-box;
+                  box-sizing:border-box;margin-top:-16px;
                 }
                 .sf-card-overview{display:flex;align-items:center;gap:14px;padding-bottom:20px;margin-bottom:24px;
                   border-bottom:1px solid var(--public-hairline)}
@@ -798,7 +803,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   color:var(--public-brand-green)}
                 .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
                   letter-spacing:-.04em;color:var(--public-heading)}
-                .sf-card-description{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--public-muted)}
                 .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
                 .sf-load-error .sf-file-error{margin:0}
                 .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
@@ -894,7 +898,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-back-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
                 @media(max-width:767px){
-                  .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+                  .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px;margin-top:-8px}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
@@ -912,6 +916,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-file-action-button:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
-        </>
+        </CustomerVaultChrome>
     );
 }
