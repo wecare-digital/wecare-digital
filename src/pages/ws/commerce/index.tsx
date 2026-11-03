@@ -21,6 +21,7 @@ interface PanelProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const Orders = dynamic<PanelProps>(
   () => import( '../../../components/workspace/commerce/Orders' ), { ssr: false },
 );
+
 const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
   return (
     <>
@@ -35,7 +36,7 @@ const WsCommerce: React.FC<PageProps> = ( { signOut, user } ) => {
 
           {/* The reused panel scrolls inside this box, so a wide table never drags the whole
               shell sideways. min-width:0 lets the box actually shrink inside the grid. */}
-          <div className="wsx-panel" role="tabpanel">
+          <div className="wsx-panel">
             <Suspense fallback={ <div className="wsx-loading">Loading…</div> }>
               <Orders signOut={ signOut } user={ user } embedded />
             </Suspense>
