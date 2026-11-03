@@ -1078,6 +1078,28 @@ def _catalog_contents(snapshot) -> list:
     return out
 
 
+def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> Dict[str, Any]:
+    """Canonical Meta delivery data from an already validated saved address."""
+    full_address = ", ".join(
+        part for part in (
+            str(address.get("addressLine1") or "").strip(),
+            str(address.get("addressLine2") or "").strip(),
+        ) if part)
+    return {
+        "country": str(address.get("countryCode") or "IN"),
+        "addresses": [{
+            # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
+            # name Meta shows before payment is the name the order page shows after it.
+            "name": order_delivery.recipient_name(profile)[:60],
+            "address": full_address[:300],
+            "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
+            "city": str(address.get("city") or "")[:60],
+            "state": str(address.get("state") or "")[:60],
+            "in_pin_code": str(address.get("postalCode") or "")[:12],
+        }],
+    }
+
+
 def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
                         address: Dict[str, Any], now: int, *,
                         requires_delivery: bool = True) -> Dict[str, Any]:
@@ -1192,24 +1214,7 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
         "order": order,
     }
     if requires_delivery:
-        full_address = ", ".join(
-            part for part in (
-                str(address.get("addressLine1") or "").strip(),
-                str(address.get("addressLine2") or "").strip(),
-            ) if part)
-        result["shipping_info"] = {
-            "country": str(address.get("countryCode") or "IN"),
-            "addresses": [{
-                # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
-                # name Meta shows before payment is the name the order page shows after it.
-                "name": order_delivery.recipient_name(profile)[:60],
-                "address": full_address[:300],
-                "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
-                "city": str(address.get("city") or "")[:60],
-                "state": str(address.get("state") or "")[:60],
-                "in_pin_code": str(address.get("postalCode") or "")[:12],
-            }],
-        }
+        result["shipping_info"] = _payment_shipping_info(profile, address)
     return result
 
 
@@ -1524,7 +1529,8 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
 def _basket_requires_delivery(line_items: Any) -> bool:
     """Whether this basket ships anything: the server twin of `src/lib/cart.ts::cartRequiresDelivery`.
 
-    Every line that is neither a contribution nor a service is a product that ships. Fails
+    Vault uses physical-goods checkout. Other service-only and contribution baskets do not ship.
+    Every remaining ordinary product line requires delivery. Fails
     CLOSED: a line whose product cannot be read counts as shipping, so a malformed basket is asked
     for an address rather than waved past it (the native quote refuses that basket anyway).
     """
@@ -1535,6 +1541,10 @@ def _basket_requires_delivery(line_items: Any) -> bool:
         product_id = (str(reference.get("catalogItemId") or "").strip().lower()
                       if isinstance(reference, dict) else "")
         if not product_id:
+            return True
+        vault_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[
+            service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]]
+        if product_id == vault_product:
             return True
         if (product_id not in CONTRIBUTION_PRODUCT_IDS
                 and not service_requests.is_service_product(product_id)):
@@ -3085,8 +3095,9 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # intent flow above; this arm is for ordinary product/contribution baskets.
     cart_profile: Optional[Dict[str, Any]] = None
     cart_address: Optional[Dict[str, Any]] = None
-    requires_delivery = bool(catalog_session is None and _basket_requires_delivery(line_items))
-    if catalog_session is None:
+    requires_delivery = bool((catalog_session is not None and catalog_session.get('kind') == service_requests.VAULT)
+                             or (catalog_session is None and _basket_requires_delivery(line_items)))
+    if catalog_session is None or requires_delivery:
         # Native WhatsApp cart payment already has a signed-inbound, phone-bound ContactsTable
         # row from _native_whatsapp_identity. It must NOT require a browser profile/email just to
         # pay in WhatsApp. Website callers pass no native_contact and keep the existing profile
@@ -3109,7 +3120,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                     "message": "Add your name to continue checkout.",
                 }, origin)
 
-        # A contribution or request-service basket has no shipment. Requiring a delivery address
+        # A contribution or non-Vault request-service basket has no shipment. Requiring a delivery address
         # for it made the native WhatsApp rail stricter than the website rail and blocked signed-in
         # customers from paying for a purely digital/service transaction. Physical baskets still
         # fail closed on the same India payment-address checks as before.
@@ -3407,6 +3418,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # shipment and therefore no synthetic delivery address on the eventual order.
         if requires_delivery and cart_address is not None:
             attempt.update(order_delivery.attempt_fields(cart_address, cart_profile))
+    if catalog_session is not None and requires_delivery and cart_address is not None:
+        attempt.update(order_delivery.attempt_fields(cart_address, cart_profile))
     if catalog_session is not None:
         # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
         # `purchasedSnapshot` + `snapshotHash`, which `finalization.accept_paid` turns into the
@@ -3514,6 +3527,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             catalog_session, snapshot.quote, reference_id,
             EXPECTED_CONFIGURATION_NAME, int(time.time()),
             invoice_lines=attempt.get("invoiceLines"),
+            shipping_info=_payment_shipping_info(cart_profile or {}, cart_address or {}) if requires_delivery else None,
         )
     else:
         contact_id = contact_key.resolve(cart_profile or {})
@@ -3873,6 +3887,15 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         logger.error(json.dumps({'event': 'catalog_session_sender_not_permitted',
                                  'sessionToken': token[:8]}))
         return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
+    # Refuse before the one-shot prepare claim; a missing address must not lock a retry.
+    if row.get('kind') == service_requests.VAULT:
+        address = contact_address.from_contact(contact)
+        try:
+            if address is None:
+                raise payment_address.UnpayableAddress('missing saved address')
+            payment_address.assert_payable(address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+        except payment_address.UnpayableAddress:
+            return {'outcome': 'PAYMENT_REQUEST_REFUSED', 'reason': 'DELIVERY_DETAILS_REQUIRED'}
     from lambda_utils.ecommerce import service_request_store as store
     intent = _table('stack-wecare-digital-ServiceRequestsTable').get_item(
         Key={'requestId': 'INTENT#' + str(row.get('serviceIntentId') or '')}, ConsistentRead=True).get('Item') or {}
@@ -3902,7 +3925,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId'],
                    **({'expectedTotalPaise': int(row['expectedTotalPaise'])}
-                      if 'expectedTotalPaise' in row else {})}, origin, catalog_session=row)
+                      if 'expectedTotalPaise' in row else {})}, origin, catalog_session=row, native_contact=contact)
 
 
 

@@ -55,6 +55,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
     }catch{setNotice('The action outcome is unconfirmed. Use the saved recovery reference or Log before another action.');}
     finally{flight.current=false;setBusy(false);}
   };
+  const reviewOrCreate=()=>{if(ready){void create();return;}setNotice(issues.length?issues.join(' '):'The server preview is not ready. Refresh it and review the image before sending.');if(request&&!loading)setPreviewRevision(n=>n+1);};
   return <div className="collect-create">
     {pending&&<div className="recovery" role="status"><strong>Creation needs reconciliation</strong><p>Reference: {pending}</p><button type="button" disabled={busy} onClick={()=>void recover()}>Check saved invoice</button></div>}
     <fieldset disabled={busy||!!pending||!!created}><PaymentCustomerPicker customer={customer} onSelect={select} requireAddress/>
@@ -68,7 +69,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
       {customer&&!request&&<ul aria-label="Details needed for invoice preview">{issues.map(issue=><li key={issue}>{issue}</li>)}</ul>}
       {ready&&quote&&<dl>{[['Item base',quote.value.subtotal],['Supply GST',quote.value.tax],['Delight −',quote.value.discount],['Express +',quote.value.shipping],['Convenience +',quote.value.convenienceFeeNet],['Fee GST +',quote.value.convenienceFeeGst],['Customer pays',quote.value.total]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>₹{value}</dd></div>)}</dl>}
       <button type="button" disabled={busy||!!pending||!!created||!request} onClick={()=>setPreviewRevision(n=>n+1)}>Refresh server preview</button>
-      <button className="primary" type="button" disabled={!ready||busy||!!pending||!!created} onClick={()=>void create()}>{busy?'Checking…':'Confirm invoice & send template'}</button>
+      <button className="primary" type="button" disabled={busy||loading||!!pending||!!created} onClick={reviewOrCreate}>{busy?'Checking…':loading?'Preparing invoice preview…':ready?'Confirm invoice & send template':'Review invoice details'}</button>
       {created&&<p>Saved invoice <strong>{created.invoiceNumber}</strong>. Review payment, receipt and order evidence in Log.</p>}
       {created&&<button type="button" disabled={busy} onClick={()=>void refreshSaved()}>View saved invoice image</button>}
       {created&&<button type="button" onClick={()=>{setCreated(null);setLines([blankCollectLine()]);setExpress('');select(null);setNotice('');onPreview(null);}}>New custom invoice</button>}
