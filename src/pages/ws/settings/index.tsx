@@ -1,10 +1,17 @@
 /**
- * /ws/settings — placeholder (identity + Sign out). Expanded by a later feature.
- * Auth is automatic via AuthShell (see src/pages/_app.tsx); receives { signOut, user }.
+ * /ws/settings — signed-in identity + a prominent Sign out, plus any lightweight, already-available
+ * device control (FEAT-004). No backend settings are invented here.
+ *
+ * Auth is automatic via AuthShell (see src/pages/_app.tsx); this page receives { signOut, user }.
+ * Sign out is wired to the `signOut` prop, which already calls Cognito signOut then
+ * router.push('/'). The one extra surface is PushOptIn — a self-contained control that registers a
+ * device push token through an existing authenticated endpoint and renders NOTHING on web /
+ * unsupported platforms, so it never shows an empty or dead section in a browser.
  */
 import React from 'react';
 import SEO from '../../../components/SEO';
 import WsShell from '../../../components/ws/WsShell';
+import PushOptIn from '../../../components/PushOptIn';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -17,10 +24,17 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
       <WsShell active="settings" user={ user } signOut={ signOut }>
         <section className="ws-page">
           <h1 className="ws-page-title">Settings</h1>
+
           <div className="ws-settings-card" data-wc-no-translate="true">
             <span className="ws-settings-label">Signed in as</span>
             <span className="ws-settings-id">{ loginId || 'Account' }</span>
           </div>
+
+          {/* Self-contained: renders nothing on web/unsupported, so no empty section appears. */}
+          <div className="ws-settings-push">
+            <PushOptIn />
+          </div>
+
           <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() }>
             Sign out
           </button>
@@ -58,6 +72,15 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             color:var(--text,#1a1a1a);
             overflow-wrap:anywhere;
           }
+          /* PushOptIn draws its own top border; give it the card frame so it reads as a setting. */
+          .ws-settings-push{
+            margin-bottom:16px;
+            border:1px solid var(--border,#e5e7eb);
+            border-radius:var(--radius-xl,14px);
+            background:var(--surface,#fff);
+            overflow:hidden;
+          }
+          .ws-settings-push :global(.push-optin){ border-top:0; }
           .ws-settings-signout{
             display:inline-flex;
             align-items:center;
