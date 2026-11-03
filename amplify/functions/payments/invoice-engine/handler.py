@@ -6048,10 +6048,13 @@ def get_delivery_log(invoice_id: str, request_id: str) -> Dict:
         if str(invoice.get('invoiceId') or '') != str(invoice_id):
             raise ValueError('authoritative invoice identity mismatch')
         measured = payment_evidence.invoice_evidence_timeline(invoice, logs)
-    except (ValueError, TypeError):
+    except Exception as exc:  # noqa: BLE001 - optional read-only evidence must fail closed
+        # Evidence must not turn an otherwise readable invoice log into HTTP 500.
+        # Never log the invoice, customer, provider message or exception message.
         logger.warning(json.dumps({
             'event': 'invoice_evidence_unavailable',
             'reason': 'invalid_invoice_projection',
+            'errorType': type(exc).__name__,
             'requestId': request_id,
         }))
         measured = None
