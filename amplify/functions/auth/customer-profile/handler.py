@@ -1119,4 +1119,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "phone": phone,
         "addressComplete": stored_address is not None,
         "address": stored_address,
+        # Saved physical delivery address revision. On a same-request address
+        # write the caller must re-fetch rather than trust an estimated stamp.
+        "checkoutAddressUpdatedAt": (
+            int(merged.get(contact_address.UPDATED_ATTRIBUTE) or 0)
+            if address is None else 0),
     }, origin))
