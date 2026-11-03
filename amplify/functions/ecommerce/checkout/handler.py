@@ -3508,10 +3508,49 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details
         contact_id = catalog_session['contactId']
+        # Vault is a PHYSICAL product: its Review & Pay must show a delivery address, exactly like
+        # a Collect/cart physical order. Source and validate the owner's saved address here (where
+        # the contact row is reachable), on the SAME India WhatsApp-payability check the cart rail
+        # uses, then hand `payment_details` a ready `shipping_info` block. Other catalog services
+        # (Submit Request, Drop Docs) ship nothing, so they stay digital-goods with no address.
+        vault_delivery = None
+        if str(catalog_session.get('kind') or '') == service_requests.VAULT:
+            owner_contact = _table(CONTACTS_TABLE).get_item(
+                Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+            vault_address = contact_address.from_contact(owner_contact)
+            if vault_address is None:
+                return cors_response(409, {
+                    'error': 'DELIVERY_DETAILS_REQUIRED',
+                    'message': 'Save a complete delivery address for this customer before requesting Vault payment. Nothing has been charged.',
+                }, origin)
+            try:
+                payment_address.assert_payable(
+                    vault_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+            except payment_address.UnpayableAddress:
+                return cors_response(409, {
+                    'error': 'DELIVERY_DETAILS_REQUIRED',
+                    'message': 'This delivery address cannot take payment yet. Check and save it again. Nothing has been charged.',
+                }, origin)
+            full_address = ', '.join(part for part in (
+                str(vault_address.get('addressLine1') or '').strip(),
+                str(vault_address.get('addressLine2') or '').strip(),
+            ) if part)
+            vault_delivery = {
+                'country': str(vault_address.get('countryCode') or 'IN'),
+                'addresses': [{
+                    'name': order_delivery.recipient_name(owner_contact)[:60],
+                    'address': full_address[:300],
+                    'landmark_area': str(vault_address.get('locality') or vault_address.get('addressLine2') or '')[:100],
+                    'city': str(vault_address.get('city') or '')[:60],
+                    'state': str(vault_address.get('state') or '')[:60],
+                    'in_pin_code': str(vault_address.get('postalCode') or '')[:12],
+                }],
+            }
         details = payment_details(
             catalog_session, snapshot.quote, reference_id,
             EXPECTED_CONFIGURATION_NAME, int(time.time()),
             invoice_lines=attempt.get("invoiceLines"),
+            delivery=vault_delivery,
         )
     else:
         contact_id = contact_key.resolve(cart_profile or {})

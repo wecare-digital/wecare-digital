@@ -50,7 +50,7 @@ export function frameworkStages(section: FrameworkSection): FrameworkStage[] {
   {name: 'Processing', direction: 'Outgoing → customer', type: 'template', role: 'status',
     gate: 'Verified capture and eligible native ORDER_DETAILS invoice/reference.', timing: 'No deliberate wait after capture; processing/network latency remains.', response: 'Provider acceptance and message-status evidence.'},
   {name: 'Completed', direction: 'Outgoing → customer', type: 'template', role: 'status',
-    gate: 'Processing accepted or already recorded; legal payment-order transition.', timing: section === 'vault' ? 'Fixed 1 second after newly accepted Processing. Replay/already-current path may skip the sleep.' : '0 seconds deliberately added after Processing acceptance.', response: 'Payment lifecycle complete; service/shipment fulfilment is separate.'},
+    gate: 'Processing accepted or already recorded; legal payment-order transition.', timing: 'Fixed half a second (0.5s) after a newly accepted Processing, on every journey. Replay/already-current path may skip the sleep.', response: 'Payment lifecycle complete; service/shipment fulfilment is separate.'},
   {name: 'Paid GST invoice', direction: 'Outgoing → customer', type: 'template', role: 'invoice',
     gate: 'Paid numbered invoice, rendered asset and verified recipient. Status attempts run before receipt; deferred status does not necessarily block receipt.',
     timing: '0 seconds deliberately added after status attempts; invoice creation/render/send adds variable time.', response: 'Receipt evidence. Embedded Leave Review Flow is optional.'}];

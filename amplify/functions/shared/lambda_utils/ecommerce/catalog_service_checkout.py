@@ -137,10 +137,21 @@ def quick_reply_component(button: dict) -> dict:
 
 
 def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int,
-                    *, invoice_lines: dict | None = None) -> dict:
-    """Meta Review & Pay from the same canonical breakdown stored on the attempt."""
+                    *, invoice_lines: dict | None = None,
+                    delivery: dict | None = None) -> dict:
+    """Meta Review & Pay from the same canonical breakdown stored on the attempt.
+
+    `delivery`, when supplied, is a ready-built `shipping_info` block (same shape the cart rail
+    produces via `_cart_order_details`): `{'country': 'IN', 'addresses': [{...}]}`. Its presence
+    makes this a `physical-goods` Review & Pay that shows the delivery address in Meta's checkout
+    sheet; its absence keeps the historical `digital-goods` form. The caller owns sourcing and
+    validating the address (so a service with no deliverable address simply passes `None`), which
+    mirrors how the Collect rail builds `shipping_info` in `send_payment_link`.
+    """
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
+    if delivery is not None and not (isinstance(delivery, dict) and delivery.get('addresses')):
+        raise ValueError('physical-goods Review & Pay requires a shipping_info address block')
     labels = {'SUBMIT_REQUEST': 'Submit Request', 'DROP_DOCS': 'Drop Docs', 'VAULT': 'Vault'}
     label = labels.get(row['kind'], 'Service')
 
@@ -202,14 +213,19 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
     if reconciled != int(quote.total_payable_paise):
         raise ValueError('catalog service ORDER_DETAILS does not reconcile to payable total')
 
-    return {
+    details = {
         'reference_id': reference_id,
-        'type': 'digital-goods',
+        # Physical when a delivery address is attached (Vault is now a physical product), else the
+        # historical digital-goods form for services that ship nothing.
+        'type': 'physical-goods' if delivery is not None else 'digital-goods',
         'currency': 'INR',
         'payment_configuration': configuration,
         'total_amount': {'value': int(quote.total_payable_paise), 'offset': 100},
         'order': order,
     }
+    if delivery is not None:
+        details['shipping_info'] = delivery
+    return details
 
 
 def meta_ready(readiness: dict, kind: str) -> bool:

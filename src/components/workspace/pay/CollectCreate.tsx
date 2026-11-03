@@ -9,13 +9,13 @@ export interface CollectPreview {src:string;label:string;}
 const PENDING_KEY='wecare.collect.pending-create.v1';
 export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:CollectPreview|null)=>void;onCreated:()=>void}) {
   const confirm=useConfirm();
-  const [customer,setCustomer]=React.useState<api.Contact|null>(null),[gstin,setGstin]=React.useState(''),[express,setExpress]=React.useState('');
+  const [customer,setCustomer]=React.useState<api.Contact|null>(null),[express,setExpress]=React.useState('');
   const [lines,setLines]=React.useState<CollectLine[]>([blankCollectLine()]);
   const [quote,setQuote]=React.useState<{key:string;value:api.InvoiceEnginePreview}|null>(null);
   const [previewRevision,setPreviewRevision]=React.useState(0),[loading,setLoading]=React.useState(false),[busy,setBusy]=React.useState(false),[notice,setNotice]=React.useState('');
   const [pending,setPending]=React.useState(''),[created,setCreated]=React.useState<api.Invoice|null>(null);
   const flight=React.useRef(false),currentKey=React.useRef('');
-  const request=React.useMemo(()=>collectDraft(customer,lines,gstin,express),[customer,lines,gstin,express]);
+  const request=React.useMemo(()=>collectDraft(customer,lines,express),[customer,lines,express]);
   const key=collectInputKey(request);
   React.useLayoutEffect(()=>{currentKey.current=key;},[key]);
   const ready=!!key&&quote?.key===key&&!!quote.value.previewFingerprint&&!!quote.value.previewImageBase64&&!loading;
@@ -28,7 +28,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
     }).catch(()=>{if(active)setNotice('Server preview could not be loaded. Nothing can be confirmed yet.');}).finally(()=>{if(active)setLoading(false);});},350);
     return()=>{active=false;clearTimeout(timer);};
   },[key,request,onPreview,previewRevision]);
-  const select=(c:api.Contact|null)=>{setCustomer(c);setGstin(c?.gstin||'');setCreated(null);};
+  const select=(c:api.Contact|null)=>{setCustomer(c);setCreated(null);};
   const update=(index:number,field:keyof CollectLine,value:string)=>setLines(rows=>rows.map((row,n)=>n===index?{...row,[field]:value}:row));
   const recover=async()=>{if(!pending||flight.current)return;flight.current=true;setBusy(true);try{const rows=await collectApi.collectInvoices(pending);if(rows.length===1){setCreated(rows[0]);setPending('');sessionStorage.removeItem(PENDING_KEY);setNotice('The existing invoice was found. No new invoice or payment request was sent. Open Log to review it.');onCreated();}else setNotice('Creation is not yet reconciled. Keep this request pending and check Log; do not raise a second invoice.');}catch{setNotice('Recovery read failed. The pending request is retained.');}finally{flight.current=false;setBusy(false);}};
   const create=async()=>{if(!ready||!request||!quote||pending||flight.current)return;flight.current=true;setBusy(true);const reviewedKey=key,reviewed=quote.value;
@@ -50,14 +50,14 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
   return <div className="collect-create">
     {pending&&<div className="recovery" role="status"><strong>Creation needs reconciliation</strong><p>Reference: {pending}</p><button type="button" disabled={busy} onClick={()=>void recover()}>Check saved invoice</button></div>}
     <fieldset disabled={busy||!!pending||!!created}><PaymentCustomerPicker customer={customer} onSelect={select}/>
-      <section className="card"><small className="step">2 · INVOICE VALUES</small><h2>Custom invoice items</h2><label>Customer GST number (GSTIN)<input value={gstin} maxLength={15} onChange={e=>setGstin(e.target.value.toUpperCase())} placeholder="If applicable"/></label>
+      <section className="card"><small className="step">2 · INVOICE VALUES</small><h2>Custom invoice items</h2>
         {lines.map((line,index)=><div className="line" key={index}><label className="description">Description<input value={line.name} onChange={e=>update(index,'name',e.target.value)}/></label><label>Quantity<input type="number" min="1" step="1" value={line.quantity} onChange={e=>update(index,'quantity',e.target.value)}/></label><label>Unit amount ₹<input type="number" min="0.01" step="0.01" value={line.amount} onChange={e=>update(index,'amount',e.target.value)}/></label><label>GST %<input type="number" min="0" max="100" step="0.01" value={line.gstRate} onChange={e=>update(index,'gstRate',e.target.value)}/></label><button type="button" disabled={lines.length===1} aria-label={`Remove item ${index+1}`} onClick={()=>setLines(rows=>rows.filter((_,n)=>n!==index))}>×</button></div>)}
         <button type="button" onClick={()=>setLines(rows=>[...rows,blankCollectLine()])}>＋ Add item</button>
         <div className="express-charge"><label htmlFor="collect-express">Express ₹<input id="collect-express" type="number" min="0" step="0.01" inputMode="decimal" required value={express} onChange={e=>setExpress(e.target.value)} placeholder="Enter amount" aria-describedby="collect-express-help"/></label><p id="collect-express-help">Enter the Express charge for this invoice. Enter 0 when there is no Express charge. The server recalculates the breakdown and preview from this value.</p></div>
       </section>
     </fieldset>
     <section className="card"><small className="step">3 · REVIEW</small><h2>Preview &amp; confirmation</h2><p>{loading?'Updating the server quote and image…':ready?'The current server invoice image is shown on the right.': 'Select a saved customer with a complete address and enter valid invoice rows and an Express amount. Confirmation requires a current server quote and image.'}</p>
-      {customer&&!request&&<p role="alert">Complete the invoice items and Express amount. Check the GSTIN and saved customer address; use Edit customer to correct saved details.</p>}
+      {customer&&!request&&<p role="alert">Complete the invoice items and Express amount. Check the saved customer address; use Edit customer to correct saved details.</p>}
       {ready&&quote&&<dl>{[['Item base',quote.value.subtotal],['Supply GST',quote.value.tax],['Delight −',quote.value.discount],['Express +',quote.value.shipping],['Convenience +',quote.value.convenienceFeeNet],['Fee GST +',quote.value.convenienceFeeGst],['Customer pays',quote.value.total]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>₹{value}</dd></div>)}</dl>}
       <button type="button" disabled={busy||!!pending||!request} onClick={()=>setPreviewRevision(n=>n+1)}>Refresh server preview</button>
       <button className="primary" type="button" disabled={!ready||busy||!!pending||!!created} onClick={()=>void create()}>{busy?'Checking…':'Confirm invoice & send template'}</button>
