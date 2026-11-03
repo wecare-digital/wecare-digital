@@ -1,8 +1,9 @@
 /**
  * Homepage-aligned /ws sign-in.
  *
- * The user sees only the S3 WECARE.DIGITAL logo, Cognito's real credential
- * form, and the same public header, share rail and footer as the homepage.
+ * The user sees a WECARE.DIGITAL eyebrow and Cognito's real credential
+ * form, within the same public header, share rail and footer as the homepage.
+ * The official brand logo already appears in the shared header, never twice.
  * No simulated workspace, marketing panel or second auth implementation.
  * When Cognito authenticates, the public chrome unmounts and the /ws page
  * continues rendering through its existing WsShell.
@@ -16,23 +17,10 @@ import PublicShare from '../PublicShare';
 import PublicToastProvider from '../public/PublicToastProvider';
 import WsNotionTheme from './WsNotionTheme';
 
-/* Original, verified S3 SVG. Use its public asset URL, not a re-created glyph.
-   Its artwork occupies the centre of a 5000x5000 SVG viewBox. The image is
-   displayed at 166px and clipped by the small logo frame around the artwork. */
-const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
-
-/* The Amplify header slot is directly ABOVE the login form, and remains
-   present for genuine Cognito password recovery and MFA challenges. */
+/* The homepage Header already contains the brand logo. Keep only the
+   requested text eyebrow above the real Cognito form (including MFA/recovery). */
 const WsBrandHeader = (): React.JSX.Element => (
-  <div className="wsauth-brand" data-wc-no-translate="true">
-    <span className="wsauth-svg-frame" aria-hidden="true">
-      <img src={ WECARE_SVG_URL } alt="" width={ 166 } height={ 166 } decoding="async" />
-    </span>
-    <span className="wsauth-wordmark">
-      <strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>
-      <strong>DIGITAL</strong>
-    </span>
-  </div>
+  <div className="wsauth-eyebrow" data-wc-no-translate="true">WECARE.DIGITAL</div>
 );
 
 /* Visual-only Amplify tokens; the shared /ws theme owns fields and buttons. */
