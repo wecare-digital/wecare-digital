@@ -325,3 +325,92 @@ test('public /auth buttons and staff /ws buttons share one visual interaction la
   assert.ok(auth.includes("data-wsauth-signin={ route === 'signIn' ? 'true' : undefined }"),
     '200x46 right-aligned layout still applies only on actual Cognito signIn route');
 });
+
+test('authenticated /ws uses sidebar-only chrome with an unobstructed content column', () => {
+  assert.ok(!shell.includes("import WsHeader from './WsHeader'"),
+    'do not mount the redundant app header on every signed-in page');
+  assert.ok(!shell.includes("import WsFooter from './WsFooter'"),
+    'do not mount the redundant app footer below every signed-in page');
+  assert.ok(!shell.includes('<WsHeader') && !shell.includes('<WsFooter'),
+    'right content must contain no additional header or footer');
+  assert.ok(shell.includes('<main id="ws-main" className="ws-main" data-wc-no-translate="true">'),
+    'keep a single semantic main landmark for every private /ws panel');
+  assert.ok(shell.includes('<div className="ws-content">{ children }</div>'),
+    'all existing page panels must render unchanged within the content area');
+  assert.ok(shell.includes('className="ws-sidebar" aria-label="Workspace sidebar"'),
+    'sidebar must be the sole desktop navigation and session chrome');
+  assert.ok(!theme.includes('.ws-shell.ws-notion .ws-header') &&
+            !theme.includes('.ws-shell.ws-notion .ws-footer'),
+    'remove orphan workspace header/footer theming without affecting the public login');
+  assert.ok(theme.includes('padding-top:40px'),
+    'content must keep breathing room without the removed topbar');
+});
+
+test('workspace navigation has explicit Home and preserves all five existing destinations', () => {
+  const navBlock = shell.slice(shell.indexOf('const NAV_ITEMS: NavItem[] = ['));
+  const ids = [...navBlock.matchAll(/\{ id: '([^']+)', label: '([^']+)', href: '([^']+)'/g)]
+    .slice(0, 6).map((match) => match[1]);
+  assert.deepEqual(ids, ['home', 'inbox', 'collect', 'customers', 'commerce', 'settings'],
+    'all sections must be reachable after the top Home link is removed');
+  assert.ok(shell.includes("href: '/ws', icon: HomeGlyph"),
+    'Home must be a first-class sidebar and mobile navigation item');
+  assert.equal((shell.match(/NAV_ITEMS\.map\( item => \{/g) || []).length, 2,
+    'desktop sidebar and mobile bottom navigation share exactly one route registry');
+  assert.ok(shell.includes("aria-current={ isActive ? 'page' : undefined }"),
+    'active section must remain announced to assistive technology');
+  assert.ok(shell.includes('aria-label="Mobile workspace navigation"'),
+    'mobile bottom navigation remains available without a duplicate header');
+  assert.ok(shell.includes('env(safe-area-inset-bottom,0px)'),
+    'mobile bottom navigation and content must respect iPhone/Android safe areas');
+  assert.ok(shell.includes('min-height:var(--tap-min,44px)'),
+    'mobile and sidebar controls must keep the minimum 44px touch target');
+  assert.ok(theme.includes('background:var(--public-lime-tint,rgba(209,244,112,.22))'),
+    'active navigation uses the homepage lime tint, not gray highlighting');
+  assert.ok(shell.includes('@media(max-width:359px)'),
+    'compact phones need smaller labels for the six destinations');
+});
+
+test('sidebar footer owns signed-in identity and original Cognito sign-out callback', () => {
+  const settings = readSource('src/pages/ws/settings/index.tsx');
+  const sideStart = shell.indexOf('<aside className="ws-sidebar"');
+  const signout = shell.indexOf('<button type="button" className="ws-signout"',sideStart);
+  const main = shell.indexOf('<main id="ws-main"');
+  assert.ok(sideStart !== -1 && signout > sideStart && signout < main,
+    'desktop Sign out belongs at the bottom of sidebar, never in the content column');
+  assert.ok(shell.includes('className="ws-sidebar-foot"'),
+    'account and Sign out should be pinned below scrolling navigation');
+  assert.ok(shell.includes('className="ws-account-id" data-wc-no-translate="true"'),
+    'Cognito identity must remain readable and not be translated or invented');
+  assert.ok(shell.includes('<SignOutGlyph />') && shell.includes('<AccountGlyph />'),
+    'sidebar needs explicit accessible-session and signout iconography');
+  assert.ok(shell.includes('onClick={ () => signOut?.() } disabled={ !signOut }'),
+    'only the original Cognito callback is invoked, no custom auth service');
+  assert.ok(shell.includes('cursor:not-allowed'),
+    'an unavailable Sign out callback should disable the control visibly');
+  assert.ok(settings.includes('ws-settings-signout{display:none}'),
+    'desktop Settings must not duplicate the sidebar session action');
+  assert.ok(settings.includes('className="ws-settings-signout" onClick={ () => signOut?.() }'),
+    'mobile Settings must retain Sign out because the desktop sidebar is hidden');
+  assert.ok(settings.includes('<PushOptIn />'),
+    'existing settings and device notification features remain intact');
+});
+
+test('sidebar uses the official transparent WECARE mark and accessible interaction states', () => {
+  assert.ok(shell.includes("import BrandMark from '../BrandMark'"),
+    'shared official transparent SVG replaces the invented zigzag W icon');
+  assert.ok(shell.includes('<span className="ws-brand-mark"><BrandMark /></span>'),
+    'the original brand vector is embedded within the lime square');
+  assert.ok(shell.includes('<span className="ws-brand-name">WECARE.DIGITAL</span>'),
+    'brand lockup must use the complete official name');
+  assert.ok(theme.includes('background:var(--public-brand-lime,#d1f470)'),
+    'brand square must use the homepage lime, not gray');
+  assert.ok(shell.includes('.ws-nav-link.active::before') &&
+            shell.includes('.ws-bottom-link.active::before'),
+    'the selected section uses a small lime marker on both desktop and mobile');
+  assert.ok(shell.includes('.ws-signout:focus-visible'),
+    'keyboard users need visible focus on the new signout action');
+  assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
+    'hover transitions must respect reduced-motion preference');
+  assert.ok(shell.includes('@media(forced-colors:active)'),
+    'the sidebar and mobile nav must remain distinguishable in high-contrast mode');
+});
