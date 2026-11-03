@@ -232,7 +232,10 @@ const InboxView: React.FC = () => {
       {/* ---- LIST PANE ---- */}
       <div className="ib-list-pane">
         <header className="ib-head">
-          <h1 className="ib-title">Inbox</h1>
+          <div className="ib-titleblock">
+            <p className="ib-eyebrow">Workspace / Inbox</p>
+            <h1 className="ib-title">Inbox</h1>
+          </div>
           <label className="ib-search">
             <span className="ib-search-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -393,6 +396,8 @@ const InboxView: React.FC = () => {
         /* ---- LIST pane ---- */
         .ib-list-pane{ min-width:0; display:grid; gap:14px; align-content:start; }
         .ib-head{ display:grid; gap:12px; }
+        .ib-titleblock{ display:grid; gap:4px; }
+        .ib-eyebrow{ margin:0; font-size:11px; color:var(--text-muted,#6b7280); }
         .ib-title{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text,#1a1a1a); }
         .ib-search{
           display:flex; align-items:center; gap:8px;
