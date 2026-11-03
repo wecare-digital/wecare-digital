@@ -166,14 +166,32 @@ for (const word of ['document', 'file', 'download', 'access']) {
   assert.match(vaultKeywords[1], new RegExp("word:\\s*'" + word + "'"),
     'Missing rotating Vault hero keyword: ' + word);
 }
-assert.match(vaultPage, /sub="View your access and download the file shared with you\."/,
-  'Vault explanation must not change with rotating words');
+assert.match(vaultPage, /sub="Check the status and choose your next step\."/,
+  'Vault subtitle must explain the task without repeating the file heading');
 assert.match(vaultPage, /<p className="sf-card-kicker">PRIVATE VAULT<\/p>/,
   'Vault card label must remain unchanged');
-assert.match(vaultPage, /<h2 className="sf-card-title">Your file access<\/h2>/,
-  'Vault card title must remain unchanged');
+assert.match(vaultPage, /<h2 className="sf-card-title">Shared with you<\/h2>/,
+  'Vault card heading must use the approved customer wording');
 assert.doesNotMatch(vaultPage, /Protected by your verified account\./,
   'Remove the redundant Vault card security subtitle');
+
+assert.match(vaultPage, /case 'UNPAID': return 'Payment required';/,
+  'Unpaid customer file must identify payment required rather than a blocked action');
+assert.match(vaultPage, /case 'READY': return 'Payment verified';/,
+  'Verified payment must remain distinct from an unverified payment');
+assert.match(vaultPage, /case 'PAID_UNVERIFIED': return 'Confirming paid access';/,
+  'Payment-recorded files must not claim download authorization before verification');
+assert.match(vaultPage, /Your 24-hour access begins with your first download\./,
+  'Paid access must explain that its clock starts with the first download');
+assert.match(vaultPage, /Payment recorded\. Confirming access\. Do not pay again\./,
+  'Pending access must never invite double payment');
+assert.match(vaultPage, /<h3 className="sf-file-name">\{ file\.displayName \}<\/h3>/,
+  'Vault must preserve the existing file-name display per customer request');
+assert.match(vaultPage, /box-sizing:border-box;margin-top:-16px;/,
+  'Vault card alone should have the approved slightly reduced hero spacing');
+assert.match(vaultPage, /\.sf-card\{padding:28px 20px max\(30px,env\(safe-area-inset-bottom\)\);border-radius:20px;margin-top:-8px\}/,
+  'Vault must reduce the mobile gap without changing shared hero styles');
+
 
 // The exact-file Vault alone renders shared public chrome after the owner-scoped
 // fetch settles. Preserve the silent redirect and no-floating-toast contracts.
