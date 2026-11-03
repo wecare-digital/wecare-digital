@@ -228,9 +228,8 @@ test('the screenshot input and password affordances stay intact', () => {
 });
 
 test('Option C borrows /auth compact card treatment without changing Cognito or hero copy', () => {
-  const sourceAuth = readSource('src/pages/auth.tsx');
-  assert.ok(sourceAuth.includes('border-top:4px solid var(--public-brand-lime)'),
-    '/auth is the source reference for a restrained lime-topped white card');
+  // /auth is the design reference, but keep these regression checks scoped
+  // to the /ws styles rather than coupling CI to an unrelated customer page.
   assert.ok(theme.includes('border-top:4px solid var(--ws-login-lime)'),
     '/ws card should echo the public auth page lime accent');
   assert.ok(theme.includes('box-shadow:0 14px 38px rgba(26,58,42,.08)'),
