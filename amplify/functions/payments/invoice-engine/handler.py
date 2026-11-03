@@ -539,10 +539,10 @@ _INVOICE_NUMBER_ATTEMPTS = 25
 
 
 def _current_fy() -> str:
-    """The Indian financial year as `YYYY-YYYY`, which starts in April."""
-    now = time.localtime()
-    year = now.tm_year
-    return f"{year}-{year+1}" if now.tm_mon >= 4 else f"{year-1}-{year}"
+    """Indian financial year starts on April 1 at midnight IST, never UTC."""
+    ist_now = time.gmtime(int(time.time()) + IST_OFFSET)
+    year = ist_now.tm_year
+    return f"{year}-{year+1}" if ist_now.tm_mon >= 4 else f"{year-1}-{year}"
 
 
 def _format_invoice_number(prefix: str, fy: str, seq: int) -> str:
@@ -6040,7 +6040,24 @@ def get_delivery_log(invoice_id: str, request_id: str) -> Dict:
     logs = [row for row in resp.get('Items', [])
             if str(row.get('invoiceId') or '') == str(invoice_id)]
     logs.sort(key=lambda x: int(x.get('timestamp', 0)), reverse=True)
-    measured = payment_evidence.invoice_evidence_timeline(invoice, logs)
+    # A malformed legacy invoice row must not break the original staff ledger.
+    # A mismatched/missing PK is never silently borrowed from an adjacent record.
+    # Return null evidence and let the UI state "unverified", without inventing
+    # stages or provider confirmation. The original delivery log remains readable.
+    try:
+        if str(invoice.get('invoiceId') or '') != str(invoice_id):
+            raise ValueError('authoritative invoice identity mismatch')
+        measured = payment_evidence.invoice_evidence_timeline(invoice, logs)
+    except Exception as exc:  # noqa: BLE001 - optional read-only evidence must fail closed
+        # Evidence must not turn an otherwise readable invoice log into HTTP 500.
+        # Never log the invoice, customer, provider message or exception message.
+        logger.warning(json.dumps({
+            'event': 'invoice_evidence_unavailable',
+            'reason': 'invalid_invoice_projection',
+            'errorType': type(exc).__name__,
+            'requestId': request_id,
+        }))
+        measured = None
     receipt_delivery = _collect_receipt_delivery(invoice, logs)
 
     return _resp(200, {
