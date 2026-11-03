@@ -853,7 +853,7 @@ export interface SecureFileActionResult {
  */
 async function secureFileAction (
   fileId: string, action: 'send-offer' | 'request-payment' | 'send-access',
-  options?: { offerBodyText?: string; paymentItemDescription?: string; expectedTotalPaise?: number; requestId?: string; previousRequestId?: string },
+  options?: { offerBodyText?: string; paymentItemDescription?: string; expectedTotalPaise?: number; deliveryAddressConfirmation?: VaultDeliveryAddressConfirmation; requestId?: string; previousRequestId?: string },
 ): Promise<SecureFileActionResult> {
   const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
   try
@@ -861,7 +861,7 @@ async function secureFileAction (
     const requestBody = action === 'send-offer' && options?.offerBodyText !== undefined
       ? JSON.stringify( { offerBodyText: options.offerBodyText } )
       : action === 'request-payment'
-        ? JSON.stringify( { ...(options?.paymentItemDescription === undefined ? {} : {paymentItemDescription: options.paymentItemDescription}), ...(options?.expectedTotalPaise === undefined ? {} : {expectedTotalPaise: options.expectedTotalPaise}) } )
+        ? JSON.stringify( { ...(options?.paymentItemDescription === undefined ? {} : {paymentItemDescription: options.paymentItemDescription}), ...(options?.expectedTotalPaise === undefined ? {} : {expectedTotalPaise: options.expectedTotalPaise}), ...(options?.deliveryAddressConfirmation === undefined ? {} : {deliveryAddressConfirmation: options.deliveryAddressConfirmation}) } )
         : action === 'send-access' ? JSON.stringify({requestId: options?.requestId, previousRequestId: options?.previousRequestId}) : '{}';
     const response = await authFetch( url, { method: 'POST', body: requestBody } );
     let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
@@ -1217,11 +1217,11 @@ export async function ensureCustomerPaymentIdentity (): Promise<ApiResult<Record
  * ProductsTable pricing, GST/fees and the Meta ORDER_DETAILS message. No cart is seeded here.
  */
 export async function requestMySecureFilePayment (
-  fileId: string,
+  fileId: string, deliveryAddressConfirmation: VaultDeliveryAddressConfirmation,
 ): Promise<ApiResult<CustomerVaultPaymentRequest>> {
   return customerApiCall(
     `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/request-payment`,
-    { method: 'POST', body: '{}' },
+    { method: 'POST', body: JSON.stringify({ deliveryAddressConfirmation }) },
   );
 }
 
