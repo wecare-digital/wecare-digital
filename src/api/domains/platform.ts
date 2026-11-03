@@ -902,12 +902,19 @@ export function sendSecureFileOffer (
 }
 
 /** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
+export interface VaultDeliveryAddressConfirmation {
+  confirmed: true;
+  checkoutAddressUpdatedAt: number;
+}
+/** Vault is always physical goods. A saved address without explicit staff review is insufficient. */
 export function requestSecureFilePayment (
   fileId: string, paymentItemDescription?: string, expectedTotalPaise?: number,
+  deliveryAddressConfirmation?: VaultDeliveryAddressConfirmation,
 ): Promise<SecureFileActionResult> {
   return secureFileAction(fileId, 'request-payment', {
     ...(paymentItemDescription === undefined ? {} : {paymentItemDescription}),
     ...(expectedTotalPaise === undefined ? {} : {expectedTotalPaise}),
+    ...(deliveryAddressConfirmation === undefined ? {} : {deliveryAddressConfirmation}),
   });
 }
 
