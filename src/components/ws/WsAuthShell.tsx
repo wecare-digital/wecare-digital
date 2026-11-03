@@ -1,42 +1,41 @@
 /**
- * /ws sign-in: a full layout, not a second authentication implementation.
+ * Homepage-aligned /ws sign-in.
  *
- * The public homepage supplies the brand lime, typography and Material 3 icons.
- * All sign-in presentation is scoped to the /ws AuthGate in WsNotionTheme.
- * Cognito configuration, Authenticator state, MFA, and signOut are unchanged.
- * The old /workspace and public routes still use their existing shells.
+ * The user sees only the S3 WECARE.DIGITAL logo, Cognito's real credential
+ * form, and the same public header, share rail and footer as the homepage.
+ * No simulated workspace, marketing panel or second auth implementation.
+ * When Cognito authenticates, the public chrome unmounts and the /ws page
+ * continues rendering through its existing WsShell.
  */
 import type React from 'react';
-import Link from 'next/link';
 import '../../lib/amplifyConfig';
 import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws-amplify/ui-react';
-import { symbol, type MaterialSymbol } from '../../config/materialSymbols';
-import BrandLockup from '../BrandLockup';
+import Header from '../Header';
+import Footer from '../Footer';
+import PublicShare from '../PublicShare';
+import PublicToastProvider from '../public/PublicToastProvider';
 import WsNotionTheme from './WsNotionTheme';
 
-interface ModulePreview {
-  title: string;
-  sub: string;
-  icon: MaterialSymbol;
-}
+/* Original, verified S3 SVG. Use its public asset URL, not a re-created glyph.
+   Its artwork occupies the centre of a 5000x5000 SVG viewBox. The image is
+   displayed at 166px and clipped by the small logo frame around the artwork. */
+const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
 
-/* Decorative product navigation preview: labels only, not mock account data. */
-const WORKSPACE_MODULES: readonly ModulePreview[] = [
-  { title: 'Inbox', sub: 'Conversations', icon: symbol('inbox') },
-  { title: 'Collect', sub: 'Invoices & Vault', icon: symbol('receipt_long') },
-  { title: 'Customers', sub: 'People & history', icon: symbol('group') },
-  { title: 'Commerce', sub: 'Orders & prices', icon: symbol('shopping_bag') },
-];
-
-/* Authenticator's real header slot stays connected throughout sign-in and MFA. */
+/* The Amplify header slot is directly ABOVE the login form, and remains
+   present for genuine Cognito password recovery and MFA challenges. */
 const WsBrandHeader = (): React.JSX.Element => (
-  <div className="wsauth-auth-badge">
-    <span className="wsauth-symbol" aria-hidden="true">{ symbol('lock') }</span>
-    <span>SECURE SIGN IN</span>
+  <div className="wsauth-brand" data-wc-no-translate="true">
+    <span className="wsauth-svg-frame" aria-hidden="true">
+      <img src={ WECARE_SVG_URL } alt="" width={ 166 } height={ 166 } decoding="async" />
+    </span>
+    <span className="wsauth-wordmark">
+      <strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>
+      <strong>DIGITAL</strong>
+    </span>
   </div>
 );
 
-/* Amplify controls authentication; the /ws theme owns the button and field visuals. */
+/* Visual-only Amplify tokens; the shared /ws theme owns fields and buttons. */
 const wsAuthTheme: Theme = {
   name: 'ws-homepage-lime-auth',
   tokens: {
@@ -65,7 +64,7 @@ const wsAuthTheme: Theme = {
       fieldcontrol: {
         borderWidth: { value: '0px' },
         borderColor: { value: 'transparent' },
-        borderRadius: { value: '12px' },
+        borderRadius: { value: '14px' },
         fontSize: { value: '16px' },
       },
     },
@@ -85,76 +84,21 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
   return (
     <div className="wsauth-shell ws-notion-auth">
       <WsNotionTheme />
-      <div className="wsauth-layout">
-        <aside className="wsauth-story" aria-label="Workspace introduction">
-          <div className="wsauth-story-inner">
-            <Link className="wsauth-public-home" href="/" aria-label="WECARE.DIGITAL homepage">
-              <BrandLockup compact />
-            </Link>
-
-            <div className="wsauth-story-main">
-              <span className="wsauth-story-kicker">THE WECARE WORKSPACE</span>
-              <h1>Less switching.<br />More <em>doing.</em></h1>
-              <p>
-                Conversations, invoices, customers and orders —
-                brought together in one focused workspace.
-              </p>
-
-              <div className="wsauth-workbook" aria-hidden="true">
-                <div className="wsauth-workbook-head">
-                  <span className="wsauth-workbook-window">
-                    <span /><span /><span />
-                  </span>
-                  <span>YOUR WORKSPACE</span>
-                  <span className="wsauth-symbol">{ symbol('arrow_forward') }</span>
-                </div>
-                <div className="wsauth-workbook-grid">
-                  { WORKSPACE_MODULES.map( item => (
-                    <div className="wsauth-module" key={ item.title }>
-                      <span className="wsauth-module-icon wsauth-symbol">{ item.icon }</span>
-                      <span className="wsauth-module-copy">
-                        <strong>{ item.title }</strong>
-                        <small>{ item.sub }</small>
-                      </span>
-                      <span className="wsauth-module-chevron wsauth-symbol">{ symbol('chevron_right') }</span>
-                    </div>
-                  ) ) }
-                </div>
-              </div>
+      <PublicToastProvider>
+        <Header />
+        <div className="wsauth-site">
+          <main className="wsauth-login-main" aria-label="WECARE.DIGITAL workspace sign in">
+            <div className="wsauth-form">
+              { children }
             </div>
-
-            <div className="wsauth-story-foot">
-              Built for the team behind WECARE.DIGITAL
-            </div>
+          </main>
+          {/* Share the public homepage, never a protected workspace URL. */}
+          <div className="wsauth-public-share">
+            <PublicShare url="https://wecare.digital/" title="WECARE.DIGITAL" />
           </div>
-        </aside>
-
-        <main className="wsauth-signin-side">
-          <div className="wsauth-form-frame">
-            <div className="wsauth-form-header">
-              <p className="wsauth-form-kicker">WECARE.DIGITAL</p>
-              <h2>Welcome back.</h2>
-              <p>Enter your team credentials to continue.</p>
-            </div>
-
-            <div className="wsauth-card">{ children }</div>
-
-            <footer className="wsauth-form-footer">
-              <p>Access is restricted to authorized staff.</p>
-              <nav aria-label="Site policies">
-                <Link href="/terms/">Terms of Service</Link>
-                <span aria-hidden="true">·</span>
-                <Link href="/privacy/">Privacy Policy</Link>
-              </nav>
-            </footer>
-          </div>
-
-          <Link className="wsauth-backsite" href="/">
-            Back to wecare.digital
-            <span className="wsauth-symbol" aria-hidden="true">{ symbol('arrow_forward') }</span>
-          </Link>
-        </main>
-      </div>
+          <Footer />
+        </div>
+      </PublicToastProvider>
     </div>
   );
 };
