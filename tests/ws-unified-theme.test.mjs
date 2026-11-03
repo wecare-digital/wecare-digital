@@ -56,9 +56,13 @@ test('each /ws route retains its original business panel and shared theme', () =
 
 
 test('homepage lime owns the sign-in CTA, without conflicting Amplify variation CSS', () => {
-  const selector = ".wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {";
-  assert.equal(theme.split(selector).length - 1, 1,
-    'the scoped /ws theme owns its primary button exactly once');
+  // The base paint rule is singular. A reduced-motion media query may repeat
+  // the selector only to suppress animation, without redefining the button fill.
+  const primaryBlocks = [ ...theme.matchAll(
+    /\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/g,
+  ) ];
+  assert.equal(primaryBlocks.filter( match => match[1].includes('background-color:') ).length, 1,
+    'the scoped /ws theme must define the primary button fill exactly once');
   assert.ok(!auth.includes("data-variation='primary'"),
     'the auth component must not add a competing button selector');
   assert.ok(!/\bbutton:\s*\{\s*primary:/.test(auth),
