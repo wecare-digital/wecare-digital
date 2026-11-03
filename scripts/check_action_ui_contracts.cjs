@@ -183,7 +183,7 @@ assert.match(vaultPage, /case 'PAID_UNVERIFIED': return 'Confirming paid access'
   'Payment-recorded files must not claim download authorization before verification');
 assert.match(vaultPage, /Your 24-hour access begins with your first download\./,
   'Paid access must explain that its clock starts with the first download');
-assert.match(vaultPage, /Payment recorded\. Confirming access\. Do not pay again\./,
+assert.match(vaultPage, /Payment recorded\. Confirming access\. No additional payment is needed\./,
   'Pending access must never invite double payment');
 assert.match(vaultPage, /<h3 className="sf-file-name">\{ file\.displayName \}<\/h3>/,
   'Vault must preserve the existing file-name display per customer request');
