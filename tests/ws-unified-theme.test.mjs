@@ -66,7 +66,11 @@ test('login buttons have exactly one visual owner and accessible interaction sta
     'WsAuthShell must never style the primary button directly');
   assert.ok(!/\bbutton:\s*\{\s*primary:/.test(auth),
     'Amplify button variations must not introduce a competing primary palette');
-  const buttonRule = theme.split(selector)[1].split('}')[0];
+  // Match the full, flat CSS declaration block. The [^{}]* guard makes the
+  // assertion fail if a nested rule or stray brace is introduced later.
+  const blockMatch = theme.match(/\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/);
+  assert.ok(blockMatch, 'primary button rule must be present and well-formed');
+  const buttonRule = blockMatch[1];
   assert.ok(buttonRule.includes('background-color:var(--ws-green)'),
     'primary button should use the same green as /ws');
   assert.ok(buttonRule.includes('color:#fff'),
@@ -82,4 +86,8 @@ test('login buttons have exactly one visual owner and accessible interaction sta
     'input focus should match the green action palette');
   assert.ok(!auth.includes('rgba(209,244,112,0.35)'),
     'obsolete lime form focus ring should not return');
+  assert.ok(!auth.includes('#d1f470') && !auth.includes('var(--lime,'),
+    'auth brand tile and Amplify fallback palette must not restore lime');
+  assert.ok(auth.includes('background:#e9eee8;'),
+    'brand tile fallback should match the neutral shared theme');
 });
