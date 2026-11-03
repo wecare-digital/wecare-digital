@@ -96,6 +96,9 @@ require(out_of_order["gaps"][0]["seconds"] is None,
 invoice_engine = (ROOT / "amplify/functions/payments/invoice-engine/handler.py").read_text()
 client = (ROOT / "src/api/domains/commerce.ts").read_text()
 view = (ROOT / "src/components/workspace/pay/InvoiceRecords.tsx").read_text()
+barrel = (ROOT / "src/api/client.ts").read_text()
+require("export * from './domains/commerce'" in barrel,
+        "Public API barrel must retain the commerce evidence exports after decomposition")
 require("payment_evidence.invoice_evidence_timeline(invoice, logs)" in invoice_engine,
         "Invoice backend must create timeline, never browser compose it")
 require("ConsistentRead=True" in invoice_engine[invoice_engine.index("def get_delivery_log("):],
