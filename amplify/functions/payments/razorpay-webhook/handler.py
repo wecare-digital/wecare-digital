@@ -2911,12 +2911,79 @@ def _post_payment_handler(payment_id: str, contact: str,
             logger.warning(json.dumps({'event': 'item_process_checkpoint_unavailable',
                                        'invoiceId': invoice_id, 'error': type(process_error).__name__}))
 
+    # Vault download delivery, chained after the receipt. A Vault purchase is now an ordinary
+    # pay_flow invoice (the Collect money rail) carrying `vaultFileId` + `vaultCustomerId`. When
+    # the paid invoice carries that binding, hand secure-files the invoice id and the Razorpay
+    # order id so it can confirm the capture with Razorpay (the ONLY writer of paid), mint the
+    # file's paid grant + entitlement, and send the Access Vault link. Fire-and-forget: the
+    # payment and statutory receipt are already complete, and a dispatch failure is recoverable by
+    # scripts/reconcile_file_deliveries.py. The Razorpay order id comes from OUR attempt row
+    # (`providerOrderId`, written by meta_payment_binding during reconciliation), never the event.
+    if delivered and invoice_id:
+        try:
+            invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+                Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
+            vault_file_id = str(invoice.get('vaultFileId') or '')
+            if vault_file_id:
+                reservation = order_keys.resolve_payment_reference(
+                    dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {} if reference_id else {}
+                attempt_id = str(reservation.get('paymentAttemptId') or '')
+                attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                    Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {} if attempt_id else {}
+                razorpay_order_id = str(attempt.get('providerOrderId') or reservation.get('providerOrderId') or '')
+                _dispatch_vault_settlement(
+                    invoice_id=invoice_id, file_id=vault_file_id,
+                    customer_id=str(invoice.get('vaultCustomerId') or ''),
+                    razorpay_order_id=razorpay_order_id, payment_id=payment_id,
+                    reference_id=reference_id, request_id=request_id)
+        except Exception as vault_error:  # noqa: BLE001 - payment/receipt are already complete
+            logger.warning(json.dumps({'event': 'vault_settlement_dispatch_unavailable',
+                                       'invoiceId': invoice_id,
+                                       'error': type(vault_error).__name__,
+                                       'requestId': request_id}))
+
     # The invoice template itself contains the Leave Review Flow button.
     # Do not send a second standalone review template from the payment webhook.
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
                             'invoiceId': invoice_id, 'invoiceDelivered': delivered,
                             'path': 'webhook_backup', 'requestId': request_id}))
     return bool(delivered)
+
+
+def _dispatch_vault_settlement(*, invoice_id: str, file_id: str, customer_id: str,
+                               razorpay_order_id: str, payment_id: str, reference_id: str,
+                               request_id: str) -> None:
+    """Hand secure-files a paid Vault invoice to settle and deliver. Grants nothing itself.
+
+    secure-files is the only owner of the DownloadGrants invariants and the only sender of the
+    Access Vault link, so the webhook stays a hint: it names the invoice, the owner-bound file,
+    the server-resolved owner, and the Razorpay order id to re-confirm against. secure-files
+    re-verifies the capture with Razorpay (`order_is_paid`) before it writes any paid grant, so a
+    forged event - including one signed with the webhook secret in this repo's public git history
+    - cannot mint a free download. Fire-and-forget on an Event invoke; nothing here is awaited.
+    """
+    if not invoice_id or not file_id:
+        return
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-secure-files:live',
+            InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'vaultSettleFromInvoice',
+                'invoiceId': invoice_id,
+                'fileId': file_id,
+                'customerId': customer_id,
+                'razorpayOrderId': razorpay_order_id,
+                'paymentId': payment_id,
+                'referenceId': reference_id,
+            }).encode('utf-8'),
+        )
+        logger.info(json.dumps({'event': 'vault_settlement_dispatched', 'invoiceId': invoice_id,
+                                'fileId': file_id, 'requestId': request_id}))
+    except Exception as exc:  # noqa: BLE001 - type only; a ClientError message can echo content
+        logger.error(json.dumps({'event': 'vault_settlement_dispatch_failed',
+                                  'invoiceId': invoice_id, 'error': type(exc).__name__,
+                                  'requestId': request_id}))
 
 
 def _dispatch_post_invoice_service_flow(*, reference_id: str, payment_attempt_id: str,

@@ -1737,6 +1737,17 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'fixedPresetId': body.get('fixedPresetId', ''),
         'itemProcessId': ('payment-item-' + body['fixedPresetId']) if body.get('fixedPresetId') else '',
         'postPaymentProcessState': 'AWAITING_CAPTURE' if body.get('fixedPresetId') else '',
+        # Vault reroute binding. A Vault purchase is now minted as an ordinary pay_flow invoice
+        # (the proven Collect money rail) rather than through the catalog-service rail that was
+        # refusing with PAYMENT_REQUEST_REFUSED. These two fields are the ONLY carrier of the
+        # file identity the webhook needs post-capture to mint the paid download grant and send
+        # the Access Vault link; they are written by `secure-files._start_native_vault_payment`
+        # and are absent (hence dropped by the put filter) on every Collect/Contribute invoice,
+        # so this changes nothing for any non-Vault caller. `vaultCustomerId` is the OWNER id the
+        # secure-files handler resolved server-side from the owner-bound file row - never a
+        # browser value - so the grant's customer binding stays server-authoritative.
+        'vaultFileId': str(body.get('vaultFileId') or ''),
+        'vaultCustomerId': str(body.get('vaultCustomerId') or ''),
         # Where the customer placed the order, so the invoice can print its own Source line
         # (GST Rule 46 carries no such requirement; this is for the customer and for support).
         # `entryPoint` is NOT a substitute: it records which internal flow minted the invoice
