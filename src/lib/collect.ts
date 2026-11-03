@@ -11,18 +11,36 @@ export function latestInvoiceImage(i:Invoice):InvoiceAsset|undefined {
     .sort((a,b)=>(b.version||1)-(a.version||1)||(b.generatedAt||0)-(a.generatedAt||0))[0];
 }
 export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:string,express:string):CreateInvoiceEngineRequest|null {
-  if(!/^\d+(\.\d{1,2})?$/.test(express)||!Number.isFinite(Number(express))||Number(express)<0)return null;
-  if(!customer||!customer.name?.trim()||!customer.phone||customer.archivedAt||customer.deletedAt||!lines.length)return null;
-  if(lines.some(l=>!l.name.trim()||!/^\d+(\.\d{1,2})?$/.test(l.amount)||Number(l.amount)<=0||!/^\d+$/.test(l.quantity)||Number(l.quantity)<1||!/^\d+(\.\d{1,2})?$/.test(l.gstRate)||Number(l.gstRate)>100))return null;
+  if(collectDraftIssues(customer,lines,gstin,express).length||!customer)return null;
   const a=addressFieldsFromContact(customer);
-  if(![a.addressLine1,a.city,a.state,a.postalCode,a.country].every(v=>String(v||'').trim()))return null;
-  if(gstin&&!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin))return null;
   return {collectWorkspace:true,collectSavedAddress:collectAddressSnapshot(customer),contactId:customer.id,customerName:customer.name,customerPhone:customer.phone,
     customerEmail:customer.email||'',shippingAddress:contactDeliveryAddress(customer),billingAddress:contactDeliveryAddress(customer),
     addressLine1:a.addressLine1,addressLine2:a.addressLine2,city:a.city,state:a.state,postalCode:a.postalCode,
     landmark:a.locality,countryCode:a.countryCode||countryCodeForName(a.country),goodsType:'physical-goods',
     shipping:Number(express),buyerGstin:gstin||undefined,entryPoint:'pay_flow',purpose:'WECARE.DIGITAL',
     items:lines.map(l=>({name:l.name.trim(),amount:Number(l.amount),quantity:Number(l.quantity),gstRate:Number(l.gstRate)}))};
+}
+
+/** Explain the same prerequisites used by the serializer, beside the preview. */
+export function collectDraftIssues(customer:Contact|null,lines:CollectLine[],gstin:string,express:string):string[]{
+  const issues:string[]=[];
+  if(!customer)issues.push('Select or save a customer.');
+  else{
+    if(!customer.name?.trim()||!customer.phone||customer.archivedAt||customer.deletedAt)issues.push('Select an active customer with a name and WhatsApp number.');
+    const a=addressFieldsFromContact(customer);
+    const missing=([['addressLine1','street'],['city','city'],['state','state'],['postalCode','postal code'],['country','country']] as const).filter(([key])=>!String(a[key]||'').trim()).map(([,label])=>label);
+    if(missing.length)issues.push('Edit customer to add: '+missing.join(', ')+'.');
+  }
+  if(!lines.length)issues.push('Add an invoice item.');
+  lines.forEach((line,index)=>{
+    if(!line.name.trim())issues.push(`Item ${index+1}: enter a description.`);
+    if(!/^\d+(\.\d{1,2})?$/.test(line.amount)||Number(line.amount)<=0)issues.push(`Item ${index+1}: enter a unit amount greater than 0.`);
+    if(!/^\d+$/.test(line.quantity)||Number(line.quantity)<1)issues.push(`Item ${index+1}: quantity must be a whole number of at least 1.`);
+    if(!/^\d+(\.\d{1,2})?$/.test(line.gstRate)||Number(line.gstRate)>100)issues.push(`Item ${index+1}: GST must be from 0 to 100%.`);
+  });
+  if(!/^\d+(\.\d{1,2})?$/.test(express)||!Number.isFinite(Number(express))||Number(express)<0)issues.push('Enter Express, including 0 if no charge applies.');
+  if(gstin&&!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin))issues.push('Enter a valid 15-character GSTIN, or leave it empty.');
+  return issues;
 }
 
 // Customer GST and all invoice values are server-quoted. This fingerprint only
