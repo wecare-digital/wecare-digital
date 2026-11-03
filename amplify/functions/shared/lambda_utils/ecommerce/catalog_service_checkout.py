@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 from lambda_utils import customer_auth, template_status, template_media
-from . import service_requests, whatsapp_basket
+from . import service_requests, whatsapp_basket, business_identity
 
 # Customer-readable Vault item label. Only the WORDING is staff-editable for
 # an explicit file-bound send; no client can change the SKU, quantity or amount.
@@ -186,8 +186,10 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         'items': items,
         'subtotal': {'value': unit_paise + int(quote.convenience_fee_paise), 'offset': 100},
         'shipping': {'value': express_paise, 'offset': 100, 'description': 'Express'},
+        # The tax row is labelled with the seller GSTIN, so Meta renders it as
+        # "Tax (<GSTIN>)" on the WhatsApp order summary (matching the paid receipt).
         'tax': {'value': supply_gst_paise + int(quote.convenience_gst_paise), 'offset': 100,
-                'description': 'GST'},
+                'description': business_identity.GSTIN or 'GST'},
         'expiration': {'timestamp': str(now + 900),
                        'description': 'Complete payment within 15 minutes'},
     }

@@ -1190,7 +1190,9 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
         "tax": {
             "value": int(quote.convenience_gst_paise),
             "offset": 100,
-            "description": "GST on convenience fee",
+            # Seller GSTIN as the label, so Meta renders "Tax (<GSTIN>)" on the WhatsApp
+            # order summary, consistent with the catalog/invoice rails and the paid receipt.
+            "description": checkout_pricing.SELLER_GSTIN or "GST",
         },
         "expiration": {
             "timestamp": str(now + 900),
