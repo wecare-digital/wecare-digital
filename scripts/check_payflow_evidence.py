@@ -4,14 +4,19 @@
 Runs under scripts/ because the platform's earlier standalone test tree was
 retired. Intentional synthetic fixtures test only the pure evidence projection.
 """
+import ast
 import importlib.util
 import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/payment_evidence.py"
 SPEC = importlib.util.spec_from_file_location("payflow_payment_evidence_offline", MODULE)
-assert SPEC and SPEC.loader
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"Unable to load offline payment evidence from {MODULE}")
 m = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(m)
 
@@ -69,6 +74,7 @@ for forbidden in ("9999999999", "secret-reference-A", "wamid.", "invoice-test-op
                   "invoice-other-owner-B", "wamid.other-B"):
     require(forbidden not in rendered, "Cross-owner ID or PII leaked: " + forbidden)
 require(len(d["events"]) == 8, "A cross-invoice row must be rejected, not merged")
+require(len(m._fragment(0)) == 12, "Zero-valued evidence id must have an opaque fragment")
 
 # No fabricated paid state on pending invoices, no unconfirmed message acceptance.
 pending = m.invoice_evidence_timeline(
@@ -98,6 +104,34 @@ client = (ROOT / "src/api/domains/commerce.ts").read_text()
 view = (ROOT / "src/components/workspace/pay/InvoiceRecords.tsx").read_text()
 require("payment_evidence.invoice_evidence_timeline(invoice, logs)" in invoice_engine,
         "Invoice backend must create timeline, never browser compose it")
+delivery_body = invoice_engine[invoice_engine.index("def get_delivery_log("):]
+require("except (ValueError, TypeError):" in delivery_body
+        and "measured = None" in delivery_body
+        and "invalid_invoice_projection" in delivery_body,
+        "Malformed or stale invoice identity must fail closed, not crash the ledger")
+require("str(invoice.get('invoiceId') or '') != str(invoice_id)" in delivery_body,
+        "A mismatched authoritative invoice PK must never get a projected chronology")
+
+# Execute ONLY the parsed pure FY helper, with a frozen UTC clock. Importing the
+# live Lambda module would create AWS clients, and is forbidden in an offline gate.
+tree = ast.parse(invoice_engine)
+fy_functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                and node.name == "_current_fy"]
+require(len(fy_functions) == 1, "Exactly one invoice financial-year helper required")
+clock = [0]
+namespace = {"IST_OFFSET": 5 * 3600 + 30 * 60,
+             "time": SimpleNamespace(time=lambda: clock[0], gmtime=time.gmtime)}
+fy_module = ast.Module(body=fy_functions, type_ignores=[])
+exec(compile(fy_module, "invoice_fy_helper", "exec"), namespace)
+for instant, expected in (
+    (datetime(2026, 3, 31, 18, 29, 59, tzinfo=timezone.utc), "2025-2026"),
+    (datetime(2026, 3, 31, 18, 30, 0, tzinfo=timezone.utc), "2026-2027"),
+    (datetime(2027, 3, 31, 18, 29, 59, tzinfo=timezone.utc), "2026-2027"),
+    (datetime(2027, 3, 31, 18, 30, 0, tzinfo=timezone.utc), "2027-2028"),
+):
+    clock[0] = int(instant.timestamp())
+    require(namespace["_current_fy"]() == expected,
+            f"India FY boundary mismatch at {instant.isoformat()}")
 require("ConsistentRead=True" in invoice_engine[invoice_engine.index("def get_delivery_log("):],
         "Invoice chronology must use a consistent PK read")
 require("invoiceId" in invoice_engine and "if str(row.get('invoiceId') or '') == str(invoice_id)" in invoice_engine,
@@ -110,4 +144,4 @@ require("getInvoiceDeliveryLog" in client and "cache: 'no-store'" in client,
         "Avoid cached delivery-status authority")
 require("@media(max-width:430px)" in view and ".ir-gaps>div" in view,
         "Narrow 320px / 390px evidence layout needs a single-column fallback")
-print("PASS: read-only exact-invoice chronology, gaps, PII, delivery truth and stale-response contract")
+print("PASS: invoice-scoped evidence, fault tolerance, opaque zero IDs and IST fiscal-year boundary")
