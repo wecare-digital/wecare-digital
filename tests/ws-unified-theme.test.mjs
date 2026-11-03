@@ -11,6 +11,8 @@ const auth = readSource('src/components/ws/WsAuthShell.tsx');
 test('one /ws visual system is shared by workspace pages and login only', () => {
   assert.ok(theme.includes('.ws-shell.ws-notion'), 'workspace theme root required');
   assert.ok(theme.includes('.wsauth-shell.ws-notion-auth'), 'login theme root required');
+  assert.ok(!theme.includes('.ws-shell.ws-notion,\n  .wsauth-shell.ws-notion-auth {'),
+    'the public header, footer and share dock must not inherit workspace-specific design tokens');
   assert.ok(!theme.includes(':root {'), 'no global token override');
   assert.ok(!theme.includes('body {'), 'no global page body override');
   assert.ok(shell.includes('<WsNotionTheme />'), 'logged-in shell mounts shared theme');
