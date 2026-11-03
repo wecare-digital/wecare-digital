@@ -39,7 +39,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
-import PublicNotice from '../public/PublicNotice';
 import CustomerVaultChrome from '../public/CustomerVaultChrome';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
@@ -101,8 +100,8 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
         case 'READY': return 'Payment verified';
         case 'PAID_UNVERIFIED': return 'Confirming paid access';
         case 'UNPAID': return 'Payment required';
-        case 'EXPIRED': return publicActionText( 'blocked' );
-        default: return publicActionText( 'blocked' );
+        case 'EXPIRED': return 'Access expired';
+        default: return 'Access unavailable';
     }
 }
 
@@ -117,7 +116,7 @@ interface FilesPageProps {
     targetFileId: string;
 }
 
-type FileFeedback = { kind: 'status' | 'error'; message: string };
+type FileFeedback = { kind: 'status' | 'error'; message: string; source: 'download' | 'website' | 'whatsapp' };
 
 export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const [ stage, setStage ] = useState<Stage>( 'loading' );
@@ -326,7 +325,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
         const feedback = ( kind: FileFeedback['kind'], message: string ) => {
-            setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind, message } } ) );
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind, message, source: 'download' } } ) );
         };
         if ( !accessId )
         {
@@ -408,7 +407,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         const service = serviceByKind( 'VAULT' );
         if ( !service || !vaultLinePrice ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error', message: 'The current Vault price is unavailable. Nothing has been charged.',
+                kind: 'error', source: 'website', message: 'The current Vault price is unavailable. Nothing has been charged.',
             } } ) );
             return;
         }
@@ -418,7 +417,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         if ( readCart().some( item => !isServiceItem( item )
             || item.productId !== service.productId || item.variantId !== service.variantId ) ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error',
+                kind: 'error', source: 'website',
                 message: 'Other items are already in your cart. Complete or remove those items before adding Vault access. Your shopping cart has not been changed.',
             } } ) );
             return;
@@ -446,7 +445,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     : response.kind === 'rate'
                         ? publicActionText( 'blocked' )
                         : 'We could not verify this file for website payment. Nothing has been charged.';
-                setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', message } } ) );
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', source: 'website', message } } ) );
                 if ( response.kind === 'refused' ) void loadFiles();
                 return;
             }
@@ -456,7 +455,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 && cart.some( item => item.productId === service.productId && item.variantId === service.variantId );
             if ( !bound ) {
                 setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                    kind: 'error',
+                    kind: 'error', source: 'website',
                     message: 'Your cart could not preserve the verified Vault file selection. No payment was started.',
                 } } ) );
                 return;
@@ -467,7 +466,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             window.location.assign( '/checkout/' );
         } catch {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error',
+                kind: 'error', source: 'website',
                 message: 'Website checkout could not be prepared. Nothing has been charged. Try again.',
             } } ) );
         } finally {
@@ -499,7 +498,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 setFileFeedback( current => ( {
                     ...current,
                     [ file.fileId ]: {
-                        kind: 'error',
+                        kind: 'error', source: 'whatsapp',
                         message: identityReady.failure.code === 'CONTACT_IDENTITY_CONFLICT'
                             ? 'Your WhatsApp number is linked to conflicting customer records. Contact support to reconcile your account. Nothing has been charged.'
                             : 'We could not prepare your verified WhatsApp identity. Nothing has been charged. Please try again.',
@@ -524,7 +523,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 setFileFeedback( current => ( {
                     ...current,
                     [ file.fileId ]: {
-                        kind: 'error',
+                        kind: 'error', source: 'whatsapp',
                         message: publicActionText( 'whatsappFailed' ),
                     },
                 } ) );
@@ -539,7 +538,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             setFileFeedback( current => ( {
                 ...current,
                 [ file.fileId ]: {
-                    kind: accepted ? 'status' : 'error',
+                    kind: accepted ? 'status' : 'error', source: 'whatsapp',
                     message: publicActionText( accepted ? 'whatsappAccepted' : 'whatsappFailed' ),
                 },
             } ) );
@@ -548,7 +547,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             setFileFeedback( current => ( {
                 ...current,
                 [ file.fileId ]: {
-                    kind: 'error',
+                    kind: 'error', source: 'whatsapp',
                     message: publicActionText( 'whatsappFailed' ),
                 },
             } ) );
