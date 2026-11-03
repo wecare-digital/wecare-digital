@@ -3475,16 +3475,16 @@ def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number
             }))
             return
 
-        # Give Meta half a second (0.5s) between an accepted Processing and the
-        # Completed order-status template, on EVERY native payment journey
-        # (Collect, Contribute and Vault alike). This is spacing between the two
+        # Give Meta a brief 0.2s between an accepted Processing and the Completed
+        # order-status template, on EVERY native payment journey (Collect,
+        # Contribute and Vault alike). This is minimal spacing between the two
         # status messages, NOT a customer delivery/read receipt. Only applied
         # after a FRESH Processing acceptance (status 200); an already-current
         # Processing (ORDER_STATUS_UNCHANGED) means a prior delivery already
         # spaced it. No timer is added before Processing, after Completed or
         # before the paid invoice.
         if processing_status == 200:
-            time.sleep(0.5)
+            time.sleep(0.2)
         _invoke_order_status(
             invoice_id, 'completed', phone_number_id, request_id,
             event_prefix='order_status_completed',
