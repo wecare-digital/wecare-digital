@@ -1217,11 +1217,11 @@ export async function ensureCustomerPaymentIdentity (): Promise<ApiResult<Record
  * ProductsTable pricing, GST/fees and the Meta ORDER_DETAILS message. No cart is seeded here.
  */
 export async function requestMySecureFilePayment (
-  fileId: string,
+  fileId: string, deliveryAddressConfirmation: VaultDeliveryAddressConfirmation,
 ): Promise<ApiResult<CustomerVaultPaymentRequest>> {
   return customerApiCall(
     `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/request-payment`,
-    { method: 'POST', body: '{}' },
+    { method: 'POST', body: JSON.stringify({ deliveryAddressConfirmation }) },
   );
 }
 
