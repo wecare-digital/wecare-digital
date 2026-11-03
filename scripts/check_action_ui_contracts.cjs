@@ -193,6 +193,15 @@ assert.match(vaultPage, /\.sf-card\{padding:28px 20px max\(30px,env\(safe-area-i
   'Vault must reduce the mobile gap without changing shared hero styles');
 
 
+// The fresh /ws Collect screen must use the same GSTIN-from-saved-customer
+// contract as the established Workspace Collect flow. No second input, and no
+// obsolete four-argument serializer call that fails TypeScript and production.
+const wsCollectCreate = read('src/components/ws/collect/CollectCreatePanel.tsx');
+assert.match(wsCollectCreate, /collectDraft\(\s*customer,\s*lines,\s*express\s*\)/,
+  'New WS Collect must use the current three-argument invoice draft serializer');
+assert.doesNotMatch(wsCollectCreate, /setGstin|cc-gstin|Customer GST number \(GSTIN\)/,
+  'New WS Collect must not restore the retired editable buyer GSTIN field');
+
 // The exact-file Vault alone renders shared public chrome after the owner-scoped
 // fetch settles. Preserve the silent redirect and no-floating-toast contracts.
 const vaultChrome = read('src/components/public/CustomerVaultChrome.tsx');
