@@ -3309,12 +3309,45 @@ def _create_invoice_delivery_error(body: Dict, entry_point: str,
     goods_type = body.get('goodsType', 'digital-goods')
     if not _is_physical_staff_collection(entry_point, goods_type, amount_is_tax_inclusive):
         return None
+    # The address fields usually ride in the create BODY (a browser Collect form posts them, and
+    # `_validate_collect_draft` has already reconciled them against the saved contact). A
+    # server-to-server caller such as the Vault payment rail, however, passes no address fields
+    # and lets the engine resolve the owner's saved address itself - exactly as the send path
+    # does via `_payment_delivery_info` -> `_lookup_contact_by_phone` -> `_contact_address_fields`.
+    # Without this fallback the body-only read saw an empty address and refused a fully-addressed
+    # owner with DELIVERY_REQUIRED at creation, before the contact was ever consulted.
+    #
+    # Resolve the contact BY PHONE, mirroring the send path. The Vault body's `contactId` is the
+    # owner/customer id (e.g. a Cognito sub), NOT the ContactsTable partition key `id`, so a
+    # `get_item(Key={'id': contactId})` returns nothing and leaves the owner wrongly refused.
+    # `_lookup_contact_by_phone` queries the phone-index GSI and is the one proven resolver. A
+    # direct `id` read is kept only as a secondary path for a caller that passes a true table id.
+    # Fall back only when the body carries no address line; a body that supplies its own address
+    # is unchanged, so Collect is unaffected.
+    contact_fields: Dict[str, str] = {}
+    if not str(body.get('addressLine1') or '').strip():
+        try:
+            phone = str(body.get('customerPhone') or body.get('paidByPhone') or '').strip()
+            contact = _lookup_contact_by_phone(phone) if phone else None
+            if not contact:
+                contact_id = str(body.get('contactId') or '').strip()
+                if contact_id:
+                    contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+                        Key={'id': contact_id}, ConsistentRead=True).get('Item')
+            contact_fields = _contact_address_fields(contact or {})
+        except Exception:  # noqa: BLE001 - a lookup miss must not mask a real DELIVERY_REQUIRED
+            contact_fields = {}
     address = {
-        'addressLine1': str(body.get('addressLine1') or '').strip(),
-        'addressLine2': str(body.get('addressLine2') or '').strip(),
-        'city': str(body.get('city') or '').strip(),
-        'state': str(body.get('state') or '').strip(),
-        'postalCode': str(body.get('postalCode') or '').strip(),
+        'addressLine1': (str(body.get('addressLine1') or '').strip()
+                         or str(contact_fields.get('addressLine1') or '').strip()),
+        'addressLine2': (str(body.get('addressLine2') or '').strip()
+                         or str(contact_fields.get('addressLine2') or '').strip()),
+        'city': (str(body.get('city') or '').strip()
+                 or str(contact_fields.get('city') or '').strip()),
+        'state': (str(body.get('state') or '').strip()
+                  or str(contact_fields.get('state') or '').strip()),
+        'postalCode': (str(body.get('postalCode') or '').strip()
+                       or str(contact_fields.get('postalCode') or '').strip()),
         'countryCode': str(body.get('countryCode') or 'IN').upper(),
     }
     try:
