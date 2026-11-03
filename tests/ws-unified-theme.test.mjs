@@ -80,6 +80,10 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'the CTA must not reintroduce the legacy outlined button');
   assert.ok(theme.includes("content:'login'"),
     'sign-in uses the Material Symbols Rounded login icon instead of Next');
+  assert.ok(theme.includes(".wsauth-shell.ws-notion-auth[data-wsauth-signin='true'] .amplify-button[data-variation='primary']::before"),
+    'the sign-in icon must never leak to MFA, verification or password reset primary buttons');
+  assert.ok(auth.includes("data-wsauth-signin={ route === 'signIn' ? 'true' : undefined }"),
+    'actual Cognito signIn route, not button text guessing, scopes compact layout and glyph');
   assert.ok(!theme.includes("content:'arrow_forward'"),
     'do not add a forward/Next arrow to the sign-in button');
   assert.ok(readSource('src/config/materialSymbols.ts').includes("'login'"),
@@ -96,8 +100,10 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'respect visitors who ask to reduce animation');
   assert.ok(theme.includes(".amplify-button[data-variation='primary'] {transition:none}"),
     'the simple login CTA must respect reduced-motion preferences');
-  assert.ok(theme.includes('border-radius:999px'),
-    'the button and forgot-password affordance must be oval as pictured');
+  assert.ok(!theme.includes('border-radius:999px'),
+    'only the shared BrandBadge is pill-shaped; fields and buttons are now 13px');
+  assert.ok(theme.includes('border-radius:13px'),
+    'login actions have 13px corners');
 });
 
 test('credential inputs are truly borderless at rest with an accessible focus ring', () => {
@@ -110,8 +116,10 @@ test('credential inputs are truly borderless at rest with an accessible focus ri
     'borderless fields use a soft surface to distinguish input areas');
   assert.ok(theme.includes('.amplify-passwordfield .amplify-field-group__control:focus-within'),
     'password visibility controls must preserve a visible focus ring');
-  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
-    'keyboard focus must remain visible even though field borders are removed');
+  assert.ok(theme.includes('box-shadow:inset 0 -2px 0 var(--ws-login-deep)!important'),
+    'focused fields use the subtle /auth-style underline, not a thick dark-green box ring');
+  assert.ok(theme.includes('outline:0!important'),
+    'input focus removes heavy outside outlines, while preserving a visible underline');
   assert.ok(theme.includes('.amplify-field-group__control:hover'),
     'password control hover must not reintroduce an Amplify default border');
   assert.ok(theme.includes('border-color:transparent!important'),
@@ -211,9 +219,51 @@ test('the screenshot input and password affordances stay intact', () => {
     'the password recovery button remains available');
   assert.ok(theme.includes('background:var(--ws-login-field)'),
     'forgot password has the pale gray pill surface');
-  assert.ok(theme.includes('border-radius:999px'), 'form actions are fully rounded as requested');
-  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
-    'focused password and username fields remain accessible');
+  assert.ok(theme.includes('border-radius:13px'),
+    'buttons and fields use 13px corners, while shared brand badge stays a pill');
+  assert.ok(theme.includes('box-shadow:inset 0 -2px 0 var(--ws-login-deep)!important'),
+    'focused credentials retain a clear but non-box-shaped keyboard focus indicator');
   assert.ok(theme.includes('[data-amplify-authenticator-select-mfa-type]'),
     'MFA flow is still styled and usable');
+});
+
+test('Option C borrows /auth compact card treatment without changing Cognito or hero copy', () => {
+  const sourceAuth = readSource('src/pages/auth.tsx');
+  assert.ok(sourceAuth.includes('border-top:4px solid var(--public-brand-lime)'),
+    '/auth is the source reference for a restrained lime-topped white card');
+  assert.ok(theme.includes('border-top:4px solid var(--ws-login-lime)'),
+    '/ws card should echo the public auth page lime accent');
+  assert.ok(theme.includes('box-shadow:0 14px 38px rgba(26,58,42,.08)'),
+    'the login card adopts the subtle /auth shadow');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-form'),
+    'the visual card wraps the existing Cognito form');
+  assert.ok(theme.includes('max-width:520px'),
+    'card stays contained like the /auth page');
+  assert.ok(theme.includes('border-radius:13px'),
+    'form card and input boxes have the requested 13px corners');
+  assert.ok(auth.includes("ctx.authStatus, ctx.route"),
+    'route state stays inside the existing Amplify authenticator context');
+  assert.ok(!auth.includes('RotatingHero'),
+    'do not add public marketing headlines to the minimal staff login');
+  assert.ok(auth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
+    'the transparent official icon + brand eyebrow stays a pill');
+});
+
+test('only Sign in uses right-aligned 200x46 CTA with 13px corners', () => {
+  const block = theme.match(
+    /\.wsauth-shell\.ws-notion-auth\[data-wsauth-signin='true'\] \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/,
+  );
+  assert.ok(block, 'the compact CTA needs an explicit Cognito-route-scoped selector');
+  for (const declaration of ['width:200px', 'max-width:100%', 'min-height:46px', 'margin-inline-start:auto', 'align-self:flex-end', 'border-radius:13px']) {
+    assert.ok(block[1].includes(declaration), 'missing compact CTA declaration: ' + declaration);
+  }
+  assert.ok(!block[1].includes('background-color:'),
+    'sign-in layout override must not conflict with the single public-lime CTA fill owner');
+  const fields = theme.match(/\.wsauth-shell\.ws-notion-auth :is\(\.amplify-input,\.amplify-select\),[\s\S]*?padding-inline:17px;\s*\}/);
+  assert.ok(fields && fields[0].includes('border-radius:13px!important'),
+    'credential fields should use the same 13px corner scale');
+  assert.ok(theme.includes("  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']"),
+    'keep forgot-password separate from the primary action');
+  assert.ok(theme.includes('background:var(--ws-login-field)'),
+    'keep the secondary action on the public lime-tint surface');
 });
