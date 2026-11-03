@@ -1629,6 +1629,28 @@ def _invoice_engine_vault_payment(
     owner_customer_id = str(item.get("ownerCustomerId") or "")
     owner_name = str(item.get("ownerName") or "Customer")
 
+    # Resolve the owner's real ContactsTable id (keyed by `id`) from the phone. The invoice
+    # engine universally treats `contactId` as the ContactsTable partition key: the create-time
+    # delivery gate, the send-time saved-recipient guard, and the post-capture
+    # `paid_invoice_order` projection all read the contact via `{'id': contactId}` or compare
+    # `contact_key.resolve(contact) == invoice.contactId`. The owner's permanent id
+    # (`ownerCustomerId`, a Cognito sub) is NOT that key - it is stored on the contact row as
+    # `checkoutCustomerId` - so passing it as `contactId` made every one of those paths miss the
+    # contact and refuse (DELIVERY_REQUIRED, 409 saved-recipient, and the projection ValueError
+    # that aborted the webhook before Vault settlement). Pass the TRUE contact id here; keep the
+    # Cognito id as `vaultCustomerId`, which is the field settlement matches against the file's
+    # owner. If the lookup misses, fall back to the Cognito id so behaviour is no worse than
+    # before. `contact_store.lookup_id` is the canonical resolver (tries every stored spelling via
+    # phone-index, skips deleted rows).
+    from lambda_utils import contact_store
+    try:
+        resolved_contact_id = contact_store.lookup_id(
+            _table(contact_store.table_name()), owner_phone) or owner_customer_id
+    except Exception as exc:  # noqa: BLE001 - a lookup failure must not block a payable owner
+        logger.warning(json.dumps({"event": "vault_contact_resolve_failed",
+                                   "fileId": file_id, "error": type(exc).__name__}))
+        resolved_contact_id = owner_customer_id
+
     # 1) Create the ₹49 pay_flow invoice carrying the Vault file binding.
     create_body = {
         "entryPoint": "pay_flow",
@@ -1637,8 +1659,9 @@ def _invoice_engine_vault_payment(
         "customerPhone": owner_phone,
         "paidByPhone": owner_phone,
         "customerName": owner_name,
-        # Owner id resolved server-side from the owner-bound file row - never a browser value.
-        "contactId": owner_customer_id,
+        # The TRUE ContactsTable id (resolved by phone above), which every invoice-engine path
+        # expects `contactId` to be. NOT the Cognito owner id - that rides as `vaultCustomerId`.
+        "contactId": resolved_contact_id,
         "vaultFileId": file_id,
         "vaultCustomerId": owner_customer_id,
         # One ₹49 service line. The engine applies per-item 18% GST and the convenience fee.

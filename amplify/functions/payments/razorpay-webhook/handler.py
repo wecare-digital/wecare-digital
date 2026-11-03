@@ -1509,6 +1509,26 @@ def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id
     if (not outcome.get('hasOrder')
             or outcome.get('checkoutMode') != wa_payment_request.WA_NATIVE_CHECKOUT_MODE):
         return
+    # A Vault purchase rides the same WA_NATIVE_CHECKOUT_MODE attempt but is NOT a website
+    # native-checkout order: it carries `vaultFileId`, is settled by secure-files
+    # `_vault_settle_from_invoice`, and its `contactId` is the owner's Cognito id, not the
+    # ContactsTable key this website-order projection requires. Running the projection on it
+    # therefore raised `invoice order evidence does not agree` and, via the re-raise below,
+    # aborted the whole post-payment chain BEFORE the Vault settlement dispatch and the statutory
+    # receipt. Vault needs neither this customer-link projection nor the website order row, so
+    # skip it. The invoice is read only to make this determination.
+    try:
+        _invoice = dynamodb.Table(INVOICES_TABLE).query(
+            IndexName='referenceId-index',
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('referenceId').eq(reference_id),
+            Limit=1).get('Items') or []
+        if _invoice and str(_invoice[0].get('vaultFileId') or ''):
+            logger.info(json.dumps({'event': 'paid_invoice_order_projection_skipped_vault',
+                'referenceId': reference_id, 'requestId': request_id}))
+            return
+    except Exception as error:  # noqa: BLE001 - a read miss must not block settlement; fall through
+        logger.warning(json.dumps({'event': 'paid_invoice_order_vault_check_failed',
+            'referenceId': reference_id, 'error': type(error).__name__, 'requestId': request_id}))
     try:
         row = paid_invoice_order.materialize(
             invoices=dynamodb.Table(INVOICES_TABLE),
