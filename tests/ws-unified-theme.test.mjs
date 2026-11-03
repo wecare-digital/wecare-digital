@@ -311,12 +311,13 @@ test('public /auth buttons and staff /ws buttons share one visual interaction la
   assert.ok(theme.includes(".amplify-button[data-variation='link']:disabled"),
     'secondary buttons must have intentional disabled states');
   for (const kind of ['primary', 'link']) {
-    const disabledRule = theme.match(new RegExp(
-      String.raw`\\.wsauth-shell\\.ws-notion-auth \\.amplify-button\\[data-variation='${kind}'\\]:disabled\\s*\\{([^{}]*)\\}`,
-    ));
-    assert.ok(disabledRule && disabledRule[1].includes('cursor:not-allowed'),
+    const selector = `.wsauth-shell.ws-notion-auth .amplify-button[data-variation='${kind}']:disabled {`;
+    const start = theme.indexOf(selector);
+    assert.ok(start !== -1, kind + ' disabled button style is required');
+    const disabledDeclarations = theme.slice(start, theme.indexOf('}', start));
+    assert.ok(disabledDeclarations.includes('cursor:not-allowed'),
       kind + ' disabled action must use not-allowed, never a misleading loading cursor');
-    assert.ok(!disabledRule[1].includes('cursor:wait'),
+    assert.ok(!disabledDeclarations.includes('cursor:wait'),
       kind + ' disabled action must not imply a network request is processing');
   }
   assert.ok(theme.includes('outline:3px solid var(--public-brand-green,var(--ws-login-deep))'),
