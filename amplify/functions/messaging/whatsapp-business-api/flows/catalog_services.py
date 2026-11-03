@@ -574,6 +574,13 @@ def _send_native_payment(event, client, db, keys, contacts, now):
     contact_id = contact_key.resolve(contact) if contact else ''
     if not contact_id:
         return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    # The staff must have reviewed the actual saved delivery address. Re-read the
+    # contact and validate both the address revision and Meta's physical-goods
+    # payability before any payment session, provider call or charge is possible.
+    confirmed_address = catalog.confirmed_vault_shipping_address(
+        contact, event.get('deliveryAddressConfirmation'))
+    if confirmed_address is None:
+        return {'outcome': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'}
 
     from lambda_utils.ecommerce import wa_payment_request
     try:
@@ -622,6 +629,9 @@ def _send_native_payment(event, client, db, keys, contacts, now):
         'origin': 'STAFF_VAULT',
         'requestedBy': str(event.get('requestedBy') or 'staff')[:64],
         'paymentItemDescription': description,
+        'deliveryAddressConfirmedAt': now,
+        'deliveryAddressRevision': confirmed_address['checkoutAddressUpdatedAt'],
+        'deliveryAddressDigest': confirmed_address['addressDigest'],
         **({'expectedTotalPaise': expected_total} if expected_total is not None else {}),
     }
     try:
