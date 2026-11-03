@@ -10,8 +10,11 @@ export function latestInvoiceImage(i:Invoice):InvoiceAsset|undefined {
   return [...(i.assets||[])].filter(a=>a.contentType==='image/png'&&a.s3Key)
     .sort((a,b)=>(b.version||1)-(a.version||1)||(b.generatedAt||0)-(a.generatedAt||0))[0];
 }
-export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:string,express:string):CreateInvoiceEngineRequest|null {
-  if(collectDraftIssues(customer,lines,gstin,express).length||!customer)return null;
+export function collectDraft(customer:Contact|null,lines:CollectLine[],express:string):CreateInvoiceEngineRequest|null {
+  if(collectDraftIssues(customer,lines,express).length||!customer)return null;
+  // The buyer GSTIN is no longer entered on the form; it is read from the saved
+  // customer record so a B2B invoice still carries it, and a customer with none omits it.
+  const gstin=(customer as (Contact&{gstin?:string})).gstin||'';
   const a=addressFieldsFromContact(customer);
   return {collectWorkspace:true,collectSavedAddress:collectAddressSnapshot(customer),contactId:customer.id,customerName:customer.name,customerPhone:customer.phone,
     customerEmail:customer.email||'',shippingAddress:contactDeliveryAddress(customer),billingAddress:contactDeliveryAddress(customer),
@@ -22,7 +25,8 @@ export function collectDraft(customer:Contact|null,lines:CollectLine[],gstin:str
 }
 
 /** Explain the same prerequisites used by the serializer, beside the preview. */
-export function collectDraftIssues(customer:Contact|null,lines:CollectLine[],gstin:string,express:string):string[]{
+export function collectDraftIssues(customer:Contact|null,lines:CollectLine[],express:string):string[]{
+  const gstin=(customer as (Contact&{gstin?:string})|null)?.gstin||'';
   const issues:string[]=[];
   if(!customer)issues.push('Select or save a customer.');
   else{

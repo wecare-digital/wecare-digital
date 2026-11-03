@@ -9,15 +9,15 @@ export interface CollectPreview {src?:string;label:string;state?:'loading'|'bloc
 const PENDING_KEY='wecare.collect.pending-create.v1';
 export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:CollectPreview|null)=>void;onCreated:()=>void}) {
   const confirm=useConfirm();
-  const [customer,setCustomer]=React.useState<api.Contact|null>(null),[gstin,setGstin]=React.useState(''),[express,setExpress]=React.useState('');
+  const [customer,setCustomer]=React.useState<api.Contact|null>(null),[express,setExpress]=React.useState('');
   const [lines,setLines]=React.useState<CollectLine[]>([blankCollectLine()]);
   const [quote,setQuote]=React.useState<{key:string;value:api.InvoiceEnginePreview}|null>(null);
   const [previewRevision,setPreviewRevision]=React.useState(0),[loading,setLoading]=React.useState(false),[busy,setBusy]=React.useState(false),[notice,setNotice]=React.useState('');
   const [pending,setPending]=React.useState(''),[created,setCreated]=React.useState<api.Invoice|null>(null);
   const flight=React.useRef(false),currentKey=React.useRef('');
-  const request=React.useMemo(()=>collectDraft(customer,lines,gstin,express),[customer,lines,gstin,express]);
+  const request=React.useMemo(()=>collectDraft(customer,lines,express),[customer,lines,express]);
   const key=collectInputKey(request);
-  const issues=React.useMemo(()=>collectDraftIssues(customer,lines,gstin,express),[customer,lines,gstin,express]);
+  const issues=React.useMemo(()=>collectDraftIssues(customer,lines,express),[customer,lines,express]);
   React.useLayoutEffect(()=>{currentKey.current=key;},[key]);
   const ready=!!key&&quote?.key===key&&!!quote.value.previewFingerprint&&!!quote.value.previewImageBase64&&!loading;
   React.useEffect(()=>{try{const saved=sessionStorage.getItem(PENDING_KEY);if(saved)setPending(saved);}catch{/* The server reference still guards this page's intent. */}},[]);
@@ -30,7 +30,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
     }).catch(()=>{if(active){setNotice('Server preview could not be loaded. Nothing can be confirmed yet.');onPreview({state:'error',label:'Invoice preview unavailable',details:['Refresh the server preview to try again.']});}}).finally(()=>{if(active)setLoading(false);});},350);
     return()=>{active=false;clearTimeout(timer);};
   },[key,request,onPreview,previewRevision,issues]);
-  const select=(c:api.Contact|null)=>{setCustomer(c);setGstin(c?.gstin||'');setCreated(null);};
+  const select=(c:api.Contact|null)=>{setCustomer(c);setCreated(null);};
   const update=(index:number,field:keyof CollectLine,value:string)=>setLines(rows=>rows.map((row,n)=>n===index?{...row,[field]:value}:row));
   const showSaved=async(invoice:api.Invoice)=>{
     const image=latestInvoiceImage(invoice);
@@ -59,7 +59,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
   return <div className="collect-create">
     {pending&&<div className="recovery" role="status"><strong>Creation needs reconciliation</strong><p>Reference: {pending}</p><button type="button" disabled={busy} onClick={()=>void recover()}>Check saved invoice</button></div>}
     <fieldset disabled={busy||!!pending||!!created}><PaymentCustomerPicker customer={customer} onSelect={select} requireAddress/>
-      <section className="card"><small className="step">2 · INVOICE VALUES</small><h2>Custom invoice items</h2><label>Customer GST number (GSTIN)<input value={gstin} maxLength={15} onChange={e=>setGstin(e.target.value.toUpperCase())} placeholder="If applicable"/></label>
+      <section className="card"><small className="step">2 · INVOICE VALUES</small><h2>Custom invoice items</h2>
         {lines.map((line,index)=><div className="line" key={index}><label className="description">Description<input value={line.name} onChange={e=>update(index,'name',e.target.value)}/></label><label>Quantity<input type="number" min="1" step="1" value={line.quantity} onChange={e=>update(index,'quantity',e.target.value)}/></label><label>Unit amount ₹<input type="number" min="0.01" step="0.01" value={line.amount} onChange={e=>update(index,'amount',e.target.value)}/></label><label>GST %<input type="number" min="0" max="100" step="0.01" value={line.gstRate} onChange={e=>update(index,'gstRate',e.target.value)}/></label><button type="button" disabled={lines.length===1} aria-label={`Remove item ${index+1}`} onClick={()=>setLines(rows=>rows.filter((_,n)=>n!==index))}>×</button></div>)}
         <button type="button" onClick={()=>setLines(rows=>[...rows,blankCollectLine()])}>＋ Add item</button>
         <div className="express-charge"><label htmlFor="collect-express">Express ₹<input id="collect-express" type="number" min="0" step="0.01" inputMode="decimal" required value={express} onChange={e=>setExpress(e.target.value)} placeholder="Enter amount" aria-describedby="collect-express-help"/></label><p id="collect-express-help">Enter the Express charge for this invoice. Enter 0 when there is no Express charge. The server recalculates the breakdown and preview from this value.</p></div>
