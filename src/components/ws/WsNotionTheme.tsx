@@ -483,7 +483,7 @@ const WsNotionTheme: React.FC = () => (
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:disabled {
     opacity:.6;
-    cursor:wait;
+    cursor:not-allowed;
     transform:none;
     box-shadow:none!important;
   }
@@ -523,7 +523,7 @@ const WsNotionTheme: React.FC = () => (
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:disabled {
     opacity:.6;
-    cursor:wait;
+    cursor:not-allowed;
     transform:none;
     box-shadow:none;
   }
