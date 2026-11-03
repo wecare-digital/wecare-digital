@@ -301,8 +301,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         };
     }, [ stage, files, loadFiles ] );
 
-    // Once the backend moves a file out of its sale state, the temporary "check WhatsApp"
-    // message has done its job. The authoritative OPEN/READY/PAID_UNVERIFIED UI takes over.
+    // Once the backend moves a file out of its sale state, clear the pending
+    // WhatsApp request and let the authoritative entitlement determine actions.
     useEffect( () => {
         const completed = files
             .filter( file => paymentWaiting[ file.fileId ]
@@ -557,7 +557,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     };
 
     // Blank during identity and ownership lookup. Only a verified, active file
-    // may render the Vault hero. Failed requests still show a retry/error state.
+    // may render the Vault hero. Failed requests present a retry action, not a notice.
     // The shared header/footer/support shell must not flash during redirects.
     if ( stage === 'loading' && !error ) return null;
 
@@ -792,7 +792,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
                   letter-spacing:-.04em;color:var(--public-heading)}
                 .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
-                .sf-load-error .sf-file-error{margin:0}
                 .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
                 .sf-form{display:block}
 
@@ -813,14 +812,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-file-meta{
                   margin:8px 0 0;font-size:var(--public-supporting-size);line-height:1.4;color:var(--public-muted);
                 }
-                .sf-file-status-row{margin:16px 0 0;display:flex;flex-wrap:wrap;gap:8px}
-                .sf-status-chip{display:inline-flex;align-items:center;gap:8px;max-width:100%;
-                  padding:8px 12px;border-radius:999px;border:1px solid var(--public-hairline);
-                  font-size:13px;font-weight:750;line-height:1.3;overflow-wrap:anywhere}
-                .sf-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
-                .sf-status-ready{color:var(--public-brand-green);background:var(--public-lime-tint);border-color:#cce7ae}
-                .sf-status-pending{color:#6d531c;background:#fff8e5;border-color:#ead9aa}
-                .sf-status-locked{color:var(--public-muted);background:var(--public-bg)}
                 .sf-file-divider{height:1px;background:var(--public-hairline);margin:22px 0}
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
@@ -843,18 +834,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 .sf-file-action-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
                 .sf-expired-button:disabled{opacity:1;cursor:not-allowed}
-                /* Exact /auth and /orders notification treatment: 4px lime rule,
-                   11px/13px padding, 10px radius, lime tint and supporting typography.
-                   Access details stay visible rather than auto-dismissing. */
-                .sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
-                  box-sizing:border-box;inline-size:fit-content;max-inline-size:100%;
-                  margin:14px 0 0;padding:11px 13px;
-                  border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
-                  background:var(--public-lime-tint);color:var(--public-text);
-                  font-family:var(--font-sans);font-size:var(--public-supporting-size);
-                  font-weight:600;line-height:1.4;overflow-wrap:anywhere;
-                }
-                .sf-confirming-note,.sf-payment-note{margin-top:0}
                 .sf-payment-options{display:grid;gap:12px;min-width:0}
                 .sf-payment-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
@@ -873,12 +852,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-pay-waiting{display:grid;gap:12px}
 
                 .sf-empty-state{display:grid;justify-items:start;gap:16px}
-                /* The no-file refusal uses the same lime-accent notice as Vault/Auth errors,
-                   at full card width instead of unstyled body copy. */
-                .sf-empty-state .sf-unavailable-notice{inline-size:100%;margin:0}
-                .sf-empty{
-                  font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
-                }
                 .sf-back-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;
                   border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
                   font-weight:700;text-decoration:underline;text-underline-offset:3px}
@@ -888,7 +861,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px;margin-top:-8px}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
-                  .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
+                  .sf-file-meta{
                     font-size:var(--public-mobile-supporting-size);
                   }
                   .sf-card-overview{align-items:flex-start;gap:12px}
