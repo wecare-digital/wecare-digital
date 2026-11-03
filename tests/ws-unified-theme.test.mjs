@@ -346,7 +346,7 @@ test('authenticated /ws uses sidebar-only chrome with an unobstructed content co
     'content must keep breathing room without the removed topbar');
 });
 
-test('workspace navigation has explicit Home and preserves all five existing destinations', () => {
+test('workspace navigation includes Home and all six destinations', () => {
   const navBlock = shell.slice(shell.indexOf('const NAV_ITEMS: NavItem[] = ['));
   const ids = [...navBlock.matchAll(/\{ id: '([^']+)', label: '([^']+)', href: '([^']+)'/g)]
     .slice(0, 6).map((match) => match[1]);
@@ -387,10 +387,12 @@ test('sidebar footer owns signed-in identity and original Cognito sign-out callb
     'only the original Cognito callback is invoked, no custom auth service');
   assert.ok(shell.includes('cursor:not-allowed'),
     'an unavailable Sign out callback should disable the control visibly');
-  assert.ok(settings.includes('ws-settings-signout{display:none}'),
+  assert.ok(settings.includes('.ws-settings-signout{display:none}'),
     'desktop Settings must not duplicate the sidebar session action');
-  assert.ok(settings.includes('className="ws-settings-signout" onClick={ () => signOut?.() }'),
-    'mobile Settings must retain Sign out because the desktop sidebar is hidden');
+  assert.ok(settings.includes('className="ws-settings-signout" onClick={ () => signOut?.() } disabled={ !signOut }'),
+    'mobile Settings must retain the guarded Cognito Sign out callback');
+  assert.ok(settings.includes('.ws-settings-signout:disabled{opacity:.55;cursor:not-allowed}'),
+    'mobile signout must not render as an interactive control without a session callback');
   assert.ok(settings.includes('<PushOptIn />'),
     'existing settings and device notification features remain intact');
 });
