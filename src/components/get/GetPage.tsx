@@ -100,7 +100,7 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
         case 'READY': return 'Payment verified';
         case 'PAID_UNVERIFIED': return 'Confirming paid access';
         case 'UNPAID': return 'Payment required';
-        case 'EXPIRED': return 'Access expired';
+        case 'EXPIRED': return 'Download disabled';
         default: return 'Access unavailable';
     }
 }
