@@ -700,7 +700,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
-                                                Payment recorded. Confirming access. Do not pay again.
+                                                Payment recorded. Confirming access. No additional payment is needed.
                                             </p>
                                         ) : state === 'UNPAID' ? (
                                             <>
