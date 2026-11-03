@@ -7,7 +7,7 @@ import {buildSync} from 'esbuild';
 const built=buildSync({entryPoints:['src/lib/collect.ts'],bundle:true,platform:'node',format:'cjs',write:false});
 const evaluatedModule={exports:{}};
 vm.runInNewContext(built.outputFiles[0].text,{module:evaluatedModule,exports:evaluatedModule.exports});
-const {collectDraft,collectInputKey}=evaluatedModule.exports;
+const {collectDraft,collectInputKey,collectDraftIssues}=evaluatedModule.exports;
 const customer={id:'saved-customer',name:'Example Customer',phone:'+919000000001',checkoutDeliveryAddress:{addressLine1:'Example street',city:'Kolkata',state:'West Bengal',postalCode:'700012',country:'India',countryCode:'IN'}};
 const lines=[{name:'Custom service',amount:'100.00',quantity:'1',gstRate:'18'}];
 
@@ -28,4 +28,14 @@ test('An Express edit invalidates the local reviewed-input identity',()=>{
   const before=collectInputKey(collectDraft(customer,lines,'','0'));
   const after=collectInputKey(collectDraft(customer,lines,'','45'));
   assert.notEqual(before,after);
+});
+
+// A blank panel must name the actual blocker instead of hiding validation.
+test('Preview prerequisites name missing item, address and Express details',()=>{
+  const issues=Array.from(collectDraftIssues({...customer,checkoutDeliveryAddress:{}},[{name:'',amount:'',quantity:'1',gstRate:'18'}],'',''));
+  assert.ok(issues.some(s=>s.includes('street')));
+  assert.ok(issues.some(s=>s.includes('description')));
+  assert.ok(issues.some(s=>s.includes('unit amount')));
+  assert.ok(issues.some(s=>s.includes('Express')));
+  assert.equal(collectDraftIssues(customer,lines,'','0').length,0);
 });

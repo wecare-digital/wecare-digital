@@ -2,7 +2,7 @@ import React from 'react';
 import * as api from '../../../api/client';
 import PaymentCustomerEditor from './PaymentCustomerEditor';
 
-export default function PaymentCustomerPicker({customer,onSelect}:{customer:api.Contact|null;onSelect:(customer:api.Contact|null)=>void}) {
+export default function PaymentCustomerPicker({customer,onSelect,requireAddress=false}:{customer:api.Contact|null;onSelect:(customer:api.Contact|null)=>void;requireAddress?:boolean}) {
   const identity=React.useId(),searchId='payment-customer-search-'+identity,titleId='payment-customer-title-'+identity;
   const [query,setQuery]=React.useState('');
   const [rows,setRows]=React.useState<api.Contact[]>([]);
@@ -21,10 +21,10 @@ export default function PaymentCustomerPicker({customer,onSelect}:{customer:api.
   },[query,revision]);
   return <section className="customer-picker" aria-labelledby={titleId}>
     <header><div><small>1 · CUSTOMER</small><h2 id={titleId}>Who is this payment for?</h2></div><button type="button" onClick={()=>setEditing('new')}>New customer</button></header>
-    {editing?<PaymentCustomerEditor customer={editing==='edit'?customer||undefined:undefined} onCancel={()=>setEditing(null)} onSaved={saved=>{onSelect(saved);setEditing(null);setRevision(n=>n+1);}}/>:<>
-      <label htmlFor={searchId}>Search saved customers</label><div className="search"><input id={searchId} value={query} onChange={event=>setQuery(event.target.value)} placeholder="Name, WhatsApp number or email"/><button type="button" onClick={()=>setRevision(n=>n+1)} disabled={loading}>Reload</button></div>
+    {editing?<PaymentCustomerEditor requireAddress={requireAddress} customer={editing==='edit'?customer||undefined:undefined} onCancel={()=>setEditing(null)} onSaved={saved=>{onSelect(saved);setEditing(null);setRevision(n=>n+1);}}/>:<>
+      {!customer&&<><label htmlFor={searchId}>Search saved customers</label><div className="search"><input id={searchId} value={query} onChange={event=>setQuery(event.target.value)} placeholder="Name, WhatsApp number or email"/><button type="button" onClick={()=>setRevision(n=>n+1)} disabled={loading}>Reload</button></div></>}
       {error&&<p role="alert">{error}</p>}
-      {customer&&<div className="selected"><div><strong>{customer.name||'Customer'}</strong><span>{customer.phone}</span>{customer.locked&&<small>Identity protected for record retention · available for payment</small>}</div><div><button type="button" onClick={()=>setEditing('edit')}>Edit customer</button><button type="button" onClick={()=>onSelect(null)}>Change customer</button></div></div>}
+      {customer&&<div className="selected"><div><small>Selected customer</small><strong>{customer.name||'Customer'}</strong><span>{customer.phone}</span>{customer.locked&&<small>Identity protected for record retention · available for payment</small>}</div><div><button type="button" onClick={()=>setEditing('edit')}>Edit customer</button><button type="button" onClick={()=>onSelect(null)}>Change customer</button></div></div>}
       {!customer&&<div className="results" aria-busy={loading}>{loading?<p role="status">Searching customers…</p>:rows.map(row=><button type="button" key={row.id} onClick={()=>onSelect(row)}><strong>{row.name||'Unnamed customer'}</strong><span>{row.phone}</span>{row.locked&&<small>Protected identity</small>}</button>)}</div>}
       {!loading&&!error&&!customer&&!rows.length&&<p role="status">No saved customer matches this search. Try their full WhatsApp number or add a customer.</p>}
     </>}
