@@ -132,7 +132,7 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
         <main className="wsauth-signin-side">
           <div className="wsauth-form-frame">
             <div className="wsauth-form-header">
-              <p className="wsauth-form-kicker">STAFF WORKSPACE</p>
+              <p className="wsauth-form-kicker">WECARE.DIGITAL</p>
               <h2>Welcome back.</h2>
               <p>Enter your team credentials to continue.</p>
             </div>
