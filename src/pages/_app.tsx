@@ -58,6 +58,13 @@ import { useState, useEffect } from 'react';
    themselves, so whichever route needs Amplify configures it first, and /get does so through
    the client it already imports. */
 const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: false } );
+/* WsAuthShell is the /ws-SCOPED sign-in skin. It is a SECOND authenticated shell, used BELOW
+   for /ws routes only; /workspace and every other authenticated route keep AuthShell above.
+   Same dynamic/ssr:false treatment and the same 450 kB Amplify chunk reason: it imports
+   @aws-amplify/ui-react, so loading it lazily keeps that off every public page exactly as
+   AuthShell does. It exposes the same `({ signOut, user }) => ReactNode` render contract, so
+   the render function below is identical whichever shell wraps it. */
+const WsAuthShell = dynamic( () => import( '../components/ws/WsAuthShell' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single
@@ -1088,6 +1095,13 @@ export default function App ( { Component, pageProps }: AppProps ) {
   }
 
   // Protected pages
+  /* THE /ws WORKSPACE GETS ITS OWN SIGN-IN SKIN. WsAuthShell applies ONLY to routes under
+     /ws; everything else authenticated (notably /workspace) keeps the shared AuthShell and its
+     AuthGate chrome byte-unchanged. Both wrap the SAME Cognito Authenticator against the SAME
+     user pool and expose the identical `({ signOut, user }) => ReactNode` contract, so the
+     render function below does not change with the choice. Scoped on router.pathname so a
+     deep /ws path (e.g. /ws/collect) still matches. */
+  const Shell = router.pathname.startsWith( '/ws' ) ? WsAuthShell : AuthShell;
   return (
     <ErrorBoundary>
       <Head>
@@ -1159,7 +1173,11 @@ export default function App ( { Component, pageProps }: AppProps ) {
           Authenticator itself - now lives in AuthShell and arrives as a dynamic chunk. The
           render function below is unchanged: the page, its signOut wiring and the two widget
           mounts stay here, because this file is where every other route decision is made. */}
-      <AuthShell>
+      {/* /ws-SCOPED SIGN-IN SKIN. The new workspace gets WsAuthShell (fresh theme + chrome);
+          /workspace and every other authenticated route keep the shared AuthShell/AuthGate
+          unchanged. Both shells authenticate against the SAME Cognito pool and expose the same
+          render contract, so only the surrounding sign-in UI differs by route. */}
+      <Shell>
         { ( { signOut, user } ) => {
           if ( typeof window !== 'undefined' && ( window as any ).FB )
           {
@@ -1197,7 +1215,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             </ToastProvider>
           );
         } }
-      </AuthShell>
+      </Shell>
     </ErrorBoundary>
   );
 }
