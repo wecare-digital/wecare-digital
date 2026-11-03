@@ -384,7 +384,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           ) }
 
           { status === 'error' && (
-            <p className="eta-line"><strong>Guide</strong> { publicActionText( 'blocked' ) } No booking or payment started.</p>
+            <p className="eta-line"><strong>Guide</strong> { publicActionText( 'blocked' ) }</p>
           ) }
 
           { status === 'ready' && (

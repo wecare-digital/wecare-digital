@@ -21,7 +21,8 @@ export const FRAMEWORK_INPUTS: Record<FrameworkSection, FrameworkInput[]> = {
   collect: [
     {field: 'Customer, verified phone and delivery address', source: 'Saved Contacts / customer profile', control: 'Staff selects and reviews; backend validates payable identity and address.'},
     {field: 'Invoice item names, quantities, unit prices and tax choices', source: 'Collect invoice composer or saved invoice', control: 'Staff input; canonical server calculates the final invoice and fees.'},
-    {field: 'Discount / Delight, Express, convenience and GST totals', source: 'Invoice engine quote and saved invoice', control: 'Review server values. A displayed amount is not payment capture.'},
+    {field: 'Express amount', source: 'Collect Create → Express ₹', control: 'Staff enters an amount or 0 explicitly. Changing it requires a fresh server quote and invoice image.'},
+    {field: 'Discount / Delight, convenience and GST totals', source: 'Invoice engine quote and saved invoice', control: 'Review server values. A displayed amount is not payment capture.'},
     {field: 'Invoice ID, payment reference and approved media', source: 'Existing invoice/create/payment contracts', control: 'Not a template-variable editor. See the reference/idempotency discrepancy under Gaps.'},
   ],
   vault: [

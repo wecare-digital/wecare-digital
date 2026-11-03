@@ -185,6 +185,8 @@ assert.equal(normalize('Saved changes', 'success'), 'Saved changes');
 // Prevent reintroduction of the explicitly retired customer-facing messages.
 // Compile TSX without executing it: the transform strips non-rendered comments.
 const publicScreens = [
+  'src/components/ProductBlogPanel.tsx',
+  'src/components/ElsewhereTravelAssistant.tsx',
   'src/components/ProductBuyBox.tsx',
   'src/components/VayuLokLive.tsx',
   'src/components/SupportWidget.tsx',
@@ -200,6 +202,12 @@ const publicScreens = [
   'src/components/get/GetPage.tsx',
 ];
 const retiredPublicCopy = [
+  "No posts match that search.",
+  "Place not found.",
+  "Search unavailable.",
+  "Route unavailable.",
+  "Number verified",
+  "No booking or payment started.",
   "Checkout not ready. Payment unavailable.",
   "Item price unavailable. Review cart.",
   "Choose product options to see total.",
@@ -273,6 +281,57 @@ for (const file of publicScreens) {
 }
 assert.ok(!fs.existsSync(path.join(ROOT, 'src/lib/signInMessages.ts')),
   'Retired sign-in notification vocabulary must not be restored');
+
+// The new retirements are checked across all reachable public-facing source
+// directories, not merely the screens currently known to emit the words.
+// Staff Workspace is intentionally exempt from this customer wording contract.
+const newlyRetiredPublicCopy = [
+  "No posts match that search.",
+  "Place not found.",
+  "Search unavailable.",
+  "Route unavailable.",
+  "Number verified",
+  "No booking or payment started."
+];
+const publicSourceFiles = [];
+function walkPublicSource(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    const relative = path.relative(ROOT, full).split(path.sep).join('/');
+    if (entry.isDirectory()) {
+      if (/^src\/(?:components|pages)\/(?:workspace|dashboard)(?:\/|$)/.test(relative)) continue;
+      walkPublicSource(full);
+    } else if (entry.isFile() && /\.(?:tsx?|jsx?)$/.test(entry.name)) {
+      publicSourceFiles.push(relative);
+    }
+  }
+}
+for (const root of ['src/components', 'src/pages', 'src/lib', 'src/content']) {
+  walkPublicSource(path.join(ROOT, root));
+}
+for (const file of publicSourceFiles) {
+  const loader = /\.tsx$/.test(file) ? 'tsx' : /\.jsx$/.test(file) ? 'jsx'
+    : /\.ts$/.test(file) ? 'ts' : 'js';
+  const compiled = esbuild.transformSync(read(file), {
+    loader, format: 'cjs', target: 'es2022', legalComments: 'none',
+  }).code;
+  for (const message of newlyRetiredPublicCopy) {
+    assert.ok(!compiled.includes(message),
+      'Retired extra customer copy returned in ' + file + ': ' + message);
+  }
+}
+// Search found no matches is a factual empty result, not a system failure.
+// The status must continue to distinguish zero results from unavailable service.
+assert.match(read('src/components/ProductBlogPanel.tsx'), /filtered\.length === 0[\s\S]*?0 results/,
+  'Blog no-results feedback must remain factual rather than reporting a failed request');
+assert.match(read('src/components/VayuLokLive.tsx'), /searchStatus === 'no-results'[^\n]*0 results/,
+  'Place search must keep no-results distinct from service unavailability');
+assert.match(read('src/components/VayuLokLive.tsx'), /searchStatus === 'unavailable'[^\n]*publicActionText\( 'blocked' \)/,
+  'Unavailable search must use the shared blocked notice');
+assert.match(read('src/components/VayuLokLive.tsx'), /vl-live-route-unavailable[^\n]*publicActionText\( 'blocked' \)/,
+  'Unavailable route must use the shared blocked notice');
+
 
 const customerPayments = loadTypeScript('src/lib/orderStatusLabels.ts', name => {
   throw Error('Unexpected payment-label import: ' + name);

@@ -211,9 +211,18 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
       setAttempted(current => new Set([...current, file.fileId]));
     }
     try {
+      const accessKey = 'wecare.vault.access.v1.' + file.fileId;
+      let requestId = action === 'access' ? sessionStorage.getItem(accessKey) : null;
+      if (action === 'access' && !requestId) {
+        requestId = crypto.randomUUID();
+        sessionStorage.setItem(accessKey, requestId);
+      }
       const response = action === 'payment'
         ? await api.requestSecureFilePayment(file.fileId, undefined, reviewedTotal)
-        : await api.sendSecureFileAccess(file.fileId);
+        : await api.sendSecureFileAccess(file.fileId, requestId!, file.accessResendRequestId || '');
+      if (action === 'access' && response.ok && response.status === 200) {
+        sessionStorage.removeItem(accessKey);
+      }
       if (action === 'payment' && response.outcome === 'VAULT_QUOTE_CHANGED') {
         setAttempted(current => {const next=new Set(current);next.delete(file.fileId);return next;});
       }

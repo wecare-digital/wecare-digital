@@ -47,8 +47,8 @@
  */
 
 import { createRequire } from 'node:module';
-import { mkdirSync, copyFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { mkdirSync, copyFileSync, cpSync, rmSync, statSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require_ = createRequire( import.meta.url );
@@ -69,3 +69,16 @@ copyFileSync( SOURCE, DEST );
 const kb = Math.round( statSync( DEST ).size / 1024 );
 console.log( `vendor-css: @aws-amplify/ui-react/styles.css (${kb} kB) -> public/vendor/amplify-ui.css` );
 console.log( '  loaded by <link> on the authenticated routes only; public pages get src/styles/amplify-base.css' );
+
+// Keep the private Vault PDF parser and its same-origin worker/fonts at one version.
+const pdfRoot=dirname(require_.resolve('pdfjs-dist/package.json'));
+// Remove only regenerated assets, so an older unversioned worker cannot ship.
+rmSync(join(DEST_DIR,'pdfjs'),{recursive:true,force:true});
+const pdfVersion=require_('pdfjs-dist/package.json').version;
+const pdfDest=join(DEST_DIR,'pdfjs',pdfVersion);
+mkdirSync(pdfDest,{recursive:true});
+copyFileSync(join(pdfRoot,'legacy','build','pdf.worker.min.mjs'),join(pdfDest,'pdf.worker.min.mjs'));
+// The static viewer never loads pdf.sandbox or executes PDF JavaScript.
+// Publish only its decoder assets, excluding the unused QuickJS evaluator.
+for(const folder of ['cmaps','standard_fonts','wasm'])cpSync(join(pdfRoot,folder),join(pdfDest,folder),{recursive:true,filter:src=>!['quickjs-eval.js','quickjs-eval.wasm'].includes(basename(src))});
+console.log('vendor-pdf: matching PDF worker, fonts and decoders copied for private browser previews');

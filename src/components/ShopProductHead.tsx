@@ -30,9 +30,11 @@ import type { ShopProduct } from '../content/shop';
  * build the tag list, so wrapping them in a component puts a layer between it and the tags and they
  * silently vanish. The values come from src/config/share.ts.
  *
- * NO PRODUCT IMAGE ANYWHERE. The snapshot reports mediaCount 0 for all seven, so there is no URL to
- * give og:image or Product.image. The share card falls back to the company mark, which every other
- * page uses.
+ * NO PRODUCT IMAGE ANYWHERE. The Shop is image-free by design: the catalogue carries no product
+ * image URL, so there is nothing to give og:image or Product.image. The share card falls back to the
+ * company mark, which every other page uses. Google requires name, image and offers on Product, so
+ * with no image the node is ineligible for the rich result and is not emitted at all - the page ships
+ * the ItemPage node (which needs no image) and leaves it at that.
  */
 
 interface ShopProductHeadProps {
@@ -66,43 +68,13 @@ export const shopProductSchema = (
   const description = shopMetaDescription( product );
 
   /**
-   * THE Product NODE IS EMITTED ONLY WHEN THE PRODUCT HAS AN IMAGE, AND IT HAS NONE TODAY. Google
-   * requires name, image and offers on Product, and an incomplete Product is ineligible for the rich
-   * result however complete the rest of it is - so the node buys nothing until there is a picture.
-   * Sending the company logo instead would make one image the product photo for all seven.
-   *
-   * `price` is the bare decimal the catalogue stores, because schema.org/price wants a number with
-   * no grouping and no symbol; the visible price uses the catalogue's formatted string. Two
-   * spellings of one value, read from the same field, so markup and page cannot disagree. No `sku`
-   * - the snapshot's only identifier is a catalogue UUID, which is a database key rather than a
-   * stock-keeping unit. No
-   * aggregateRating and no review: nobody has rated these.
-   *
-   * `description` is the full copy rather than the 160-character meta description, because this node
-   * describes the product and the meta tag describes the search result.
+   * NO Product NODE. The Shop is image-free, and Google requires name, image and offers on Product -
+   * an incomplete Product is ineligible for the rich result however complete the rest of it is, so a
+   * node with no image buys nothing. Sending the company logo instead would make one image the
+   * product photo for every product, which schemacheck.js refuses. The page therefore emits only the
+   * ItemPage node, which needs no image, and so there is no `mainEntity` to point at: a reference to
+   * an @id nothing defines is a dangling pointer, and schemacheck asserts there are none.
    */
-  const productNode: LdNode[] = product.image ? [ {
-    '@type': 'Product',
-    '@id': pageId + '#product',
-    name: product.name,
-    description: [ product.tagline, ...product.body ].join( ' ' ),
-    url,
-    image: product.image,
-    brand: { '@id': ORG_ID },
-    offers: {
-      '@type': 'Offer',
-      '@id': pageId + '#offer',
-      url,
-      price: product.price,
-      priceCurrency: product.currency,
-      // NO `availability`. It used to say InStock for every product unconditionally, and stock
-      // tracking was removed from the catalogue on 2026-10-23, so nothing on the page or in the
-      // data backs that claim. Structured data must not assert facts the page cannot support;
-      // emit availability again only from a real per-product stock field.
-      seller: { '@id': ORG_ID },
-    },
-  } ] : [];
-
   const schema: { '@context': string; '@graph': LdNode[] } = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -114,13 +86,8 @@ export const shopProductSchema = (
         description,
         isPartOf: { '@id': WEBSITE_ID },
         inLanguage: 'en-IN',
-        // mainEntity ONLY when the Product exists. A reference to an @id nothing defines is a
-        // dangling pointer, and schemacheck asserts there are none - so an unconditional mainEntity
-        // would trade one failure for another.
-        ...( productNode.length ? { mainEntity: { '@id': pageId + '#product' } } : {} ),
         publisher: { '@id': ORG_ID },
       },
-      ...productNode,
     ],
   };
 

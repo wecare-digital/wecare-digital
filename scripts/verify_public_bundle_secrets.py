@@ -34,7 +34,7 @@ read - which is prohibited anyway (``.kiro/steering/aws-agent-rules.md`` (retire
     deliberately does not pretend otherwise.
   * Any other issuer shape (Razorpay live, OpenAI, AWS, GitHub, Slack, Stripe
     live, PEM private key) -> FAIL. None of those has a legitimate reason to be
-    in a browser bundle, so there is no fingerprint exception for them.
+    in a browser bundle; generated vendor-byte exceptions require exact provenance.
 
 Values are never printed. Findings are reported as file + fingerprint + length,
 the metadata set sanctioned by ``.kiro/steering/plaintext-source-policy.md`` (retired; now .kiro/steering/00-common.md).
@@ -166,6 +166,28 @@ BENIGN_AWS_FINGERPRINTS = {
     "25b3c9880103", "a319dbdf2041",  # numcodecs/dist/zstd.js
 }
 
+
+# PDF.js 6.5.438's generated OpenJPEG fallback contains one AWS-shaped byte-table
+# substring inside a 5,170-byte string token. Verified directly against the pinned
+# npm package: SHA-256 below; token at offset 150431. This is not configuration.
+# Unlike the legacy global exceptions above, allow this match ONLY in the exact
+# unchanged versioned vendor asset. A changed file, another path or another match
+# continues to fail the credential gate. Values are never stored or printed.
+PDFJS_GENERATED_ASSET = "vendor/pdfjs/6.5.438/wasm/openjpeg_nowasm_fallback.js"
+PDFJS_GENERATED_SHA256 = "2855f1590e7fd7abbbf204cd13a5c09d30c92fe2c9313fb72b64aa763fe8b4f3"
+PDFJS_GENERATED_MATCH_SHA256 = "fc61be348756c425fa79800bc0e9b68651daf27dc07a4c2bf8c37431a307917f"
+
+
+def benign_generated_asset(path: Path, rel: str, label: str, match: str) -> bool:
+    normalized = rel.replace("\\", "/")
+    if (label != "aws access key"
+            or not (normalized == PDFJS_GENERATED_ASSET
+                    or normalized.endswith("/" + PDFJS_GENERATED_ASSET))
+            or hashlib.sha256(match.encode()).hexdigest() != PDFJS_GENERATED_MATCH_SHA256):
+        return False
+    return hashlib.sha256(path.read_bytes()).hexdigest() == PDFJS_GENERATED_SHA256
+
+
 # Text-ish payloads only. Fonts, images and source maps of binary assets cannot
 # carry a credential that a browser would read as configuration, and scanning
 # them makes the check slow enough that someone will switch it off.
@@ -192,7 +214,7 @@ def scan_file(path: Path, rel: str) -> tuple[list[dict], list[dict]]:
 
     for label, rx in NEVER_PUBLIC.items():
         for m in rx.findall(text):
-            if benign(m):
+            if benign(m) or benign_generated_asset(path, rel, label, m):
                 continue
             failures.append({
                 "file": rel, "kind": label,

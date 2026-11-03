@@ -21,96 +21,30 @@ import { SkeletonCard } from '../../../components/Skeleton';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import Button from '../../../components/ui/Button';
-import Select, { type SelectOption } from '../../../components/ui/Select';
+import Select from '../../../components/ui/Select';
 import Tabs, { TabItem } from '../../../components/ui/Tabs';
 import * as api from '../../../api/client';
 
-interface PageProps {
-  signOut?: () => void;
-  user?: any;
-  embedded?: boolean;
-}
-
-const WABA_OPTIONS = [
-  { id: 'waba-e47d916f3c7a47e1a34a19653893dd4b', name: 'WECARE.DIGITAL' },
-  { id: 'waba-dbe343f210204752b74c80a0a59631a6', name: 'Manish Agarwal' },
-];
-
-const WABA_SELECT_OPTIONS: SelectOption[] = WABA_OPTIONS.map( ( w ) => ( { value: w.id, label: w.name } ) );
-const TEMPLATE_CATEGORY_OPTIONS: SelectOption[] = [
-  { value: 'UTILITY', label: 'Utility' },
-  { value: 'MARKETING', label: 'Marketing' },
-  { value: 'AUTHENTICATION', label: 'Authentication' },
-];
-const TEMPLATE_LANGUAGE_OPTIONS: SelectOption[] = [
-  { value: 'en_US', label: 'English (US)' },
-  { value: 'en_GB', label: 'English (UK)' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'es', label: 'Spanish' },
-];
-const HEADER_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'none', label: 'No Header' },
-  { value: 'text', label: 'Text' },
-  { value: 'image', label: 'Image' },
-  { value: 'video', label: 'Video' },
-  { value: 'document', label: 'Document' },
-  { value: 'location', label: 'Location (map pin)' },
-];
-const BUTTON_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'URL', label: 'URL' },
-  { value: 'PHONE_NUMBER', label: 'Phone' },
-  { value: 'QUICK_REPLY', label: 'Quick Reply' },
-];
-/** The carousel card's own order, which differs from the body button list above it. */
-const CARD_BUTTON_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'QUICK_REPLY', label: 'Quick Reply' },
-  { value: 'URL', label: 'URL' },
-  { value: 'PHONE_NUMBER', label: 'Phone' },
-];
-const CAROUSEL_CATEGORY_OPTIONS: SelectOption[] = [
-  { value: 'MARKETING', label: 'Marketing' },
-  { value: 'UTILITY', label: 'Utility' },
-];
-const CAROUSEL_LANGUAGE_OPTIONS: SelectOption[] = [
-  { value: 'en_US', label: 'English (US)' },
-  { value: 'en_GB', label: 'English (UK)' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'bn', label: 'Bengali' },
-  { value: 'ta', label: 'Tamil' },
-  { value: 'te', label: 'Telugu' },
-  { value: 'gu', label: 'Gujarati' },
-  { value: 'mr', label: 'Marathi' },
-];
-/* Layout only, and these numbers are not new: they are the sizes the dropped `.waba-select`
-   and `.button-row select` rules carried. A styled-jsx class cannot be forwarded to a child
-   component - its scope hash never reaches that component's DOM - and `className` on a Select
-   lands on the wrapper, so the class goes and the layout half of it comes back here. */
-const WABA_SELECT_STYLE: React.CSSProperties = { minWidth: 200 };
-const EMBEDDED_WABA_SELECT_STYLE: React.CSSProperties = { flex: 1, minWidth: 150 };
-const BUTTON_TYPE_SELECT_STYLE: React.CSSProperties = { width: 120 };
-
-const CATEGORY_COLORS: Record<string, string> = {
-  MARKETING: 'var(--text)',
-  UTILITY: '#4a4a4a',
-  AUTHENTICATION: '#6b6b6b',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  APPROVED: 'var(--text)',
-  PENDING: '#6b6b6b',
-  REJECTED: 'var(--accent)',
-};
-
-const TEMPLATE_OPERATION_PATHS: Record<string, string> = {
-  wecare_order_status_v3: 'Payments · Order status',
-  wecare_default_invoice_image_template: 'Payments · Send invoice',
-  wecare_leave_review: 'Inbox · Send template',
-  wecare_whatapp_native_pay_template: 'Payments · Request payment',
-  wecare_default_download: 'Inbox · Send template · Vault file ID',
-  wecare_location_share_pin: 'Inbox · Send template · Location',
-  wecare_otp: 'Customer verification · Automatic',
-  wecare_vault_request_ready: 'Retired · historical Vault offer only; use Pay & Flow → Vault',
-};
+// Static option tables, colour maps, inline styles, and the page props type were extracted
+// VERBATIM into the co-located templates.constants.ts sibling as a pure structural refactor.
+import {
+  BUTTON_TYPE_OPTIONS,
+  BUTTON_TYPE_SELECT_STYLE,
+  CARD_BUTTON_TYPE_OPTIONS,
+  CAROUSEL_CATEGORY_OPTIONS,
+  CAROUSEL_LANGUAGE_OPTIONS,
+  CATEGORY_COLORS,
+  EMBEDDED_WABA_SELECT_STYLE,
+  HEADER_TYPE_OPTIONS,
+  STATUS_COLORS,
+  TEMPLATE_CATEGORY_OPTIONS,
+  TEMPLATE_LANGUAGE_OPTIONS,
+  TEMPLATE_OPERATION_PATHS,
+  WABA_OPTIONS,
+  WABA_SELECT_OPTIONS,
+  WABA_SELECT_STYLE,
+  type PageProps,
+} from './templates.constants';
 
 const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const router = useRouter();
