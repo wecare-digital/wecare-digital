@@ -5,9 +5,11 @@ ProductsTable-priced snapshot and pass live payment readiness before sending a p
 """
 from __future__ import annotations
 import re
+import json
+import hashlib
 from typing import Any
 from lambda_utils import customer_auth, template_status, template_media
-from . import service_requests, whatsapp_basket, business_identity
+from . import service_requests, whatsapp_basket, business_identity, contact_address, payment_address
 
 # Customer-readable Vault item label. Only the WORDING is staff-editable for
 # an explicit file-bound send; no client can change the SKU, quantity or amount.
@@ -27,6 +29,35 @@ def valid_vault_item_description(raw: Any) -> bool:
 
 def vault_item_description(raw: Any) -> str:
     return raw if valid_vault_item_description(raw) else VAULT_ITEM_DESCRIPTION_DEFAULT
+
+def confirmed_vault_shipping_address(contact: dict, confirmation: Any) -> dict | None:
+    """Bind explicit staff review to the *current* mandatory payable shipping address.
+
+    A saved address is not itself proof that its recipient checked it for this order.
+    Only an affirmative review tied to the saved address revision can progress; the
+    server revalidates it and returns a digest, never the raw address in a payment
+    session. The commerce Lambda compares the digest again before reserving money.
+    No fallback to digital goods or invented shipping is permitted.
+    """
+    if not isinstance(contact, dict) or not isinstance(confirmation, dict):
+        return None
+    revision = confirmation.get('checkoutAddressUpdatedAt')
+    if (confirmation.get('confirmed') is not True or type(revision) is not int
+            or revision <= 0 or int(contact.get('checkoutAddressUpdatedAt') or 0) != revision):
+        return None
+    address = contact_address.from_contact(contact)
+    if address is None:
+        return None
+    try:
+        payment_address.assert_payable(
+            address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+    except payment_address.UnpayableAddress:
+        return None
+    digest = hashlib.sha256(json.dumps(
+        address, sort_keys=True, separators=(',', ':'), ensure_ascii=True
+    ).encode('utf-8')).hexdigest()
+    return {'checkoutAddressUpdatedAt': revision, 'addressDigest': digest}
+
 
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
