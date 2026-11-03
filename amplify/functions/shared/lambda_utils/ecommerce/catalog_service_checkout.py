@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 import json
 import hashlib
+from decimal import Decimal
 from typing import Any
 from lambda_utils import customer_auth, template_status, template_media
 from . import service_requests, whatsapp_basket, business_identity, contact_address, payment_address
@@ -42,8 +43,9 @@ def confirmed_vault_shipping_address(contact: dict, confirmation: Any) -> dict |
     if not isinstance(contact, dict) or not isinstance(confirmation, dict):
         return None
     revision = confirmation.get('checkoutAddressUpdatedAt')
-    if (confirmation.get('confirmed') is not True or type(revision) is not int
-            or revision <= 0 or int(contact.get('checkoutAddressUpdatedAt') or 0) != revision):
+    if (confirmation.get('confirmed') is not True or type(revision) not in (int, Decimal)
+            or revision != int(revision) or revision <= 0
+            or int(contact.get('checkoutAddressUpdatedAt') or 0) != int(revision)):
         return None
     address = contact_address.from_contact(contact)
     if address is None:
