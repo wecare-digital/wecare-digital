@@ -3064,6 +3064,32 @@ def _request_service_start(identity: customer_auth.CustomerIdentity,
     )
 
 
+
+def _native_delivery_confirmation_required(identity, body, native_contact,
+                                           catalog_session, cart_address) -> bool:
+    """Keep address-message confirmation for carts, not owner-bound Vault purchases.
+
+    A general WhatsApp cart can resume from a signed inbound Address Message and must
+    explicitly confirm its saved address. A Vault purchase is different: the server
+    minted an exact-file CATALOGSERVICE session for the verified owner and already
+    validated their saved payable address before invoking _create. There is no
+    customer cart/Address Message to resume. Exempt ONLY those server-written Vault
+    sessions; all other native carts retain the confirmation gate.
+    """
+    if (native_contact is None or body.get("deliveryConfirmed") is True
+            or not contact_address.address_message_reaches(identity.phone)):
+        return False
+    vault_session = (
+        isinstance(catalog_session, dict)
+        and catalog_session.get("origin") == "STAFF_VAULT"
+        and catalog_session.get("kind") == service_requests.VAULT
+        and bool(catalog_session.get("vaultFileId"))
+        and str(catalog_session.get("customerId") or "") == identity.customer_id
+        and cart_address is not None
+    )
+    return not vault_session
+
+
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
             native_contact: Optional[Dict[str, Any]] = None,
@@ -3283,16 +3309,12 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "message": "Payments are temporarily unavailable. No charge was made.",
         }, origin)
 
-    # 2b. EVERY WHATSAPP CART CONFIRMS WHERE IT SHIPS. The ORDER_DETAILS message below shows the
-    #     address on file but cannot change it, so a saved address is never assumed: a customer
-    #     who has moved would otherwise pay to ship to the old one. Asked LAST, once the cart has
-    #     priced and payments are ready, so a cart refused for another reason hears that reason
-    #     rather than being sent an address form first. `deliveryConfirmed` is set only by
-    #     inbound, when it resumes this cart from the customer's own Address Message submission
-    #     (`prepareNativeCart` refuses any HTTP envelope). Meta sends that form to +91 numbers
-    #     only, so any other number keeps paying against the address on file.
-    if (native_contact is not None and body.get("deliveryConfirmed") is not True
-            and contact_address.address_message_reaches(identity.phone)):
+    # 2b. An inbound WhatsApp product cart must explicitly confirm its delivery address.
+    #     Vault is not that cart: its server-created, exact-file session already passed the
+    #     saved-address/payability guard, and has no Address Message resume path. Keep the
+    #     exemption narrow; never let a caller-supplied request body choose this policy.
+    if _native_delivery_confirmation_required(
+            identity, body, native_contact, catalog_session, cart_address):
         return cors_response(409, {
             "error": "DELIVERY_CONFIRMATION_REQUIRED",
             "message": "Confirm the delivery address for this order.",
