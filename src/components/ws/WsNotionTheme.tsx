@@ -8,9 +8,8 @@ import React from 'react';
 const WsNotionTheme: React.FC = () => (
   <style jsx global>{`
 
-  /* Scope every rule to /ws only. No public page or /workspace regression. */
-  .ws-shell.ws-notion,
-  .wsauth-shell.ws-notion-auth {
+  /* Workspace document tokens must NOT leak into the shared public header, share dock or footer on the /ws login. */
+  .ws-shell.ws-notion {
     --ws-canvas:#fbfbfa;
     --ws-paper:#ffffff;
     --ws-sidebar:#f7f7f5;
