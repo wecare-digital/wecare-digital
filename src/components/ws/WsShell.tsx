@@ -1,29 +1,21 @@
 /**
- * WsShell — the fresh, mobile-first authenticated shell for the /ws workspace.
+ * WsShell — authenticated /ws navigation and content surface.
  *
- * This is a ground-up rebuild, NOT a wrapper around WorkspaceShell. It owns authenticated
- * chrome for the new /ws surface only:
- *   - All widths: a homepage-style header (WsHeader — white surface, hairline, shared brand mark
- *     linking to /ws Home, and the signed-in identity + a single quiet Sign out) sits at the top
- *     of the content column, and a homepage-style footer (WsFooter — hairline, compact brand mark,
- *     muted line, lime dash) sits at the foot of the scrollable content.
- *   - Desktop (>=768px): a left sidebar carries the brand mark (links to /ws Home) above the five
- *     nav items. Identity/Sign out live in WsHeader, so the sidebar foot is not duplicated.
- *   - Mobile (<768px): a fixed bottom navigation bar carries the same five items. The bottom bar
- *     honours --safe-bottom and --tap-min (44px), and the content reserves bottom padding so the
- *     bar never covers it.
+ * Desktop: one full-height sidebar with the official transparent WECARE mark,
+ * explicit Home/section navigation, current account and an icon-led Sign out
+ * button pinned at the foot. The right side is dedicated to page content:
+ * no repeated header or footer.
  *
- * Auth stays in AuthShell/_app: a /ws page is rendered directly with { signOut, user } and
- * renders this shell itself (see src/pages/_app.tsx — the WorkspaceShell wrap is /workspace-only).
+ * Mobile: six reachable navigation destinations in a safe-area-aware bottom bar,
+ * including Home. Sign out remains available in Settings, without introducing
+ * a duplicate mobile header or covering page content.
  *
- * All colours/spacing/radii come from src/styles/tokens.css via co-located styled-jsx, the repo
- * convention (see src/components/WorkspaceShell.tsx). Nav icons are inline SVG so the shell does
- * not depend on the small global Material Symbols subset.
+ * The original Cognito signOut/user contract is passed down from WsAuthShell;
+ * customer /auth, /workspace and all private business panels remain unchanged.
  */
 import React, { ReactNode } from 'react';
 import Link from 'next/link';
-import WsHeader from './WsHeader';
-import WsFooter from './WsFooter';
+import BrandMark from '../BrandMark';
 import WsNotionTheme from './WsNotionTheme';
 
 export type WsSection = 'home' | 'inbox' | 'collect' | 'customers' | 'commerce' | 'settings';
@@ -41,6 +33,12 @@ interface NavItem {
   href: string;
   icon: () => React.JSX.Element;
 }
+
+const HomeGlyph = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="m3.5 10 8.5-7 8.5 7v10.5H3.5z" /><path d="M9 20.5v-7h6v7" />
+  </svg>
+);
 
 const InboxGlyph = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -72,7 +70,20 @@ const SettingsGlyph = () => (
   </svg>
 );
 
+const AccountGlyph = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-4.2 2.6-6.5 7-6.5s7 2.3 7 6.5" />
+  </svg>
+);
+
+const SignOutGlyph = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M15 4h4v16h-4" /><path d="M10 12H3" /><path d="m6 8-4 4 4 4" />
+  </svg>
+);
+
 const NAV_ITEMS: NavItem[] = [
+  { id: 'home', label: 'Home', href: '/ws', icon: HomeGlyph },
   { id: 'inbox', label: 'Inbox', href: '/ws/inbox', icon: InboxGlyph },
   { id: 'collect', label: 'Collect', href: '/ws/collect', icon: CollectGlyph },
   { id: 'customers', label: 'Customers', href: '/ws/customers', icon: CustomersGlyph },
@@ -80,28 +91,24 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: 'Settings', href: '/ws/settings', icon: SettingsGlyph },
 ];
 
-const BrandMark = () => (
-  <span className="ws-brand-mark" aria-hidden="true">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 13.5 5.5 7l3 8L12 5l3.5 10 3-8L21 13.5" />
-    </svg>
-  </span>
-);
-
 const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) => {
-  const loginId = user?.signInDetails?.loginId || user?.email || '';
+  const loginId = user?.signInDetails?.loginId || user?.email || user?.username || '';
 
   return (
     <div className="ws-shell ws-notion">
       <WsNotionTheme />
-      {/* Desktop sidebar */}
-      <aside className="ws-sidebar" aria-label="Workspace">
-        <Link href="/ws" className="ws-brand ws-brand-side" aria-label="Workspace home">
-          <BrandMark />
-          <span className="ws-brand-name">WECARE</span>
+      {/* Desktop: all workspace navigation and account actions live here. */}
+      <aside className="ws-sidebar" aria-label="Workspace sidebar">
+        <Link href="/ws" className="ws-brand ws-brand-side" aria-label="WECARE.DIGITAL workspace home">
+          <span className="ws-brand-mark"><BrandMark /></span>
+          <span className="ws-brand-copy">
+            <span className="ws-brand-name">WECARE.DIGITAL</span>
+            <span className="ws-brand-caption">Workspace</span>
+          </span>
         </Link>
 
-        <nav className="ws-nav" aria-label="Primary">
+        <nav className="ws-nav" aria-label="Workspace sections">
+          <span className="ws-nav-caption">WORKSPACE</span>
           { NAV_ITEMS.map( item => {
             const Icon = item.icon;
             const isActive = item.id === active;
@@ -119,17 +126,30 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           } ) }
         </nav>
 
+        <div className="ws-sidebar-foot">
+          <div className="ws-account">
+            <span className="ws-account-avatar"><AccountGlyph /></span>
+            <span className="ws-account-copy">
+              <span className="ws-account-label">Signed in</span>
+              <span className="ws-account-id" data-wc-no-translate="true" title={ loginId || undefined }>
+                { loginId || 'Workspace account' }
+              </span>
+            </span>
+          </div>
+          <button type="button" className="ws-signout" onClick={ () => signOut?.() } disabled={ !signOut }>
+            <span className="ws-signout-icon"><SignOutGlyph /></span>
+            <span>Sign out</span>
+          </button>
+        </div>
       </aside>
 
-      {/* Main content column: homepage-style header, the page, then the footer. */}
+      {/* Only business-page content remains on the right; no extra header/footer. */}
       <main id="ws-main" className="ws-main" data-wc-no-translate="true">
-        <WsHeader loginId={ loginId } signOut={ signOut } />
         <div className="ws-content">{ children }</div>
-        <WsFooter />
       </main>
 
       {/* Mobile bottom navigation */}
-      <nav className="ws-bottomnav" aria-label="Primary">
+      <nav className="ws-bottomnav" aria-label="Mobile workspace navigation">
         { NAV_ITEMS.map( item => {
           const Icon = item.icon;
           const isActive = item.id === active;
@@ -149,8 +169,8 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
 
       <style jsx>{`
         .ws-shell{
-          --ws-sidebar-w:248px;
-          --ws-bottomnav-h:60px;
+          --ws-sidebar-w:260px;
+          --ws-bottomnav-h:64px;
           min-height:100vh;
           min-height:100dvh;
           min-width:0;
@@ -160,130 +180,144 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           overflow-x:hidden;
           overflow-x:clip;
         }
-
-        /* ---- Brand mark (shared) ---- */
+        /* Official inline transparent WECARE vector, matching /ws sign-in. */
         .ws-brand{
-          display:inline-flex;
+          display:flex;
           align-items:center;
-          gap:10px;
+          gap:12px;
+          min-width:0;
+          min-height:var(--tap-min,44px);
           text-decoration:none;
           color:var(--accent,#1a3a2a);
-          min-height:var(--tap-min,44px);
           -webkit-tap-highlight-color:transparent;
         }
         .ws-brand-mark{
           display:inline-flex;
           align-items:center;
           justify-content:center;
-          width:34px;
-          height:34px;
-          border-radius:var(--radius-lg,12px);
+          width:40px;
+          height:40px;
+          flex:0 0 40px;
+          border-radius:12px;
           background:var(--lime,#d1f470);
-          color:var(--accent,#1a3a2a);
-          flex:0 0 auto;
+          color:var(--public-brand-green,#1a3a2a);
         }
+        .ws-brand-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
         .ws-brand-name{
-          font-weight:700;
-          font-size:16px;
-          letter-spacing:-0.3px;
+          font-size:14px;
+          line-height:1.05;
+          font-weight:800;
+          letter-spacing:-.035em;
+          white-space:nowrap;
           color:var(--accent,#1a3a2a);
         }
+        .ws-brand-caption{
+          color:var(--text-muted,#6b7280);
+          font-size:11px;
+          line-height:1.15;
+          letter-spacing:.045em;
+        }
+        .ws-brand:focus-visible{
+          outline:2px solid var(--accent,#1a3a2a);
+          outline-offset:2px;
+          border-radius:12px;
+        }
 
-        /* ---- Desktop sidebar (hidden on mobile) ---- */
-        .ws-sidebar{ display:none; }
-
-        /* ---- Main content column: header, page, footer ----
-           A flex column so WsFooter settles at the foot of short pages and flows after the
-           content on long ones. The bottom-nav clearance lives here (padding-bottom) so the
-           fixed mobile bottom-nav never covers the footer; WsHeader/WsFooter own their own
-           horizontal padding, while the page (.ws-content) carries the gutters. */
+        /* The entire right side is a single open reading surface. */
+        .ws-sidebar{display:none}
         .ws-main{
-          display:flex;
-          flex-direction:column;
+          display:block;
           min-width:0;
           min-height:100vh;
           min-height:100dvh;
-          box-sizing:border-box;
           padding-bottom:calc(var(--ws-bottomnav-h) + env(safe-area-inset-bottom,0px));
+          background:var(--surface,#fff);
           overflow-x:hidden;
           overflow-x:clip;
+          box-sizing:border-box;
         }
         .ws-content{
-          flex:1 1 auto;
           width:100%;
           min-width:0;
           box-sizing:border-box;
-          padding:16px
+          margin-inline:auto;
+          padding:24px
             max(16px,env(safe-area-inset-right,0px))
-            24px
+            32px
             max(16px,env(safe-area-inset-left,0px));
         }
 
-        /* ---- Mobile bottom navigation ---- */
+        /* All six sections, including Home, stay reachable without a top bar. */
         .ws-bottomnav{
           position:fixed;
           z-index:1100;
-          left:0;
-          right:0;
+          inset-inline:0;
           bottom:0;
           display:flex;
           align-items:stretch;
           height:calc(var(--ws-bottomnav-h) + env(safe-area-inset-bottom,0px));
           padding-bottom:env(safe-area-inset-bottom,0px);
-          padding-inline:max(0px,env(safe-area-inset-left,0px)) max(0px,env(safe-area-inset-right,0px));
+          padding-inline:env(safe-area-inset-left,0px) env(safe-area-inset-right,0px);
           background:var(--surface,#fff);
           border-top:1px solid var(--border,#e5e7eb);
           box-sizing:border-box;
         }
         .ws-bottom-link{
+          position:relative;
           flex:1 1 0;
           display:flex;
           flex-direction:column;
           align-items:center;
           justify-content:center;
-          gap:3px;
+          gap:4px;
           min-width:0;
           min-height:var(--tap-min,44px);
-          padding:6px 2px;
-          text-decoration:none;
+          padding:7px 1px;
           color:var(--text-muted,#6b7280);
+          text-decoration:none;
           -webkit-tap-highlight-color:transparent;
+          transition:background-color .16s ease,color .16s ease;
         }
-        .ws-bottom-link.active{ color:var(--accent,#1a3a2a); }
-        .ws-bottom-icon{ display:inline-flex; }
+        .ws-bottom-link.active{
+          color:var(--accent,#1a3a2a);
+          background:var(--lime-tint,rgba(209,244,112,.22));
+        }
+        .ws-bottom-link.active::before{
+          content:'';
+          position:absolute;
+          top:0;
+          left:50%;
+          transform:translateX(-50%);
+          width:28px;
+          height:3px;
+          border-radius:0 0 3px 3px;
+          background:var(--lime,#d1f470);
+        }
+        .ws-bottom-icon{display:inline-flex;align-items:center;justify-content:center}
         .ws-bottom-label{
-          font-size:11px;
-          font-weight:600;
-          line-height:1;
           max-width:100%;
           overflow:hidden;
           text-overflow:ellipsis;
           white-space:nowrap;
-        }
-        .ws-bottom-link.active .ws-bottom-icon{
-          color:var(--accent,#1a3a2a);
+          color:inherit;
+          font-size:10px;
+          font-weight:650;
+          line-height:1.2;
+          letter-spacing:-.03em;
         }
         .ws-bottom-link:focus-visible{
           outline:2px solid var(--accent,#1a3a2a);
-          outline-offset:-2px;
-          border-radius:var(--radius-md,8px);
+          outline-offset:-3px;
+          border-radius:7px;
         }
 
-        /* ======================================================================
-         * DESKTOP (>=768px): left sidebar replaces the top bar + bottom nav.
-         * ====================================================================== */
-        @media (min-width:768px){
+        @media(min-width:768px){
           .ws-shell{
             display:grid;
             grid-template-columns:var(--ws-sidebar-w) minmax(0,1fr);
           }
-          .ws-bottomnav{ display:none; }
-
-          /* No fixed bottom nav on desktop, so the content column needs no clearance. */
-          .ws-main{ padding-bottom:0; }
-
-          /* Calm Notion side panel: a faint neutral surface, a hairline right border, and
-             compact nav rows. */
+          .ws-bottomnav{display:none}
+          .ws-main{padding-bottom:0}
           .ws-sidebar{
             position:sticky;
             top:0;
@@ -292,69 +326,176 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             flex-direction:column;
             height:100vh;
             height:100dvh;
-            padding:18px 12px
+            min-width:0;
+            padding:22px 14px
               calc(18px + env(safe-area-inset-bottom,0px))
-              max(12px,env(safe-area-inset-left,0px));
-            background:var(--bg-secondary,#f9fafb);
-            border-right:1px solid var(--border,#e5e7eb);
+              max(14px,env(safe-area-inset-left,0px));
+            background:var(--bg-secondary,#f7f7f5);
+            border-inline-end:1px solid var(--border,#e5e7eb);
             box-sizing:border-box;
           }
-          .ws-brand-side{ padding:4px 8px 18px; }
-
+          .ws-brand-side{
+            padding:4px 10px 22px;
+            border-bottom:1px solid var(--border,#e5e7eb);
+            margin-bottom:18px;
+          }
           .ws-nav{
             display:flex;
             flex-direction:column;
-            gap:2px;
-            flex:1 1 auto;
+            gap:4px;
             min-height:0;
+            flex:1 1 auto;
             overflow-y:auto;
+            scrollbar-width:thin;
+          }
+          .ws-nav-caption{
+            padding:0 12px 10px;
+            font-size:10px;
+            font-weight:700;
+            line-height:1.25;
+            letter-spacing:.11em;
+            color:var(--text-muted,#6b7280);
           }
           .ws-nav-link{
+            position:relative;
             display:flex;
             align-items:center;
             gap:12px;
-            min-height:var(--tap-min,44px);
-            padding:9px 12px;
-            border-radius:var(--radius-md,8px);
-            text-decoration:none;
+            flex:0 0 auto;
+            min-height:46px;
+            padding:10px 12px;
+            border-radius:11px;
             color:var(--text-muted,#6b7280);
+            text-decoration:none;
             font-size:14px;
             font-weight:600;
-            transition:background var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease);
+            transition:background-color .16s ease,color .16s ease;
           }
           .ws-nav-link:hover{
-            background:var(--bg-hover,#f5f5f5);
-            color:var(--text,#1a1a1a);
+            background:var(--bg-hover,#f0f0ee);
+            color:var(--accent,#1a3a2a);
           }
-          /* Active: a quiet lime tint with forest-green text — on-brand but calmer than a
-             heavy solid-green bar. Accent is an accent, not a fill. */
           .ws-nav-link.active{
-            background:var(--lime-tint,rgba(209,244,112,0.22));
+            background:var(--lime-tint,rgba(209,244,112,.22));
             color:var(--accent,#1a3a2a);
             font-weight:700;
           }
-          .ws-nav-link.active .ws-nav-icon{ color:var(--accent,#1a3a2a); }
-          .ws-nav-icon{ display:inline-flex; flex:0 0 auto; color:var(--text-light,#9ca3af); }
-          .ws-nav-link:hover .ws-nav-icon{ color:var(--text,#1a1a1a); }
+          .ws-nav-link.active::before{
+            content:'';
+            position:absolute;
+            inset-inline-start:0;
+            top:11px;
+            bottom:11px;
+            width:3px;
+            border-radius:3px;
+            background:var(--lime,#d1f470);
+          }
+          .ws-nav-icon{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            flex:0 0 22px;
+            color:var(--text-muted,#6b7280);
+          }
+          .ws-nav-link:is(:hover,.active) .ws-nav-icon{color:var(--accent,#1a3a2a)}
           .ws-nav-link:focus-visible{
             outline:2px solid var(--accent,#1a3a2a);
             outline-offset:2px;
           }
 
-          .ws-content{
-            max-width:1100px;
-            margin:0 auto;
+          /* Account identity and the real Cognito sign-out action are pinned
+             beneath the scrollable nav; neither appears in the content pane. */
+          .ws-sidebar-foot{
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+            margin-top:14px;
+            padding:16px 4px 0;
+            border-top:1px solid var(--border,#e5e7eb);
+          }
+          .ws-account{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            min-width:0;
+            padding:4px 8px 9px;
+          }
+          .ws-account-avatar{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:36px;
+            height:36px;
+            flex:0 0 36px;
+            color:var(--accent,#1a3a2a);
+            background:var(--lime-tint,rgba(209,244,112,.22));
+            border-radius:12px;
+          }
+          .ws-account-copy{
+            display:flex;
+            flex-direction:column;
+            gap:3px;
+            min-width:0;
+          }
+          .ws-account-label{
+            color:var(--text-muted,#6b7280);
+            font-size:11px;
+            line-height:1.2;
+          }
+          .ws-account-id{
+            color:var(--text,#1a1a1a);
+            font-size:12px;
+            font-weight:650;
+            line-height:1.35;
+            overflow:hidden;
+            white-space:nowrap;
+            text-overflow:ellipsis;
+          }
+          .ws-signout{
+            display:flex;
+            align-items:center;
+            justify-content:flex-start;
+            gap:12px;
             width:100%;
-            padding:28px 28px 40px;
+            min-height:var(--tap-min,44px);
+            padding:10px 12px;
+            border:0;
+            border-radius:11px;
+            background:transparent;
+            color:var(--text-muted,#6b7280);
+            font:600 14px/1.35 var(--font-sans,Inter,system-ui,sans-serif);
+            text-align:start;
+            cursor:pointer;
+            transition:background-color .16s ease,color .16s ease;
+          }
+          .ws-signout-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px}
+          .ws-signout:hover:not(:disabled){
+            background:var(--lime-tint,rgba(209,244,112,.22));
+            color:var(--accent,#1a3a2a);
+          }
+          .ws-signout:disabled{opacity:.55;cursor:not-allowed}
+          .ws-signout:focus-visible{
+            outline:2px solid var(--accent,#1a3a2a);
+            outline-offset:2px;
+          }
+          .ws-content{
+            max-width:1250px;
+            width:100%;
+            margin:0 auto;
+            padding:40px clamp(28px,3.5vw,56px) 72px;
           }
         }
-
-        @media (prefers-reduced-motion:reduce){
-          .ws-nav-link,.ws-bottom-link{ transition:none; }
+        @media(max-width:359px){
+          .ws-bottom-label{font-size:9px}
+          .ws-bottom-icon svg{width:20px;height:20px}
         }
-        @media (forced-colors:active){
-          .ws-sidebar,.ws-bottomnav{ border-color:CanvasText; }
-          .ws-nav-link.active{ background:Highlight; color:HighlightText; }
+        @media(prefers-reduced-motion:reduce){
+          .ws-nav-link,.ws-bottom-link,.ws-signout{transition:none}
+        }
+        @media(forced-colors:active){
+          .ws-sidebar,.ws-bottomnav{border-color:CanvasText}
+          .ws-nav-link.active,.ws-bottom-link.active{background:Highlight;color:HighlightText}
+          .ws-signout:focus-visible{outline-color:Highlight}
         }
       `}</style>
     </div>
