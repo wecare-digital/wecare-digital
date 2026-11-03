@@ -1724,8 +1724,27 @@ def _customer_request_payment(
             "error": "VAULT_ALREADY_PAID",
             "message": "No additional payment is available for this Vault file.",
         }, origin))
+    # The authenticated owner must expressly confirm their current complete
+    # physical delivery address, just as the staff-initiated Vault path does.
+    # This body never selects a file/owner or supplies money or a shipping address.
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except (ValueError, TypeError):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    if not isinstance(body, dict):
+        return cors_response(400, {"error": "INVALID_PAYMENT_REQUEST"}, origin)
+    confirmed = body.get("deliveryAddressConfirmation")
+    if (not isinstance(confirmed, dict) or confirmed.get('confirmed') is not True
+            or type(confirmed.get('checkoutAddressUpdatedAt')) is not int
+            or confirmed['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            "error": "VAULT_DELIVERY_CONFIRMATION_REQUIRED",
+            "outcome": "VAULT_DELIVERY_CONFIRMATION_REQUIRED",
+            "message": "Confirm the current complete delivery address before paying.",
+        }, origin))
     return _start_native_vault_payment(
-        item, state, origin, requested_by="customer")
+        item, state, origin, requested_by="customer",
+        delivery_address_confirmation=confirmed)
 
 
 
