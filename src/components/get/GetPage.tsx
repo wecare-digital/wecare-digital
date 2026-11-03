@@ -39,7 +39,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
-import PublicNotice from '../public/PublicNotice';
 import CustomerVaultChrome from '../public/CustomerVaultChrome';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
@@ -101,8 +100,8 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
         case 'READY': return 'Payment verified';
         case 'PAID_UNVERIFIED': return 'Confirming paid access';
         case 'UNPAID': return 'Payment required';
-        case 'EXPIRED': return publicActionText( 'blocked' );
-        default: return publicActionText( 'blocked' );
+        case 'EXPIRED': return 'Download disabled';
+        default: return 'Access unavailable';
     }
 }
 
@@ -117,7 +116,7 @@ interface FilesPageProps {
     targetFileId: string;
 }
 
-type FileFeedback = { kind: 'status' | 'error'; message: string };
+type FileFeedback = { kind: 'status' | 'error'; message: string; source: 'download' | 'website' | 'whatsapp' };
 
 export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const [ stage, setStage ] = useState<Stage>( 'loading' );
@@ -302,8 +301,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         };
     }, [ stage, files, loadFiles ] );
 
-    // Once the backend moves a file out of its sale state, the temporary "check WhatsApp"
-    // message has done its job. The authoritative OPEN/READY/PAID_UNVERIFIED UI takes over.
+    // Once the backend moves a file out of its sale state, clear the pending
+    // WhatsApp request and let the authoritative entitlement determine actions.
     useEffect( () => {
         const completed = files
             .filter( file => paymentWaiting[ file.fileId ]
@@ -326,7 +325,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
         const feedback = ( kind: FileFeedback['kind'], message: string ) => {
-            setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind, message } } ) );
+            setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind, message, source: 'download' } } ) );
         };
         if ( !accessId )
         {
@@ -408,7 +407,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         const service = serviceByKind( 'VAULT' );
         if ( !service || !vaultLinePrice ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error', message: 'The current Vault price is unavailable. Nothing has been charged.',
+                kind: 'error', source: 'website', message: 'The current Vault price is unavailable. Nothing has been charged.',
             } } ) );
             return;
         }
@@ -418,7 +417,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
         if ( readCart().some( item => !isServiceItem( item )
             || item.productId !== service.productId || item.variantId !== service.variantId ) ) {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error',
+                kind: 'error', source: 'website',
                 message: 'Other items are already in your cart. Complete or remove those items before adding Vault access. Your shopping cart has not been changed.',
             } } ) );
             return;
@@ -446,7 +445,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     : response.kind === 'rate'
                         ? publicActionText( 'blocked' )
                         : 'We could not verify this file for website payment. Nothing has been charged.';
-                setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', message } } ) );
+                setFileFeedback( current => ( { ...current, [ file.fileId ]: { kind: 'error', source: 'website', message } } ) );
                 if ( response.kind === 'refused' ) void loadFiles();
                 return;
             }
@@ -456,7 +455,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 && cart.some( item => item.productId === service.productId && item.variantId === service.variantId );
             if ( !bound ) {
                 setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                    kind: 'error',
+                    kind: 'error', source: 'website',
                     message: 'Your cart could not preserve the verified Vault file selection. No payment was started.',
                 } } ) );
                 return;
@@ -467,7 +466,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             window.location.assign( '/checkout/' );
         } catch {
             setFileFeedback( current => ( { ...current, [ file.fileId ]: {
-                kind: 'error',
+                kind: 'error', source: 'website',
                 message: 'Website checkout could not be prepared. Nothing has been charged. Try again.',
             } } ) );
         } finally {
@@ -499,7 +498,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 setFileFeedback( current => ( {
                     ...current,
                     [ file.fileId ]: {
-                        kind: 'error',
+                        kind: 'error', source: 'whatsapp',
                         message: identityReady.failure.code === 'CONTACT_IDENTITY_CONFLICT'
                             ? 'Your WhatsApp number is linked to conflicting customer records. Contact support to reconcile your account. Nothing has been charged.'
                             : 'We could not prepare your verified WhatsApp identity. Nothing has been charged. Please try again.',
@@ -524,7 +523,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 setFileFeedback( current => ( {
                     ...current,
                     [ file.fileId ]: {
-                        kind: 'error',
+                        kind: 'error', source: 'whatsapp',
                         message: publicActionText( 'whatsappFailed' ),
                     },
                 } ) );
@@ -539,7 +538,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             setFileFeedback( current => ( {
                 ...current,
                 [ file.fileId ]: {
-                    kind: accepted ? 'status' : 'error',
+                    kind: accepted ? 'status' : 'error', source: 'whatsapp',
                     message: publicActionText( accepted ? 'whatsappAccepted' : 'whatsappFailed' ),
                 },
             } ) );
@@ -548,7 +547,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             setFileFeedback( current => ( {
                 ...current,
                 [ file.fileId ]: {
-                    kind: 'error',
+                    kind: 'error', source: 'whatsapp',
                     message: publicActionText( 'whatsappFailed' ),
                 },
             } ) );
@@ -558,7 +557,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
     };
 
     // Blank during identity and ownership lookup. Only a verified, active file
-    // may render the Vault hero. Failed requests still show a retry/error state.
+    // may render the Vault hero. Failed requests present a retry action, not a notice.
     // The shared header/footer/support shell must not flash during redirects.
     if ( stage === 'loading' && !error ) return null;
 
@@ -615,18 +614,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     </div>
                     { stage === 'loading' && error && (
                         <div className="sf-load-error">
-                            <PublicNotice mode="inline" tone="error" message={ error } flush />
                             <button type="button" className="sf-file-action-button sf-secondary-btn"
-                                onClick={ () => { window.location.reload(); } }>Try again</button>
+                                onClick={ () => { window.location.reload(); } }
+                                aria-label={ error ? 'Retry file access. ' + error : 'Retry file access' }>Try again</button>
                         </div>
                     ) }
                     { stage === 'files' && (
                         <div className="sf-form">
                             { files.length === 0 && (
                                 <div className="sf-empty-state">
-                                    { error
-                                        ? <PublicNotice mode="inline" tone="error" message={ error } flush />
-                                        : <p className="sf-empty">There are no files shared with your number right now.</p> }
                                     <Link className="sf-back-link" href="/orders/">Back to Orders</Link>
                                 </div>
                             ) }
@@ -657,18 +653,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                     { file.contentType === 'application/pdf' ? ' · PDF' : '' }
                                                     { file.downloadCount > 0
                                                         && ` · downloaded ${ file.downloadCount } time${ file.downloadCount === 1 ? '' : 's' }` }
+                                                    { state === 'OPEN' && ends && ` · Access expires ${ ends }` }
                                                 </div>
                                             </div>
                                         </div>
-                                        { state !== 'OPEN' && state !== 'EXPIRED' && (
-                                            <div className="sf-file-status-row" role="status" aria-live="polite">
-                                                <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
-                                                    : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
-                                                    <span className="sf-status-dot" aria-hidden="true" />
-                                                    { fileStatusLabel( state ) }
-                                                </span>
-                                            </div>
-                                        ) }
                                         <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (
@@ -680,43 +668,44 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
+                                                        aria-label={ feedback?.source === 'download' && feedback.kind === 'error'
+                                                            ? feedback.message + ' Retry download.'
+                                                            : state === 'READY'
+                                                                ? 'Payment verified. Your 24-hour access begins with your first download. Download file.'
+                                                                : 'Download file' }
                                                     >
-                                                        { working === file.fileId ? 'Preparing…' : 'Download' }
+                                                        { working === file.fileId ? 'Preparing…'
+                                                            : feedback?.source === 'download' && feedback.kind === 'error'
+                                                                ? 'Retry download' : 'Download' }
                                                     </button>
                                                 </div>
-                                                <p className="sf-state-note" role="status">
-                                                    { state === 'OPEN'
-                                                        ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : 'Your 24-hour access begins with your first download.' }
-                                                </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
-                                            <div className="sf-file-action" role="status" aria-live="polite">
+                                            <div className="sf-file-action">
                                                 <button type="button"
                                                     className="sf-file-action-button sf-download-button sf-expired-button"
                                                     disabled>
-                                                    { publicActionText( 'blocked' ) }
+                                                    { fileStatusLabel( state ) }
                                                 </button>
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
-                                            <p className="sf-confirming-note" role="status">
-                                                Payment recorded. Confirming access. No additional payment is needed.
-                                            </p>
+                                            <div className="sf-file-action">
+                                                <button type="button" className="sf-file-action-button sf-download-button"
+                                                    disabled aria-label="Payment recorded. Confirming access. No additional payment is needed.">
+                                                    { fileStatusLabel( state ) }
+                                                </button>
+                                            </div>
                                         ) : state === 'UNPAID' ? (
                                             <>
                                                 { waitingForPayment ? (
                                                     <div className="sf-pay-waiting">
-                                                        <p className="sf-payment-note"
-                                                            role={ feedback?.kind === 'error' ? 'alert' : 'status' }>
-                                                            { feedback?.message
-                                                                || publicActionText( 'whatsappFailed' ) }
-                                                        </p>
                                                         <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                             onClick={ () => { void loadFiles(); } }
-                                                            disabled={ working === file.fileId }>Refresh payment status</button>
+                                                            disabled={ working === file.fileId }
+                                                            aria-label="Refresh payment status before making another payment">Refresh payment status</button>
                                                     </div>
                                                 ) : (
-                                                    <div className="sf-payment-options" role="group" aria-label="Vault payment options">
+                                                    <div className="sf-payment-options" role="group" aria-label={ fileStatusLabel( state ) + '. Vault payment options' }>
                                                         <p className="sf-payment-lead">
                                                             Choose how to unlock this private file for 24 hours.
                                                         </p>
@@ -735,7 +724,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             <button type="button" className="sf-file-action-button"
                                                                 onClick={ () => { void handleWebsiteCheckout( file ); } }
                                                                 disabled={ working === file.fileId || vaultLinePrice === null }
-                                                                aria-busy={ working === file.fileId }>
+                                                                aria-busy={ working === file.fileId }
+                                                                aria-label={ feedback?.source === 'website' && feedback.kind === 'error'
+                                                                    ? feedback.message + ' Review website checkout.'
+                                                                    : undefined }>
                                                                 { working === file.fileId ? 'Preparing cart…'
                                                                     : payablePrice === null ? 'Price unavailable'
                                                                         : 'Add 24-hour Vault access to cart' }
@@ -747,7 +739,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                                 onClick={ () => { void handleVaultPayment( file ); } }
                                                                 disabled={ working === file.fileId }
-                                                                aria-busy={ working === file.fileId }>
+                                                                aria-busy={ working === file.fileId }
+                                                                aria-label={ feedback?.source === 'whatsapp' && feedback.kind === 'error'
+                                                                    ? feedback.message + ' Review WhatsApp payment.'
+                                                                    : undefined }>
                                                                 { working === file.fileId ? 'Sending to WhatsApp…'
                                                                     : 'Pay on WhatsApp instead' }
                                                             </button>
@@ -756,13 +751,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 ) }
                                             </>
                                         ) : null }
-
-                                        { state !== 'EXPIRED' && feedback?.kind === 'status' && !waitingForPayment && (
-                                            <p className="sf-payment-note" role="status">{ feedback.message }</p>
-                                        ) }
-                                        { state !== 'EXPIRED' && feedback?.kind === 'error' && !waitingForPayment && (
-                                            <PublicNotice mode="inline" tone="error" message={ feedback.message } />
-                                        ) }
                                     </div>
                                 );
                             } ) }
@@ -804,7 +792,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
                   letter-spacing:-.04em;color:var(--public-heading)}
                 .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
-                .sf-load-error .sf-file-error{margin:0}
                 .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
                 .sf-form{display:block}
 
@@ -825,14 +812,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-file-meta{
                   margin:8px 0 0;font-size:var(--public-supporting-size);line-height:1.4;color:var(--public-muted);
                 }
-                .sf-file-status-row{margin:16px 0 0;display:flex;flex-wrap:wrap;gap:8px}
-                .sf-status-chip{display:inline-flex;align-items:center;gap:8px;max-width:100%;
-                  padding:8px 12px;border-radius:999px;border:1px solid var(--public-hairline);
-                  font-size:13px;font-weight:750;line-height:1.3;overflow-wrap:anywhere}
-                .sf-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
-                .sf-status-ready{color:var(--public-brand-green);background:var(--public-lime-tint);border-color:#cce7ae}
-                .sf-status-pending{color:#6d531c;background:#fff8e5;border-color:#ead9aa}
-                .sf-status-locked{color:var(--public-muted);background:var(--public-bg)}
                 .sf-file-divider{height:1px;background:var(--public-hairline);margin:22px 0}
                 .sf-file-action{margin-top:22px}
                 .sf-file-divider + .sf-file-action{margin-top:0}
@@ -855,18 +834,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 }
                 .sf-file-action-button:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
                 .sf-expired-button:disabled{opacity:1;cursor:not-allowed}
-                /* Exact /auth and /orders notification treatment: 4px lime rule,
-                   11px/13px padding, 10px radius, lime tint and supporting typography.
-                   Access details stay visible rather than auto-dismissing. */
-                .sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
-                  box-sizing:border-box;inline-size:fit-content;max-inline-size:100%;
-                  margin:14px 0 0;padding:11px 13px;
-                  border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
-                  background:var(--public-lime-tint);color:var(--public-text);
-                  font-family:var(--font-sans);font-size:var(--public-supporting-size);
-                  font-weight:600;line-height:1.4;overflow-wrap:anywhere;
-                }
-                .sf-confirming-note,.sf-payment-note{margin-top:0}
                 .sf-payment-options{display:grid;gap:12px;min-width:0}
                 .sf-payment-lead{margin:0 0 3px;font-size:var(--public-supporting-size);color:var(--public-heading);font-weight:650;line-height:1.5}
                 .sf-payment-option{display:grid;gap:10px;padding:16px;border:1px solid #dce8d6;border-radius:14px;background:#fff}
@@ -885,12 +852,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-pay-waiting{display:grid;gap:12px}
 
                 .sf-empty-state{display:grid;justify-items:start;gap:16px}
-                /* The no-file refusal uses the same lime-accent notice as Vault/Auth errors,
-                   at full card width instead of unstyled body copy. */
-                .sf-empty-state .sf-unavailable-notice{inline-size:100%;margin:0}
-                .sf-empty{
-                  font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);margin:0;
-                }
                 .sf-back-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;
                   border-radius:10px;background:var(--public-lime-tint);color:var(--public-brand-green);
                   font-weight:700;text-decoration:underline;text-underline-offset:3px}
@@ -900,7 +861,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 @media(max-width:767px){
                   .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px;margin-top:-8px}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
-                  .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
+                  .sf-file-meta{
                     font-size:var(--public-mobile-supporting-size);
                   }
                   .sf-card-overview{align-items:flex-start;gap:12px}
