@@ -11,7 +11,6 @@ import Link from 'next/link';
 import '../../lib/amplifyConfig';
 import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws-amplify/ui-react';
 import { symbol, type MaterialSymbol } from '../../config/materialSymbols';
-import BrandLockup from '../BrandLockup';
 import WsNotionTheme from './WsNotionTheme';
 
 interface ModulePreview {
@@ -27,6 +26,12 @@ const WORKSPACE_MODULES: readonly ModulePreview[] = [
   { title: 'Customers', sub: 'People & history', icon: symbol('group') },
   { title: 'Commerce', sub: 'Orders & prices', icon: symbol('shopping_bag') },
 ];
+
+/* The verified SVG lives in S3's public media prefix. Keep the image URL exact:
+   s3://wecare-digital-get/o/stream/media/m/wecare-digital.svg
+   It is a square, white-backed icon with generous viewBox margins; its frame
+   crops only the whitespace and never replaces or redraws the brand artwork. */
+const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
 
 /* Authenticator's real header slot stays connected throughout sign-in and MFA. */
 const WsBrandHeader = (): React.JSX.Element => (
@@ -89,7 +94,15 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
         <aside className="wsauth-story" aria-label="Workspace introduction">
           <div className="wsauth-story-inner">
             <Link className="wsauth-public-home" href="/" aria-label="WECARE.DIGITAL homepage">
-              <BrandLockup compact />
+              <span className="wsauth-brandlockup" data-wc-no-translate="true">
+                <span className="wsauth-svg-frame" aria-hidden="true">
+                  <img src={ WECARE_SVG_URL } alt="" width={ 5000 } height={ 5000 } decoding="async" />
+                </span>
+                <span className="wsauth-wordmark">
+                  <strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>
+                  <strong>DIGITAL</strong>
+                </span>
+              </span>
             </Link>
 
             <div className="wsauth-story-main">
