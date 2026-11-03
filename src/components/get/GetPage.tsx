@@ -99,7 +99,8 @@ function fileStatusLabel ( state: SecureFileAccessState ): string {
     switch ( state ) {
         case 'OPEN': return '';
         case 'READY': return 'Payment verified';
-        case 'PAID_UNVERIFIED': return publicActionText( 'processing' );
+        case 'PAID_UNVERIFIED': return 'Confirming paid access';
+        case 'UNPAID': return 'Payment required';
         case 'EXPIRED': return publicActionText( 'blocked' );
         default: return publicActionText( 'blocked' );
     }
@@ -593,7 +594,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
             <RotatingHero
                 frame="Your secure"
                 words={ GET_WORDS }
-                sub="View your access and download the file shared with you."
+                sub="Check the status and choose your next step."
                 ariaLabel="Your secure document"
                 mobileFoundation
                 compact
@@ -609,7 +610,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         </span>
                         <div className="sf-card-overview-copy">
                             <p className="sf-card-kicker">PRIVATE VAULT</p>
-                            <h2 className="sf-card-title">Your file access</h2>
+                            <h2 className="sf-card-title">Shared with you</h2>
                         </div>
                     </div>
                     { stage === 'loading' && error && (
@@ -686,7 +687,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 <p className="sf-state-note" role="status">
                                                     { state === 'OPEN'
                                                         ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : publicActionText( 'success' ) }
+                                                        : 'Your 24-hour access begins with your first download.' }
                                                 </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
@@ -699,7 +700,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
                                             <p className="sf-confirming-note" role="status">
-                                                { publicActionText( 'processing' ) }
+                                                Payment recorded. Confirming access. Do not pay again.
                                             </p>
                                         ) : state === 'UNPAID' ? (
                                             <>
@@ -791,7 +792,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   width:100%;max-width:560px;margin:0;padding:clamp(28px,4vw,36px) clamp(24px,4.5vw,40px) clamp(30px,4.5vw,40px);
                   border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);
                   border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);
-                  box-sizing:border-box;
+                  box-sizing:border-box;margin-top:-16px;
                 }
                 .sf-card-overview{display:flex;align-items:center;gap:14px;padding-bottom:20px;margin-bottom:24px;
                   border-bottom:1px solid var(--public-hairline)}
@@ -897,7 +898,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                 .sf-back-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
                 @media(max-width:767px){
-                  .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px}
+                  .sf-card{padding:28px 20px max(30px,env(safe-area-inset-bottom));border-radius:20px;margin-top:-8px}
                   .sf-file-name{font-size:var(--public-mobile-card-size)}
                   .sf-file-meta,.sf-state-note,.sf-confirming-note,.sf-payment-note,.sf-file-error{
                     font-size:var(--public-mobile-supporting-size);
