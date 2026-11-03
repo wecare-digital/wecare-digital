@@ -615,7 +615,8 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     { stage === 'loading' && error && (
                         <div className="sf-load-error">
                             <button type="button" className="sf-file-action-button sf-secondary-btn"
-                                onClick={ () => { window.location.reload(); } }>Try again</button>
+                                onClick={ () => { window.location.reload(); } }
+                                aria-label={ error ? 'Retry file access. ' + error : 'Retry file access' }>Try again</button>
                         </div>
                     ) }
                     { stage === 'files' && (
@@ -652,6 +653,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                     { file.contentType === 'application/pdf' ? ' · PDF' : '' }
                                                     { file.downloadCount > 0
                                                         && ` · downloaded ${ file.downloadCount } time${ file.downloadCount === 1 ? '' : 's' }` }
+                                                    { state === 'OPEN' && ends && ` · Access expires ${ ends }` }
                                                 </div>
                                             </div>
                                         </div>
@@ -666,8 +668,15 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         onClick={ () => { void handleDownload( file ); } }
                                                         disabled={ working === file.fileId }
                                                         aria-busy={ working === file.fileId }
+                                                        aria-label={ feedback?.source === 'download' && feedback.kind === 'error'
+                                                            ? feedback.message + ' Retry download.'
+                                                            : state === 'READY'
+                                                                ? 'Payment verified. Your 24-hour access begins with your first download. Download file.'
+                                                                : 'Download file' }
                                                     >
-                                                        { working === file.fileId ? 'Preparing…' : 'Download' }
+                                                        { working === file.fileId ? 'Preparing…'
+                                                            : feedback?.source === 'download' && feedback.kind === 'error'
+                                                                ? 'Retry download' : 'Download' }
                                                     </button>
                                                 </div>
                                             </>
@@ -692,10 +701,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                     <div className="sf-pay-waiting">
                                                         <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                             onClick={ () => { void loadFiles(); } }
-                                                            disabled={ working === file.fileId }>Refresh payment status</button>
+                                                            disabled={ working === file.fileId }
+                                                            aria-label="Refresh payment status before making another payment">Refresh payment status</button>
                                                     </div>
                                                 ) : (
-                                                    <div className="sf-payment-options" role="group" aria-label="Vault payment options">
+                                                    <div className="sf-payment-options" role="group" aria-label={ fileStatusLabel( state ) + '. Vault payment options' }>
                                                         <p className="sf-payment-lead">
                                                             Choose how to unlock this private file for 24 hours.
                                                         </p>
@@ -714,7 +724,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             <button type="button" className="sf-file-action-button"
                                                                 onClick={ () => { void handleWebsiteCheckout( file ); } }
                                                                 disabled={ working === file.fileId || vaultLinePrice === null }
-                                                                aria-busy={ working === file.fileId }>
+                                                                aria-busy={ working === file.fileId }
+                                                                aria-label={ feedback?.source === 'website' && feedback.kind === 'error'
+                                                                    ? feedback.message + ' Review website checkout.'
+                                                                    : undefined }>
                                                                 { working === file.fileId ? 'Preparing cart…'
                                                                     : payablePrice === null ? 'Price unavailable'
                                                                         : 'Add 24-hour Vault access to cart' }
@@ -726,7 +739,10 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                                 onClick={ () => { void handleVaultPayment( file ); } }
                                                                 disabled={ working === file.fileId }
-                                                                aria-busy={ working === file.fileId }>
+                                                                aria-busy={ working === file.fileId }
+                                                                aria-label={ feedback?.source === 'whatsapp' && feedback.kind === 'error'
+                                                                    ? feedback.message + ' Review WhatsApp payment.'
+                                                                    : undefined }>
                                                                 { working === file.fileId ? 'Sending to WhatsApp…'
                                                                     : 'Pay on WhatsApp instead' }
                                                             </button>
