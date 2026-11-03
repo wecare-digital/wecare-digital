@@ -554,10 +554,8 @@ def render(invoice: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *,
     if convenience_net:
         totals.append(("Convenience Fee", convenience_net))
     if total_gst:
-        # One compact tax row, labelled "GST" like the other total lines. The seller GSTIN is
-        # already shown in the masthead (GSTIN: ... | PAN: ...), so using it as this row's label
-        # printed the raw GSTIN number against the tax amount and repeated it unnecessarily.
-        totals.append(("GST", total_gst))
+        # One compact tax row labelled with the seller GSTIN, as on the approved reference.
+        totals.append((seller_gstin or "GST", total_gst))
 
     words_lines = _wrap(fonts.role("words"), amount_in_words(total), TEXT_RIGHT - 166, 2)
 
