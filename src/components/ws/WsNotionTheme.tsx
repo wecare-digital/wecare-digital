@@ -412,7 +412,8 @@ const WsNotionTheme: React.FC = () => (
     letter-spacing:normal;
     text-transform:none;
     font-feature-settings:'liga';
-    font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
+    -webkit-font-feature-settings:'liga';
+    font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled) {
     background-color:var(--ws-login-lime-hover);
