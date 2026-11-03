@@ -153,7 +153,7 @@ for (const file of publicPageFiles) {
   const route = nextPageRoute(file);
   if (AUTHENTICATED_WS_ROUTES.has(route)) {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
-    if (!/<SEO\\b[^>]*\\bnoindex\\b/.test(source)) {
+    if (!/<SEO\b[^>]*\bnoindex\b/.test(source)) {
       failures.push('Authenticated /ws page must retain explicit noindex: ' + file);
     }
     if (approvedPublicRoutes.has(route)) {
