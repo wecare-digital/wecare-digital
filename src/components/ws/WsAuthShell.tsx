@@ -30,7 +30,9 @@ const WORKSPACE_MODULES: readonly ModulePreview[] = [
 /* The verified SVG lives in S3's public media prefix. Keep the image URL exact:
    s3://wecare-digital-get/o/stream/media/m/wecare-digital.svg
    It is a square, white-backed icon with generous viewBox margins; its frame
-   crops only the whitespace and never replaces or redraws the brand artwork. */
+   crops only the whitespace and never replaces or redraws the brand artwork.
+   The HTML width/height are the DISPLAY size (166px), not the 5000px SVG viewBox,
+   to avoid an oversized image slot before the stylesheet applies. */
 const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
 
 /* Authenticator's real header slot stays connected throughout sign-in and MFA. */
@@ -96,7 +98,7 @@ const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => 
             <Link className="wsauth-public-home" href="/" aria-label="WECARE.DIGITAL homepage">
               <span className="wsauth-brandlockup" data-wc-no-translate="true">
                 <span className="wsauth-svg-frame" aria-hidden="true">
-                  <img src={ WECARE_SVG_URL } alt="" width={ 5000 } height={ 5000 } decoding="async" />
+                  <img src={ WECARE_SVG_URL } alt="" width={ 166 } height={ 166 } decoding="async" />
                 </span>
                 <span className="wsauth-wordmark">
                   <strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>
