@@ -78,6 +78,7 @@ import json
 import os
 import re
 import time
+from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 
@@ -3916,7 +3917,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         # against the fresh trusted contact before a one-shot payment claim.
         confirmed_at = row.get('deliveryAddressConfirmedAt')
         revision = row.get('deliveryAddressRevision')
-        confirmation = {'confirmed': type(confirmed_at) is int and confirmed_at > 0,
+        confirmation = {'confirmed': type(confirmed_at) in (int, Decimal) and confirmed_at > 0,
                         'checkoutAddressUpdatedAt': revision}
         proof = catalog.confirmed_vault_shipping_address(contact, confirmation)
         if (proof is None or proof['addressDigest'] != row.get('deliveryAddressDigest')):
