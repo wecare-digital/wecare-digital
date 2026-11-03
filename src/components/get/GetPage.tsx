@@ -40,6 +40,7 @@ import Link from 'next/link';
 import SEO from '../SEO';
 import RotatingHero from '../RotatingHero';
 import PublicNotice from '../public/PublicNotice';
+import CustomerVaultChrome from '../public/CustomerVaultChrome';
 import { publicActionText, publicApiFailureText } from '../../lib/publicActionNotices';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
@@ -554,10 +555,11 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
 
     // Blank during identity and ownership lookup. Only a verified, active file
     // may render the Vault hero. Failed requests still show a retry/error state.
+    // The shared header/footer/support shell must not flash during redirects.
     if ( stage === 'loading' && !error ) return null;
 
     return (
-        <>
+        <CustomerVaultChrome>
             {/* noindex: a personal collection point, not a marketing page. There is
                 nothing here for a crawler, and an indexed URL inviting a phone number
                 is a phishing template waiting to be copied. */}
@@ -636,7 +638,7 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                 const waitingForPayment = Boolean( paymentWaiting[ file.fileId ] );
 
                                 return (
-                                    <div key={ file.fileId } className="sf-file">
+                                    <div key={ file.fileId } className="sf-file" data-wc-no-translate="true">
                                         <div className="sf-file-head">
                                             <span className="sf-file-icon" aria-hidden="true">
                                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
@@ -777,9 +779,9 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                    surfaces built on it - so repeating the padding here would double it and push
                    the panel half a screen down. The panel is simply the hero's child now.
 
-                   The former min-height:100vh (removed earlier) is likewise still absent: _app.tsx
-                   wraps every public route in <Header/> + page + <Footer/>, so claiming the whole
-                   viewport pushed the shared footer a full screen down. */
+                   The former min-height:100vh remains absent: CustomerVaultChrome now
+                   renders the shared header, policy, Stay connected, footer and support widget
+                   after Vault's ownership lookup. A full-viewport panel would push that footer down. */
 
                 /* /auth is the one sign-in screen. After it returns here, Vault uses the same
                    card language: 560px measure, lime top rule, 24px radius and quiet lift. */
@@ -912,6 +914,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   .sf-file-action-button:hover:not(:disabled){transform:none;box-shadow:none}
                 }
             ` }</style>
-        </>
+        </CustomerVaultChrome>
     );
 }

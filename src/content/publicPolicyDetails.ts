@@ -27,7 +27,6 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
   '/submit-request',
   '/request-amendment',
   '/drop-docs',
-  '/vault',
   '/shipments/track',
   '/request-pickup',
   '/orders',
@@ -50,6 +49,12 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
   // Customer sign-in is a no-payment account access step; do not imply that an
   // OTP verification itself creates an order or any return/refund entitlement.
+  '/vault': {
+    shipping: 'Vault files are delivered digitally after owner verification; no physical shipment is included.',
+    returns: 'A downloaded digital file cannot be returned as a physical item. Contact support if the shared file is incorrect.',
+    refunds: 'Refund and cancellation eligibility follows the confirmed Vault purchase, its terms and applicable law.',
+    disclaimer: 'A file link alone grants no download access. The server verifies the exact owner, payment and access window.',
+  },
   '/auth': {
     shipping: 'Signing in or verifying your number does not start a delivery. Fulfilment follows only a separately confirmed order.',
     returns: 'Signing in does not provide a returnable item or service. Any purchased item follows its confirmed return or replacement terms.',
