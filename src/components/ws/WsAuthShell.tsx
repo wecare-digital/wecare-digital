@@ -72,7 +72,7 @@ const WsBrandHeader = (): React.JSX.Element => (
         height:40px;
         flex:0 0 auto;
         border-radius:var(--radius-lg,12px);
-        background:var(--lime,#d1f470);
+        background:#e9eee8;
         color:var(--accent,#1a3a2a);
       }
       .wsauth-brand-text{
@@ -117,21 +117,21 @@ const wsAuthTheme: Theme = {
     colors: {
       brand: {
         primary: {
-          10: { value: '#f3f7ec' },
-          20: { value: '#e7f3c4' },
-          40: { value: '#d1f470' },
-          60: { value: '#d1f470' },
-          80: { value: '#1a3a2a' },
-          90: { value: '#0f2a1d' },
-          100: { value: '#0a1f15' },
+          10: { value: '#f5f8f4' },
+          20: { value: '#e9f0e7' },
+          40: { value: '#b5cdbb' },
+          60: { value: '#477a5a' },
+          80: { value: '#24533b' },
+          90: { value: '#193e2b' },
+          100: { value: '#102d21' },
         },
       },
       font: {
-        interactive: { value: '#1a3a2a' },
+        interactive: { value: '#24533b' },
       },
       background: {
         primary: { value: '#ffffff' },
-        secondary: { value: '#f9fafb' },
+        secondary: { value: '#f7f7f5' },
       },
     },
     components: {
