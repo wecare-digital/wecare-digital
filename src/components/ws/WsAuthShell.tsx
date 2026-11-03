@@ -57,7 +57,7 @@ const wsAuthTheme: Theme = {
       fieldcontrol: {
         borderWidth: { value: '0px' },
         borderColor: { value: 'transparent' },
-        borderRadius: { value: '14px' },
+        borderRadius: { value: '13px' },
         fontSize: { value: '16px' },
       },
     },
@@ -71,11 +71,11 @@ const wsAuthTheme: Theme = {
 };
 
 const WsAuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
-  const { authStatus } = useAuthenticator( ( ctx ) => [ ctx.authStatus ] );
+  const { authStatus, route } = useAuthenticator( ( ctx ) => [ ctx.authStatus, ctx.route ] );
   if ( authStatus === 'authenticated' ) return <>{ children }</>;
 
   return (
-    <div className="wsauth-shell ws-notion-auth">
+    <div className="wsauth-shell ws-notion-auth" data-wsauth-signin={ route === 'signIn' ? 'true' : undefined }>
       <WsNotionTheme />
       <PublicToastProvider>
         <Header />
