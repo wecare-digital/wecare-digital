@@ -48,7 +48,7 @@
 
 import { createRequire } from 'node:module';
 import { mkdirSync, copyFileSync, cpSync, rmSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require_ = createRequire( import.meta.url );
@@ -78,5 +78,7 @@ const pdfVersion=require_('pdfjs-dist/package.json').version;
 const pdfDest=join(DEST_DIR,'pdfjs',pdfVersion);
 mkdirSync(pdfDest,{recursive:true});
 copyFileSync(join(pdfRoot,'legacy','build','pdf.worker.min.mjs'),join(pdfDest,'pdf.worker.min.mjs'));
-for(const folder of ['cmaps','standard_fonts','wasm'])cpSync(join(pdfRoot,folder),join(pdfDest,folder),{recursive:true});
+// The static viewer never loads pdf.sandbox or executes PDF JavaScript.
+// Publish only its decoder assets, excluding the unused QuickJS evaluator.
+for(const folder of ['cmaps','standard_fonts','wasm'])cpSync(join(pdfRoot,folder),join(pdfDest,folder),{recursive:true,filter:src=>!['quickjs-eval.js','quickjs-eval.wasm'].includes(basename(src))});
 console.log('vendor-pdf: matching PDF worker, fonts and decoders copied for private browser previews');
