@@ -41,7 +41,7 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
           </div>
 
           {/* Mobile fallback: on desktop Sign out is always in the sidebar foot. */}
-          <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() }>
+          <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() } disabled={ !signOut }>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 4h4v16h-4" /><path d="M10 12H3" /><path d="m6 8-4 4 4 4" />
             </svg>
@@ -114,11 +114,12 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             cursor:pointer;
             transition:border-color var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease),background var(--transition-normal,0.15s ease);
           }
-          .ws-settings-signout:hover{
+          .ws-settings-signout:hover:not(:disabled){
             border-color:var(--danger,#dc2626);
             color:var(--danger,#dc2626);
             background:var(--danger-light,#fef2f2);
           }
+          .ws-settings-signout:disabled{opacity:.55;cursor:not-allowed}
           .ws-settings-signout:focus-visible{
             outline:2px solid var(--accent,#1a3a2a);
             outline-offset:2px;
