@@ -143,18 +143,29 @@ test('login has exactly the minimal form and real homepage header, share block, 
     'public chrome must unmount after sign-in, not wrap the private workspace');
 });
 
-test('only the WECARE.DIGITAL eyebrow appears above form, without duplicate logo', () => {
-  assert.ok(auth.includes('<Header />'), 'public Header remains the only page logo owner');
+test('WECARE.DIGITAL eyebrow displays the official SVG icon left of the label', () => {
+  assert.ok(auth.includes('<Header />'), 'public Header still mounts its own site brand');
   assert.ok(auth.includes('const WsBrandHeader = (): React.JSX.Element => ('),
-    'text eyebrow belongs in the actual Cognito header slot');
-  assert.ok(auth.includes('<div className="wsauth-eyebrow" data-wc-no-translate="true">WECARE.DIGITAL</div>'),
-    'the complete eyebrow label must be exactly WECARE.DIGITAL');
+    'the eyebrow remains inside Amplify header slot for sign-in, recovery and MFA');
+  assert.ok(auth.includes('https://wecare.digital/get/o/stream/media/m/wecare-digital.svg'),
+    'use the original S3-hosted SVG rather than a generated icon');
+  const icon = auth.indexOf('<span className="wsauth-eyebrow-icon" aria-hidden="true">');
+  const label = auth.indexOf('<span className="wsauth-eyebrow-text">WECARE.DIGITAL</span>');
+  assert.ok(icon !== -1 && label > icon,
+    'the icon must render before the exact one-line WECARE.DIGITAL label');
+  assert.ok(auth.includes('alt="" width={ 96 } height={ 96 }'),
+    'image is decorative, square and has dimensions for stable layout');
   assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-eyebrow'),
-    'eyebrow pill is styled and scoped to /ws');
-  assert.ok(!auth.includes('<img '), 'the login must not render a duplicate logo image');
-  assert.ok(!auth.includes('WECARE_SVG_URL'), 'the S3 logo is already handled by shared Header');
-  assert.ok(!theme.includes('wsauth-svg-frame'), 'remove unused duplicated-logo styling');
-  assert.ok(theme.includes('background:#fff;'), 'login is on a white page, not lime-tinted');
+    'the eyebrow pill is scoped to the /ws auth gate');
+  assert.ok(theme.includes('background:var(--ws-login-lime)'),
+    'the eyebrow uses the same homepage lime as the primary CTA');
+  assert.ok(theme.includes('display:inline-flex'),
+    'icon and label must remain in one horizontal eyebrow row');
+  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon img'),
+    'the official S3 icon must crop empty SVG padding within the small icon window');
+  assert.ok(!auth.includes('<BrandLockup compact />'),
+    'do not reintroduce a second full-sized wordmark above the form');
+  assert.ok(theme.includes('background:#fff;'), 'login remains on a white canvas');
   assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-login-main'),
     'centered form remains separate from public chrome');
 });

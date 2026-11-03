@@ -1,9 +1,9 @@
 /**
  * Homepage-aligned /ws sign-in.
  *
- * The user sees a WECARE.DIGITAL eyebrow and Cognito's real credential
- * form, within the same public header, share rail and footer as the homepage.
- * The official brand logo already appears in the shared header, never twice.
+ * The user sees the original WECARE SVG icon to the left of WECARE.DIGITAL
+ * in a single eyebrow pill above Cognito's real credential form, while the
+ * homepage Header, share rail and Footer retain their existing implementation.
  * No simulated workspace, marketing panel or second auth implementation.
  * When Cognito authenticates, the public chrome unmounts and the /ws page
  * continues rendering through its existing WsShell.
@@ -17,10 +17,19 @@ import PublicShare from '../PublicShare';
 import PublicToastProvider from '../public/PublicToastProvider';
 import WsNotionTheme from './WsNotionTheme';
 
-/* The homepage Header already contains the brand logo. Keep only the
-   requested text eyebrow above the real Cognito form (including MFA/recovery). */
+/* Original WECARE SVG from the verified S3 media prefix. This small icon
+   belongs inside the eyebrow, LEFT of the one-line WECARE.DIGITAL label.
+   The homepage header retains its existing independent site brand lockup. */
+const WECARE_SVG_URL = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.svg';
+
+/* Amplify keeps this header above the actual sign-in, recovery and MFA form. */
 const WsBrandHeader = (): React.JSX.Element => (
-  <div className="wsauth-eyebrow" data-wc-no-translate="true">WECARE.DIGITAL</div>
+  <div className="wsauth-eyebrow" data-wc-no-translate="true">
+    <span className="wsauth-eyebrow-icon" aria-hidden="true">
+      <img src={ WECARE_SVG_URL } alt="" width={ 96 } height={ 96 } decoding="async" />
+    </span>
+    <span className="wsauth-eyebrow-text">WECARE.DIGITAL</span>
+  </div>
 );
 
 /* Visual-only Amplify tokens; the shared /ws theme owns fields and buttons. */

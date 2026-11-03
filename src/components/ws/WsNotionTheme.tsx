@@ -270,23 +270,52 @@ const WsNotionTheme: React.FC = () => (
     unicode-bidi:isolate;
   }
 
-  /* The public header owns the brand mark. Only the company-name
-     eyebrow sits above the login form; no duplicate icon or wordmark. */
+  /* Requested single-row eyebrow: official S3 brand icon LEFT, one-line
+     WECARE.DIGITAL RIGHT. The homepage Header keeps its own site logo. */
   .wsauth-shell.ws-notion-auth .wsauth-eyebrow {
-    display:table;
+    display:inline-flex;
     width:max-content;
     max-width:100%;
+    min-height:44px;
+    align-items:center;
+    gap:10px;
     margin:0 0 26px;
-    padding:9px 14px;
+    padding:6px 14px 6px 7px;
     border:0;
     border-radius:999px;
-    background:#eff7d8;
+    background:var(--ws-login-lime);
     color:var(--ws-login-deep);
     font-size:12px;
     line-height:1.35;
     font-weight:800;
-    letter-spacing:.09em;
+    letter-spacing:.075em;
     white-space:nowrap;
+  }
+  /* The original SVG has a generous white viewBox. Its circular icon window
+     clips only that padding, rather than rescaling or changing the artwork. */
+  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:32px;
+    height:32px;
+    flex:0 0 32px;
+    border-radius:50%;
+    overflow:hidden;
+    background:#fff;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon img {
+    display:block;
+    width:96px;
+    height:96px;
+    flex:0 0 96px;
+    max-width:none;
+    object-fit:contain;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-text {
+    display:block;
+    color:var(--ws-login-deep);
+    font-weight:800;
   }
 
   /* Remove the previous card/marketing treatment, not just its outline. */
@@ -484,7 +513,7 @@ const WsNotionTheme: React.FC = () => (
     }
   }
   @media(max-width:360px) {
-    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {font-size:11px;padding:8px 12px}
+    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {gap:8px;font-size:11px;padding:5px 11px 5px 6px}
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
@@ -494,6 +523,7 @@ const WsNotionTheme: React.FC = () => (
     .ws-shell.ws-notion .ws-nav-link.active,
     .ws-shell.ws-notion .ws-bottom-link.active {border:1px solid Highlight}
     .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select) {outline:1px solid CanvasText!important}
+    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {border:1px solid CanvasText}
     .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {border:2px solid ButtonText!important}
   }
 
