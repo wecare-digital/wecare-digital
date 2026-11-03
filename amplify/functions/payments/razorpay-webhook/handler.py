@@ -2931,15 +2931,24 @@ def _post_payment_handler(payment_id: str, contact: str,
             logger.warning(json.dumps({'event': 'item_process_checkpoint_unavailable',
                                        'invoiceId': invoice_id, 'error': type(process_error).__name__}))
 
-    # Vault download delivery, chained after the receipt. A Vault purchase is now an ordinary
-    # pay_flow invoice (the Collect money rail) carrying `vaultFileId` + `vaultCustomerId`. When
-    # the paid invoice carries that binding, hand secure-files the invoice id and the Razorpay
-    # order id so it can confirm the capture with Razorpay (the ONLY writer of paid), mint the
-    # file's paid grant + entitlement, and send the Access Vault link. Fire-and-forget: the
-    # payment and statutory receipt are already complete, and a dispatch failure is recoverable by
+    # Vault download delivery. A Vault purchase carries `vaultFileId` + `vaultCustomerId` on its
+    # paid invoice. Hand secure-files the invoice id and the Razorpay order id so it can confirm
+    # the capture with Razorpay (the ONLY writer of paid), mint the file's paid grant +
+    # entitlement, and send the Access Vault link.
+    #
+    # DECOUPLED FROM THE RECEIPT (hardening): this block is gated on `invoice_id` ALONE, not on
+    # `delivered`. The Vault entitlement + Access Vault link is the PRODUCT the customer paid for;
+    # the statutory invoice receipt is a SEPARATE obligation. Previously both this and the
+    # item-process checkpoint hung off `if delivered and invoice_id`, so a customer whose receipt
+    # template could not be delivered (Meta throttle, template issue) silently never received
+    # their paid file access either - two independent deliverables coupled by one flag. The
+    # payment is already verified-paid at this point (financial_success gate above); a receipt
+    # miss must not deny paid access. Dispatch is idempotent (grant id derived from
+    # invoiceId|fileId), fire-and-forget, and secure-files re-confirms with Razorpay before any
+    # paid state, so dispatching regardless of receipt state is safe and recoverable by
     # scripts/reconcile_file_deliveries.py. The Razorpay order id comes from OUR attempt row
     # (`providerOrderId`, written by meta_payment_binding during reconciliation), never the event.
-    if delivered and invoice_id:
+    if invoice_id:
         try:
             invoice = dynamodb.Table(INVOICES_TABLE).get_item(
                 Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
