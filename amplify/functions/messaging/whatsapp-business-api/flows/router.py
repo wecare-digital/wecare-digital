@@ -88,9 +88,12 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         from flows import subscribe_profile
         return subscribe_profile.route(action, screen, data, flow_token, request_id)
 
-    # Approved invoice and manual Leave Review templates now use DATA_EXCHANGE,
-    # despite F002 remaining endpointless at completion. Its FEEDBACK screen has
-    # no private initial data; its signed nfm_reply is saved by customer_ideas.
+    # The invoice and manual Leave Review templates may use EITHER DATA_EXCHANGE or NAVIGATE for
+    # the Flow button (both allowed since 2026-11). F002 is endpointless at completion and its
+    # FEEDBACK entry screen carries no private initial data, so NAVIGATE opens that predefined
+    # screen directly on-device (faster, no endpoint round-trip) and this branch is simply never
+    # called. DATA_EXCHANGE still works: it fires an INIT ping that this branch answers with the
+    # same static FEEDBACK screen. Either way the signed nfm_reply is saved by customer_ideas.
     # Never use the general order-list fallback for an invoice-bound review token.
     if flow_token and flow_token.startswith('review-'):
         from lambda_utils.ecommerce import review_token

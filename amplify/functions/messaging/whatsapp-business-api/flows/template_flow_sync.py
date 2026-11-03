@@ -102,7 +102,12 @@ def snapshot(graph_get: Callable, waba_id: str, retained_flow: Callable[[str], b
         fid = _numeric_id(button.get('flow_id'))
         if not retained_flow(fid) or fid not in known_flows:
             raise ValueError('Approved template points to an unregistered Meta Flow')
-        if str(button.get('flow_action') or '').upper() != 'DATA_EXCHANGE':
+        button_action = str(button.get('flow_action') or '').upper()
+        # Allow BOTH DATA_EXCHANGE and NAVIGATE (see check_whatsapp_templates_live for the
+        # rationale: NAVIGATE opens the predefined entry screen with no endpoint round-trip, so
+        # it opens faster; both are valid for these endpointless Flows). The actual action is
+        # recorded on the mapping below rather than hardcoded.
+        if button_action not in ('DATA_EXCHANGE', 'NAVIGATE'):
             raise ValueError('Unexpected Flow button action in Meta')
         flow = known_flows[fid]
         # Health is a prerequisite for a verified usable mapping, not authorization to send.
@@ -120,7 +125,7 @@ def snapshot(graph_get: Callable, waba_id: str, retained_flow: Callable[[str], b
             'flowName': str(flow.get('name') or ''),
             'metaTemplateStatus': 'APPROVED',
             'metaFlowStatus': 'PUBLISHED',
-            'flowButtonAction': 'DATA_EXCHANGE',
+            'flowButtonAction': button_action,
             'buttonLabel': str(button.get('text') or ''),
             'templateCategory': str(template.get('category') or ''),
             'wabaId': waba_id,

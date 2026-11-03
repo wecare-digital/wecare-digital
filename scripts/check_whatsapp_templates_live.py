@@ -137,8 +137,13 @@ def flow_binding_issues(template, definitions: list) -> list[str]:
     actual_id = str(button.get("flow_id") or "")
     if actual_id != str(target["flowId"]):
         issues.append(f"FLOW target {actual_id or 'missing'} != canonical {target['flowId']}")
-    if button.get("flow_action") != "DATA_EXCHANGE":
-        issues.append("FLOW action must be DATA_EXCHANGE")
+    # Allow BOTH DATA_EXCHANGE and NAVIGATE. DATA_EXCHANGE opens the Flow via an encrypted
+    # endpoint INIT round-trip (the server answers with the static entry screen); NAVIGATE opens
+    # the Flow's predefined first screen directly on-device with no network fetch, so it opens
+    # faster. Both are valid approved shapes for these endpointless Flows (the entry screen is
+    # static either way, and completion is persisted from the signed nfm_reply, not the endpoint).
+    if str(button.get("flow_action") or "").upper() not in ("DATA_EXCHANGE", "NAVIGATE"):
+        issues.append("FLOW action must be DATA_EXCHANGE or NAVIGATE")
 
     # The paid Drop Docs sender supplies a dynamic IMAGE header and a Flow token.
     # Check that a future template edit cannot silently alter this approved shape.
