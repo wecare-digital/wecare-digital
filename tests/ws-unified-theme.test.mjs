@@ -143,31 +143,63 @@ test('login has exactly the minimal form and real homepage header, share block, 
     'public chrome must unmount after sign-in, not wrap the private workspace');
 });
 
-test('WECARE.DIGITAL eyebrow displays the official SVG icon left of the label', () => {
-  assert.ok(auth.includes('<Header />'), 'public Header still mounts its own site brand');
-  assert.ok(auth.includes('const WsBrandHeader = (): React.JSX.Element => ('),
-    'the eyebrow remains inside Amplify header slot for sign-in, recovery and MFA');
-  assert.ok(auth.includes('https://wecare.digital/get/o/stream/media/m/wecare-digital.svg'),
-    'use the original S3-hosted SVG rather than a generated icon');
-  const icon = auth.indexOf('<span className="wsauth-eyebrow-icon" aria-hidden="true">');
-  const label = auth.indexOf('<span className="wsauth-eyebrow-text">WECARE.DIGITAL</span>');
-  assert.ok(icon !== -1 && label > icon,
-    'the icon must render before the exact one-line WECARE.DIGITAL label');
-  assert.ok(auth.includes('alt="" width={ 96 } height={ 96 }'),
-    'image is decorative, square and has dimensions for stable layout');
+test('login reuses the public transparent SVG BrandBadge with homepage typography', () => {
+  const badge = readSource('src/components/BrandBadge.tsx');
+  const mark = readSource('src/components/BrandMark.tsx');
+  assert.ok(auth.includes('<Header />'), 'retain shared public header branding');
+  assert.ok(auth.includes("import BrandBadge from '../BrandBadge'"),
+    'use the same reusable branded pill rather than a new icon or logo renderer');
+  assert.ok(auth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
+    'render official mark LEFT and WECARE.DIGITAL text RIGHT in one shared component');
+  assert.ok(badge.includes('<BrandMark />'), 'use the validated inline vector');
+  assert.match(badge, /<BrandMark\s*\/>\s*\{\s*label\s*\}/,
+    'the rendered vector must immediately precede the rendered text, ignoring component props');
+  assert.ok(mark.includes('viewBox="1816 1604 1451 1718"'),
+    'SVG is cropped in its own vector coordinate system, not by CSS magnification');
+  assert.ok(mark.includes('fill="currentColor"'),
+    'SVG must inherit the dark green ink on lime with transparent backing');
+  assert.ok(!mark.includes('<rect'), 'do not reintroduce a baked-in opaque SVG background');
+  assert.ok(!auth.includes('<img '), 'no network-loaded white square or CSS crop in the auth form');
+  assert.ok(!auth.includes('WECARE_SVG_URL'), 'no duplicate remote icon asset');
   assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-eyebrow'),
-    'the eyebrow pill is scoped to the /ws auth gate');
-  assert.ok(theme.includes('background:var(--ws-login-lime)'),
-    'the eyebrow uses the same homepage lime as the primary CTA');
-  assert.ok(theme.includes('display:inline-flex'),
-    'icon and label must remain in one horizontal eyebrow row');
-  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon img'),
-    'the official S3 icon must crop empty SVG padding within the small icon window');
-  assert.ok(!auth.includes('<BrandLockup compact />'),
-    'do not reintroduce a second full-sized wordmark above the form');
-  assert.ok(theme.includes('background:#fff;'), 'login remains on a white canvas');
-  assert.ok(theme.includes('.wsauth-shell.ws-notion-auth .wsauth-login-main'),
-    'centered form remains separate from public chrome');
+    'position the common badge within the login only');
+  assert.ok(!theme.includes('wsauth-eyebrow-icon'),
+    'do not duplicate the BrandBadge icon geometry in Auth CSS');
+  assert.ok(badge.includes('background:#d1f470'),
+    'the branded pill uses the public design system lime');
+  assert.ok(badge.includes('font-size:14px;font-weight:600;letter-spacing:-.125px'),
+    'badge typography must exactly match the public site');
+  assert.ok(theme.includes('background:#fff;'), 'the login main page remains white');
+});
+
+test('login fields and form fonts use public homepage tokens, not system gray', () => {
+  const tokens = readSource('src/styles/tokens.css');
+  assert.ok(tokens.includes('--public-lime-tint: var(--lime-tint)'),
+    'the public theme provides the existing soft lime input surface');
+  assert.ok(theme.includes('--ws-login-field:var(--public-lime-tint,rgba(209,244,112,.22))'),
+    'credentials and password eye must use public lime tint instead of gray');
+  assert.ok(!theme.includes('--ws-login-field:#f4f5f2'),
+    'retired neutral gray input surface must not return');
+  assert.ok(theme.includes('font-size:var(--public-card-size,22px)'),
+    'form heading follows Home card size');
+  assert.ok(theme.includes('font-size:var(--public-supporting-size,16px)'),
+    'labels follow the Home supporting text scale');
+  assert.ok(theme.includes('font-size:var(--public-supporting-size,16px)!important'),
+    'mobile inputs remain at least 16px for iOS zoom safety');
+  assert.ok(theme.includes('font-size:var(--public-cta-font-size,17px)'),
+    'the Sign in CTA follows the public button scale');
+  assert.ok(theme.includes('font-weight:var(--public-cta-font-weight,600)'),
+    'the Sign in CTA follows the public button weight');
+  assert.ok(theme.includes("font-family:var(--font-sans,Inter,system-ui,sans-serif)"),
+    'use the existing Inter typography instead of native font defaults');
+  assert.ok(theme.includes('.amplify-input:-webkit-autofill'),
+    'autofill must not introduce system yellow on themed inputs');
+  assert.ok(theme.includes('-webkit-box-shadow:0 0 0 1000px #f5fde0 inset!important'),
+    'autofill overlay must use opaque resolved homepage lime tint, not translucent fill');
+  assert.ok(theme.includes('border:0!important'),
+    'inputs stay actually borderless');
+  assert.ok(theme.includes('outline:2px solid var(--ws-login-deep)'),
+    'focus stays visible and accessible with no hover stroke');
 });
 
 test('the screenshot input and password affordances stay intact', () => {
