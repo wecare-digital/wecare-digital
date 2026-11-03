@@ -1505,6 +1505,8 @@ _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
         502, "The payment request was not sent. Nothing was charged."),
     "PAYMENT_REQUEST_REFUSED": (
         502, "The payment request was refused before payment. Nothing was charged."),
+    "VAULT_DELIVERY_CONFIRMATION_REQUIRED": (
+        409, "Review and confirm the current complete delivery address before Vault payment. Nothing was sent."),
     "PAYMENT_INITIATION_DISABLED": (
         503, "WhatsApp payment is temporarily unavailable. Nothing was sent."),
 }
@@ -1576,6 +1578,7 @@ def _start_native_vault_payment(
     item: Dict[str, Any], state: str, origin: str, *, requested_by: str,
     payment_description: str = catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT,
     expected_total_paise: Optional[int] = None,
+    delivery_address_confirmation: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Send one exact-file Vault purchase on its own native WhatsApp commerce rail.
 
@@ -1597,6 +1600,17 @@ def _start_native_vault_payment(
         return _vault_storage_unavailable(origin)
     if not catalog_service_checkout.valid_vault_item_description(payment_description):
         return cors_response(400, {"error": "INVALID_VAULT_ITEM_DESCRIPTION"}, origin)
+    # A physical-goods Vault purchase never treats a stored address as confirmation.
+    # Only an explicit, currently bound operator review may reach the native sender.
+    approved = delivery_address_confirmation
+    if (not isinstance(approved, dict) or approved.get('confirmed') is not True
+            or type(approved.get('checkoutAddressUpdatedAt')) is not int
+            or approved['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            'error': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'outcome': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'message': 'Review and confirm the saved delivery address before Vault payment.',
+        }, origin))
     # The amount remains ProductsTable-owned; refuse a stale ₹49 offer before dispatching
     # any native payment request. The commerce rail performs its own quote check again.
     try:
@@ -1621,6 +1635,7 @@ def _start_native_vault_payment(
                 "ownerPhone": str(item["ownerPhone"]),
                 "requestedBy": str(requested_by or "")[:64],
                 "paymentItemDescription": payment_description,
+                "deliveryAddressConfirmation": approved,
                 **({"expectedTotalPaise": expected_total_paise} if expected_total_paise is not None else {}),
             }).encode("utf-8"),
         )
@@ -1638,6 +1653,12 @@ def _start_native_vault_payment(
     if outcome == 'VAULT_QUOTE_CHANGED':
         return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
             'message': 'The Vault total changed. Review the new quote before sending.',
+            'fileId': str(item.get('fileId') or '')}, origin))
+    if outcome == 'VAULT_DELIVERY_CONFIRMATION_REQUIRED':
+        # This is a definitive, pre-send refusal; do not poison the file's
+        # one-shot payment audit marker. Another address review remains safe.
+        return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
+            'message': _PAYMENT_REQUEST_REPLIES[outcome][1],
             'fileId': str(item.get('fileId') or '')}, origin))
     try:
         _table(FILES_TABLE).update_item(
@@ -1790,6 +1811,15 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
     expected_total = body.get('expectedTotalPaise')
     if expected_total is not None and (type(expected_total) is not int or expected_total <= 0):
         return cors_response(400, {'error': 'EXPECTED_TOTAL_INVALID'}, origin)
+    confirmation = body.get('deliveryAddressConfirmation')
+    if (not isinstance(confirmation, dict) or confirmation.get('confirmed') is not True
+            or type(confirmation.get('checkoutAddressUpdatedAt')) is not int
+            or confirmation['checkoutAddressUpdatedAt'] <= 0):
+        return _no_store(cors_response(409, {
+            'error': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'outcome': 'VAULT_DELIVERY_CONFIRMATION_REQUIRED',
+            'message': 'Confirm the current complete delivery address before requesting payment.',
+        }, origin))
     description = body.get(
         "paymentItemDescription", catalog_service_checkout.VAULT_ITEM_DESCRIPTION_DEFAULT)
     if not catalog_service_checkout.valid_vault_item_description(description):
@@ -1826,7 +1856,8 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
     return _start_native_vault_payment(
         item, state, origin,
         requested_by=str((event.get("_auth") or {}).get("username", "staff"))[:64],
-        payment_description=description, expected_total_paise=expected_total)
+        payment_description=description, expected_total_paise=expected_total,
+        delivery_address_confirmation=confirmation)
 
 
 def _admin_send_access(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
