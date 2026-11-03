@@ -34,6 +34,7 @@ def _load(name, env):
 
 ITEM = {'fileId': 'file-1', 'ownerPhone': '919000000001',
         'ownerCustomerId': 'owner-sub', 'ownerName': 'Example Customer'}
+CONFIRMATION = {'confirmed': True, 'checkoutAddressUpdatedAt': 1793690000}
 
 
 def _payment_fn(outcome='PAYMENT_REQUEST_SENT', *, price_valid=True, storage_ready=True,
@@ -64,6 +65,7 @@ def _payment_fn(outcome='PAYMENT_REQUEST_SENT', *, price_valid=True, storage_rea
             'PAYMENT_REQUEST_SENT': (200, 'Payment request sent'),
             'PAYMENT_REQUEST_REFUSED': (502, 'Nothing was charged'),
             'PAYMENT_REQUEST_UNCONFIRMED': (202, 'Check WhatsApp'),
+            'VAULT_DELIVERY_CONFIRMATION_REQUIRED': (409, 'Confirm delivery address'),
         },
         'cors_response': lambda code, body, origin: {'statusCode': code, 'body': body},
         '_no_store': lambda result: result,
@@ -77,7 +79,7 @@ def _invoke_calls(calls):
 
 def test_exact_file_vault_payment_uses_native_business_rail_not_collect():
     fn, calls = _payment_fn()
-    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497, delivery_address_confirmation=CONFIRMATION)
     assert result['statusCode'] == 200
     assert result['body']['outcome'] == 'PAYMENT_REQUEST_SENT'
     invokes = _invoke_calls(calls)
@@ -92,13 +94,31 @@ def test_exact_file_vault_payment_uses_native_business_rail_not_collect():
     assert payload['ownerPhone'] == ITEM['ownerPhone']
     assert payload['paymentItemDescription'] == 'Vault Access (24 Hrs)'
     assert payload['expectedTotalPaise'] == 8497
+    assert payload['deliveryAddressConfirmation'] == CONFIRMATION
     assert 'rawPath' not in payload
     assert 'invoiceId' not in payload
 
 
+def test_missing_review_never_reaches_payment_sender_or_audit():
+    fn, calls = _payment_fn()
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497)
+    assert result['statusCode'] == 409
+    assert result['body']['outcome'] == 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'
+    assert calls == []
+
+
+def test_downstream_stale_address_refusal_does_not_poison_one_shot_file_marker():
+    fn, calls = _payment_fn('VAULT_DELIVERY_CONFIRMATION_REQUIRED')
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff',
+                delivery_address_confirmation=CONFIRMATION)
+    assert result['statusCode'] == 409
+    assert len(_invoke_calls(calls)) == 1
+    assert [kind for kind, _ in calls if kind == 'audit'] == []
+
+
 def test_native_refusal_never_claims_payment_was_sent():
     fn, calls = _payment_fn('PAYMENT_REQUEST_REFUSED')
-    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', delivery_address_confirmation=CONFIRMATION)
     assert result['statusCode'] == 502
     assert result['body']['outcome'] == 'PAYMENT_REQUEST_REFUSED'
     assert len(_invoke_calls(calls)) == 1
@@ -106,7 +126,7 @@ def test_native_refusal_never_claims_payment_was_sent():
 
 def test_ambiguous_native_invoke_preserves_uncertain_status():
     fn, calls = _payment_fn(invoke_error=True)
-    result = fn(ITEM, 'UNPAID', '', requested_by='staff')
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', delivery_address_confirmation=CONFIRMATION)
     assert result['statusCode'] == 202
     assert result['body']['outcome'] == 'PAYMENT_REQUEST_UNCONFIRMED'
     assert len(_invoke_calls(calls)) == 1
@@ -114,7 +134,7 @@ def test_ambiguous_native_invoke_preserves_uncertain_status():
 
 def test_changed_vault_price_refuses_without_issuing_payment():
     fn, calls = _payment_fn(price_valid=False)
-    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497)
+    result = fn(ITEM, 'UNPAID', '', requested_by='staff', expected_total_paise=8497, delivery_address_confirmation=CONFIRMATION)
     assert result['statusCode'] == 409
     assert result['body']['outcome'] == 'VAULT_QUOTE_CHANGED'
     assert _invoke_calls(calls) == []
