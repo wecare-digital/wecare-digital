@@ -53,6 +53,7 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
       <WsShell active="collect" user={ user } signOut={ signOut }>
         <section className="wsc">
           <header className="wsc-head">
+            <p className="wsc-eyebrow">Workspace</p>
             <h1 className="wsc-title">Collect</h1>
             <p className="wsc-sub">Custom invoices, payment and receipt evidence, and the private Vault — all amounts are server-owned.</p>
           </header>
@@ -80,6 +81,7 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
             </div>
 
             <aside className="wsc-preview" aria-label="Invoice and file preview">
+              <p className="wsc-preview-eyebrow">Preview</p>
               <h2 className="wsc-preview-title">{ preview?.type === 'invoice' ? 'Saved invoice preview' : tab === 'vault' ? 'File & payment preview' : 'Invoice image preview' }</h2>
               { preview ? (
                 <>
@@ -100,9 +102,16 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
         <style jsx>{ `
           .wsc{ width:100%; min-width:0; display:grid; gap:16px; }
           .wsc-head{ display:grid; gap:4px; }
+          .wsc-eyebrow{
+            margin:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px;
+            color:var(--text-muted,#6b7280);
+          }
           .wsc-title{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text,#1a1a1a); }
           .wsc-sub{ margin:0; font-size:13px; line-height:1.6; color:var(--text-muted,#6b7280); }
 
+          /* A calm Notion segmented control: a faint track, and the active tab lifts to a white
+             pill with forest-green text and a soft shadow — the shell's quiet-active idiom, not a
+             heavy solid-green fill. */
           .wsc-tabs{
             display:inline-flex; gap:4px; padding:4px;
             border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-full,9999px);
@@ -112,8 +121,13 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
             flex:0 0 auto; min-height:var(--tap-min,44px); padding:8px 20px;
             border:0; border-radius:var(--radius-full,9999px); background:transparent;
             color:var(--text-muted,#6b7280); font:inherit; font-weight:600; font-size:14px; cursor:pointer;
+            transition:background var(--transition-normal,0.15s ease),color var(--transition-normal,0.15s ease);
           }
-          .wsc-tab.on{ background:var(--accent,#1a3a2a); color:#fff; }
+          .wsc-tab:hover:not(.on){ color:var(--text,#1a1a1a); }
+          .wsc-tab.on{
+            background:var(--surface,#fff); color:var(--accent,#1a3a2a); font-weight:700;
+            box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.04));
+          }
           .wsc-tab:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
 
           .wsc-grid{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr); min-width:0; }
@@ -122,9 +136,13 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
           .wsc-preview{
             min-width:0; align-self:start;
             border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-xl,14px);
-            background:var(--surface,#fff); padding:16px; display:grid; gap:10px;
+            background:var(--surface,#fff); padding:18px; display:grid; gap:8px;
           }
-          .wsc-preview-title{ margin:0; font-size:14px; font-weight:700; color:var(--text,#1a1a1a); }
+          .wsc-preview-eyebrow{
+            margin:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+            color:var(--text-muted,#6b7280);
+          }
+          .wsc-preview-title{ margin:0 0 2px; font-size:15px; font-weight:700; letter-spacing:-0.2px; color:var(--text,#1a1a1a); }
           .wsc-preview-label{ margin:0; font-size:12px; line-height:1.6; color:var(--text-muted,#6b7280); overflow-wrap:anywhere; }
           .wsc-preview-img{ display:block; max-width:100%; height:auto; border:1px solid var(--border-light,#f0f0f0); border-radius:var(--radius-md,8px); }
           .wsc-preview-err{ margin:0; font-size:12px; line-height:1.6; color:var(--danger,#dc2626); }
@@ -135,6 +153,10 @@ const WsCollect: React.FC<PageProps> = ( { signOut, user } ) => {
           @media (min-width:900px){
             .wsc-grid{ grid-template-columns:minmax(0,1fr) minmax(300px,380px); align-items:start; }
             .wsc-preview{ position:sticky; top:16px; }
+          }
+
+          @media (prefers-reduced-motion:reduce){
+            .wsc-tab{ transition:none; }
           }
         ` }</style>
       </WsShell>
