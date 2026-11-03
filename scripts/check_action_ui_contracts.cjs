@@ -183,7 +183,7 @@ assert.match(vaultPage, /case 'PAID_UNVERIFIED': return 'Confirming paid access'
   'Payment-recorded files must not claim download authorization before verification');
 assert.match(vaultPage, /Your 24-hour access begins with your first download\./,
   'Paid access must explain that its clock starts with the first download');
-assert.match(vaultPage, /Payment recorded\. Confirming access\. Do not pay again\./,
+assert.match(vaultPage, /Payment recorded\. Confirming access\. No additional payment is needed\./,
   'Pending access must never invite double payment');
 assert.match(vaultPage, /<h3 className="sf-file-name">\{ file\.displayName \}<\/h3>/,
   'Vault must preserve the existing file-name display per customer request');
@@ -192,6 +192,15 @@ assert.match(vaultPage, /box-sizing:border-box;margin-top:-16px;/,
 assert.match(vaultPage, /\.sf-card\{padding:28px 20px max\(30px,env\(safe-area-inset-bottom\)\);border-radius:20px;margin-top:-8px\}/,
   'Vault must reduce the mobile gap without changing shared hero styles');
 
+
+// The fresh /ws Collect screen must use the same GSTIN-from-saved-customer
+// contract as the established Workspace Collect flow. No second input, and no
+// obsolete four-argument serializer call that fails TypeScript and production.
+const wsCollectCreate = read('src/components/ws/collect/CollectCreatePanel.tsx');
+assert.match(wsCollectCreate, /collectDraft\(\s*customer,\s*lines,\s*express\s*\)/,
+  'New WS Collect must use the current three-argument invoice draft serializer');
+assert.doesNotMatch(wsCollectCreate, /setGstin|cc-gstin|Customer GST number \(GSTIN\)/,
+  'New WS Collect must not restore the retired editable buyer GSTIN field');
 
 // The exact-file Vault alone renders shared public chrome after the owner-scoped
 // fetch settles. Preserve the silent redirect and no-floating-toast contracts.

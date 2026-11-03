@@ -36,7 +36,6 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
   const toast = useToastContext();
 
   const [ customer, setCustomer ] = React.useState<api.Contact | null>( null );
-  const [ gstin, setGstin ] = React.useState( '' );
   const [ express, setExpress ] = React.useState( '' );
   const [ lines, setLines ] = React.useState<CollectLine[]>( [ blankCollectLine() ] );
   const [ quote, setQuote ] = React.useState<{ key: string; value: api.InvoiceEnginePreview } | null>( null );
@@ -50,7 +49,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
   const flight = React.useRef( false );
   const currentKey = React.useRef( '' );
 
-  const request = React.useMemo( () => collectDraft( customer, lines, gstin, express ), [ customer, lines, gstin, express ] );
+  const request = React.useMemo( () => collectDraft( customer, lines, express ), [ customer, lines, express ] );
   const key = collectInputKey( request );
   React.useLayoutEffect( () => { currentKey.current = key; }, [ key ] );
 
@@ -89,7 +88,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
     return () => { active = false; clearTimeout( timer ); };
   }, [ key, request, onPreview, previewRevision ] );
 
-  const select = ( c: api.Contact | null ) => { setCustomer( c ); setGstin( c?.gstin || '' ); setCreated( null ); };
+  const select = ( c: api.Contact | null ) => { setCustomer( c ); setCreated( null ); };
   const update = ( index: number, field: keyof CollectLine, value: string ) =>
     setLines( rows => rows.map( ( row, n ) => n === index ? { ...row, [ field ]: value } : row ) );
 
@@ -185,11 +184,6 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
           <span className="cc-step">2 · Invoice values</span>
           <h2 className="cc-h2">Custom invoice items</h2>
 
-          <label className="cc-field cc-gstin">
-            <span>Customer GST number (GSTIN)</span>
-            <input value={ gstin } maxLength={ 15 } onChange={ e => setGstin( e.target.value.toUpperCase() ) } placeholder="If applicable" />
-          </label>
-
           <div className="cc-lines">
             { lines.map( ( line, index ) => (
               <div className="cc-line" key={ index }>
@@ -236,7 +230,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
               : 'Select a saved customer with a complete address and enter valid invoice rows and an Express amount. Confirmation requires a current server quote and image.' }
         </p>
         { customer && !request && (
-          <p className="cc-alert" role="alert">Complete the invoice items and Express amount. Check the GSTIN and saved customer address; use Edit customer to correct saved details.</p>
+          <p className="cc-alert" role="alert">Complete the invoice items and Express amount. Check the saved customer details and address; use Edit customer to correct them.</p>
         ) }
 
         { ready && quote && (
@@ -297,8 +291,7 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
           background:var(--surface,#fff); color:var(--text,#1a1a1a); font:inherit;
         }
         .cc-field input:focus{ outline:none; border-color:var(--lime,#d1f470); box-shadow:var(--focus-ring,0 0 0 2px rgba(209,244,112,.35)); }
-        .cc-gstin{ margin-bottom:14px; }
-        .cc-lines{ display:grid; gap:14px; }
+                .cc-lines{ display:grid; gap:14px; }
         .cc-line{
           display:grid; gap:10px; padding-top:14px; border-top:1px solid var(--border,#e5e7eb);
         }
