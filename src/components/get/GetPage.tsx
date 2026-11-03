@@ -87,9 +87,12 @@ function windowEndLabel ( epochSeconds?: number ): string {
     }
 }
 
-/** One calm, stationary hero word for a private, single-file download task. */
+/** Home-style rotating keywords; each completes the phrase "Your secure ...". */
 const GET_WORDS: CycleWord[] = [
     { word: 'document', tint: '#e0f7c8', dot: '#3da35a' },
+    { word: 'file', tint: '#ede9fe', dot: '#9849e8' },
+    { word: 'download', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'access', tint: '#dbeafe', dot: '#2563eb' },
 ];
 
 function fileStatusLabel ( state: SecureFileAccessState ): string {
@@ -607,7 +610,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         <div className="sf-card-overview-copy">
                             <p className="sf-card-kicker">PRIVATE VAULT</p>
                             <h2 className="sf-card-title">Your file access</h2>
-                            <p className="sf-card-description">Protected by your verified account.</p>
                         </div>
                     </div>
                     { stage === 'loading' && error && (
@@ -800,7 +802,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                   color:var(--public-brand-green)}
                 .sf-card-title{margin:0;font-size:clamp(22px,2.4vw,27px);font-weight:750;line-height:1.2;
                   letter-spacing:-.04em;color:var(--public-heading)}
-                .sf-card-description{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--public-muted)}
                 .sf-load-error{display:grid;gap:12px;width:100%;padding-top:8px}
                 .sf-load-error .sf-file-error{margin:0}
                 .sf-load-error .sf-file-action-button{min-width:140px;justify-content:center}
