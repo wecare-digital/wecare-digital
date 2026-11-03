@@ -1,6 +1,8 @@
 /**
- * /ws/settings — signed-in identity + a prominent Sign out, plus any lightweight, already-available
- * device control (FEAT-004). No backend settings are invented here.
+ * /ws/settings — signed-in identity and existing device controls (FEAT-004).
+ * Desktop Sign out now lives in the authenticated sidebar. This page keeps
+ * a mobile-only Sign out fallback, because phones use bottom navigation.
+ * No backend settings are invented here.
  *
  * Auth is automatic via AuthShell (see src/pages/_app.tsx); this page receives { signOut, user }.
  * Sign out is wired to the `signOut` prop, which already calls Cognito signOut then
@@ -38,15 +40,13 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             <PushOptIn />
           </div>
 
-          {/* Matches the header's Sign out treatment: quiet hairline button, grey text, the same
-              inline glyph, danger-on-hover with the danger-light fill. */}
+          {/* Mobile fallback: on desktop Sign out is always in the sidebar foot. */}
           <button type="button" className="ws-settings-signout" onClick={ () => signOut?.() }>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 4h4v16h-4" /><path d="M10 12H3" /><path d="m6 8-4 4 4 4" />
             </svg>
             Sign out
           </button>
-          <p className="ws-page-note">More account controls are coming soon.</p>
         </section>
 
         <style jsx>{`
@@ -123,10 +123,9 @@ const WsSettings: React.FC<PageProps> = ( { signOut, user } ) => {
             outline:2px solid var(--accent,#1a3a2a);
             outline-offset:2px;
           }
-          .ws-page-note{
-            margin:16px 0 0;
-            font-size:15px;
-            color:var(--text-muted,#6b7280);
+          /* Desktop uses the persistent sidebar Sign out, so don't duplicate it. */
+          @media(min-width:768px){
+            .ws-settings-signout{display:none}
           }
         `}</style>
       </WsShell>
