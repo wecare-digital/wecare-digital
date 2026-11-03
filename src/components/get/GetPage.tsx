@@ -614,7 +614,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                     </div>
                     { stage === 'loading' && error && (
                         <div className="sf-load-error">
-                            <PublicNotice mode="inline" tone="error" message={ error } flush />
                             <button type="button" className="sf-file-action-button sf-secondary-btn"
                                 onClick={ () => { window.location.reload(); } }>Try again</button>
                         </div>
@@ -623,9 +622,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                         <div className="sf-form">
                             { files.length === 0 && (
                                 <div className="sf-empty-state">
-                                    { error
-                                        ? <PublicNotice mode="inline" tone="error" message={ error } flush />
-                                        : <p className="sf-empty">There are no files shared with your number right now.</p> }
                                     <Link className="sf-back-link" href="/orders/">Back to Orders</Link>
                                 </div>
                             ) }
@@ -659,15 +655,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 </div>
                                             </div>
                                         </div>
-                                        { state !== 'OPEN' && state !== 'EXPIRED' && (
-                                            <div className="sf-file-status-row" role="status" aria-live="polite">
-                                                <span className={ `sf-status-chip ${ isPaid ? 'sf-status-ready'
-                                                    : state === 'PAID_UNVERIFIED' ? 'sf-status-pending' : 'sf-status-locked' }` }>
-                                                    <span className="sf-status-dot" aria-hidden="true" />
-                                                    { fileStatusLabel( state ) }
-                                                </span>
-                                            </div>
-                                        ) }
                                         <div className="sf-file-divider" aria-hidden="true" />
 
                                         { isPaid ? (
@@ -683,33 +670,26 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                         { working === file.fileId ? 'Preparing…' : 'Download' }
                                                     </button>
                                                 </div>
-                                                <p className="sf-state-note" role="status">
-                                                    { state === 'OPEN'
-                                                        ? `Access active${ ends ? ` until ${ ends }` : '' }. Download before expiry.`
-                                                        : 'Your 24-hour access begins with your first download.' }
-                                                </p>
                                             </>
                                         ) : state === 'EXPIRED' ? (
-                                            <div className="sf-file-action" role="status" aria-live="polite">
+                                            <div className="sf-file-action">
                                                 <button type="button"
                                                     className="sf-file-action-button sf-download-button sf-expired-button"
                                                     disabled>
-                                                    { publicActionText( 'blocked' ) }
+                                                    { fileStatusLabel( state ) }
                                                 </button>
                                             </div>
                                         ) : state === 'PAID_UNVERIFIED' ? (
-                                            <p className="sf-confirming-note" role="status">
-                                                Payment recorded. Confirming access. No additional payment is needed.
-                                            </p>
+                                            <div className="sf-file-action">
+                                                <button type="button" className="sf-file-action-button sf-download-button"
+                                                    disabled aria-label="Payment recorded. Confirming access. No additional payment is needed.">
+                                                    { fileStatusLabel( state ) }
+                                                </button>
+                                            </div>
                                         ) : state === 'UNPAID' ? (
                                             <>
                                                 { waitingForPayment ? (
                                                     <div className="sf-pay-waiting">
-                                                        <p className="sf-payment-note"
-                                                            role={ feedback?.kind === 'error' ? 'alert' : 'status' }>
-                                                            { feedback?.message
-                                                                || publicActionText( 'whatsappFailed' ) }
-                                                        </p>
                                                         <button type="button" className="sf-file-action-button sf-secondary-btn"
                                                             onClick={ () => { void loadFiles(); } }
                                                             disabled={ working === file.fileId }>Refresh payment status</button>
@@ -755,13 +735,6 @@ export default function FilesPage ( { targetFileId }: FilesPageProps ) {
                                                 ) }
                                             </>
                                         ) : null }
-
-                                        { state !== 'EXPIRED' && feedback?.kind === 'status' && !waitingForPayment && (
-                                            <p className="sf-payment-note" role="status">{ feedback.message }</p>
-                                        ) }
-                                        { state !== 'EXPIRED' && feedback?.kind === 'error' && !waitingForPayment && (
-                                            <PublicNotice mode="inline" tone="error" message={ feedback.message } />
-                                        ) }
                                     </div>
                                 );
                             } ) }
