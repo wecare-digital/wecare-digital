@@ -26,8 +26,11 @@ test('auth still runs through the same Cognito Authenticator, MFA and render con
   assert.ok(auth.includes('children( { signOut, user } )'), 'authenticated render and signOut retained');
   assert.ok(auth.includes("authStatus === 'authenticated'"), 'successful sign-in still renders the workspace');
   const app = readSource('src/pages/_app.tsx');
-  assert.ok(app.includes("router.pathname.startsWith( '/ws' ) ? WsAuthShell : AuthShell"),
-    'legacy /workspace authentication remains separate');
+  // Confirm semantics without binding the test to arbitrary spacing or quote style
+  // in _app.tsx. The /ws and /workspace guards must remain distinct.
+  assert.match(app,
+    /router\.pathname\.startsWith\(\s*['"]\/ws['"]\s*\)\s*\?\s*WsAuthShell\s*:\s*AuthShell/,
+    '/ws must use its own auth shell; /workspace retains the legacy one');
 });
 
 test('each /ws route retains its original business panel and shared theme', () => {
@@ -49,4 +52,42 @@ test('each /ws route retains its original business panel and shared theme', () =
     'text-only pricing catalog must remain intact');
   assert.ok(readSource('src/pages/ws/commerce/index.tsx').includes('<Orders'),
     'orders view must remain intact');
+});
+
+
+test('login buttons have exactly one visual owner and accessible interaction states', () => {
+  const selector = ".wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {";
+  assert.equal(theme.split(selector).length - 1, 1,
+    'shared /ws visual system owns the base primary button style once');
+
+  // The old lime selector and redundant Amplify component token caused three
+  // competing values in the cascade; neither can be reintroduced.
+  assert.ok(!auth.includes("data-variation='primary'"),
+    'WsAuthShell must never style the primary button directly');
+  assert.ok(!/\bbutton:\s*\{\s*primary:/.test(auth),
+    'Amplify button variations must not introduce a competing primary palette');
+  // Match the full, flat CSS declaration block. The [^{}]* guard makes the
+  // assertion fail if a nested rule or stray brace is introduced later.
+  const blockMatch = theme.match(/\.wsauth-shell\.ws-notion-auth \.amplify-button\[data-variation='primary'\]\s*\{([^{}]*)\}/);
+  assert.ok(blockMatch, 'primary button rule must be present and well-formed');
+  const buttonRule = blockMatch[1];
+  assert.ok(buttonRule.includes('background-color:var(--ws-green)'),
+    'primary button should use the same green as /ws');
+  assert.ok(buttonRule.includes('color:#fff'),
+    'primary button should have readable white text');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:is(:hover,:focus-visible)"),
+    'hover and keyboard focus must share an intentional green state');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:active"),
+    'pressed state must be explicit');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
+    'disabled state must remain visually clear');
+
+  assert.ok(theme.includes(':is(.amplify-input,.amplify-select):focus'),
+    'input focus should match the green action palette');
+  assert.ok(!auth.includes('rgba(209,244,112,0.35)'),
+    'obsolete lime form focus ring should not return');
+  assert.ok(!auth.includes('#d1f470') && !auth.includes('var(--lime,'),
+    'auth brand tile and Amplify fallback palette must not restore lime');
+  assert.ok(auth.includes('background:#e9eee8;'),
+    'brand tile fallback should match the neutral shared theme');
 });

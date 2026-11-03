@@ -291,19 +291,37 @@ const WsNotionTheme: React.FC = () => (
     border-color:var(--ws-hairline);
     background:var(--ws-paper);
   }
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
+    border-color:var(--ws-green);
+    box-shadow:0 0 0 3px rgba(36,83,59,.18);
+  }
+  /* Sole visual owner of Cognito's primary/link buttons on /ws.
+     AuthShell retains only Amplify state and accessibility plumbing. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
-    background:var(--ws-green);
+    background-color:var(--ws-green);
     color:#fff;
+    border:0;
     border-radius:8px;
     min-height:46px;
+    font-weight:700;
   }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover {
-    background:#193e2b;
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:is(:hover,:focus-visible) {
+    background-color:#193e2b;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active {
+    background-color:#102d21;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:disabled {
+    opacity:.56;
+    cursor:not-allowed;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link'] {
     color:var(--ws-green);
+    min-height:var(--tap-min,44px);
+    font-weight:600;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover {
+    color:#193e2b;
     background:var(--ws-selected);
   }
   .wsauth-shell.ws-notion-auth .wsauth-note {
