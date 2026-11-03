@@ -36,7 +36,7 @@ import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
-import { SERVICE_PRODUCT_IDS, serviceChoice } from '../config/services';
+import { SERVICE_PRODUCT_IDS, serviceChoice, serviceByKind } from '../config/services';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -586,7 +586,7 @@ export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[];
  * `useCallback(..., [profile, profileStatus])` with `items` deliberately not a dependency.
  */
 export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean =>
-  !( items.length > 0 && items.every( item => isContributionItem( item ) || isServiceItem( item ) ) );
+  !( items.length > 0 && items.every( item => isContributionItem( item ) || ( isServiceItem( item ) && item.productId !== serviceByKind( 'VAULT' )?.productId ) ) );
 
 /*
  * `cartMixesContribution` WAS HERE AND IS DELETED RATHER THAN LEFT DEAD.
