@@ -114,6 +114,18 @@ const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
 ]);
 
+// /ws is the new authenticated operator workspace, NOT a public marketing
+// surface. Keep this narrow, explicit list separate from the crawl allowlist:
+// an unknown /ws route must still fail the orphan-page guard until reviewed.
+const AUTHENTICATED_WS_ROUTES = new Set([
+  '/ws', '/ws/collect', '/ws/commerce', '/ws/customers',
+  '/ws/inbox', '/ws/settings',
+]);
+const appSource = fs.readFileSync(path.join(root, 'src/pages/_app.tsx'), 'utf8');
+if (!/router\.pathname\.startsWith\(\s*'\/ws'\s*\)\s*\?\s*WsAuthShell\s*:\s*AuthShell/.test(appSource)) {
+  failures.push('Authenticated /ws route selection in _app is missing');
+}
+
 function listFiles (directory) {
   if (!exists(directory)) return [];
   const visit = relative => fs.readdirSync(path.join(root, relative), { withFileTypes: true })
@@ -139,7 +151,18 @@ const publicPageFiles = listFiles('src/pages')
     && !file.startsWith('src/pages/api/'));
 for (const file of publicPageFiles) {
   const route = nextPageRoute(file);
-  if (!approvedPublicRoutes.has(route) && !ALLOWED_NONINDEXABLE_PAGES.has(route)) {
+  if (AUTHENTICATED_WS_ROUTES.has(route)) {
+    const source = fs.readFileSync(path.join(root, file), 'utf8');
+    if (!/<SEO\\b[^>]*\\bnoindex\\b/.test(source)) {
+      failures.push('Authenticated /ws page must retain explicit noindex: ' + file);
+    }
+    if (approvedPublicRoutes.has(route)) {
+      failures.push('Authenticated /ws page must not be included in public sitemap: ' + route);
+    }
+  }
+  if (!approvedPublicRoutes.has(route)
+      && !ALLOWED_NONINDEXABLE_PAGES.has(route)
+      && !AUTHENTICATED_WS_ROUTES.has(route)) {
     failures.push('Unregistered/orphaned public page: ' + file + ' (' + route + ')');
   }
 }
