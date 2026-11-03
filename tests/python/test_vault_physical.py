@@ -78,3 +78,37 @@ def test_missing_saved_address_is_refused_before_prepare_claim_or_provider():
             CustomerNotAuthorized=ValueError),customer_identity=SimpleNamespace(InvalidPhoneNumber=ValueError))
     result = fn({'internalAction':'prepareNativeCatalogService','catalogToken':'a'*24},'')
     assert result == {'outcome':'PAYMENT_REQUEST_REFUSED','reason':'DELIVERY_DETAILS_REQUIRED'}
+
+
+def test_owner_bound_vault_session_skips_only_inbound_cart_confirmation():
+    # The failure on 3 Nov was DELIVERY_CONFIRMATION_REQUIRED from a staff
+    # exact-file Vault session, despite validated saved address/owner identity.
+    requires = function('_native_delivery_confirmation_required',
+        contact_address=SimpleNamespace(address_message_reaches=lambda phone: True))
+    owner = SimpleNamespace(customer_id='owner-sub', phone='+919000000001')
+    session = {'origin': 'STAFF_VAULT', 'kind': service_requests.VAULT,
+               'vaultFileId': 'file-1', 'customerId': 'owner-sub'}
+    assert requires(owner, {}, {'id': 'contact'}, session, ADDRESS) is False
+
+    # General native carts and every unproven/foreign Vault session must still
+    # confirm. No browser-supplied flag can turn an ordinary cart into Vault.
+    assert requires(owner, {}, {'id': 'contact'}, None, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, {**session, 'origin': 'WEB'}, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, {**session, 'vaultFileId': ''}, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, {**session, 'customerId': 'someone-else'}, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, {**session, 'kind': service_requests.DROP_DOCS}, ADDRESS) is True
+    assert requires(owner, {}, {'id': 'contact'}, session, None) is True
+
+    # Existing explicit cart confirmation and non-native callers are unchanged.
+    assert requires(owner, {'deliveryConfirmed': True}, {'id': 'contact'}, None, ADDRESS) is False
+    assert requires(owner, {}, None, None, ADDRESS) is False
+
+
+def test_vault_exemption_does_not_disable_other_country_or_missing_address_guard():
+    # Payment payability remains separate and must refuse non-India shipping.
+    with pytest.raises(payment_address.UnpayableAddress):
+        payment_address.assert_payable({**ADDRESS, 'countryCode': 'US'},
+                                       channel=payment_address.WHATSAPP_ORDER_DETAILS)
+    with pytest.raises(payment_address.UnpayableAddress):
+        payment_address.assert_payable({**ADDRESS, 'postalCode': ''},
+                                       channel=payment_address.WHATSAPP_ORDER_DETAILS)
