@@ -214,137 +214,501 @@ const WsNotionTheme: React.FC = () => (
     border-color:var(--ws-green);
   }
 
-  /* Login matches the workspace without changing the Cognito Authenticator. */
+  /* Full homepage-inspired login design, isolated to the /ws Cognito gate.
+     Lime is the action + hero fill. Dark green is legible type and focus,
+     not the primary button fill. Public pages and /workspace are unaffected. */
   .wsauth-shell.ws-notion-auth {
-    background:var(--ws-canvas);
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-centre {
-    display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(330px,420px);
-    gap:clamp(32px,6vw,104px);
-    align-items:center;
+    --ws-login-lime:var(--public-brand-lime,#d1f470);
+    --ws-login-lime-hover:var(--lime-hover,#c5e866);
+    --ws-login-deep:var(--public-brand-green,#1a3a2a);
+    --ws-login-ink:#1a1a1a;
+    --ws-login-muted:#646861;
+    --ws-login-field:#f4f5f2;
+    min-height:100vh;
+    min-height:100dvh;
     width:100%;
-    max-width:1030px;
+    color:var(--ws-login-ink);
+    background:#fff;
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
   }
-  .wsauth-shell.ws-notion-auth .wsauth-intro {
+  .wsauth-shell.ws-notion-auth * {box-sizing:border-box}
+  .wsauth-shell.ws-notion-auth .wsauth-symbol {
+    font-family:'Material Symbols Rounded';
+    font-size:23px;
+    line-height:1;
+    font-weight:400;
+    font-style:normal;
+    white-space:nowrap;
+    letter-spacing:normal;
+    text-transform:none;
+    font-feature-settings:'liga';
+    -webkit-font-feature-settings:'liga';
+    font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-layout {
     display:grid;
-    justify-items:start;
-    gap:17px;
-    min-width:0;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-kicker {
-    font-size:12px;
-    letter-spacing:.08em;
-    font-weight:750;
-    color:var(--ws-green);
-    margin:0;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro h1 {
-    font-size:clamp(38px,5vw,57px);
-    line-height:1.12;
-    letter-spacing:-.06em;
-    font-weight:740;
-    margin:0;
-    max-width:520px;
-    color:var(--ws-ink);
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-description {
-    max-width:420px;
-    font-size:16px;
-    line-height:1.75;
-    color:var(--ws-muted);
-    margin:0;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-intro-line {
-    width:46px;
-    height:4px;
-    background:var(--ws-green);
-    border-radius:4px;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-form-column {
+    grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);
     width:100%;
-    display:grid;
-    gap:13px;
-    min-width:0;
+    min-height:100vh;
+    min-height:100dvh;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-card {
-    background:var(--ws-paper);
-    border:1px solid var(--ws-hairline);
-    border-radius:12px;
-    box-shadow:0 12px 44px rgba(35,35,35,.055);
-    padding:30px 28px 32px;
+  .wsauth-shell.ws-notion-auth .wsauth-story {
+    min-width:0;
+    display:flex;
+    background:var(--ws-login-lime);
+    padding:clamp(26px,4.5vw,72px);
     overflow:hidden;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-brand-tile {
-    background:#e9eee8;
-    color:var(--ws-green);
-    border-radius:8px;
+  .wsauth-shell.ws-notion-auth .wsauth-story-inner {
+    min-height:100%;
+    max-width:670px;
+    margin:0 auto;
+    display:flex;
+    flex:1;
+    flex-direction:column;
+    justify-content:space-between;
+    gap:32px;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-brand-name,
+  .wsauth-shell.ws-notion-auth .wsauth-public-home {
+    display:inline-flex;
+    width:max-content;
+    max-width:100%;
+    align-items:center;
+    border-radius:12px;
+    text-decoration:none;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-public-home:focus-visible,
+  .wsauth-shell.ws-notion-auth :is(.wsauth-form-footer a,.wsauth-backsite):focus-visible {
+    outline:3px solid var(--ws-login-deep);
+    outline-offset:4px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-story-main {
+    display:grid;
+    align-content:center;
+    justify-items:start;
+    gap:21px;
+    padding-block:12px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-story-kicker {
+    display:inline-block;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.12em;
+    color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-story-main h1 {
+    font-size:clamp(45px,5.1vw,76px);
+    line-height:1.02;
+    font-weight:700;
+    letter-spacing:-.065em;
+    color:var(--ws-login-ink);
+    margin:0;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-story-main h1 em {
+    font-style:normal;
+    color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-story-main > p {
+    font-size:clamp(16px,1.5vw,19px);
+    font-weight:400;
+    line-height:1.55;
+    margin:0;
+    max-width:495px;
+    color:#2b3327;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-workbook {
+    display:grid;
+    gap:18px;
+    max-width:520px;
+    width:100%;
+    margin-top:18px;
+    padding:20px;
+    background:rgba(255,255,255,.94);
+    border-radius:22px;
+    box-shadow:0 18px 54px rgba(26,58,42,.15);
+    transform:rotate(-1deg);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-head {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    color:#73776c;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.1em;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-head > .wsauth-symbol {margin-inline-start:auto;color:var(--ws-login-deep)}
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-window {
+    display:inline-flex;
+    gap:4px;
+    align-items:center;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-window span {
+    display:block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#d3d9d1;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-window span:first-child {background:var(--ws-login-lime)}
+  .wsauth-shell.ws-notion-auth .wsauth-workbook-grid {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module {
+    display:flex;
+    align-items:center;
+    min-width:0;
+    gap:10px;
+    padding:16px 12px;
+    background:var(--ws-login-field);
+    border-radius:12px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module-icon {
+    display:flex;
+    flex:0 0 38px;
+    align-items:center;
+    justify-content:center;
+    width:38px;
+    height:38px;
+    border-radius:10px;
+    background:#e4edca;
+    color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module-copy {
+    min-width:0;
+    display:flex;
+    flex:1 1 auto;
+    flex-direction:column;
+    gap:2px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module-copy strong {
+    font-size:13px;
+    color:var(--ws-login-ink);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module-copy small {
+    font-size:11px;
+    color:var(--ws-login-muted);
+    line-height:1.25;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-module-chevron {flex:0 0 auto;font-size:18px;color:#888f83}
+  .wsauth-shell.ws-notion-auth .wsauth-story-foot {
+    font-size:12px;
+    font-weight:600;
+    color:#42533a;
+  }
+
+  /* The sign-in panel is a deliberate whitespace-first form, not a bordered card. */
+  .wsauth-shell.ws-notion-auth .wsauth-signin-side {
+    min-width:0;
+    min-height:100vh;
+    min-height:100dvh;
+    padding:clamp(32px,5vw,76px);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:30px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-frame {
+    width:100%;
+    max-width:430px;
+    display:grid;
+    gap:27px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-header {display:grid;gap:11px}
+  .wsauth-shell.ws-notion-auth .wsauth-form-kicker {
+    width:max-content;
+    max-width:100%;
+    margin:0 0 7px;
+    padding:7px 11px;
+    background:#eff7d8;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.1em;
+    color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-header h2 {
+    font-size:clamp(34px,3.1vw,46px);
+    line-height:1.1;
+    letter-spacing:-.055em;
+    font-weight:700;
+    color:var(--ws-login-ink);
+    margin:0;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-header > p:last-child {
+    font-size:15px;
+    line-height:1.55;
+    margin:0;
+    color:var(--ws-login-muted);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-card {
+    border:0;
+    padding:0;
+    margin:0;
+    width:100%;
+    background:transparent;
+    border-radius:0;
+    box-shadow:none;
+    overflow:visible;
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator],
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator] [data-amplify-container] {
+    width:100%;
+    max-width:none;
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-router] {
+    border:0;
+    background:transparent;
+    box-shadow:none;
+    padding:0;
+    border-radius:0;
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-form] {padding:0}
+  .wsauth-shell.ws-notion-auth .wsauth-auth-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    margin:0 0 14px;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.095em;
+    color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-auth-badge .wsauth-symbol {font-size:19px}
   .wsauth-shell.ws-notion-auth .amplify-heading {
-    color:var(--ws-ink);
-    letter-spacing:-.04em;
+    color:var(--ws-login-ink);
+    font-size:20px;
+    line-height:1.3;
+    font-weight:700;
+    letter-spacing:-.03em;
   }
-  .wsauth-shell.ws-notion-auth .amplify-input,
-  .wsauth-shell.ws-notion-auth .amplify-select {
-    border-radius:8px;
-    border-color:var(--ws-hairline);
-    background:var(--ws-paper);
+  .wsauth-shell.ws-notion-auth .amplify-label {
+    display:block;
+    margin-bottom:7px;
+    font-size:13px;
+    font-weight:650;
+    color:var(--ws-login-ink);
+  }
+
+  /* BORDERLESS means border:0 — not a pale border. On focus the accessible
+     ring appears outside the field; at rest the whole input has no stroke. */
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select),
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input {
+    width:100%;
+    min-height:56px;
+    border:0!important;
+    border-radius:13px!important;
+    box-shadow:none!important;
+    background:var(--ws-login-field)!important;
+    color:var(--ws-login-ink)!important;
+    font-family:inherit;
+    font-size:16px!important;
+    padding-inline:16px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field-group__control {
+    border:0!important;
+    box-shadow:none!important;
+    border-radius:13px;
+    background:var(--ws-login-field);
   }
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
-    border-color:var(--ws-green);
-    box-shadow:0 0 0 3px rgba(36,83,59,.18);
+    outline:2px solid var(--ws-login-deep)!important;
+    outline-offset:2px!important;
+    border:0!important;
+    box-shadow:none!important;
   }
-  /* Sole visual owner of Cognito's primary/link buttons on /ws.
-     AuthShell retains only Amplify state and accessibility plumbing. */
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input:focus {
+    outline:0!important;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-field-group__control:focus-within {
+    outline:2px solid var(--ws-login-deep);
+    outline-offset:2px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field-group__outer-end .amplify-button {
+    background:var(--ws-login-field);
+    border:0!important;
+    border-radius:0 13px 13px 0;
+    color:var(--ws-login-ink);
+    min-width:46px;
+  }
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select)[aria-invalid='true'] {
+    outline:2px solid #b91c1c!important;
+    outline-offset:1px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-field__error-message {color:#b91c1c;font-size:13px}
+
+  /* ONE primary CTA visual owner. Brand lime, dark readable label, Material 3 arrow. */
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {
-    background-color:var(--ws-green);
-    color:#fff;
-    border:0;
-    border-radius:8px;
-    min-height:46px;
-    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    width:100%;
+    min-height:54px;
+    border:0!important;
+    border-radius:13px;
+    background-color:var(--ws-login-lime);
+    color:var(--ws-login-deep);
+    font-size:16px;
+    font-weight:750;
+    box-shadow:none;
+    transition:background-color .16s ease,transform .16s ease;
   }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:is(:hover,:focus-visible) {
-    background-color:#193e2b;
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']::after {
+    content:'arrow_forward';
+    font-family:'Material Symbols Rounded';
+    font-size:22px;
+    line-height:1;
+    font-weight:400;
+    letter-spacing:normal;
+    text-transform:none;
+    font-feature-settings:'liga';
+    font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
   }
-  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active {
-    background-color:#102d21;
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled) {
+    background-color:var(--ws-login-lime-hover);
+    transform:translateY(-1px);
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:focus-visible {
+    outline:3px solid var(--ws-login-deep);
+    outline-offset:3px;
+  }
+  .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active:not(:disabled) {
+    background-color:#b8df56;
+    transform:translateY(0);
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:disabled {
-    opacity:.56;
+    opacity:.55;
     cursor:not-allowed;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link'] {
-    color:var(--ws-green);
-    min-height:var(--tap-min,44px);
-    font-weight:600;
+    color:var(--ws-login-deep);
+    min-height:44px;
+    font-size:13px;
+    font-weight:650;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover {
-    color:#193e2b;
-    background:var(--ws-selected);
+    color:var(--ws-login-ink);
+    background:#f0fad5;
   }
-  .wsauth-shell.ws-notion-auth .wsauth-note {
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator] :is(a,button):focus-visible {
+    outline:3px solid var(--ws-login-deep);
+    outline-offset:3px;
+  }
+
+  /* Preserve Cognito's real MFA controls in the new borderless design. */
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio {
+    min-height:50px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    border:0;
+    border-radius:12px;
+    background:var(--ws-login-field);
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio:focus-within {
+    outline:2px solid var(--ws-login-deep);
+    outline-offset:2px;
+  }
+  .wsauth-shell.ws-notion-auth [data-amplify-authenticator-select-mfa-type] .amplify-radio__button {
+    --amplify-components-radio-button-color:var(--ws-login-deep);
+    --amplify-components-radio-button-border-color:#74786f;
+  }
+
+  /* Real, reachable site policies, not invented consent text. */
+  .wsauth-shell.ws-notion-auth .wsauth-form-footer {
+    border-top:1px solid #e5e7eb;
+    padding-top:20px;
+    display:grid;
+    justify-items:start;
+    gap:10px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-footer > p {
+    margin:0;
+    color:var(--ws-login-muted);
     font-size:12px;
-    color:var(--ws-muted);
-    line-height:1.55;
+    line-height:1.5;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-footer nav {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    color:#8b8d87;
+    font-size:13px;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-footer a {
+    text-decoration:underline;
+    text-decoration-color:#a8c85b;
+    text-underline-offset:4px;
+    color:var(--ws-login-deep);
+    font-weight:600;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-form-footer a:hover {
+    text-decoration-color:var(--ws-login-deep);
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-backsite {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    max-width:430px;
+    width:100%;
+    color:var(--ws-login-muted);
+    font-size:13px;
+    font-weight:600;
+    text-decoration:none;
+  }
+  .wsauth-shell.ws-notion-auth .wsauth-backsite:hover {color:var(--ws-login-deep)}
+  .wsauth-shell.ws-notion-auth .wsauth-backsite .wsauth-symbol {font-size:17px}
+
+  @media(max-width:1060px) {
+    .wsauth-shell.ws-notion-auth .wsauth-story {padding:34px}
+    .wsauth-shell.ws-notion-auth .wsauth-signin-side {padding:36px}
+    .wsauth-shell.ws-notion-auth .wsauth-workbook {padding:15px}
+    .wsauth-shell.ws-notion-auth .wsauth-module {padding:12px 9px;gap:7px}
+    .wsauth-shell.ws-notion-auth .wsauth-module-chevron {display:none}
   }
   @media(max-width:780px) {
-    .wsauth-shell.ws-notion-auth .wsauth-centre {
+    .wsauth-shell.ws-notion-auth .wsauth-layout {
       grid-template-columns:minmax(0,1fr);
-      max-width:430px;
-      gap:0;
+      min-height:100vh;
+      min-height:100dvh;
     }
-    .wsauth-shell.ws-notion-auth .wsauth-intro {
-      display:none;
+    .wsauth-shell.ws-notion-auth .wsauth-story {
+      min-height:0;
+      padding:max(22px,env(safe-area-inset-top,0px)) 24px 26px;
     }
+    .wsauth-shell.ws-notion-auth .wsauth-story-inner {gap:22px}
+    .wsauth-shell.ws-notion-auth .wsauth-story-main {gap:10px;padding:0}
+    .wsauth-shell.ws-notion-auth .wsauth-story-main h1 {
+      font-size:clamp(27px,6.5vw,39px);
+      letter-spacing:-.055em;
+    }
+    .wsauth-shell.ws-notion-auth .wsauth-story-main > p {font-size:14px;max-width:390px}
+    .wsauth-shell.ws-notion-auth .wsauth-workbook,
+    .wsauth-shell.ws-notion-auth .wsauth-story-foot {display:none}
+    .wsauth-shell.ws-notion-auth .wsauth-signin-side {
+      justify-content:start;
+      min-height:0;
+      padding:35px 24px max(40px,env(safe-area-inset-bottom,0px));
+      gap:26px;
+    }
+    .wsauth-shell.ws-notion-auth .wsauth-form-frame {gap:25px}
   }
-  @media(max-width:480px) {
-    .wsauth-shell.ws-notion-auth .wsauth-card {padding:22px 18px 25px}
-    .ws-shell.ws-notion .ws-content {padding-top:22px}
+  @media(max-width:420px) {
+    .wsauth-shell.ws-notion-auth .wsauth-story {padding-inline:18px}
+    .wsauth-shell.ws-notion-auth .wsauth-signin-side {padding-inline:18px}
+    .wsauth-shell.ws-notion-auth .wsauth-form-header h2 {font-size:34px}
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary'] {transition:none}
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:hover:not(:disabled),
+    .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']:active:not(:disabled) {transform:none}
   }
   @media(forced-colors:active) {
     .ws-shell.ws-notion .ws-nav-link.active,
