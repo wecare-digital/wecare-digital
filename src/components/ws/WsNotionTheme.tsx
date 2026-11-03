@@ -220,9 +220,9 @@ const WsNotionTheme: React.FC = () => (
     --ws-login-lime:var(--public-brand-lime,#d1f470);
     --ws-login-lime-hover:var(--lime-hover,#c5e866);
     --ws-login-deep:var(--public-brand-green,#1a3a2a);
-    --ws-login-ink:#1a1a1a;
-    --ws-login-field:#f4f5f2;
-    --ws-login-muted:#747873;
+    --ws-login-ink:var(--public-body,#1a1a1a);
+    --ws-login-field:var(--public-lime-tint,rgba(209,244,112,.22));
+    --ws-login-muted:var(--public-muted,rgba(0,0,0,.54));
     width:100%;
     min-height:100vh;
     min-height:100dvh;
@@ -270,52 +270,15 @@ const WsNotionTheme: React.FC = () => (
     unicode-bidi:isolate;
   }
 
-  /* Requested single-row eyebrow: official S3 brand icon LEFT, one-line
-     WECARE.DIGITAL RIGHT. The homepage Header keeps its own site logo. */
+  /* Reuse the homepage BrandBadge component as-is: its BrandMark is a
+     transparent inline SVG and its Inter 14px/600 type is the public badge
+     contract. Only position the badge here: no second icon/pill CSS owner. */
   .wsauth-shell.ws-notion-auth .wsauth-eyebrow {
-    display:inline-flex;
-    width:max-content;
-    max-width:100%;
-    min-height:44px;
-    align-items:center;
-    gap:10px;
-    margin:0 0 26px;
-    padding:6px 14px 6px 7px;
-    border:0;
-    border-radius:999px;
-    background:var(--ws-login-lime);
-    color:var(--ws-login-deep);
-    font-size:12px;
-    line-height:1.35;
-    font-weight:800;
-    letter-spacing:.075em;
-    white-space:nowrap;
-  }
-  /* The original SVG has a generous white viewBox. Its circular icon window
-     clips only that padding, rather than rescaling or changing the artwork. */
-  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon {
     display:flex;
     align-items:center;
-    justify-content:center;
-    width:32px;
-    height:32px;
-    flex:0 0 32px;
-    border-radius:50%;
-    overflow:hidden;
-    background:#fff;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-icon img {
-    display:block;
-    width:96px;
-    height:96px;
-    flex:0 0 96px;
-    max-width:none;
-    object-fit:contain;
-  }
-  .wsauth-shell.ws-notion-auth .wsauth-eyebrow-text {
-    display:block;
-    color:var(--ws-login-deep);
-    font-weight:800;
+    justify-content:flex-start;
+    width:100%;
+    margin:0 0 26px;
   }
 
   /* Remove the previous card/marketing treatment, not just its outline. */
@@ -334,21 +297,26 @@ const WsNotionTheme: React.FC = () => (
     overflow:visible;
   }
   .wsauth-shell.ws-notion-auth [data-amplify-form] {padding:0}
+  /* Typography uses Home's canonical Inter ladder, rather than Amplify
+     defaults: 22px card heading, 16px supporting labels and 17px CTA. */
   .wsauth-shell.ws-notion-auth .amplify-heading {
-    color:var(--ws-login-ink);
-    font-size:20px;
-    font-weight:700;
-    line-height:1.3;
-    letter-spacing:-.03em;
+    color:var(--public-heading,var(--ws-login-ink));
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
+    font-size:var(--public-card-size,22px);
+    font-weight:var(--public-card-weight,700);
+    line-height:var(--public-card-leading,1.27);
+    letter-spacing:var(--public-card-tracking,-.25px);
   }
   .wsauth-shell.ws-notion-auth .amplify-label {
     display:block;
     margin-bottom:9px;
-    font-size:15px;
-    font-weight:700;
-    color:var(--ws-login-ink);
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
+    font-size:var(--public-supporting-size,16px);
+    font-weight:600;
+    letter-spacing:var(--public-body-tracking,-.125px);
+    color:var(--public-body,var(--ws-login-ink));
   }
-  /* Truly borderless gray fields, including the password-visibility control.
+  /* Truly borderless homepage-lime-tint fields, including password visibility.
      The ring exists only on focus, to preserve keyboard accessibility. */
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select),
   .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input {
@@ -359,9 +327,21 @@ const WsNotionTheme: React.FC = () => (
     background:var(--ws-login-field)!important;
     box-shadow:none!important;
     color:var(--ws-login-ink)!important;
-    font-family:inherit;
-    font-size:16px!important;
+    font-family:var(--font-sans,Inter,system-ui,sans-serif)!important;
+    font-size:var(--public-supporting-size,16px)!important;
+    font-weight:var(--public-body-weight,400);
+    letter-spacing:var(--public-body-tracking,-.125px);
     padding-inline:17px;
+  }
+  .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select)::placeholder {
+    color:var(--public-muted,rgba(0,0,0,.54));
+    opacity:1;
+  }
+  /* Chrome/Android autofill must not recolor the lime-tint field yellow.
+     The inset fill is not a visible border; focus outline remains separate. */
+  .wsauth-shell.ws-notion-auth .amplify-input:-webkit-autofill {
+    -webkit-text-fill-color:var(--ws-login-ink)!important;
+    -webkit-box-shadow:0 0 0 1000px var(--ws-login-field) inset!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-field-group__control {
     background:var(--ws-login-field);
@@ -378,6 +358,7 @@ const WsNotionTheme: React.FC = () => (
     border:0!important;
     border-color:transparent!important;
     box-shadow:none!important;
+    background:var(--ws-login-field)!important;
   }
   .wsauth-shell.ws-notion-auth :is(.amplify-input,.amplify-select):focus {
     border:0!important;
@@ -425,8 +406,10 @@ const WsNotionTheme: React.FC = () => (
     background-color:var(--ws-login-lime);
     color:var(--ws-login-deep);
     box-shadow:none;
-    font-size:17px;
-    font-weight:750;
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
+    font-size:var(--public-cta-font-size,17px);
+    font-weight:var(--public-cta-font-weight,600);
+    letter-spacing:var(--public-body-tracking,-.125px);
     transition:background-color .16s ease;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='primary']::before {
@@ -470,11 +453,14 @@ const WsNotionTheme: React.FC = () => (
     border-radius:999px;
     background:var(--ws-login-field);
     color:var(--ws-login-deep);
-    font-size:14px;
-    font-weight:700;
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
+    font-size:var(--public-meta-size,14px);
+    font-weight:600;
   }
   .wsauth-shell.ws-notion-auth .amplify-button[data-variation='link']:hover {
-    background:#e9f3cb;
+    background:var(--ws-login-field);
+    text-decoration:underline;
+    text-underline-offset:3px;
   }
   .wsauth-shell.ws-notion-auth [data-amplify-authenticator] :is(a,button):focus-visible {
     outline:3px solid var(--ws-login-deep);
@@ -511,9 +497,6 @@ const WsNotionTheme: React.FC = () => (
       padding-inline:16px;
       padding-bottom:40px;
     }
-  }
-  @media(max-width:360px) {
-    .wsauth-shell.ws-notion-auth .wsauth-eyebrow {gap:8px;font-size:11px;padding:5px 11px 5px 6px}
   }
   @media(prefers-reduced-motion:reduce) {
     .ws-shell.ws-notion .ws-home-card {transition:none}
