@@ -9,6 +9,7 @@ import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Optional
 
 from botocore.exceptions import ClientError
 
@@ -19,7 +20,7 @@ HANDLER = ROOT / 'amplify/functions/core/secure-files/handler.py'
 def _load(name, env):
     node = next(n for n in ast.parse(HANDLER.read_text()).body
                 if isinstance(n, ast.FunctionDef) and n.name == name)
-    base = {'Dict': dict, 'Any': object, 'Optional': object, 'Tuple': tuple,
+    base = {'Dict': dict, 'Any': object, 'Optional': Optional, 'Tuple': tuple,
             'json': json, 'time': __import__('time'), 'hashlib': hashlib,
             'ClientError': ClientError,
             'logger': SimpleNamespace(info=lambda *a: None, warning=lambda *a: None,
