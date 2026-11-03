@@ -121,6 +121,8 @@ test('login has a real split design, homepage logo, Material 3 glyphs and real p
     'the PNG homepage logo must not override the requested S3 SVG');
   assert.ok(auth.includes('<span className="wsauth-svg-frame" aria-hidden="true">'),
     'SVG icon is decorative next to the visible WECARE.DIGITAL name');
+  assert.ok(auth.includes('width={ 166 } height={ 166 }'),
+    'image dimensions must match its displayed CSS size, not the 5000px viewBox');
   assert.ok(auth.includes('<strong>WECARE<span className="wsauth-wordmark-dot">.</span></strong>'),
     'retain public two-line WECARE.DIGITAL brand treatment');
   assert.ok(auth.includes('wsauth-form-kicker">WECARE.DIGITAL</p>'),
