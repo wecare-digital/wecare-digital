@@ -78,6 +78,10 @@ test('homepage lime owns the sign-in CTA, without conflicting Amplify variation 
     'the lime button still needs a strong keyboard focus state');
   assert.ok(theme.includes(".amplify-button[data-variation='primary']:disabled"),
     'a disabled submit button needs an intentional state');
+  assert.ok(theme.includes('@media(prefers-reduced-motion:reduce)'),
+    'respect visitors who ask to reduce animation');
+  assert.ok(theme.includes(".amplify-button[data-variation='primary']:active:not(:disabled) {transform:none}"),
+    'the login CTA must not translate when reduced motion is enabled');
 });
 
 test('credential inputs are truly borderless at rest with an accessible focus ring', () => {
