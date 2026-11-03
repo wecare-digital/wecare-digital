@@ -379,8 +379,9 @@ const WsNotionTheme: React.FC = () => (
     box-shadow:inset 0 -2px 0 var(--ws-login-deep)!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-input:focus {
+    /* Preserve the input-level underline as fallback if a browser fails
+       to paint the wrapper's :focus-within treatment. */
     outline:0!important;
-    box-shadow:none!important;
   }
   .wsauth-shell.ws-notion-auth .amplify-passwordfield .amplify-field-group__control:focus-within {
     outline:0;
