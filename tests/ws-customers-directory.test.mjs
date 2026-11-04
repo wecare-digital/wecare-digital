@@ -16,8 +16,8 @@ test('customers page stays inside the shared authenticated /ws shell', () => {
   assert.ok(route.includes('<SEO title="Customers"'));
   assert.ok(route.includes('noindex'));
   assert.ok(route.includes('<CustomerList'));
-  assert.ok(!route.includes('Header'));
-  assert.ok(!route.includes('Footer'));
+  assert.doesNotMatch(route, /import\s+[^;]*\b(?:SiteHeader|Header|Footer|SiteFooter)\b/, 'no duplicate public chrome imports');
+  assert.doesNotMatch(route, /<\s*(?:Header|Footer|SiteHeader|SiteFooter)\b/, 'no duplicate header/footer elements');
 });
 
 test('directory has real search, filters, sorting, loading and recoverable errors', () => {
@@ -68,9 +68,11 @@ test('destructive actions stay confirm-gated, protected and report server failur
   assert.ok(directory.includes('api.bulkDeleteContacts(ids)'));
   assert.ok(directory.includes('await confirm('));
   assert.ok(directory.includes('contact.locked'));
+  assert.ok(directory.includes('if (!id)'), 'missing identity IDs cannot be selected for deletion');
   assert.ok(directory.includes('CustomerActionsSheet'));
   assert.ok(directory.includes('CustomerManageData'));
   assert.ok(directory.includes('api.exportContactsToCSV(visible)'), 'safe export uses existing CSV serializer');
+  assert.ok(directory.includes('setDetailsFor(current => current'), 'reload updates open customer details');
   assert.ok(directory.includes('setSelected(new Set()); }, [search, filter]'), 'filter changes clear hidden bulk selections');
   const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
   assert.ok(actions.includes('api.softDeleteContactResult'));
