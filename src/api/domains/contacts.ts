@@ -248,9 +248,10 @@ export async function deleteContact ( contactId: string ): Promise<boolean> {
 }
 
 /**
- * Operator-requested soft delete. This never asks the disabled hard-delete endpoint to purge
- * messages or identity claims. Preserve server 403/409 reasons (legal lock, payment linkage,
- * unknown linkage) so the staff UI never reports a false deletion.
+ * Legacy soft-delete endpoint wrapper. The server now refuses contact deletion with
+ * CONTACT_ERASURE_NOT_READY instead of tombstoning a row while leaving identity claims,
+ * messages, S3 versions and dependent records. Keep for compatibility with old callers;
+ * never use this as full customer erasure. Prefer archiveContact for staff cleanup.
  */
 export async function softDeleteContactResult (
   contactId: string,
