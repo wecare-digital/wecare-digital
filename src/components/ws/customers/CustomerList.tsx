@@ -263,6 +263,9 @@ const CustomerList: React.FC = () => {
       return next;
     });
   };
+  // Never retain a hidden bulk selection when staff switch search/filter criteria.
+  React.useEffect(() => { setSelected(new Set()); }, [search, filter]);
+
   const allVisibleSelected = visible.length > 0 && visible.every(contact => selected.has(contact.contactId));
   const selectAllVisible = () => {
     setSelected(previous => {
@@ -272,6 +275,13 @@ const CustomerList: React.FC = () => {
     });
   };
   const endSelection = () => { setSelecting(false); setSelected(new Set()); };
+
+  // Reuse the proven CSV export used by /workspace/customers, limited to the visible rows.
+  const exportVisible = () => {
+    const csv = api.exportContactsToCSV(visible);
+    api.downloadFile(csv, 'customers_' + new Date().toISOString().slice(0, 10) + '.csv', 'text/csv');
+    toast.success('Exported ' + visible.length + ' contact(s).');
+  };
 
   const bulkDelete = async () => {
     if (bulkBusy || selected.size === 0) return;
@@ -326,7 +336,7 @@ const CustomerList: React.FC = () => {
         <div className={styles.headingButtons}>
           <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading}
             aria-label="Refresh customers" title="Refresh customers"><RefreshGlyph /></button>
-          <button type="button" className={styles.primaryButton} onClick={() => setEditorFor('new')}>
+          <button type="button" className={styles.primaryButton} onClick={() => { endSelection(); setEditorFor('new'); }}>
             <PlusGlyph /> Create contact
           </button>
         </div>
@@ -352,6 +362,8 @@ const CustomerList: React.FC = () => {
             <kbd>/</kbd>
           </label>
           <div className={styles.utilityButtons}>
+            <button type="button" className={styles.secondaryButton} onClick={exportVisible}
+              disabled={loading || loadError !== '' || visible.length === 0}>Export CSV</button>
             <button type="button" className={styles.secondaryButton} onClick={() => setManageOpen(true)}>Manage data</button>
             <button type="button" className={styles.secondaryButton}
               disabled={loading || total === 0 || bulkBusy}
