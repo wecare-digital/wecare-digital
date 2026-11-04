@@ -103,7 +103,7 @@ function hasIdentityEvidence(contact: Contact): boolean {
   );
 }
 function isSoftDeleteCandidate(contact: Contact): boolean {
-  return isBulkEligible(contact) && !hasIdentityEvidence(contact);
+  return isBulkEligible(contact) && needsName(contact) && !hasIdentityEvidence(contact);
 }
 function consentLabel(contact: Contact): string {
   const status = contact.whatsappMarketingConsent;
@@ -370,7 +370,10 @@ const CustomerList: React.FC = () => {
       let hasActivityCount = 0;
       for (const id of selected) {
         const contact = authoritative.get(id);
-        if (!contact || !isBulkEligible(contact)) {
+        // Do not act on a record which was repaired or verified since selection.
+        if (!contact || !isBulkEligible(contact)
+          || (filter === 'unnamed' && !needsName(contact))
+          || (filter === 'unverified' && Boolean(contact.phoneVerifiedAt))) {
           protectedCount++;
         } else if (action === 'delete' && !isSoftDeleteCandidate(contact)) {
           hasActivityCount++;
@@ -380,8 +383,8 @@ const CustomerList: React.FC = () => {
       }
       if (protectedCount || hasActivityCount) {
         toast.warning(
-          protectedCount + ' protected/missing and ' + hasActivityCount
-          + ' verified or active contact(s) excluded. Review them individually.',
+          protectedCount + ' protected/changed and ' + hasActivityCount
+          + ' named, verified or active contact(s) excluded. Review them individually.',
         );
       }
       if (targets.length === 0) {
