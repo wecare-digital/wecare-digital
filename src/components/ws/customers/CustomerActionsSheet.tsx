@@ -4,7 +4,8 @@
  * A mobile-first bottom sheet (full-width card on desktop) that carries the confirm-gated,
  * server-reason-honouring actions for a single customer:
  *   - Delete a specific stored field (clears one field via api.updateContactResult)
- *   - Delete this customer's messages (api.deleteContactMessages, reports deleted/failed)
+ *   - Deleting messages and versioned media is disabled here until one complete,
+ *     audited erasure workflow can report every dependency correctly.
  *   - Block / archive (api.archiveContact — hides from daily queues, keeps identity + history)
  *   - Permanent deletion is disabled until the audited cross-service erasure workflow exists.
  *     A legacy soft-delete would leave identity claims, media and dependent history behind.
@@ -26,7 +27,7 @@ export interface CustomerActionsSheetProps {
   onClose: () => void;
   /** Called after an archive so the parent can drop the row from the active (daily-queue) list. */
   onArchived: ( contactId: string ) => void;
-  /** Called after a field clear or message delete so the parent can re-read fresh server data. */
+  /** Called after a field clear so the parent can re-read fresh server data. */
   onChanged: () => void | Promise<void>;
 }
 
@@ -80,34 +81,6 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
       }
     } catch {
       toast.error( `Could not clear ${label}. It was not changed.` );
-    } finally {
-      setBusy( false );
-    }
-  };
-
-  // ---- Delete this customer's messages ------------------------------------------------------
-  const deleteMessages = async () => {
-    if ( busy ) return;
-    const ok = await confirm( {
-      title: 'Delete messages?',
-      message: `Delete the stored conversation messages for ${name}? The customer record, identity and payment history are kept. Only message rows are removed.`,
-      confirmText: 'Delete messages',
-      danger: true,
-    } );
-    if ( !ok ) return;
-    setBusy( true );
-    try {
-      // deleteContactMessages reports a boolean; it deletes each message and returns true when at
-      // least one went (or there were none). It never touches identity or payment history.
-      const done = await api.deleteContactMessages( contact.contactId );
-      if ( done ) {
-        toast.success( 'Messages deleted for this customer.' );
-        await onChanged();
-      } else {
-        toast.error( 'Messages could not be deleted. Nothing was confirmed removed.' );
-      }
-    } catch {
-      toast.error( 'Message delete failed. Nothing was confirmed removed.' );
     } finally {
       setBusy( false );
     }
@@ -188,8 +161,9 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         <div className="cas-group">
           <h3 className="cas-group-title">Danger</h3>
           <div className="cas-actions">
-            <button type="button" className="cas-btn" disabled={ busy } onClick={ deleteMessages }>
-              Delete messages
+            <button type="button" className="cas-btn" disabled
+              title="Message rows and versioned S3 media need one audited erasure workflow">
+              Delete messages and media — unavailable
             </button>
             <button type="button" className="cas-btn" disabled={ busy || locked } onClick={ archive }>
               Block / archive
