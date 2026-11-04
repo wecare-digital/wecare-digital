@@ -505,7 +505,8 @@ test('signout is icon-only but reachable in both desktop sidebar states', () => 
 test('workspace sidebar is truly white and contains no NAVIGATION subtitle', () => {
   assert.ok(theme.includes('--ws-sidebar:#ffffff;'),
     'sidebar surface must be exactly pure white, not off-white');
-  assert.ok(theme.includes('.ws-shell.ws-notion .ws-sidebar {\n    background:#ffffff;'),
+  assert.match(theme,
+    /\.ws-shell\.ws-notion \.ws-sidebar\s*\{[^}]*background:#ffffff/,
     'explicit signed-in sidebar selector must paint #ffffff');
   assert.ok(theme.includes('--ws-soft-panel:#fbfcf9;') &&
             theme.includes('--bg-secondary:var(--ws-soft-panel);'),
@@ -525,6 +526,9 @@ test('text-only borderless sidebar search filters the six routes while typing', 
             section.includes('role="searchbox"') &&
             section.includes('inputMode="search"'),
     'search must be a real typable text field, not an icon-only button');
+  assert.ok(section.includes('aria-hidden={ collapsed }') &&
+            section.includes('disabled={ collapsed }'),
+    'collapsed sidebar must hide the input from assistive tech and keyboard focus');
   assert.ok(section.includes('placeholder="Type to search sections..."') &&
             section.includes('aria-label="Search workspace sections"'),
     'accessible placeholder clarifies this filters workspace sections');
@@ -549,6 +553,9 @@ test('text-only borderless sidebar search filters the six routes while typing', 
   assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-search") &&
             shell.includes('display:none;'),
     'the text search hides cleanly in the collapsed icon rail');
+  assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
+            shell.includes('visibility:visible;'),
+    'search is defensively hidden on mobile and revealed only for desktop sidebar');
   assert.ok(shell.includes('NAV_ITEMS.map( item => {'),
     'mobile navigation must not be filtered by a desktop-only query');
 });
@@ -570,4 +577,8 @@ test('sidebar search has no border on rest, hover, or focus, with accessible foc
   assert.ok(css.includes('min-height:44px') &&
             css.includes('border-radius:13px'),
     'search remains touch-friendly and follows the current workspace corner scale');
+  assert.ok(shell.includes('@media(forced-colors:active)') &&
+            shell.includes('outline:2px solid Highlight!important;') &&
+            shell.includes('box-shadow:none!important;'),
+    'Windows High Contrast must retain a visible focus outline when shadows are removed');
 });
