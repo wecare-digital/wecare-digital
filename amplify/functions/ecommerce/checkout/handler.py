@@ -1086,7 +1086,7 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             str(address.get("addressLine1") or "").strip(),
             str(address.get("addressLine2") or "").strip(),
         ) if part)
-    return {
+    shipping_info = {
         "country": str(address.get("countryCode") or "IN"),
         "addresses": [{
             # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
@@ -1106,6 +1106,12 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             "in_pin_code": str(address.get("postalCode") or "")[:12],
         }],
     }
+    # Fail fast, server-side, if any Meta-required shipping field is empty (the `phone_number`
+    # class of bug), so the payment refuses HERE with a named reason instead of shipping a
+    # payload Meta rejects at the live send. Shared with the invoice-engine builder so the two
+    # cannot drift apart again.
+    payment_address.assert_meta_shipping_info(shipping_info)
+    return shipping_info
 
 
 def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],

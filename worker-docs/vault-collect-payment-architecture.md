@@ -5,6 +5,9 @@
 > unified OrderTable, the known failure classes, and the fixes/hardening applied.
 > Written 2026-11-03 against branch `fix/secure-files-invoke-ie-clean` after merging
 > `wecare.digital` (PRs #2307/#2311/#2312/#2313/#2315).
+> Updated 2026-11-04: Vault native rail CONFIRMED WORKING end-to-end (paid + downloaded)
+> after the final `phone_number` fix; added the shared Meta-shipping guard (failure class #6)
+> that makes the whole class unshippable again.
 
 ---
 
@@ -138,6 +141,27 @@ flowchart TD
 | 3 | Webhook crash → no order row, no settlement, no messages | `_materialize_paid_invoice_order` raised ValueError on Vault `contactId` and re-raised, aborting the chain | webhook v277: skip projection for `vaultFileId` invoices |
 | 4 | Contact id mismatch (root of 1–3) | secure-files passed Cognito sub as `contactId` | secure-files v195: pass real ContactsTable id (now moot on native rail; retained as defence) + IAM Query grant on ContactsTable phone-index |
 | 5 | Paid Vault customer got no Access link / no order-status message | Vault settlement (E6) gated on `delivered` (receipt) — a receipt failure blocked the paid product | **webhook (this branch): decouple — gate E6 on `invoice_id` alone** |
+| 6 | Vault payment request silently refused: staff saw `PAYMENT_REQUEST_NOT_SENT`, no customer send | checkout `_payment_shipping_info` built `shipping_info.addresses[0]` WITHOUT `phone_number`, which Meta's `order_details` schema **requires**. Meta rejected the send: HTTP 400 metaCode 100 OAuthException, *violated 'required' for …shipping_info.addresses.0*. invoice-engine `_payment_delivery_info` already had `phone_number`, so only Vault's checkout-built address drifted. | **commerce v197 / checkout v315 (SHA `zkuMnTb9q7Hf…`): add `phone_number` to the checkout address.** Hardened by a shared guard (below) so neither builder can omit a required field again. |
+
+**Hardening — the shared Meta-shipping guard (makes class #6 unshippable):**
+Both shipping builders now construct the full dict and then call one validator before returning:
+`payment_address.assert_meta_shipping_info(shipping_info)` in
+`amplify/functions/shared/lambda_utils/ecommerce/payment_address.py`. It enforces
+`META_SHIPPING_ADDRESS_REQUIRED_FIELDS = ("name","phone_number","address","city","state","in_pin_code")`
+on `shipping_info.addresses[0]` and raises `UnpayableAddress("META_SHIPPING_FIELD_MISSING", <field>)`
+(or `"META_SHIPPING_INFO_INVALID"` for a malformed shape). Wired into **both**:
+- checkout `_payment_shipping_info` (`amplify/functions/ecommerce/checkout/handler.py`)
+- invoice-engine `_payment_delivery_info` (`amplify/functions/payments/invoice-engine/handler.py`)
+
+So the two builders can no longer drift: any future field Meta requires is added once to the
+constant and both paths refuse locally (before the send) instead of letting Meta 400 surface as
+an opaque `PAYMENT_REQUEST_NOT_SENT`. Regression tests:
+`tests/python/test_vault_physical.py::test_payment_shipping_info_includes_meta_required_phone_number`
+and `::test_meta_shipping_guard_refuses_a_missing_required_field`.
+
+**Diagnostic lead for this class:** a refusal/`NOT_SENT` shows the real Meta field name in
+**outbound-whatsapp** logs (`direct_api_send_failed`) and `checkout_template_send_error` — read
+those, not just secure-files, when a Vault/Collect send is refused.
 
 **Architecture decision:** ONE unified invoice/commerce engine; products distinguished by a
 marker field (`vaultFileId`, `fixedPresetId`, `serviceKind`) and separated by the single
@@ -202,11 +226,21 @@ Frontend (Amplify) deploys on merge of the branch; do not merge/deploy without e
 
 Deployed live during this work:
 - `wecare-invoice-engine` v291 (fixes 1,2; is_collect vaultFileId exclusion)
-- `wecare-secure-files` v195 (fix 4; contactId-by-phone + IAM phone-index Query grant)
-- `wecare-razorpay-webhook` v277 (fix 3; projection skip for Vault)
+- `wecare-secure-files` v197 (fix 4; contactId-by-phone + IAM phone-index Query grant; refusal diagnostic)
+- `wecare-razorpay-webhook` v277/v278 (fix 3; projection skip for Vault)
+- `wecare-commerce` v197 + `wecare-checkout` v315 (SHA `zkuMnTb9q7Hf…`) — **fix #6 `phone_number`.**
+  checkout and commerce ship the SAME payment package and MUST be deployed together; native Vault
+  invokes `wecare-commerce:live`.
 
-Pending deploy after this PR merges: the merged native-rail Vault code and the E6 decoupling
-hardening (this branch), which the live functions do not yet carry.
+**Vault native rail is CONFIRMED WORKING end-to-end** (2026-11-04): a live purchase reached PAID,
+minted the entitlement/grant (order `WD-ORD-YWCTHBAK`), delivered the Access link, and recorded
+1 download. `PAYMENT_REQUEST_SENT` on the staff screen is the correct *success* state (the request
+reached the customer), not an error.
+
+Pending deploy (this branch): the shared `assert_meta_shipping_info` guard — redeploy
+`wecare-commerce` + `wecare-checkout` (checkout builder) AND `wecare-invoice-engine` (invoice
+builder) from committed HEAD. The guard is defence-in-depth; the `phone_number` value fix is
+already live, so sends work today — the guard only makes the class unshippable going forward.
 
 ---
 

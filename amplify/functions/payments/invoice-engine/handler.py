@@ -3384,12 +3384,17 @@ def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -
         raise payment_address.UnpayableAddress('DELIVERY_REQUIRED')
     payment_address.for_meta_beneficiary(address, recipient_name=str(
         invoice.get('customerName') or contact.get('contactBookName') or contact.get('name') or 'Customer'))
-    return {'country': country, 'addresses': [{
+    shipping_info = {'country': country, 'addresses': [{
         'name': invoice.get('customerName') or contact.get('contactBookName') or contact.get('name') or 'Customer',
         'phone_number': phone.replace('+', ''), 'address': address['addressLine1'],
         'city': address['city'], 'state': address['state'], 'in_pin_code': address['postalCode'],
         'landmark_area': address['addressLine2'],
     }]}
+    # Shared guard: refuse here with a named reason if a Meta-required shipping field is empty,
+    # rather than letting Meta reject the live ORDER_DETAILS send. Same validator the checkout
+    # (AWS_NATIVE/Vault) builder uses, so the two shipping builders cannot silently drift.
+    payment_address.assert_meta_shipping_info(shipping_info)
+    return shipping_info
 
 
 def send_payment_link(invoice_id: str, phone_number_id: str,

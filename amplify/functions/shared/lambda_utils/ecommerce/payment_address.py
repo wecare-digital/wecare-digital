@@ -124,10 +124,48 @@ def for_meta_beneficiary(address: Dict[str, Any], *, recipient_name: str) -> Dic
     }
 
 
+#: Fields Meta REQUIRES on every `order_details.shipping_info.addresses[0]`. A missing or empty
+#: one makes Meta reject the ENTIRE payment send with HTTP 400 metaCode 100 ("violated 'required'
+#: for ...shipping_info.addresses.0"), which the native Vault rail surfaced to staff as the opaque
+#: PAYMENT_REQUEST_NOT_SENT. It cost a live cross-function trace to pin to a single missing
+#: `phone_number`, because the two independent shipping builders (invoice-engine
+#: `_payment_delivery_info` and checkout `_payment_shipping_info`) each hand-built this dict and
+#: one had drifted from the other. This set is the one contract both must satisfy.
+META_SHIPPING_ADDRESS_REQUIRED_FIELDS = (
+    "name", "phone_number", "address", "city", "state", "in_pin_code")
+
+
+def assert_meta_shipping_info(shipping_info: Any) -> None:
+    """Fail fast, server-side, if a BUILT Meta `shipping_info` block is missing a required field.
+
+    `shipping_info` is the `{"country": ..., "addresses": [ {...} ]}` dict a shipping builder
+    returns, about to be placed on an `order_details` payment send. This does NOT re-validate the
+    stored address (that is `assert_payable`); it validates the OUTGOING Meta shape so a builder
+    that forgets a Meta-required field (the `phone_number` class of bug) refuses the payment here,
+    with a named `UnpayableAddress`, instead of shipping a payload Meta rejects at the live send.
+
+    Both shipping builders call this before returning, so the two cannot silently drift apart
+    again. Raises `UnpayableAddress('META_SHIPPING_FIELD_MISSING', <field>)` on the first gap.
+    """
+    if not isinstance(shipping_info, dict):
+        raise UnpayableAddress("META_SHIPPING_INFO_INVALID", "")
+    if not str(shipping_info.get("country") or "").strip():
+        raise UnpayableAddress("META_SHIPPING_FIELD_MISSING", "country")
+    addresses = shipping_info.get("addresses")
+    if not isinstance(addresses, list) or not addresses or not isinstance(addresses[0], dict):
+        raise UnpayableAddress("META_SHIPPING_FIELD_MISSING", "addresses")
+    first = addresses[0]
+    for field in META_SHIPPING_ADDRESS_REQUIRED_FIELDS:
+        if not str(first.get(field) or "").strip():
+            raise UnpayableAddress("META_SHIPPING_FIELD_MISSING", field)
+
+
 __all__ = [
     "WEBSITE_RAZORPAY",
     "WHATSAPP_ORDER_DETAILS",
     "UnpayableAddress",
     "assert_payable",
     "for_meta_beneficiary",
+    "assert_meta_shipping_info",
+    "META_SHIPPING_ADDRESS_REQUIRED_FIELDS",
 ]
