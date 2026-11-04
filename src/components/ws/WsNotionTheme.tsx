@@ -47,13 +47,11 @@ const WsNotionTheme: React.FC = () => (
   /* Signed-in navigation mirrors the homepage and /auth/ tokens.
      The full public BrandLockup renders its own transparent PNG and
      stacked wordmark. Do not paint a square or override its geometry. */
-  /* /auth uses a four-pixel lime top accent. On the workspace we use a
-     quieter TWO-pixel vertical edge: the white sidebar stays white, but
-     navigation and the content reading surface are clearly separated. */
+  /* /auth supplies the design reference: 2px lime sidebar separation is
+     owned by WsShell's scoped layout CSS so it cannot lose a cascade race.
+     This global theme owns only the white sidebar surface. */
   .ws-shell.ws-notion .ws-sidebar {
     background:#ffffff;
-    border-color:var(--ws-hairline);
-    border-inline-end:2px solid var(--public-brand-lime,#d1f470);
   }
   .ws-shell.ws-notion .ws-sidebar-brand {
     border-color:var(--ws-hairline);
@@ -85,12 +83,10 @@ const WsNotionTheme: React.FC = () => (
   .ws-shell.ws-notion .ws-main {
     background:var(--ws-paper);
   }
-  /* On phones the bottom bar replaces the sidebar, so the same subtle
-     lime separator sits ABOVE it rather than at the desktop side edge. */
+  /* On phones the bottom bar replaces the sidebar. Its 2px lime top edge
+     is owned by WsShell layout CSS, not a competing global border rule. */
   .ws-shell.ws-notion .ws-bottomnav {
     background:var(--ws-paper);
-    border-color:var(--ws-hairline);
-    border-top:2px solid var(--public-brand-lime,#d1f470);
   }
   .ws-shell.ws-notion .ws-bottom-link.active {
     color:var(--public-brand-green,#1a3a2a);
