@@ -73,7 +73,7 @@ test('destructive actions stay confirm-gated, protected and report server failur
   assert.ok(directory.includes('api.archiveContact('), 'archive preserves history by default');
   assert.ok(directory.includes('await confirm('), 'each bulk action needs explicit confirmation');
   assert.ok(directory.includes('contact.locked'));
-  assert.ok(directory.includes('if (!id)'), 'missing identity IDs cannot be selected for deletion');
+  assert.ok(directory.includes('if (!record || !isBulkEligible(record))'), 'missing/locked IDs cannot be selected for bulk cleanup');
   assert.ok(directory.includes('CustomerActionsSheet'));
   assert.ok(directory.includes('CustomerManageData'));
   assert.ok(directory.includes('api.exportContactsToCSV(visible)'), 'safe export uses existing CSV serializer');
