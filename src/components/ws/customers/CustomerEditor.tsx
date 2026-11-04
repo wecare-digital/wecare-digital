@@ -29,6 +29,8 @@ function splitPhone(value: string): { dial: string; national: string } {
   const clean = String(value || '').trim();
   const match = [...DIAL_CODES].sort((a, b) => b.code.length - a.code.length)
     .find(option => clean.startsWith(option.code));
+  // India is the explicitly visible initial choice for a new contact, not an inferred dial
+  // prefix for arbitrary numbers. Unknown +E.164 values remain intact in the input.
   return match
     ? { dial: match.code, national: clean.slice(match.code.length) }
     : { dial: '+91', national: clean };
@@ -153,8 +155,11 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
       const result = contact
         ? await api.updateContactResult(contact.contactId, payload)
         : await api.createContactResult(payload);
-      if (result.ok && result.data) {
-        await onSaved(result.data);
+      if (result.ok) {
+        // A 2xx without a returned canonical customer must NOT trigger a success toast;
+        // the write may have happened and retrying would risk a duplicate.
+        if (result.data) await onSaved(result.data);
+        else setError('The server accepted the request but returned no customer record. Refresh the directory before retrying.');
         return;
       }
       if (!result.ok) {
@@ -246,7 +251,9 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
                       readOnly={editing} aria-readonly={editing} onChange={e => { setPhone(e.target.value); setError(''); }}
                       placeholder="Mobile number" required />
                   </div>
-                  {editing && <small>Linked phone numbers are protected; use identity reconciliation to change them.</small>}
+                  {editing
+                    ? <small>Linked phone numbers are protected; use identity reconciliation to change them.</small>
+                    : <small>India (+91) is selected initially. Choose the correct country code, or enter a full +international number.</small>}
                 </div>
                 <label className={styles.field}>
                   <span>WhatsApp username <em>Optional</em></span>
