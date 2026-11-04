@@ -3943,20 +3943,8 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
     inbound/outbound events never create duplicate (churned) contacts."""
     contacts_table = dynamodb.Table(CONTACTS_TABLE)
 
-    # 0) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
-    det_id = _deterministic_contact_id(phone)
-    if det_id:
-        try:
-            r = contacts_table.get_item(Key={'id': det_id}, ConsistentRead=True)
-            existing = r.get('Item')
-            if existing and not existing.get('deletedAt'):
-                _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
-                return existing
-        except Exception as e:
-            # `det_id` is `wa` + the customer's digits, so it is masked like any contact id.
-            logger.warning(f"deterministic contact get failed for {mask_contact_id(det_id)}: "
-                           f"{type(e).__name__}")
-
+    # 0) Resolve the BSUID before phone: a disclosed phone can already belong
+    # to another contact, and must not steal a phone-hidden customer's identity.
     # Use the canonical resolver: a BSUID may match historical merge aliases,
     # but two LIVE owners must never be arbitrarily reduced to the oldest row.
     if bsuid:
@@ -3970,6 +3958,20 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                                          username, phone, bsuid, contact_book_name,
                                          parent_bsuid)
             return matched_bsuid
+
+    # 1) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
+    det_id = _deterministic_contact_id(phone)
+    if det_id:
+        try:
+            r = contacts_table.get_item(Key={'id': det_id}, ConsistentRead=True)
+            existing = r.get('Item')
+            if existing and not existing.get('deletedAt'):
+                _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+                return existing
+        except Exception as e:
+            # `det_id` is `wa` + the customer's digits, so it is masked like any contact id.
+            logger.warning(f"deterministic contact get failed for {mask_contact_id(det_id)}: "
+                           f"{type(e).__name__}")
 
     # Canonical resolver follows merge aliases and refuses duplicate LIVE phone owners.
     # On conflict the caller parks the webhook for reconciliation; never route a
@@ -4195,6 +4197,12 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
             except (identity_claims.IdentityClaimConflict, contact_store.IdentityConflict):
                 logger.warning(json.dumps({'event': 'inbound_phone_link_refused',
                                            'contactId': mask_contact_id(contact.get('id', ''))}))
+            except Exception as phone_link_error:
+                # An unavailable identity registry must not lose a valid inbound
+                # message; skip ONLY the optional phone link and store the thread.
+                logger.warning(json.dumps({'event': 'inbound_phone_link_unavailable',
+                                           'contactId': mask_contact_id(contact.get('id', '')),
+                                           'errorType': type(phone_link_error).__name__}))
             else:
                 names[f'#n{idx}'] = 'phone'
                 phone_param = f':v{idx}'
