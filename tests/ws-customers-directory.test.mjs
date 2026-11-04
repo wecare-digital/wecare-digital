@@ -174,3 +174,10 @@ test('BSUID change system messages preserve the previous customer and fence phon
   assert.ok(inbound.includes("'system_phone_change_requires_review'"), 'new phone must not silently redirect routing');
   assert.ok(!inbound.includes("set_parts.append('phone = :p')"), 'system messages cannot overwrite a claimed phone');
 });
+
+test('duplicate live phone owners are never resolved by arbitrary oldest-row fallback', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  assert.ok(inbound.includes("if len(items) > 1:"));
+  assert.ok(inbound.includes("raise contact_store.IdentityConflict('phone'"));
+  assert.ok(!inbound.includes("contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]"));
+});
