@@ -113,8 +113,8 @@ test('BSUID-only WhatsApp customers remain editable but are not bulk-archived by
   assert.ok(editor.includes('required={!editing}'), 'editing a phone-hidden customer must not trigger HTML required');
   assert.ok(editor.includes('...(!editing ? { phone: fullPhone } : {})'), 'staff editing never supplies a phone');
   assert.ok(editor.includes('Meta BSUID (read-only)'), 'Meta identity is visible, never staff-editable');
-  assert.ok(directory.includes('contact.bsuid && !contact.phone'), 'phone-hidden contact is distinguished');
-  assert.ok(directory.includes('&& !(contact.bsuid && !contact.phone)'), 'bulk archive must exclude BSUID-only customers');
+  assert.ok(directory.includes('Object.keys(contact.whatsappIdentities || {}).length'), 'phone-hidden contact is distinguished across either business');
+  assert.ok(directory.includes('&& !(hasBusinessIdentity && !contact.phone)'), 'bulk archive must exclude any business BSUID-only customer');
 });
 
 test('customer directory searches and displays Meta identities separately from WECARE profile username', () => {
@@ -135,7 +135,7 @@ test('inbound BSUID-only customer creation never fabricates cross-channel market
   ]) {
     assert.ok(inbound.includes("'" + field + "': False"), field + ' must default to false');
   }
-  assert.ok(inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
+  assert.ok(inbound.includes('_find_scoped_bsuid(') && inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
     'use canonical fail-closed BSUID lookup rather than selecting an arbitrary row');
 });
 
@@ -232,4 +232,54 @@ test('outbound auto-created contacts never gain invented marketing permission', 
     'outbound phone lookup must reject multiple live owners');
   assert.ok(!create.includes("sorted(items, key=lambda x: x.get('createdAt', 0))[0]"),
     'a duplicate phone must never pick the oldest owner');
+});
+
+test('both Meta business portfolios maintain independent BSUID ownership claims', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  for (const id of ['2094615664435155', '2513394156072604',
+    '382642103987922', '125951953587391']) assert.ok(inbound.includes(id));
+  for (const marker of [
+    "f'WHATSAPP_BSUID#{portfolio_id}#{value}'",
+    "def _find_scoped_bsuid(", "def _attach_scoped_bsuid(",
+    'waba_id=source_waba_id', 'whatsappIdentities',
+    "'business-identity-already-claimed'", "'unknown-business-identity-scope'",
+    "'unscoped-bsuid-reconciliation'",
+  ]) assert.ok(inbound.includes(marker), marker);
+  assert.ok(inbound.includes("if waba_id != '2094615664435155':"),
+    'Manish BSUID must not overwrite WECARE legacy identity fields');
+  assert.ok(inbound.includes('scoped_identity ='),
+    'BSUID-only deterministic contact ID must include portfolio scope');
+});
+
+test('both WhatsApp business identities are read-only in /ws/customer search and details', () => {
+  const api = readSource('src/api/domains/contacts.ts');
+  for (const marker of [
+    'whatsappIdentities?: Record<string, PortfolioWhatsAppIdentity>',
+    'whatsappIdentities: normalizePortfolioIdentities(item.whatsappIdentities)',
+    "'382642103987922'", "'125951953587391'",
+  ]) assert.ok(api.includes(marker), marker);
+  for (const marker of [
+    'WHATSAPP_BUSINESS_PORTFOLIOS',
+    'WECARE.DIGITAL', 'Manish Agarwal',
+    "contact.whatsappIdentities?.[business.id]",
+    'Object.values(contact.whatsappIdentities || {}).flatMap',
+    'hasBusinessIdentity && !contact.phone',
+  ]) assert.ok(directory.includes(marker), marker);
+  assert.ok(!/payload\.whatsappIdentities\s*=/.test(editor),
+    'staff profile editor must never assign business-provider identities');
+});
+
+test('website registration and transactions still require a phone verified by OTP', () => {
+  const registration = readSource('amplify/functions/auth/customer-registration/handler.py');
+  const auth = readSource('amplify/functions/auth/customer-whatsapp-auth/handler.py');
+  assert.ok(registration.includes('phone_number_verified'), 'Cognito identity requires verified phone');
+  assert.ok(registration.includes('otp_challenge'), 'customer registration retains phone OTP');
+  assert.ok(auth.includes("if key != PRIMARY_WABA_ID or phone_number_id != PRIMARY_PHONE_NUMBER_ID"),
+    'website OTP route must not silently change to the second business');
+  assert.ok(editor.includes('if ((!editing || Boolean(fullPhone))'),
+    'new staff customer needs phone, provisional edits cannot manufacture one');
+  assert.ok(editor.includes('Website sign-in, shopping and transactions require') || 
+    editor.includes('WECARE.DIGITAL website sign-in, shopping and transactions require'),
+    'customer editor explains OTP requirement');
+  assert.ok(directory.includes('Website OTP and checkout require a phone'));
 });
