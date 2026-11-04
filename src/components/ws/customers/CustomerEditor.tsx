@@ -259,7 +259,7 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
             {stage === 0 && (
               <>
                 <h3 className={styles.sectionTitle}>Customer profile</h3>
-                <p className={styles.hint}>The phone identifies a contact; adding it here does not verify WhatsApp ownership or grant message consent.</p>
+                <p className={styles.hint}>A phone number is mandatory for new customers. WECARE.DIGITAL website sign-in, shopping and transactions require phone ownership proven by OTP. A Meta BSUID alone cannot complete these steps.</p>
                 <label className={styles.field}>
                   <span>Full name <b aria-hidden="true">*</b></span>
                   <input ref={firstField} value={name} onChange={e => { setName(e.target.value); setError(''); }}
@@ -276,7 +276,7 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
                       placeholder={editing && !contact?.phone ? 'Not shared by WhatsApp' : 'Mobile number'} required={!editing} />
                   </div>
                   {editing
-                    ? <small>{contact?.phone ? 'Linked phone numbers are protected; use identity reconciliation to change them.' : 'This WhatsApp customer has no shared phone number. Staff cannot invent or verify one here.'}</small>
+                    ? <small>{contact?.phone ? 'Linked phone numbers are protected; use identity reconciliation to change them.' : 'WhatsApp-only profile: Meta has not shared a number. You may edit non-identity details, but website OTP, shopping and transactions remain unavailable until the customer supplies a phone and proves ownership by OTP.'}</small>
                     : <small>India (+91) is selected initially. Choose the correct country code, or enter a full +international number.</small>}
                 </div>
                 <label className={styles.field}>
@@ -342,6 +342,8 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
                     <dt>Full name</dt><dd>{name.trim()}</dd>
                     <dt>WhatsApp phone</dt><dd>{fullPhone || 'Not shared'}</dd>
                     {editing && contact?.bsuid && <><dt>Meta BSUID (read-only)</dt><dd>{contact.bsuid}</dd></>}
+                    {editing && contact?.whatsappIdentities?.['382642103987922']?.bsuid && <><dt>WECARE.DIGITAL BSUID (read-only)</dt><dd>{contact.whatsappIdentities['382642103987922'].bsuid}</dd></>}
+                    {editing && contact?.whatsappIdentities?.['125951953587391']?.bsuid && <><dt>Manish Agarwal BSUID (read-only)</dt><dd>{contact.whatsappIdentities['125951953587391'].bsuid}</dd></>}
                     {editing && contact?.username && <><dt>Meta username (read-only)</dt><dd>{contact.username}</dd></>}
                     {username.trim() && <><dt>Profile username</dt><dd>{username.trim()}</dd></>}
                     {organization.trim() && <><dt>Organization</dt><dd>{organization.trim()}</dd></>}
