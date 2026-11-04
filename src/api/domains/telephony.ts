@@ -626,8 +626,9 @@ export type HardDeleteResult =
   | { ok: false; code: HardDeleteRefusalCode; reason?: string; archiveInstead: boolean };
 
 /**
- * Hard Delete - permanently removes a contact, all its messages, and its media from S3.
- * Irreversible, and the server may now refuse it.
+ * Legacy hard-delete wrapper. The server refuses hard deletion because a full,
+ * version-aware cross-service erasure coordinator has not been deployed.
+ * This function must never be used to claim that a customer's data was wiped.
  *
  * THE FALLBACK THAT USED TO BE HERE IS DELETED, DELIBERATELY. On a falsy `success` this
  * function called `deleteContactMessages` and then `deleteContact` - so a SERVER REFUSAL
