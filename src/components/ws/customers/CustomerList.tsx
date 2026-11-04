@@ -301,6 +301,7 @@ const CustomerList: React.FC = () => {
     setSelected(previous => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
+      else if (next.size >= MAX_BULK) toast.warning('Review up to ' + MAX_BULK + ' contacts at once.');
       else next.add(id);
       return next;
     });
@@ -310,13 +311,13 @@ const CustomerList: React.FC = () => {
 
   const selectableVisible = visible.filter(isBulkEligible);
   const protectedVisible = visible.length - selectableVisible.length;
-  const allVisibleSelected = selectableVisible.length > 0
-    && selectableVisible.every(contact => selected.has(identityId(contact)));
+  const batchVisible = selectableVisible.slice(0, MAX_BULK);
+  const allVisibleSelected = batchVisible.length > 0
+    && batchVisible.every(contact => selected.has(identityId(contact)));
   const selectAllVisible = () => {
     setSelected(previous => {
       const next = new Set(previous);
-      const batch = selectableVisible.slice(0, MAX_BULK);
-      batch.forEach(contact => allVisibleSelected ? next.delete(identityId(contact)) : next.add(identityId(contact)));
+      batchVisible.forEach(contact => allVisibleSelected ? next.delete(identityId(contact)) : next.add(identityId(contact)));
       return next;
     });
   };
@@ -469,7 +470,10 @@ const CustomerList: React.FC = () => {
         <div className={styles.stats} aria-label="Customer directory summary">
           <div className={styles.statCard}><span>All contacts</span><strong>{loading ? '—' : total}</strong><small>Active customer records</small></div>
           <div className={styles.statCard}><span>With address</span><strong>{loading ? '—' : withAddress}</strong><small>Delivery details saved</small></div>
-          <div className={styles.statCard}><span>Needs details</span><strong>{loading ? '—' : incomplete}</strong><small>Missing name or address</small></div>
+          <button type="button" className={styles.statAction} onClick={reviewUnnamed}
+            disabled={loading || bulkBusy} aria-label={'Review ' + unnamed + ' unnamed customer records'}>
+            <span>Unnamed customers</span><strong>{loading ? '—' : unnamed}</strong><small>Review and clean up</small>
+          </button>
         </div>
       )}
 
@@ -477,7 +481,7 @@ const CustomerList: React.FC = () => {
         <div className={styles.toolbar}>
           <label className={styles.searchBox}>
             <SearchGlyph />
-            <input ref={searchRef} type="search" value={search} onChange={e => setSearch(e.target.value)}
+            <input ref={searchRef} type="search" value={search} disabled={bulkBusy} onChange={e => setSearch(e.target.value)}
               placeholder="Search customers, numbers, addresses…" aria-label="Search customers" autoComplete="off" />
             {search && <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear customer search">
               <CloseGlyph />
@@ -486,8 +490,9 @@ const CustomerList: React.FC = () => {
           </label>
           <div className={styles.utilityButtons}>
             <button type="button" className={styles.secondaryButton} onClick={exportVisible}
-              disabled={loading || loadError !== '' || visible.length === 0}>Export CSV</button>
-            <button type="button" className={styles.secondaryButton} onClick={() => setManageOpen(true)}>Manage data</button>
+              disabled={loading || bulkBusy || loadError !== '' || visible.length === 0}>Export CSV</button>
+            <button type="button" className={styles.secondaryButton} disabled={bulkBusy}
+              onClick={() => setManageOpen(true)}>Manage data</button>
             <button type="button" className={styles.secondaryButton}
               disabled={loading || total === 0 || bulkBusy}
               onClick={() => selecting ? endSelection() : setSelecting(true)}>
@@ -499,26 +504,52 @@ const CustomerList: React.FC = () => {
         <div className={styles.filterBar}>
           <div className={styles.tabs} role="group" aria-label="Filter customers">
             <button type="button" className={filter === 'all' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All <span>{total}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All <span>{total}</span></button>
+            <button type="button" className={filter === 'unnamed' ? styles.activeTab : styles.tab}
+              disabled={bulkBusy} aria-pressed={filter === 'unnamed'} onClick={() => setFilter('unnamed')}>Unnamed <span>{unnamed}</span></button>
+            <button type="button" className={filter === 'unverified' ? styles.activeTab : styles.tab}
+              disabled={bulkBusy} aria-pressed={filter === 'unverified'} onClick={() => setFilter('unverified')}>Unverified <span>{unverified}</span></button>
             <button type="button" className={filter === 'address' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'address'} onClick={() => setFilter('address')}>With address <span>{withAddress}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'address'} onClick={() => setFilter('address')}>With address <span>{withAddress}</span></button>
             <button type="button" className={filter === 'incomplete' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'incomplete'} onClick={() => setFilter('incomplete')}>Needs details <span>{incomplete}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'incomplete'} onClick={() => setFilter('incomplete')}>Needs details <span>{incomplete}</span></button>
           </div>
           <label className={styles.sortControl}>
             <span>Sort</span>
-            <select value={sort} onChange={event => setSort(event.target.value as SortOrder)} aria-label="Sort customers">
+            <select value={sort} disabled={bulkBusy} onChange={event => setSort(event.target.value as SortOrder)} aria-label="Sort customers">
               <option value="recent">Recently updated</option>
               <option value="name">Name A–Z</option>
             </select>
           </label>
         </div>
 
+        {(filter === 'unnamed' || filter === 'unverified') && !loading && !loadError && (
+          <div className={styles.cleanupInfo}>
+            <div>
+              <strong>{filter === 'unnamed' ? 'Review customers without a name' : 'Review phone verification'}</strong>
+              <p>
+                {filter === 'unnamed'
+                  ? 'A missing name does not mean a customer is inactive. Check activity before removing a record.'
+                  : 'An unverified phone does not mean an unused customer. Check messages and identity history first.'}
+                {' '}Archive preserves customer identity, orders, payments and audit history.
+              </p>
+              {protectedVisible > 0 && (
+                <small>{protectedVisible} protected or unidentified record(s) cannot be bulk-selected.</small>
+              )}
+            </div>
+            <button type="button" className={styles.secondaryButton}
+              disabled={bulkBusy || selectableVisible.length === 0} onClick={selectEligible}>
+              Select {Math.min(selectableVisible.length, MAX_BULK)} eligible
+            </button>
+          </div>
+        )}
+
         {selecting && visible.length > 0 && (
           <div className={styles.selectionBar}>
-            <label><input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} />
-              Select all {visible.length} shown</label>
-            <span>{selected.size} selected</span>
+            <label><input type="checkbox" checked={allVisibleSelected} disabled={bulkBusy || batchVisible.length === 0}
+              onChange={selectAllVisible} />
+              Select all {batchVisible.length} eligible shown{selectableVisible.length > MAX_BULK ? ' (first 100)' : ''}</label>
+            <span>{selected.size} selected · {protectedVisible} protected</span>
           </div>
         )}
 
@@ -551,9 +582,10 @@ const CustomerList: React.FC = () => {
                 {selecting && (
                   <label className={styles.rowCheckbox}>
                     <input type="checkbox" checked={selected.has(identityId(contact))}
-                      disabled={!identityId(contact)}
+                      disabled={bulkBusy || !isBulkEligible(contact)}
                       onChange={() => toggleSelected(identityId(contact))}
-                      aria-label={'Select ' + displayName(contact)} />
+                      aria-label={'Select ' + displayName(contact)}
+                      title={isBulkEligible(contact) ? 'Select for reviewed cleanup' : 'Protected: review individually'} />
                   </label>
                 )}
                 <button type="button" className={styles.rowMain} onClick={() => openDetails(contact)}
@@ -563,6 +595,7 @@ const CustomerList: React.FC = () => {
                     <span className={styles.personIdentity}>
                       <strong>{displayName(contact)}</strong>
                       <small>{customerId(contact)}</small>
+                      {contact.locked && <small className={styles.protectedMarker}>Retention lock · Keep</small>}
                     </span>
                   </span>
                   <span className={styles.contactCell}>
@@ -594,12 +627,23 @@ const CustomerList: React.FC = () => {
         )}
       </div>
 
+      {bulkOutcome && (
+        <p className={styles.bulkOutcome} role="status">{bulkOutcome} Review remaining contacts before retrying any unconfirmed action.</p>
+      )}
       {selecting && selected.size > 0 && (
-        <div className={styles.bulkTray} role="region" aria-label="Selected customer actions">
-          <strong>{selected.size} selected</strong>
-          <button type="button" className={styles.dangerButton} onClick={() => void bulkDelete()} disabled={bulkBusy}>
-            {bulkBusy ? 'Deleting…' : 'Delete selected'}
-          </button>
+        <div className={styles.bulkTray} role="region" aria-label="Selected customer cleanup actions">
+          <div className={styles.bulkSummary}>
+            <strong>{selected.size} selected</strong>
+            <small>{bulkProgress
+              ? (bulkProgress.action === 'archive' ? 'Archiving ' : 'Deleting ') + bulkProgress.done + ' / ' + bulkProgress.total
+              : 'Archive keeps history. Delete requires additional checks.'}</small>
+          </div>
+          <div className={styles.bulkActions}>
+            <button type="button" className={styles.primaryButton} onClick={() => void runBulk('archive')}
+              disabled={bulkBusy}>{bulkBusy ? 'Working…' : 'Archive selected'}</button>
+            <button type="button" className={styles.dangerButton} onClick={() => void runBulk('delete')}
+              disabled={bulkBusy}>{bulkBusy ? 'Working…' : 'Soft-delete selected'}</button>
+          </div>
         </div>
       )}
 
