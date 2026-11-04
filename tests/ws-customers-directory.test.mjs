@@ -206,7 +206,7 @@ test('inbound resolves BSUID before deterministic phone and survives registry ou
   const end = inbound.indexOf('def _update_contact_bsuid_fields(', start);
   assert.ok(start >= 0 && end > start);
   const method = inbound.slice(start, end);
-  const bsuidLookup = method.indexOf('contact_store.find_by_bsuid(contacts_table, bsuid)');
+  const bsuidLookup = method.indexOf('_find_scoped_bsuid(');
   const phoneLookup = method.indexOf("r = contacts_table.get_item(Key={'id': det_id}");
   assert.ok(bsuidLookup >= 0 && phoneLookup > bsuidLookup,
     'phone disclosure must not reassign a BSUID-only customer to another phone owner');
@@ -274,6 +274,9 @@ test('website registration and transactions still require a phone verified by OT
   const auth = readSource('amplify/functions/auth/customer-whatsapp-auth/handler.py');
   assert.ok(registration.includes('phone_number_verified'), 'Cognito identity requires verified phone');
   assert.ok(registration.includes('otp_challenge'), 'customer registration retains phone OTP');
+  const checkout = readSource('amplify/functions/ecommerce/checkout/handler.py');
+  assert.ok(checkout.includes('identity, denied = customer_auth.require_customer(event)'),
+    'website checkout must use authenticated Cognito customer identity');
   assert.ok(auth.includes("if key != PRIMARY_WABA_ID or phone_number_id != PRIMARY_PHONE_NUMBER_ID"),
     'website OTP route must not silently change to the second business');
   assert.ok(editor.includes('if ((!editing || Boolean(fullPhone))'),
