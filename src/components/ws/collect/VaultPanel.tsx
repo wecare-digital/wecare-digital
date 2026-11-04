@@ -1,4 +1,4 @@
-import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
+import {canRequestVaultPayment} from '../../../lib/vault-payment';
 /**
  * VaultPanel — fresh, mobile-first Vault sub-view for /ws/collect.
  *
@@ -36,7 +36,8 @@ const when = ( value?: string | number | null ) => {
   return Number.isNaN( d.getTime() ) ? 'Not recorded' : d.toLocaleString( 'en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' } );
 };
 const UPLOAD_KEY = 'wecare.vault.upload.v1';
-const sendKey = ( id: string ) => 'wecare.vault.payment.v1.' + id;
+// No send limit (owner decision): the flag only covers a request still awaiting its answer.
+const sendKey = ( id: string ) => 'wecare.vault.payment.v2.' + id;
 
 function Breakdown( { quote }: { quote: ServicePriceBreakdown } ) {
   const rows: [ string, number ][] = [
@@ -215,7 +216,7 @@ function VaultCreate( { revision, onPreview, onChanged }: Props ) {
       if ( !await confirm( { title: 'Send Review & Pay once?', message: `${ owner.name } · ${ owner.phone }. File: ${ file.originalFilename }. Total ${ money( fresh.totalPayablePaise ) }, including ₹25 Express. The backend rechecks owner, storage, price and approved template.`, confirmText: 'Send approved payment template' } ) ) return;
       sessionStorage.setItem( sendKey( file.fileId ), 'requested' ); setPayBlocked( true );
       const r = await api.requestSecureFilePayment( file.fileId, undefined, fresh.totalPayablePaise );
-      if ( isVaultPaymentRefused( r.outcome ) ) { sessionStorage.removeItem( sendKey( file.fileId ) ); setPayBlocked( false ); if ( r.outcome === 'VAULT_QUOTE_CHANGED' ) setQuote( null ); }
+      sessionStorage.removeItem( sendKey( file.fileId ) ); setPayBlocked( false ); if ( r.outcome === 'VAULT_QUOTE_CHANGED' ) setQuote( null );
       setNotice( `${ r.ok ? 'Server response' : 'Not confirmed' }: ${ r.outcome } · ${ r.message } Check Log before another action.` );
       setRefresh( n => n + 1 ); onChanged();
     } catch ( e ) { setNotice( e instanceof Error ? e.message : 'Payment outcome is uncertain. Inspect Log before another action.' ); }
