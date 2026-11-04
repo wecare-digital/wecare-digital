@@ -13,6 +13,7 @@ import { DEFAULT_GSTIN } from '../../../config/constants';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import { SERVICE_CHOICES, type ServiceChoice } from '../../../config/services';
 import { fetchServicePrices, rupeesFromPaise, type ServicePrice } from '../../../lib/servicePricing';
+import { SETUP_INCOMPLETE_MESSAGE, completeCustomerSetup, ensureCustomerSetup, partialCreateContactId, type CustomerSetupOutcome } from '../../../lib/customer-setup';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
   contactDeliveryAddress, formatAddress, type AddressFormFields,
@@ -306,6 +307,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
   const [ editCust, setEditCust ] = useState<Partial<Contact> | null>( null );
   const [ custForm, setCustForm ] = useState( EMPTY_FORM );
   const [ custSaving, setCustSaving ] = useState( false );
+  // Contact saved, customer-account setup outstanding: Save completes setup for this record.
+  const [ custSetupId, setCustSetupId ] = useState( '' );
   const [ custError, setCustError ] = useState( '' );
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( customer || null );
   useEffect(()=>{if(unified)setSelCustomer(customer||null);},[customer,unified]);
@@ -474,9 +477,41 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
       }, 0 );
     }
   };
-  const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); setCustError( '' ); };
+  const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); setCustError( '' ); setCustSetupId( '' ); };
+  /** Apply a setup outcome: select the ready customer, or keep the editor open on this record. */
+  const applyCustSetup = ( outcome: CustomerSetupOutcome, verb: 'created' | 'updated' ): boolean => {
+    if ( !outcome.ok ) {
+      setCustSetupId( outcome.pendingContactId );
+      setCustError( outcome.message );
+      showMsg( outcome.message, 'error' );
+      return false;
+    }
+    setCustSetupId( '' );
+    const saved = outcome.contact;
+    if ( verb === 'created' ) {
+      setSelCustomer( saved );
+      setCustomers( current => [ saved, ...current.filter( c => c.id !== saved.id ) ] );
+      showMsg( 'Customer created and selected' );
+    } else {
+      if ( selCustomer?.id === saved.id ) setSelCustomer( saved );
+      showMsg( 'Customer updated' );
+    }
+    return true;
+  };
   const saveCust = async () => {
     if ( !editCust || custSaving ) return;
+    if ( custSetupId ) {
+      // The contact is already saved; only its customer-account setup is outstanding.
+      setCustError( '' );
+      setCustSaving( true );
+      try {
+        const done = applyCustSetup(
+          await completeCustomerSetup( custSetupId, api.provisionContactIdentityResult ),
+          editCust.id ? 'updated' : 'created' );
+        if ( done ) { closeEditCust(); void loadCustomers(); }
+      } finally { setCustSaving( false ); }
+      return;
+    }
     if ( !custForm.name.trim() ) { setCustError( 'Enter the full name.' ); return; }
     if ( !custForm.phone.trim() ) { setCustError( 'Enter the WhatsApp number, including its country code.' ); return; }
     setCustError( '' );
@@ -538,20 +573,22 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
           showMsg( message, 'error' );
           return;
         }
-        if ( selCustomer?.id === editCust.id ) setSelCustomer( result.data );
-        showMsg( 'Customer updated' );
+        if ( !applyCustSetup( await ensureCustomerSetup( result.data, api.provisionContactIdentityResult ), 'updated' ) ) return;
       } else {
         const result = await api.createContactResult( saveData as any );
         if ( !result.ok ) {
+          const partial = partialCreateContactId( result.failure );
+          if ( partial ) {
+            applyCustSetup( { ok: false, pendingContactId: partial, message: SETUP_INCOMPLETE_MESSAGE }, 'created' );
+            return;
+          }
           const message = result.failure.message || 'Customer creation was refused.';
           setCustError( message );
           showMsg( message, 'error' );
           return;
         }
         if (!result.data?.id) { setCustError('No saved customer was returned. Search before retrying.'); return; }
-        setSelCustomer(result.data);
-        setCustomers(current => [result.data!, ...current.filter(c => c.id !== result.data!.id)]);
-        showMsg( 'Customer created and selected' );
+        if ( !applyCustSetup( await ensureCustomerSetup( result.data, api.provisionContactIdentityResult ), 'created' ) ) return;
       }
       closeEditCust();
       void loadCustomers();
@@ -1074,7 +1111,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect',
                     { custError && <div className="pf-modal-error" role="alert">{ custError }</div> }
                     <div className="pf-modal-actions">
                       <Button variant="secondary" size="sm" onClick={ closeEditCust }>Cancel</Button>
-                      <Button variant="primary" size="sm" loading={ custSaving } onClick={ saveCust }>Save</Button>
+                      <Button variant="primary" size="sm" loading={ custSaving } onClick={ saveCust }>{ custSetupId ? 'Complete customer setup' : 'Save' }</Button>
                     </div>
                   </div>
                 </div>

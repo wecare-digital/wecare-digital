@@ -14,6 +14,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
 import { contactPhoneE164, contactPhoneMatchKey } from '../../../lib/contactPhone';
+import { SETUP_INCOMPLETE_MESSAGE, completeCustomerSetup, ensureCustomerSetup, partialCreateContactId, type CustomerSetupOutcome } from '../../../lib/customer-setup';
 import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressComplete, addressPayload, formatAddress,
@@ -274,6 +275,9 @@ const Customers: React.FC<PageProps> = () => {
   const [editingContact, setEditingContact] = useState<api.Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Contact saved but its customer-account setup is outstanding: the primary action completes
+  // setup for THIS record instead of posting another create (which would hit the duplicate guard).
+  const [setupContactId, setSetupContactId] = useState('');
   const [formError, setFormError] = useState('');
   const [duplicateContact, setDuplicateContact] = useState<api.Contact | null>(null);
   const [identityReconciliationRequired, setIdentityReconciliationRequired] = useState(false);
@@ -477,6 +481,7 @@ const Customers: React.FC<PageProps> = () => {
 
 
   const resetForm = () => {
+    setSetupContactId('');
     setFormName(''); setFormPhone(''); setFormProfileUsername('');
     setFormShippingAddress(''); setFormCountryCode('+91');
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
@@ -669,10 +674,33 @@ const Customers: React.FC<PageProps> = () => {
   const isValidEmail = (email: string): boolean =>
     /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 
+  /** Close the modal on a ready customer, or keep it open on the retained record. */
+  const applySetupOutcome = async (outcome: CustomerSetupOutcome, done: string, close: () => void) => {
+    if (!outcome.ok) {
+      setSetupContactId(outcome.pendingContactId);
+      setFormError(outcome.message);
+      toast.warning(outcome.message);
+      return;
+    }
+    toast.success(done);
+    close();
+    resetForm();
+    await loadContacts();
+  };
+
   const handleCreate = async () => {
     setFormError('');
     setDuplicateContact(null);
     setIdentityReconciliationRequired(false);
+    if (setupContactId) {
+      setSaving(true);
+      try {
+        await applySetupOutcome(
+          await completeCustomerSetup(setupContactId, api.provisionContactIdentityResult),
+          'Customer setup completed', () => setShowModal(false));
+      } finally { setSaving(false); }
+      return;
+    }
     const fail = ( message: string, fieldId?: string ) => {
       setFormError(message);
       toast.warning(message);
@@ -714,12 +742,16 @@ const Customers: React.FC<PageProps> = () => {
         ...addressFieldsForPayload(),
       } as any);
       if (result.ok && result.data) {
-        toast.success('Customer created');
-        setShowModal(false);
-        resetForm();
-        await loadContacts();
+        await applySetupOutcome(
+          await ensureCustomerSetup(result.data, api.provisionContactIdentityResult),
+          'Customer created', () => setShowModal(false));
       } else if (!result.ok) {
-        if (result.failure.status === 409) {
+        const partial = partialCreateContactId(result.failure);
+        if (partial) {
+          await applySetupOutcome(
+            { ok: false, pendingContactId: partial, message: SETUP_INCOMPLETE_MESSAGE },
+            '', () => undefined);
+        } else if (result.failure.status === 409) {
           // A 409 has two materially different meanings. Do not call an orphaned strong-identity
           // claim an "existing customer": there may be no customer row to open.
           const reconciliationRequired =
@@ -872,11 +904,10 @@ const Customers: React.FC<PageProps> = () => {
         ...addressFieldsForPayload(),
       } as any);
       if (result.ok && result.data) {
-        toast.success('Customer updated');
-        setShowEditModal(false);
-        setEditingContact(null);
-        resetForm();
-        await loadContacts();
+        // Editing a legacy unlinked record also completes its customer-account setup.
+        await applySetupOutcome(
+          await ensureCustomerSetup(result.data, api.provisionContactIdentityResult),
+          'Customer updated', () => { setShowEditModal(false); setEditingContact(null); });
       } else if (!result.ok) {
         // The backend remains the identity authority if the local list is stale.
         if (result.failure.status === 409) {
@@ -1784,7 +1815,7 @@ const Customers: React.FC<PageProps> = () => {
             {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => setShowModal(false)} className="contacts-secondary-action">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Create customer'}</button>
+              <button onClick={handleCreate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : setupContactId ? 'Complete customer setup' : 'Create customer'}</button>
             </div>
           </div>
         </div>
@@ -1804,7 +1835,7 @@ const Customers: React.FC<PageProps> = () => {
             {identityReconciliationCard}
             <div className="contacts-modal-actions">
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} className="contacts-secondary-action">Cancel</button>
-              <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : 'Update customer'}</button>
+              <button onClick={handleUpdate} disabled={saving} className="contacts-primary-action">{saving ? 'Saving...' : setupContactId ? 'Save & complete customer setup' : 'Update customer'}</button>
             </div>
           </div>
         </div>
