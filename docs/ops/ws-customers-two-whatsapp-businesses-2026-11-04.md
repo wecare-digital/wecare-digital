@@ -85,12 +85,15 @@ pending verified tenant-to-portfolio mapping, not assigned a default
 portfolio. Before deploying, confirm partner traffic impact and provide a
 separate correctly scoped mapping/reconciliation strategy.
 
-The legacy per-message permanent `webhook_dedup.claim_event` marker is
-created **before** all downstream message-processing side effects finish.
-If a message fails after that marker is recorded, a manual replay may skip
-the message as a duplicate. **Production promotion requires correcting this
-lease/completion boundary or proving the exact replay workflow for every
-identity-conflict failure**, not just observing that the DLQ accepted a copy.
+The inbound worker now uses `claim_event_with_lease` and calls
+`complete_event` only when a full message processing call returns successfully.
+If customer identity resolution fails, the claim remains temporarily leased,
+then becomes eligible for retry. It must not be marked completed on the
+exception path. Live-layer compatibility, actual DLQ replay after the lease
+expires and the existing legacy permanent claims still require staging review.
+Events already claimed permanently by earlier deployments are not automatically
+migrated or reprocessed.
+
 
 ## Production gate
 
