@@ -99,6 +99,22 @@ def deterministic_id(phone: Any) -> str:
     return f'wa{value}' if value else ''
 
 
+def deterministic_bsuid_id(bsuid: Any) -> str:
+    """The id for a phone-ABSENT contact that carries a BSUID: `wab` + sanitized BSUID.
+
+    A WhatsApp username adopter can reach us with no phone number at all, only a
+    business-scoped user id (BSUID). Without a deterministic id for that case, two
+    webhooks arriving before the `bsuid-index` GSI is consistent each fall through to a
+    random UUID and mint duplicate rows for the same person. This mirrors
+    `deterministic_id` (phone -> `wa{digits}`): the BSUID (Meta-formatted, e.g.
+    `US.13491208655302741918`) is reduced to `[A-Za-z0-9]` so it is a safe, stable
+    partition-key suffix, and prefixed `wab` so it can never collide with a `wa{digits}`
+    phone id. Returns `''` for an empty or punctuation-only BSUID.
+    """
+    slug = ''.join(ch for ch in str(bsuid or '') if ch.isalnum())
+    return f'wab{slug}' if slug else ''
+
+
 def is_live(row: Optional[Mapping[str, Any]]) -> bool:
     """True for an active canonical row or an in-progress merge source."""
     if not row:

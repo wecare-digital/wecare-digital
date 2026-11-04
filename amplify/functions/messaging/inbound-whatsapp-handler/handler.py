@@ -696,19 +696,41 @@ def _auto_thumb_enabled() -> bool:
     return val
 
 
-def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_id: str = None) -> Dict:
-    """Send supported WhatsApp message types via Meta Graph API."""
+def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_id: str = None,
+                             recipient_bsuid: str = '') -> Dict:
+    """Send supported WhatsApp message types via Meta Graph API.
+
+    Targets a phone number (`to`) and/or a BSUID (`recipient`). A username adopter's
+    inbound webhook can omit their phone number entirely, leaving `to_number` empty; in
+    that case we must address the reply by BSUID or it cannot be delivered. When both are
+    present Meta applies `to`-wins precedence, so passing both is safe. `recipient_bsuid`
+    is keyword-optional, so every existing phone-only caller is unchanged.
+    """
     if message_payload.get('type') not in {
             'text', 'template', 'image', 'video', 'audio', 'document',
             'sticker', 'contacts', 'location', 'reaction'}:
         return {'error': True, 'detail': 'UNSUPPORTED_MESSAGE_TYPE'}
+    to_number = str(to_number or '')
+    recipient_bsuid = str(recipient_bsuid or '')
+    # Central BSUID fallback: when a caller has no phone and did not pass a BSUID,
+    # use the BSUID of the message currently being processed (`_send_context`, reset
+    # per message in `_process_message`). This makes every auto-reply call site
+    # BSUID-capable for a phone-absent (username-adopter) sender without each of the
+    # dozens of call sites having to thread the identifier through.
+    if not to_number and not recipient_bsuid:
+        recipient_bsuid = str(_send_context.get('bsuid') or '')
+    if not to_number and not recipient_bsuid:
+        return {'error': True, 'detail': 'NO_RECIPIENT'}
     token = _load_direct_api_token()
     if not token:
         return {'error': True, 'detail': 'No Direct API token available'}
 
-    if not to_number.startswith('+'):
+    if to_number and not to_number.startswith('+'):
         to_number = f'+{to_number}'
-    message_payload['to'] = to_number
+    if to_number:
+        message_payload['to'] = to_number
+    if recipient_bsuid:
+        message_payload['recipient'] = recipient_bsuid
     message_payload['messaging_product'] = 'whatsapp'
 
     phone_id = meta_phone_id or _current_direct_api_phone or PHONE1_META_ID
@@ -738,10 +760,12 @@ def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_i
             if (msg_id and message_payload.get('type') != 'reaction'
                     and _auto_thumb_enabled()):
                 try:
+                    # Address the reaction the same way the message was addressed, so a
+                    # BSUID-only (phone-absent) reply still gets its auto-👍.
                     _send_direct_api_message(to_number, {
                         'type': 'reaction',
                         'reaction': {'message_id': msg_id, 'emoji': AUTO_THUMB_EMOJI},
-                    }, meta_phone_id=phone_id)
+                    }, meta_phone_id=phone_id, recipient_bsuid=recipient_bsuid)
                 except Exception:
                     pass  # reaction is best-effort; never affect the primary send
             return {'success': True, 'messageId': msg_id}
@@ -1687,18 +1711,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                 
-                # Process BSUID changes (user_id_update)  -  separate webhook field
+                # `user_id_update` is NOT a real Meta webhook field (confirmed by the
+                # Aug 11 2026 BSUID changelog: "There is no user_id_update webhook field").
+                # BSUID changes arrive as a `system` MESSAGE and are handled in
+                # `_process_message` (system.type user_changed_number / user_changed_user_id).
+                # This arm is kept only as a forward-compatible audit sink: if Meta ever does
+                # emit such a field, we record it rather than drop it silently. No contact is
+                # mutated here — that is the system-message path's job.
                 if field == 'user_id_update':
-                    _store_system_event('user_id_update', value, request_id)  # audit trail
-                    for uid_update in value.get('user_id_update', []):
-                        try:
-                            _process_user_id_update(uid_update, contacts_map, request_id)
-                        except Exception as e:
-                            logger.error(json.dumps({
-                                'event': 'user_id_update_error',
-                                'error': str(e),
-                                'requestId': request_id
-                            }))
+                    _store_system_event('user_id_update', value, request_id)  # audit trail only
                 
                 # Process business_username_updates webhook (Meta field is plural;
                 # accept singular too for forward/backward compatibility)
@@ -2852,50 +2873,84 @@ def _process_message(
         return
 
     # Handle system status messages with user_changed_user_id
-    # Per Meta BSUID docs: system messages can have type=user_changed_user_id
-    # when a user changes their phone number, triggering a new BSUID
+    # Per Meta BSUID docs (system messages webhooks): an identity change arrives as a
+    # system MESSAGE, in one of two shapes — there is NO `user_id_update` webhook field:
+    #
+    #   system.type == 'user_changed_number'   the user changed their phone number, which
+    #                                           ALSO regenerates their BSUID. This is the
+    #                                           common case and was previously unhandled.
+    #   system.type == 'user_changed_user_id'  only the BSUID changed and no phone number
+    #                                           can be shared.
+    #
+    # Both carry the NEW identity in `system.user_id` / `system.parent_user_id` / `system.wa_id`,
+    # and the PREVIOUS BSUID in `system.previous_user_id` — the join back to the row we already
+    # hold, since a number change mints a new BSUID. We locate the contact by `contact_id`
+    # (resolved from the sender) first, then fall back to the previous BSUID on `bsuid-index`.
     if msg_type == 'system':
         system_data = message.get('system', {})
         system_type = system_data.get('type', '')
-        if system_type == 'user_changed_user_id':
+        if system_type in ('user_changed_number', 'user_changed_user_id'):
             new_bsuid = system_data.get('user_id', '')
             new_parent_bsuid = system_data.get('parent_user_id', '')
             new_wa_id = system_data.get('wa_id', '')
+            previous_bsuid = system_data.get('previous_user_id', '')
             logger.info(json.dumps({
-                'event': 'system_user_changed_user_id',
+                'event': 'system_identity_change',
+                'systemType': system_type,
                 'senderPhone': mask_phone(sender_phone),
                 'newBsuid': new_bsuid,
                 'newParentBsuid': new_parent_bsuid,
+                'hasPreviousBsuid': bool(previous_bsuid),
                 # The new number masked, and the system text (which quotes both numbers) only
                 # by presence. The full values are stored on the system event below.
                 'newWaId': mask_phone(new_wa_id),
                 'hasSystemBody': bool(system_data.get('body')),
                 'requestId': request_id
             }))
-            # Update contact with new BSUID and phone if available
-            if new_bsuid and contact_id:
+            # Resolve the row to update. Prefer the contact already resolved for this
+            # message; if that is missing (a number change regenerates the BSUID, so the
+            # per-message resolve by new phone/BSUID may have found nothing), fall back to
+            # the PREVIOUS BSUID, which is the identity we had on file before the change.
+            target_id = contact_id
+            if not target_id and previous_bsuid:
+                try:
+                    prior = contact_store.find_by_bsuid(
+                        dynamodb.Table(CONTACTS_TABLE), previous_bsuid)
+                    target_id = contact_key.resolve(prior) if prior else ''
+                except Exception as find_err:
+                    logger.warning(f'previous-BSUID contact lookup failed: {type(find_err).__name__}')
+                    target_id = ''
+            # Update contact with new BSUID, parent BSUID and phone if available.
+            if new_bsuid and target_id:
                 try:
                     ct = dynamodb.Table(CONTACTS_TABLE)
-                    update_expr = 'SET bsuid = :b'
-                    expr_vals = {':b': new_bsuid}
+                    names = {'#updatedAt': 'updatedAt'}
+                    set_parts = ['bsuid = :b', '#updatedAt = :now']
+                    expr_vals = {':b': new_bsuid, ':now': Decimal(str(int(time.time())))}
+                    if new_parent_bsuid:
+                        set_parts.append('parentBsuid = :pb')
+                        expr_vals[':pb'] = new_parent_bsuid
                     # The canonical `+digits` spelling, the one every other writer stores:
                     # Meta's bare `wa_id` here would make the website checkout's exact-match
                     # phone lookup miss this contact and mint a second row for the person.
                     new_phone = contact_store.canonical_phone(new_wa_id)
                     if new_phone:
-                        update_expr += ', phone = :p'
+                        set_parts.append('phone = :p')
                         expr_vals[':p'] = new_phone
                     ct.update_item(
-                        Key={'id': contact_id},
-                        UpdateExpression=update_expr,
-                        ExpressionAttributeValues=expr_vals
+                        Key={'id': target_id},
+                        UpdateExpression='SET ' + ', '.join(set_parts),
+                        ExpressionAttributeNames=names,
+                        ExpressionAttributeValues=expr_vals,
                     )
                 except Exception as sys_err:
-                    logger.warning(f'System user_changed_user_id update failed: {sys_err}')
-            _store_system_event('user_changed_user_id', {
+                    logger.warning(f'System {system_type} contact update failed: {type(sys_err).__name__}')
+            _store_system_event(system_type, {
                 'senderPhone': sender_phone,
-                'contactId': contact_id,
+                'contactId': target_id,
                 'newBsuid': new_bsuid,
+                'newParentBsuid': new_parent_bsuid,
+                'previousBsuid': previous_bsuid,
                 'newWaId': new_wa_id,
                 'body': system_data.get('body', ''),
             }, request_id)
@@ -3957,7 +4012,17 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         return contact
     
     # Create new contact with a DETERMINISTIC phone-derived id (idempotent).
-    contact_id = det_id or str(uuid.uuid4())
+    # Prefer a deterministic id so concurrent webhooks never mint two rows for one person:
+    #   1. phone-derived `wa{digits}` when we have a phone (the established convention);
+    #   2. BSUID-derived `wab{sanitized}` when the sender is phone-absent (a username
+    #      adopter) but carries a BSUID — otherwise two webhooks arriving before the
+    #      bsuid-index GSI is consistent would each fall through to a random UUID and
+    #      create duplicate rows for the same BSUID;
+    #   3. a random UUID only when we have neither identifier.
+    # The BSUID-derived id (`wab{sanitized}`) is minted by `contact_store`, next to the
+    # phone-derived `wa{digits}` rule, so both id conventions live in one place.
+    bsuid_det_id = contact_store.deterministic_bsuid_id(bsuid)
+    contact_id = det_id or bsuid_det_id or str(uuid.uuid4())
     now = int(time.time())
 
     # Ensure phone has + prefix for international format (easier for SMS)
@@ -4102,13 +4167,14 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
 
 
 def _process_user_id_update(uid_update: Dict, contacts_map: Dict, request_id: str) -> None:
-    """
-    Handle user_id_update webhook  -  a user's BSUID has changed.
-    Per Meta docs (field: user_id_update), the payload contains:
-      user_id: { previous: "<OLD_BSUID>", current: "<NEW_BSUID>" }
-      parent_user_id: { previous: "<OLD>", current: "<NEW>" }  (optional)
-      wa_id: "<PHONE>" (optional)
-    Updates the contact's BSUID and parentBsuid in DynamoDB.
+    """DEPRECATED / UNREFERENCED. Do not wire this back up.
+
+    This was written for a `user_id_update` webhook field with a nested
+    `user_id: {previous, current}` shape. Meta's Aug 11 2026 BSUID changelog is
+    explicit that no such field exists: BSUID changes are delivered as a `system`
+    MESSAGE with a FLAT shape (`system.user_id`, `system.previous_user_id`), handled
+    in `_process_message`. Kept only so the removed call site's history is legible;
+    the nested shape below is wrong and must not be re-used.
     """
     user_id_obj = uid_update.get('user_id', {})
     old_user_id = user_id_obj.get('previous', '')
