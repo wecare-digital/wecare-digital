@@ -403,11 +403,31 @@ const CustomerList: React.FC = () => {
       });
       if (!approved) return;
 
+      // Confirm may stay open while another operator verifies or locks a contact.
+      // Read the directory again AFTER approval, immediately before mutation.
+      const finalSnapshot = await api.listContactsResult();
+      if (!finalSnapshot.ok) {
+        toast.error('Cannot recheck identity locks after confirmation. No cleanup started.');
+        return;
+      }
+      const finalById = new Map(finalSnapshot.data.map(contact => [identityId(contact), contact]));
+      const finalTargets = targets.filter(contact => {
+        const latest = finalById.get(identityId(contact));
+        return Boolean(latest && isBulkEligible(latest)
+          && (filter !== 'unnamed' || needsName(latest))
+          && (filter !== 'unverified' || !latest.phoneVerifiedAt)
+          && (action !== 'delete' || isSoftDeleteCandidate(latest)));
+      });
+      if (finalTargets.length !== targets.length) {
+        toast.warning((targets.length - finalTargets.length) + ' record(s) changed or became protected during review and were skipped.');
+      }
+      if (finalTargets.length === 0) return;
+
       let succeeded = 0;
       let refused = 0;
       let unknown = 0;
-      setBulkProgress({ done: 0, total: targets.length, action });
-      for (const contact of targets) {
+      setBulkProgress({ done: 0, total: finalTargets.length, action });
+      for (const contact of finalTargets) {
         const id = identityId(contact);
         try {
           if (action === 'archive') {
