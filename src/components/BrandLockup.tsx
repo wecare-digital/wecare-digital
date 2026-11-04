@@ -4,6 +4,8 @@ const LOGO_URL = 'https://wecare.digital/get/o/stream/media/m/wecaredigital.png'
 
 interface BrandLockupProps {
   compact?: boolean;
+  /** Render ONLY the original transparent mark, without the stacked wordmark. */
+  iconOnly?: boolean;
   suffix?: React.ReactNode;
   className?: string;
 }
@@ -44,7 +46,7 @@ interface BrandLockupProps {
  *
  * Asserted by tools/browser/translatecheck.js and BrandLockup.test.tsx.
  */
-const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = false } ) => (
+const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = false, iconOnly = false } ) => (
   <span className={ `brand-lockup full ${compact ? 'compact' : ''} ${className}`.trim() } data-wc-no-translate="true">
     {/* width/height ARE THE INTRINSIC SIZE, NOT THE RENDERED SIZE, and that is the point.
         This img shipped with neither, so until the stylesheet applied, the browser knew nothing
@@ -81,7 +83,7 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
       width={ 1080 }
       height={ 1080 }
       decoding="async"
-      loading={ compact ? 'lazy' : 'eager' }
+      loading={ compact && !iconOnly ? 'lazy' : 'eager' }
     />
     {/* WECARE.DIGITAL, split across the same two lines the wordmark has always used.
         The owner asked for "WECARE.DIGITAL" to become WECARE.DIGITAL everywhere; this
@@ -112,10 +114,15 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
         An earlier pass split this as WECARE / .DIGITAL, which put the dot at the head of
         the second line where it reads as a leading separator rather than as the end of
         a sentence. The dot belongs to WECARE. */}
-    <span className="brand-copy">
-      <span>WECARE<span className="brand-dot">.</span></span>
-      <span className="brand-stack">DIGITAL</span>
-    </span>
+    {/* Do not crop a full wordmark into the 80px workspace icon rail.
+        In icon-only mode there are no text nodes to overflow or be announced.
+        The anchor that owns this mark provides the accessible site name. */}
+    { !iconOnly && (
+      <span className="brand-copy">
+        <span>WECARE<span className="brand-dot">.</span></span>
+        <span className="brand-stack">DIGITAL</span>
+      </span>
+    ) }
     <style jsx>{ `
       /* BASE SCALE stays conservative because this component is also used outside the public
          shell (for example the workspace sidebar). Public Header/Footer opt into their larger
