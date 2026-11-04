@@ -185,7 +185,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
         </div>
 
         {/* Text-only, borderless, editable sidebar filter. No search glyph. */}
-        <div className="ws-sidebar-search" aria-hidden={ collapsed }>
+        <div className="ws-sidebar-search" aria-hidden={ collapsed ? 'true' : 'false' }>
           <input
             id="ws-sidebar-section-search"
             className="ws-sidebar-search-input"
@@ -391,7 +391,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           padding-bottom:env(safe-area-inset-bottom,0px);
           padding-inline:env(safe-area-inset-left,0px) env(safe-area-inset-right,0px);
           background:var(--surface,#fff);
-          border-top:1px solid var(--border,#e5e7eb);
+          border-top:2px solid var(--public-brand-lime,#d1f470);
           box-sizing:border-box;
         }
         .ws-bottom-link{
@@ -467,7 +467,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
               max(18px,env(safe-area-inset-left,0px));
             padding-top:max(22px,env(safe-area-inset-top,0px));
             background:#ffffff;
-            border-inline-end:1px solid var(--border,#e5e7eb);
+            border-inline-end:2px solid var(--public-brand-lime,#d1f470);
             box-sizing:border-box;
           }
           .ws-sidebar-search{
