@@ -58,6 +58,7 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
   const [error, setError] = React.useState('');
   const [duplicate, setDuplicate] = React.useState<Contact | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [pendingIdentityContactId, setPendingIdentityContactId] = React.useState('');
   const requestInFlight = React.useRef(false);
   const firstField = React.useRef<HTMLInputElement>(null);
 
@@ -156,7 +157,21 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
     }
 
     try {
-      const result = contact
+      if (pendingIdentityContactId === 'unknown') {
+        const directory = await api.listContactsResult();
+        const matches = directory.ok ? directory.data.filter(item =>
+          contactPhoneMatchKey(item.phone) === contactPhoneMatchKey(fullPhone)) : [];
+        if (matches.length === 1) {
+          setPendingIdentityContactId(matches[0].contactId || matches[0].id);
+          setError('The saved customer was found. Complete account setup for this record.');
+        } else {
+          setError('The earlier create outcome is still unconfirmed. Check the directory before creating another customer.');
+        }
+        return;
+      }
+      const result = pendingIdentityContactId
+        ? await api.provisionContactIdentityResult(pendingIdentityContactId)
+        : contact
         ? await api.updateContactResult(contact.contactId, payload)
         : await api.createContactResult(payload);
       if (result.ok) {
@@ -164,6 +179,16 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
         // the write may have happened and retrying would risk a duplicate.
         if (result.data) {
           let saved = result.data;
+          if (saved.phone && !saved.checkoutCustomerId) {
+            const identity = await api.provisionContactIdentityResult(saved.contactId || saved.id);
+            if (!identity.ok || !identity.data?.checkoutCustomerId) {
+              setPendingIdentityContactId(saved.contactId || saved.id);
+              setStage(2);
+              setError('Customer saved, but account setup is incomplete. Complete setup for this record.');
+              return;
+            }
+            saved = identity.data;
+          }
           let warning = '';
           const desiredUsername = username.trim();
           // The live Contacts create runtime may predate the F001 profileUsername mapping.
@@ -187,6 +212,20 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
         } else {
           setError('The server accepted the request but returned no customer record. Refresh the directory before retrying.');
         }
+        return;
+      }
+      if (!editing && ['timeout', 'network', 'unavailable'].includes(result.failure.kind)
+          && result.failure.details?.contactCreated !== true) {
+        setPendingIdentityContactId(pendingIdentityContactId || 'unknown');
+        setStage(2);
+        setError('The create outcome is unconfirmed. Check the saved customer before another create; completing setup will not create a duplicate.');
+        return;
+      }
+      if (result.failure.details?.contactCreated === true
+          && typeof result.failure.details.contactId === 'string') {
+        setPendingIdentityContactId(result.failure.details.contactId);
+        setError(typeof result.failure.details.error === 'string' ? result.failure.details.error : 'Customer saved. Complete account setup for this record before using payments.');
+        setStage(2);
         return;
       }
       // Success was already handled above; retain the server's structured refusal.
@@ -366,12 +405,12 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
 
           <footer className={styles.footer}>
             {stage > 0 ? (
-              <button type="button" className={styles.secondary} onClick={() => { setStage(stage - 1); setError(''); }} disabled={saving}>Back</button>
+              <button type="button" className={styles.secondary} onClick={() => { setStage(stage - 1); setError(''); }} disabled={saving || !!pendingIdentityContactId}>Back</button>
             ) : (
               <button type="button" className={styles.secondary} onClick={onClose} disabled={saving}>Cancel</button>
             )}
             <button type="submit" className={styles.primary} disabled={saving}>
-              {saving ? 'Saving…' : stage === 2 ? (editing ? 'Save changes' : 'Create contact') : 'Continue'}
+              {saving ? 'Saving…' : pendingIdentityContactId ? 'Complete customer setup' : stage === 2 ? (editing ? 'Save changes' : 'Create contact') : 'Continue'}
               {!saving && <span aria-hidden="true">→</span>}
             </button>
           </footer>

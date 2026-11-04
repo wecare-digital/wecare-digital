@@ -221,3 +221,7 @@ exercise behavior and injected failures, not merely look for source strings.
 - `amplify/functions/shared/lambda_utils/ecommerce/wa_payment_request.py`: attempt/send claim and shared native template rules.
 - `src/lib/vault-payment.ts`, `src/lib/vault-payment-status.ts`, `src/lib/collect.ts`: UI eligibility, current status and Collect draft/recovery contracts.
 - `tests/python/test_vault_payment_boundary.py`, `test_vault_payment_outcomes.py`, `test_collect_failure_boundaries.py`: offline failure-boundary regressions.
+
+## Staff-created customer identity
+
+Workspace Create customer must finish contact creation, customer account provisioning and the `checkoutCustomerId` attachment before reporting a phone-bearing customer as created. Vault's owner-bound native checkout needs this link even when Collect can already use the contact. See [Workspace customer identity](workspace-customer-identity.md) for the staff authorization boundary, partial-failure recovery, existing-contact repair and release order. Public/customer verification rules are unchanged.

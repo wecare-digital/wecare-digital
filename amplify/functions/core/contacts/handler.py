@@ -34,7 +34,7 @@ from lambda_utils.audit import record_audit
 # prepended - measured, `+6591234567` became `+916591234567`. This surface uses
 # `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
 from lambda_utils.validation import sanitize_html, sanitize_dict
-from lambda_utils import contact_key, contact_store, identity_claims  # canonical key + strong-identity registry
+from lambda_utils import contact_key, contact_store, customer_auth, identity_claims  # canonical key + strong-identity registry
 from lambda_utils.privacy import mask_phone, mask_contact_id  # sensitive identifiers are masked in logs
 from lambda_utils.identity import customer as customer_identity
 # The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
@@ -349,6 +349,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and post_action == 'restore':
             return _restore_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
 
+        # Same Operator-gated route for repairing a retained partial create or legacy contact.
+        if method == 'POST' and post_action == 'provision_customer_identity':
+            identity_contact = str(preauth_body.get('contactId') or '').strip()
+            if not identity_contact:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            return _complete_customer_identity(identity_contact, request_id, origin,
+                str((event.get('_auth') or {}).get('username') or (event.get('_auth') or {}).get('email') or 'staff'))
+
         # POST /contacts with _action=consent_append / consent_import — append-only consent
         # evidence. Operator capability (the method-level gate above already enforces it). The
         # append layers a record on top of history; the import ingests existing evidence only.
@@ -372,7 +380,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if _check_rate_limit(source_ip):
                 return cors_response(429, {'error': 'Too many requests. Please try again later.'}, origin)
             body = json.loads(event.get('body') or '{}')
-            return _create(body, request_id, origin)
+            return _create(body, request_id, origin, actor=str((event.get('_auth') or {}).get('username') or (event.get('_auth') or {}).get('email') or 'staff'))
 
         # PUT [retired public path]/{id}
         if method == 'PUT':
@@ -766,7 +774,7 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
 
 # ─── CREATE ─────────────────────────────────────────────────────────────────
 
-def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str, Any]:
+def _create(body: Dict[str, Any], request_id: str, origin: str = '', actor: str = 'staff') -> Dict[str, Any]:
     # Sanitize user-provided string fields to prevent XSS
     body = sanitize_dict(body, ['name', 'shippingAddress', 'billingAddress'], max_length=500)
 
@@ -903,13 +911,11 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         )
     table.put_item(Item=_to_dynamo(contact), ConditionExpression='attribute_not_exists(id)')
 
-    # AFTER the row exists, and never before it: the login is an attachment to a contact that is
-    # already stored, so a dispatch that fires and then a failed write cannot leave a Cognito user
-    # with no row behind it. Off by default, and a no-op when it is off.
-    if phone:
-        _provision_customer_login(phone, request_id)
-
+    # Retain the contact on a partial account failure. Success requires the account AND link;
+    # the explicit repair action retries this id instead of creating another contact.
     log_event(logger, 'contact_created', contactId=contact_id, requestId=request_id)
+    if phone:
+        return _complete_customer_identity(contact_id, request_id, origin, actor, success_status=201)
     return cors_response(201, _from_dynamo(contact), origin)
 
 
@@ -1870,63 +1876,93 @@ def _e164_or_error(raw: str) -> tuple:
         return None, PHONE_INVALID
 
 
-def _customer_login_enabled() -> bool:
-    """`CRM_PROVISION_CUSTOMER_LOGIN`, read at REQUEST time and defaulting to OFF.
+def _provision_customer_login(phone: str, request_id: str, *,
+                              contact_id: str, actor: str) -> Dict[str, Any]:
+    """Finish the staff-authorized account attachment before reporting success.
 
-    Read per request rather than at import so the flag can be flipped by an environment update
-    without waiting for every warm sandbox to recycle. Default off means a CRM create behaves
-    exactly as it does today until an owner deliberately turns it on.
+    Cognito provisioning stays in secure-files, which already has the pool-scoped grant.
+    Contacts owns the conditional contact write. No invite, customer session, consent or
+    inbound-verification evidence is manufactured by this staff operation.
     """
-    return os.environ.get('CRM_PROVISION_CUSTOMER_LOGIN', 'false').strip().lower() == 'true'
-
-
-def _provision_customer_login(phone: str, request_id: str) -> None:
-    """Ask the function that already holds the grant to create the customer's Cognito login.
-
-    WHY AN ASYNC INVOKE RATHER THAN A CALL FROM HERE. A CRM contact has no Cognito user, so the
-    WhatsApp OTP trigger answers `registered=false` and sends nothing - the customer the CRM just
-    created cannot sign in. Fixing that needs `cognito-idp:AdminCreateUser` on the customer pool
-    `us-east-1_46ULYuukt`, and `core/secure-files` already holds exactly that, scoped to the
-    customer pool, for `_ensure_customer_user`. Reaching it by invoke keeps the grant in the one
-    role that was provisioned for it instead of widening this role, which is shared.
-
-    USER-LEVEL ADMIN APIS ONLY. Nothing in this path calls `UpdateUserPool`. That API is a FULL
-    REPLACE: on 2026-09-28 a partial call returned 200, silently cleared three auth triggers and
-    flipped `AllowAdminCreateUserOnly` to false on this very pool - self-signup opened on a
-    public, internet-facing pool, with no error and no warning. If a pool-level setting ever has
-    to change it goes through `scripts/cognito_pool_safe_update.py --apply` and nothing else.
-
-    THE PAYLOAD CARRIES THE NORMALISED E.164 AND NOTHING ELSE. Not the name, not the email, not
-    the contact id. The receiving function needs the phone to key the user and no more, and a
-    smaller payload is a smaller thing to get wrong; the phone reaches the log masked.
-
-    Fire-and-forget on purpose. A login is a convenience attached to a contact row that is
-    already stored, so a dispatch failure must not fail the create - it is recoverable by
-    re-saving the contact once the flag is on.
-    """
-    if not _customer_login_enabled():
-        return
+    if not actor or not contact_id:
+        raise ValueError('CUSTOMER_IDENTITY_NOT_READY')
+    table = dynamodb.Table(CONTACTS_TABLE)
+    contact = table.get_item(Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+    if (not contact or contact.get('phone') != phone or contact.get('deletedAt') is not None
+            or contact.get('isDeleted') or contact.get('mergedIntoContactId')):
+        raise ValueError('CUSTOMER_IDENTITY_CONFLICT')
     global _lambda_client
+    if _lambda_client is None:
+        from botocore.config import Config
+        _lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+            config=Config(connect_timeout=5, read_timeout=20,
+                          retries={'total_max_attempts': 1, 'mode': 'standard'}))
+    response = _lambda_client.invoke(
+        FunctionName=CUSTOMER_LOGIN_FUNCTION, InvocationType='RequestResponse',
+        Payload=json.dumps({'internalAction': 'provisionCustomerIdentity', 'phone': phone}).encode())
+    raw = response['Payload'].read()
     try:
-        if _lambda_client is None:
-            # Built here rather than at import: with the flag off, no Lambda client is ever
-            # constructed and this handler's cold start is unchanged.
-            _lambda_client = boto3.client(
-                'lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        _lambda_client.invoke(
-            FunctionName=CUSTOMER_LOGIN_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps({
-                'internalAction': 'provisionCustomerLogin',
-                'phone': phone,
-            }).encode('utf-8'),
-        )
-        log_event(logger, 'crm_customer_login_dispatched',
-                  phone=mask_phone(phone), requestId=request_id)
-    except Exception as exc:  # noqa: BLE001 - a missing login, never a lost contact
-        # Type only: a ClientError message can echo the request content, phone included.
-        log_event(logger, 'crm_customer_login_dispatch_failed', level='warning',
-                  error=type(exc).__name__, requestId=request_id)
+        answer = json.loads(raw or '{}')
+    except (ValueError, TypeError):
+        raise ValueError('CUSTOMER_IDENTITY_NOT_READY') from None
+    if (response.get('FunctionError') or not isinstance(answer, dict)
+            or answer.get('outcome') != 'CUSTOMER_IDENTITY_READY'
+            or answer.get('phone') != phone
+            or not customer_auth.is_cognito_subject(str(answer.get('customerId') or ''))):
+        raise ValueError('CUSTOMER_IDENTITY_NOT_READY')
+    subject = answer['customerId']
+    if contact.get('checkoutCustomerId') not in (None, '', subject):
+        raise ValueError('CUSTOMER_IDENTITY_CONFLICT')
+    now = int(time.time())
+    result = table.update_item(
+        Key=contact_key.key(contact_id),
+        UpdateExpression=('SET checkoutCustomerId=:sub, identityProvisionedAt=:now, '
+                          'identityProvisionedBy=:actor, identityProvisionRequestId=:request, '
+                          'identityProvisionSource=:source, updatedAt=:now'),
+        ConditionExpression=('attribute_exists(id) AND phone=:phone '
+            'AND (attribute_not_exists(deletedAt) OR attribute_type(deletedAt,:null)) '
+            'AND (attribute_not_exists(isDeleted) OR isDeleted=:false) '
+            'AND attribute_not_exists(mergedIntoContactId) '
+            'AND (attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:empty '
+            'OR checkoutCustomerId=:sub)'),
+        ExpressionAttributeValues={':sub': subject, ':now': now, ':actor': actor,
+            ':request': request_id, ':source': 'STAFF_WORKSPACE', ':phone': phone,
+            ':empty': '', ':false': False, ':null': 'NULL'}, ReturnValues='ALL_NEW')
+    linked = result.get('Attributes') or {}
+    if linked.get('checkoutCustomerId') != subject:
+        raise ValueError('CUSTOMER_IDENTITY_NOT_READY')
+    log_event(logger, 'staff_customer_identity_ready', contactId=contact_id, requestId=request_id)
+    return linked
+
+
+def _complete_customer_identity(contact_id: str, request_id: str, origin: str,
+                                actor: str, *, success_status: int = 200) -> Dict[str, Any]:
+    """Retry the same retained contact safely; never create a duplicate after partial failure."""
+    contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+        Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+    if not contact:
+        return cors_response(404, {'error': 'Contact not found'}, origin)
+    phone = str(contact.get('phone') or '')
+    normalized, error = _e164_or_error(phone)
+    if error or normalized != phone:
+        return cors_response(409, {'error': 'Customer needs a valid international phone number',
+                                  'errorCode': 'CUSTOMER_IDENTITY_PHONE_REQUIRED'}, origin)
+    duplicate = _check_duplicate(phone, None, exclude_id=contact_id)
+    if duplicate:
+        return cors_response(409, {'error': 'Phone identity needs review',
+                                  'errorCode': 'CUSTOMER_IDENTITY_CONFLICT'}, origin)
+    try:
+        linked = _provision_customer_login(phone, request_id, contact_id=contact_id, actor=actor)
+    except Exception as exc:
+        code = ('CUSTOMER_IDENTITY_CONFLICT' if isinstance(exc, ValueError)
+                and str(exc) == 'CUSTOMER_IDENTITY_CONFLICT' else 'CUSTOMER_IDENTITY_NOT_READY')
+        log_event(logger, 'staff_customer_identity_incomplete', level='warning',
+                  contactId=contact_id, error=type(exc).__name__, requestId=request_id)
+        return cors_response(409 if code.endswith('CONFLICT') else 503, {
+            'error': 'Contact saved, but customer account setup is incomplete. Retry setup for this contact; do not create another record.',
+            'errorCode': code, 'contactId': contact_id, 'contactCreated': True,
+            'retryAction': 'provision_customer_identity'}, origin)
+    return cors_response(success_status, _from_dynamo(linked), origin)
 
 
 def _validate_phone(phone: str) -> bool:

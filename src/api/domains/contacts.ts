@@ -38,6 +38,7 @@ export interface Contact {
   subscriberId?: string;
   workspaceId?: string;
   customerUuid?: string;
+  checkoutCustomerId?: string;
   customerDisplayId?: string;
   locked?: boolean;
   lockedReason?: string;
@@ -192,10 +193,20 @@ export async function createContactResult ( contact: ContactMutation ): Promise<
   const result = await apiCallResult<any>( `${API_BASE}/contacts`, {
     method: 'POST',
     body: JSON.stringify( contact ),
-  } );
+  }, 0, 25000, false );
   if ( !result.ok ) return result;
   const data = result.data;
   return { ok: true, data: data ? normalizeContact( data.contact || data ) : null };
+}
+
+/** Complete a retained partial create without posting a duplicate customer. */
+export async function provisionContactIdentityResult ( contactId: string ): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'provision_customer_identity', contactId } ),
+  }, 0, 25000, false );
+  if ( !result.ok ) return result;
+  return { ok: true, data: result.data ? normalizeContact( result.data.contact || result.data ) : null };
 }
 
 export async function createContact ( contact: ContactMutation ): Promise<Contact | null> {
@@ -402,6 +413,7 @@ function normalizeContact ( item: any ): Contact {
     subscriberId: item.subscriberId || '',
     workspaceId: item.workspaceId || '',
     customerUuid: item.customerUuid || '',
+    checkoutCustomerId: item.checkoutCustomerId || '',
     customerDisplayId: item.customerDisplayId || '',
     locked: item.locked === true,
     lockedReason: item.lockedReason || '',

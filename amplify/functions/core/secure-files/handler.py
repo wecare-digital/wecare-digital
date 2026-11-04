@@ -735,6 +735,36 @@ def _ensure_customer_user(phone: str, name: str) -> str:
     return username
 
 
+def provision_customer_identity(e164: str) -> Dict[str, Any]:
+    """Return a proved customer-pool subject to the staff Contacts provisioning operation."""
+    ok, _ = provision_customer_login(e164)
+    if not ok:
+        return {'outcome': 'CUSTOMER_IDENTITY_NOT_READY'}
+    try:
+        client = _cognito_client()
+        user = client.admin_get_user(UserPoolId=CUSTOMER_POOL_ID, Username=e164)
+        def valid_account(row):
+            attrs = {item['Name']: item['Value'] for item in row.get('UserAttributes', [])}
+            return (row.get('Enabled', True) and attrs.get('phone_number') == e164
+                    and attrs.get('phone_number_verified') == 'true'
+                    and customer_auth.is_cognito_subject(str(attrs.get('sub') or '')))
+        if not valid_account(user):
+            return {'outcome': 'CUSTOMER_IDENTITY_NOT_READY'}
+        if user.get('UserStatus') == 'FORCE_CHANGE_PASSWORD':
+            # Resume an interrupted administrative create; no password is returned or sent.
+            client.admin_set_user_password(UserPoolId=CUSTOMER_POOL_ID, Username=e164,
+                Password=pysecrets.token_urlsafe(24) + 'aA1!', Permanent=True)
+            user = client.admin_get_user(UserPoolId=CUSTOMER_POOL_ID, Username=e164)
+        if not valid_account(user) or user.get('UserStatus') != 'CONFIRMED':
+            return {'outcome': 'CUSTOMER_IDENTITY_NOT_READY'}
+        attrs = {item['Name']: item['Value'] for item in user.get('UserAttributes', [])}
+        return {'outcome': 'CUSTOMER_IDENTITY_READY', 'customerId': attrs['sub'], 'phone': e164}
+    except Exception as exc:
+        logger.warning(json.dumps({'event': 'staff_customer_account_unconfirmed',
+                                   'error': type(exc).__name__}))
+        return {'outcome': 'CUSTOMER_IDENTITY_NOT_READY'}
+
+
 def provision_customer_login(e164: str) -> Tuple[bool, str]:
     """Create the Cognito login for a CRM-created contact. Idempotent. `(ok, detail)`.
 
@@ -3477,6 +3507,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # customer in the customer pool, with no email and no credential anybody knows. Signing in as
     # that user still requires a WhatsApp OTP delivered to the number itself, so the capability is
     # "create a login for a phone you already control", not "log in as someone".
+    if event.get("internalAction") == "provisionCustomerIdentity":
+        if any(event.get(key) for key in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return cors_response(403, {'error': 'Internal invocation required'}, extract_origin(event))
+        return provision_customer_identity(str(event.get('phone') or ''))
+
     if event.get("internalAction") == "provisionCustomerLogin" and not event.get("requestContext"):
         ok, detail = provision_customer_login(str(event.get("phone") or ""))
         logger.info(
