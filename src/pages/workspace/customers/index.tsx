@@ -1603,7 +1603,7 @@ const Customers: React.FC<PageProps> = () => {
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                             <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
                             <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
-                            <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
+                            <button type="button" disabled title="Complete customer erasure is unavailable pending a verified cross-service deletion workflow" className="contacts-row-action contacts-danger-action">Erase — unavailable</button>
                           </div>
                         </td>
                       </tr>
@@ -1654,7 +1654,7 @@ const Customers: React.FC<PageProps> = () => {
                       <div className="contact-card-actions" onClick={e => e.stopPropagation()}>
                         <button type="button" onClick={() => handleEdit(c)} title="Edit customer" aria-label={`Edit ${c.name || 'customer'}`} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
                         <button type="button" onClick={() => void handleArchive(c.contactId, c.name)} disabled={c.locked || deleting} title="Archive (reversible)" className="contacts-row-action">Archive</button>
-                        <button type="button" onClick={() => void handleDeleteCustomer(c.contactId, c.name)} disabled={c.locked || deleting} title="Soft delete; phone remains reserved" className="contacts-row-action contacts-danger-action">Delete</button>
+                        <button type="button" disabled title="Complete customer erasure is unavailable pending a verified cross-service deletion workflow" className="contacts-row-action contacts-danger-action">Erase — unavailable</button>
                       </div>
                     </div>
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
