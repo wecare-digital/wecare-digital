@@ -126,3 +126,31 @@ test('customer directory searches and displays Meta identities separately from W
   assert.ok(!/payload\\.bsuid\\s*=|payload\\.parentBsuid\\s*=|payload\\.username\\s*=/.test(editor),
     'the staff editor cannot overwrite Meta-owned identifiers');
 });
+
+test('inbound BSUID-only customer creation never fabricates cross-channel marketing consent', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  for (const field of [
+    'optInWhatsApp', 'optInSms', 'optInEmail',
+    'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail',
+  ]) {
+    assert.ok(inbound.includes("'" + field + "': False"), field + ' must default to false');
+  }
+  assert.ok(inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
+    'use canonical fail-closed BSUID lookup rather than selecting an arbitrary row');
+});
+
+test('WhatsApp contact-request number is read from the contact card and claimed before linking', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const begin = inbound.indexOf('    # Meta puts `origin` on each contact card');
+  const end = inbound.indexOf('    # Update Contact.lastInboundMessageAt', begin);
+  assert.ok(begin !== -1 && end > begin, 'contact request handling must exist');
+  const segment = inbound.slice(begin, end);
+  assert.ok(segment.includes("shared_card.get('origin') != 'contact_request'"));
+  assert.ok(!segment.includes("message.get('origin'"), 'message-level origin does not exist in Meta webhook');
+  assert.ok(segment.includes("_update_contact_bsuid_fields("), 'use the guarded phone-link path');
+  const helper = inbound.slice(inbound.indexOf('def _update_contact_bsuid_fields('),
+    inbound.indexOf('def _process_user_id_update('));
+  assert.ok(helper.includes('identity_claims.claim_identities('), 'claim phone identity before linking');
+  assert.ok(helper.includes('contact_store.find_by_phone('), 'refuse a phone owned by another person');
+  assert.ok(helper.includes('pending_phone'), 'do not report phone linked if update failed');
+});
