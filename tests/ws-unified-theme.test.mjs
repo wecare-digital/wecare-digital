@@ -354,8 +354,10 @@ test('workspace navigation includes Home and all six destinations', () => {
     'all sections must be reachable after the top Home link is removed');
   assert.ok(shell.includes("href: '/ws', icon: HomeGlyph"),
     'Home must be a first-class sidebar and mobile navigation item');
-  assert.equal((shell.match(/NAV_ITEMS\.map\( item => \{/g) || []).length, 2,
-    'desktop sidebar and mobile bottom navigation share exactly one route registry');
+  assert.equal((shell.match(/visibleNavItems\.map\( item => \{/g) || []).length, 1,
+    'desktop sidebar filters only the shared route registry');
+  assert.equal((shell.match(/NAV_ITEMS\.map\( item => \{/g) || []).length, 1,
+    'mobile bottom navigation always retains all six unfiltered routes');
   assert.ok(shell.includes("aria-current={ isActive ? 'page' : undefined }"),
     'active section must remain announced to assistive technology');
   assert.ok(shell.includes('aria-label="Mobile workspace navigation"'),
@@ -449,9 +451,11 @@ test('sidebar collapses to an icon rail, expands, and persists across /ws naviga
   assert.ok(shell.includes("if (typeof window === 'undefined') return false") &&
             shell.includes('const getServerSidebarCollapsed = (): boolean => false;'),
     'server rendering must never directly read browser storage');
-  assert.ok(shell.includes("const toggleSidebar = () => saveSidebarCollapsed(!collapsed);") &&
+  assert.ok(shell.includes("const toggleSidebar = () => {") &&
+            shell.includes("saveSidebarCollapsed(!collapsed);") &&
+            shell.includes("setNavQuery('');") &&
             shell.includes('onClick={ toggleSidebar }'),
-    'a real control toggles the sidebar width');
+    'collapse control toggles actual width and resets hidden search filtering');
   assert.ok(shell.includes("data-ws-collapsed={ collapsed ? 'true' : 'false' }"),
     'state must be exposed to CSS without hiding or unmounting any routes');
   assert.ok(shell.includes('aria-expanded={ !collapsed }') &&
@@ -496,4 +500,74 @@ test('signout is icon-only but reachable in both desktop sidebar states', () => 
     'account and signout reorganize for the icon-only narrow rail');
   assert.ok(shell.includes('width:44px') && shell.includes('height:44px'),
     'icon-only signout keeps a minimum 44x44 touch target');
+});
+
+test('workspace sidebar is truly white and contains no NAVIGATION subtitle', () => {
+  assert.ok(theme.includes('--ws-sidebar:#ffffff;'),
+    'sidebar surface must be exactly pure white, not off-white');
+  assert.ok(theme.includes('.ws-shell.ws-notion .ws-sidebar {\n    background:#ffffff;'),
+    'explicit signed-in sidebar selector must paint #ffffff');
+  assert.ok(theme.includes('--ws-soft-panel:#fbfcf9;') &&
+            theme.includes('--bg-secondary:var(--ws-soft-panel);'),
+    'other workspace panels retain their previous tinted surfaces');
+  assert.ok(!shell.includes('>NAVIGATION<') && !shell.includes('ws-nav-caption'),
+    'remove navigation heading and its obsolete CSS completely');
+  assert.ok(shell.includes('<BrandLockup compact />'),
+    'preserve the exact homepage logo presentation on the white sidebar');
+});
+
+test('text-only borderless sidebar search filters the six routes while typing', () => {
+  const section = shell.slice(
+    shell.indexOf('{/* Text-only, borderless, editable sidebar filter. No search glyph. */}'),
+    shell.indexOf('<nav id="ws-sidebar-navigation"'),
+  );
+  assert.ok(section.includes('type="text"') &&
+            section.includes('role="searchbox"') &&
+            section.includes('inputMode="search"'),
+    'search must be a real typable text field, not an icon-only button');
+  assert.ok(section.includes('placeholder="Type to search sections..."') &&
+            section.includes('aria-label="Search workspace sections"'),
+    'accessible placeholder clarifies this filters workspace sections');
+  assert.ok(section.includes('value={ navQuery }') &&
+            section.includes('onChange={ event => setNavQuery(event.target.value) }'),
+    'user typing must immediately update the controlled search query');
+  assert.ok(shell.includes("NAV_ITEMS.filter( item => item.label.toLowerCase().includes(query) )") &&
+            shell.includes('const query = navQuery.trim().toLowerCase();'),
+    'filter must be case-insensitive and limited to existing navigation destinations');
+  assert.ok(shell.includes('const visibleNavItems = collapsed || !query') &&
+            shell.includes('visibleNavItems.map( item => {'),
+    'collapsed icon rail must never lose access to navigation items');
+  assert.ok(section.includes('id="ws-sidebar-section-search"') &&
+            section.includes('aria-controls="ws-sidebar-navigation"'),
+    'search field should identify the list it controls');
+  assert.ok(section.includes("event.key === 'Escape'") &&
+            shell.includes('No matching sections'),
+    'Escape clears the search and unmatched queries produce clear feedback');
+  assert.ok(!section.includes('<svg') && !section.includes('<Search') &&
+            !section.includes('Material Symbols'),
+    'search field must have NO search icon, prefix glyph or decorative ornament');
+  assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-search") &&
+            shell.includes('display:none;'),
+    'the text search hides cleanly in the collapsed icon rail');
+  assert.ok(shell.includes('NAV_ITEMS.map( item => {'),
+    'mobile navigation must not be filtered by a desktop-only query');
+});
+
+test('sidebar search has no border on rest, hover, or focus, with accessible focus feedback', () => {
+  const css = shell.slice(shell.indexOf('.ws-sidebar-search{'),
+    shell.indexOf('.ws-nav{', shell.indexOf('.ws-sidebar-search{')));
+  assert.ok(css.includes('background:var(--public-lime-tint,rgba(209,244,112,.22))'),
+    'the input uses the homepage subtle lime tint on a white sidebar');
+  assert.ok(css.includes('.ws-sidebar-search-input{') &&
+            css.includes('border:0!important') &&
+            css.includes('background:transparent!important'),
+    'the editable input must be genuinely borderless and have no system field chrome');
+  assert.ok(css.includes('.ws-sidebar-search-input:hover{') &&
+            css.includes('.ws-sidebar-search-input:focus-visible{') &&
+            css.includes('outline:0!important') &&
+            css.includes('box-shadow:inset 0 -2px 0 var(--public-brand-lime,#d1f470)!important'),
+    'hover and focus must not bring back a box border, but keyboard focus remains visible');
+  assert.ok(css.includes('min-height:44px') &&
+            css.includes('border-radius:13px'),
+    'search remains touch-friendly and follows the current workspace corner scale');
 });

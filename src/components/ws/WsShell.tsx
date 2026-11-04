@@ -2,8 +2,8 @@
  * WsShell — authenticated /ws navigation and content surface.
  *
  * Desktop: one collapsible full-height sidebar with the actual homepage
- * BrandLockup, six routes and persistent icon-only navigation. The account
- * strip and an accessible icon-only Sign out stay pinned to the foot.
+ * BrandLockup, a plain text-only section filter and six routes. The
+ * account strip and icon-only Sign out stay pinned to the foot.
  * Collapsed preference survives /ws route changes and reloads. The right
  * side remains content-only, without a repeated header or footer.
  *
@@ -14,7 +14,7 @@
  * The original Cognito signOut/user contract is passed down from WsAuthShell;
  * customer /auth, /workspace and all private business panels remain unchanged.
  */
-import React, { ReactNode, useSyncExternalStore } from 'react';
+import React, { ReactNode, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import BrandLockup from '../BrandLockup';
 import WsNotionTheme from './WsNotionTheme';
@@ -144,7 +144,17 @@ const saveSidebarCollapsed = (next: boolean): void => {
 
 const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) => {
   const collapsed = useSyncExternalStore(subscribeSidebar, getSidebarCollapsed, getServerSidebarCollapsed);
-  const toggleSidebar = () => saveSidebarCollapsed(!collapsed);
+  const [navQuery, setNavQuery] = useState('');
+  /* Local section finder only: never imply this queries customer messages,
+     Commerce records or any other backend business data. */
+  const query = navQuery.trim().toLowerCase();
+  const visibleNavItems = collapsed || !query
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter( item => item.label.toLowerCase().includes(query) );
+  const toggleSidebar = () => {
+    setNavQuery('');
+    saveSidebarCollapsed(!collapsed);
+  };
   const loginId = user?.signInDetails?.loginId || user?.email || user?.username || '';
 
   return (
@@ -174,9 +184,30 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           </button>
         </div>
 
+        {/* Text-only, borderless, editable sidebar filter. No search glyph. */}
+        <div className="ws-sidebar-search">
+          <input
+            id="ws-sidebar-section-search"
+            className="ws-sidebar-search-input"
+            type="text"
+            role="searchbox"
+            inputMode="search"
+            autoComplete="off"
+            spellCheck={ false }
+            maxLength={ 64 }
+            aria-label="Search workspace sections"
+            aria-controls="ws-sidebar-navigation"
+            placeholder="Type to search sections..."
+            value={ navQuery }
+            onChange={ event => setNavQuery(event.target.value) }
+            onKeyDown={ event => {
+              if (event.key === 'Escape') setNavQuery('');
+            } }
+          />
+        </div>
+
         <nav id="ws-sidebar-navigation" className="ws-nav" aria-label="Workspace sections">
-          <span className="ws-nav-caption">NAVIGATION</span>
-          { NAV_ITEMS.map( item => {
+          { visibleNavItems.map( item => {
             const Icon = item.icon;
             const isActive = item.id === active;
             return (
@@ -193,6 +224,9 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
               </Link>
             );
           } ) }
+          { visibleNavItems.length === 0 && (
+            <p className="ws-search-empty" role="status">No matching sections</p>
+          ) }
         </nav>
 
         <div className="ws-sidebar-foot">
@@ -427,9 +461,59 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             padding:22px 18px
               calc(20px + env(safe-area-inset-bottom,0px))
               max(18px,env(safe-area-inset-left,0px));
-            background:var(--bg-secondary,#fcfdfb);
+            background:#ffffff;
             border-inline-end:1px solid var(--border,#e5e7eb);
             box-sizing:border-box;
+          }
+          .ws-sidebar-search{
+            display:flex;
+            align-items:center;
+            min-height:44px;
+            min-width:0;
+            margin:0 0 18px;
+            border:0;
+            border-radius:13px;
+            background:var(--public-lime-tint,rgba(209,244,112,.22));
+            box-shadow:none;
+          }
+          .ws-sidebar-search-input{
+            width:100%;
+            min-width:0;
+            min-height:44px;
+            padding:10px 13px;
+            border:0!important;
+            border-radius:13px;
+            background:transparent!important;
+            box-shadow:none!important;
+            color:var(--public-brand-green,#1a3a2a);
+            font-family:var(--font-sans,Inter,system-ui,sans-serif);
+            font-size:14px;
+            line-height:1.35;
+            -webkit-appearance:none;
+            appearance:none;
+          }
+          .ws-sidebar-search-input::placeholder{
+            color:var(--text-muted,#6b7280);
+            opacity:1;
+          }
+          .ws-sidebar-search-input:hover{
+            border:0!important;
+            box-shadow:none!important;
+          }
+          /* No heavy focus rectangle; the 2px lime inset is visible for
+             keyboard users without turning into a field border. */
+          .ws-sidebar-search-input:focus,
+          .ws-sidebar-search-input:focus-visible{
+            outline:0!important;
+            border:0!important;
+            box-shadow:inset 0 -2px 0 var(--public-brand-lime,#d1f470)!important;
+          }
+          .ws-search-empty{
+            margin:6px 8px;
+            padding:12px 5px;
+            color:var(--text-muted,#6b7280);
+            font-size:13px;
+            line-height:1.5;
           }
           .ws-nav{
             display:flex;
@@ -440,14 +524,6 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             overflow-y:auto;
             overflow-x:hidden;
             scrollbar-width:thin;
-          }
-          .ws-nav-caption{
-            padding:2px 12px 10px;
-            color:var(--text-muted,#6b7280);
-            font-size:10px;
-            font-weight:750;
-            line-height:1.25;
-            letter-spacing:.11em;
           }
           .ws-nav-link{
             position:relative;
@@ -618,7 +694,9 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-toggle svg{
             transform:rotate(180deg);
           }
-          .ws-shell[data-ws-collapsed='true'] .ws-nav-caption,
+          .ws-shell[data-ws-collapsed='true'] .ws-sidebar-search{
+            display:none;
+          }
           .ws-shell[data-ws-collapsed='true'] .ws-nav-label,
           .ws-shell[data-ws-collapsed='true'] .ws-account-copy{
             display:none;
