@@ -78,6 +78,12 @@ test('atomic backend retention guard rejects a contact locked after staff review
   assert.ok(body.includes('ConditionalCheckFailedException'));
 });
 
+test('contact mapper retains portfolio-scoped and parent business-scoped IDs', () => {
+  const mapper = readSource('src/api/domains/contacts.ts');
+  assert.ok(mapper.includes("bsuid: item.bsuid || ''"));
+  assert.ok(mapper.includes("parentBsuid: item.parentBsuid || ''"));
+});
+
 test('mobile cleanup remains reachable on Safari and Android', () => {
   for (const marker of [
     '.cleanupInfo', '.bulkTray', '.bulkActions', '.protectedMarker',
