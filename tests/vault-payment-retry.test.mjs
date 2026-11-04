@@ -33,3 +33,14 @@ test('paid, expired, unavailable and revoked files cannot be retried after a ref
   assert.equal(canRequestVaultPayment(null),false);
   assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID'}),true);
 });
+test('only a lapsed legacy 15-minute card re-opens a request; a live card stays blocked', async () => {
+  const {canRequestVaultPayment} = await policy();
+  const sent = {status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-04T04:47:25Z',lastPaymentRequestOutcome:'PAYMENT_REQUEST_SENT'};
+  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:true}),true);
+  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:false}),false);
+  assert.equal(canRequestVaultPayment(sent),false);
+  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:true},true),false);
+  for (const accessState of ['OPEN','READY','EXPIRED','PAID_UNVERIFIED']) {
+    assert.equal(canRequestVaultPayment({...sent,accessState,paymentRequestLapsed:true}),false);
+  }
+});

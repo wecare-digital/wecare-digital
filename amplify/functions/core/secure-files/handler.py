@@ -547,6 +547,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         out["lastPaymentRequestedBy"] = item.get("lastPaymentRequestedBy")
         out["lastPaymentRequestedAt"] = item.get("lastPaymentRequestedAt")
         out["lastPaymentRequestOutcome"] = item.get("lastPaymentRequestOutcome")
+        out["paymentRequestLapsed"] = _payment_request_lapsed(item, int(time.time()))
         out["lastAccessSentBy"] = item.get("lastAccessSentBy")
         out["lastAccessSentAt"] = item.get("lastAccessSentAt")
         out["accessResendRequestId"] = item.get("accessResendRequestId")
@@ -1498,6 +1499,34 @@ BUSINESS_API_FUNCTION = os.environ.get(
 #: One interpretation of the native Vault payment sender's outcomes for both customer and staff
 #: callers. The sender is the existing WhatsApp ORDER_DETAILS / Review and Pay rail; this Lambda
 #: never builds a payment payload, never trusts a browser amount and never opens the website cart.
+#: `lastPaymentRequestExpiry` marker for a card sent without a Meta expiry (Collect-style).
+PAYMENT_REQUEST_NEVER_EXPIRES = "NEVER"
+#: Cards sent before that marker existed carried Meta `expiration = now + 900`.
+LEGACY_PAYMENT_REQUEST_WINDOW_SECONDS = 900
+#: Outcomes after which a card is, or may be, on the customer's phone.
+_PAYMENT_CARD_OUTCOMES = frozenset({"PAYMENT_REQUEST_SENT", "PAYMENT_REQUEST_UNCONFIRMED"})
+
+
+def _payment_request_lapsed(item: Dict[str, Any], now: int) -> bool:
+    """True only for an UNPAID file's earlier card that WhatsApp has already cancelled.
+
+    That is exactly a card sent under the old 15-minute window (no `lastPaymentRequestExpiry`
+    marker) whose window has passed. A card sent without an expiry is never lapsed, so the
+    one-card-per-file rule still holds for it.
+    """
+    if str(item.get("lastPaymentRequestOutcome") or "") not in _PAYMENT_CARD_OUTCOMES:
+        return False
+    if item.get("lastPaymentRequestExpiry"):
+        return False
+    try:
+        sent = int(datetime.strptime(str(item.get("lastPaymentRequestedAt") or ""),
+                                     "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return False
+    # One minute of slack: Meta stamps the expiry a moment after our audit time.
+    return now > sent + LEGACY_PAYMENT_REQUEST_WINDOW_SECONDS + 60
+
+
 _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
     "PAYMENT_REQUEST_SENT": (
         200, "Payment request sent to the registered WhatsApp number. Complete Review and Pay there."),
@@ -1511,6 +1540,8 @@ _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
         202, "A Vault payment request is already in progress. Check WhatsApp."),
     "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS": (
         409, "Another service payment is already in progress. Complete it in WhatsApp before starting Vault payment."),
+    "VAULT_PAYMENT_REQUEST_LIVE": (
+        409, "A payment request for this file was already sent in the last 24 hours and is still payable. Ask the customer to pay that card in WhatsApp. Nothing new was sent."),
     "VAULT_ACCESS_ACTIVE": (
         409, "This file is already paid and available. Do not pay again."),
     "PAID_UNVERIFIED": (
@@ -1690,15 +1721,24 @@ def _start_native_vault_payment(
         return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
             'message': _PAYMENT_REQUEST_REPLIES[outcome][1],
             'fileId': str(item.get('fileId') or '')}, origin))
+    if outcome == 'VAULT_PAYMENT_REQUEST_LIVE':
+        # Pre-send refusal: an earlier card is still payable. Keep that card's audit record.
+        return _no_store(cors_response(409, {'error': outcome, 'outcome': outcome,
+            'message': _PAYMENT_REQUEST_REPLIES[outcome][1],
+            'fileId': str(item.get('fileId') or '')}, origin))
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": str(item.get("fileId") or "")},
             UpdateExpression=("SET lastPaymentRequestedBy=:by, lastPaymentRequestedAt=:at, "
-                              "lastPaymentRequestOutcome=:outcome"),
+                              "lastPaymentRequestOutcome=:outcome, "
+                              "lastPaymentRequestExpiry=:expiry"),
             ExpressionAttributeValues={
                 ":by": str(requested_by or "unknown")[:128],
                 ":at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 ":outcome": outcome[:80],
+                # Staff Vault cards no longer expire (catalog.payment_expires). Recorded so a
+                # card sent under the old 15-minute window can be told apart from a live one.
+                ":expiry": PAYMENT_REQUEST_NEVER_EXPIRES,
             },
         )
     except Exception as exc:  # noqa: BLE001 - audit write must not duplicate a money message
