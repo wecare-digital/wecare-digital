@@ -629,7 +629,7 @@ const CustomerList: React.FC = () => {
             <strong>{selected.size} selected</strong>
             <small>{bulkProgress
               ? 'Archiving ' + bulkProgress.done + ' / ' + bulkProgress.total
-              : 'Archive keeps customer history. Delete individually after review.'}</small>
+              : 'Archive keeps customer history. Permanent erasure is unavailable.'}</small>
           </div>
           <div className={styles.bulkActions}>
             <button type="button" className={styles.primaryButton} onClick={() => void bulkArchive()}
