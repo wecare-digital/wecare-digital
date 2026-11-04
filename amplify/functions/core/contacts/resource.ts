@@ -4,13 +4,13 @@ import { defineFunction } from '@aws-amplify/backend';
  * Unified Contacts Lambda Function
  * 
  * Replaces: contacts-create, contacts-read, contacts-update, contacts-delete, contacts-search
- * Routes by HTTP method: GET (list/read/search), POST (create), PUT (update), DELETE (soft/hard)
+ * Routes by HTTP method: GET (list/read/search), POST (create), PUT (update), DELETE (refused pending complete erasure)
  */
 export const contacts = defineFunction({
   name: 'wecare-contacts',
   entry: './handler.py',
   runtime: 20, // Python 3.12
-  timeoutSeconds: 60, // Increased for hard delete operations
+  timeoutSeconds: 60, // Legacy limit; no deletion saga runs in this request
   memoryMB: 256,
   environment: {
     AWS_REGION: 'us-east-1',
@@ -18,7 +18,7 @@ export const contacts = defineFunction({
     CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable',
     INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable',
     OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable',
-    // Read-only, and only on the hard-delete path: a contact tied to a payment or an order
+    // Read-only for guarded deletion refusals: a contact tied to a payment or an order
     // may be archived but never destroyed. Both indexes are already readable by the shared
     // role, so these names add no grant. The handler defaults match these literals, so the
     // guard works whether or not the variable is live yet.
