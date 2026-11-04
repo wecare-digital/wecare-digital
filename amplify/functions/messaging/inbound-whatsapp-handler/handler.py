@@ -2394,8 +2394,24 @@ def _process_message(
         }))
         return
     
+    # A Meta BSUID change must rejoin the PREVIOUS canonical contact before
+    # resolving the new BSUID. Otherwise a phone-hidden system event auto-creates
+    # a second customer and strands the original history.
+    previous_system_contact = None
+    if msg_type == 'system':
+        system_change = message.get('system') or {}
+        if system_change.get('type') in ('user_changed_user_id', 'user_changed_number'):
+            previous_system_bsuid = str(system_change.get('previous_user_id') or '')
+            if previous_system_bsuid:
+                previous_system_contact = contact_store.find_by_bsuid(
+                    dynamodb.Table(CONTACTS_TABLE), previous_system_bsuid)
+                if previous_system_contact is None and not sender_phone:
+                    raise contact_store.IdentityConflict('unresolved-previous-bsuid', ())
+            elif not sender_phone:
+                raise contact_store.IdentityConflict('unresolvable-system-identity', ())
+
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = (_referral_contact or _idea_contact or _track_shipping_contact or _pickup_contact
+    contact = (previous_system_contact or _referral_contact or _idea_contact or _track_shipping_contact or _pickup_contact
                or _submit_request_contact or _request_amendment_contact
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
@@ -2937,29 +2953,45 @@ def _process_message(
                 except Exception as find_err:
                     logger.warning(f'previous-BSUID contact lookup failed: {type(find_err).__name__}')
                     target_id = ''
-            # Update contact with new BSUID, parent BSUID and phone if available.
+            # A changed BSUID or phone is an identity transition, never an
+            # unconditional overwrite. The old contact must remain canonical.
             if new_bsuid and target_id:
                 try:
                     ct = dynamodb.Table(CONTACTS_TABLE)
+                    current = ct.get_item(Key={'id': target_id}, ConsistentRead=True).get('Item')
+                    if not current or not contact_store.is_live(current):
+                        raise contact_store.IdentityConflict('system-contact-not-live', (target_id,))
+                    new_owner = contact_store.find_by_bsuid(ct, new_bsuid)
+                    if new_owner and contact_key.resolve(new_owner) != target_id:
+                        raise contact_store.IdentityConflict('system-bsuid-already-owned',
+                                                             (contact_key.resolve(new_owner), target_id))
+                    new_phone = contact_store.canonical_phone(new_wa_id)
+                    current_phone = contact_store.canonical_phone(current.get('phone'))
+                    if new_phone and current_phone and new_phone != current_phone:
+                        logger.warning(json.dumps({
+                            'event': 'system_phone_change_requires_review',
+                            'contactId': mask_contact_id(target_id),
+                        }))
+                        raise contact_store.IdentityConflict('system-phone-change', (target_id,))
                     names = {'#updatedAt': 'updatedAt'}
                     set_parts = ['bsuid = :b', '#updatedAt = :now']
                     expr_vals = {':b': new_bsuid, ':now': Decimal(str(int(time.time())))}
                     if new_parent_bsuid:
                         set_parts.append('parentBsuid = :pb')
                         expr_vals[':pb'] = new_parent_bsuid
-                    # The canonical `+digits` spelling, the one every other writer stores:
-                    # Meta's bare `wa_id` here would make the website checkout's exact-match
-                    # phone lookup miss this contact and mint a second row for the person.
-                    new_phone = contact_store.canonical_phone(new_wa_id)
-                    if new_phone:
-                        set_parts.append('phone = :p')
-                        expr_vals[':p'] = new_phone
                     ct.update_item(
                         Key={'id': target_id},
                         UpdateExpression='SET ' + ', '.join(set_parts),
                         ExpressionAttributeNames=names,
                         ExpressionAttributeValues=expr_vals,
+                        ConditionExpression='attribute_exists(id)',
                     )
+                    # If Meta supplied a phone for a previously phone-hidden user,
+                    # run the same strong-identity claim checks as any other inbound.
+                    if new_phone and not current_phone:
+                        _update_contact_bsuid_fields(ct, current, '', '', phone=new_phone)
+                except contact_store.IdentityConflict:
+                    raise  # the message loop durably parks this event for reconciliation
                 except Exception as sys_err:
                     logger.warning(f'System {system_type} contact update failed: {type(sys_err).__name__}')
             _store_system_event(system_type, {
