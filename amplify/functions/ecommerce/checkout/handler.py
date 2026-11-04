@@ -1092,6 +1092,13 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
             # name Meta shows before payment is the name the order page shows after it.
             "name": order_delivery.recipient_name(profile)[:60],
+            # Meta's order_details.shipping_info.addresses[0] schema REQUIRES `phone_number`.
+            # Omitting it made Meta reject the whole ORDER_DETAILS send with 400 metaCode 100
+            # ("violated 'required' for ...addresses.0"), which surfaced as PAYMENT_REQUEST_NOT_SENT
+            # on the native (AWS_NATIVE) Vault rail. The invoice-engine shipping builder already
+            # sends it as the bare E.164 digits; mirror that here. Phone comes off the
+            # session-owned contact profile row, never a request body.
+            "phone_number": str(profile.get("phone") or "").replace("+", "").replace(" ", "")[:20],
             "address": full_address[:300],
             "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
             "city": str(address.get("city") or "")[:60],
