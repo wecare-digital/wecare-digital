@@ -39,7 +39,8 @@ def _get_key_schema(table_name):
             desc = dynamodb_client.describe_table(TableName=table_name)
             _key_schema_cache[table_name] = desc['Table']['KeySchema']
         except Exception:
-            _key_schema_cache[table_name] = [{'AttributeName': 'id', 'KeyType': 'HASH'}]
+            # Never invent an id schema on IAM or network failure.
+            raise
     return _key_schema_cache[table_name]
 
 def _build_delete_key(table_name, item):
@@ -162,38 +163,73 @@ def handler(event, context):
                 except Exception as e:
                     logger.warning(f'Scan fallback for message {message_id} failed: {e}')
         
-        # Delete media from S3 if exists
-        media_deleted = False
+        if not item:
+            return cors_response(404, {'error': 'Message not found; nothing deleted'}, origin)
+
+        delete_key = _build_delete_key(table_name, item)
+        if not delete_key:
+            return cors_response(503, {
+                'error': 'MESSAGE_KEY_UNAVAILABLE',
+                'reason': 'Cannot verify the message primary key; nothing deleted.',
+            }, origin)
+
+        # Remove exact media FIRST. If this fails, preserve the message row so a
+        # later reviewed operation can reconcile its S3 reference.
+        media_hidden = False
         if delete_media and s3_key:
             try:
-                actual_key = _find_and_delete_s3_file(s3_key, message_id)
-                if actual_key:
-                    media_deleted = True
-            except Exception as e:
-                logger.warning(f'S3 media delete failed for message {message_id}: {e}')
-        
-        # Delete the message from DynamoDB using proper key schema
-        try:
-            if item:
-                delete_key = _build_delete_key(table_name, item)
-                table.delete_item(Key=delete_key)
-            else:
-                try:
-                    table.delete_item(Key={'id': message_id})
-                except ClientError:
-                    table.delete_item(Key={'messageId': message_id})
-        except Exception as e:
-            logger.warning(f'DynamoDB delete failed for message {message_id}: {e}')
+                media_hidden = bool(_find_and_delete_s3_file(s3_key, message_id))
+            except Exception:
+                log_event(logger, 'message_media_delete_refused', level='warning',
+                          messageId=message_id)
+                return cors_response(503, {
+                    'error': 'MESSAGE_MEDIA_DELETE_UNCONFIRMED',
+                    'reason': 'Media removal was not confirmed; the message row was kept.',
+                }, origin)
 
+        try:
+            key_names = [component['AttributeName'] for component in _get_key_schema(table_name)]
+            if not all(key_name in delete_key for key_name in key_names):
+                return cors_response(503, {
+                    'error': 'MESSAGE_KEY_UNAVAILABLE',
+                    'reason': 'Incomplete primary key; the message row was kept.',
+                }, origin)
+            table.delete_item(
+                Key=delete_key,
+                ConditionExpression='attribute_exists(#pk)',
+                ExpressionAttributeNames={'#pk': key_names[0]},
+            )
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return cors_response(409, {
+                    'error': 'MESSAGE_NOT_FOUND',
+                    'reason': 'The message no longer exists; verify remaining media separately.',
+                }, origin)
+            return cors_response(503, {
+                'error': 'MESSAGE_DELETE_UNCONFIRMED',
+                'reason': 'Message deletion could not be confirmed; refresh before retrying.',
+            }, origin)
+        except Exception:
+            return cors_response(503, {
+                'error': 'MESSAGE_DELETE_UNCONFIRMED',
+                'reason': 'Message deletion could not be confirmed; refresh before retrying.',
+            }, origin)
+
+        # Successful message-row deletion != permanent erasure of versioned media.
         return cors_response(200, {
             'success': True,
             'messageId': message_id,
             'table': table_name,
-            'mediaDeleted': media_deleted,
-            's3Key': s3_key,
-            'message': f'Message deleted successfully{" (media also deleted)" if media_deleted else ""}'
+            'mediaHidden': media_hidden,
+            'mediaPermanentlyErased': False,
+            'warning': (
+                'S3 object versions may remain after a delete marker. '
+                'This is not a permanent customer erasure.'
+            ) if s3_key else '',
+            'message': 'Message row deleted; linked versioned media may remain.'
+                       if s3_key else 'Message row deleted.',
         }, origin)
-        
+
     except ClientError as e:
         return cors_response(500, {'error': 'Database error'}, origin)
     except Exception as e:
@@ -357,62 +393,39 @@ def _handle_clear_all(event, origin):
     return cors_response(200, {'success': True, 'totalDeleted': total, 'details': details}, origin)
 
 
-def _find_and_delete_s3_file(stored_key: str, message_id: str) -> str:
-    """
-    Find and delete the actual S3 file.
-    WhatsApp media ID may be appended to the filename.
-    Returns the actual key that was deleted, or None if not found.
-    """
-    # Root the persisted key: an un-rooted key resolves to nothing, so the delete
-    # reported success while leaving the object in place.
-    stored_key = media_paths.canonical(stored_key)
-    try:
-        # First try the exact key
-        try:
-            s3_client.head_object(Bucket=MEDIA_BUCKET, Key=stored_key)
-            s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=stored_key)
-            return stored_key
-        except ClientError as e:
-            if e.response['Error']['Code'] != '404':
-                raise
-        
-        # Key doesn't exist exactly, search with prefix
-        if '.' in stored_key:
-            base_prefix = stored_key.rsplit('.', 1)[0]
-        else:
-            base_prefix = stored_key
-        
-        # List objects with prefix
-        response = s3_client.list_objects_v2(
-            Bucket=MEDIA_BUCKET,
-            Prefix=base_prefix,
-            MaxKeys=5
-        )
-        
-        contents = response.get('Contents', [])
-        if contents:
-            actual_key = contents[0]['Key']
-            s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=actual_key)
+# These are message-owned keys, not public catalog/template/invoice assets. Never
+# fall back to a nearby prefix: two unrelated customers can have similar filenames.
+MESSAGE_MEDIA_PREFIXES = (
+    media_paths.WHATSAPP_INCOMING_PREFIX,
+    media_paths.WHATSAPP_OUTGOING_PREFIX,
+    media_paths.WHATSAPP_VOICE_PREFIX,
+    media_paths.WHATSAPP_TRANSCRIPTIONS_PREFIX,
+    media_paths.WHATSAPP_CALLING_AI_PREFIX,
+    media_paths.WHATSAPP_CALLING_PREFIX,
+    media_paths.LEGACY_WHATSAPP_INCOMING_PREFIX,
+)
 
-            return actual_key
-        
-        # Try with full stored key as prefix
-        response = s3_client.list_objects_v2(
-            Bucket=MEDIA_BUCKET,
-            Prefix=stored_key,
-            MaxKeys=5
-        )
-        
-        contents = response.get('Contents', [])
-        if contents:
-            actual_key = contents[0]['Key']
-            s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=actual_key)
-            return actual_key
-        
-        return None
-        
-    except Exception as e:
+
+def _find_and_delete_s3_file(stored_key: str, message_id: str) -> str:
+    """Remove only the exact message-owned key; NEVER delete prefix matches.
+
+    In this bucket S3 Versioning is enabled. DeleteObject inserts a delete marker
+    rather than erasing previous object versions. This helper hides the current
+    object, not a complete customer erasure; the caller must disclose that fact.
+    A separate audited erasure worker must remove approved object versions.
+    """
+    key = media_paths.canonical(stored_key)
+    if not key or not key.startswith(MESSAGE_MEDIA_PREFIXES):
+        raise ValueError('Message media key is outside customer-message storage')
+    # No list_objects_v2, prefix trimming, or arbitrary first-match deletion.
+    try:
+        s3_client.head_object(Bucket=MEDIA_BUCKET, Key=key)
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') in ('404', 'NoSuchKey', 'NotFound'):
+            return ''
         raise
+    s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=key)
+    return key
 
 
 def _handle_update(event, origin):
