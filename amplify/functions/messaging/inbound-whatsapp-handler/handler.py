@@ -3971,20 +3971,18 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                                          parent_bsuid)
             return matched_bsuid
 
-    # Canonical resolver: follows merge aliases and skips deleted/merged rows, so it is the
-    # right answer when a person has more than one historical row. It raises IdentityConflict
-    # only when two LIVE rows both claim this phone; that is a data problem, not a reason to drop
-    # the inbound message, so we log it (masked) and fall through to the oldest-row choice below.
+    # Canonical resolver follows merge aliases and refuses duplicate LIVE phone owners.
+    # On conflict the caller parks the webhook for reconciliation; never route a
+    # customer's inbound message to the oldest of two competing identity claims.
     try:
         resolved = contact_store.lookup(contacts_table, phone)
-    except contact_store.IdentityConflict as conflict:
+    except contact_store.IdentityConflict:
         logger.warning(json.dumps({
             'event': 'contact_identity_conflict',
             'phone': mask_phone(phone),
-            'detail': type(conflict).__name__,
-            'bsuid': bsuid,
+            'hasBsuid': bool(bsuid),
         }))
-        resolved = None
+        raise
     except Exception as e:
         logger.warning(f"contact_store.lookup failed for {mask_phone(phone)}: {type(e).__name__}")
         resolved = None
@@ -4044,8 +4042,12 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 unique_items.append(item)
         items = unique_items
         
-        # Return the first (oldest) contact to avoid duplicates
-        contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]
+        # Legacy GSI/scan fallback must also fail closed: selecting the oldest
+        # of two live phone owners can attach payments or messages to a stranger.
+        if len(items) > 1:
+            raise contact_store.IdentityConflict('phone',
+                                                 (i.get('id', '') for i in items))
+        contact = items[0]
         # Update name/BSUID/username if available
         _update_contact_bsuid_fields(contacts_table, contact, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
         return contact
