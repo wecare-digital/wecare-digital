@@ -1498,9 +1498,25 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> D
         payload['reason'] = 'Payment or order history must be retained. ' + payload.get('reason', '')
         refusal['body'] = json.dumps(payload)
         return refusal
-    if hard:
-        return _hard_delete(contact_id, request_id, origin)
-    return _soft_delete(contact_id, request_id, origin)
+    # This DELETE endpoint MUST NOT create a dangling identity, claim, S3 object or
+    # cross-service reference. A soft tombstone is NOT erasure and the historical hard
+    # delete implementation did not cover all DynamoDB/Cognito/S3 dependencies.
+    # The versioned media bucket retains old object versions after DeleteObject.
+    # Until a separately approved, complete deletion saga is deployed, fail closed.
+    # Archive is the only supported way to remove a contact from daily queues.
+    log_event(logger, 'contact_erasure_refused_incomplete',
+              contactId=contact_id, hardRequested=hard, requestId=request_id)
+    return cors_response(409, {
+        'error': 'CONTACT_ERASURE_NOT_READY',
+        'errorCode': 'CONTACT_ERASURE_NOT_READY',
+        'reason': (
+            'Permanent customer erasure requires a verified cross-service deletion '
+            'plan covering identity claims, all dependent tables, versioned S3 '
+            'media and customer authentication. No data was deleted. '
+            'Use Archive for reversible directory cleanup.'
+        ),
+        'archiveInstead': True,
+    }, origin)
 
 
 def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:
@@ -1658,122 +1674,12 @@ def _hard_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> 
     return None
 
 
-def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
-    table = dynamodb.Table(CONTACTS_TABLE)
-    # Check exists
-    resp = table.get_item(Key={'id': contact_id})
-    item = resp.get('Item')
-    if not item:
-        # Try scanning by contactId field — paginate to handle large tables
-        scan_kwargs: Dict[str, Any] = {
-            'FilterExpression': 'contactId = :cid AND (attribute_not_exists(deletedAt) OR deletedAt = :null)',
-            'ExpressionAttributeValues': {':cid': contact_id, ':null': None},
-            'Limit': 50,
-        }
-        item = None
-        while True:
-            scan_resp = table.scan(**scan_kwargs)
-            items = scan_resp.get('Items', [])
-            if items:
-                item = items[0]
-                contact_id = item.get('id', contact_id)
-                break
-            if 'LastEvaluatedKey' not in scan_resp:
-                break
-            scan_kwargs['ExclusiveStartKey'] = scan_resp['LastEvaluatedKey']
-        if not item:
-            return cors_response(404, {'error': 'Contact not found'}, origin)
-
-    if item.get('deletedAt') is not None:
-        return cors_response(404, {'error': 'Contact already deleted'}, origin)
-
-    now = Decimal(str(int(time.time())))
-    try:
-        table.update_item(
-        Key={'id': contact_id},
-        UpdateExpression='SET #d = :d, #u = :u',
-        ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
-        ExpressionAttributeNames={'#d': 'deletedAt', '#u': 'updatedAt', '#locked': 'locked'},
-        ExpressionAttributeValues={':d': now, ':u': now, ':false': False},
-        )
-    except Exception as exc:
-        if 'ConditionalCheckFailedException' in str(exc):
-            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
-                                       'archiveInstead': False}, origin)
-        raise
-
-    log_event(logger, 'contact_soft_deleted', contactId=contact_id, requestId=request_id)
-    return cors_response(200, {'success': True, 'contactId': contact_id, 'deleteType': 'soft'}, origin)
-
-
-def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
-    # Fail closed: no destructive message/media cleanup without an atomic retention lease.
-    return cors_response(409, {'error': 'HARD_DELETE_DISABLED',
-                               'archiveInstead': True}, origin)
-
-    # Verify contact exists before scanning message tables
-    table = dynamodb.Table(CONTACTS_TABLE)
-    resp = table.get_item(Key={'id': contact_id})
-    if not resp.get('Item'):
-        return cors_response(404, {'error': 'Contact not found'}, origin)
-
-    # Fail closed before touching any message or media when the lock changed.
-    current = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
-    if not current or contact_lock.is_locked(current):
-        return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
-                                   'archiveInstead': False}, origin)
-
-    msgs_deleted = 0
-    media_deleted = 0
-
-    # Delete messages from both tables (paginate to handle large datasets)
-    for tbl_name in (INBOUND_TABLE, OUTBOUND_TABLE):
-        try:
-            tbl = dynamodb.Table(tbl_name)
-            scan_kwargs: Dict[str, Any] = {
-                'FilterExpression': 'contactId = :cid',
-                'ExpressionAttributeValues': {':cid': contact_id},
-            }
-            while True:
-                resp = tbl.scan(**scan_kwargs)
-                for msg in resp.get('Items', []):
-                    s3_key = msg.get('s3Key')
-                    if s3_key:
-                        try:
-                            _delete_s3(s3_key)
-                            media_deleted += 1
-                        except Exception as e:
-                            logger.warning(f"S3 media delete failed for {s3_key}: {e}")
-                    try:
-                        tbl.delete_item(Key={'id': msg.get('id') or msg.get('messageId')})
-                        msgs_deleted += 1
-                    except Exception as e:
-                        logger.warning(f"Message delete failed: {e}")
-                if 'LastEvaluatedKey' not in resp:
-                    break
-                scan_kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
-        except Exception as e:
-            logger.warning(f"Error scanning {tbl_name}: {e}")
-
-    # Delete contact only when the lock is still absent. Never claim success if refused.
-    try:
-        dynamodb.Table(CONTACTS_TABLE).delete_item(
-            Key={'id': contact_id},
-            ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
-            ExpressionAttributeNames={'#locked': 'locked'},
-            ExpressionAttributeValues={':false': False},
-        )
-    except Exception as e:
-        if 'ConditionalCheckFailedException' in str(e):
-            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
-                                       'archiveInstead': False}, origin)
-        raise
-
-    log_event(logger, 'contact_hard_deleted', contactId=contact_id, msgs=msgs_deleted, media=media_deleted, requestId=request_id)
-    return cors_response(200, {
-        'success': True, 'contactId': contact_id, 'deleteType': 'hard',
-        'messagesDeleted': msgs_deleted, 'mediaDeleted': media_deleted,
-    }, origin)
+# Direct contact deletion is intentionally unavailable. Do not reintroduce a
+# partial _soft_delete or a "best-effort" _hard_delete here. Previous code tombstoned
+# the row but left IdentityClaimsTable, flow submissions, messages, S3 object versions,
+# sessions and service/commerce references; the hard-delete branch only visited two
+# message tables and could delete adjacent S3 prefixes. An erasure operation must be
+# an independently reviewed, audited, idempotent dependency-coordinated workflow.
 
 
 # ─── CONSENT EVIDENCE ─────────────────────────────────────────────────────────
@@ -2308,22 +2214,6 @@ def _matches(item: Dict[str, Any], query: str) -> bool:
             or query in bsuid or query in username or query in contact_book_name
             or any(query in t for t in tags))
 
-
-def _delete_s3(stored_key: str):
-    # Root the persisted key before deleting; see lambda_utils/media_paths.
-    stored_key = media_paths.canonical(stored_key)
-    try:
-        s3_client.head_object(Bucket=MEDIA_BUCKET, Key=stored_key)
-        s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=stored_key)
-        return
-    except ClientError as e:
-        if e.response['Error']['Code'] != '404':
-            raise
-    # Prefix search fallback
-    prefix = stored_key.rsplit('.', 1)[0] if '.' in stored_key else stored_key
-    resp = s3_client.list_objects_v2(Bucket=MEDIA_BUCKET, Prefix=prefix, MaxKeys=5)
-    for obj in resp.get('Contents', []):
-        s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=obj['Key'])
 
 
 def _to_dynamo(item: Dict[str, Any]) -> Dict[str, Any]:
