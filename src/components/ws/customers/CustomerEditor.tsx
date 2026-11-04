@@ -162,8 +162,8 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
         else setError('The server accepted the request but returned no customer record. Refresh the directory before retrying.');
         return;
       }
-      if (!result.ok) {
-        if (result.failure.status === 409) {
+      // Success was already handled above; retain the server's structured refusal.
+      if (result.failure.status === 409) {
           const reconciliation = result.failure.code === 'CONTACT_IDENTITY_RECONCILIATION_REQUIRED'
             || result.failure.details?.reconciliationRequired === true;
           if (reconciliation) {
@@ -176,11 +176,8 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
             setError('This WhatsApp number already belongs to a customer. Open that record instead.');
           }
           setStage(0);
-        } else {
-          setError(result.failure.message || 'The customer record could not be saved.');
-        }
       } else {
-        setError('Save was not confirmed by the server. Refresh the directory before retrying.');
+        setError(result.failure.message || 'The customer record could not be saved.');
       }
     } catch {
       setError('The request failed. Check the connection and try again; do not create a second record until you have checked the directory.');
