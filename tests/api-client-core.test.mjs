@@ -322,3 +322,23 @@ test( 'trusted absolute and root-relative API destinations preserve query, body 
   assert.equal( calls[ 0 ].init.headers.Authorization, 'Bearer test-token' );
   assert.equal( calls[ 1 ].url, 'https://api.invalid/api/contacts?next=https%3A%2F%2Fexample.org' );
 } );
+
+test('customer provisioning preserves partial-create refusal without replaying the POST', async () => {
+  const fetch = sequencedFetch([makeResponse(503, {
+    errorCode: 'CUSTOMER_IDENTITY_NOT_READY', contactCreated: true, contactId: 'saved-contact',
+  })]);
+  const { apiCallResult } = loadApiCallResult({ fetch });
+  const result = await apiCallResult('https://api.invalid/contacts', { method: 'POST' }, 0, 25000, false);
+  assert.equal(fetch.calls.count, 1);
+  assert.equal(result.failure.details.contactId, 'saved-contact');
+  assert.equal(result.failure.details.contactCreated, true);
+});
+
+test('customer provisioning does not replay a POST after an uncertain timeout', async () => {
+  const error = new Error('aborted'); error.name = 'AbortError';
+  const fetch = sequencedFetch([error]);
+  const { apiCallResult } = loadApiCallResult({ fetch });
+  const result = await apiCallResult('https://api.invalid/contacts', { method: 'POST' }, 0, 25000, false);
+  assert.equal(fetch.calls.count, 1);
+  assert.equal(result.failure.kind, 'timeout');
+});

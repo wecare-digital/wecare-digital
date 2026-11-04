@@ -218,7 +218,7 @@ async function apiCall<T> ( url: string, options?: RequestInit ): Promise<T | nu
  * Retries a 401 once with a refreshed token, and backs off on 429/502/503/504
  * and network errors up to `RETRY_CONFIG.maxRetries`.
  */
-export async function apiCallResult<T> ( url: string, options?: RequestInit, retryCount = 0 ): Promise<ApiResult<T>> {
+export async function apiCallResult<T> ( url: string, options?: RequestInit, retryCount = 0, timeoutMs = 8000, allowRetries = true ): Promise<ApiResult<T>> {
   let destination: string;
   try { destination = trustedApiUrl( url ); }
   catch {
@@ -229,7 +229,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
   try
   {
     const controller = new AbortController();
-    const timeoutId = setTimeout( () => controller.abort(), 8000 ); // 8 second timeout
+    const timeoutId = setTimeout( () => controller.abort(), timeoutMs ); // Per-operation timeout; 8 seconds by default
 
     // Inject Cognito auth token
     const token = await getAuthToken();
@@ -279,7 +279,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       if ( retryCount === 0 )
       {
         console.debug( 'Got 401, retrying with refreshed token...' );
-        return apiCallResult<T>( url, options, retryCount + 1 );
+        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
       }
       kind = 'unauthenticated';
       message = 'Authentication failed - please sign in again';
@@ -300,7 +300,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       kind = response.status === 504 ? 'timeout' : 'unavailable';
       message = response.status === 504 ? 'Lambda timeout - function took too long' : 'API Gateway error - service unavailable';
       // Retry on 502/503 errors
-      if ( retryCount < RETRY_CONFIG.maxRetries )
+      if ( allowRetries && retryCount < RETRY_CONFIG.maxRetries )
       {
         const delayMs = Math.min(
           RETRY_CONFIG.baseDelayMs * Math.pow( 2, retryCount ),
@@ -308,12 +308,12 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
         );
         console.debug( `Retrying API call (${retryCount + 1}/${RETRY_CONFIG.maxRetries}) after ${delayMs}ms...` );
         await delay( delayMs );
-        return apiCallResult<T>( url, options, retryCount + 1 );
+        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
       }
     } else if ( response.status === 429 )
     {
       // Rate limited - retry with backoff
-      if ( retryCount < RETRY_CONFIG.maxRetries )
+      if ( allowRetries && retryCount < RETRY_CONFIG.maxRetries )
       {
         const delayMs = Math.min(
           RETRY_CONFIG.baseDelayMs * Math.pow( 2, retryCount + 1 ),
@@ -321,7 +321,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
         );
         console.debug( `Rate limited, retrying after ${delayMs}ms...` );
         await delay( delayMs );
-        return apiCallResult<T>( url, options, retryCount + 1 );
+        return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
       }
       kind = 'rate-limited';
       message = 'Rate limited - too many requests';
@@ -359,7 +359,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
   } catch ( e: any )
   {
     // Retry on network errors
-    if ( retryCount < RETRY_CONFIG.maxRetries && ( e.name === 'AbortError' || e.name === 'TypeError' ) )
+    if ( allowRetries && retryCount < RETRY_CONFIG.maxRetries && ( e.name === 'AbortError' || e.name === 'TypeError' ) )
     {
       const delayMs = Math.min(
         RETRY_CONFIG.baseDelayMs * Math.pow( 2, retryCount ),
@@ -367,7 +367,7 @@ export async function apiCallResult<T> ( url: string, options?: RequestInit, ret
       );
       console.debug( `Network error, retrying (${retryCount + 1}/${RETRY_CONFIG.maxRetries}) after ${delayMs}ms...` );
       await delay( delayMs );
-      return apiCallResult<T>( url, options, retryCount + 1 );
+      return apiCallResult<T>( url, options, retryCount + 1, timeoutMs, allowRetries );
     }
 
     let kind: ApiFailureKind;
