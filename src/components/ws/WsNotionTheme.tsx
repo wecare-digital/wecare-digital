@@ -12,7 +12,8 @@ const WsNotionTheme: React.FC = () => (
   .ws-shell.ws-notion {
     --ws-canvas:#fbfbfa;
     --ws-paper:#ffffff;
-    --ws-sidebar:#fbfcf9;
+    --ws-sidebar:#ffffff;
+    --ws-soft-panel:#fbfcf9;
     --ws-ink:#262626;
     --ws-muted:#787774;
     --ws-hairline:#e8e8e5;
@@ -20,7 +21,7 @@ const WsNotionTheme: React.FC = () => (
     --ws-green:#24533b;
     --ws-selected:#eaf0e7;
     --bg:var(--ws-paper);
-    --bg-secondary:var(--ws-sidebar);
+    --bg-secondary:var(--ws-soft-panel);
     --bg-hover:var(--ws-hover);
     --surface:var(--ws-paper);
     --text:var(--ws-ink);
@@ -47,7 +48,7 @@ const WsNotionTheme: React.FC = () => (
      The full public BrandLockup renders its own transparent PNG and
      stacked wordmark. Do not paint a square or override its geometry. */
   .ws-shell.ws-notion .ws-sidebar {
-    background:var(--ws-sidebar);
+    background:#ffffff;
     border-color:var(--ws-hairline);
   }
   .ws-shell.ws-notion .ws-sidebar-brand {
@@ -168,7 +169,7 @@ const WsNotionTheme: React.FC = () => (
     border-radius:8px;
   }
   .ws-shell.ws-notion :is(.wsc-tabs,.wsx-tabs,.vt-switch) {
-    background:var(--ws-sidebar);
+    background:var(--ws-soft-panel);
     border-color:var(--ws-hairline);
     border-radius:9px;
   }
