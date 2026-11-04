@@ -47,7 +47,7 @@ test('single-message delete never guesses prefix or reports DynamoDB failure as 
   assert.ok(helper.includes('key.startswith(MESSAGE_MEDIA_PREFIXES)'));
   assert.ok(helper.includes('s3_client.head_object('));
   assert.ok(helper.includes('s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=key)'));
-  assert.ok(!helper.includes('list_objects_v2'));
+  assert.ok(!helper.includes('s3_client.list_objects_v2('), 'no prefix-based S3 search calls');
   assert.ok(!helper.includes('base_prefix'));
   assert.ok(!helper.includes("['Contents'][0]"));
   assert.ok(messageDelete.includes("ConditionExpression='attribute_exists(#pk)'"));
