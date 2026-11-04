@@ -723,7 +723,7 @@ test('collapsed selected nav icon stays visible in Windows forced-colors mode', 
     'hover must not restore the ordinary brand-lime highlight over system colors');
   assert.ok(forced.includes('background:Highlight;') &&
             forced.includes('color:HighlightText;') &&
-            forced.includes('outline:1px solid Highlight;'),
+            forced.includes('outline:1px solid HighlightText;'),
     'use readable system Highlight/HighlightText values on the icon tile');
   assert.ok(shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active::before") &&
             shell.includes('display:none;'),
