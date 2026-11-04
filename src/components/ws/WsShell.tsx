@@ -785,7 +785,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active:hover .ws-nav-icon{
             background:Highlight;
             color:HighlightText;
-            outline:1px solid Highlight;
+            outline:1px solid HighlightText;
           }
           .ws-signout,.ws-sidebar-toggle{border-color:ButtonText}
           .ws-signout:focus-visible,.ws-sidebar-toggle:focus-visible{outline-color:Highlight}
