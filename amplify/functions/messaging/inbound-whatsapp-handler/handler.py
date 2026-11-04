@@ -3013,7 +3013,7 @@ def _process_message(
 
                     # Install the previous claim on old rows before rotating. A
                     # partially completed transition can be retried idempotently.
-                    portfolio_id = _WABA_PORTFOLIOS.get(source_waba_id, '')
+                    portfolio_id = _portfolio_scope(source_waba_id)
                     old_profile = ((current.get('whatsappIdentities') or {})
                                    .get(portfolio_id) or {})
                     profile_bsuid = str(old_profile.get('bsuid') or '')
@@ -4011,26 +4011,45 @@ _WABA_PORTFOLIOS = {
 }
 
 
+def _portfolio_scope(waba_id: str) -> str:
+    """Known businesses share a portfolio; other signed partner IDs are WABA-isolated.
+
+    A partner WABA must not inherit an unrelated business identity. For unknown
+    accounts the stricter one-WABA scope prevents collisions while preserving
+    phone-hidden inbound traffic; cross-WABA continuity needs verified portfolio
+    metadata and is not silently inferred.
+    """
+    value = str(waba_id or '').strip()
+    known = _WABA_PORTFOLIOS.get(value)
+    if known:
+        return known
+    if 15 <= len(value) <= 20 and all(c in '0123456789' for c in value):
+        return 'WABA_' + value
+    raise contact_store.IdentityConflict('invalid-business-identity', ())
+
+
 def _message_account_id(metadata: Dict, meta_waba_ids: list, *, needs_bsuid: bool) -> str:
     """Use the known sender number and the webhook account together, never a default."""
     phone_id = str((metadata or {}).get('phone_number_id') or '').strip()
     mapped = direct_send.waba_for_meta_phone(phone_id)
     declared = {str(v) for v in (meta_waba_ids or []) if v}
-    if mapped and mapped in _WABA_PORTFOLIOS and (not declared or mapped in declared):
+    if mapped and (not declared or mapped in declared):
         return mapped
     if not mapped and len(declared) == 1:
         only = next(iter(declared))
-        if only in _WABA_PORTFOLIOS:
-            return only
+        # Other signed Embedded-Signup partner accounts must still receive
+        # messages. Give them a unique WABA-local scope, not either portfolio.
+        _portfolio_scope(only)
+        return only
     if needs_bsuid:
         raise contact_store.IdentityConflict('unknown-business-identity-scope', ())
     return ''
 
 
 def _scoped_bsuid_key(waba_id: str, bsuid: str) -> str:
-    portfolio_id = _WABA_PORTFOLIOS.get(str(waba_id or ''))
+    portfolio_id = _portfolio_scope(waba_id)
     value = str(bsuid or '').strip()
-    if not portfolio_id or not value or len(value) > 128:
+    if not value or len(value) > 128:
         raise contact_store.IdentityConflict('invalid-business-identity', ())
     return f'WHATSAPP_BSUID#{portfolio_id}#{value}'
 
@@ -4079,9 +4098,7 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
     if not bsuid:
         return
     scoped_key = _scoped_bsuid_key(waba_id, bsuid)
-    portfolio_id = _WABA_PORTFOLIOS.get(waba_id)
-    if not portfolio_id:
-        raise contact_store.IdentityConflict('invalid-business-identity', ())
+    portfolio_id = _portfolio_scope(waba_id)
     contact_id = contact_key.resolve(contact)
     if not contact_id:
         raise contact_store.IdentityConflict('missing-canonical-contact', ())
@@ -4305,7 +4322,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
     # phone-derived `wa{digits}` rule, so both id conventions live in one place.
     # Portfolio-scoped deterministic ID prevents two businesses sharing the same
     # opaque Meta user ID from minting the same provisional customer.
-    portfolio = _WABA_PORTFOLIOS.get(waba_id, '')
+    portfolio = _portfolio_scope(waba_id) if bsuid else ''
     scoped_identity = f'{portfolio}.{bsuid}' if portfolio and bsuid else ''
     bsuid_det_id = contact_store.deterministic_bsuid_id(scoped_identity)
     contact_id = det_id or bsuid_det_id
