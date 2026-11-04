@@ -409,16 +409,22 @@ test('workspace sidebar shares the HOMEPAGE logo without a lime square or copied
   const header = readSource('src/components/Header.tsx');
   assert.ok(shell.includes("import BrandLockup from '../BrandLockup'"),
     'reuse the canonical homepage lockup, not an invented custom SVG/wordmark');
-  assert.ok(shell.includes('<BrandLockup compact />'),
-    'sidebar uses the public transparent PNG and stacked two-line wordmark');
+  assert.ok(shell.includes('<BrandLockup compact iconOnly={ collapsed } />'),
+    'the same homepage PNG is mark-only when collapsed and full wordmark when expanded');
+  assert.ok(brand.includes('iconOnly?: boolean') &&
+            brand.includes('{ !iconOnly && (') &&
+            brand.includes('loading={ compact && !iconOnly'),
+    'the shared logo must remove wordmark markup completely in icon-only mode and load the icon eagerly');
   assert.ok(header.includes('<BrandLockup className="public-header" />'),
     'the identical component is used by the homepage header');
   assert.ok(brand.includes("const LOGO_URL = 'https://wecare.digital/get/o/stream/media/m/wecaredigital.png'"),
     'the original brand asset is the transparent canonical S3 PNG');
   assert.ok(!shell.includes('ws-brand-mark') && !theme.includes('.ws-shell.ws-notion .ws-brand-mark'),
     'no lime-square wrapper remains behind the logo');
-  assert.ok(shell.includes('.ws-brand-side') && shell.includes('overflow:hidden'),
-    'collapsed sidebar clips only the extra wordmark, preserving the original mark');
+  assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-brand-side") &&
+            shell.includes('overflow:visible;') &&
+            shell.includes('justify-content:center;'),
+    'collapsed logo must be a centered true icon with no clipping of an oversized wordmark');
   assert.ok(shell.includes('.ws-nav-link.active::before') &&
             shell.includes('.ws-bottom-link.active::before'),
     'active sections keep a small homepage-lime indicator on desktop and mobile');
@@ -513,8 +519,8 @@ test('workspace sidebar is truly white and contains no NAVIGATION subtitle', () 
     'other workspace panels retain their previous tinted surfaces');
   assert.ok(!shell.includes('>NAVIGATION<') && !shell.includes('ws-nav-caption'),
     'remove navigation heading and its obsolete CSS completely');
-  assert.ok(shell.includes('<BrandLockup compact />'),
-    'preserve the exact homepage logo presentation on the white sidebar');
+  assert.ok(shell.includes('<BrandLockup compact iconOnly={ collapsed } />'),
+    'preserve the exact homepage mark while omitting its wordmark only when collapsed');
 });
 
 test('text-only borderless sidebar search filters the six routes while typing', () => {
@@ -631,4 +637,80 @@ test('sidebar remains usable across Safari, iOS and Android app WebViews and des
   assert.ok(shell.includes('@media(forced-colors:active)') &&
             shell.includes('outline:2px solid Highlight!important;'),
     'Windows high-contrast input focus cannot disappear when shadows are suppressed');
+});
+
+test('collapsed logo renders only the homepage mark, without cropped or overflowing text', () => {
+  const brand = readSource('src/components/BrandLockup.tsx');
+  assert.ok(shell.includes('<BrandLockup compact iconOnly={ collapsed } />'),
+    'the same public asset must be used for both collapsed and expanded sidebar states');
+  assert.ok(brand.includes("iconOnly = false") && brand.includes('{ !iconOnly && ('),
+    'the default homepage/header/footer keeps the wordmark, but the collapsed rail does not render it');
+  assert.ok(brand.includes('<img') && brand.includes("const LOGO_URL = 'https://wecare.digital/get/o/stream/media/m/wecaredigital.png'"),
+    'keep the authentic transparent logo instead of inventing a fallback glyph');
+  const collapsedLogo = shell.match(
+    /\.ws-shell\[data-ws-collapsed='true'\] \.ws-brand-side\s*\{([^{}]*)\}/,
+  );
+  assert.ok(collapsedLogo && collapsedLogo[1].includes('overflow:visible;') &&
+            collapsedLogo[1].includes('justify-content:center;') &&
+            collapsedLogo[1].includes('width:44px;'),
+    'icon-only mark must fit centrally in the 80px rail without clipping');
+  assert.ok(brand.includes("loading={ compact && !iconOnly ? 'lazy' : 'eager' }"),
+    'the collapsed above-fold icon must be eager, not delayed like the footer logo');
+});
+
+test('sidebar header, footer and icon buttons have no hairline separators or shadows', () => {
+  const styles = shell.slice(shell.indexOf('<style jsx>{`'));
+  const cssBlock = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = styles.match(new RegExp(escaped + '\\s*\\{([^{}]*)\\}'));
+    assert.ok(m, 'CSS selector missing: ' + selector);
+    return m[1];
+  };
+  const header = cssBlock('.ws-sidebar-brand');
+  const footer = cssBlock('.ws-sidebar-foot');
+  const toggle = cssBlock('.ws-sidebar-toggle');
+  const toggleHover = cssBlock('.ws-sidebar-toggle:hover');
+  const signout = cssBlock('.ws-signout');
+  assert.ok(header.includes('border:0;') && !header.includes('border-bottom:'),
+    'no divider below the logo or collapse control');
+  assert.ok(footer.includes('border:0;') && !footer.includes('border-top:'),
+    'no divider above the signed-in account and sign-out controls');
+  assert.ok(toggle.includes('border:0;') && toggle.includes('box-shadow:none;') &&
+            !toggleHover.includes('box-shadow:'),
+    'collapse toggle is a clean, shadow-free icon button');
+  assert.ok(signout.includes('border:0;') && signout.includes('background:transparent;'),
+    'signout is an icon-only action without a permanent outlined button box');
+  assert.ok(!theme.includes('.ws-shell.ws-notion .ws-sidebar-brand'),
+    'global theme must not resurrect a border on the sidebar header');
+  assert.ok(shell.includes('border-inline-end:2px solid var(--public-brand-lime,#d1f470)'),
+    'preserve only the requested external lime sidebar edge');
+});
+
+test('collapsed navigation has exactly one selected icon tile, not a double pill', () => {
+  assert.ok(shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active::before") &&
+            shell.includes('display:none;'),
+    'remove the old active link stripe from the collapsed rail');
+  assert.ok(shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link") &&
+            shell.includes('background:transparent;'),
+    'no large pale background behind the collapsed nav link');
+  assert.ok(shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active .ws-nav-icon") &&
+            shell.includes('background:var(--public-brand-lime,#d1f470)'),
+    'the one active 44px icon tile alone carries the lime highlight');
+  assert.ok(shell.includes('width:44px;') && shell.includes('height:44px;'),
+    'collapsed rail navigation remains finger-friendly');
+});
+
+test('workspace titles and sidebar text use the homepage Inter hierarchy', () => {
+  assert.ok(theme.includes('font-weight:var(--public-card-weight,700)') &&
+            theme.includes('letter-spacing:var(--public-card-tracking,-.25px)') &&
+            theme.includes('line-height:var(--public-card-leading,1.27)'),
+    'workspace headings follow the public card type ladder instead of the 740-weight compressed style');
+  assert.ok(theme.includes('font-size:var(--public-meta-size,14px)') &&
+            theme.includes('font-size:var(--public-supporting-size,16px)'),
+    'breadcrumbs, notes and body text reuse homepage metadata and supporting sizes');
+  assert.ok(theme.includes('color:var(--public-brand-green,#1a3a2a)') &&
+            theme.includes('letter-spacing:var(--public-body-tracking,-.125px)'),
+    'nav labels use homepage green and Inter tracking');
+  assert.ok(!theme.includes('font-weight:740;') && !theme.includes('font-size:11px;'),
+    'retire old cramped display and breadcrumb typography in the unified workspace theme');
 });
