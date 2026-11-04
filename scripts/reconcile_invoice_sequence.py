@@ -57,7 +57,9 @@ INVOICE_SEQ_TABLE = os.environ.get("INVOICE_SEQ_TABLE",
                                    "stack-wecare-digital-InvoiceSequenceTable")
 
 #: `WD/2627/00004` - the shape `invoice-engine._format_invoice_number` writes.
-_NUMBER_RE = re.compile(r"^(?P<prefix>[A-Z]+)/(?P<fy>\d{4})/(?P<seq>\d+)$")
+#: Optionally with a series letter: `WD/2627/A/00004` (the counter row's `series`).
+_NUMBER_RE = re.compile(
+    r"^(?P<prefix>[A-Z]+)/(?P<fy>\d{4})/(?:(?P<series>[A-Z]{1,3})/)?(?P<seq>\d+)$")
 
 
 def _resource():
@@ -70,7 +72,7 @@ def fy_short(fy: str) -> str:
     return fy.replace("20", "").replace("-", "")
 
 
-def parse_sequence(number: str, *, fy: str) -> int:
+def parse_sequence(number: str, *, fy: str, series: str = "") -> int:
     """The sequence inside an invoice number for `fy`, or 0 when it is for another year.
 
     0 rather than an exception: this reads production rows, and one unparseable legacy number
@@ -80,10 +82,14 @@ def parse_sequence(number: str, *, fy: str) -> int:
     match = _NUMBER_RE.match(str(number or "").strip())
     if not match or match.group("fy") != fy_short(fy):
         return 0
+    # Only numbers in the counter's CURRENT series move its floor. A new series restarts at 1,
+    # so the old series' WD/2627/00021 must not push the A-series counter to 21.
+    if (match.group("series") or "") != (series or ""):
+        return 0
     return int(match.group("seq"))
 
 
-def highest_issued_invoice(table, *, fy: str) -> int:
+def highest_issued_invoice(table, *, fy: str, series: str = "") -> int:
     """The highest `invoiceNumber` on InvoicesTable for `fy`. Paginated.
 
     A Scan is correct rather than lazy: the question spans every invoice ever raised, there is no
@@ -95,13 +101,13 @@ def highest_issued_invoice(table, *, fy: str) -> int:
     while True:
         page = table.scan(**kwargs)
         for item in page.get("Items", []):
-            highest = max(highest, parse_sequence(item.get("invoiceNumber"), fy=fy))
+            highest = max(highest, parse_sequence(item.get("invoiceNumber"), fy=fy, series=series))
         if "LastEvaluatedKey" not in page:
             return highest
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
 
-def highest_reserved_number(table, *, fy: str) -> int:
+def highest_reserved_number(table, *, fy: str, series: str = "") -> int:
     """The highest `INVOICENO#` reservation on the commerce-keys table for `fy`.
 
     These rows outlive `clear_all_invoice_data`, so this source can be ahead of InvoicesTable -
@@ -115,10 +121,17 @@ def highest_reserved_number(table, *, fy: str) -> int:
             if not key.startswith(order_keys.INVOICE_NUMBER_PREFIX):
                 continue
             highest = max(highest, parse_sequence(
-                item.get("invoiceNumber") or key[len(order_keys.INVOICE_NUMBER_PREFIX):], fy=fy))
+                item.get("invoiceNumber") or key[len(order_keys.INVOICE_NUMBER_PREFIX):], fy=fy,
+                series=series))
         if "LastEvaluatedKey" not in page:
             return highest
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+
+def counter_series(table, *, fy: str) -> str:
+    """The counter's optional series letter for `fy` ('' for the original series)."""
+    row = table.get_item(Key={"fy": fy}, ConsistentRead=True).get("Item") or {}
+    return str(row.get("series") or "")
 
 
 def counter_last_seq(table, *, fy: str) -> int:
@@ -168,16 +181,17 @@ def main(argv=None) -> int:
     keys = resource.Table(order_keys.commerce_keys_table_name())
     sequence = resource.Table(INVOICE_SEQ_TABLE)
 
-    from_invoices = highest_issued_invoice(invoices, fy=args.fy)
-    from_reservations = highest_reserved_number(keys, fy=args.fy)
-    from_operator = parse_sequence(args.floor, fy=args.fy) if args.floor else 0
+    series = counter_series(sequence, fy=args.fy)
+    from_invoices = highest_issued_invoice(invoices, fy=args.fy, series=series)
+    from_reservations = highest_reserved_number(keys, fy=args.fy, series=series)
+    from_operator = parse_sequence(args.floor, fy=args.fy, series=series) if args.floor else 0
     if args.floor and not from_operator:
         ap.error(f"--floor {args.floor!r} is not an invoice number for FY {args.fy}")
 
     floor = max(from_invoices, from_reservations, from_operator)
     last_seq = counter_last_seq(sequence, fy=args.fy)
 
-    print(f"FY {args.fy}")
+    print(f"FY {args.fy}" + (f" series {series}" if series else ""))
     print(f"  highest on InvoicesTable      {from_invoices:5d}")
     print(f"  highest INVOICENO# reservation {from_reservations:5d}")
     print(f"  operator --floor               {from_operator:5d}")
