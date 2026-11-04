@@ -941,49 +941,9 @@ const Customers: React.FC<PageProps> = () => {
     finally { customerMutationInFlight.current = false; setDeleting(false); }
   };
 
-  // Staff Delete is only a guarded soft-delete. It never purges messages or releases a
-  // phone reservation, so it cannot be used as a workaround for an orphaned-identity 409.
-  const handleDeleteCustomer = async (contactId: string, contactName?: string) => {
-    if (deleting || customerMutationInFlight.current) return;
-    const current = contacts.find(c => c.contactId === contactId);
-    if (current?.locked) {
-      toast.warning('This customer is protected by a retention lock; ask an administrator to review it.');
-      return;
-    }
-    const ok = await confirm({
-      title: 'Delete customer from Workspace?',
-      message: `Delete ${contactName ? `"${contactName}"` : 'this customer'} from active customer records? This is a soft delete, NOT a permanent purge. The phone stays reserved and cannot be reused to create a new customer. Invoice, payment, order and audit history are never erased by this action. Choose Archive if you may need to restore the record.`,
-      confirmText: 'Delete customer',
-      danger: true,
-    });
-    if (!ok || customerMutationInFlight.current) return;
-    customerMutationInFlight.current = true;
-    setDeleting(true);
-    try {
-      const result = await api.softDeleteContactResult(contactId);
-      if (result.ok && result.data?.success && (result.data.deleteType === 'soft' || result.data.deleteType == null)) {
-        toast.success('Customer removed from the active list; their phone remains reserved.');
-        setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
-        if (detailContact?.contactId === contactId) setDetailContact(null);
-        await loadContacts();
-      } else if (!result.ok) {
-        const refusal = (result.failure.code || result.failure.message || '').toUpperCase();
-        const message = refusal.includes('CONTACT_LOCKED')
-          ? 'Delete refused: this customer is protected for legal retention.'
-          : refusal.includes('CONTACT_HAS_PAYMENTS') || refusal.includes('PAYMENT_LINKAGE_UNKNOWN')
-            ? 'Delete refused: linked payment/order history exists or could not be verified. Archive instead if permitted.'
-            : result.failure.message || 'Delete was refused by the server.';
-        toast.error(message);
-      } else {
-        toast.error('Delete was not confirmed by the server. Refresh before trying again.');
-      }
-    } catch {
-      toast.error('Delete request failed. Customer was not confirmed deleted.');
-    } finally {
-      customerMutationInFlight.current = false;
-      setDeleting(false);
-    }
-  };
+  // Full erasure is intentionally unavailable until the cross-service deletion
+  // coordinator can remove/reconcile identity, S3 versions, messaging and all
+  // dependent history. Archive remains the reversible staff cleanup path.
 
   const handleUnlock = async (contactId: string) => {
     if (!(await confirm({ title: 'Unlock protected contact', message: 'Unlocking allows archive operations. Only an administrator with MFA can authorize this action.', confirmText: 'Unlock' }))) return;
@@ -1781,9 +1741,10 @@ const Customers: React.FC<PageProps> = () => {
                 <div className="contacts-detail-actions">
                   <button type="button" onClick={() => { handleEdit(detailContact); setDetailContact(null); }} className="contacts-primary-action">Edit</button>
                   <button type="button" onClick={() => void handleArchive(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-secondary-action">Archive</button>
-                  <button type="button" onClick={() => void handleDeleteCustomer(detailContact.contactId, detailContact.name)} disabled={detailContact.locked || deleting} className="contacts-danger-action">Delete customer</button>
+                  <button type="button" disabled className="contacts-danger-action"
+                    title="Complete contact erasure is not yet available">Delete all data — unavailable</button>
                 </div>
-                <p className="contacts-retention-note">Archive can be restored. Delete is a guarded soft delete: the phone remains reserved and financial records stay intact. Protected customers cannot be deleted.</p>
+                <p className="contacts-retention-note">Archive is reversible. Complete deletion must include linked DynamoDB, identity claims, S3 versions and authentication records; it is unavailable until a verified erasure workflow is approved. Financial/legal retention may prohibit deletion.</p>
 
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />
