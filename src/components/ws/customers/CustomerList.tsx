@@ -132,9 +132,9 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
             </div>
           </div>
           <div className={styles.detailBadges}>
-            <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
+            {contact.phone && <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
               {contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'}
-            </span>
+            </span>}
             {contact.bsuid && <span className={styles.neutralTag}>WhatsApp BSUID linked</span>}
             {contact.bsuid && !contact.phone && <span className={styles.neutralTag}>Phone not shared</span>}
             {contact.locked && <span className={styles.warningTag}>Retention lock</span>}
@@ -262,7 +262,7 @@ const CustomerList: React.FC = () => {
     () => contacts.filter(item => Boolean(contactDeliveryAddress(item))).length, [contacts]);
   const incomplete = React.useMemo(() => contacts.filter(missingDetails).length, [contacts]);
   const unnamed = React.useMemo(() => contacts.filter(needsName).length, [contacts]);
-  const unverified = React.useMemo(() => contacts.filter(item => !item.phoneVerifiedAt).length, [contacts]);
+  const unverified = React.useMemo(() => contacts.filter(item => Boolean(item.phone) && !item.phoneVerifiedAt).length, [contacts]);
 
   const visible = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -270,7 +270,7 @@ const CustomerList: React.FC = () => {
       if (filter === 'address' && !contactDeliveryAddress(contact)) return false;
       if (filter === 'incomplete' && !missingDetails(contact)) return false;
       if (filter === 'unnamed' && !needsName(contact)) return false;
-      if (filter === 'unverified' && contact.phoneVerifiedAt) return false;
+      if (filter === 'unverified' && (!contact.phone || contact.phoneVerifiedAt)) return false;
       if (!term) return true;
       const text = [
         contact.name, contact.phone, contact.email, contact.companyName, contact.designation,
@@ -363,7 +363,7 @@ const CustomerList: React.FC = () => {
         const contact = authoritative.get(id);
         if (!contact || !isBulkEligible(contact)
           || (filter === 'unnamed' && !needsName(contact))
-          || (filter === 'unverified' && Boolean(contact.phoneVerifiedAt))) {
+          || (filter === 'unverified' && (!contact.phone || Boolean(contact.phoneVerifiedAt)))) {
           excluded++;
         } else if (targets.length < MAX_BULK) {
           targets.push(contact);
@@ -395,7 +395,7 @@ const CustomerList: React.FC = () => {
         const latest = finalById.get(identityId(contact));
         return Boolean(latest && isBulkEligible(latest)
           && (filter !== 'unnamed' || needsName(latest))
-          && (filter !== 'unverified' || !latest.phoneVerifiedAt));
+          && (filter !== 'unverified' || (Boolean(latest.phone) && !latest.phoneVerifiedAt)));
       });
       if (finalTargets.length !== targets.length) {
         toast.warning((targets.length - finalTargets.length) + ' record(s) changed or became protected during review and were skipped.');
