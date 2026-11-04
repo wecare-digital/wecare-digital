@@ -2,7 +2,7 @@
  * CustomerActionsSheet — the per-customer action surface for /ws/customers (FEAT-003).
  *
  * A mobile-first bottom sheet (full-width card on desktop) that carries the confirm-gated,
- * server-reason-honouring actions the user called out for a single customer:
+ * server-reason-honouring actions for a single customer:
  *   - Delete a specific stored field (clears one field via api.updateContactResult)
  *   - Delete this customer's messages (api.deleteContactMessages, reports deleted/failed)
  *   - Block / archive (api.archiveContact — hides from daily queues, keeps identity + history)
@@ -24,8 +24,6 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 export interface CustomerActionsSheetProps {
   contact: Contact;
   onClose: () => void;
-  /** Reserved for the future audited erasure workflow; never called by this sheet. */
-  onRemoved: ( contactId: string ) => void;
   /** Called after an archive so the parent can drop the row from the active (daily-queue) list. */
   onArchived: ( contactId: string ) => void;
   /** Called after a field clear or message delete so the parent can re-read fresh server data. */
@@ -50,7 +48,7 @@ const CloseGlyph = (): React.JSX.Element => (
 );
 
 const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
-  contact, onClose, onRemoved, onArchived, onChanged,
+  contact, onClose, onArchived, onChanged,
 } ) => {
   const toast = useToastContext();
   const confirm = useConfirm();
