@@ -404,6 +404,27 @@ def _update_business_profile(phone_id: str, body: Dict) -> Dict:
     payload = {k: v for k, v in body.items() if k in allowed and v is not None and v != ''}
     if not payload:
         return _resp(400, {'error': 'No valid fields to update'})
+
+    # Meta silently drops an `about` value that violates its constraints, which is
+    # the usual reason the field "saves" but never shows in the WhatsApp client.
+    # Reject bad values up front with a clear message instead. See:
+    # https://developers.facebook.com/docs/whatsapp/cloud-api/reference/business-profiles/
+    #   - about: 1..139 chars, no raw emoji Unicode, no Markdown.
+    #   - description: max 512 chars. address: max 256. email: max 128.
+    about = payload.get('about')
+    if about is not None:
+        # Count in Unicode code points (what Meta's 139 limit measures), not bytes.
+        if len(about) > 139:
+            return _resp(400, {'error': 'about must be 139 characters or fewer; it is not shown in the WhatsApp profile when longer. Use "description" for longer text.'})
+        if any(ord(ch) > 0xFFFF or 0x1F000 <= ord(ch) <= 0x1FAFF or 0x2600 <= ord(ch) <= 0x27BF for ch in about):
+            return _resp(400, {'error': 'about contains a raw emoji; Meta requires emoji to be escape-encoded, otherwise the field is not displayed.'})
+    if 'description' in payload and len(payload['description']) > 512:
+        return _resp(400, {'error': 'description must be 512 characters or fewer'})
+    if 'address' in payload and len(payload['address']) > 256:
+        return _resp(400, {'error': 'address must be 256 characters or fewer'})
+    if 'email' in payload and len(payload['email']) > 128:
+        return _resp(400, {'error': 'email must be 128 characters or fewer'})
+
     payload['messaging_product'] = 'whatsapp'
     result = _graph_api(f'{phone_id}/whatsapp_business_profile', method='POST', payload=payload, phone_id=phone_id)
     if 'error' in result:
