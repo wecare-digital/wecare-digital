@@ -331,8 +331,9 @@ const CustomerList: React.FC = () => {
     if (selecting) toggleSelected(identityId(contact));
     else setDetailsFor(contact);
   };
-  const saveContact = (saved: Contact) => {
+  const saveContact = (saved: Contact, warning?: string) => {
     toast.success(editorFor === 'new' ? 'Contact created.' : 'Customer profile updated.');
+    if (warning) toast.warning(warning);
     setEditorFor(null);
     setDetailsFor(saved);
     void load();
