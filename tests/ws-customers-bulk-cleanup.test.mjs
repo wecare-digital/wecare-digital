@@ -39,6 +39,8 @@ test('only confirmed staff actions write after fresh retention preflight and rev
   assert.ok(start >= 0 && end > start, 'bulk action exists');
   for (const marker of [
     'await api.listContactsResult()', 'const authoritative = new Map',
+    "filter === 'unnamed' && !needsName(contact)",
+    "filter === 'unverified' && Boolean(contact.phoneVerifiedAt)",
     'isBulkEligible(contact)', "action === 'delete' && !isSoftDeleteCandidate(contact)",
     'await confirm(', 'if (!approved) return;',
     "await api.archiveContact(", 'await api.softDeleteContactResult(id)',
@@ -61,7 +63,7 @@ test('missing name and unverified status never automatically trigger deletion', 
     'contact.optInWhatsApp', 'contact.allowlistWhatsApp',
     'contact.tags?.length', 'contactDeliveryAddress(contact)',
     'function isSoftDeleteCandidate(contact: Contact)',
-    'return isBulkEligible(contact) && !hasIdentityEvidence(contact)',
+    'return isBulkEligible(contact) && needsName(contact) && !hasIdentityEvidence(contact)',
   ]) assert.ok(directory.includes(marker), marker);
   assert.ok(directory.includes("onClick={() => void runBulk('archive')}"));
   assert.ok(directory.includes("onClick={() => void runBulk('delete')}"));
