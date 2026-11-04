@@ -461,7 +461,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             padding:22px 18px
               calc(20px + env(safe-area-inset-bottom,0px))
               max(18px,env(safe-area-inset-left,0px));
-            background:var(--bg-secondary,#fcfdfb);
+            background:#ffffff;
             border-inline-end:1px solid var(--border,#e5e7eb);
             box-sizing:border-box;
           }
