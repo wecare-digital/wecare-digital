@@ -5,9 +5,9 @@
  * and renders its own WsShell. It stays noindex via SEO.
  *
  * The list and all of its actions live in CustomerList / CustomerActionsSheet under
- * src/components/ws/customers/. Every delete/block action is confirm()-gated and honours the
- * server ApiResult: on a refusal the server's own reason is shown via toast and the row is NOT
- * reported removed. Data flows only through the existing src/api/client.ts exports
+ * src/components/ws/customers/. Archive is confirm()-gated and honours the
+ * server ApiResult. Full customer erasure is explicitly unavailable until all linked
+ * storage, identity and legal-retention records can be processed together. Data flows only through the existing src/api/client.ts exports
  * (listContactsResult, softDeleteContactResult, archiveContact, updateContactResult)
  * — no new endpoints and no bare fetch. Bulk archive/delete always re-reads
  * current lock state and requires explicit staff confirmation. Bulk removal is archive-only;
