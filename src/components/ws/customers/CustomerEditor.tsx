@@ -19,7 +19,7 @@ interface Props {
   contact?: Contact | null;
   contacts: Contact[];
   onClose: () => void;
-  onSaved: (contact: Contact) => void | Promise<void>;
+  onSaved: (contact: Contact, warning?: string) => void | Promise<void>;
   onExisting: (contact: Contact) => void;
 }
 
@@ -160,8 +160,31 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
       if (result.ok) {
         // A 2xx without a returned canonical customer must NOT trigger a success toast;
         // the write may have happened and retrying would risk a duplicate.
-        if (result.data) await onSaved(result.data);
-        else setError('The server accepted the request but returned no customer record. Refresh the directory before retrying.');
+        if (result.data) {
+          let saved = result.data;
+          let warning = '';
+          const desiredUsername = username.trim();
+          // The live Contacts create runtime may predate the F001 profileUsername mapping.
+          // On a successful create only, use the existing field-only update path as a safe
+          // compatibility bridge. Never resend the phone or any consent/verification field.
+          if (!editing && desiredUsername && saved.profileUsername !== desiredUsername) {
+            const createdId = saved.contactId || saved.id;
+            if (createdId) {
+              try {
+                const usernamePatch = await api.updateContactResult(createdId, { profileUsername: desiredUsername });
+                if (usernamePatch.ok && usernamePatch.data) saved = usernamePatch.data;
+                else warning = 'Contact was created, but its profile username could not be confirmed. Edit the contact to retry.';
+              } catch {
+                warning = 'Contact was created, but its profile username update failed. Edit the contact to retry.';
+              }
+            } else {
+              warning = 'Contact was created without a returned customer ID. Refresh the directory before editing the profile username.';
+            }
+          }
+          await onSaved(saved, warning);
+        } else {
+          setError('The server accepted the request but returned no customer record. Refresh the directory before retrying.');
+        }
         return;
       }
       // Success was already handled above; retain the server's structured refusal.
