@@ -1640,10 +1640,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         logger.error(json.dumps({
                             'event': 'message_processing_error',
                             'messageId': message.get('id'),
-                            'error': str(e),
+                            'error': ('IdentityConflict' if isinstance(e, contact_store.IdentityConflict)
+                                      else str(e)),
                             'requestId': request_id
                         }))
                         error_count += 1
+                        if isinstance(e, contact_store.IdentityConflict):
+                            # Fail closed on ambiguous identity without losing the message.
+                            # A copy of THIS message (not the other messages/statuses in
+                            # the webhook batch) must reach durable retry/reconciliation.
+                            conflict_value = {k: v for k, v in value.items() if k != 'statuses'}
+                            conflict_value['messages'] = [message]
+                            parked = _send_to_dlq(
+                                wa_internal_event.build(
+                                    entry={**webhook_entry,
+                                           'changes': [{**change, 'value': conflict_value}]},
+                                    waba_id=_item.get('waba_id') or '',
+                                    meta_phone_number_ids=meta_phone_number_ids,
+                                    request_id=request_id,
+                                ), 'customer_identity_conflict', request_id)
+                            if not parked:
+                                raise  # force upstream retry rather than acknowledging a lost message
                         if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
                             # The record-level recovery path stores normalized work in
                             # the DLQ. Do not acknowledge an idea storage failure alone.
@@ -4122,6 +4139,13 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
     # silently linking this WhatsApp ID to another customer's phone.
     pending_phone = ''
     phone_param = ''
+    if phone and contact.get('phone') and (
+        contact_store.canonical_phone(phone) != contact_store.canonical_phone(contact.get('phone'))
+    ):
+        # A new phone for the same BSUID can mean a number change or a recycled
+        # number. Never silently redirect a confirmed customer's messages.
+        logger.warning(json.dumps({'event': 'inbound_phone_change_requires_review',
+                                   'contactId': mask_contact_id(contact.get('id', ''))}))
     if phone and not contact.get('phone'):
         formatted = contact_store.canonical_phone(phone)
         if formatted:
@@ -5904,10 +5928,10 @@ def _lookup_payment_amount(reference_id: str, request_id: str) -> float:
         return 0.0
 
 
-def _send_to_dlq(record: Dict, error: str, request_id: str) -> None:
-    """Send failed message to inbound-dlq."""
+def _send_to_dlq(record: Dict, error: str, request_id: str) -> bool:
+    """Park a replayable inbound envelope; False means it was NOT durably stored."""
     if not INBOUND_DLQ_URL:
-        return
+        return False
     
     try:
         sqs.send_message(
@@ -5919,12 +5943,14 @@ def _send_to_dlq(record: Dict, error: str, request_id: str) -> None:
                 'requestId': request_id
             }, default=str)
         )
+        return True
     except Exception as e:
         logger.error(json.dumps({
             'event': 'dlq_send_error',
             'error': str(e),
             'requestId': request_id
         }))
+        return False
 
 
 CALLING_TABLE = os.environ.get('CALL_LOG_TABLE', 'stack-wecare-digital-WhatsAppCallingTable')
