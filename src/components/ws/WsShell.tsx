@@ -169,7 +169,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             aria-label="WECARE.DIGITAL workspace home"
             title={ collapsed ? 'WECARE.DIGITAL — Home' : undefined }
           >
-            <BrandLockup compact />
+            <BrandLockup compact iconOnly={ collapsed } />
           </Link>
           <button
             type="button"
@@ -291,19 +291,19 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           overflow-x:hidden;
           overflow-x:clip;
         }
-        /* Homepage BrandLockup owns its PNG and stacked wordmark; the sidebar
-           only clips the extra wordmark when collapsed. No badge/square behind
-           the logo, and no second source of brand geometry. */
+        /* The canonical homepage BrandLockup owns the image and text.
+           In the collapsed rail iconOnly removes the wordmark entirely:
+           never crop a wide lockup and hope overflow clips it. */
         .ws-sidebar-brand{
           position:relative;
           display:flex;
           align-items:center;
           gap:8px;
-          min-height:72px;
+          min-height:60px;
           min-width:0;
-          padding:0 0 22px;
-          margin-bottom:20px;
-          border-bottom:1px solid var(--border,#e5e7eb);
+          padding:0 0 8px;
+          margin-bottom:14px;
+          border:0;
         }
         .ws-brand-side{
           display:inline-flex;
@@ -332,19 +332,17 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           width:40px;
           height:40px;
           padding:0;
-          border:1px solid var(--border,#e5e7eb);
-          border-radius:12px;
-          background:var(--surface,#fff);
+          border:0;
+          border-radius:13px;
+          background:transparent;
           color:var(--public-brand-green,#1a3a2a);
-          box-shadow:0 2px 8px rgba(26,58,42,.08);
+          box-shadow:none;
           cursor:pointer;
           -webkit-tap-highlight-color:transparent;
           transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease;
         }
         .ws-sidebar-toggle:hover{
           background:var(--public-lime-tint,rgba(209,244,112,.22));
-          border-color:var(--public-brand-lime,#d1f470);
-          box-shadow:0 2px 12px rgba(26,58,42,.11);
         }
         .ws-sidebar-toggle:focus-visible{
           outline:2px solid var(--public-brand-green,#1a3a2a);
@@ -598,14 +596,16 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           /* The account and sign-out sit together as a single compact footer.
              Sign out is icon-only at every sidebar width, but has an accessible
              name and tooltip; it is not a dead glyph. */
+          /* Pure-white, separator-free account footer. Navigation and
+             session actions are distinguished by spacing, not hairlines. */
           .ws-sidebar-foot{
             display:flex;
             align-items:center;
             gap:8px;
             min-width:0;
-            margin-top:16px;
-            padding:18px 2px 0;
-            border-top:1px solid var(--border,#e5e7eb);
+            margin-top:14px;
+            padding:12px 2px 0;
+            border:0;
           }
           .ws-account{
             display:flex;
@@ -634,13 +634,13 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           }
           .ws-account-label{
             color:var(--text-muted,#6b7280);
-            font-size:12px;
-            line-height:1.25;
+            font-size:var(--public-meta-size,14px);
+            line-height:1.3;
           }
           .ws-account-id{
             color:var(--text,#1a1a1a);
-            font-size:13px;
-            font-weight:650;
+            font-size:var(--public-meta-size,14px);
+            font-weight:600;
             line-height:1.35;
             letter-spacing:var(--public-body-tracking,-.125px);
             overflow:hidden;
@@ -655,18 +655,16 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             height:44px;
             flex:0 0 44px;
             padding:0;
-            border:1px solid var(--border,#e5e7eb);
+            border:0;
             border-radius:13px;
-            background:var(--surface,#fff);
+            background:transparent;
             color:var(--public-brand-green,#1a3a2a);
             cursor:pointer;
             -webkit-tap-highlight-color:transparent;
             transition:background-color .16s ease,border-color .16s ease,transform .16s ease;
           }
           .ws-signout:hover:not(:disabled){
-            background:var(--public-brand-lime,#d1f470);
-            border-color:var(--public-brand-lime,#d1f470);
-            transform:translateY(-1px);
+            background:var(--public-lime-tint,rgba(209,244,112,.22));
           }
           .ws-signout:disabled{opacity:.5;cursor:not-allowed}
           .ws-signout:focus-visible{
@@ -690,14 +688,17 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             flex-direction:column;
             justify-content:center;
             gap:8px;
-            padding-bottom:16px;
-            margin-bottom:16px;
+            padding-bottom:8px;
+            margin-bottom:12px;
+            border:0;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-brand-side{
+            justify-content:center;
             width:44px;
             max-width:44px;
+            min-height:44px;
             flex:0 0 44px;
-            overflow:hidden;
+            overflow:visible;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-toggle{
             flex:0 0 40px;
@@ -714,21 +715,39 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-shell[data-ws-collapsed='true'] .ws-account-copy{
             display:none;
           }
-          .ws-shell[data-ws-collapsed='true'] .ws-nav-link{
+          /* Single clean icon tile: remove the old double highlight where
+             both the full link and the icon were tinted in the narrow rail. */
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link{
             justify-content:center;
             width:100%;
             min-width:0;
-            padding:7px 3px;
+            padding:6px 2px;
+            background:transparent;
           }
-          .ws-shell[data-ws-collapsed='true'] .ws-nav-icon{
-            width:38px;
-            height:38px;
-            flex-basis:38px;
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active::before{
+            display:none;
+          }
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-icon{
+            width:44px;
+            height:44px;
+            flex-basis:44px;
+            border-radius:13px;
+          }
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active .ws-nav-icon{
+            background:var(--public-brand-lime,#d1f470);
+            color:var(--public-brand-green,#1a3a2a);
+          }
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link:hover .ws-nav-icon{
+            background:var(--public-lime-tint,rgba(209,244,112,.22));
+          }
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active:hover .ws-nav-icon{
+            background:var(--public-brand-lime,#d1f470);
           }
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-foot{
             flex-direction:column;
-            gap:10px;
-            padding-top:14px;
+            gap:8px;
+            padding-top:10px;
+            border:0;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-account{
             flex:0 0 auto;
@@ -746,7 +765,6 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-shell,.ws-nav-link,.ws-nav-icon,.ws-bottom-link,.ws-signout,.ws-sidebar-toggle{
             transition:none
           }
-          .ws-signout:hover:not(:disabled){transform:none}
         }
         @media(forced-colors:active){
           /* High Contrast suppresses box shadows; reinstate a true outline

@@ -53,13 +53,10 @@ const WsNotionTheme: React.FC = () => (
   .ws-shell.ws-notion .ws-sidebar {
     background:#ffffff;
   }
-  .ws-shell.ws-notion .ws-sidebar-brand {
-    border-color:var(--ws-hairline);
-  }
   /* The same Inter supporting-text scale and tracking used by /auth;
      navigation is not a second uncoordinated typography system. */
   .ws-shell.ws-notion .ws-nav-link {
-    color:var(--ws-muted);
+    color:var(--public-brand-green,#1a3a2a);
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
     font-size:var(--public-supporting-size,16px);
     font-weight:600;
@@ -111,29 +108,32 @@ const WsNotionTheme: React.FC = () => (
     .ws-shell.ws-notion .ws-content {padding-top:40px}
   }
 
-  /* Same quiet title, eyebrow and supporting-copy scale on every /ws page. */
+  /* Match the homepage Inter type ladder instead of using arbitrary
+     compressed 740-weight display text and 11px micro-labels. */
   .ws-shell.ws-notion :is(
     .ws-home-title,.ib-title,.cl-title,.wsc-title,.wsx-title,.ws-page-title
   ) {
-    color:var(--ws-ink);
+    color:var(--public-heading,var(--ws-ink));
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
     font-size:clamp(26px,2.8vw,34px);
-    font-weight:740;
-    line-height:1.16;
-    letter-spacing:-.045em;
+    font-weight:var(--public-card-weight,700);
+    line-height:var(--public-card-leading,1.27);
+    letter-spacing:var(--public-card-tracking,-.25px);
   }
   .ws-shell.ws-notion :is(
     .ws-home-eyebrow,.wsc-eyebrow,.wsx-eyebrow,.ws-page-eyebrow,.ib-eyebrow,.cl-eyebrow
   ) {
-    color:var(--ws-muted);
-    font-size:11px;
-    letter-spacing:.04em;
-    font-weight:650;
+    color:var(--public-muted,var(--ws-muted));
+    font-size:var(--public-meta-size,14px);
+    letter-spacing:var(--public-body-tracking,-.125px);
+    font-weight:600;
     text-transform:none;
   }
   .ws-shell.ws-notion :is(.ws-home-sub,.wsc-sub,.wsx-sub,.ws-page-note) {
-    color:var(--ws-muted);
-    font-size:13px;
-    line-height:1.65;
+    color:var(--public-muted,var(--ws-muted));
+    font-size:var(--public-supporting-size,16px);
+    line-height:1.45;
+    letter-spacing:var(--public-body-tracking,-.125px);
   }
 
   /* The home launchpad should read like a Notion page index, not marketing tiles. */
