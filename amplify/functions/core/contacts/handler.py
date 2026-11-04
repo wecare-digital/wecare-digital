@@ -8,7 +8,7 @@ Routes by HTTP method:
   GET    /contacts/search?q=... → search contacts
   POST   /contacts              → create contact
   PUT    /contacts/{contactId}  → update contact
-  DELETE /contacts/{contactId}  → soft/hard delete contact
+  DELETE /contacts/{contactId}  → refuse until audited, complete erasure is available
 
 DynamoDB Table: stack-wecare-digital-ContactsTable
 """
@@ -35,7 +35,6 @@ from lambda_utils.audit import record_audit
 # `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
 from lambda_utils.validation import sanitize_html, sanitize_dict
 from lambda_utils import contact_key, contact_store, identity_claims  # canonical key + strong-identity registry
-from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.privacy import mask_phone, mask_contact_id  # sensitive identifiers are masked in logs
 from lambda_utils.identity import customer as customer_identity
 # The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
@@ -60,14 +59,10 @@ from lambda_utils.ecommerce import contact_address, contact_lock, contact_paymen
 logger = get_logger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
-OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
-MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
-# READ-ONLY, and only on the hard-delete path. These two tables answer "does this contact owe
+# READ-ONLY, on refused delete requests. These two tables answer "does this contact owe
 # its existence to a payment", through `contact_payment_links`. The defaults match
 # `config/lambda-env-manifest.json` exactly, so the recorded-but-not-yet-deployed variables are
 # inert: whichever way round the deploy lands, the guard reads the same two tables.
@@ -391,9 +386,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Re-gated at Operator before any delete work. A Viewer can read a contact
             # and must not be able to remove one.
             #
-            # This is a gate on WHO may ask, and it is deliberately the only thing added
-            # here. The gate on WHETHER the delete is allowed already exists and is
-            # untouched: `_hard_delete_refusal` refuses CONTACT_HAS_PAYMENTS and
+            # No destructive delete is currently available. Payment/order and retention
+            # guards still return their specific refusal. All other requests return
+            # CONTACT_ERASURE_NOT_READY; archive is the only staff cleanup action.
+            # `_hard_delete_refusal` refuses CONTACT_HAS_PAYMENTS and
             # PAYMENT_LINKAGE_UNKNOWN via
             # `lambda_utils.ecommerce.contact_payment_links.has_payment_links`, and the
             # lock guard refuses CONTACT_LOCKED. An Operator does not outrank those.
