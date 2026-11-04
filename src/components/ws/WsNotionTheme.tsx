@@ -12,7 +12,7 @@ const WsNotionTheme: React.FC = () => (
   .ws-shell.ws-notion {
     --ws-canvas:#fbfbfa;
     --ws-paper:#ffffff;
-    --ws-sidebar:#f7f7f5;
+    --ws-sidebar:#fbfcf9;
     --ws-ink:#262626;
     --ws-muted:#787774;
     --ws-hairline:#e8e8e5;
@@ -43,34 +43,25 @@ const WsNotionTheme: React.FC = () => (
     font-family:var(--font-sans,Inter,system-ui,sans-serif);
   }
 
-  /* Signed-in workspace: a single sidebar and open content reading surface.
-     Keep page-specific content styles separate; the public login Header and
-     Footer are unaffected by these workspace-only selectors. */
+  /* Signed-in navigation mirrors the homepage and /auth/ tokens.
+     The full public BrandLockup renders its own transparent PNG and
+     stacked wordmark. Do not paint a square or override its geometry. */
   .ws-shell.ws-notion .ws-sidebar {
     background:var(--ws-sidebar);
     border-color:var(--ws-hairline);
   }
-  .ws-shell.ws-notion .ws-brand-side {
+  .ws-shell.ws-notion .ws-sidebar-brand {
     border-color:var(--ws-hairline);
-  }
-  .ws-shell.ws-notion .ws-brand-mark {
-    background:var(--public-brand-lime,#d1f470);
-    border-radius:12px;
-  }
-  .ws-shell.ws-notion .ws-brand-name {
-    color:var(--public-brand-green,#1a3a2a);
-    font-weight:800;
-    letter-spacing:-.035em;
   }
   .ws-shell.ws-notion .ws-nav-link {
     color:var(--ws-muted);
     font-size:14px;
     font-weight:600;
-    border-radius:11px;
+    border-radius:13px;
   }
   .ws-shell.ws-notion .ws-nav-link:hover {
-    background:var(--ws-hover);
-    color:var(--ws-green);
+    background:var(--public-lime-tint,rgba(209,244,112,.22));
+    color:var(--public-brand-green,#1a3a2a);
   }
   .ws-shell.ws-notion .ws-nav-link.active {
     background:var(--public-lime-tint,rgba(209,244,112,.22));
@@ -79,6 +70,7 @@ const WsNotionTheme: React.FC = () => (
   }
   .ws-shell.ws-notion .ws-nav-link.active .ws-nav-icon {
     color:var(--public-brand-green,#1a3a2a);
+    background:var(--public-brand-lime,#d1f470);
   }
   .ws-shell.ws-notion .ws-main {
     background:var(--ws-paper);

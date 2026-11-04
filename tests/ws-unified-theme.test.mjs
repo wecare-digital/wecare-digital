@@ -373,7 +373,7 @@ test('workspace navigation includes Home and all six destinations', () => {
 test('sidebar footer owns signed-in identity and original Cognito sign-out callback', () => {
   const settings = readSource('src/pages/ws/settings/index.tsx');
   const sideStart = shell.indexOf('<aside className="ws-sidebar"');
-  const signout = shell.indexOf('<button type="button" className="ws-signout"',sideStart);
+  const signout = shell.indexOf('className="ws-signout"',sideStart);
   const main = shell.indexOf('<main id="ws-main"');
   assert.ok(sideStart !== -1 && signout > sideStart && signout < main,
     'desktop Sign out belongs at the bottom of sidebar, never in the content column');
@@ -383,8 +383,13 @@ test('sidebar footer owns signed-in identity and original Cognito sign-out callb
     'Cognito identity must remain readable and not be translated or invented');
   assert.ok(shell.includes('<SignOutGlyph />') && shell.includes('<AccountGlyph />'),
     'sidebar needs explicit accessible-session and signout iconography');
-  assert.ok(shell.includes('onClick={ () => signOut?.() } disabled={ !signOut }'),
-    'only the original Cognito callback is invoked, no custom auth service');
+  assert.ok(shell.includes('onClick={ () => signOut?.() }') &&
+            shell.includes('disabled={ !signOut }'),
+    'only the original Cognito callback is invoked, and it must be safely disabled when absent');
+  assert.ok(shell.includes('aria-label="Sign out"') && shell.includes('title="Sign out"'),
+    'the icon-only button must have an accessible name and an explanatory tooltip');
+  assert.ok(!shell.includes('<span>Sign out</span>'),
+    'Sign out is an icon-only action in both expanded and collapsed sidebars');
   assert.ok(shell.includes('cursor:not-allowed'),
     'an unavailable Sign out callback should disable the control visibly');
   assert.ok(settings.includes('.ws-settings-signout{display:none}'),
@@ -397,22 +402,98 @@ test('sidebar footer owns signed-in identity and original Cognito sign-out callb
     'existing settings and device notification features remain intact');
 });
 
-test('sidebar uses the official transparent WECARE mark and accessible interaction states', () => {
-  assert.ok(shell.includes("import BrandMark from '../BrandMark'"),
-    'shared official transparent SVG replaces the invented zigzag W icon');
-  assert.ok(shell.includes('<span className="ws-brand-mark"><BrandMark /></span>'),
-    'the original brand vector is embedded within the lime square');
-  assert.ok(shell.includes('<span className="ws-brand-name">WECARE.DIGITAL</span>'),
-    'brand lockup must use the complete official name');
-  assert.ok(theme.includes('background:var(--public-brand-lime,#d1f470)'),
-    'brand square must use the homepage lime, not gray');
+test('workspace sidebar shares the HOMEPAGE logo without a lime square or copied wordmark', () => {
+  const brand = readSource('src/components/BrandLockup.tsx');
+  const header = readSource('src/components/Header.tsx');
+  assert.ok(shell.includes("import BrandLockup from '../BrandLockup'"),
+    'reuse the canonical homepage lockup, not an invented custom SVG/wordmark');
+  assert.ok(shell.includes('<BrandLockup compact />'),
+    'sidebar uses the public transparent PNG and stacked two-line wordmark');
+  assert.ok(header.includes('<BrandLockup className="public-header" />'),
+    'the identical component is used by the homepage header');
+  assert.ok(brand.includes("const LOGO_URL = 'https://wecare.digital/get/o/stream/media/m/wecaredigital.png'"),
+    'the original brand asset is the transparent canonical S3 PNG');
+  assert.ok(!shell.includes('ws-brand-mark') && !theme.includes('.ws-shell.ws-notion .ws-brand-mark'),
+    'no lime-square wrapper remains behind the logo');
+  assert.ok(shell.includes('.ws-brand-side') && shell.includes('overflow:hidden'),
+    'collapsed sidebar clips only the extra wordmark, preserving the original mark');
   assert.ok(shell.includes('.ws-nav-link.active::before') &&
             shell.includes('.ws-bottom-link.active::before'),
-    'the selected section uses a small lime marker on both desktop and mobile');
+    'active sections keep a small homepage-lime indicator on desktop and mobile');
   assert.ok(shell.includes('.ws-signout:focus-visible'),
-    'keyboard users need visible focus on the new signout action');
+    'keyboard users need a visible focus ring on signout');
   assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
-    'hover transitions must respect reduced-motion preference');
+    'hover and collapse animations respect reduced-motion preference');
   assert.ok(shell.includes('@media(forced-colors:active)'),
-    'the sidebar and mobile nav must remain distinguishable in high-contrast mode');
+    'sidebar and controls remain distinguishable in high-contrast mode');
+});
+
+test('sidebar collapses to an icon rail, expands, and persists across /ws navigation', () => {
+  assert.ok(shell.includes('useSyncExternalStore(subscribeSidebar, getSidebarCollapsed, getServerSidebarCollapsed)'),
+    'use a hydration-safe store for a persistent expand/collapse preference');
+  assert.ok(shell.includes("const SIDEBAR_KEY = 'wecare-ws-sidebar-collapsed-v1'"),
+    'sidebar state must use a dedicated versioned browser storage key');
+  assert.ok(shell.includes("const SIDEBAR_CHANGE = 'wecare:ws:sidebar-change'") &&
+            shell.includes('window.dispatchEvent(new Event(SIDEBAR_CHANGE))'),
+    'same-tab change notification must not depend on a shared server-side listener Set');
+  assert.ok(shell.includes('new WeakMap<Window, boolean>()') &&
+            !shell.includes('sidebarSubscribers') &&
+            !shell.includes('let sidebarFallback'),
+    'storage-disabled fallback must be per browser Window with no mutable server-side state');
+  assert.ok(shell.includes("window.addEventListener('storage', onStorage)") &&
+            shell.includes("window.removeEventListener('storage', onStorage)"),
+    'cross-tab storage subscriptions must have symmetric cleanup');
+  assert.ok(shell.includes('window.localStorage.getItem(SIDEBAR_KEY)') &&
+            shell.includes('window.localStorage.setItem(SIDEBAR_KEY, String(next))'),
+    'expanded/collapsed state survives route changes and page reloads');
+  assert.ok(shell.includes("if (typeof window === 'undefined') return false") &&
+            shell.includes('const getServerSidebarCollapsed = (): boolean => false;'),
+    'server rendering must never directly read browser storage');
+  assert.ok(shell.includes("const toggleSidebar = () => saveSidebarCollapsed(!collapsed);") &&
+            shell.includes('onClick={ toggleSidebar }'),
+    'a real control toggles the sidebar width');
+  assert.ok(shell.includes("data-ws-collapsed={ collapsed ? 'true' : 'false' }"),
+    'state must be exposed to CSS without hiding or unmounting any routes');
+  assert.ok(shell.includes('aria-expanded={ !collapsed }') &&
+            shell.includes('aria-controls="ws-sidebar-navigation"'),
+    'collapse control must expose its current state and target to assistive technology');
+  assert.ok(shell.includes("aria-label={ collapsed ? 'Expand sidebar' : 'Collapse sidebar' }"),
+    'the button name describes what pressing it will do');
+  assert.ok(shell.includes("title={ collapsed ? item.label : undefined }") &&
+            shell.includes('aria-label={ collapsed ? item.label : undefined }'),
+    'only collapsed icon links override their accessible name; expanded labels stay readable');
+  assert.ok(shell.includes('--ws-sidebar-w:274px') &&
+            shell.includes('--ws-sidebar-mini-w:80px'),
+    'expanded and collapsed sidebar widths must both be intentional');
+  assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-nav-label") &&
+            shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-nav-link"),
+    'collapsed rail hides labels, but keeps every navigation link visible');
+  assert.ok(shell.includes('grid-template-columns:var(--ws-sidebar-w) minmax(0,1fr)'),
+    'main content should claim reclaimed space, not sit under a hidden sidebar');
+  assert.ok(shell.includes('.ws-sidebar-toggle:focus-visible'),
+    'collapse control needs a visible keyboard focus ring');
+  assert.ok(shell.includes('.ws-sidebar-toggle{') && shell.includes('position:static;'),
+    'collapse button must be in the sidebar header flow, not over the content pane');
+  assert.ok(!shell.includes('right:-35px') && !shell.includes('right:-30px'),
+    'collapse control must never steal clicks from the right content pane');
+  assert.ok(shell.includes("flex-direction:column;") &&
+            shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-brand"),
+    'narrow rail stacks its logo and collapse button rather than overlapping them');
+});
+
+test('signout is icon-only but reachable in both desktop sidebar states', () => {
+  const side = shell.slice(shell.indexOf('<aside className="ws-sidebar"'), shell.indexOf('<main id="ws-main"'));
+  const button = side.slice(side.indexOf('className="ws-signout"'), side.indexOf('</button>',side.indexOf('className="ws-signout"')));
+  assert.ok(button.includes('<SignOutGlyph />'),
+    'desktop Sign out uses the actual exit icon, not a label or placeholder');
+  assert.ok(button.includes('aria-label="Sign out"') && button.includes('title="Sign out"'),
+    'icon-only action is still named in screen readers and on hover');
+  assert.ok(button.includes('disabled={ !signOut }') && button.includes('onClick={ () => signOut?.() }'),
+    'retain existing Cognito sign-out with safe disabled state');
+  assert.ok(!button.includes('>Sign out<'),
+    'no visible Sign out label in the sidebar');
+  assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-foot"),
+    'account and signout reorganize for the icon-only narrow rail');
+  assert.ok(shell.includes('width:44px') && shell.includes('height:44px'),
+    'icon-only signout keeps a minimum 44x44 touch target');
 });
