@@ -69,8 +69,9 @@ test('customer saves preserve identity, consent and server-side uniqueness', () 
 });
 
 test('destructive actions stay confirm-gated, protected and report server failure', () => {
-  assert.ok(directory.includes('api.bulkDeleteContacts(ids)'));
-  assert.ok(directory.includes('await confirm('));
+  assert.ok(directory.includes('api.softDeleteContactResult(id)'), 'use result-aware soft-delete API, not legacy count helper');
+  assert.ok(directory.includes('api.archiveContact('), 'archive preserves history by default');
+  assert.ok(directory.includes('await confirm('), 'each bulk action needs explicit confirmation');
   assert.ok(directory.includes('contact.locked'));
   assert.ok(directory.includes('if (!id)'), 'missing identity IDs cannot be selected for deletion');
   assert.ok(directory.includes('CustomerActionsSheet'));
