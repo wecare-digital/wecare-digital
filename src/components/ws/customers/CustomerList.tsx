@@ -298,11 +298,14 @@ const CustomerList: React.FC = () => {
       toast.warning('Protected or unidentified contacts cannot be selected for bulk cleanup.');
       return;
     }
+    if (!selected.has(id) && selected.size >= MAX_BULK) {
+      toast.warning('Review up to ' + MAX_BULK + ' contacts at once.');
+      return;
+    }
     setSelected(previous => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
-      else if (next.size >= MAX_BULK) toast.warning('Review up to ' + MAX_BULK + ' contacts at once.');
-      else next.add(id);
+      else if (next.size < MAX_BULK) next.add(id);
       return next;
     });
   };
