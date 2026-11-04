@@ -22,7 +22,7 @@ test('unnamed and unverified are distinct review filters, not deletion criteria'
 test('select-all is bounded, protected rows are not selectable, and filter changes clear selection', () => {
   for (const marker of [
     'return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt',
-    '&& !(contact.bsuid && !contact.phone)',
+    '&& !(hasBusinessIdentity && !contact.phone)',
     'const selectableVisible = visible.filter(isBulkEligible)',
     'const protectedVisible = visible.length - selectableVisible.length',
     'selectableVisible.slice(0, MAX_BULK)',
