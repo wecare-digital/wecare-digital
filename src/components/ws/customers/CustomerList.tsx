@@ -322,6 +322,8 @@ const CustomerList: React.FC = () => {
   const batchVisible = selectableVisible.slice(0, MAX_BULK);
   const allVisibleSelected = batchVisible.length > 0
     && batchVisible.every(contact => selected.has(identityId(contact)));
+  const deletableSelected = contacts.filter(contact =>
+    selected.has(identityId(contact)) && isSoftDeleteCandidate(contact)).length;
   const selectAllVisible = () => {
     setSelected(previous => {
       const next = new Set(previous);
@@ -667,13 +669,14 @@ const CustomerList: React.FC = () => {
             <strong>{selected.size} selected</strong>
             <small>{bulkProgress
               ? (bulkProgress.action === 'archive' ? 'Archiving ' : 'Deleting ') + bulkProgress.done + ' / ' + bulkProgress.total
-              : 'Archive keeps history. Delete requires additional checks.'}</small>
+              : 'Archive keeps history · ' + deletableSelected + ' eligible for soft delete'}</small>
           </div>
           <div className={styles.bulkActions}>
             <button type="button" className={styles.primaryButton} onClick={() => void runBulk('archive')}
               disabled={bulkBusy}>{bulkBusy ? 'Working…' : 'Archive selected'}</button>
             <button type="button" className={styles.dangerButton} onClick={() => void runBulk('delete')}
-              disabled={bulkBusy}>{bulkBusy ? 'Working…' : 'Soft-delete selected'}</button>
+              title="Only unnamed, inactive, unlocked contacts can be bulk soft-deleted"
+              disabled={bulkBusy || deletableSelected === 0}>{bulkBusy ? 'Working…' : 'Soft-delete selected'}</button>
           </div>
         </div>
       )}
