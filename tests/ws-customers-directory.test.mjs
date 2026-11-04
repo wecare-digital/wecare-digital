@@ -70,6 +70,8 @@ test('destructive actions stay confirm-gated, protected and report server failur
   assert.ok(directory.includes('contact.locked'));
   assert.ok(directory.includes('CustomerActionsSheet'));
   assert.ok(directory.includes('CustomerManageData'));
+  assert.ok(directory.includes('api.exportContactsToCSV(visible)'), 'safe export uses existing CSV serializer');
+  assert.ok(directory.includes('setSelected(new Set()); }, [search, filter]'), 'filter changes clear hidden bulk selections');
   const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
   assert.ok(actions.includes('api.softDeleteContactResult'));
   assert.ok(actions.includes('api.archiveContact'));
@@ -85,4 +87,14 @@ test('responsive layout covers desktop, tablet and iOS/Android browsers', () => 
   assert.ok(editorCss.includes('@media (max-width: 650px)'));
   assert.ok(editorCss.includes('env(safe-area-inset-bottom'));
   assert.ok(directoryCss.includes('var(--ws-'), 'use existing /ws theme tokens');
+});
+
+test('staff-created contact persists the declared profile username separately from Meta username', () => {
+  const contactsHandler = readSource('amplify/functions/core/contacts/handler.py');
+  assert.ok(contactsHandler.includes("'profileUsername': body.get('profileUsername', '').strip()"),
+    'create handler must not silently discard F001 profile username');
+  assert.ok(contactsHandler.includes("'username': body.get('username', '').strip()"),
+    'Meta/provider username stays separate');
+  assert.ok(contactsHandler.includes("Staff creation NEVER manufactures consent"),
+    'creation keeps consent-evidence rules');
 });
