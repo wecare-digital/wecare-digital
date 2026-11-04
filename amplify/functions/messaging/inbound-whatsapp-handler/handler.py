@@ -1622,6 +1622,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         if not sender_parent_bsuid and isinstance(contact_entry, dict):
                             sender_parent_bsuid = contact_entry.get('parent_bsuid', '')
                         
+                        # Completion belongs AFTER the whole message handler has
+                        # returned successfully, not when a dedup claim is acquired.
+                        leased_message_ids = []
                         _process_message(
                             message=message,
                             metadata=metadata,
@@ -1635,7 +1638,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             sender_username=sender_username,
                             sender_contact_book_name=sender_contact_book_name,
                             standby_sourced=_standby_sourced,
+                            dedup_tracker=leased_message_ids,
                         )
+                        if leased_message_ids:
+                            from lambda_utils.webhook_dedup import complete_event
+                            for leased_id in leased_message_ids:
+                                complete_event(leased_id)
                         processed_count += 1
                     except Exception as e:
                         logger.error(json.dumps({
@@ -2169,6 +2177,7 @@ def _process_message(
     sender_username: str = '',
     sender_contact_book_name: str = '',
     standby_sourced: bool = False,
+    dedup_tracker: Optional[list] = None,
 ) -> None:
     """
     Process a single inbound message.
@@ -2382,27 +2391,40 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id)
 
-    # Deduplicate using whatsappMessageId.
-    # claim_event() is an atomic, strongly-consistent guard that closes the
-    # fast-redelivery race window (Meta redelivering within the GSI's eventual-
-    # consistency lag). _message_exists() is kept as a fallback so redeliveries
-    # older than the dedup table's TTL are still caught. Either signalling a
-    # duplicate skips processing.
-    _dup = False
+    # Claim with an expiring lease. A failure after the claim must remain
+    # replayable; a permanent `claim_event` mark would swallow a later DLQ
+    # replay even if the message never reached storage. Complete this lease
+    # ONLY after _process_message returns normally to its invocation loop.
+    leased = False
+    duplicate = False
     try:
-        from lambda_utils.webhook_dedup import claim_event
-        if whatsapp_message_id and not claim_event(whatsapp_message_id, source='whatsapp_inbound'):
-            _dup = True
-    except Exception:  # noqa: BLE001 — dedup must never block a real inbound message
-        pass
-    if _dup or _message_exists(whatsapp_message_id):
+        from lambda_utils.webhook_dedup import claim_event_with_lease
+        if whatsapp_message_id:
+            leased = claim_event_with_lease(
+                whatsapp_message_id, source='whatsapp_inbound')
+            duplicate = not leased
+    except Exception as dedup_error:
+        # Fail open on dedup infrastructure problems, never discard a customer
+        # webhook for an unresponsive optional dedup store.
+        logger.warning(json.dumps({
+            'event': 'inbound_dedup_unavailable',
+            'errorType': type(dedup_error).__name__,
+        }))
+    if duplicate or _message_exists(whatsapp_message_id):
+        if leased and whatsapp_message_id:
+            # The message already exists; finishing the reclaimed lease is
+            # safe, and prevents repeated expired-lease retries.
+            from lambda_utils.webhook_dedup import complete_event
+            complete_event(whatsapp_message_id)
         logger.info(json.dumps({
             'event': 'message_duplicate_skipped',
             'whatsappMessageId': whatsapp_message_id,
             'requestId': request_id
         }))
         return
-    
+    if leased and dedup_tracker is not None and whatsapp_message_id:
+        dedup_tracker.append(whatsapp_message_id)
+
     # A Meta BSUID change must rejoin the PREVIOUS canonical contact before
     # resolving the new BSUID. Otherwise a phone-hidden system event auto-creates
     # a second customer and strands the original history.
