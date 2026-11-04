@@ -458,7 +458,8 @@ function normalizeContact ( item: any ): Contact {
     floorNumber: item.floorNumber || '',
     country: item.country || '',
     pincode: item.pincode || item.postalCode || '',
-    companyName: item.companyName || item.contactBookName || '',
+    // Meta contact-book display names are provider-owned names, not organizations.
+    companyName: item.companyName || '',
     designation: item.designation || '',
     preferredLanguage: item.preferredLanguage || '',
     isPep: item.isPep || false,
