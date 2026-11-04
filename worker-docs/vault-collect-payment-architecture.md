@@ -45,6 +45,18 @@ invoice simply to recover a failed send.
    fields. Emit canonical international digits without `+`; reject a missing or
    invalid country-qualified phone before pricing/reservation. Do not truncate a
    malformed number into apparent validity.
+   Both shipping builders (checkout `_payment_shipping_info` and invoice-engine
+   `_payment_delivery_info`) call the shared validator
+   `payment_address.assert_meta_shipping_info(shipping_info)` before returning. It
+   enforces `META_SHIPPING_ADDRESS_REQUIRED_FIELDS = (name, phone_number, address,
+   city, state, in_pin_code)` on `addresses[0]` and raises
+   `UnpayableAddress('META_SHIPPING_FIELD_MISSING', <field>)` server-side, before
+   the send. This is the drift stop for the `phone_number` class of bug: the two
+   independent builders can no longer omit a Meta-required field and surface it as
+   an opaque Meta 400 (`PAYMENT_REQUEST_NOT_SENT`). A future Meta-required field is
+   added once to the constant and both paths enforce it. Diagnostic lead when a
+   send is refused: the real Meta field name appears in outbound-whatsapp logs
+   (`direct_api_send_failed`), not only in secure-files.
 5. The native session/intent binds the exact file and customer. Commerce owns the
    frozen quote, payment attempt, PAYREF reservation and keyed template send.
    `payment-request:<reference>` is the sender idempotency identity.

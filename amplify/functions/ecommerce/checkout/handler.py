@@ -1088,7 +1088,7 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             str(address.get("addressLine1") or "").strip(),
             str(address.get("addressLine2") or "").strip(),
         ) if part)
-    return {
+    shipping_info = {
         "country": str(address.get("countryCode") or "IN"),
         "addresses": [{
             # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
@@ -1102,6 +1102,11 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             "in_pin_code": str(address.get("postalCode") or "")[:12],
         }],
     }
+    # Refuse a Meta-incomplete delivery packet server-side, before any payment reservation,
+    # rather than letting Meta reject the live ORDER_DETAILS send. Same validator the
+    # invoice-engine builder uses, so the two shipping builders cannot silently drift.
+    payment_address.assert_meta_shipping_info(shipping_info)
+    return shipping_info
 
 
 def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],

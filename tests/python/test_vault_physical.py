@@ -20,7 +20,7 @@ def function(name, **extra):
                 if isinstance(n, ast.FunctionDef) and n.name == name)
     env = {'Dict':dict,'Any':object,'service_requests':service_requests,
            'CONTRIBUTION_PRODUCT_IDS':set(),'order_delivery':order_delivery,
-           'customer_identity':customer_identity, **extra}
+           'customer_identity':customer_identity,'payment_address':payment_address, **extra}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
     return env[name]
 
@@ -133,3 +133,32 @@ def test_explicit_vault_delivery_review_is_bound_to_saved_payable_address():
     changed = {**current, 'checkoutDeliveryAddress': {**ADDRESS, 'addressLine1': 'Another street'}}
     other = catalog.confirmed_vault_shipping_address(changed, review)
     assert other is not None and other['addressDigest'] != proof['addressDigest']
+
+
+def test_payment_shipping_info_includes_meta_required_phone_number():
+    # Regression for the live Meta 400 (metaCode 100) caused by a missing phone_number on the
+    # checkout-built shipping address. Also proves the builder passes its own guard.
+    shipping = function('_payment_shipping_info')(
+        {'name': 'Example Customer', 'phone': '+918100640044'}, ADDRESS)
+    first = shipping['addresses'][0]
+    for field in payment_address.META_SHIPPING_ADDRESS_REQUIRED_FIELDS:
+        assert str(first.get(field) or '').strip(), f'{field} must be present for Meta'
+    assert first['phone_number'] == '918100640044'
+
+
+def test_meta_shipping_guard_refuses_a_missing_required_field():
+    # The guard is the drift stop: dropping any Meta-required field is refused server-side with a
+    # named UnpayableAddress, instead of surfacing as an opaque Meta 400 at the live send.
+    good = {'country': 'IN', 'addresses': [{
+        'name': 'Example Customer', 'phone_number': '918100640044',
+        'address': 'Example street', 'city': 'Kolkata', 'state': 'West Bengal',
+        'in_pin_code': '700012'}]}
+    payment_address.assert_meta_shipping_info(good)  # does not raise
+    for field in ('name', 'phone_number', 'address', 'city', 'state', 'in_pin_code'):
+        broken = {'country': 'IN', 'addresses': [dict(good['addresses'][0])]}
+        broken['addresses'][0][field] = ''
+        with pytest.raises(payment_address.UnpayableAddress) as exc:
+            payment_address.assert_meta_shipping_info(broken)
+        assert exc.value.field == field
+    with pytest.raises(payment_address.UnpayableAddress):
+        payment_address.assert_meta_shipping_info({'country': 'IN', 'addresses': []})
