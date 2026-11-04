@@ -840,6 +840,8 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         'bsuid': body.get('bsuid', '').strip() if body.get('bsuid') else None,
         'parentBsuid': body.get('parentBsuid', '').strip() if body.get('parentBsuid') else None,
         'username': body.get('username', '').strip() if body.get('username') else None,
+        # F001's customer-declared profile username is distinct from Meta's provider username.
+        'profileUsername': body.get('profileUsername', '').strip() if body.get('profileUsername') else None,
         'contactBookName': body.get('contactBookName', '').strip() if body.get('contactBookName') else None,
         'shippingAddress': body.get('shippingAddress', '').strip() if body.get('shippingAddress') else None,
         'billingAddress': body.get('billingAddress', '').strip() if body.get('billingAddress') else None,
