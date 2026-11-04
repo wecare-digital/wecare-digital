@@ -94,7 +94,12 @@ function hasIdentityEvidence(contact: Contact): boolean {
   return Boolean(
     contact.phoneVerifiedAt || contact.emailVerifiedAt || contact.lastInboundMessageAt
     || contact.lastFlowInteractionAt || contact.bsuid || contact.parentBsuid
-    || contact.consentHistory?.length || contact.whatsappMarketingConsent === 'OPTED_IN',
+    || contact.consentHistory?.length || contact.whatsappMarketingConsent === 'OPTED_IN'
+    || contact.whatsappMarketingConsent === 'OPTED_OUT' || contact.welcomeSent
+    || contact.optInWhatsApp || contact.optInSms || contact.optInEmail
+    || contact.allowlistWhatsApp || contact.allowlistSms || contact.allowlistEmail
+    || contact.email?.trim() || contact.tags?.length || contact.companyName?.trim()
+    || contactDeliveryAddress(contact),
   );
 }
 function isSoftDeleteCandidate(contact: Contact): boolean {
