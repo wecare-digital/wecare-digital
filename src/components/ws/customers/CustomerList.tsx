@@ -17,7 +17,6 @@ import CustomerEditor from './CustomerEditor';
 import styles from './CustomerList.module.css';
 
 type ViewFilter = 'all' | 'address' | 'incomplete' | 'unnamed' | 'unverified';
-type BulkAction = 'archive' | 'delete';
 const MAX_BULK = 100; // Bound each deliberately confirmed operation; never fire unbounded writes.
 type SortOrder = 'recent' | 'name';
 
@@ -88,22 +87,6 @@ function missingDetails(contact: Contact): boolean {
 function isBulkEligible(contact: Contact): boolean {
   // Identity or retention-lock uncertainty means review, not deletion/archiving.
   return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt;
-}
-function hasIdentityEvidence(contact: Contact): boolean {
-  // Missing customer name and "unverified" alone are not evidence of an unused contact.
-  return Boolean(
-    contact.phoneVerifiedAt || contact.emailVerifiedAt || contact.lastInboundMessageAt
-    || contact.lastFlowInteractionAt || contact.bsuid || contact.parentBsuid
-    || contact.consentHistory?.length || contact.whatsappMarketingConsent === 'OPTED_IN'
-    || contact.whatsappMarketingConsent === 'OPTED_OUT' || contact.welcomeSent
-    || contact.optInWhatsApp || contact.optInSms || contact.optInEmail
-    || contact.allowlistWhatsApp || contact.allowlistSms || contact.allowlistEmail
-    || contact.email?.trim() || contact.tags?.length || contact.companyName?.trim()
-    || contactDeliveryAddress(contact),
-  );
-}
-function isSoftDeleteCandidate(contact: Contact): boolean {
-  return isBulkEligible(contact) && needsName(contact) && !hasIdentityEvidence(contact);
 }
 function consentLabel(contact: Contact): string {
   const status = contact.whatsappMarketingConsent;
@@ -206,7 +189,7 @@ const CustomerList: React.FC = () => {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [selecting, setSelecting] = React.useState(false);
   const [bulkBusy, setBulkBusy] = React.useState(false);
-  const [bulkProgress, setBulkProgress] = React.useState<{ done: number; total: number; action: BulkAction } | null>(null);
+  const [bulkProgress, setBulkProgress] = React.useState<{ done: number; total: number } | null>(null);
   const [bulkOutcome, setBulkOutcome] = React.useState('');
   const [detailsFor, setDetailsFor] = React.useState<Contact | null>(null);
   const [actionsFor, setActionsFor] = React.useState<Contact | null>(null);
@@ -322,14 +305,10 @@ const CustomerList: React.FC = () => {
   const batchVisible = selectableVisible.slice(0, MAX_BULK);
   const allVisibleSelected = batchVisible.length > 0
     && batchVisible.every(contact => selected.has(identityId(contact)));
-  const deletableSelected = contacts.filter(contact =>
-    selected.has(identityId(contact)) && isSoftDeleteCandidate(contact)).length;
   const selectAllVisible = () => {
-    setSelected(previous => {
-      const next = new Set(previous);
-      batchVisible.forEach(contact => allVisibleSelected ? next.delete(identityId(contact)) : next.add(identityId(contact)));
-      return next;
-    });
+    // Replace the selection instead of unioning. This cannot exceed MAX_BULK even when
+    // one manually selected row sits outside the first 100 visible candidates.
+    setSelected(allVisibleSelected ? new Set() : new Set(batchVisible.map(identityId)));
   };
   const endSelection = () => { setSelecting(false); setSelected(new Set()); };
   const reviewUnnamed = () => {
@@ -351,11 +330,12 @@ const CustomerList: React.FC = () => {
   };
 
   /**
-   * One explicit confirmation, up to MAX_BULK records, and a fresh server read before ANY
-   * write. Server remains the authority for legal/payment retention and rejects unsafe
-   * soft deletion. No bulk action marks phone verified or changes consent.
+   * Archive-only bulk review. This is reversible and preserves contacts, consent, messages
+   * and financial history. Individual soft-delete remains in CustomerActionsSheet.
+   * Two server-side reads before writes reduce stale selection risks; the separately
+   * deployed Contacts Lambda enforces an atomic retention lock when released.
    */
-  const runBulk = async (action: BulkAction) => {
+  const bulkArchive = async () => {
     if (bulkBusy || selected.size === 0) return;
     setBulkBusy(true);
     setBulkOutcome('');
@@ -363,53 +343,41 @@ const CustomerList: React.FC = () => {
     try {
       const snapshot = await api.listContactsResult();
       if (!snapshot.ok) {
-        toast.error('Cannot confirm current retention status. Refresh the customer directory first.');
+        toast.error('Cannot confirm current retention status. Refresh the directory before archiving.');
         return;
       }
       const authoritative = new Map(snapshot.data.map(contact => [identityId(contact), contact]));
       const targets: Contact[] = [];
-      let protectedCount = 0;
-      let hasActivityCount = 0;
+      let excluded = 0;
       for (const id of selected) {
         const contact = authoritative.get(id);
-        // Do not act on a record which was repaired or verified since selection.
         if (!contact || !isBulkEligible(contact)
           || (filter === 'unnamed' && !needsName(contact))
           || (filter === 'unverified' && Boolean(contact.phoneVerifiedAt))) {
-          protectedCount++;
-        } else if (action === 'delete' && !isSoftDeleteCandidate(contact)) {
-          hasActivityCount++;
+          excluded++;
         } else if (targets.length < MAX_BULK) {
           targets.push(contact);
         }
       }
-      if (protectedCount || hasActivityCount) {
-        toast.warning(
-          protectedCount + ' protected/changed and ' + hasActivityCount
-          + ' named, verified or active contact(s) excluded. Review them individually.',
-        );
-      }
+      if (excluded) toast.warning(excluded + ' protected, changed or missing record(s) excluded from cleanup.');
       if (targets.length === 0) {
-        toast.warning('No eligible contacts in this selection. Locked or active identities must be kept.');
+        toast.warning('No eligible records. Locked contacts must be kept and reviewed individually.');
         return;
       }
 
-      const verb = action === 'archive' ? 'Archive' : 'Soft-delete';
       const approved = await confirm({
-        title: verb + ' ' + targets.length + ' customer' + (targets.length === 1 ? '' : 's') + '?',
-        message: action === 'archive'
-          ? 'These selected customers will leave the active directory, but their phone identities, history, orders, payments and consent records remain available. Missing names or unverified phones do not prove inactivity. Confirm this reviewed bulk archive?'
-          : 'Only unlocked records without known verification, messages, BSUID or consent history are included. The server will still refuse any payment/order-linked identity. Soft-deleted phone identities stay reserved. Confirm this reviewed bulk delete?',
-        confirmText: verb + ' selected',
-        danger: action === 'delete',
+        title: 'Archive ' + targets.length + ' customer' + (targets.length === 1 ? '' : 's') + '?',
+        message: 'These selected contacts will leave the active directory, but their phone identities, WhatsApp messages, orders, payments, consent records and audit history remain intact. Missing names and unverified phones do not prove inactivity. Confirm this reviewed bulk archive?',
+        confirmText: 'Archive selected',
+        danger: false,
       });
       if (!approved) return;
 
-      // Confirm may stay open while another operator verifies or locks a contact.
-      // Read the directory again AFTER approval, immediately before mutation.
+      // Review may remain open while another operator names, verifies or locks a contact.
+      // Fail closed on an unreadable final directory; never run an unverified write batch.
       const finalSnapshot = await api.listContactsResult();
       if (!finalSnapshot.ok) {
-        toast.error('Cannot recheck identity locks after confirmation. No cleanup started.');
+        toast.error('Cannot recheck locks after confirmation. No archive started.');
         return;
       }
       const finalById = new Map(finalSnapshot.data.map(contact => [identityId(contact), contact]));
@@ -417,53 +385,43 @@ const CustomerList: React.FC = () => {
         const latest = finalById.get(identityId(contact));
         return Boolean(latest && isBulkEligible(latest)
           && (filter !== 'unnamed' || needsName(latest))
-          && (filter !== 'unverified' || !latest.phoneVerifiedAt)
-          && (action !== 'delete' || isSoftDeleteCandidate(latest)));
+          && (filter !== 'unverified' || !latest.phoneVerifiedAt));
       });
       if (finalTargets.length !== targets.length) {
         toast.warning((targets.length - finalTargets.length) + ' record(s) changed or became protected during review and were skipped.');
       }
       if (finalTargets.length === 0) return;
 
-      let succeeded = 0;
+      let archived = 0;
       let refused = 0;
-      let unknown = 0;
-      setBulkProgress({ done: 0, total: finalTargets.length, action });
+      let unconfirmed = 0;
+      setBulkProgress({ done: 0, total: finalTargets.length });
       for (const contact of finalTargets) {
-        const id = identityId(contact);
         try {
-          if (action === 'archive') {
-            const result = await api.archiveContact(
-              id, 'Staff-reviewed bulk cleanup via /ws/customers (' + filter + ')',
-            );
-            if (result.ok && result.data?.archivedAt) succeeded++;
-            else if (!result.ok) refused++;
-            else unknown++; // 2xx with no confirmed archived state: do not claim success.
-          } else {
-            const result = await api.softDeleteContactResult(id);
-            if (result.ok && result.data?.success === true && result.data.deleteType === 'soft') succeeded++;
-            else if (!result.ok) refused++;
-            else unknown++;
-          }
+          const result = await api.archiveContact(
+            identityId(contact), 'Staff-reviewed bulk cleanup via /ws/customers (' + filter + ')',
+          );
+          if (result.ok && result.data?.archivedAt) archived++;
+          else if (!result.ok) refused++;
+          else unconfirmed++;
         } catch {
-          unknown++; // A network exception could occur AFTER a write. Never retry automatically.
+          // Network failure may arrive after the server committed the archive.
+          // Never retry automatically; the next directory refresh reconciles reality.
+          unconfirmed++;
         }
-        setBulkProgress(previous => previous
-          ? { ...previous, done: previous.done + 1 }
-          : null);
+        setBulkProgress(previous => previous ? { ...previous, done: previous.done + 1 } : null);
       }
-      const outcome = succeeded + ' ' + (action === 'archive' ? 'archived' : 'soft-deleted')
-        + ', ' + refused + ' refused, ' + unknown + ' unconfirmed.';
+      const outcome = archived + ' archived, ' + refused + ' refused, ' + unconfirmed + ' unconfirmed.';
       setBulkOutcome(outcome);
-      if (succeeded) toast.success(outcome);
+      if (archived) toast.success(outcome);
       else toast.warning(outcome);
-      if (refused || unknown) {
+      if (refused || unconfirmed) {
         toast.warning('Some records were kept or unconfirmed. Review the directory before retrying.');
       }
       endSelection();
       await load();
     } catch {
-      toast.error('Bulk cleanup could not be confirmed. Refresh the directory before trying again.');
+      toast.error('Archive status could not be confirmed. Refresh the directory before trying again.');
     } finally {
       setBulkProgress(null);
       setBulkBusy(false);
@@ -491,9 +449,9 @@ const CustomerList: React.FC = () => {
           <p className={styles.description}>One place for customer profiles, WhatsApp identities and delivery details.</p>
         </div>
         <div className={styles.headingButtons}>
-          <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading}
+          <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading || bulkBusy}
             aria-label="Refresh customers" title="Refresh customers"><RefreshGlyph /></button>
-          <button type="button" className={styles.primaryButton} onClick={() => { endSelection(); setEditorFor('new'); }}>
+          <button type="button" className={styles.primaryButton} onClick={() => { endSelection(); setEditorFor('new'); }} disabled={bulkBusy}>
             <PlusGlyph /> Create contact
           </button>
         </div>
@@ -516,7 +474,9 @@ const CustomerList: React.FC = () => {
             <SearchGlyph />
             <input ref={searchRef} type="search" value={search} disabled={bulkBusy} onChange={e => setSearch(e.target.value)}
               placeholder="Search customers, numbers, addresses…" aria-label="Search customers" autoComplete="off" />
-            {search && <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear customer search">
+            {search && <button type="button" disabled={bulkBusy}
+              onClick={() => { if (!bulkBusy) { setSearch(''); searchRef.current?.focus(); } }}
+              aria-label="Clear customer search">
               <CloseGlyph />
             </button>}
             <kbd>/</kbd>
@@ -668,15 +628,12 @@ const CustomerList: React.FC = () => {
           <div className={styles.bulkSummary}>
             <strong>{selected.size} selected</strong>
             <small>{bulkProgress
-              ? (bulkProgress.action === 'archive' ? 'Archiving ' : 'Deleting ') + bulkProgress.done + ' / ' + bulkProgress.total
-              : 'Archive keeps history · ' + deletableSelected + ' eligible for soft delete'}</small>
+              ? 'Archiving ' + bulkProgress.done + ' / ' + bulkProgress.total
+              : 'Archive keeps customer history. Delete individually after review.'}</small>
           </div>
           <div className={styles.bulkActions}>
-            <button type="button" className={styles.primaryButton} onClick={() => void runBulk('archive')}
-              disabled={bulkBusy}>{bulkBusy ? 'Working…' : 'Archive selected'}</button>
-            <button type="button" className={styles.dangerButton} onClick={() => void runBulk('delete')}
-              title="Only unnamed, inactive, unlocked contacts can be bulk soft-deleted"
-              disabled={bulkBusy || deletableSelected === 0}>{bulkBusy ? 'Working…' : 'Soft-delete selected'}</button>
+            <button type="button" className={styles.primaryButton} onClick={() => void bulkArchive()}
+              disabled={bulkBusy}>{bulkBusy ? 'Archiving…' : 'Archive selected'}</button>
           </div>
         </div>
       )}
