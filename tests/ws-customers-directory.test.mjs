@@ -216,3 +216,20 @@ test('inbound resolves BSUID before deterministic phone and survives registry ou
   assert.ok(updateMethod.includes("'event': 'inbound_phone_link_unavailable'"),
     'registry outage must be observable without exposing customer PII');
 });
+
+test('outbound auto-created contacts never gain invented marketing permission', () => {
+  const outbound = readSource('amplify/functions/messaging/outbound-whatsapp/handler.py');
+  const begin = outbound.indexOf('def _get_or_create_contact_by_phone(');
+  const end = outbound.indexOf('def _enrich_contact_identity(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const create = outbound.slice(begin, end);
+  for (const field of ['optInWhatsApp', 'optInSms', 'optInEmail',
+    'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail']) {
+    assert.ok(create.includes("'" + field + "': False"), field + ' must default to false');
+    assert.ok(!create.includes("'" + field + "': True"), field + ' cannot be manufactured');
+  }
+  assert.ok(create.includes('contact_store.find_by_phone(contacts_table, with_plus)'),
+    'outbound phone lookup must reject multiple live owners');
+  assert.ok(!create.includes("sorted(items, key=lambda x: x.get('createdAt', 0))[0]"),
+    'a duplicate phone must never pick the oldest owner');
+});
