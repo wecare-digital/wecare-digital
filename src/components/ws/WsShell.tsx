@@ -99,41 +99,47 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: 'Settings', href: '/ws/settings', icon: SettingsGlyph },
 ];
 
-/* Persist the sidebar affordance across Next page transitions without reading
-   browser storage during SSR: useSyncExternalStore has an explicit server
-   snapshot and keeps state correct across multiple mounted /ws shells. */
+/* Browser-only sidebar preference. React's SSR snapshot is always expanded,
+   so a saved choice never creates a hydration mismatch. Same-tab changes use
+   a window event; other tabs use the native storage event. No module-global
+   subscriber Set or mutable server-side user state. */
 const SIDEBAR_KEY = 'wecare-ws-sidebar-collapsed-v1';
-const sidebarSubscribers = new Set<() => void>();
-let sidebarFallback = false;
+const SIDEBAR_CHANGE = 'wecare:ws:sidebar-change';
+const sidebarEphemeral = new WeakMap<Window, boolean>();
 
 const getSidebarCollapsed = (): boolean => {
   if (typeof window === 'undefined') return false;
+  const volatile = sidebarEphemeral.get(window);
+  if (volatile !== undefined) return volatile;
   try {
-    const saved = window.localStorage.getItem(SIDEBAR_KEY);
-    return saved === null ? sidebarFallback : saved === 'true';
+    return window.localStorage.getItem(SIDEBAR_KEY) === 'true';
   } catch {
-    return sidebarFallback;
+    return false;
   }
 };
 const getServerSidebarCollapsed = (): boolean => false;
 const subscribeSidebar = (notify: () => void): (() => void) => {
-  sidebarSubscribers.add(notify);
+  if (typeof window === 'undefined') return () => {};
   const onStorage = (event: StorageEvent) => {
     if (event.key === SIDEBAR_KEY || event.key === null) notify();
   };
-  if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(SIDEBAR_CHANGE, notify);
   return () => {
-    sidebarSubscribers.delete(notify);
-    if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(SIDEBAR_CHANGE, notify);
   };
 };
 const saveSidebarCollapsed = (next: boolean): void => {
-  sidebarFallback = next;
-  if (typeof window !== 'undefined') {
-    try { window.localStorage.setItem(SIDEBAR_KEY, String(next)); }
-    catch { /* Private browsing/storage-disabled: in-memory state still works. */ }
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SIDEBAR_KEY, String(next));
+    sidebarEphemeral.delete(window);
+  } catch {
+    /* Private browsing/storage-disabled: this tab still expands and collapses. */
+    sidebarEphemeral.set(window, next);
   }
-  sidebarSubscribers.forEach(notify => notify());
+  window.dispatchEvent(new Event(SIDEBAR_CHANGE));
 };
 
 const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) => {
@@ -178,7 +184,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
                 key={ item.id }
                 href={ item.href }
                 className={ `ws-nav-link ${isActive ? 'active' : ''}` }
-                aria-label={ item.label }
+                aria-label={ collapsed ? item.label : undefined }
                 title={ collapsed ? item.label : undefined }
                 aria-current={ isActive ? 'page' : undefined }
               >
@@ -257,6 +263,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           position:relative;
           display:flex;
           align-items:center;
+          gap:8px;
           min-height:72px;
           min-width:0;
           padding:0 0 22px;
@@ -266,6 +273,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
         .ws-brand-side{
           display:inline-flex;
           align-items:center;
+          flex:1 1 auto;
           width:100%;
           min-width:0;
           min-height:54px;
@@ -280,15 +288,14 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           border-radius:10px;
         }
         .ws-sidebar-toggle{
-          position:absolute;
-          z-index:4;
-          top:12px;
-          right:-35px;
+          position:static;
+          z-index:1;
           display:inline-flex;
           align-items:center;
           justify-content:center;
-          width:34px;
-          height:34px;
+          flex:0 0 40px;
+          width:40px;
+          height:40px;
           padding:0;
           border:1px solid var(--border,#e5e7eb);
           border-radius:12px;
@@ -591,7 +598,10 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             padding-inline:12px;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-brand{
+            flex-direction:column;
             justify-content:center;
+            gap:8px;
+            padding-bottom:16px;
             margin-bottom:16px;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-brand-side{
@@ -601,8 +611,9 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             overflow:hidden;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-toggle{
-            right:-30px;
-            top:12px;
+            flex:0 0 40px;
+            width:40px;
+            height:40px;
           }
           .ws-shell[data-ws-collapsed='true'] .ws-sidebar-toggle svg{
             transform:rotate(180deg);
