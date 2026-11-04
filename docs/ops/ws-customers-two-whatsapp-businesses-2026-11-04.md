@@ -61,6 +61,37 @@ atomic cross-table transaction. A retry can repair a claim whose Contact
 projection failed; do not claim they are fully atomic. Existing financial data,
 orders, messages, contact UUIDs and consent ledgers are never rewritten.
 
+## Quarantined conflicts and replay policy
+
+If a legacy unscoped BSUID is ambiguous or conflicts with a different phone,
+the system deliberately refuses automatic identity assignment and places the
+exact webhook message in the inbound dead-letter queue. There is **no event
+source mapping automatically consuming this inbound DLQ** (verified read-only
+in the live AWS account on 2026-11-04). A manual operator must first reconcile
+the conflicting contact/identity claim; replaying without correcting ownership
+will reproduce the same refusal. The correct remediation is an audited,
+authorized identity reconciliation, **never** silently choosing an old row,
+returning an unrelated phone owner or reclassifying a payment as a new customer.
+
+The global BSUID fields in historic contacts may originate from either
+business. A row without positive provenance must not be assumed to belong to
+Wecare.Digital just because it has a BSUID. This can reduce automatic
+reconciliation of historical customers, which is intentional until per-business
+evidence exists. No bulk backfill or automatic merge is authorized.
+
+This first migration covers only the two known registered business senders.
+Unknown Embedded-Signup/partner tenant phone-hidden events are quarantined
+pending verified tenant-to-portfolio mapping, not assigned a default
+portfolio. Before deploying, confirm partner traffic impact and provide a
+separate correctly scoped mapping/reconciliation strategy.
+
+The legacy per-message permanent `webhook_dedup.claim_event` marker is
+created **before** all downstream message-processing side effects finish.
+If a message fails after that marker is recorded, a manual replay may skip
+the message as a duplicate. **Production promotion requires correcting this
+lease/completion boundary or proving the exact replay workflow for every
+identity-conflict failure**, not just observing that the DLQ accepted a copy.
+
 ## Production gate
 
 - Verify final code against **both** signed WhatsApp webhooks, including
