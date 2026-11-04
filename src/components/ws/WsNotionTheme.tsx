@@ -47,17 +47,26 @@ const WsNotionTheme: React.FC = () => (
   /* Signed-in navigation mirrors the homepage and /auth/ tokens.
      The full public BrandLockup renders its own transparent PNG and
      stacked wordmark. Do not paint a square or override its geometry. */
+  /* /auth uses a four-pixel lime top accent. On the workspace we use a
+     quieter TWO-pixel vertical edge: the white sidebar stays white, but
+     navigation and the content reading surface are clearly separated. */
   .ws-shell.ws-notion .ws-sidebar {
     background:#ffffff;
     border-color:var(--ws-hairline);
+    border-inline-end:2px solid var(--public-brand-lime,#d1f470);
   }
   .ws-shell.ws-notion .ws-sidebar-brand {
     border-color:var(--ws-hairline);
   }
+  /* The same Inter supporting-text scale and tracking used by /auth;
+     navigation is not a second uncoordinated typography system. */
   .ws-shell.ws-notion .ws-nav-link {
     color:var(--ws-muted);
-    font-size:14px;
+    font-family:var(--font-sans,Inter,system-ui,sans-serif);
+    font-size:var(--public-supporting-size,16px);
     font-weight:600;
+    line-height:1.35;
+    letter-spacing:var(--public-body-tracking,-.125px);
     border-radius:13px;
   }
   .ws-shell.ws-notion .ws-nav-link:hover {
@@ -76,13 +85,25 @@ const WsNotionTheme: React.FC = () => (
   .ws-shell.ws-notion .ws-main {
     background:var(--ws-paper);
   }
+  /* On phones the bottom bar replaces the sidebar, so the same subtle
+     lime separator sits ABOVE it rather than at the desktop side edge. */
   .ws-shell.ws-notion .ws-bottomnav {
     background:var(--ws-paper);
     border-color:var(--ws-hairline);
+    border-top:2px solid var(--public-brand-lime,#d1f470);
   }
   .ws-shell.ws-notion .ws-bottom-link.active {
     color:var(--public-brand-green,#1a3a2a);
     background:var(--public-lime-tint,rgba(209,244,112,.22));
+  }
+  /* Windows high-contrast mode must use a system line instead of lime. */
+  @media(forced-colors:active) {
+    .ws-shell.ws-notion .ws-sidebar {
+      border-inline-end-color:CanvasText;
+    }
+    .ws-shell.ws-notion .ws-bottomnav {
+      border-top-color:CanvasText;
+    }
   }
   .ws-shell.ws-notion .ws-content {
     width:100%;

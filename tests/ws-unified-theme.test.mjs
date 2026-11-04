@@ -505,7 +505,8 @@ test('signout is icon-only but reachable in both desktop sidebar states', () => 
 test('workspace sidebar is truly white and contains no NAVIGATION subtitle', () => {
   assert.ok(theme.includes('--ws-sidebar:#ffffff;'),
     'sidebar surface must be exactly pure white, not off-white');
-  assert.ok(theme.includes('.ws-shell.ws-notion .ws-sidebar {\n    background:#ffffff;'),
+  assert.match(theme,
+    /\.ws-shell\.ws-notion \.ws-sidebar\s*\{[^}]*background:#ffffff/,
     'explicit signed-in sidebar selector must paint #ffffff');
   assert.ok(theme.includes('--ws-soft-panel:#fbfcf9;') &&
             theme.includes('--bg-secondary:var(--ws-soft-panel);'),
@@ -525,6 +526,9 @@ test('text-only borderless sidebar search filters the six routes while typing', 
             section.includes('role="searchbox"') &&
             section.includes('inputMode="search"'),
     'search must be a real typable text field, not an icon-only button');
+  assert.ok(section.includes('aria-hidden={ collapsed }') &&
+            section.includes('disabled={ collapsed }'),
+    'collapsed sidebar must hide the input from assistive tech and keyboard focus');
   assert.ok(section.includes('placeholder="Type to search sections..."') &&
             section.includes('aria-label="Search workspace sections"'),
     'accessible placeholder clarifies this filters workspace sections');
@@ -549,6 +553,9 @@ test('text-only borderless sidebar search filters the six routes while typing', 
   assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-search") &&
             shell.includes('display:none;'),
     'the text search hides cleanly in the collapsed icon rail');
+  assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
+            shell.includes('visibility:visible;'),
+    'search is defensively hidden on mobile and revealed only for desktop sidebar');
   assert.ok(shell.includes('NAV_ITEMS.map( item => {'),
     'mobile navigation must not be filtered by a desktop-only query');
 });
@@ -570,4 +577,55 @@ test('sidebar search has no border on rest, hover, or focus, with accessible foc
   assert.ok(css.includes('min-height:44px') &&
             css.includes('border-radius:13px'),
     'search remains touch-friendly and follows the current workspace corner scale');
+  assert.ok(shell.includes('@media(forced-colors:active)') &&
+            shell.includes('outline:2px solid Highlight!important;') &&
+            shell.includes('box-shadow:none!important;'),
+    'Windows High Contrast must retain a visible focus outline when shadows are removed');
+});
+
+test('sidebar and mobile bar use subtle /auth-lime edges without losing white surfaces', () => {
+  assert.ok(theme.includes('border-inline-end:2px solid var(--public-brand-lime,#d1f470)'),
+    'desktop right edge of the white sidebar must be a restrained 2px lime divider');
+  assert.ok(theme.includes('border-top:2px solid var(--public-brand-lime,#d1f470)'),
+    'mobile bottom navigation uses the corresponding 2px lime separator');
+  assert.ok(theme.includes('--ws-sidebar:#ffffff;') &&
+            /\.ws-shell\.ws-notion \.ws-sidebar\s*\{[^}]*background:#ffffff/.test(theme),
+    'the lime line must not become a filled or gray sidebar');
+  assert.ok(theme.includes('border-inline-end-color:CanvasText;') &&
+            theme.includes('border-top-color:CanvasText;'),
+    'forced-colors browsers must replace lime edges with readable system line colors');
+  assert.ok(theme.includes('font-size:var(--public-supporting-size,16px)') &&
+            theme.includes('letter-spacing:var(--public-body-tracking,-.125px)'),
+    'workspace navigation uses the same Inter text scale and tracking as /auth');
+  assert.ok(theme.includes('font-weight:700;'),
+    'active route typography still has a clearly stronger weight');
+});
+
+test('sidebar remains usable across Safari, iOS and Android app WebViews and desktop browsers', () => {
+  const inputStyles = shell.slice(
+    shell.indexOf('.ws-sidebar-search-input{'),
+    shell.indexOf('.ws-sidebar-search-input::placeholder{'),
+  );
+  assert.ok(inputStyles.includes('font-size:var(--public-supporting-size,16px)'),
+    'iOS Safari/WKWebView search input text must be >=16px to avoid focus zoom');
+  assert.ok(inputStyles.includes('-webkit-appearance:none') &&
+            inputStyles.includes('appearance:none'),
+    'native WebKit and standards-based browser input chrome should be suppressed');
+  assert.ok(shell.includes('height:100vh;') && shell.includes('height:100dvh;'),
+    'desktop-height layout has a fallback for older browsers that lack dynamic viewport units');
+  assert.ok(shell.includes('padding-top:max(22px,env(safe-area-inset-top,0px))') &&
+            shell.includes('env(safe-area-inset-bottom,0px)'),
+    'iPad and native safe-area cutouts must not overlap the rail controls');
+  assert.ok(shell.includes('@media(min-width:768px)') &&
+            shell.includes('aria-label="Mobile workspace navigation"'),
+    'desktop sidebar and compact mobile bottom-bar breakpoints stay separate');
+  assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
+            shell.includes('disabled={ collapsed }') &&
+            shell.includes('aria-hidden={ collapsed }'),
+    'mobile or collapsed sidebar search is not accidentally focusable in a WebView');
+  assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
+    'animated sidebar layout must honor reduced motion on operating systems');
+  assert.ok(shell.includes('@media(forced-colors:active)') &&
+            shell.includes('outline:2px solid Highlight!important;'),
+    'Windows high-contrast input focus cannot disappear when shadows are suppressed');
 });

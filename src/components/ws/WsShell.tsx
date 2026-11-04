@@ -185,10 +185,11 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
         </div>
 
         {/* Text-only, borderless, editable sidebar filter. No search glyph. */}
-        <div className="ws-sidebar-search">
+        <div className="ws-sidebar-search" aria-hidden={ collapsed }>
           <input
             id="ws-sidebar-section-search"
             className="ws-sidebar-search-input"
+            disabled={ collapsed }
             type="text"
             role="searchbox"
             inputMode="search"
@@ -353,6 +354,9 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
 
         /* The entire right side is a single open reading surface. */
         .ws-sidebar{display:none}
+        /* Defensive mobile fallback: an unstyled or unmounted sidebar should
+           never expose a hidden text field to keyboard/AT navigation. */
+        .ws-sidebar-search{visibility:hidden}
         .ws-main{
           display:block;
           min-width:0;
@@ -461,12 +465,14 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             padding:22px 18px
               calc(20px + env(safe-area-inset-bottom,0px))
               max(18px,env(safe-area-inset-left,0px));
+            padding-top:max(22px,env(safe-area-inset-top,0px));
             background:#ffffff;
             border-inline-end:1px solid var(--border,#e5e7eb);
             box-sizing:border-box;
           }
           .ws-sidebar-search{
             display:flex;
+            visibility:visible;
             align-items:center;
             min-height:44px;
             min-width:0;
@@ -487,7 +493,11 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             box-shadow:none!important;
             color:var(--public-brand-green,#1a3a2a);
             font-family:var(--font-sans,Inter,system-ui,sans-serif);
-            font-size:14px;
+            /* iOS Safari/WKWebView won't zoom an input set to >=16px.
+               Match /auth supporting type; avoid inherited system field text. */
+            font-size:var(--public-supporting-size,16px);
+            font-weight:500;
+            letter-spacing:var(--public-body-tracking,-.125px);
             line-height:1.35;
             -webkit-appearance:none;
             appearance:none;
@@ -512,7 +522,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             margin:6px 8px;
             padding:12px 5px;
             color:var(--text-muted,#6b7280);
-            font-size:13px;
+            font-size:var(--public-meta-size,14px);
             line-height:1.5;
           }
           .ws-nav{
@@ -536,9 +546,11 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
             border-radius:13px;
             color:var(--text-muted,#6b7280);
             text-decoration:none;
-            font-size:14px;
+            font-family:var(--font-sans,Inter,system-ui,sans-serif);
+            font-size:var(--public-supporting-size,16px);
             font-weight:600;
             line-height:1.35;
+            letter-spacing:var(--public-body-tracking,-.125px);
             white-space:nowrap;
             transition:background-color .16s ease,color .16s ease;
           }
@@ -622,14 +634,15 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           }
           .ws-account-label{
             color:var(--text-muted,#6b7280);
-            font-size:11px;
-            line-height:1.2;
+            font-size:12px;
+            line-height:1.25;
           }
           .ws-account-id{
             color:var(--text,#1a1a1a);
-            font-size:12px;
+            font-size:13px;
             font-weight:650;
             line-height:1.35;
+            letter-spacing:var(--public-body-tracking,-.125px);
             overflow:hidden;
             white-space:nowrap;
             text-overflow:ellipsis;
@@ -736,6 +749,14 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-signout:hover:not(:disabled){transform:none}
         }
         @media(forced-colors:active){
+          /* High Contrast suppresses box shadows; reinstate a true outline
+             only in that mode so search remains discoverable by keyboard. */
+          .ws-sidebar-search-input:focus,
+          .ws-sidebar-search-input:focus-visible{
+            outline:2px solid Highlight!important;
+            outline-offset:1px;
+            box-shadow:none!important;
+          }
           .ws-sidebar,.ws-bottomnav{border-color:CanvasText}
           .ws-nav-link.active,.ws-bottom-link.active{background:Highlight;color:HighlightText}
           .ws-signout,.ws-sidebar-toggle{border-color:ButtonText}
