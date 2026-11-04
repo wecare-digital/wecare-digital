@@ -6,8 +6,8 @@
  *   - Delete a specific stored field (clears one field via api.updateContactResult)
  *   - Delete this customer's messages (api.deleteContactMessages, reports deleted/failed)
  *   - Block / archive (api.archiveContact — hides from daily queues, keeps identity + history)
- *   - Delete identity (soft delete via api.softDeleteContactResult — surfaces the server's
- *     403/409 legal-lock / payment-linkage reason and does NOT report the row removed on failure)
+ *   - Permanent deletion is disabled until the audited cross-service erasure workflow exists.
+ *     A legacy soft-delete would leave identity claims, media and dependent history behind.
  *
  * Every destructive action is useConfirm()-gated and styled with --danger. On an ApiResult !ok
  * the server's own failure.message / failure.code is shown via useToastContext and the parent is
@@ -24,7 +24,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 export interface CustomerActionsSheetProps {
   contact: Contact;
   onClose: () => void;
-  /** Called after a confirmed soft-delete so the parent can drop the row from the active list. */
+  /** Reserved for the future audited erasure workflow; never called by this sheet. */
   onRemoved: ( contactId: string ) => void;
   /** Called after an archive so the parent can drop the row from the active (daily-queue) list. */
   onArchived: ( contactId: string ) => void;
@@ -146,46 +146,6 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
     }
   };
 
-  // ---- Delete identity (soft delete) --------------------------------------------------------
-  const softDelete = async () => {
-    if ( busy ) return;
-    if ( locked ) {
-      toast.warning( 'This customer is protected by a retention lock; ask an administrator to review it.' );
-      return;
-    }
-    const ok = await confirm( {
-      title: 'Delete identity (soft delete)?',
-      message: `Delete ${name} from active customer records? This is a soft delete, NOT a permanent purge: the phone stays reserved and invoice, payment, order and audit history are never erased. Choose Block instead if you may need to restore the record.`,
-      confirmText: 'Delete identity',
-      danger: true,
-    } );
-    if ( !ok ) return;
-    setBusy( true );
-    try {
-      const result = await api.softDeleteContactResult( contact.contactId );
-      if ( result.ok && result.data?.success && ( result.data.deleteType === 'soft' || result.data.deleteType == null ) ) {
-        toast.success( 'Customer removed from the active list; their phone remains reserved.' );
-        onRemoved( contact.contactId );
-        onClose();
-      } else if ( !result.ok ) {
-        // Preserve the server's 403/409 legal-lock / payment-linkage reason. The row is NOT
-        // reported removed on any failure.
-        const refusal = ( result.failure.code || result.failure.message || '' ).toUpperCase();
-        const message = refusal.includes( 'CONTACT_LOCKED' )
-          ? 'Delete refused: this customer is protected for legal retention.'
-          : refusal.includes( 'CONTACT_HAS_PAYMENTS' ) || refusal.includes( 'PAYMENT_LINKAGE_UNKNOWN' )
-            ? 'Delete refused: linked payment/order history exists or could not be verified. Block instead if permitted.'
-            : result.failure.message || 'Delete was refused by the server.';
-        toast.error( message );
-      } else {
-        toast.error( 'Delete was not confirmed by the server. Refresh before trying again.' );
-      }
-    } catch {
-      toast.error( 'Delete request failed. The customer was not confirmed deleted.' );
-    } finally {
-      setBusy( false );
-    }
-  };
 
   return (
     <div className="cas-backdrop" role="dialog" aria-modal="true" aria-labelledby="cas-title" onClick={ onClose }>
@@ -236,8 +196,14 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
             <button type="button" className="cas-btn" disabled={ busy || locked } onClick={ archive }>
               Block / archive
             </button>
-            <button type="button" className="cas-btn cas-danger" disabled={ busy || locked } onClick={ softDelete }>
-              Delete identity
+            <p className="cas-lock" role="note">
+              Permanent deletion is unavailable until all linked identity claims, messages,
+              versioned S3 files, sessions and service records can be erased safely.
+              Archive this customer to hide them without orphaning their history.
+            </p>
+            <button type="button" className="cas-btn cas-danger" disabled
+              title="End-to-end contact erasure is not yet supported">
+              Delete all customer data — unavailable
             </button>
           </div>
         </div>
