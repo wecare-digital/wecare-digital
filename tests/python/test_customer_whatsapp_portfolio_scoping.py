@@ -105,7 +105,7 @@ def helpers(*contacts):
     store = FakeContactStore(db)
     allowed = {WECARE: WECARE_PORTFOLIO, MANISH: MANISH_PORTFOLIO}
     ast_root = ast.parse(HANDLER.read_text(encoding="utf-8"))
-    names = {"_message_account_id", "_scoped_bsuid_key",
+    names = {"_portfolio_scope", "_message_account_id", "_scoped_bsuid_key",
              "_find_scoped_bsuid", "_attach_scoped_bsuid"}
     nodes = [n for n in ast_root.body
              if isinstance(n, ast.FunctionDef) and n.name in names]
@@ -215,3 +215,19 @@ def test_existing_business_mapping_cannot_be_changed_without_previous_id():
     assert row["whatsappIdentities"][MANISH_PORTFOLIO]["bsuid"] == "IN.new"
     assert h.claims.rows[h._scoped_bsuid_key(MANISH, "IN.old")]["contactId"] == "customer"
     assert h.claims.rows[h._scoped_bsuid_key(MANISH, "IN.new")]["contactId"] == "customer"
+
+
+def test_other_signed_partner_waba_uses_strict_waba_local_scope():
+    partner = "1987654321098765"
+    h = helpers({"id": "partner-customer"})
+    assert h._message_account_id(
+        {"phone_number_id": "partner-phone"},
+        [partner], needs_bsuid=True) == partner
+    key = h._scoped_bsuid_key(partner, "IN.123")
+    assert "WABA_" + partner in key
+    h._attach_scoped_bsuid(h.db, h.db.rows["partner-customer"],
+                           waba_id=partner, bsuid="IN.123")
+    assert h.claims.rows[key]["contactId"] == "partner-customer"
+    assert h.db.rows["partner-customer"]["whatsappIdentities"]["WABA_" + partner]["bsuid"] == "IN.123"
+    with pytest.raises(Conflict):
+        h._portfolio_scope("unknown")
