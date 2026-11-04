@@ -562,6 +562,7 @@
 .detailsScroll {
   flex: 1 1 auto;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   min-height: 0;
   padding: 25px;
 }
