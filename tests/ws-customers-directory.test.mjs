@@ -1,0 +1,88 @@
+// Regression guards for the rebuilt /ws/customers page.
+// These tests are static: the live Contacts API and authenticated browser flow are verified
+// separately and are never exercised with production customer data in CI.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readSource } from './helpers/loadTsx.mjs';
+
+const route = readSource('src/pages/ws/customers/index.tsx');
+const directory = readSource('src/components/ws/customers/CustomerList.tsx');
+const editor = readSource('src/components/ws/customers/CustomerEditor.tsx');
+const directoryCss = readSource('src/components/ws/customers/CustomerList.module.css');
+const editorCss = readSource('src/components/ws/customers/CustomerEditor.module.css');
+
+test('customers page stays inside the shared authenticated /ws shell', () => {
+  assert.ok(route.includes('<WsShell active="customers"'));
+  assert.ok(route.includes('<SEO title="Customers"'));
+  assert.ok(route.includes('noindex'));
+  assert.ok(route.includes('<CustomerList'));
+  assert.ok(!route.includes('Header'));
+  assert.ok(!route.includes('Footer'));
+});
+
+test('directory has real search, filters, sorting, loading and recoverable errors', () => {
+  for (const marker of [
+    'api.listContactsResult()', 'type="search"', 'search.trim().toLowerCase()',
+    'filter ===', 'contactDeliveryAddress(contact)', 'setFilter',
+    'Recently updated', 'Name A–Z', 'Could not load customers', 'Retry',
+    'No matching customers', 'Create contact',
+  ]) {
+    assert.ok(directory.includes(marker), marker);
+  }
+  assert.ok(!directory.includes('fetch('), 'no direct unauthenticated data fetches');
+});
+
+test('customer card and drawer show canonical profile, verification and address', () => {
+  for (const marker of [
+    'CustomerDetails', 'contact.profileUsername', 'contact.companyName',
+    'contact.designation', 'contact.phoneVerifiedAt', 'contact.whatsappMarketingConsent',
+    'contactDeliveryAddress(contact)', 'customerDisplayId', 'Retention lock',
+    'Edit contact', 'More actions',
+  ]) assert.ok(directory.includes(marker), marker);
+  assert.ok(directory.includes('router.query.contact'), 'existing deep links still work');
+});
+
+test('new contact editor follows the F001 profile, address, review steps', () => {
+  for (const marker of [
+    "'Profile', 'Address', 'Review'", 'Full name', 'WhatsApp phone number',
+    'WhatsApp username', 'Organization', 'Job title',
+    'ADDRESS_FIELDS.map', 'COUNTRY_OPTIONS.map', 'addressComplete(address)',
+    'addressPayload(address)', 'formatAddress(address)',
+    'Review before saving', 'Create contact',
+  ]) assert.ok(editor.includes(marker), marker);
+});
+
+test('customer saves preserve identity, consent and server-side uniqueness', () => {
+  assert.ok(editor.includes('contactPhoneE164(phone, dial)'), 'normalise staff phone');
+  assert.ok(editor.includes('api.createContactResult(payload)'), 'only canonical create API');
+  assert.ok(editor.includes('api.updateContactResult(contact.contactId, payload)'), 'only canonical update API');
+  assert.ok(editor.includes('result.failure.status === 409'), 'handle server-side duplicates');
+  assert.ok(editor.includes('CONTACT_IDENTITY_RECONCILIATION_REQUIRED'), 'show reconciliation failures');
+  assert.ok(!/payload\.optIn|payload\.allowlist|payload\.phoneVerifiedAt|payload\.username\s*=/.test(editor),
+    'staff editing cannot grant consent or provider verification');
+  assert.ok(!editor.includes('Math.random'), 'server assigns customer IDs');
+  assert.ok(!editor.includes('localStorage'), 'customer details must not be cached in local storage');
+});
+
+test('destructive actions stay confirm-gated, protected and report server failure', () => {
+  assert.ok(directory.includes('api.bulkDeleteContacts(ids)'));
+  assert.ok(directory.includes('await confirm('));
+  assert.ok(directory.includes('contact.locked'));
+  assert.ok(directory.includes('CustomerActionsSheet'));
+  assert.ok(directory.includes('CustomerManageData'));
+  const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
+  assert.ok(actions.includes('api.softDeleteContactResult'));
+  assert.ok(actions.includes('api.archiveContact'));
+});
+
+test('responsive layout covers desktop, tablet and iOS/Android browsers', () => {
+  for (const marker of [
+    '@media (max-width: 1199px)', '@media (max-width: 860px)',
+    '@media (max-width: 600px)', '@media (max-width: 360px)',
+    'env(safe-area-inset-bottom', 'font-size: 16px',
+    '@media (prefers-reduced-motion: reduce)',
+  ]) assert.ok(directoryCss.includes(marker), marker);
+  assert.ok(editorCss.includes('@media (max-width: 650px)'));
+  assert.ok(editorCss.includes('env(safe-area-inset-bottom'));
+  assert.ok(directoryCss.includes('var(--ws-'), 'use existing /ws theme tokens');
+});
