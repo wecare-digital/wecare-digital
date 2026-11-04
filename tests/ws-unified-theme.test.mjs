@@ -721,10 +721,15 @@ test('collapsed selected nav icon stays visible in Windows forced-colors mode', 
     'the 80px icon rail needs its own high-contrast selected state');
   assert.ok(forced.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active:hover .ws-nav-icon"),
     'hover must not restore the ordinary brand-lime highlight over system colors');
-  assert.ok(forced.includes('background:Highlight;') &&
-            forced.includes('color:HighlightText;') &&
-            forced.includes('outline:1px solid HighlightText;'),
-    'use readable system Highlight/HighlightText values on the icon tile');
+  const iconRuleStart = forced.indexOf(
+    ".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active:hover .ws-nav-icon{",
+  );
+  assert.ok(iconRuleStart !== -1, 'collapsed active hover icon rule is required');
+  const iconRule = forced.slice(iconRuleStart, forced.indexOf('}', iconRuleStart));
+  assert.ok(iconRule.includes('background:Highlight;') &&
+            iconRule.includes('color:HighlightText;') &&
+            iconRule.includes('outline:1px solid HighlightText;'),
+    'the collapsed icon rule itself must paint readable system colors, not just a generic parent');
   assert.ok(shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active::before") &&
             shell.includes('display:none;'),
     'the normal active stripe stays off in the collapsed rail; system icon tile replaces it');
