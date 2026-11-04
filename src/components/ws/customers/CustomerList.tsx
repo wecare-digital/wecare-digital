@@ -434,7 +434,7 @@ const CustomerList: React.FC = () => {
         try {
           if (action === 'archive') {
             const result = await api.archiveContact(
-              id, 'Reviewed directory cleanup: missing customer details',
+              id, 'Staff-reviewed bulk cleanup via /ws/customers (' + filter + ')',
             );
             if (result.ok && result.data?.archivedAt) succeeded++;
             else if (!result.ok) refused++;
