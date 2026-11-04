@@ -4009,8 +4009,11 @@ def _find_scoped_bsuid(contacts_table, bsuid: str, waba_id: str,
     if not bsuid:
         return None
     scoped_key = _scoped_bsuid_key(waba_id, bsuid)
-    item = dynamodb.Table(identity_claims.TABLE_NAME).get_item(
-        Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    try:
+        item = dynamodb.Table(identity_claims.TABLE_NAME).get_item(
+            Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    except Exception as exc:
+        raise contact_store.IdentityConflict('business-identity-lookup-unavailable', ()) from exc
     owner_id = str(item.get('contactId') or '')
     if owner_id:
         owner = contact_store.lookup(contacts_table, contact_id=owner_id)
@@ -4044,7 +4047,9 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
     if not bsuid:
         return
     scoped_key = _scoped_bsuid_key(waba_id, bsuid)
-    portfolio_id = _WABA_PORTFOLIOS[waba_id]
+    portfolio_id = _WABA_PORTFOLIOS.get(waba_id)
+    if not portfolio_id:
+        raise contact_store.IdentityConflict('invalid-business-identity', ())
     contact_id = contact_key.resolve(contact)
     if not contact_id:
         raise contact_store.IdentityConflict('missing-canonical-contact', ())
@@ -4066,7 +4071,10 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
         raise contact_store.IdentityConflict('business-identity-transition-race', ())
 
     table = dynamodb.Table(identity_claims.TABLE_NAME)
-    claim = table.get_item(Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    try:
+        claim = table.get_item(Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    except Exception as exc:
+        raise contact_store.IdentityConflict('business-identity-claim-unavailable', ()) from exc
     claimant = str(claim.get('contactId') or '')
     if claimant and claimant != contact_id:
         raise contact_store.IdentityConflict('business-identity-already-claimed', ())
@@ -4085,7 +4093,9 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
         except ClientError as exc:
             if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
                 raise contact_store.IdentityConflict('business-identity-race', ()) from exc
-            raise
+            raise contact_store.IdentityConflict('business-identity-write-unavailable', ()) from exc
+        except Exception as exc:
+            raise contact_store.IdentityConflict('business-identity-write-unavailable', ()) from exc
 
     profile = dict(prior_profile)
     profile['bsuid'] = bsuid
@@ -4097,13 +4107,16 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
         return
     # Nested DynamoDB map attributes require the parent to exist before a
     # separately conditional leaf write. Neither step replaces another business.
-    contacts_table.update_item(
-        Key={'id': contact_id},
-        UpdateExpression='SET #profiles = if_not_exists(#profiles, :empty)',
-        ExpressionAttributeNames={'#profiles': 'whatsappIdentities'},
-        ExpressionAttributeValues={':empty': {}},
-        ConditionExpression='attribute_exists(id)',
-    )
+    try:
+        contacts_table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #profiles = if_not_exists(#profiles, :empty)',
+            ExpressionAttributeNames={'#profiles': 'whatsappIdentities'},
+            ExpressionAttributeValues={':empty': {}},
+            ConditionExpression='attribute_exists(id)',
+        )
+    except Exception as exc:
+        raise contact_store.IdentityConflict('business-profile-map-unavailable', ()) from exc
     names = {'#profiles': 'whatsappIdentities', '#business': portfolio_id,
              '#bsuid': 'bsuid'}
     values = {':entry': profile, ':bsuid': bsuid, ':now': Decimal(str(now))}
@@ -4124,7 +4137,9 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
     except ClientError as exc:
         if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             raise contact_store.IdentityConflict('business-identity-write-conflict', ()) from exc
-        raise
+        raise contact_store.IdentityConflict('business-identity-write-unavailable', ()) from exc
+    except Exception as exc:
+        raise contact_store.IdentityConflict('business-identity-write-unavailable', ()) from exc
     contact['whatsappIdentities'] = {**current_profiles, portfolio_id: profile}
 
 
@@ -4179,7 +4194,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         raise
     except Exception as e:
         logger.warning(f"contact_store.lookup failed for {mask_phone(phone)}: {type(e).__name__}")
-        resolved = None
+        raise contact_store.IdentityConflict('contact-lookup-unavailable', ()) from e
     if resolved and not resolved.get('deletedAt'):
         _update_contact_bsuid_fields(contacts_table, resolved, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
         return resolved
@@ -5091,7 +5106,7 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
     timestamp = int(status.get('timestamp', time.time()))
     recipient_id = status.get('recipient_id', '')
     recipient_user_id = status.get('recipient_user_id', '')  # BSUID
-    parent_recipient_user_id = status.get('parent_recipient_user_id', '')  # Parent BSUID
+    parent_recipient_user_id = status.get('recipient_parent_user_id', '')  # Parent BSUID
     opaque_message_id = str(status.get('biz_opaque_callback_data') or '').strip()
     if not (opaque_message_id.startswith('wa-idem-') and len(opaque_message_id) <= 96
             and all(32 <= ord(ch) < 127 for ch in opaque_message_id)):
@@ -5298,16 +5313,14 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
             if not c_bsuid:
                 continue
             try:
-                # Try to find contact by BSUID and update username/phone if new
+                # Status contacts are scoped to the sender business just like
+                # inbound messages. Never query the global unscoped bsuid-index.
                 contacts_table = dynamodb.Table(CONTACTS_TABLE)
-                bsuid_resp = contacts_table.query(
-                    IndexName='bsuid-index',
-                    KeyConditionExpression='bsuid = :b',
-                    ExpressionAttributeValues={':b': c_bsuid},
-                    Limit=1
-                )
-                if bsuid_resp.get('Items'):
-                    existing = bsuid_resp['Items'][0]
+                existing = _find_scoped_bsuid(
+                    contacts_table, c_bsuid, waba_id, sender_phone=c_phone)
+                if existing is None and c_phone:
+                    existing = contact_store.lookup(contacts_table, c_phone)
+                if existing:
                     _update_contact_bsuid_fields(
                         contacts_table, existing,
                         sender_name=centry.get('name', ''),
@@ -5315,6 +5328,7 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
                         phone=c_phone,
                         bsuid=c_bsuid,
                         parent_bsuid=c_parent_bsuid,
+                        waba_id=waba_id,
                     )
             except Exception as enrich_err:
                 logger.debug(f'Status contact enrichment skipped: {enrich_err}')
