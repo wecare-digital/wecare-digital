@@ -286,3 +286,19 @@ test('website registration and transactions still require a phone verified by OT
     'customer editor explains OTP requirement');
   assert.ok(directory.includes('Website OTP and checkout require a phone'));
 });
+
+test('inbound WhatsApp dedup leases complete only after successful message processing', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const workLoop = inbound.indexOf('leased_message_ids = []');
+  const call = inbound.indexOf('                        _process_message(', workLoop);
+  const complete = inbound.indexOf('                        if leased_message_ids:', call);
+  const catchFailure = inbound.indexOf('                    except Exception as e:', complete);
+  assert.ok(workLoop !== -1 && call > workLoop && complete > call && catchFailure > complete,
+    'a successful message must finish before its dedup lease is closed');
+  assert.ok(inbound.includes('claim_event_with_lease('),
+    'inbound message dedup must be recoverable after a processing failure');
+  assert.ok(inbound.includes('dedup_tracker.append(whatsapp_message_id)'));
+  assert.ok(inbound.includes('complete_event(leased_id)'));
+  assert.ok(!inbound.includes("claim_event(whatsapp_message_id, source='whatsapp_inbound')"),
+    'permanent pre-processing claim would swallow retry of a failed identity transition');
+});
