@@ -129,7 +129,9 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
 
     const payload: ContactMutation = {
       name: name.trim(),
-      phone: fullPhone,
+      // An unchanged phone is still a trust-changing write on the Contacts backend.
+      // Never overwrite provider-verified provenance from a staff profile edit.
+      ...(!editing ? { phone: fullPhone } : {}),
       profileUsername: username.trim(),
       companyName: organization.trim(),
       designation: jobTitle.trim(),
