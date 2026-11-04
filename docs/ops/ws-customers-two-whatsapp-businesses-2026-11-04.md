@@ -79,11 +79,15 @@ Wecare.Digital just because it has a BSUID. This can reduce automatic
 reconciliation of historical customers, which is intentional until per-business
 evidence exists. No bulk backfill or automatic merge is authorized.
 
-This first migration covers only the two known registered business senders.
-Unknown Embedded-Signup/partner tenant phone-hidden events are quarantined
-pending verified tenant-to-portfolio mapping, not assigned a default
-portfolio. Before deploying, confirm partner traffic impact and provide a
-separate correctly scoped mapping/reconciliation strategy.
+The two verified WECARE.DIGITAL and Manish accounts have exact known
+portfolio scopes. An additional signed Embedded-Signup partner account is
+assigned a narrower, unique per-WABA scope (`WABA_<account-id>`) so that its
+phone-hidden inbound messages remain processable without borrowing another
+business's customer identity. This is not proof of that account's *business
+portfolio* ownership and does not promise cross-WABA continuity for partners.
+Missing, invalid or contradictory signed account/sender evidence still causes
+a fail-closed identity refusal. Before deploying, run partner-traffic
+integration tests and verify the source of all account claims.
 
 The inbound worker now uses `claim_event_with_lease` and calls
 `complete_event` only when a full message processing call returns successfully.
