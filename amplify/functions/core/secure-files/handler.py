@@ -1677,6 +1677,9 @@ def _start_native_vault_payment(
     logger.info(json.dumps({"event": "vault_native_payment_requested",
                             "fileId": str(item.get("fileId") or ""),
                             "outcome": outcome, "renewal": False,
+                            "reason": str((answer or {}).get("reason") or "")[:80],
+                            "detail": str((answer or {}).get("detail")
+                                          or (answer or {}).get("message") or "")[:120],
                             "requestedBy": str(requested_by or "")[:32]}))
     code, message = _PAYMENT_REQUEST_REPLIES.get(
         outcome, (502, "Vault payment could not be started. Nothing was charged."))
