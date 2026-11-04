@@ -7,6 +7,7 @@ import {latestInvoiceImage} from '../../../lib/collect';
 import {addressComplete,addressFieldsFromContact,formatAddress} from '../../../lib/address-format';
 import {fetchServicePrices,rupeesFromPaise,type ServicePriceBreakdown} from '../../../lib/servicePricing';
 import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
+import {vaultPaymentStatusMessage} from '../../../lib/vault-payment-status';
 import {useConfirm} from '../../../contexts/ConfirmContext';
 import PaymentCustomerPicker from './PaymentCustomerPicker';
 import PaymentFramework from './PaymentFramework';
@@ -39,13 +40,14 @@ export default function VaultWorkspace(){
 function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;revision:number;onPreview:(p:Preview|null)=>void;onChanged:()=>void}){
  const confirm=useConfirm();const [customer,setCustomer]=React.useState<api.Contact|null>(null),[local,setLocal]=React.useState<File|null>(null),[files,setFiles]=React.useState<api.SecureFile[]>([]),[selected,setSelected]=React.useState<api.SecureFile|null>(null);
  const [quote,setQuote]=React.useState<ServicePriceBreakdown|null>(null),[notice,setNotice]=React.useState(''),[busy,setBusy]=React.useState(false),[refresh,setRefresh]=React.useState(0),[pending,setPending]=React.useState(''),[uploadBlocked,setUploadBlocked]=React.useState(false),[payBlocked,setPayBlocked]=React.useState(false);
+ const [paymentFileId,setPaymentFileId]=React.useState<string|null>(null);
  const selectedFile=React.useRef<api.SecureFile|null>(null);
  const uploaded=React.useRef<{fileId:string;phone:string}|null>(null);
  const [savedUpload,setSavedUpload]=React.useState<{name:string;fileId:string}|null>(null),[filesLoading,setFilesLoading]=React.useState(false);
  const flight=React.useRef(false),ownerSequence=React.useRef(0),previewSequence=React.useRef(0);
  const [filePreviewReady,setFilePreviewReady]=React.useState(false);
  const loadQuote=React.useCallback(async()=>{setQuote(null);const value=(await fetchServicePrices()).vault;if(!value?.available||!value.breakdown||value.breakdown.expressPaise!==2500)throw Error('The current Vault quote with ₹25 Express is unavailable. Nothing can be sent.');setQuote(value.breakdown);return value.breakdown;},[]);
- const chooseFile=React.useCallback(async(file:api.SecureFile)=>{if(flight.current)return;setLocal(null);selectedFile.current=file;setSelected(file);setFilePreviewReady(false);const request=++previewSequence.current;setPayBlocked(!!sessionStorage.getItem(sendKey(file.fileId)));onPreview(null);const seq=ownerSequence.current;try{const url=await api.getVaultStaffDownloadUrl(file.fileId);if(seq!==ownerSequence.current||request!==previewSequence.current)return;if(!url)throw Error();onPreview({src:url,label:file.originalFilename+' · verified private file',type:file.contentType,onReady:()=>{if(seq===ownerSequence.current&&request===previewSequence.current)setFilePreviewReady(true);}});
+ const chooseFile=React.useCallback(async(file:api.SecureFile)=>{if(flight.current)return;setPaymentFileId(current=>current===file.fileId?current:null);setLocal(null);selectedFile.current=file;setSelected(file);setFilePreviewReady(false);const request=++previewSequence.current;setPayBlocked(!!sessionStorage.getItem(sendKey(file.fileId)));onPreview(null);const seq=ownerSequence.current;try{const url=await api.getVaultStaffDownloadUrl(file.fileId);if(seq!==ownerSequence.current||request!==previewSequence.current)return;if(!url)throw Error();onPreview({src:url,label:file.originalFilename+' · verified private file',type:file.contentType,onReady:()=>{if(seq===ownerSequence.current&&request===previewSequence.current)setFilePreviewReady(true);}});
    // Readiness is the authorized private link being obtained, NOT the inline preview painting.
    // The staff preview is a convenience and the backend re-verifies owner/storage/price/template
    // on send; gating the send button on the PDF canvas rendering left a verified file unsendable
@@ -55,7 +57,32 @@ function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;rev
  React.useEffect(()=>{void loadQuote().catch(e=>setNotice(e.message));try{const p=JSON.parse(sessionStorage.getItem(UPLOAD_KEY)||'null');if(p){setUploadBlocked(true);setPending(p.fileId||'');setNotice('An earlier upload needs checking in Log. Confirm its known file ID below; do not start a duplicate upload.');}}catch{setUploadBlocked(true);setNotice('The previous upload state could not be read. Inspect Log before another upload.');}},[loadQuote]);
  React.useEffect(()=>{const seq=++ownerSequence.current;setFiles([]);selectedFile.current=null;setSelected(null);setLocal(null);setPayBlocked(false);setFilePreviewReady(false);previewSequence.current++;onPreview(null);setFilesLoading(!!customer);if(!customer)return;void api.listSecureFiles(customer.phone).then(r=>{if(seq!==ownerSequence.current)return;if(!r.ok)throw Error(r.failure.message);setFiles(r.data.files);const recent=uploaded.current?.phone===customer.phone?r.data.files.find(file=>file.fileId===uploaded.current?.fileId):null;if(recent){uploaded.current=null;void chooseFile(recent);}if(r.data.truncated)setNotice('Listing is partial. Refine the customer or inspect Log.');}).catch(()=>{if(seq===ownerSequence.current)setNotice('Saved files could not be loaded. Reload before taking action.');}).finally(()=>{if(seq===ownerSequence.current)setFilesLoading(false);});return()=>{ownerSequence.current++;};},[customer,revision,refresh,onPreview,chooseFile]);
  React.useEffect(()=>{if(!visible){previewSequence.current++;setFilePreviewReady(false);return;}if(local){const url=URL.createObjectURL(local);onPreview({src:url,label:local.name+' · local preview · not uploaded',type:local.type});return()=>{URL.revokeObjectURL(url);};}if(selectedFile.current){void chooseFile(selectedFile.current);}else onPreview(null);},[local,visible,onPreview,chooseFile]);
- const chooseCustomer=(value:api.Contact|null)=>{if(!flight.current){setCustomer(value);setSavedUpload(null);uploaded.current=null;}};
+ // Refresh only the accepted request's file. No send or entitlement mutation occurs here.
+ React.useEffect(()=>{
+   if(!visible||!customer||!paymentFileId)return;
+   let active=true,timer:ReturnType<typeof setTimeout>|undefined,reads=0;
+   const check=async()=>{
+     if(!active)return;
+     if(flight.current){timer=setTimeout(()=>void check(),5000);return;}
+     try{
+       const result=await api.listSecureFiles(customer.phone);
+       if(!active)return;
+       if(result.ok){
+         const current=result.data.files.find(file=>file.fileId===paymentFileId);
+         setFiles(result.data.files);
+         if(current){
+           setSelected(previous=>previous?.fileId===current.fileId?current:previous);
+         }
+       }
+     }catch{/* A failed status read never changes payment or retry eligibility. */}
+     if(active&&++reads<120)timer=setTimeout(()=>void check(),5000);
+   };
+   void check();
+   return()=>{active=false;if(timer)clearTimeout(timer);};
+ },[visible,customer,paymentFileId,revision,refresh]);
+ const paymentNotice=paymentFileId?vaultPaymentStatusMessage(files.find(file=>file.fileId===paymentFileId)):'';
+ const visibleNotice=notice||paymentNotice;
+ const chooseCustomer=(value:api.Contact|null)=>{if(!flight.current){setPaymentFileId(null);setNotice('');setCustomer(value);setSavedUpload(null);uploaded.current=null;}};
 
  const recoverUpload=async()=>{if(!pending||flight.current)return;flight.current=true;setBusy(true);try{const result=await api.confirmVaultFileUpload(pending);if(!result.ok||result.data.status!=='active')throw Error('The uploaded bytes are not verified. Inspect this file in Log; no payment is enabled.');sessionStorage.removeItem(UPLOAD_KEY);setPending('');setUploadBlocked(false);setNotice('Existing upload verified. Select its saved customer and file.');setRefresh(n=>n+1);onChanged();}catch(e){setNotice(e instanceof Error?e.message:'Upload confirmation unavailable.');}finally{flight.current=false;setBusy(false);}};
  const upload=async()=>{if(flight.current||!customer||!local||uploadBlocked)return;const owner=customer,file=local;const seq=ownerSequence.current;flight.current=true;setBusy(true);try{
@@ -75,7 +102,7 @@ function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;rev
    if(!await confirm({title:'Confirm delivery address and send Review & Pay?',message:`Verify with the customer that this is the CURRENT and CORRECT physical-goods delivery address: ${addressText}. Owner: ${owner.name} · ${owner.phone}. File: ${file.originalFilename}. Total ${money(fresh.totalPayablePaise)}, including ₹25 Express. Confirm only if this saved address is correct; the server checks it again before payment.`,confirmText:'Address verified · Send payment request'}))return;
    sessionStorage.setItem(sendKey(file.fileId),'requested');setPayBlocked(true);const r=await api.requestSecureFilePayment(file.fileId,undefined,fresh.totalPayablePaise,{confirmed:true,checkoutAddressUpdatedAt:addressRevision});
    if(isVaultPaymentRefused(r.outcome)){sessionStorage.removeItem(sendKey(file.fileId));setPayBlocked(false);if(r.outcome==='VAULT_QUOTE_CHANGED')setQuote(null);}
-   setNotice(`${r.ok?'Server response':'Not confirmed'}: ${r.outcome} · ${r.message} Check Log before another action.`);setRefresh(n=>n+1);onChanged();
+   if(r.ok&&r.outcome==='PAYMENT_REQUEST_SENT'){setPaymentFileId(file.fileId);setNotice('');}else{setPaymentFileId(null);setNotice(`${r.ok?'Server response':'Not confirmed'}: ${r.outcome} · ${r.message} Check Log before another action.`);}setRefresh(n=>n+1);onChanged();
  }catch(e){setNotice(e instanceof Error?e.message:'Payment outcome is uncertain. Inspect Log before another action.');}finally{flight.current=false;setBusy(false);}};
  const previewIssuedInvoice=async()=>{
    const file=selected;if(!file||flight.current)return;flight.current=true;setBusy(true);
@@ -101,7 +128,7 @@ function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;rev
  {uploadBlocked&&<div className={s.notice}><p>Previous upload requires verification{pending?` · ${pending}`:'. Registration result is unknown; inspect Log before another upload.'}</p>{pending&&<button disabled={busy} onClick={()=>void recoverUpload()}>Confirm existing upload</button>}</div>}
  {customer&&<div className={s.files}><h3>Saved in Vault for {customer.name}</h3><p>{filesLoading?'Loading saved files…':`${files.length} saved file${files.length===1?'':'s'} loaded for this customer.`} Select a file here to preview it and review its payment.</p>{!filesLoading&&files.length===0&&<p>No saved files were returned. Choose a file above, then use Upload &amp; verify private file.</p>}{files.map(file=><article className={s.file} data-selected={selected?.fileId===file.fileId} key={file.fileId}><strong>{file.originalFilename||file.displayName}</strong><span className={s.meta}>Saved: {when(file.createdAt)} · File record: {file.status} · Access: {accessLabel(file.accessState)}</span><code>{file.fileId}</code><div className={s.actions}><button disabled={busy} onClick={()=>void chooseFile(file)}>{selected?.fileId===file.fileId?'Refresh file preview':'Select & preview file'}</button></div></article>)}</div>}</section>
  <section className={s.card}><span className={s.eyebrow}>3 · REVIEW & SEND</span><h2>Vault payment / invoice preview</h2><p><strong>Before capture: payment quotation only — not an issued GST invoice.</strong> A numbered invoice and saved invoice image are generated only after a verified payment. No invoice exists for a refused payment request.</p>{quote?<Breakdown quote={quote}/>:<p>Live pricing unavailable. Payment is disabled.</p>}<p>Vault is always physical goods. A complete, valid delivery address is mandatory; staff must confirm the current saved address with the customer before sending. Express is always ₹25. The server owns all amounts.</p>{customer&&<div className={s.summary}><strong>Delivery address to confirm</strong><p>{formatAddress(addressFieldsFromContact(customer))||'No saved delivery address'}</p></div>}{selected&&<div className={s.summary}><strong>{selected.originalFilename}</strong><p>{customer?.name} · {customer?.phone} · {accessLabel(selected.accessState)}</p></div>}
- <div className={s.actions}><button disabled={busy} onClick={()=>void loadQuote().catch(e=>setNotice(e.message))}>Refresh live quote</button><button className={s.primary} disabled={busy||!canPay||!quote} onClick={()=>void payment()}>Review & send payment template</button>{selected&&<button disabled={busy} onClick={()=>void previewIssuedInvoice()}>Preview issued invoice (if paid)</button>}</div>{selected&&!canPay&&<p>{!payable?'A new payment is blocked for paid, expired, unverified or unresolved payment requests. Check Log for the existing payment and access evidence.':!deliveryReady?'Physical-goods payment requires a complete, saved, current delivery address. Use Edit customer to confirm and save it.':'Waiting for the selected file preview. If it fails, refresh the file preview before reviewing payment.'}</p>}</section>{notice&&<div role="status" className={s.notice}>{notice}</div>}</div>;
+ <div className={s.actions}><button disabled={busy} onClick={()=>void loadQuote().catch(e=>setNotice(e.message))}>Refresh live quote</button><button className={s.primary} disabled={busy||!canPay||!quote} onClick={()=>void payment()}>Review & send payment template</button>{selected&&<button disabled={busy} onClick={()=>void previewIssuedInvoice()}>Preview issued invoice (if paid)</button>}</div>{selected&&!canPay&&<p>{!payable?'A new payment is blocked for paid, expired, unverified or unresolved payment requests. Check Log for the existing payment and access evidence.':!deliveryReady?'Physical-goods payment requires a complete, saved, current delivery address. Use Edit customer to confirm and save it.':'Waiting for the selected file preview. If it fails, refresh the file preview before reviewing payment.'}</p>}</section>{visibleNotice&&<div role="status" className={s.notice}>{visibleNotice}</div>}</div>;
 }
 function VaultLog({revision,onPreview,onChanged}:{revision:number;onPreview:(p:Preview|null)=>void;onChanged:()=>void}){
  const confirm=useConfirm();const [rows,setRows]=React.useState<api.SecureFileLog[]>([]),[selected,setSelected]=React.useState<api.SecureFileLog|null>(null),[customer,setCustomer]=React.useState<api.Contact|null>(null),[history,setHistory]=React.useState(false),[refresh,setRefresh]=React.useState(0),[notice,setNotice]=React.useState(''),[busy,setBusy]=React.useState(false),[delivery,setDelivery]=React.useState<api.VaultMessageDeliveryLog|null>(null),[invoice,setInvoice]=React.useState<api.Invoice|null>(null),[order,setOrder]=React.useState<api.Order|null>(null);
