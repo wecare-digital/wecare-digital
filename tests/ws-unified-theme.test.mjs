@@ -624,7 +624,7 @@ test('sidebar remains usable across Safari, iOS and Android app WebViews and des
     'desktop sidebar and compact mobile bottom-bar breakpoints stay separate');
   assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
             shell.includes('disabled={ collapsed }') &&
-            shell.includes('aria-hidden={ collapsed }'),
+            shell.includes("aria-hidden={ collapsed ? 'true' : 'false' }"),
     'mobile or collapsed sidebar search is not accidentally focusable in a WebView');
   assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
     'animated sidebar layout must honor reduced motion on operating systems');
