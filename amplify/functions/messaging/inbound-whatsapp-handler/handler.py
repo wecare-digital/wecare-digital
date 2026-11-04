@@ -2186,6 +2186,8 @@ def _process_message(
     msg_bsuid = message.get('from_user_id', '') or sender_bsuid
     # Parent BSUID: from_parent_user_id in message takes precedence over contacts array
     msg_parent_bsuid = message.get('from_parent_user_id', '') or sender_parent_bsuid
+    source_waba_id = _message_account_id(metadata, meta_waba_ids,
+                                         needs_bsuid=bool(msg_bsuid))
     msg_type = message.get('type', 'text')
     timestamp = int(message.get('timestamp', time.time()))
 
@@ -2292,7 +2294,8 @@ def _process_message(
     if _referral_data is not None:
         _referral_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _referral_result = referral_response.save_referral(
             _referral_data,
             contact_id=_referral_contact.get('contactId') or _referral_contact.get('id'),
@@ -2306,7 +2309,8 @@ def _process_message(
     if _idea_data is not None:
         _idea_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _idea_result = customer_ideas.save_idea(
             _idea_data, contact_id=_idea_contact.get('contactId') or _idea_contact.get('id'),
             phone=sender_phone, sender_name=sender_name,
@@ -2320,7 +2324,8 @@ def _process_message(
     if _track_shipping_data is not None:
         _track_shipping_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _track_shipping_result = track_shipping_response.save_tracking(
             _track_shipping_data,
             contact_id=_track_shipping_contact.get('contactId')
@@ -2337,7 +2342,8 @@ def _process_message(
     if _pickup_data is not None:
         _pickup_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _pickup_result = pickup_request_response.save_pickup(
             _pickup_data,
             contact_id=_pickup_contact.get('contactId') or _pickup_contact.get('id'),
@@ -2351,7 +2357,8 @@ def _process_message(
     if _submit_request_data is not None:
         _submit_request_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _submit_request_result = submit_request_response.save_request(
             _submit_request_data,
             contact_id=_submit_request_contact.get('contactId') or _submit_request_contact.get('id'),
@@ -2365,7 +2372,8 @@ def _process_message(
     if _request_amendment_data is not None:
         _request_amendment_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
-            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid,
+            waba_id=source_waba_id)
         _request_amendment_result = request_amendment_response.save_amendment(
             _request_amendment_data,
             contact_id=_request_amendment_contact.get('contactId')
@@ -2417,7 +2425,8 @@ def _process_message(
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
                                          contact_book_name=sender_contact_book_name,
-                                         parent_bsuid=msg_parent_bsuid))
+                                         parent_bsuid=msg_parent_bsuid,
+                                         waba_id=source_waba_id))
     contact_id = contact.get('contactId') or contact.get('id')
     
     # Extract message content based on type.
@@ -4123,7 +4132,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
             r = contacts_table.get_item(Key={'id': det_id}, ConsistentRead=True)
             existing = r.get('Item')
             if existing and not existing.get('deletedAt'):
-                _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+                _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
                 return existing
         except Exception as e:
             # `det_id` is `wa` + the customer's digits, so it is masked like any contact id.
@@ -4146,7 +4155,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         logger.warning(f"contact_store.lookup failed for {mask_phone(phone)}: {type(e).__name__}")
         resolved = None
     if resolved and not resolved.get('deletedAt'):
-        _update_contact_bsuid_fields(contacts_table, resolved, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+        _update_contact_bsuid_fields(contacts_table, resolved, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
         return resolved
 
     # Clean phone for search - normalize to digits-only E.164
@@ -4208,7 +4217,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                                                  (i.get('id', '') for i in items))
         contact = items[0]
         # Update name/BSUID/username if available
-        _update_contact_bsuid_fields(contacts_table, contact, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+        _update_contact_bsuid_fields(contacts_table, contact, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
         return contact
     
     # Create new contact with a DETERMINISTIC phone-derived id (idempotent).
@@ -4221,7 +4230,11 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
     #   3. a random UUID only when we have neither identifier.
     # The BSUID-derived id (`wab{sanitized}`) is minted by `contact_store`, next to the
     # phone-derived `wa{digits}` rule, so both id conventions live in one place.
-    bsuid_det_id = contact_store.deterministic_bsuid_id(bsuid)
+    # Portfolio-scoped deterministic ID prevents two businesses sharing the same
+    # opaque Meta user ID from minting the same provisional customer.
+    portfolio = _WABA_PORTFOLIOS.get(waba_id, '')
+    scoped_identity = f'{portfolio}.{bsuid}' if portfolio and bsuid else ''
+    bsuid_det_id = contact_store.deterministic_bsuid_id(scoped_identity)
     contact_id = det_id or bsuid_det_id or str(uuid.uuid4())
     now = int(time.time())
 
@@ -4236,10 +4249,12 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         'name': sender_name or '',
         'phone': formatted_phone or None,
         'email': None,
-        'bsuid': bsuid or None,  # Business-Scoped User ID
-        'parentBsuid': parent_bsuid or None,  # Parent BSUID (linked account)
-        'username': username or None,  # WhatsApp username
-        'contactBookName': contact_book_name or None,  # Meta contact book name
+        # The old unscoped fields stay populated only by the existing WECARE
+        # portfolio; a Manish identity must NEVER replace those values.
+        'bsuid': (bsuid if waba_id == '2094615664435155' else None),
+        'parentBsuid': (parent_bsuid if waba_id == '2094615664435155' else None),
+        'username': (username if waba_id == '2094615664435155' else None),
+        'contactBookName': (contact_book_name if waba_id == '2094615664435155' else None),
         'optInWhatsApp': False,
         'optInSms': False,
         'optInEmail': False,
@@ -4263,7 +4278,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
             if owner and contact_store.is_live(owner):
                 _update_contact_bsuid_fields(
                     contacts_table, owner, sender_name, username, phone, bsuid,
-                    contact_book_name, parent_bsuid)
+                    contact_book_name, parent_bsuid, waba_id=waba_id)
                 return owner
         raise
 
@@ -4272,6 +4287,11 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
             Item={k: v for k, v in contact.items() if v is not None},
             ConditionExpression='attribute_not_exists(id)',
         )
+        if waba_id and bsuid:
+            _attach_scoped_bsuid(
+                contacts_table, contact, waba_id=waba_id, bsuid=bsuid,
+                username=username, parent_bsuid=parent_bsuid,
+                contact_book_name=contact_book_name)
         logger.info(json.dumps({
             'event': 'contact_auto_created', 'contactId': mask_contact_id(contact_id),
             'phone': mask_phone(phone), 'hasName': bool(sender_name), 'bsuid': bsuid, 'hasUsername': bool(username),
@@ -4284,7 +4304,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 r = contacts_table.get_item(Key={'id': contact_id}, ConsistentRead=True)
                 existing = r.get('Item')
                 if existing:
-                    _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+                    _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
                     return existing
             except Exception:
                 pass
@@ -4293,8 +4313,20 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         return contact
 
 
-def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str, username: str, phone: str = '', bsuid: str = '', contact_book_name: str = '', parent_bsuid: str = '') -> None:
-    """Update contact with BSUID, parentBsuid, username, contactBookName, and name if they're new or changed."""
+def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str, username: str, phone: str = '', bsuid: str = '', contact_book_name: str = '', parent_bsuid: str = '', waba_id: str = '') -> None:
+    """Update canonical contact plus exact-portfolio WhatsApp identity, if signed."""
+    if bsuid and waba_id:
+        _attach_scoped_bsuid(
+            contacts_table, contact, waba_id=waba_id, bsuid=bsuid,
+            username=username, parent_bsuid=parent_bsuid,
+            contact_book_name=contact_book_name)
+    # Old single identity fields belong to the existing WECARE business only.
+    # WABA2 data is exclusively in whatsappIdentities, never copied globally.
+    if waba_id != '2094615664435155':
+        bsuid = ''
+        username = ''
+        parent_bsuid = ''
+        contact_book_name = ''
     updates = {}
     names = {}
     values = {}
