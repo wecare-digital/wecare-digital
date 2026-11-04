@@ -86,7 +86,10 @@ function missingDetails(contact: Contact): boolean {
 }
 function isBulkEligible(contact: Contact): boolean {
   // Identity or retention-lock uncertainty means review, not deletion/archiving.
-  return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt;
+  // Phone-hidden WhatsApp users must be reviewed individually, not bulk-archived
+  // because a missing phone/verification is not evidence of inactivity.
+  return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt
+    && !(contact.bsuid && !contact.phone);
 }
 function consentLabel(contact: Contact): string {
   const status = contact.whatsappMarketingConsent;
@@ -129,9 +132,11 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
             </div>
           </div>
           <div className={styles.detailBadges}>
-            <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
+            {contact.phone && <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
               {contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'}
-            </span>
+            </span>}
+            {contact.bsuid && <span className={styles.neutralTag}>WhatsApp BSUID linked</span>}
+            {contact.bsuid && !contact.phone && <span className={styles.neutralTag}>Phone not shared</span>}
             {contact.locked && <span className={styles.warningTag}>Retention lock</span>}
             {contact.archivedAt && <span className={styles.neutralTag}>Archived</span>}
           </div>
@@ -139,8 +144,12 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
           <section className={styles.detailSection} aria-labelledby="wsc-profile-title">
             <h3 id="wsc-profile-title">Profile</h3>
             <dl className={styles.detailFields}>
-              <dt>WhatsApp number</dt><dd>{contact.phone || '—'}</dd>
-              <dt>Profile username</dt><dd>{contact.profileUsername || '—'}</dd>
+              <dt>WhatsApp number</dt><dd>{contact.phone || (contact.bsuid ? 'Not shared by WhatsApp' : '—')}</dd>
+              <dt>Meta WhatsApp username</dt><dd>{contact.username ? (contact.username.startsWith('@') ? contact.username : '@' + contact.username) : '—'}</dd>
+              <dt>Business-scoped user ID (BSUID)</dt><dd>{contact.bsuid || '—'}</dd>
+              <dt>Parent BSUID</dt><dd>{contact.parentBsuid || '—'}</dd>
+              <dt>Meta contact-book name</dt><dd>{contact.contactBookName || '—'}</dd>
+              <dt>WECARE profile username</dt><dd>{contact.profileUsername || '—'}</dd>
               <dt>Email</dt><dd>{contact.email || '—'}</dd>
               <dt>Organization</dt><dd>{contact.companyName || '—'}</dd>
               <dt>Job title</dt><dd>{contact.designation || '—'}</dd>
@@ -253,7 +262,7 @@ const CustomerList: React.FC = () => {
     () => contacts.filter(item => Boolean(contactDeliveryAddress(item))).length, [contacts]);
   const incomplete = React.useMemo(() => contacts.filter(missingDetails).length, [contacts]);
   const unnamed = React.useMemo(() => contacts.filter(needsName).length, [contacts]);
-  const unverified = React.useMemo(() => contacts.filter(item => !item.phoneVerifiedAt).length, [contacts]);
+  const unverified = React.useMemo(() => contacts.filter(item => Boolean(item.phone) && !item.phoneVerifiedAt).length, [contacts]);
 
   const visible = React.useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -261,11 +270,12 @@ const CustomerList: React.FC = () => {
       if (filter === 'address' && !contactDeliveryAddress(contact)) return false;
       if (filter === 'incomplete' && !missingDetails(contact)) return false;
       if (filter === 'unnamed' && !needsName(contact)) return false;
-      if (filter === 'unverified' && contact.phoneVerifiedAt) return false;
+      if (filter === 'unverified' && (!contact.phone || contact.phoneVerifiedAt)) return false;
       if (!term) return true;
       const text = [
         contact.name, contact.phone, contact.email, contact.companyName, contact.designation,
-        contact.profileUsername, customerId(contact), contactDeliveryAddress(contact),
+        contact.profileUsername, contact.username, contact.bsuid, contact.parentBsuid,
+        contact.contactBookName, customerId(contact), contactDeliveryAddress(contact),
         ...(contact.tags || []),
       ].join(' ').toLowerCase();
       return text.includes(term);
@@ -353,7 +363,7 @@ const CustomerList: React.FC = () => {
         const contact = authoritative.get(id);
         if (!contact || !isBulkEligible(contact)
           || (filter === 'unnamed' && !needsName(contact))
-          || (filter === 'unverified' && Boolean(contact.phoneVerifiedAt))) {
+          || (filter === 'unverified' && (!contact.phone || Boolean(contact.phoneVerifiedAt)))) {
           excluded++;
         } else if (targets.length < MAX_BULK) {
           targets.push(contact);
@@ -385,7 +395,7 @@ const CustomerList: React.FC = () => {
         const latest = finalById.get(identityId(contact));
         return Boolean(latest && isBulkEligible(latest)
           && (filter !== 'unnamed' || needsName(latest))
-          && (filter !== 'unverified' || !latest.phoneVerifiedAt));
+          && (filter !== 'unverified' || (Boolean(latest.phone) && !latest.phoneVerifiedAt)));
       });
       if (finalTargets.length !== targets.length) {
         toast.warning((targets.length - finalTargets.length) + ' record(s) changed or became protected during review and were skipped.');
@@ -588,12 +598,14 @@ const CustomerList: React.FC = () => {
                     <span className={styles.personIdentity}>
                       <strong>{displayName(contact)}</strong>
                       <small>{customerId(contact)}</small>
+                      {contact.username && <small>Meta @{contact.username.replace(/^@/, '')}</small>}
+                      {contact.bsuid && !contact.phone && <small>WhatsApp ID only · number not shared</small>}
                       {contact.locked && <small className={styles.protectedMarker}>Retention lock · Keep</small>}
                     </span>
                   </span>
                   <span className={styles.contactCell}>
-                    <strong>{contact.phone || '—'}</strong>
-                    <small>{contact.email || (contact.phoneVerifiedAt ? 'WhatsApp verified' : 'Phone not verified')}</small>
+                    <strong>{contact.phone || (contact.bsuid ? 'BSUID-only customer' : '—')}</strong>
+                    <small>{contact.email || (!contact.phone ? 'Phone not shared' : (contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'))}</small>
                   </span>
                   <span className={styles.profileCell}>
                     <strong>{contact.companyName || contact.profileUsername || '—'}</strong>

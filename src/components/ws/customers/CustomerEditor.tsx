@@ -88,14 +88,16 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
   const validateProfile = () => {
     if (!name.trim()) { showError('Enter the customer’s full name.'); return false; }
     if (name.trim().length > 200) { showError('Full name must be 200 characters or less.'); return false; }
-    if (username.trim().length > 50) { showError('WhatsApp username must be 50 characters or less.'); return false; }
-    if (!/^\+[1-9]\d{6,14}$/.test(fullPhone)) {
+    if (username.trim().length > 50) { showError('Customer profile username must be 50 characters or less.'); return false; }
+    // Existing BSUID-only customers may have no phone; staff can still edit their
+    // name/address without fabricating a number or marking it as verified.
+    if ((!editing || Boolean(fullPhone)) && !/^\+[1-9]\d{6,14}$/.test(fullPhone)) {
       showError('Enter a valid phone number with its country calling code.');
       return false;
     }
-    const matching = contacts.find(other =>
+    const matching = fullPhone ? contacts.find(other =>
       other.contactId !== contact?.contactId &&
-      contactPhoneMatchKey(other.phone) === contactPhoneMatchKey(fullPhone));
+      contactPhoneMatchKey(other.phone) === contactPhoneMatchKey(fullPhone)) : null;
     if (matching) {
       setDuplicate(matching);
       setError('This number already has a customer record. Open it instead of creating a duplicate.');
@@ -310,14 +312,14 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
                     </select>
                     <input id="cde-phone" value={phone} type="tel" inputMode="tel" autoComplete="tel-national"
                       readOnly={editing} aria-readonly={editing} onChange={e => { setPhone(e.target.value); setError(''); }}
-                      placeholder="Mobile number" required />
+                      placeholder={editing && !contact?.phone ? 'Not shared by WhatsApp' : 'Mobile number'} required={!editing} />
                   </div>
                   {editing
-                    ? <small>Linked phone numbers are protected; use identity reconciliation to change them.</small>
+                    ? <small>{contact?.phone ? 'Linked phone numbers are protected; use identity reconciliation to change them.' : 'This WhatsApp customer has no shared phone number. Staff cannot invent or verify one here.'}</small>
                     : <small>India (+91) is selected initially. Choose the correct country code, or enter a full +international number.</small>}
                 </div>
                 <label className={styles.field}>
-                  <span>WhatsApp username <em>Optional</em></span>
+                  <span>Customer profile username <em>Optional</em></span>
                   <input value={username} onChange={e => { setUsername(e.target.value); setError(''); }}
                     maxLength={50} placeholder="Profile username" />
                   <small>Customer profile name, not Meta’s provider-owned username.</small>
@@ -377,7 +379,9 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
                   <h4>PROFILE</h4>
                   <dl>
                     <dt>Full name</dt><dd>{name.trim()}</dd>
-                    <dt>WhatsApp phone</dt><dd>{fullPhone}</dd>
+                    <dt>WhatsApp phone</dt><dd>{fullPhone || 'Not shared'}</dd>
+                    {editing && contact?.bsuid && <><dt>Meta BSUID (read-only)</dt><dd>{contact.bsuid}</dd></>}
+                    {editing && contact?.username && <><dt>Meta username (read-only)</dt><dd>{contact.username}</dd></>}
                     {username.trim() && <><dt>Profile username</dt><dd>{username.trim()}</dd></>}
                     {organization.trim() && <><dt>Organization</dt><dd>{organization.trim()}</dd></>}
                     {jobTitle.trim() && <><dt>Job title</dt><dd>{jobTitle.trim()}</dd></>}

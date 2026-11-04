@@ -13,7 +13,7 @@ test('unnamed and unverified are distinct review filters, not deletion criteria'
     'function needsName(contact: Contact)',
     '!contact.name?.trim()',
     "filter === 'unnamed' && !needsName(contact)",
-    "filter === 'unverified' && contact.phoneVerifiedAt",
+    "filter === 'unverified' && (!contact.phone || contact.phoneVerifiedAt)",
     'Review customers without a name', 'Review phone verification',
     'Missing names and unverified phones do not prove inactivity',
   ]) assert.ok(directory.includes(marker), marker);
@@ -22,6 +22,7 @@ test('unnamed and unverified are distinct review filters, not deletion criteria'
 test('select-all is bounded, protected rows are not selectable, and filter changes clear selection', () => {
   for (const marker of [
     'return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt',
+    '&& !(contact.bsuid && !contact.phone)',
     'const selectableVisible = visible.filter(isBulkEligible)',
     'const protectedVisible = visible.length - selectableVisible.length',
     'selectableVisible.slice(0, MAX_BULK)',
@@ -41,10 +42,11 @@ test('bulk action remains archive-only and requires confirmation + two authorita
   for (const marker of [
     'await api.listContactsResult()', 'const authoritative = new Map',
     'isBulkEligible(contact)', "filter === 'unnamed' && !needsName(contact)",
-    "filter === 'unverified' && Boolean(contact.phoneVerifiedAt)",
+    "filter === 'unverified' && (!contact.phone || Boolean(contact.phoneVerifiedAt))",
     'await confirm(', 'if (!approved) return;',
     'const finalSnapshot = await api.listContactsResult()',
     'const finalTargets = targets.filter(contact =>',
+    "Boolean(latest.phone) && !latest.phoneVerifiedAt",
     'if (finalTargets.length === 0) return;',
     'await api.archiveContact(', 'result.ok && result.data?.archivedAt',
     'unconfirmed++', 'await load()', 'setBulkProgress',
