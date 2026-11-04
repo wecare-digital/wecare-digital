@@ -65,6 +65,17 @@ test('missing name and unverified status never automatically trigger deletion', 
   assert.ok(!directory.includes('window.confirm('), 'use shared accessible confirmation');
 });
 
+test('server enforces an atomic retention lock on archive, including bulk races', () => {
+  const handler = readSource('amplify/functions/core/contacts/handler.py');
+  const start = handler.indexOf('def _archive_contact(');
+  const end = handler.indexOf('def _restore_contact(', start);
+  const body = handler.slice(start, end);
+  assert.ok(body.includes("'#locked': contact_lock.LOCKED_ATTRIBUTE"));
+  assert.ok(body.includes("'AND (attribute_not_exists(#locked) OR #locked = :unlocked)'"));
+  assert.ok(body.includes("':unlocked': False"));
+  assert.ok(body.includes('ConditionalCheckFailedException'), 'archive refusal is reported as 409');
+});
+
 test('mobile selection is accessible on iOS and Android', () => {
   for (const marker of [
     '.cleanupInfo', '.bulkTray', '.bulkActions', '.protectedMarker',
