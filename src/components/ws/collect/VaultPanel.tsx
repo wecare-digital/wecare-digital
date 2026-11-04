@@ -1,3 +1,4 @@
+import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
 /**
  * VaultPanel — fresh, mobile-first Vault sub-view for /ws/collect.
  *
@@ -210,18 +211,18 @@ function VaultCreate( { revision, onPreview, onChanged }: Props ) {
       if ( fresh.totalPayablePaise !== quote.totalPayablePaise ) { setNotice( 'The quote changed. Review the new amount before sending.' ); return; }
       const current = await api.listSecureFiles( owner.phone );
       const verified = current.ok ? current.data.files.find( row => row.fileId === file.fileId ) : null;
-      if ( !verified || verified.status !== 'active' || verified.accessState !== 'UNPAID' || verified.lastPaymentRequestedAt ) throw Error( 'This exact file is no longer eligible for a new payment request. Refresh and inspect Log.' );
+      if ( !canRequestVaultPayment( verified ) ) throw Error( 'This exact file is no longer eligible for a new payment request. Refresh and inspect Log.' );
       if ( !await confirm( { title: 'Send Review & Pay once?', message: `${ owner.name } · ${ owner.phone }. File: ${ file.originalFilename }. Total ${ money( fresh.totalPayablePaise ) }, including ₹25 Express. The backend rechecks owner, storage, price and approved template.`, confirmText: 'Send approved payment template' } ) ) return;
       sessionStorage.setItem( sendKey( file.fileId ), 'requested' ); setPayBlocked( true );
       const r = await api.requestSecureFilePayment( file.fileId, undefined, fresh.totalPayablePaise );
-      if ( r.outcome === 'VAULT_QUOTE_CHANGED' ) { sessionStorage.removeItem( sendKey( file.fileId ) ); setPayBlocked( false ); setQuote( null ); }
+      if ( isVaultPaymentRefused( r.outcome ) ) { sessionStorage.removeItem( sendKey( file.fileId ) ); setPayBlocked( false ); if ( r.outcome === 'VAULT_QUOTE_CHANGED' ) setQuote( null ); }
       setNotice( `${ r.ok ? 'Server response' : 'Not confirmed' }: ${ r.outcome } · ${ r.message } Check Log before another action.` );
       setRefresh( n => n + 1 ); onChanged();
     } catch ( e ) { setNotice( e instanceof Error ? e.message : 'Payment outcome is uncertain. Inspect Log before another action.' ); }
     finally { flight.current = false; setBusy( false ); }
   };
 
-  const payable = selected?.status === 'active' && selected.accessState === 'UNPAID' && !selected.lastPaymentRequestedAt && !payBlocked;
+  const payable = canRequestVaultPayment( selected, payBlocked );
   const canPay = payable && filePreviewReady;
 
   return (

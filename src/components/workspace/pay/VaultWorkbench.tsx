@@ -1,3 +1,4 @@
+import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
 /**
  * Fresh Vault workbench for Pay & Flow.
  *
@@ -180,8 +181,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
 
   const send = async (file: api.SecureFile, action: 'payment' | 'access') => {
     if (inFlight.current || historical || file.status !== 'active') return;
-    const canPay = file.accessState === 'UNPAID'
-      && !file.lastPaymentRequestedAt && !attempted.has(file.fileId);
+    const canPay = canRequestVaultPayment(file, attempted.has(file.fileId));
     const canAccess = file.accessState === 'READY' || file.accessState === 'OPEN';
     if ((action === 'payment' && !canPay) || (action === 'access' && !canAccess)) return;
     let reviewedTotal: number | undefined;
@@ -223,7 +223,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
       if (action === 'access' && response.ok && response.status === 200) {
         sessionStorage.removeItem(accessKey);
       }
-      if (action === 'payment' && response.outcome === 'VAULT_QUOTE_CHANGED') {
+      if (action === 'payment' && isVaultPaymentRefused(response.outcome)) {
         setAttempted(current => {const next=new Set(current);next.delete(file.fileId);return next;});
       }
       setActionOutcome((response.ok ? 'Server accepted: ' : 'Not confirmed: ')
@@ -332,8 +332,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
         <div className="vault-list">
           {files.map(file => {
             const canPay = workspaceView === 'create' && !historical
-              && file.status === 'active' && file.accessState === 'UNPAID'
-              && !file.lastPaymentRequestedAt && !attempted.has(file.fileId);
+              && file.status === 'active' && canRequestVaultPayment(file, attempted.has(file.fileId));
             const canAccess = workspaceView === 'create' && !historical
               && file.status === 'active'
               && (file.accessState === 'READY' || file.accessState === 'OPEN');
