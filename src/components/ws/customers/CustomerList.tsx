@@ -53,8 +53,11 @@ function initials(contact: Contact): string {
   const words = value.split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words[0][0] + words[1][0] : value.slice(0, 2)).toUpperCase();
 }
+function identityId(contact: Contact): string {
+  return contact.contactId || contact.id || '';
+}
 function customerId(contact: Contact): string {
-  return contact.customerDisplayId || contact.subscriberId || contact.contactId || contact.id || 'Unknown ID';
+  return contact.customerDisplayId || contact.subscriberId || identityId(contact) || 'Unknown ID';
 }
 function timestamp(value?: string | number): number {
   if (value === undefined || value === null || value === '') return 0;
@@ -154,8 +157,10 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
           </section>
         </div>
         <footer className={styles.detailsFooter}>
-          <button type="button" className={styles.secondaryButton} onClick={onActions}>More actions</button>
-          <button type="button" className={styles.primaryButton} onClick={onEdit}>Edit contact <ArrowGlyph /></button>
+          <button type="button" className={styles.secondaryButton} onClick={onActions}
+            disabled={!identityId(contact)}>More actions</button>
+          <button type="button" className={styles.primaryButton} onClick={onEdit}
+            disabled={!identityId(contact)}>Edit contact <ArrowGlyph /></button>
         </footer>
       </aside>
     </div>
@@ -193,7 +198,7 @@ const CustomerList: React.FC = () => {
         // A successful save returns a server snapshot; refresh the open detail panel with
         // the canonical re-read instead of leaving a stale saved response on screen.
         setDetailsFor(current => current
-          ? response.data.find(item => item.contactId === current.contactId) || current
+          ? response.data.find(item => Boolean(identityId(current)) && identityId(item) === identityId(current)) || current
           : null);
       } else setLoadError(response.failure.message || 'The customer directory could not be loaded.');
     } catch {
@@ -256,12 +261,13 @@ const CustomerList: React.FC = () => {
   }, [contacts, search, filter, sort]);
 
   const dropRow = React.useCallback((id: string) => {
-    setContacts(previous => previous.filter(item => item.contactId !== id));
+    setContacts(previous => previous.filter(item => identityId(item) !== id));
     setSelected(previous => { const next = new Set(previous); next.delete(id); return next; });
-    setDetailsFor(previous => previous?.contactId === id ? null : previous);
+    setDetailsFor(previous => previous && identityId(previous) === id ? null : previous);
   }, []);
 
   const toggleSelected = (id: string) => {
+    if (!id) { toast.warning('This record has no valid identity ID. Refresh before selecting it.'); return; }
     setSelected(previous => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
@@ -272,11 +278,13 @@ const CustomerList: React.FC = () => {
   // Never retain a hidden bulk selection when staff switch search/filter criteria.
   React.useEffect(() => { setSelected(new Set()); }, [search, filter]);
 
-  const allVisibleSelected = visible.length > 0 && visible.every(contact => selected.has(contact.contactId));
+  const selectableVisible = visible.filter(contact => Boolean(identityId(contact)));
+  const allVisibleSelected = selectableVisible.length > 0
+    && selectableVisible.every(contact => selected.has(identityId(contact)));
   const selectAllVisible = () => {
     setSelected(previous => {
       const next = new Set(previous);
-      visible.forEach(contact => allVisibleSelected ? next.delete(contact.contactId) : next.add(contact.contactId));
+      selectableVisible.forEach(contact => allVisibleSelected ? next.delete(identityId(contact)) : next.add(identityId(contact)));
       return next;
     });
   };
@@ -292,7 +300,7 @@ const CustomerList: React.FC = () => {
   const bulkDelete = async () => {
     if (bulkBusy || selected.size === 0) return;
     const ids = [...selected];
-    const locked = contacts.filter(contact => ids.includes(contact.contactId) && contact.locked).length;
+    const locked = contacts.filter(contact => ids.includes(identityId(contact)) && contact.locked).length;
     if (locked) {
       toast.warning(locked + ' selected customer(s) are protected by a retention lock. Review them before deleting.');
       return;
@@ -320,7 +328,7 @@ const CustomerList: React.FC = () => {
   };
 
   const openDetails = (contact: Contact) => {
-    if (selecting) toggleSelected(contact.contactId);
+    if (selecting) toggleSelected(identityId(contact));
     else setDetailsFor(contact);
   };
   const saveContact = (saved: Contact) => {
@@ -427,12 +435,14 @@ const CustomerList: React.FC = () => {
           </div>
         ) : (
           <ul className={styles.customerList} aria-label="Customers" data-wc-no-translate="true">
-            {visible.map(contact => (
-              <li key={contact.contactId || contact.id} className={selected.has(contact.contactId) ? styles.selectedEntry : styles.entry}>
+            {visible.map((contact, index) => (
+              <li key={identityId(contact) || 'missing-id-' + index}
+                className={selected.has(identityId(contact)) ? styles.selectedEntry : styles.entry}>
                 {selecting && (
                   <label className={styles.rowCheckbox}>
-                    <input type="checkbox" checked={selected.has(contact.contactId)}
-                      onChange={() => toggleSelected(contact.contactId)}
+                    <input type="checkbox" checked={selected.has(identityId(contact))}
+                      disabled={!identityId(contact)}
+                      onChange={() => toggleSelected(identityId(contact))}
                       aria-label={'Select ' + displayName(contact)} />
                   </label>
                 )}
@@ -484,13 +494,13 @@ const CustomerList: React.FC = () => {
       )}
 
       {detailsFor && !editorFor && !actionsFor && (
-        <CustomerDetails key={detailsFor.contactId} contact={detailsFor}
+        <CustomerDetails key={identityId(detailsFor) || 'missing-id'} contact={detailsFor}
           onClose={() => setDetailsFor(null)}
           onEdit={() => { setEditorFor(detailsFor); setDetailsFor(null); }}
           onActions={() => { setActionsFor(detailsFor); setDetailsFor(null); }} />
       )}
       {editorFor && (
-        <CustomerEditor key={editorFor === 'new' ? 'new' : editorFor.contactId}
+        <CustomerEditor key={editorFor === 'new' ? 'new' : identityId(editorFor)}
           contact={editorFor === 'new' ? null : editorFor} contacts={contacts}
           onClose={() => setEditorFor(null)} onSaved={saveContact}
           onExisting={existing => { setEditorFor(null); setDetailsFor(existing); }} />
@@ -503,7 +513,7 @@ const CustomerList: React.FC = () => {
       {manageOpen && (
         <CustomerManageData contacts={contacts} onClose={() => setManageOpen(false)}
           onOpenCustomer={id => {
-            const contact = contacts.find(item => item.contactId === id);
+            const contact = contacts.find(item => identityId(item) === id);
             setManageOpen(false);
             if (contact) setDetailsFor(contact);
           }}
