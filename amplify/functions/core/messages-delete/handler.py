@@ -215,9 +215,13 @@ def handler(event, context):
                 'reason': 'Message deletion could not be confirmed; refresh before retrying.',
             }, origin)
 
-        # Successful message-row deletion != permanent erasure of versioned media.
+        # 'success' is the LEGACY single-message-row result used by existing clients,
+        # NOT a claim of full customer erasure. New integrations must read rowDeleted and
+        # erasureComplete and never treat the former as the latter.
         return cors_response(200, {
             'success': True,
+            'rowDeleted': True,
+            'erasureComplete': False,
             'messageId': message_id,
             'table': table_name,
             'mediaHidden': media_hidden,

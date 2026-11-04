@@ -1,5 +1,5 @@
 // Static guards: bulk directory cleanup is review-first and ARCHIVE-ONLY.
-// No live customer data is mutated during CI. Individual deletion stays in ActionsSheet.
+// No live customer data is mutated during CI. Individual deletion is disabled until complete erasure is approved.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSource } from './helpers/loadTsx.mjs';
@@ -56,14 +56,15 @@ test('bulk action remains archive-only and requires confirmation + two authorita
   assert.ok(!directory.includes('api.softDeleteContactResult('));
   assert.ok(!directory.includes("runBulk('delete')"));
   assert.ok(directory.includes('onClick={() => void bulkArchive()}'));
-  assert.ok(actions.includes('api.softDeleteContactResult'), 'single-record reviewed removal remains available');
+  assert.ok(!actions.includes('api.softDeleteContactResult('), 'individual soft delete must not orphan identity history');
+  assert.ok(actions.includes('Delete all customer data — unavailable'));
 });
 
 test('no archives run automatically and in-flight progress cannot be hidden by clearing search', () => {
   assert.ok(directory.includes('disabled={bulkBusy}'));
   assert.ok(directory.includes('aria-label="Clear customer search"'));
   assert.ok(directory.includes('setBulkProgress({ done: 0, total: finalTargets.length })'));
-  assert.ok(directory.includes('Archive keeps customer history. Delete individually after review.'));
+  assert.ok(directory.includes('Archive keeps customer history. Permanent erasure is unavailable.'));
   assert.ok(!directory.includes('window.confirm('), 'use the shared accessible dialog');
 });
 

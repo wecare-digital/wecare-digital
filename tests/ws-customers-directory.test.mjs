@@ -80,7 +80,8 @@ test('destructive actions stay confirm-gated, protected and report server failur
   assert.ok(directory.includes('setDetailsFor(current => current'), 'reload updates open customer details');
   assert.ok(directory.includes("setSelected(new Set()); setBulkOutcome(''); }, [search, filter]"), 'filter changes clear hidden bulk selections and stale cleanup outcomes');
   const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
-  assert.ok(actions.includes('api.softDeleteContactResult'));
+  assert.ok(!actions.includes('api.softDeleteContactResult('), 'incomplete individual deletion must be disabled');
+  assert.ok(actions.includes('Delete all customer data — unavailable'));
   assert.ok(actions.includes('api.archiveContact'));
 });
 

@@ -48,7 +48,7 @@ Some old DynamoDB rows store legacy keys that `media_paths.canonical` remaps.
 
 A normal `DeleteObject` on a versioned bucket normally inserts a **delete
 marker**. Noncurrent versions may still contain the person's data. A complete
-erasure worker must enumerate **all exact object versions and delete markers**
+erasure worker must use `ListObjectVersions` and enumerate **all exact object versions and delete markers**
 and delete only keys proven owned by the contact and approved for erasure.
 Handle object locks / legal hold, retention rules, KMS and backups as explicit
 blockers. **Never** delete adjacent keys based on a filename or prefix guess:
