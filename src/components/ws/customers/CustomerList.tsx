@@ -652,7 +652,7 @@ const CustomerList: React.FC = () => {
       )}
       {actionsFor && (
         <CustomerActionsSheet contact={actionsFor} onClose={() => setActionsFor(null)}
-          onRemoved={dropRow} onArchived={dropRow}
+          onArchived={dropRow}
           onChanged={async () => { await load(); }} />
       )}
       {manageOpen && (
