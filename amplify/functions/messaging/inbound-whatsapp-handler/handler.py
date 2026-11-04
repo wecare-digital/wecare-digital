@@ -2412,8 +2412,9 @@ def _process_message(
         if system_change.get('type') in ('user_changed_user_id', 'user_changed_number'):
             previous_system_bsuid = str(system_change.get('previous_user_id') or '')
             if previous_system_bsuid:
-                previous_system_contact = contact_store.find_by_bsuid(
-                    dynamodb.Table(CONTACTS_TABLE), previous_system_bsuid)
+                previous_system_contact = _find_scoped_bsuid(
+                    dynamodb.Table(CONTACTS_TABLE), previous_system_bsuid,
+                    source_waba_id, sender_phone=sender_phone)
                 if previous_system_contact is None and not sender_phone:
                     raise contact_store.IdentityConflict('unresolved-previous-bsuid', ())
             elif not sender_phone:
@@ -2957,53 +2958,73 @@ def _process_message(
             target_id = contact_id
             if not target_id and previous_bsuid:
                 try:
-                    prior = contact_store.find_by_bsuid(
-                        dynamodb.Table(CONTACTS_TABLE), previous_bsuid)
+                    prior = _find_scoped_bsuid(
+                        dynamodb.Table(CONTACTS_TABLE), previous_bsuid,
+                        source_waba_id, sender_phone=sender_phone)
                     target_id = contact_key.resolve(prior) if prior else ''
                 except Exception as find_err:
                     logger.warning(f'previous-BSUID contact lookup failed: {type(find_err).__name__}')
                     target_id = ''
-            # A changed BSUID or phone is an identity transition, never an
-            # unconditional overwrite. The old contact must remain canonical.
+            # Only the signed sender's exact business portfolio may change its
+            # Meta identity. Previous ID is proof of continuity; a new phone is
+            # NEVER permission to replace a different claimed routing number.
             if new_bsuid and target_id:
-                try:
-                    ct = dynamodb.Table(CONTACTS_TABLE)
-                    current = ct.get_item(Key={'id': target_id}, ConsistentRead=True).get('Item')
-                    if not current or not contact_store.is_live(current):
-                        raise contact_store.IdentityConflict('system-contact-not-live', (target_id,))
-                    new_owner = contact_store.find_by_bsuid(ct, new_bsuid)
-                    if new_owner and contact_key.resolve(new_owner) != target_id:
-                        raise contact_store.IdentityConflict('system-bsuid-already-owned',
-                                                             (contact_key.resolve(new_owner), target_id))
-                    new_phone = contact_store.canonical_phone(new_wa_id)
-                    current_phone = contact_store.canonical_phone(current.get('phone'))
-                    if new_phone and current_phone and new_phone != current_phone:
-                        logger.warning(json.dumps({
-                            'event': 'system_phone_change_requires_review',
-                            'contactId': mask_contact_id(target_id),
-                        }))
-                        raise contact_store.IdentityConflict('system-phone-change', (target_id,))
-                    names = {'#updatedAt': 'updatedAt'}
-                    set_parts = ['bsuid = :b', '#updatedAt = :now']
-                    expr_vals = {':b': new_bsuid, ':now': Decimal(str(int(time.time())))}
-                    if new_parent_bsuid:
-                        set_parts.append('parentBsuid = :pb')
-                        expr_vals[':pb'] = new_parent_bsuid
-                    ct.update_item(
-                        Key={'id': target_id},
-                        UpdateExpression='SET ' + ', '.join(set_parts),
-                        ExpressionAttributeNames=names,
-                        ExpressionAttributeValues=expr_vals,
-                        ConditionExpression='attribute_exists(id)',
-                    )
-                    # If Meta supplied a phone for a previously phone-hidden user,
-                    # run the same strong-identity claim checks as any other inbound.
-                    if new_phone and not current_phone:
-                        _update_contact_bsuid_fields(ct, current, '', '', phone=new_phone)
-                except contact_store.IdentityConflict:
-                    raise  # the message loop durably parks this event for reconciliation
-                except Exception as sys_err:
-                    logger.warning(f'System {system_type} contact update failed: {type(sys_err).__name__}')
+                ct = dynamodb.Table(CONTACTS_TABLE)
+                current = ct.get_item(Key={'id': target_id}, ConsistentRead=True).get('Item')
+                if not current or not contact_store.is_live(current):
+                    raise contact_store.IdentityConflict('system-contact-not-live', (target_id,))
+                new_owner = _find_scoped_bsuid(
+                    ct, new_bsuid, source_waba_id,
+                    sender_phone=(new_wa_id or sender_phone))
+                if new_owner and contact_key.resolve(new_owner) != target_id:
+                    raise contact_store.IdentityConflict(
+                        'system-bsuid-already-owned', (target_id,))
+                new_phone = contact_store.canonical_phone(new_wa_id)
+                current_phone = contact_store.canonical_phone(current.get('phone'))
+                if new_phone and current_phone and new_phone != current_phone:
+                    logger.warning(json.dumps({
+                        'event': 'system_phone_change_requires_review',
+                        'contactId': mask_contact_id(target_id),
+                    }))
+                    raise contact_store.IdentityConflict('system-phone-change', (target_id,))
+
+                # Install the previous claim on old rows before rotating. A
+                # partially completed transition can be retried idempotently.
+                portfolio_id = _WABA_PORTFOLIOS.get(source_waba_id, '')
+                old_profile = ((current.get('whatsappIdentities') or {})
+                               .get(portfolio_id) or {})
+                profile_bsuid = str(old_profile.get('bsuid') or '')
+                if previous_bsuid and not profile_bsuid:
+                    _attach_scoped_bsuid(
+                        ct, current, waba_id=source_waba_id,
+                        bsuid=previous_bsuid)
+                    profile_bsuid = previous_bsuid
+                if profile_bsuid != new_bsuid:
+                    _attach_scoped_bsuid(
+                        ct, current, waba_id=source_waba_id,
+                        bsuid=new_bsuid, parent_bsuid=new_parent_bsuid,
+                        previous_bsuid=previous_bsuid)
+                if source_waba_id == '2094615664435155':
+                    # Legacy single-account readers still use bsuid. Change it
+                    # only when it equals Meta's previous ID, never a foreign ID.
+                    try:
+                        ct.update_item(
+                            Key={'id': target_id},
+                            UpdateExpression='SET bsuid = :new',
+                            ConditionExpression=('attribute_exists(id) AND '
+                                                 '(attribute_not_exists(bsuid) OR bsuid = :old OR bsuid = :new)'),
+                            ExpressionAttributeValues={
+                                ':old': previous_bsuid, ':new': new_bsuid},
+                        )
+                    except ClientError as exc:
+                        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                            raise contact_store.IdentityConflict(
+                                'legacy-business-identity-change', (target_id,)) from exc
+                        raise
+                if new_phone and not current_phone:
+                    _update_contact_bsuid_fields(
+                        ct, current, '', '', phone=new_phone,
+                        waba_id=source_waba_id)
             _store_system_event(system_type, {
                 'senderPhone': sender_phone,
                 'contactId': target_id,
@@ -3030,7 +3051,8 @@ def _process_message(
             if shared_phone and contact_id:
                 _update_contact_bsuid_fields(
                     dynamodb.Table(CONTACTS_TABLE), contact,
-                    sender_name='', username='', phone=shared_phone)
+                    sender_name='', username='', phone=shared_phone,
+                    waba_id=source_waba_id)
                 if contact_store.canonical_phone(contact.get('phone')) == shared_phone:
                     logger.info(json.dumps({
                         'event': 'contact_request_phone_linked',
