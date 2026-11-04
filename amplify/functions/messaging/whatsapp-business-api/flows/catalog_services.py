@@ -132,7 +132,7 @@ def _file_state(db, file, customer_id, now):
 
 
 def _payment_outcome(result):
-    """One word for what commerce's prepare did, from its two answer shapes."""
+    """Classify only explicit send evidence; uncertainty must retain the purchase lock."""
     if not isinstance(result, dict):
         return 'PAYMENT_REQUEST_UNCONFIRMED'
     if (result.get('outcome') == 'PAYMENT_REQUEST_REFUSED'
@@ -140,18 +140,48 @@ def _payment_outcome(result):
         return 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'
     if result.get('outcome'):
         return str(result['outcome'])
-    code = int(result.get('statusCode') or 0)
+    try:
+        code = int(result.get('statusCode') or 0)
+        body = json.loads(result.get('body') or '{}')
+    except (TypeError, ValueError):
+        return 'PAYMENT_REQUEST_UNCONFIRMED'
+    if not isinstance(body, dict):
+        return 'PAYMENT_REQUEST_UNCONFIRMED'
+    if (body.get('sendUnconfirmed') is True
+            or body.get('error') in ('MESSAGE_SEND_IN_FLIGHT', 'DELIVERY_OUTCOME_UNKNOWN')):
+        return 'PAYMENT_REQUEST_UNCONFIRMED'
+    if body.get('error') == 'QUOTE_CHANGED':
+        return 'VAULT_QUOTE_CHANGED'
+    if body.get('error') in ('DELIVERY_CONFIRMATION_REQUIRED', 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'):
+        return 'VAULT_DELIVERY_CONFIRMATION_REQUIRED'
+    if code == 200:
+        return ('PAYMENT_REQUEST_SENT' if body.get('status') == 'PAYMENT_REQUEST_SENT'
+                else 'PAYMENT_REQUEST_UNCONFIRMED')
+    if code == 502 and body.get('sendUnconfirmed') is False:
+        return 'PAYMENT_REQUEST_NOT_SENT'
+    if 400 <= code < 500:
+        return 'PAYMENT_REQUEST_REFUSED'
+    return 'PAYMENT_REQUEST_UNCONFIRMED'
+
+
+def _payment_diagnostic(result):
+    """Preserve machine reason/status only; never forward provider text or customer data."""
+    if not isinstance(result, dict):
+        return {}
     try:
         body = json.loads(result.get('body') or '{}')
     except (TypeError, ValueError):
         body = {}
-    if body.get('error') == 'QUOTE_CHANGED':
-        return 'VAULT_QUOTE_CHANGED'
-    if code == 200:
-        return str(body.get('status') or 'PAYMENT_REQUEST_SENT')
-    if code == 502:
-        return 'PAYMENT_REQUEST_UNCONFIRMED' if body.get('sendUnconfirmed') else 'PAYMENT_REQUEST_NOT_SENT'
-    return 'PAYMENT_REQUEST_REFUSED'
+    if not isinstance(body, dict):
+        body = {}
+    reason = result.get('reason') or body.get('error') or ''
+    diagnostic = {}
+    if isinstance(reason, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{2,79}', reason):
+        diagnostic['reason'] = reason
+    code = result.get('statusCode')
+    if type(code) is int and 100 <= code <= 599:
+        diagnostic['upstreamStatus'] = code
+    return diagnostic
 
 
 def _close(keys, row, customer_id):
@@ -796,4 +826,5 @@ def _prepare_payment(client, db, keys, row, identity, state, *, notify):
         _close(keys, row, identity.customer_id)
         if notify:
             _send(client, row, content=NOT_REQUESTED)
-    return {'outcome': outcome, 'fileId': row['vaultFileId'], 'renewal': False}
+    return {'outcome': outcome, 'fileId': row['vaultFileId'], 'renewal': False,
+            **_payment_diagnostic(result)}

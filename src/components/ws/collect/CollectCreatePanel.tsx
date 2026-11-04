@@ -18,7 +18,7 @@
 import React from 'react';
 import * as api from '../../../api/client';
 import * as collectApi from '../../../api/collect';
-import { blankCollectLine, collectDraft, collectInputKey, type CollectLine } from '../../../lib/collect';
+import { blankCollectLine, collectDraft, collectInputKey, verifiedCollectRecovery, type CollectLine } from '../../../lib/collect';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useToastContext } from '../../../contexts/ToastContext';
 import PaymentCustomerPicker from '../../workspace/pay/PaymentCustomerPicker';
@@ -98,7 +98,12 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
     try {
       const rows = await collectApi.collectInvoices( pending );
       if ( rows.length === 1 ) {
-        setCreated( rows[ 0 ] );
+        const invoice = await collectApi.collectInvoice( rows[ 0 ].invoiceId );
+        if ( !verifiedCollectRecovery( invoice, { referenceId: pending, invoiceId: rows[ 0 ].invoiceId } ) ) {
+          setNotice( 'The saved invoice is incomplete or does not match this recovery reference. Keep this request pending and reconcile it in Log.' );
+          return;
+        }
+        setCreated( invoice );
         setPending( '' );
         sessionStorage.removeItem( PENDING_KEY );
         setNotice( 'The existing invoice was found. No new invoice or payment request was sent. Open Log to review it.' );
@@ -139,6 +144,10 @@ const CollectCreatePanel: React.FC<Props> = ( { onPreview, onCreated } ) => {
         return;
       }
       const inv = await collectApi.collectInvoice( result.invoice.invoiceId );
+      if ( !verifiedCollectRecovery( inv, { referenceId: reference, invoiceId: result.invoice.invoiceId } ) ) {
+        setNotice( 'The saved invoice is incomplete or does not match this request. The recovery reference is retained; no payment request was sent.' );
+        return;
+      }
       setCreated( inv );
       sessionStorage.removeItem( PENDING_KEY );
       setPending( '' );

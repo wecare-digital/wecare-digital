@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_requests
 from lambda_utils.ecommerce import order_delivery, payment_address
+from lambda_utils.identity import customer as customer_identity
 
 ROOT = Path(__file__).resolve().parents[2]
 HANDLER = ROOT / 'amplify/functions/ecommerce/checkout/handler.py'
@@ -18,13 +19,14 @@ def function(name, **extra):
     node = next(n for n in ast.parse(HANDLER.read_text()).body
                 if isinstance(n, ast.FunctionDef) and n.name == name)
     env = {'Dict':dict,'Any':object,'service_requests':service_requests,
-           'CONTRIBUTION_PRODUCT_IDS':set(),'order_delivery':order_delivery, **extra}
+           'CONTRIBUTION_PRODUCT_IDS':set(),'order_delivery':order_delivery,
+           'customer_identity':customer_identity, **extra}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
     return env[name]
 
 
 def test_vault_physical_template_keeps_exact_quote_and_saved_address():
-    shipping = function('_payment_shipping_info')({'name':'Example Customer'}, ADDRESS)
+    shipping = function('_payment_shipping_info')({'name':'Example Customer','phone':'+919000000001'}, ADDRESS)
     quote = SimpleNamespace(collection_before_convenience_paise=8254,
                             convenience_fee_paise=206, convenience_gst_paise=37,
                             total_payable_paise=8497)
