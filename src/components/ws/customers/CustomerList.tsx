@@ -54,7 +54,7 @@ function initials(contact: Contact): string {
   return (words.length > 1 ? words[0][0] + words[1][0] : value.slice(0, 2)).toUpperCase();
 }
 function customerId(contact: Contact): string {
-  return contact.customerDisplayId || contact.subscriberId || contact.contactId || contact.id;
+  return contact.customerDisplayId || contact.subscriberId || contact.contactId || contact.id || 'Unknown ID';
 }
 function timestamp(value?: string | number): number {
   if (value === undefined || value === null || value === '') return 0;
@@ -188,8 +188,14 @@ const CustomerList: React.FC = () => {
     setLoadError('');
     try {
       const response = await api.listContactsResult();
-      if (response.ok) setContacts(response.data);
-      else setLoadError(response.failure.message || 'The customer directory could not be loaded.');
+      if (response.ok) {
+        setContacts(response.data);
+        // A successful save returns a server snapshot; refresh the open detail panel with
+        // the canonical re-read instead of leaving a stale saved response on screen.
+        setDetailsFor(current => current
+          ? response.data.find(item => item.contactId === current.contactId) || current
+          : null);
+      } else setLoadError(response.failure.message || 'The customer directory could not be loaded.');
     } catch {
       setLoadError('The customer directory could not be loaded. Check your connection.');
     } finally {
@@ -307,8 +313,7 @@ const CustomerList: React.FC = () => {
       endSelection();
       await load();
     } catch {
-      toast.error('Delete request failed. No deletion was confirmed.');
-      await load();
+      toast.error('Delete request failed. No deletion was confirmed. Refresh the directory before retrying.');
     } finally {
       setBulkBusy(false);
     }
@@ -423,7 +428,7 @@ const CustomerList: React.FC = () => {
         ) : (
           <ul className={styles.customerList} aria-label="Customers" data-wc-no-translate="true">
             {visible.map(contact => (
-              <li key={contact.contactId} className={selected.has(contact.contactId) ? styles.selectedEntry : styles.entry}>
+              <li key={contact.contactId || contact.id} className={selected.has(contact.contactId) ? styles.selectedEntry : styles.entry}>
                 {selecting && (
                   <label className={styles.rowCheckbox}>
                     <input type="checkbox" checked={selected.has(contact.contactId)}
