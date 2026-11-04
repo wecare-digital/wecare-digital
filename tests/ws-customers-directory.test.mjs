@@ -57,6 +57,9 @@ test('customer saves preserve identity, consent and server-side uniqueness', () 
   assert.ok(editor.includes('api.createContactResult(payload)'), 'only canonical create API');
   assert.ok(editor.includes('api.updateContactResult(contact.contactId, payload)'), 'only canonical update API');
   assert.ok(editor.includes('...(!editing ? { phone: fullPhone } : {})'), 'profile edit must not rewrite a verified phone provenance');
+  assert.ok(editor.includes('api.updateContactResult(createdId, { profileUsername: desiredUsername })'), 'legacy create runtime receives narrow username follow-up');
+  assert.ok(editor.includes('if (!editing && desiredUsername && saved.profileUsername !== desiredUsername)'), 'follow-up must be creation only');
+  assert.ok(directory.includes('if (warning) toast.warning(warning)'), 'partial profile username update is disclosed');
   assert.ok(editor.includes('result.failure.status === 409'), 'handle server-side duplicates');
   assert.ok(editor.includes('CONTACT_IDENTITY_RECONCILIATION_REQUIRED'), 'show reconciliation failures');
   assert.ok(!/payload\.optIn|payload\.allowlist|payload\.phoneVerifiedAt|payload\.username\s*=/.test(editor),
