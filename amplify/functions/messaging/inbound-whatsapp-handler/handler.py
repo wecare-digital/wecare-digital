@@ -1640,10 +1640,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         logger.error(json.dumps({
                             'event': 'message_processing_error',
                             'messageId': message.get('id'),
-                            'error': str(e),
+                            'error': ('IdentityConflict' if isinstance(e, contact_store.IdentityConflict)
+                                      else str(e)),
                             'requestId': request_id
                         }))
                         error_count += 1
+                        if isinstance(e, contact_store.IdentityConflict):
+                            # Fail closed on ambiguous identity without losing the message.
+                            # A copy of THIS message (not the other messages/statuses in
+                            # the webhook batch) must reach durable retry/reconciliation.
+                            conflict_value = {k: v for k, v in value.items() if k != 'statuses'}
+                            conflict_value['messages'] = [message]
+                            parked = _send_to_dlq(
+                                wa_internal_event.build(
+                                    entry={**webhook_entry,
+                                           'changes': [{**change, 'value': conflict_value}]},
+                                    waba_id=_item.get('waba_id') or '',
+                                    meta_phone_number_ids=meta_phone_number_ids,
+                                    request_id=request_id,
+                                ), 'customer_identity_conflict', request_id)
+                            if not parked:
+                                raise  # force upstream retry rather than acknowledging a lost message
                         if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
                             # The record-level recovery path stores normalized work in
                             # the DLQ. Do not acknowledge an idea storage failure alone.
@@ -2377,8 +2394,24 @@ def _process_message(
         }))
         return
     
+    # A Meta BSUID change must rejoin the PREVIOUS canonical contact before
+    # resolving the new BSUID. Otherwise a phone-hidden system event auto-creates
+    # a second customer and strands the original history.
+    previous_system_contact = None
+    if msg_type == 'system':
+        system_change = message.get('system') or {}
+        if system_change.get('type') in ('user_changed_user_id', 'user_changed_number'):
+            previous_system_bsuid = str(system_change.get('previous_user_id') or '')
+            if previous_system_bsuid:
+                previous_system_contact = contact_store.find_by_bsuid(
+                    dynamodb.Table(CONTACTS_TABLE), previous_system_bsuid)
+                if previous_system_contact is None and not sender_phone:
+                    raise contact_store.IdentityConflict('unresolved-previous-bsuid', ())
+            elif not sender_phone:
+                raise contact_store.IdentityConflict('unresolvable-system-identity', ())
+
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = (_referral_contact or _idea_contact or _track_shipping_contact or _pickup_contact
+    contact = (previous_system_contact or _referral_contact or _idea_contact or _track_shipping_contact or _pickup_contact
                or _submit_request_contact or _request_amendment_contact
                or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid,
                                          username=sender_username,
@@ -2920,29 +2953,45 @@ def _process_message(
                 except Exception as find_err:
                     logger.warning(f'previous-BSUID contact lookup failed: {type(find_err).__name__}')
                     target_id = ''
-            # Update contact with new BSUID, parent BSUID and phone if available.
+            # A changed BSUID or phone is an identity transition, never an
+            # unconditional overwrite. The old contact must remain canonical.
             if new_bsuid and target_id:
                 try:
                     ct = dynamodb.Table(CONTACTS_TABLE)
+                    current = ct.get_item(Key={'id': target_id}, ConsistentRead=True).get('Item')
+                    if not current or not contact_store.is_live(current):
+                        raise contact_store.IdentityConflict('system-contact-not-live', (target_id,))
+                    new_owner = contact_store.find_by_bsuid(ct, new_bsuid)
+                    if new_owner and contact_key.resolve(new_owner) != target_id:
+                        raise contact_store.IdentityConflict('system-bsuid-already-owned',
+                                                             (contact_key.resolve(new_owner), target_id))
+                    new_phone = contact_store.canonical_phone(new_wa_id)
+                    current_phone = contact_store.canonical_phone(current.get('phone'))
+                    if new_phone and current_phone and new_phone != current_phone:
+                        logger.warning(json.dumps({
+                            'event': 'system_phone_change_requires_review',
+                            'contactId': mask_contact_id(target_id),
+                        }))
+                        raise contact_store.IdentityConflict('system-phone-change', (target_id,))
                     names = {'#updatedAt': 'updatedAt'}
                     set_parts = ['bsuid = :b', '#updatedAt = :now']
                     expr_vals = {':b': new_bsuid, ':now': Decimal(str(int(time.time())))}
                     if new_parent_bsuid:
                         set_parts.append('parentBsuid = :pb')
                         expr_vals[':pb'] = new_parent_bsuid
-                    # The canonical `+digits` spelling, the one every other writer stores:
-                    # Meta's bare `wa_id` here would make the website checkout's exact-match
-                    # phone lookup miss this contact and mint a second row for the person.
-                    new_phone = contact_store.canonical_phone(new_wa_id)
-                    if new_phone:
-                        set_parts.append('phone = :p')
-                        expr_vals[':p'] = new_phone
                     ct.update_item(
                         Key={'id': target_id},
                         UpdateExpression='SET ' + ', '.join(set_parts),
                         ExpressionAttributeNames=names,
                         ExpressionAttributeValues=expr_vals,
+                        ConditionExpression='attribute_exists(id)',
                     )
+                    # If Meta supplied a phone for a previously phone-hidden user,
+                    # run the same strong-identity claim checks as any other inbound.
+                    if new_phone and not current_phone:
+                        _update_contact_bsuid_fields(ct, current, '', '', phone=new_phone)
+                except contact_store.IdentityConflict:
+                    raise  # the message loop durably parks this event for reconciliation
                 except Exception as sys_err:
                     logger.warning(f'System {system_type} contact update failed: {type(sys_err).__name__}')
             _store_system_event(system_type, {
@@ -2955,37 +3004,31 @@ def _process_message(
                 'body': system_data.get('body', ''),
             }, request_id)
     
-    # Handle REQUEST_CONTACT_INFO button response (contacts message with origin=contact_request)
-    # Per Meta BSUID docs (May 2026): when user taps REQUEST_CONTACT_INFO button,
-    # a contacts message is sent with origin "contact_request/other" containing vCard + phone
+    # Meta puts `origin` on each contact card, not on the enclosing message.
+    # Only contact_request represents the sender sharing THEIR OWN phone; an
+    # ordinary shared vCard may describe a third party and must never rewrite
+    # the sender's primary identity.
     if msg_type == 'contacts':
-        msg_origin = message.get('origin', '')
-        if 'contact_request' in msg_origin:
-            msg_contacts = message.get('contacts', [])
-            for mc in msg_contacts:
-                phones = mc.get('phones', [])
-                # Canonical `+digits`, not the vCard's display text ("+91 98765 43210"), so
-                # every channel's phone lookup resolves this same contact row.
-                shared_phone = contact_store.canonical_phone(
-                    phones[0].get('phone', '') if phones else '')
-                if shared_phone and contact_id:
-                    try:
-                        ct = dynamodb.Table(CONTACTS_TABLE)
-                        ct.update_item(
-                            Key={'id': contact_id},
-                            UpdateExpression='SET phone = :p',
-                            ExpressionAttributeValues={':p': shared_phone}
-                        )
-                        logger.info(json.dumps({
-                            'event': 'contact_request_phone_captured',
-                            'contactId': mask_contact_id(contact_id),
-                            'sharedPhone': shared_phone,
-                            'origin': msg_origin,
-                            'requestId': request_id
-                        }))
-                    except Exception as cr_err:
-                        logger.warning(f'Contact request phone update failed: {cr_err}')
-    
+        for shared_card in message.get('contacts', []) or []:
+            if not isinstance(shared_card, dict) or shared_card.get('origin') != 'contact_request':
+                continue
+            phones = shared_card.get('phones') or []
+            if len(phones) != 1 or not isinstance(phones[0], dict):
+                continue
+            shared_phone = contact_store.canonical_phone(
+                phones[0].get('phone') or phones[0].get('wa_id') or '')
+            if shared_phone and contact_id:
+                _update_contact_bsuid_fields(
+                    dynamodb.Table(CONTACTS_TABLE), contact,
+                    sender_name='', username='', phone=shared_phone)
+                if contact_store.canonical_phone(contact.get('phone')) == shared_phone:
+                    logger.info(json.dumps({
+                        'event': 'contact_request_phone_linked',
+                        'contactId': mask_contact_id(contact_id),
+                        'sharedPhone': mask_phone(shared_phone),
+                        'requestId': request_id,
+                    }))
+
     # Update Contact.lastInboundMessageAt for 24-hour window (+ WAMID for typing)
     _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
     
@@ -3900,7 +3943,23 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
     inbound/outbound events never create duplicate (churned) contacts."""
     contacts_table = dynamodb.Table(CONTACTS_TABLE)
 
-    # 0) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
+    # 0) Resolve the BSUID before phone: a disclosed phone can already belong
+    # to another contact, and must not steal a phone-hidden customer's identity.
+    # Use the canonical resolver: a BSUID may match historical merge aliases,
+    # but two LIVE owners must never be arbitrarily reduced to the oldest row.
+    if bsuid:
+        try:
+            matched_bsuid = contact_store.find_by_bsuid(contacts_table, bsuid)
+        except contact_store.IdentityConflict:
+            logger.warning(json.dumps({'event': 'bsuid_identity_conflict', 'hasBsuid': True}))
+            raise
+        if matched_bsuid:
+            _update_contact_bsuid_fields(contacts_table, matched_bsuid, sender_name,
+                                         username, phone, bsuid, contact_book_name,
+                                         parent_bsuid)
+            return matched_bsuid
+
+    # 1) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
     det_id = _deterministic_contact_id(phone)
     if det_id:
         try:
@@ -3914,38 +3973,18 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
             logger.warning(f"deterministic contact get failed for {mask_contact_id(det_id)}: "
                            f"{type(e).__name__}")
 
-    # Try BSUID lookup first (most reliable identifier going forward)
-    if bsuid:
-        try:
-            response = contacts_table.query(
-                IndexName='bsuid-index',
-                KeyConditionExpression='bsuid = :bsuid',
-                ExpressionAttributeValues={':bsuid': bsuid},
-                Limit=10
-            )
-            bsuid_items = [i for i in response.get('Items', []) if not i.get('deletedAt')]
-            if bsuid_items:
-                contact = sorted(bsuid_items, key=lambda x: x.get('createdAt', 0))[0]
-                # Update name/username/phone if available and contact doesn't have them
-                _update_contact_bsuid_fields(contacts_table, contact, sender_name, username, phone, contact_book_name=contact_book_name, parent_bsuid=parent_bsuid)
-                return contact
-        except Exception as e:
-            logger.warning(f"BSUID index query failed for {bsuid}: {str(e)}")
-
-    # Canonical resolver: follows merge aliases and skips deleted/merged rows, so it is the
-    # right answer when a person has more than one historical row. It raises IdentityConflict
-    # only when two LIVE rows both claim this phone; that is a data problem, not a reason to drop
-    # the inbound message, so we log it (masked) and fall through to the oldest-row choice below.
+    # Canonical resolver follows merge aliases and refuses duplicate LIVE phone owners.
+    # On conflict the caller parks the webhook for reconciliation; never route a
+    # customer's inbound message to the oldest of two competing identity claims.
     try:
         resolved = contact_store.lookup(contacts_table, phone)
-    except contact_store.IdentityConflict as conflict:
+    except contact_store.IdentityConflict:
         logger.warning(json.dumps({
             'event': 'contact_identity_conflict',
             'phone': mask_phone(phone),
-            'detail': type(conflict).__name__,
-            'bsuid': bsuid,
+            'hasBsuid': bool(bsuid),
         }))
-        resolved = None
+        raise
     except Exception as e:
         logger.warning(f"contact_store.lookup failed for {mask_phone(phone)}: {type(e).__name__}")
         resolved = None
@@ -4005,8 +4044,12 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 unique_items.append(item)
         items = unique_items
         
-        # Return the first (oldest) contact to avoid duplicates
-        contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]
+        # Legacy GSI/scan fallback must also fail closed: selecting the oldest
+        # of two live phone owners can attach payments or messages to a stranger.
+        if len(items) > 1:
+            raise contact_store.IdentityConflict('phone',
+                                                 (i.get('id', '') for i in items))
+        contact = items[0]
         # Update name/BSUID/username if available
         _update_contact_bsuid_fields(contacts_table, contact, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
         return contact
@@ -4040,12 +4083,12 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         'parentBsuid': parent_bsuid or None,  # Parent BSUID (linked account)
         'username': username or None,  # WhatsApp username
         'contactBookName': contact_book_name or None,  # Meta contact book name
-        'optInWhatsApp': True,
-        'optInSms': True,
-        'optInEmail': True,
-        'allowlistWhatsApp': True,
-        'allowlistSms': True,
-        'allowlistEmail': True,
+        'optInWhatsApp': False,
+        'optInSms': False,
+        'optInEmail': False,
+        'allowlistWhatsApp': False,
+        'allowlistSms': False,
+        'allowlistEmail': False,
         'lastInboundMessageAt': Decimal(str(now)),
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
@@ -4127,14 +4170,46 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
         contact['username'] = username
         idx += 1
     
-    # If contact has no phone but we have one now (BSUID-first contact getting phone)
+    # A phone arriving after a BSUID-only contact must claim its strong identity
+    # BEFORE updating ContactsTable. Refuse ambiguous/claimed numbers rather than
+    # silently linking this WhatsApp ID to another customer's phone.
+    pending_phone = ''
+    phone_param = ''
+    if phone and contact.get('phone') and (
+        contact_store.canonical_phone(phone) != contact_store.canonical_phone(contact.get('phone'))
+    ):
+        # A new phone for the same BSUID can mean a number change or a recycled
+        # number. Never silently redirect a confirmed customer's messages.
+        logger.warning(json.dumps({'event': 'inbound_phone_change_requires_review',
+                                   'contactId': mask_contact_id(contact.get('id', ''))}))
     if phone and not contact.get('phone'):
-        formatted = phone if phone.startswith('+') else f'+{phone.lstrip("+")}'
-        names[f'#n{idx}'] = 'phone'
-        values[f':v{idx}'] = formatted
-        contact['phone'] = formatted
-        idx += 1
-    
+        formatted = contact_store.canonical_phone(phone)
+        if formatted:
+            try:
+                prior = contact_store.find_by_phone(contacts_table, formatted)
+                if prior and contact_key.resolve(prior) != contact_key.resolve(contact):
+                    raise contact_store.IdentityConflict('phone',
+                                                         (contact_key.resolve(prior),
+                                                          contact_key.resolve(contact)))
+                identity_claims.claim_identities(
+                    dynamodb.Table(identity_claims.TABLE_NAME),
+                    contact_id=contact_key.resolve(contact), phone=formatted)
+            except (identity_claims.IdentityClaimConflict, contact_store.IdentityConflict):
+                logger.warning(json.dumps({'event': 'inbound_phone_link_refused',
+                                           'contactId': mask_contact_id(contact.get('id', ''))}))
+            except Exception as phone_link_error:
+                # An unavailable identity registry must not lose a valid inbound
+                # message; skip ONLY the optional phone link and store the thread.
+                logger.warning(json.dumps({'event': 'inbound_phone_link_unavailable',
+                                           'contactId': mask_contact_id(contact.get('id', '')),
+                                           'errorType': type(phone_link_error).__name__}))
+            else:
+                names[f'#n{idx}'] = 'phone'
+                phone_param = f':v{idx}'
+                values[phone_param] = formatted
+                pending_phone = formatted
+                idx += 1
+
     # Update contactBookName if provided and different
     if contact_book_name and contact.get('contactBookName') != contact_book_name:
         names[f'#n{idx}'] = 'contactBookName'
@@ -4146,6 +4221,9 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
         return
     
     values[':now'] = Decimal(str(int(time.time())))
+    if pending_phone:
+        values[':empty_phone'] = ''
+        values[':pending_phone'] = pending_phone
     names['#updatedAt'] = 'updatedAt'
     set_parts = [f'{k} = :v{i}' for i, k in enumerate(names.keys()) if k != '#updatedAt']
     set_parts.append('#updatedAt = :now')
@@ -4156,8 +4234,13 @@ def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str
             UpdateExpression='SET ' + ', '.join(set_parts),
             ExpressionAttributeNames=names,
             ExpressionAttributeValues=values,
-            ConditionExpression='attribute_exists(id)',
+            # A concurrent phone change must not be overwritten by this webhook.
+            ConditionExpression=('attribute_exists(id) AND '
+                                 '(attribute_not_exists(phone) OR phone = :empty_phone OR '
+                                 'phone = :pending_phone)') if pending_phone else 'attribute_exists(id)',
         )
+        if pending_phone:
+            contact['phone'] = pending_phone
     except Exception as e:
         logger.warning(json.dumps({
             'event': 'contact_bsuid_update_failed',
@@ -5887,10 +5970,10 @@ def _lookup_payment_amount(reference_id: str, request_id: str) -> float:
         return 0.0
 
 
-def _send_to_dlq(record: Dict, error: str, request_id: str) -> None:
-    """Send failed message to inbound-dlq."""
+def _send_to_dlq(record: Dict, error: str, request_id: str) -> bool:
+    """Park a replayable inbound envelope; False means it was NOT durably stored."""
     if not INBOUND_DLQ_URL:
-        return
+        return False
     
     try:
         sqs.send_message(
@@ -5902,12 +5985,14 @@ def _send_to_dlq(record: Dict, error: str, request_id: str) -> None:
                 'requestId': request_id
             }, default=str)
         )
+        return True
     except Exception as e:
         logger.error(json.dumps({
             'event': 'dlq_send_error',
             'error': str(e),
             'requestId': request_id
         }))
+        return False
 
 
 CALLING_TABLE = os.environ.get('CALL_LOG_TABLE', 'stack-wecare-digital-WhatsAppCallingTable')

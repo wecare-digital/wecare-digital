@@ -4022,49 +4022,19 @@ def _get_or_create_contact_by_phone(phone: str) -> Dict[str, Any]:
     with_plus = f'+{clean}'
     det_id = f'wa{clean}' if clean else ''
 
-    # 0) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
+    # A GSI does not enforce uniqueness: fail closed if two LIVE customers have
+    # the same phone. Never choose the oldest row and send to the wrong identity.
+    canonical = contact_store.find_by_phone(contacts_table, with_plus)
+    if canonical:
+        return canonical
+
+    # GSI is eventually consistent. A newly created deterministic phone row may
+    # not yet be indexed; a strongly consistent keyed read still finds it.
     if det_id:
-        try:
-            r = contacts_table.get_item(Key={'id': det_id}, ConsistentRead=True)
-            existing = r.get('Item')
-            if existing and not existing.get('deletedAt'):
-                return existing
-        except Exception as e:
-            logger.warning(f"deterministic contact get failed for {det_id}: {e}")
-
-    # Try GSI phone-index lookup (both formats)
-    for variant in [with_plus, clean]:
-        try:
-            resp = contacts_table.query(
-                IndexName='phone-index',
-                KeyConditionExpression='phone = :p',
-                ExpressionAttributeValues={':p': variant},
-                Limit=5,
-            )
-            items = [i for i in resp.get('Items', []) if not i.get('deletedAt')]
-            if items:
-                contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]
-                logger.info(json.dumps({
-                    'event': 'contact_found_by_phone',
-                    'contactId': mask_contact_id(contact.get('contactId', contact.get('id', ''))),
-                    'phone': mask_phone(phone),
-                }))
-                return contact
-        except Exception as e:
-            logger.warning(f"Phone GSI lookup failed for {variant}: {e}")
-
-    # Fallback scan
-    try:
-        resp = contacts_table.scan(
-            FilterExpression='(phone = :p1 OR phone = :p2) AND (attribute_not_exists(deletedAt) OR deletedAt = :null)',
-            ExpressionAttributeValues={':p1': clean, ':p2': with_plus, ':null': None},
-            Limit=10,
-        )
-        items = resp.get('Items', [])
-        if items:
-            return sorted(items, key=lambda x: x.get('createdAt', 0))[0]
-    except Exception:
-        pass
+        existing = contacts_table.get_item(
+            Key={'id': det_id}, ConsistentRead=True).get('Item')
+        if existing and contact_store.is_live(existing):
+            return existing
 
     # Not found — create with DETERMINISTIC id (idempotent, no duplicates)
     contact_id = det_id or str(uuid.uuid4())
@@ -4074,12 +4044,12 @@ def _get_or_create_contact_by_phone(phone: str) -> Dict[str, Any]:
         **subscriber_id.new_contact_fields(now=now),
         'name': '',
         'phone': with_plus,
-        'optInWhatsApp': True,
-        'optInSms': True,
-        'optInEmail': True,
-        'allowlistWhatsApp': True,
-        'allowlistSms': True,
-        'allowlistEmail': True,
+        'optInWhatsApp': False,
+        'optInSms': False,
+        'optInEmail': False,
+        'allowlistWhatsApp': False,
+        'allowlistSms': False,
+        'allowlistEmail': False,
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
     }

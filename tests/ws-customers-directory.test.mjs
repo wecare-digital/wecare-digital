@@ -45,7 +45,7 @@ test('customer card and drawer show canonical profile, verification and address'
 test('new contact editor follows the F001 profile, address, review steps', () => {
   for (const marker of [
     "'Profile', 'Address', 'Review'", 'Full name', 'WhatsApp phone number',
-    'WhatsApp username', 'Organization', 'Job title',
+    'Customer profile username', 'Organization', 'Job title',
     'ADDRESS_FIELDS.map', 'COUNTRY_OPTIONS.map', 'addressComplete(address)',
     'addressPayload(address)', 'formatAddress(address)',
     'Review before saving', 'Create contact',
@@ -105,4 +105,131 @@ test('staff-created contact persists the declared profile username separately fr
     'Meta/provider username stays separate');
   assert.ok(contactsHandler.includes("Staff creation NEVER manufactures consent"),
     'creation keeps consent-evidence rules');
+});
+
+
+test('BSUID-only WhatsApp customers remain editable but are not bulk-archived by missing phone', () => {
+  assert.ok(editor.includes("(!editing || Boolean(fullPhone))"), 'only newly created contacts require a phone');
+  assert.ok(editor.includes('required={!editing}'), 'editing a phone-hidden customer must not trigger HTML required');
+  assert.ok(editor.includes('...(!editing ? { phone: fullPhone } : {})'), 'staff editing never supplies a phone');
+  assert.ok(editor.includes('Meta BSUID (read-only)'), 'Meta identity is visible, never staff-editable');
+  assert.ok(directory.includes('contact.bsuid && !contact.phone'), 'phone-hidden contact is distinguished');
+  assert.ok(directory.includes('&& !(contact.bsuid && !contact.phone)'), 'bulk archive must exclude BSUID-only customers');
+});
+
+test('customer directory searches and displays Meta identities separately from WECARE profile username', () => {
+  for (const marker of [
+    'contact.bsuid, contact.parentBsuid', 'contact.contactBookName',
+    'Meta WhatsApp username', 'Business-scoped user ID (BSUID)', 'Parent BSUID',
+    'WECARE profile username', 'WhatsApp BSUID linked', 'Phone not shared',
+  ]) assert.ok(directory.includes(marker), marker);
+  assert.ok(!/payload\.bsuid\s*=|payload\.parentBsuid\s*=|payload\.username\s*=/.test(editor),
+    'the staff editor cannot overwrite Meta-owned identifiers');
+});
+
+test('inbound BSUID-only customer creation never fabricates cross-channel marketing consent', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  for (const field of [
+    'optInWhatsApp', 'optInSms', 'optInEmail',
+    'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail',
+  ]) {
+    assert.ok(inbound.includes("'" + field + "': False"), field + ' must default to false');
+  }
+  assert.ok(inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
+    'use canonical fail-closed BSUID lookup rather than selecting an arbitrary row');
+});
+
+test('WhatsApp contact-request number is read from the contact card and claimed before linking', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const begin = inbound.indexOf('    # Meta puts `origin` on each contact card');
+  const end = inbound.indexOf('    # Update Contact.lastInboundMessageAt', begin);
+  assert.ok(begin !== -1 && end > begin, 'contact request handling must exist');
+  const segment = inbound.slice(begin, end);
+  assert.ok(segment.includes("shared_card.get('origin') != 'contact_request'"));
+  assert.ok(!segment.includes("message.get('origin'"), 'message-level origin does not exist in Meta webhook');
+  assert.ok(segment.includes("_update_contact_bsuid_fields("), 'use the guarded phone-link path');
+  const helper = inbound.slice(inbound.indexOf('def _update_contact_bsuid_fields('),
+    inbound.indexOf('def _process_user_id_update('));
+  assert.ok(helper.includes('identity_claims.claim_identities('), 'claim phone identity before linking');
+  assert.ok(helper.includes('contact_store.find_by_phone('), 'refuse a phone owned by another person');
+  assert.ok(helper.includes('pending_phone'), 'do not report phone linked if update failed');
+});
+
+test('ambiguous inbound BSUID identities are parked for replay, never silently discarded', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  assert.ok(inbound.includes("conflict_value['messages'] = [message]"));
+  assert.ok(inbound.includes("'customer_identity_conflict', request_id"));
+  assert.ok(inbound.includes('if not parked:'), 'a failed DLQ write must trigger an upstream retry');
+  assert.ok(inbound.includes('inbound_phone_change_requires_review'), 'new phone for an existing ID needs review');
+});
+
+test('BSUID change system messages preserve the previous customer and fence phone moves', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const before = inbound.indexOf('    previous_system_contact = None');
+  const resolution = inbound.indexOf('    contact = (previous_system_contact or');
+  assert.ok(before !== -1 && resolution > before,
+    'previous BSUID lookup must happen before a new contact can be auto-created');
+  assert.ok(inbound.includes("'unresolved-previous-bsuid'"), 'missing former identity must be reviewed');
+  assert.ok(inbound.includes("'system-bsuid-already-owned'"), 'changed BSUID must not steal another identity');
+  assert.ok(inbound.includes("'system_phone_change_requires_review'"), 'new phone must not silently redirect routing');
+  assert.ok(!inbound.includes("set_parts.append('phone = :p')"), 'system messages cannot overwrite a claimed phone');
+});
+
+test('duplicate live phone owners are never resolved by arbitrary oldest-row fallback', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  assert.ok(inbound.includes("if len(items) > 1:"));
+  assert.ok(inbound.includes("raise contact_store.IdentityConflict('phone'"));
+  assert.ok(!inbound.includes("contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]"));
+});
+
+test('phone-hidden customer is not incorrectly counted or labeled as unverified', () => {
+  assert.ok(directory.includes('contact.phone && <span className={contact.phoneVerifiedAt'),
+    'verification badge is rendered only when a phone exists');
+  assert.ok(directory.includes('Boolean(item.phone) && !item.phoneVerifiedAt'),
+    'unverified filter count must exclude phone-hidden customers');
+  assert.ok(directory.includes("(!contact.phone || contact.phoneVerifiedAt)"),
+    'unverified filter must exclude missing numbers');
+  assert.ok(directory.includes("Boolean(latest.phone) && !latest.phoneVerifiedAt"),
+    'bulk archive must recheck only real unverified phones');
+});
+
+test('Meta contact-book names are not mapped into an organization', () => {
+  const contacts = readSource('src/api/domains/contacts.ts');
+  assert.ok(contacts.includes("companyName: item.companyName || ''"));
+  assert.ok(!contacts.includes('item.companyName || item.contactBookName'),
+    'provider identity must stay separate from company name');
+});
+
+test('inbound resolves BSUID before deterministic phone and survives registry outages', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const start = inbound.indexOf('def _get_or_create_contact(');
+  const end = inbound.indexOf('def _update_contact_bsuid_fields(', start);
+  assert.ok(start >= 0 && end > start);
+  const method = inbound.slice(start, end);
+  const bsuidLookup = method.indexOf('contact_store.find_by_bsuid(contacts_table, bsuid)');
+  const phoneLookup = method.indexOf("r = contacts_table.get_item(Key={'id': det_id}");
+  assert.ok(bsuidLookup >= 0 && phoneLookup > bsuidLookup,
+    'phone disclosure must not reassign a BSUID-only customer to another phone owner');
+  const updateMethod = inbound.slice(end, inbound.indexOf('def _process_user_id_update(', end));
+  assert.ok(updateMethod.includes('except Exception as phone_link_error:'),
+    'operational registry errors should not lose inbound messages');
+  assert.ok(updateMethod.includes("'event': 'inbound_phone_link_unavailable'"),
+    'registry outage must be observable without exposing customer PII');
+});
+
+test('outbound auto-created contacts never gain invented marketing permission', () => {
+  const outbound = readSource('amplify/functions/messaging/outbound-whatsapp/handler.py');
+  const begin = outbound.indexOf('def _get_or_create_contact_by_phone(');
+  const end = outbound.indexOf('def _enrich_contact_identity(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const create = outbound.slice(begin, end);
+  for (const field of ['optInWhatsApp', 'optInSms', 'optInEmail',
+    'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail']) {
+    assert.ok(create.includes("'" + field + "': False"), field + ' must default to false');
+    assert.ok(!create.includes("'" + field + "': True"), field + ' cannot be manufactured');
+  }
+  assert.ok(create.includes('contact_store.find_by_phone(contacts_table, with_plus)'),
+    'outbound phone lookup must reject multiple live owners');
+  assert.ok(!create.includes("sorted(items, key=lambda x: x.get('createdAt', 0))[0]"),
+    'a duplicate phone must never pick the oldest owner');
 });
