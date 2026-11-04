@@ -63,6 +63,26 @@ def confirmed_vault_shipping_address(contact: dict, confirmation: Any) -> dict |
 
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
+
+#: How long a customer-started checkout card (catalogue/Drop Docs) stays payable: Meta
+#: `order.expiration`, optional, minimum 300 seconds. The customer is in the chat right now.
+CHECKOUT_PAYMENT_WINDOW_SECONDS = 900
+#: The session `origin` written only by the staff exact-file Vault send.
+STAFF_VAULT_ORIGIN = 'STAFF_VAULT'
+#: How long a staff Vault send blocks a SECOND card for the same file (see catalog_services).
+#: Not a payment deadline: the staff card itself never expires.
+STAFF_VAULT_RESEND_GUARD_SECONDS = 24 * 3600
+
+
+def payment_expires(row: dict) -> bool:
+    """Whether this session's Review & Pay card carries a Meta expiry.
+
+    A STAFF-SENT Vault payment request behaves like Collect: no `order.expiration`, so the card
+    stays payable until paid. The 24-hour Vault ACCESS window is unrelated: it opens only after
+    payment, on the first authenticated download. Every customer-started checkout keeps 15 minutes.
+    """
+    return not (row.get('kind') == service_requests.VAULT
+                and row.get('origin') == STAFF_VAULT_ORIGIN)
 # Vault and Drop Docs use the one native WhatsApp service-payment rail. Submit Request was sold
 # here too, but every dependency of a paid WhatsApp Submit
 # Request is gone: its continuation Flow 1107164111921876 reads DEPRECATED on Meta (2026-10-25),
@@ -223,9 +243,10 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         # "Tax (<GSTIN>)" on the WhatsApp order summary (matching the paid receipt).
         'tax': {'value': supply_gst_paise + int(quote.convenience_gst_paise), 'offset': 100,
                 'description': business_identity.GSTIN or 'GST'},
-        'expiration': {'timestamp': str(now + 900),
-                       'description': 'Complete payment within 15 minutes'},
     }
+    if payment_expires(row):
+        order['expiration'] = {'timestamp': str(now + CHECKOUT_PAYMENT_WINDOW_SECONDS),
+                               'description': 'Complete payment within 15 minutes'}
     if discount_paise:
         order['discount'] = {'value': discount_paise, 'offset': 100, 'description': 'Delight'}
         order['couponCode'] = 'DELIGHT'
