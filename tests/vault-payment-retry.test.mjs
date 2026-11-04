@@ -29,3 +29,31 @@ test('paid, open, expired, unverified and revoked files are never sold again', a
   assert.equal(canRequestVaultPayment({status:'revoked',accessState:'UNPAID'}),false);
   assert.equal(canRequestVaultPayment(null),false);
 });
+test('each blocking state has its own reason, never one grouped warning', async () => {
+  const {vaultPaymentBlock,vaultPaymentBlockMessage} = await policy();
+  const cases = {OPEN:'ACCESS_OPEN', READY:'ACCESS_READY', EXPIRED:'ACCESS_EXPIRED', PAID_UNVERIFIED:'PAID_UNVERIFIED'};
+  const seen = new Set();
+  for (const [accessState, code] of Object.entries(cases)) {
+    assert.equal(vaultPaymentBlock({status:'active',accessState}), code);
+    const message = vaultPaymentBlockMessage(code);
+    assert.ok(message && !seen.has(message)); seen.add(message);
+  }
+  assert.equal(vaultPaymentBlock({status:'revoked',accessState:'UNPAID'}), 'INACTIVE');
+  assert.equal(vaultPaymentBlock({status:'active',accessState:'UNPAID'}, true), 'PENDING_LOCAL');
+  assert.equal(vaultPaymentBlock({status:'active',accessState:'UNPAID'}), '');
+  assert.match(vaultPaymentBlockMessage('PENDING_LOCAL', Date.UTC(2026,10,4,10,0,0)), /this browser started/i);
+  assert.doesNotMatch(vaultPaymentBlockMessage('PENDING_LOCAL'), /paid, expired, unverified/);
+});
+test('the local marker is reconciled with the server-recorded answer', async () => {
+  const {parseLocalPending,localPendingValue,serverAnsweredSince} = await policy();
+  assert.equal(parseLocalPending(null), null);
+  assert.equal(parseLocalPending('requested'), 0);
+  const at = Date.UTC(2026,10,4,10,11,30);
+  assert.equal(parseLocalPending(localPendingValue(at)), at);
+  const answered = {lastPaymentRequestedAt:'2026-11-04T10:11:40Z', lastPaymentRequestOutcome:'PAYMENT_REQUEST_SENT'};
+  assert.equal(serverAnsweredSince(answered, at), true);
+  assert.equal(serverAnsweredSince(answered, 0), true);
+  // An older answer belongs to an earlier send, not to this pending one.
+  assert.equal(serverAnsweredSince({...answered, lastPaymentRequestedAt:'2026-11-04T09:00:00Z'}, at), false);
+  assert.equal(serverAnsweredSince({lastPaymentRequestedAt:'', lastPaymentRequestOutcome:''}, at), false);
+});

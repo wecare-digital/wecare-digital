@@ -3394,6 +3394,15 @@ def _dispatch_vault_scheduled_action(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"result": "FAILED", "reason": "ALREADY_PAID_OR_UNAVAILABLE"}
     if action == "access" and state not in ("OPEN", "READY"):
         return {"result": "FAILED", "reason": "ACCESS_WINDOW_NOT_ACTIVE"}
+    if action == "payment":
+        # A Vault payment needs an operator to review the CURRENT delivery address at send time
+        # (`_admin_request_payment` refuses without `deliveryAddressConfirmation`), and a schedule
+        # cannot supply that. So a due payment schedule is a staff REMINDER: it is recorded as
+        # STAFF_REVIEW_DUE and sends nothing. Returned BEFORE the one-use dispatch claim, so no
+        # send capability is consumed. Scheduled Access links are unchanged.
+        logger.info(json.dumps({"event": "vault_scheduled_payment_review_due",
+                                "scheduleId": schedule_id, "fileId": file_id}))
+        return {"result": "FAILED", "reason": "STAFF_REVIEW_DUE"}
     if action == "offer":
         try:
             if not _vault_offer_catalog_price_valid():

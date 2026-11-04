@@ -1,4 +1,5 @@
-import {canRequestVaultPayment} from '../../../lib/vault-payment';
+import {canRequestVaultPayment,vaultPaymentBlock,vaultPaymentBlockMessage} from '../../../lib/vault-payment';
+import {vaultDeliveryReview,vaultDeliveryReviewPrompt} from '../../../lib/vault-delivery-review';
 /**
  * VaultPanel — fresh, mobile-first Vault sub-view for /ws/collect.
  *
@@ -212,10 +213,13 @@ function VaultCreate( { revision, onPreview, onChanged }: Props ) {
       if ( fresh.totalPayablePaise !== quote.totalPayablePaise ) { setNotice( 'The quote changed. Review the new amount before sending.' ); return; }
       const current = await api.listSecureFiles( owner.phone );
       const verified = current.ok ? current.data.files.find( row => row.fileId === file.fileId ) : null;
-      if ( !canRequestVaultPayment( verified ) ) throw Error( 'This exact file is no longer eligible for a new payment request. Refresh and inspect Log.' );
-      if ( !await confirm( { title: 'Send Review & Pay once?', message: `${ owner.name } · ${ owner.phone }. File: ${ file.originalFilename }. Total ${ money( fresh.totalPayablePaise ) }, including ₹25 Express. The backend rechecks owner, storage, price and approved template.`, confirmText: 'Send approved payment template' } ) ) return;
+      if ( !canRequestVaultPayment( verified ) ) throw Error( vaultPaymentBlockMessage( vaultPaymentBlock( verified ) ) || 'This exact file is no longer eligible for a new payment request. Refresh and inspect Log.' );
+      // Vault is physical goods: the operator must review the CURRENT saved address (shared step).
+      const review = vaultDeliveryReview( owner );
+      if ( !review.ok ) throw Error( review.message );
+      if ( !await confirm( vaultDeliveryReviewPrompt( { ownerName: owner.name, ownerPhone: owner.phone, fileName: file.originalFilename || file.displayName || 'Vault file', totalText: money( fresh.totalPayablePaise ), addressText: review.addressText } ) ) ) return;
       sessionStorage.setItem( sendKey( file.fileId ), 'requested' ); setPayBlocked( true );
-      const r = await api.requestSecureFilePayment( file.fileId, undefined, fresh.totalPayablePaise );
+      const r = await api.requestSecureFilePayment( file.fileId, undefined, fresh.totalPayablePaise, review.confirmation );
       sessionStorage.removeItem( sendKey( file.fileId ) ); setPayBlocked( false ); if ( r.outcome === 'VAULT_QUOTE_CHANGED' ) setQuote( null );
       setNotice( `${ r.ok ? 'Server response' : 'Not confirmed' }: ${ r.outcome } · ${ r.message } Check Log before another action.` );
       setRefresh( n => n + 1 ); onChanged();
@@ -290,7 +294,7 @@ function VaultCreate( { revision, onPreview, onChanged }: Props ) {
           <button type="button" className="vc-btn vc-primary" disabled={ busy || !canPay || !quote } onClick={ () => void payment() }>Review &amp; send payment template</button>
         </div>
         { selected && !canPay && (
-          <p className="vc-help">{ !payable ? 'A new payment is blocked for paid, expired, unverified or previously requested files. Check Log for the existing payment and access evidence.' : 'Waiting for the selected file preview. If it fails, refresh the file preview before reviewing payment.' }</p>
+          <p className="vc-help">{ !payable ? vaultPaymentBlockMessage( vaultPaymentBlock( selected, payBlocked ) ) : 'Waiting for the selected file preview. If it fails, refresh the file preview before reviewing payment.' }</p>
         ) }
       </section>
       { notice && <p className="vc-notice" role="status">{ notice }</p> }
