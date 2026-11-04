@@ -199,7 +199,7 @@ const CustomerEditor: React.FC<Props> = ({ contact, contacts, onClose, onSaved, 
   };
 
   return (
-    <div className={styles.overlay} role="presentation" onMouseDown={event => {
+    <div className={styles.overlay} role="presentation" onClick={event => {
       if (event.target === event.currentTarget && !saving) onClose();
     }}>
       <section className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="cde-title">
