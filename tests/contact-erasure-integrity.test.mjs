@@ -50,10 +50,19 @@ test('single-message delete never guesses prefix or reports DynamoDB failure as 
   assert.ok(!helper.includes('s3_client.list_objects_v2('), 'no prefix-based S3 search calls');
   assert.ok(!helper.includes('base_prefix'));
   assert.ok(!helper.includes("['Contents'][0]"));
-  assert.ok(messageDelete.includes("ConditionExpression='attribute_exists(#pk)'"));
-  assert.ok(messageDelete.includes("'error': 'MESSAGE_DELETE_UNCONFIRMED'"));
-  assert.ok(messageDelete.includes("'mediaPermanentlyErased': False"));
-  assert.ok(messageDelete.includes("'success': True"));
+  // Scope the assertions to the actual single-message delete path; clear-all has
+  // its own separate success result and must not make these tests pass accidentally.
+  const dbDeleteStart = messageDelete.indexOf('            table.delete_item(', messageDelete.indexOf('def handler('));
+  const dbDeleteEnd = messageDelete.indexOf("    except ClientError as e:\\n        return cors_response(500", dbDeleteStart);
+  const dbDelete = messageDelete.slice(dbDeleteStart, dbDeleteEnd);
+  assert.ok(dbDeleteStart > 0 && dbDeleteEnd > dbDeleteStart);
+  assert.ok(dbDelete.includes("ConditionExpression='attribute_exists(#pk)'"));
+  assert.match(dbDelete, /except ClientError as exc:[\\s\\S]*?return cors_response\\(503,[\\s\\S]*?'MESSAGE_DELETE_UNCONFIRMED'/);
+  assert.match(dbDelete, /except Exception:[\\s\\S]*?return cors_response\\(503,[\\s\\S]*?'MESSAGE_DELETE_UNCONFIRMED'/);
+  assert.ok(dbDelete.includes("'rowDeleted': True"), 'legacy success must specify message row outcome');
+  assert.ok(dbDelete.includes("'erasureComplete': False"), 'S3 object versions are not erased');
+  assert.ok(dbDelete.includes("'mediaPermanentlyErased': False"));
+  assert.ok(dbDelete.includes("'success': True"), 'legacy single-row API stays compatible');
 });
 
 test('deletion manifest covers linked identities, payments, auth and S3 versions', () => {
