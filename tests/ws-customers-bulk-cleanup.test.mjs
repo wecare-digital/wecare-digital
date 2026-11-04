@@ -43,6 +43,9 @@ test('only confirmed staff actions write after fresh retention preflight and rev
     "filter === 'unverified' && Boolean(contact.phoneVerifiedAt)",
     'isBulkEligible(contact)', "action === 'delete' && !isSoftDeleteCandidate(contact)",
     'await confirm(', 'if (!approved) return;',
+    'const finalSnapshot = await api.listContactsResult()',
+    'const finalTargets = targets.filter(contact =>',
+    'if (finalTargets.length === 0) return;',
     "await api.archiveContact(", 'await api.softDeleteContactResult(id)',
     "result.data?.success === true && result.data.deleteType === 'soft'",
     'result.ok && result.data?.archivedAt',
@@ -50,7 +53,8 @@ test('only confirmed staff actions write after fresh retention preflight and rev
     'await load()', 'setBulkProgress',
   ]) assert.ok(body.includes(marker), marker);
   assert.ok(body.indexOf('await api.listContactsResult()') < body.indexOf('await confirm('));
-  assert.ok(body.indexOf('await confirm(') < body.indexOf('await api.archiveContact('));
+  assert.ok(body.indexOf('await confirm(') < body.indexOf('const finalSnapshot = await api.listContactsResult()'));
+  assert.ok(body.indexOf('const finalSnapshot = await api.listContactsResult()') < body.indexOf('await api.archiveContact('));
   assert.ok(!body.includes('bulkDeleteContacts'), 'legacy boolean counter cannot report per-record refusals');
 });
 
