@@ -545,14 +545,22 @@ def _current_fy() -> str:
     return f"{year}-{year+1}" if ist_now.tm_mon >= 4 else f"{year-1}-{year}"
 
 
-def _format_invoice_number(prefix: str, fy: str, seq: int) -> str:
-    """`WD/2627/00001` - the one place the GST number's shape is written."""
+#: An optional series letter on the counter row (`series`), e.g. 'A' -> `WD/2627/A/00001`.
+#: Absent/empty keeps the original `WD/2627/00001` shape, byte for byte.
+_SERIES_RE = re.compile(r'^[A-Z]{1,3}$')
+
+
+def _format_invoice_number(prefix: str, fy: str, seq: int, series: str = '') -> str:
+    """`WD/2627/00001` (or `WD/2627/A/00001` with a series) - the one place the shape is written."""
     # Take the two-digit tail of EACH year in a `YYYY-YYYY` FY, so `2026-2027` -> `2627`. The
     # old `fy.replace('20', '')` stripped the literal `20` wherever it appeared, which turned
     # `2020-2021` into `21` and `2000-2001` into `0001` - a different, invalid number for a
     # perfectly valid FY. Same output as before for every FY whose years both start `20`.
     start, _, end = fy.partition('-')
     fy_short = f"{start[-2:]}{end[-2:]}" if end else start[-2:]
+    series = str(series or '').strip().upper()
+    if series and _SERIES_RE.match(series):
+        return f"{prefix}/{fy_short}/{series}/{seq:05d}"
     return f"{prefix}/{fy_short}/{seq:05d}"
 
 
@@ -604,10 +612,13 @@ def _get_next_invoice_number(fy: str = None) -> str:
                 Key={'fy': fy},
                 UpdateExpression='SET last_seq = if_not_exists(last_seq, :zero) + :inc, prefix = if_not_exists(prefix, :pfx), updated_at = :now',
                 ExpressionAttributeValues={':zero': 0, ':inc': 1, ':pfx': 'WD', ':now': int(time.time())},
-                ReturnValues='UPDATED_NEW',
+                # ALL_NEW (not UPDATED_NEW) so the optional `series`, which this write never
+                # touches, comes back from the same atomic write that advanced the counter.
+                ReturnValues='ALL_NEW',
             )
             seq = int(resp['Attributes']['last_seq'])
             prefix = resp['Attributes'].get('prefix', 'WD')
+            series = str(resp['Attributes'].get('series') or '')
         except Exception as e:
             logger.error(json.dumps({
                 'event': 'invoice_sequence_unavailable',
@@ -619,7 +630,7 @@ def _get_next_invoice_number(fy: str = None) -> str:
                 f"Could not advance the invoice sequence for FY {fy}"
             ) from e
 
-        candidate = _format_invoice_number(prefix, fy, seq)
+        candidate = _format_invoice_number(prefix, fy, seq, series)
 
         try:
             reserved = order_keys.reserve_invoice_number(
@@ -679,17 +690,18 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
         item = resp.get('Item', {})
         last = int(item.get('last_seq', 0))
         prefix = item.get('prefix', 'WD')
+        series = str(item.get('series') or '')
 
         keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
         seq = last + 1
         probes = 0
         while probes < _INVOICE_NUMBER_ATTEMPTS and order_keys.resolve_invoice_number(
-                keys_table, _format_invoice_number(prefix, fy, seq)) is not None:
+                keys_table, _format_invoice_number(prefix, fy, seq, series)) is not None:
             seq += 1
             probes += 1
 
         return _resp(200, {
-            'nextInvoiceNumber': _format_invoice_number(prefix, fy, seq),
+            'nextInvoiceNumber': _format_invoice_number(prefix, fy, seq, series),
             'fy': fy,
             'lastSeq': last,
             # The highest number known to be issued, counter and reservations combined. Equal to
