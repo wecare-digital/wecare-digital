@@ -123,7 +123,7 @@ test('customer directory searches and displays Meta identities separately from W
     'Meta WhatsApp username', 'Business-scoped user ID (BSUID)', 'Parent BSUID',
     'WECARE profile username', 'WhatsApp BSUID linked', 'Phone not shared',
   ]) assert.ok(directory.includes(marker), marker);
-  assert.ok(!/payload\\.bsuid\\s*=|payload\\.parentBsuid\\s*=|payload\\.username\\s*=/.test(editor),
+  assert.ok(!/payload\.bsuid\s*=|payload\.parentBsuid\s*=|payload\.username\s*=/.test(editor),
     'the staff editor cannot overwrite Meta-owned identifiers');
 });
 
@@ -153,4 +153,12 @@ test('WhatsApp contact-request number is read from the contact card and claimed 
   assert.ok(helper.includes('identity_claims.claim_identities('), 'claim phone identity before linking');
   assert.ok(helper.includes('contact_store.find_by_phone('), 'refuse a phone owned by another person');
   assert.ok(helper.includes('pending_phone'), 'do not report phone linked if update failed');
+});
+
+test('ambiguous inbound BSUID identities are parked for replay, never silently discarded', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  assert.ok(inbound.includes("conflict_value['messages'] = [message]"));
+  assert.ok(inbound.includes("'customer_identity_conflict', request_id"));
+  assert.ok(inbound.includes('if not parked:'), 'a failed DLQ write must trigger an upstream retry');
+  assert.ok(inbound.includes('inbound_phone_change_requires_review'), 'new phone for an existing ID needs review');
 });
