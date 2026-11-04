@@ -1,365 +1,497 @@
 /**
- * CustomerList — the fresh, mobile-first customer list for /ws/customers (FEAT-003).
+ * /ws/customers — a responsive customer directory using the shared /ws design system.
  *
- * Loads the active customer set with api.listContacts and renders it as tappable rows (>=44px).
- * It carries the two LIST-level actions the user called out:
- *   - Bulk delete: a selection mode with checkbox rows and one confirm-gated bulk action
- *     (api.bulkDeleteContacts, which reports { deleted, failed }).
- *   - Per-row actions: each row opens CustomerActionsSheet (delete single / delete identity /
- *     delete a field / delete messages / block-archive), all confirm-gated and honouring the
- *     server ApiResult.
- * An "Manage data" control opens the reused CustomerManageData modal for the identity / merge /
- * archive review surface rather than reimplementing merge logic.
- *
- * On a confirmed soft-delete or archive the row is dropped from local state ONLY after the server
- * confirmed it; a refusal shows the server reason and leaves the row in place (handled in the
- * sheet / bulk handler). React 19: icons typed React.JSX.Element.
+ * Uses the existing Contacts API only. Create/update goes through the canonical F001-aligned
+ * CustomerEditor; the existing confirm-gated retention/identity safeguards stay in place.
  */
 import React from 'react';
+import { useRouter } from 'next/router';
 import type { Contact } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import { contactDeliveryAddress } from '../../../lib/address-format';
 import CustomerManageData from '../../workspace/customers/ManageData';
 import CustomerActionsSheet from './CustomerActionsSheet';
+import CustomerEditor from './CustomerEditor';
+import styles from './CustomerList.module.css';
 
-const SearchGlyph = (): React.JSX.Element => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+type ViewFilter = 'all' | 'address' | 'incomplete';
+type SortOrder = 'recent' | 'name';
+
+const SearchGlyph = () => (
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" /><path d="m20 20-3.8-3.8" />
   </svg>
 );
-
-const DotsGlyph = (): React.JSX.Element => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="5" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="19" r="1.4" />
+const PlusGlyph = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+);
+const ArrowGlyph = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+);
+const RefreshGlyph = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6v6h-6M4 18v-6h6M5.8 9A7 7 0 0 1 18 7l2 5M4 12l2 5A7 7 0 0 0 18.2 15" />
   </svg>
 );
+const CloseGlyph = () => (
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+    strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+);
 
-function initialsOf ( contact: Contact ): string {
-  const source = ( contact.name || contact.phone || '?' ).trim();
-  const parts = source.split( /\s+/ ).filter( Boolean );
-  if ( parts.length >= 2 ) return ( parts[ 0 ][ 0 ] + parts[ 1 ][ 0 ] ).toUpperCase();
-  return source.slice( 0, 2 ).toUpperCase();
+function displayName(contact: Contact): string {
+  return contact.name?.trim() || 'Unnamed customer';
+}
+function initials(contact: Contact): string {
+  const value = displayName(contact);
+  if (value === 'Unnamed customer') return 'WC';
+  const words = value.split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words[0][0] + words[1][0] : value.slice(0, 2)).toUpperCase();
+}
+function customerId(contact: Contact): string {
+  return contact.customerDisplayId || contact.subscriberId || contact.contactId || contact.id;
+}
+function timestamp(value?: string | number): number {
+  if (value === undefined || value === null || value === '') return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : Date.parse(String(value)) || 0;
+}
+function formatUpdated(value?: string | number): string {
+  const date = timestamp(value);
+  if (!date) return '—';
+  const days = Math.max(0, Math.floor((Date.now() - date) / 86400000));
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return days + ' days ago';
+  return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function formatFullDate(value?: string | number): string {
+  const date = timestamp(value);
+  return date ? new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
+function missingDetails(contact: Contact): boolean {
+  return !contact.name?.trim() || !contactDeliveryAddress(contact);
+}
+function consentLabel(contact: Contact): string {
+  const status = contact.whatsappMarketingConsent;
+  if (status === 'OPTED_IN') return 'Opted in';
+  if (status === 'OPTED_OUT') return 'Opted out';
+  return 'Not confirmed';
 }
 
+interface DetailsProps {
+  contact: Contact;
+  onClose: () => void;
+  onEdit: () => void;
+  onActions: () => void;
+}
+const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onActions }) => {
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    closeRef.current?.focus();
+    const handle = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
+  }, [onClose]);
+
+  return (
+    <div className={styles.detailsBackdrop} role="presentation"
+      onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <aside className={styles.detailsPanel} role="dialog" aria-modal="true" aria-labelledby="wsc-detail-name">
+        <header className={styles.detailsTop}>
+          <div><p className={styles.overline}>Customer record</p><p className={styles.detailHint}>Canonical contact details</p></div>
+          <button ref={closeRef} type="button" className={styles.iconButton} onClick={onClose} aria-label="Close customer details">
+            <CloseGlyph />
+          </button>
+        </header>
+        <div className={styles.detailsScroll} data-wc-no-translate="true">
+          <div className={styles.personHero}>
+            <span className={styles.largeAvatar} aria-hidden="true">{initials(contact)}</span>
+            <div className={styles.personText}>
+              <h2 id="wsc-detail-name">{displayName(contact)}</h2>
+              <p>{customerId(contact)}</p>
+            </div>
+          </div>
+          <div className={styles.detailBadges}>
+            <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
+              {contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'}
+            </span>
+            {contact.locked && <span className={styles.warningTag}>Retention lock</span>}
+            {contact.archivedAt && <span className={styles.neutralTag}>Archived</span>}
+          </div>
+
+          <section className={styles.detailSection} aria-labelledby="wsc-profile-title">
+            <h3 id="wsc-profile-title">Profile</h3>
+            <dl className={styles.detailFields}>
+              <dt>WhatsApp number</dt><dd>{contact.phone || '—'}</dd>
+              <dt>Profile username</dt><dd>{contact.profileUsername || '—'}</dd>
+              <dt>Email</dt><dd>{contact.email || '—'}</dd>
+              <dt>Organization</dt><dd>{contact.companyName || '—'}</dd>
+              <dt>Job title</dt><dd>{contact.designation || '—'}</dd>
+            </dl>
+          </section>
+
+          <section className={styles.detailSection} aria-labelledby="wsc-address-title">
+            <h3 id="wsc-address-title">Delivery address</h3>
+            <p className={styles.addressText}>{contactDeliveryAddress(contact) || 'No delivery address saved.'}</p>
+          </section>
+
+          <section className={styles.detailSection} aria-labelledby="wsc-identity-title">
+            <h3 id="wsc-identity-title">Identity and history</h3>
+            <dl className={styles.detailFields}>
+              <dt>Customer ID</dt><dd>{customerId(contact)}</dd>
+              <dt>WhatsApp marketing</dt><dd>{consentLabel(contact)}</dd>
+              <dt>Created</dt><dd>{formatFullDate(contact.createdAt)}</dd>
+              <dt>Last updated</dt><dd>{formatFullDate(contact.updatedAt)}</dd>
+              <dt>Tags</dt><dd>{contact.tags?.length ? contact.tags.join(', ') : '—'}</dd>
+            </dl>
+            <p className={styles.safetyNote}>Phone verification and marketing consent are tracked by the server; editing a contact does not change either.</p>
+          </section>
+        </div>
+        <footer className={styles.detailsFooter}>
+          <button type="button" className={styles.secondaryButton} onClick={onActions}>More actions</button>
+          <button type="button" className={styles.primaryButton} onClick={onEdit}>Edit contact <ArrowGlyph /></button>
+        </footer>
+      </aside>
+    </div>
+  );
+};
+
 const CustomerList: React.FC = () => {
+  const router = useRouter();
   const toast = useToastContext();
   const confirm = useConfirm();
 
-  const [ contacts, setContacts ] = React.useState<Contact[]>( [] );
-  const [ loading, setLoading ] = React.useState( true );
-  const [ error, setError ] = React.useState( '' );
-  const [ query, setQuery ] = React.useState( '' );
+  const [contacts, setContacts] = React.useState<Contact[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState('');
+  const [search, setSearch] = React.useState('');
+  const [filter, setFilter] = React.useState<ViewFilter>('all');
+  const [sort, setSort] = React.useState<SortOrder>('recent');
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [selecting, setSelecting] = React.useState(false);
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [detailsFor, setDetailsFor] = React.useState<Contact | null>(null);
+  const [actionsFor, setActionsFor] = React.useState<Contact | null>(null);
+  const [editorFor, setEditorFor] = React.useState<Contact | 'new' | null>(null);
+  const [manageOpen, setManageOpen] = React.useState(false);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const openedDeepLink = React.useRef<string | null>(null);
 
-  const [ selectMode, setSelectMode ] = React.useState( false );
-  const [ selected, setSelected ] = React.useState<Set<string>>( new Set() );
-  const [ bulkBusy, setBulkBusy ] = React.useState( false );
-
-  const [ sheetFor, setSheetFor ] = React.useState<Contact | null>( null );
-  const [ manageOpen, setManageOpen ] = React.useState( false );
-
-  const load = React.useCallback( async () => {
-    setLoading( true );
-    setError( '' );
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
     try {
-      // listContactsResult tells an empty table apart from a failed read; a failed read must not
-      // render as "no customers".
-      const result = await api.listContactsResult();
-      if ( result.ok ) {
-        setContacts( result.data );
-      } else {
-        setError( result.failure.message || 'Customers could not be loaded.' );
-      }
+      const response = await api.listContactsResult();
+      if (response.ok) setContacts(response.data);
+      else setLoadError(response.failure.message || 'The customer directory could not be loaded.');
     } catch {
-      setError( 'Customers could not be loaded.' );
+      setLoadError('The customer directory could not be loaded. Check your connection.');
     } finally {
-      setLoading( false );
+      setLoading(false);
     }
-  }, [] );
+  }, []);
+  React.useEffect(() => { void load(); }, [load]);
 
-  React.useEffect( () => { void load(); }, [ load ] );
+  // Existing search links from inbox/command palette open the requested identity.
+  React.useEffect(() => {
+    if (!router.isReady || loading || loadError) return;
+    const id = typeof router.query.contact === 'string' ? router.query.contact : '';
+    if (!id || openedDeepLink.current === id) return;
+    openedDeepLink.current = id;
+    const known = contacts.find(item => item.contactId === id || item.id === id);
+    if (known) {
+      setDetailsFor(known);
+    } else {
+      void api.getContact(id).then(result => {
+        if (result) setDetailsFor(result);
+      }).catch(() => {});
+    }
+  }, [router.isReady, router.query.contact, contacts, loading, loadError]);
 
-  const filtered = React.useMemo( () => {
-    const q = query.trim().toLowerCase();
-    if ( !q ) return contacts;
-    return contacts.filter( c =>
-      ( c.name || '' ).toLowerCase().includes( q )
-      || ( c.phone || '' ).toLowerCase().includes( q )
-      || ( c.email || '' ).toLowerCase().includes( q ) );
-  }, [ contacts, query ] );
+  React.useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (detailsFor || editorFor || actionsFor || manageOpen) return;
+      if (event.key === '/') { event.preventDefault(); searchRef.current?.focus(); }
+      if (event.key.toLowerCase() === 'n' && !selecting) { event.preventDefault(); setEditorFor('new'); }
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, [detailsFor, editorFor, actionsFor, manageOpen, selecting]);
 
-  const dropRow = React.useCallback( ( contactId: string ) => {
-    setContacts( prev => prev.filter( c => c.contactId !== contactId ) );
-    setSelected( prev => { const next = new Set( prev ); next.delete( contactId ); return next; } );
-  }, [] );
+  const total = contacts.length;
+  const withAddress = React.useMemo(
+    () => contacts.filter(item => Boolean(contactDeliveryAddress(item))).length, [contacts]);
+  const incomplete = React.useMemo(() => contacts.filter(missingDetails).length, [contacts]);
 
-  const toggleSelect = ( id: string ) => {
-    setSelected( prev => {
-      const next = new Set( prev );
-      if ( next.has( id ) ) next.delete( id ); else next.add( id );
+  const visible = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return contacts.filter(contact => {
+      if (filter === 'address' && !contactDeliveryAddress(contact)) return false;
+      if (filter === 'incomplete' && !missingDetails(contact)) return false;
+      if (!term) return true;
+      const text = [
+        contact.name, contact.phone, contact.email, contact.companyName, contact.designation,
+        contact.profileUsername, customerId(contact), contactDeliveryAddress(contact),
+        ...(contact.tags || []),
+      ].join(' ').toLowerCase();
+      return text.includes(term);
+    }).sort((a, b) => sort === 'name'
+      ? displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' })
+      : timestamp(b.updatedAt) - timestamp(a.updatedAt));
+  }, [contacts, search, filter, sort]);
+
+  const dropRow = React.useCallback((id: string) => {
+    setContacts(previous => previous.filter(item => item.contactId !== id));
+    setSelected(previous => { const next = new Set(previous); next.delete(id); return next; });
+    setDetailsFor(previous => previous?.contactId === id ? null : previous);
+  }, []);
+
+  const toggleSelected = (id: string) => {
+    setSelected(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
-    } );
+    });
   };
-
-  const exitSelect = () => { setSelectMode( false ); setSelected( new Set() ); };
+  const allVisibleSelected = visible.length > 0 && visible.every(contact => selected.has(contact.contactId));
+  const selectAllVisible = () => {
+    setSelected(previous => {
+      const next = new Set(previous);
+      visible.forEach(contact => allVisibleSelected ? next.delete(contact.contactId) : next.add(contact.contactId));
+      return next;
+    });
+  };
+  const endSelection = () => { setSelecting(false); setSelected(new Set()); };
 
   const bulkDelete = async () => {
-    if ( bulkBusy || selected.size === 0 ) return;
-    const ids = Array.from( selected );
-    const locked = contacts.filter( c => ids.includes( c.contactId ) && c.locked ).length;
-    if ( locked ) {
-      toast.warning( `${locked} selected customer${ locked > 1 ? 's are' : ' is' } protected by a retention lock. Unlock before deleting.` );
+    if (bulkBusy || selected.size === 0) return;
+    const ids = [...selected];
+    const locked = contacts.filter(contact => ids.includes(contact.contactId) && contact.locked).length;
+    if (locked) {
+      toast.warning(locked + ' selected customer(s) are protected by a retention lock. Review them before deleting.');
       return;
     }
-    const ok = await confirm( {
-      title: `Delete ${ ids.length } customer${ ids.length > 1 ? 's' : '' }?`,
-      message: `Delete ${ ids.length } selected customer${ ids.length > 1 ? 's' : '' } from active records? This is a soft delete; phones stay reserved and payment/order history is never erased. Any customer the server refuses (legal lock or linked payments) is kept and reported.`,
+    const approved = await confirm({
+      title: 'Delete ' + ids.length + ' customer' + (ids.length === 1 ? '' : 's') + '?',
+      message: 'This is a soft delete. Phone identities remain reserved, and payment, order and audit history are preserved. The server may refuse protected identities. Continue?',
       confirmText: 'Delete selected',
       danger: true,
-    } );
-    if ( !ok ) return;
-    setBulkBusy( true );
+    });
+    if (!approved) return;
+    setBulkBusy(true);
     try {
-      // bulkDeleteContacts reports { deleted, failed }; a refused row counts as failed and is
-      // kept. We re-read the authoritative list rather than guessing which rows went.
-      const { deleted, failed } = await api.bulkDeleteContacts( ids );
-      if ( deleted > 0 ) {
-        toast.success( `Deleted ${ deleted } customer${ deleted > 1 ? 's' : '' }.${ failed > 0 ? ` ${ failed } kept (refused or failed).` : '' }` );
-      } else {
-        toast.error( `No customers deleted. ${ failed } kept (refused by the server or failed).` );
-      }
-      exitSelect();
+      const result = await api.bulkDeleteContacts(ids);
+      if (result.deleted > 0) toast.success(result.deleted + ' customer(s) removed from the active directory.');
+      if (result.failed > 0) toast.warning(result.failed + ' customer(s) were kept because the server refused or failed the deletion.');
+      if (result.deleted === 0 && result.failed === 0) toast.warning('No deletion was confirmed.');
+      endSelection();
       await load();
     } catch {
-      toast.error( 'Bulk delete failed. No deletions were confirmed.' );
+      toast.error('Delete request failed. No deletion was confirmed.');
+      await load();
     } finally {
-      setBulkBusy( false );
+      setBulkBusy(false);
     }
+  };
+
+  const openDetails = (contact: Contact) => {
+    if (selecting) toggleSelected(contact.contactId);
+    else setDetailsFor(contact);
+  };
+  const saveContact = (saved: Contact) => {
+    toast.success(editorFor === 'new' ? 'Contact created.' : 'Customer profile updated.');
+    setEditorFor(null);
+    setDetailsFor(saved);
+    void load();
   };
 
   return (
-    <section className="cl">
-      <header className="cl-head">
-        <div className="cl-titlerow">
-          <div className="cl-titleblock">
-            <p className="cl-eyebrow">Workspace / Customers</p>
-            <h1 className="cl-title">Customers</h1>
-          </div>
-          <div className="cl-head-actions">
-            <button type="button" className="cl-ghost" onClick={ () => setManageOpen( true ) }>
-              Manage data
-            </button>
-            { selectMode ? (
-              <button type="button" className="cl-ghost" onClick={ exitSelect }>Done</button>
-            ) : (
-              <button type="button" className="cl-ghost" onClick={ () => setSelectMode( true ) } disabled={ loading || contacts.length === 0 }>
-                Select
-              </button>
-            ) }
-          </div>
+    <section className={styles.root} aria-labelledby="wsc-heading">
+      <header className={styles.header}>
+        <div className={styles.headingBlock}>
+          <p className={styles.overline}>WORKSPACE / DIRECTORY</p>
+          <h1 id="wsc-heading">Customers</h1>
+          <p className={styles.description}>One place for customer profiles, WhatsApp identities and delivery details.</p>
         </div>
-
-        <label className="cl-search">
-          <span className="cl-search-icon"><SearchGlyph /></span>
-          <input
-            type="search"
-            className="cl-search-input"
-            placeholder="Search name, phone or email"
-            value={ query }
-            onChange={ e => setQuery( e.target.value ) }
-            aria-label="Search customers"
-          />
-        </label>
-      </header>
-
-      { loading ? (
-        <p className="cl-note">Loading customers…</p>
-      ) : error ? (
-        <div className="cl-error" role="alert">
-          <p>{ error }</p>
-          <button type="button" className="cl-ghost" onClick={ () => void load() }>Retry</button>
-        </div>
-      ) : filtered.length === 0 ? (
-        <p className="cl-note">{ query ? 'No customers match your search.' : 'No customers yet.' }</p>
-      ) : (
-        <ul className="cl-list" data-wc-no-translate="true">
-          { filtered.map( c => {
-            const isSel = selected.has( c.contactId );
-            return (
-              <li key={ c.contactId } className={ `cl-row ${ isSel ? 'sel' : '' }` }>
-                { selectMode && (
-                  <label className="cl-check">
-                    <input
-                      type="checkbox"
-                      checked={ isSel }
-                      onChange={ () => toggleSelect( c.contactId ) }
-                      aria-label={ `Select ${ c.name || c.phone }` }
-                    />
-                  </label>
-                ) }
-
-                <button
-                  type="button"
-                  className="cl-rowmain"
-                  onClick={ () => selectMode ? toggleSelect( c.contactId ) : setSheetFor( c ) }
-                >
-                  <span className="cl-avatar" aria-hidden="true">{ initialsOf( c ) }</span>
-                  <span className="cl-meta">
-                    <span className="cl-name">
-                      { c.name || 'Unnamed customer' }
-                      { c.locked && <span className="cl-badge">Locked</span> }
-                    </span>
-                    <span className="cl-sub">{ c.phone || 'No phone' }{ c.email ? ` · ${ c.email }` : '' }</span>
-                  </span>
-                </button>
-
-                { !selectMode && (
-                  <button
-                    type="button"
-                    className="cl-more"
-                    onClick={ () => setSheetFor( c ) }
-                    aria-label={ `Actions for ${ c.name || c.phone }` }
-                  >
-                    <DotsGlyph />
-                  </button>
-                ) }
-              </li>
-            );
-          } ) }
-        </ul>
-      ) }
-
-      { selectMode && selected.size > 0 && (
-        <div className="cl-bulkbar" role="region" aria-label="Bulk actions">
-          <span className="cl-bulkcount">{ selected.size } selected</span>
-          <button type="button" className="cl-bulk-danger" disabled={ bulkBusy } onClick={ bulkDelete }>
-            { bulkBusy ? 'Deleting…' : 'Delete selected' }
+        <div className={styles.headingButtons}>
+          <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading}
+            aria-label="Refresh customers" title="Refresh customers"><RefreshGlyph /></button>
+          <button type="button" className={styles.primaryButton} onClick={() => setEditorFor('new')}>
+            <PlusGlyph /> Create contact
           </button>
         </div>
-      ) }
+      </header>
 
-      { sheetFor && (
-        <CustomerActionsSheet
-          contact={ sheetFor }
-          onClose={ () => setSheetFor( null ) }
-          onRemoved={ dropRow }
-          onArchived={ dropRow }
-          onChanged={ load }
-        />
-      ) }
+      {!loadError && (
+        <div className={styles.stats} aria-label="Customer directory summary">
+          <div className={styles.statCard}><span>All contacts</span><strong>{loading ? '—' : total}</strong><small>Active customer records</small></div>
+          <div className={styles.statCard}><span>With address</span><strong>{loading ? '—' : withAddress}</strong><small>Delivery details saved</small></div>
+          <div className={styles.statCard}><span>Needs details</span><strong>{loading ? '—' : incomplete}</strong><small>Missing name or address</small></div>
+        </div>
+      )}
 
-      { manageOpen && (
-        <CustomerManageData
-          contacts={ contacts }
-          onClose={ () => setManageOpen( false ) }
-          onOpenCustomer={ ( id ) => {
-            const found = contacts.find( c => c.contactId === id );
-            setManageOpen( false );
-            if ( found ) setSheetFor( found );
-          } }
-          onChanged={ load }
-        />
-      ) }
+      <div className={styles.directory}>
+        <div className={styles.toolbar}>
+          <label className={styles.searchBox}>
+            <SearchGlyph />
+            <input ref={searchRef} type="search" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search customers, numbers, addresses…" aria-label="Search customers" autoComplete="off" />
+            {search && <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear customer search">
+              <CloseGlyph />
+            </button>}
+            <kbd>/</kbd>
+          </label>
+          <div className={styles.utilityButtons}>
+            <button type="button" className={styles.secondaryButton} onClick={() => setManageOpen(true)}>Manage data</button>
+            <button type="button" className={styles.secondaryButton}
+              disabled={loading || total === 0 || bulkBusy}
+              onClick={() => selecting ? endSelection() : setSelecting(true)}>
+              {selecting ? 'Done' : 'Select'}
+            </button>
+          </div>
+        </div>
 
-      <style jsx>{ `
-        .cl{ width:100%; min-width:0; display:grid; gap:14px; }
-        .cl-head{ display:grid; gap:12px; }
-        .cl-titlerow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-        .cl-titleblock{ display:grid; gap:4px; }
-        .cl-eyebrow{ margin:0; font-size:11px; color:var(--text-muted,#6b7280); }
-        .cl-title{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text,#1a1a1a); }
-        .cl-head-actions{ margin-left:auto; display:flex; gap:8px; }
-        .cl-ghost{
-          min-height:var(--tap-min,44px); padding:8px 14px; box-sizing:border-box;
-          border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-lg,12px);
-          background:var(--surface,#fff); color:var(--text,#1a1a1a);
-          font:inherit; font-weight:600; font-size:14px; cursor:pointer;
-        }
-        .cl-ghost:hover:not(:disabled){ background:var(--bg-hover,#f5f5f5); }
-        .cl-ghost:disabled{ opacity:0.5; cursor:not-allowed; }
-        .cl-ghost:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
+        <div className={styles.filterBar}>
+          <div className={styles.tabs} role="group" aria-label="Filter customers">
+            <button type="button" className={filter === 'all' ? styles.activeTab : styles.tab}
+              aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All <span>{total}</span></button>
+            <button type="button" className={filter === 'address' ? styles.activeTab : styles.tab}
+              aria-pressed={filter === 'address'} onClick={() => setFilter('address')}>With address <span>{withAddress}</span></button>
+            <button type="button" className={filter === 'incomplete' ? styles.activeTab : styles.tab}
+              aria-pressed={filter === 'incomplete'} onClick={() => setFilter('incomplete')}>Needs details <span>{incomplete}</span></button>
+          </div>
+          <label className={styles.sortControl}>
+            <span>Sort</span>
+            <select value={sort} onChange={event => setSort(event.target.value as SortOrder)} aria-label="Sort customers">
+              <option value="recent">Recently updated</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
+        </div>
 
-        .cl-search{
-          display:flex; align-items:center; gap:8px;
-          min-height:var(--tap-min,44px); padding:0 14px; box-sizing:border-box;
-          border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-full,9999px);
-          background:var(--surface,#fff);
-        }
-        .cl-search-icon{ display:inline-flex; color:var(--text-muted,#6b7280); flex:0 0 auto; }
-        .cl-search-input{
-          flex:1 1 auto; min-width:0; border:0; outline:none; background:transparent;
-          font:inherit; font-size:16px; color:var(--text,#1a1a1a);
-        }
+        {selecting && visible.length > 0 && (
+          <div className={styles.selectionBar}>
+            <label><input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} />
+              Select all {visible.length} shown</label>
+            <span>{selected.size} selected</span>
+          </div>
+        )}
 
-        .cl-note{ margin:0; font-size:14px; color:var(--text-muted,#6b7280); }
-        .cl-error{ display:grid; gap:10px; justify-items:start; padding:12px; border:1px solid var(--danger,#dc2626); border-radius:var(--radius-lg,12px); background:var(--danger-bg,#fef2f2); }
-        .cl-error p{ margin:0; font-size:14px; color:var(--danger,#dc2626); }
+        <div className={styles.listHeading} aria-hidden="true">
+          <span>Customer</span><span>Contact</span><span>Profile</span><span>Delivery address</span><span>Updated</span>
+        </div>
 
-        .cl-list{ list-style:none; margin:0; padding:0; display:grid; gap:8px; }
-        .cl-row{
-          display:flex; align-items:center; gap:4px; min-width:0;
-          border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-xl,14px);
-          background:var(--surface,#fff); overflow:hidden;
-        }
-        .cl-row.sel{ border-color:var(--accent,#1a3a2a); background:var(--lime-tint,rgba(209,244,112,0.22)); }
-        .cl-check{
-          flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
-          min-width:var(--tap-min,44px); min-height:var(--tap-min,44px); padding-left:6px;
-        }
-        .cl-check input{ width:20px; height:20px; }
-        .cl-rowmain{
-          flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:12px;
-          padding:10px 12px; min-height:var(--tap-min,44px);
-          border:0; background:transparent; text-align:left; cursor:pointer; font:inherit;
-        }
-        .cl-rowmain:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:-2px; }
-        .cl-avatar{
-          flex:0 0 auto; width:40px; height:40px; border-radius:var(--radius-full,9999px);
-          display:inline-flex; align-items:center; justify-content:center;
-          background:var(--lime,#d1f470); color:var(--accent,#1a3a2a);
-          font-weight:700; font-size:13px;
-        }
-        .cl-meta{ min-width:0; display:grid; gap:2px; }
-        .cl-name{
-          font-weight:700; font-size:15px; color:var(--text,#1a1a1a);
-          display:flex; align-items:center; gap:8px; min-width:0;
-          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-        }
-        .cl-badge{
-          flex:0 0 auto; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;
-          padding:2px 6px; border-radius:var(--radius-full,9999px);
-          background:var(--danger-bg,#fef2f2); color:var(--danger,#dc2626);
-        }
-        .cl-sub{
-          font-size:13px; color:var(--text-muted,#6b7280);
-          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-        }
-        .cl-more{
-          flex:0 0 auto; width:var(--tap-min,44px); height:var(--tap-min,44px);
-          display:inline-flex; align-items:center; justify-content:center;
-          border:0; background:transparent; color:var(--text-muted,#6b7280); cursor:pointer;
-        }
-        .cl-more:hover{ color:var(--accent,#1a3a2a); }
-        .cl-more:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:-2px; }
+        {loading ? (
+          <div className={styles.stateMessage} role="status">Loading customers…</div>
+        ) : loadError ? (
+          <div className={styles.stateMessage} role="alert">
+            <h2>Could not load customers</h2>
+            <p>{loadError}</p>
+            <button type="button" className={styles.secondaryButton} onClick={() => void load()}>Retry</button>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className={styles.stateMessage}>
+            <span className={styles.emptyIcon} aria-hidden="true"><SearchGlyph /></span>
+            <h2>{search || filter !== 'all' ? 'No matching customers' : 'Your customer directory is empty'}</h2>
+            <p>{search || filter !== 'all' ? 'Try another search or filter.' : 'Create your first contact to begin.'}</p>
+            {search || filter !== 'all'
+              ? <button type="button" className={styles.secondaryButton} onClick={() => { setSearch(''); setFilter('all'); }}>Clear filters</button>
+              : <button type="button" className={styles.primaryButton} onClick={() => setEditorFor('new')}><PlusGlyph />Create contact</button>}
+          </div>
+        ) : (
+          <ul className={styles.customerList} aria-label="Customers" data-wc-no-translate="true">
+            {visible.map(contact => (
+              <li key={contact.contactId} className={selected.has(contact.contactId) ? styles.selectedEntry : styles.entry}>
+                {selecting && (
+                  <label className={styles.rowCheckbox}>
+                    <input type="checkbox" checked={selected.has(contact.contactId)}
+                      onChange={() => toggleSelected(contact.contactId)}
+                      aria-label={'Select ' + displayName(contact)} />
+                  </label>
+                )}
+                <button type="button" className={styles.rowMain} onClick={() => openDetails(contact)}
+                  aria-label={(selecting ? 'Select ' : 'View ') + displayName(contact)}>
+                  <span className={styles.personCell}>
+                    <span className={styles.avatar} aria-hidden="true">{initials(contact)}</span>
+                    <span className={styles.personIdentity}>
+                      <strong>{displayName(contact)}</strong>
+                      <small>{customerId(contact)}</small>
+                    </span>
+                  </span>
+                  <span className={styles.contactCell}>
+                    <strong>{contact.phone || '—'}</strong>
+                    <small>{contact.email || (contact.phoneVerifiedAt ? 'WhatsApp verified' : 'Phone not verified')}</small>
+                  </span>
+                  <span className={styles.profileCell}>
+                    <strong>{contact.companyName || contact.profileUsername || '—'}</strong>
+                    <small>{contact.designation || (contact.companyName ? 'Organization' : 'Customer profile')}</small>
+                  </span>
+                  <span className={styles.addressCell}>
+                    <strong title={contactDeliveryAddress(contact)}>{contactDeliveryAddress(contact) || 'Not added'}</strong>
+                    {!contactDeliveryAddress(contact) && <small>Needs details</small>}
+                  </span>
+                  <span className={styles.updatedCell}>
+                    <span>{formatUpdated(contact.updatedAt)}</span>
+                    <ArrowGlyph />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        .cl-bulkbar{
-          position:sticky; bottom:0; z-index:5;
-          display:flex; align-items:center; gap:12px;
-          padding:12px; margin-top:4px;
-          border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-xl,14px);
-          background:var(--surface,#fff);
-          box-shadow:0 -2px 12px rgba(0,0,0,0.06);
-        }
-        .cl-bulkcount{ font-size:14px; font-weight:600; color:var(--text,#1a1a1a); }
-        .cl-bulk-danger{
-          margin-left:auto; min-height:var(--tap-min,44px); padding:10px 18px; box-sizing:border-box;
-          border:0; border-radius:var(--radius-lg,12px);
-          background:var(--danger,#dc2626); color:#fff;
-          font:inherit; font-weight:700; font-size:14px; cursor:pointer;
-        }
-        .cl-bulk-danger:disabled{ opacity:0.6; cursor:not-allowed; }
-        .cl-bulk-danger:focus-visible{ outline:2px solid var(--accent,#1a3a2a); outline-offset:2px; }
-      ` }</style>
+        {!loading && !loadError && visible.length > 0 && (
+          <p className={styles.resultCount} aria-live="polite">
+            Showing {visible.length} of {total} active contacts
+          </p>
+        )}
+      </div>
+
+      {selecting && selected.size > 0 && (
+        <div className={styles.bulkTray} role="region" aria-label="Selected customer actions">
+          <strong>{selected.size} selected</strong>
+          <button type="button" className={styles.dangerButton} onClick={() => void bulkDelete()} disabled={bulkBusy}>
+            {bulkBusy ? 'Deleting…' : 'Delete selected'}
+          </button>
+        </div>
+      )}
+
+      {detailsFor && !editorFor && !actionsFor && (
+        <CustomerDetails key={detailsFor.contactId} contact={detailsFor}
+          onClose={() => setDetailsFor(null)}
+          onEdit={() => { setEditorFor(detailsFor); setDetailsFor(null); }}
+          onActions={() => { setActionsFor(detailsFor); setDetailsFor(null); }} />
+      )}
+      {editorFor && (
+        <CustomerEditor key={editorFor === 'new' ? 'new' : editorFor.contactId}
+          contact={editorFor === 'new' ? null : editorFor} contacts={contacts}
+          onClose={() => setEditorFor(null)} onSaved={saveContact}
+          onExisting={existing => { setEditorFor(null); setDetailsFor(existing); }} />
+      )}
+      {actionsFor && (
+        <CustomerActionsSheet contact={actionsFor} onClose={() => setActionsFor(null)}
+          onRemoved={dropRow} onArchived={dropRow}
+          onChanged={async () => { await load(); }} />
+      )}
+      {manageOpen && (
+        <CustomerManageData contacts={contacts} onClose={() => setManageOpen(false)}
+          onOpenCustomer={id => {
+            const contact = contacts.find(item => item.contactId === id);
+            setManageOpen(false);
+            if (contact) setDetailsFor(contact);
+          }}
+          onChanged={load} />
+      )}
     </section>
   );
 };
