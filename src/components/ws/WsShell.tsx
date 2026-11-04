@@ -185,10 +185,11 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
         </div>
 
         {/* Text-only, borderless, editable sidebar filter. No search glyph. */}
-        <div className="ws-sidebar-search">
+        <div className="ws-sidebar-search" aria-hidden={ collapsed }>
           <input
             id="ws-sidebar-section-search"
             className="ws-sidebar-search-input"
+            disabled={ collapsed }
             type="text"
             role="searchbox"
             inputMode="search"
@@ -353,6 +354,9 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
 
         /* The entire right side is a single open reading surface. */
         .ws-sidebar{display:none}
+        /* Defensive mobile fallback: an unstyled or unmounted sidebar should
+           never expose a hidden text field to keyboard/AT navigation. */
+        .ws-sidebar-search{visibility:hidden}
         .ws-main{
           display:block;
           min-width:0;
@@ -467,6 +471,7 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           }
           .ws-sidebar-search{
             display:flex;
+            visibility:visible;
             align-items:center;
             min-height:44px;
             min-width:0;
@@ -736,6 +741,14 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           .ws-signout:hover:not(:disabled){transform:none}
         }
         @media(forced-colors:active){
+          /* High Contrast suppresses box shadows; reinstate a true outline
+             only in that mode so search remains discoverable by keyboard. */
+          .ws-sidebar-search-input:focus,
+          .ws-sidebar-search-input:focus-visible{
+            outline:2px solid Highlight!important;
+            outline-offset:1px;
+            box-shadow:none!important;
+          }
           .ws-sidebar,.ws-bottomnav{border-color:CanvasText}
           .ws-nav-link.active,.ws-bottom-link.active{background:Highlight;color:HighlightText}
           .ws-signout,.ws-sidebar-toggle{border-color:ButtonText}
