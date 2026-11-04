@@ -777,6 +777,16 @@ const WsShell: React.FC<WsShellProps> = ( { children, active, user, signOut } ) 
           }
           .ws-sidebar,.ws-bottomnav{border-color:CanvasText}
           .ws-nav-link.active,.ws-bottom-link.active{background:Highlight;color:HighlightText}
+          /* In the icon-only rail the parent active background is intentionally
+             transparent. Put the selected state ON the 44px icon tile using
+             system colors, including hover, so Windows High Contrast retains
+             a clearly visible selection without changing normal lime styling. */
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active .ws-nav-icon,
+          .ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link.active:hover .ws-nav-icon{
+            background:Highlight;
+            color:HighlightText;
+            outline:1px solid Highlight;
+          }
           .ws-signout,.ws-sidebar-toggle{border-color:ButtonText}
           .ws-signout:focus-visible,.ws-sidebar-toggle:focus-visible{outline-color:Highlight}
         }
