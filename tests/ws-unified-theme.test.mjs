@@ -582,3 +582,50 @@ test('sidebar search has no border on rest, hover, or focus, with accessible foc
             shell.includes('box-shadow:none!important;'),
     'Windows High Contrast must retain a visible focus outline when shadows are removed');
 });
+
+test('sidebar and mobile bar use subtle /auth-lime edges without losing white surfaces', () => {
+  assert.ok(theme.includes('border-inline-end:2px solid var(--public-brand-lime,#d1f470)'),
+    'desktop right edge of the white sidebar must be a restrained 2px lime divider');
+  assert.ok(theme.includes('border-top:2px solid var(--public-brand-lime,#d1f470)'),
+    'mobile bottom navigation uses the corresponding 2px lime separator');
+  assert.ok(theme.includes('--ws-sidebar:#ffffff;') &&
+            /\.ws-shell\.ws-notion \.ws-sidebar\s*\{[^}]*background:#ffffff/.test(theme),
+    'the lime line must not become a filled or gray sidebar');
+  assert.ok(theme.includes('border-inline-end-color:CanvasText;') &&
+            theme.includes('border-top-color:CanvasText;'),
+    'forced-colors browsers must replace lime edges with readable system line colors');
+  assert.ok(theme.includes('font-size:var(--public-supporting-size,16px)') &&
+            theme.includes('letter-spacing:var(--public-body-tracking,-.125px)'),
+    'workspace navigation uses the same Inter text scale and tracking as /auth');
+  assert.ok(theme.includes('font-weight:700;'),
+    'active route typography still has a clearly stronger weight');
+});
+
+test('sidebar remains usable across Safari, iOS and Android app WebViews and desktop browsers', () => {
+  const inputStyles = shell.slice(
+    shell.indexOf('.ws-sidebar-search-input{'),
+    shell.indexOf('.ws-sidebar-search-input::placeholder{'),
+  );
+  assert.ok(inputStyles.includes('font-size:var(--public-supporting-size,16px)'),
+    'iOS Safari/WKWebView search input text must be >=16px to avoid focus zoom');
+  assert.ok(inputStyles.includes('-webkit-appearance:none') &&
+            inputStyles.includes('appearance:none'),
+    'native WebKit and standards-based browser input chrome should be suppressed');
+  assert.ok(shell.includes('height:100vh;') && shell.includes('height:100dvh;'),
+    'desktop-height layout has a fallback for older browsers that lack dynamic viewport units');
+  assert.ok(shell.includes('padding-top:max(22px,env(safe-area-inset-top,0px))') &&
+            shell.includes('env(safe-area-inset-bottom,0px)'),
+    'iPad and native safe-area cutouts must not overlap the rail controls');
+  assert.ok(shell.includes('@media(min-width:768px)') &&
+            shell.includes('aria-label="Mobile workspace navigation"'),
+    'desktop sidebar and compact mobile bottom-bar breakpoints stay separate');
+  assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
+            shell.includes('disabled={ collapsed }') &&
+            shell.includes('aria-hidden={ collapsed }'),
+    'mobile or collapsed sidebar search is not accidentally focusable in a WebView');
+  assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
+    'animated sidebar layout must honor reduced motion on operating systems');
+  assert.ok(shell.includes('@media(forced-colors:active)') &&
+            shell.includes('outline:2px solid Highlight!important;'),
+    'Windows high-contrast input focus cannot disappear when shadows are suppressed');
+});
