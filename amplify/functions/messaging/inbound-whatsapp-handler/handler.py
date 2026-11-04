@@ -4055,6 +4055,10 @@ def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
     if not isinstance(prior_profile, dict):
         raise contact_store.IdentityConflict('invalid-portfolio-identity-profile', ())
     old_bsuid = str(prior_profile.get('bsuid') or '')
+    legacy_bsuid = str(contact.get('bsuid') or '')
+    if waba_id == '2094615664435155' and legacy_bsuid and legacy_bsuid != bsuid:
+        if not previous_bsuid or previous_bsuid != legacy_bsuid:
+            raise contact_store.IdentityConflict('legacy-wecare-bsuid-mismatch', ())
     if old_bsuid and old_bsuid != bsuid:
         if not previous_bsuid or old_bsuid != previous_bsuid:
             raise contact_store.IdentityConflict('business-identity-change-needs-review', ())
@@ -4257,7 +4261,11 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
     portfolio = _WABA_PORTFOLIOS.get(waba_id, '')
     scoped_identity = f'{portfolio}.{bsuid}' if portfolio and bsuid else ''
     bsuid_det_id = contact_store.deterministic_bsuid_id(scoped_identity)
-    contact_id = det_id or bsuid_det_id or str(uuid.uuid4())
+    contact_id = det_id or bsuid_det_id
+    if not contact_id:
+        # A sender without a phone AND scoped BSUID has no stable ownership.
+        # Quarantine rather than creating an unresolvable anonymous customer.
+        raise contact_store.IdentityConflict('sender-identity-missing', ())
     now = int(time.time())
 
     # Ensure phone has + prefix for international format (easier for SMS)
@@ -4316,23 +4324,26 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 contact_book_name=contact_book_name)
         logger.info(json.dumps({
             'event': 'contact_auto_created', 'contactId': mask_contact_id(contact_id),
-            'phone': mask_phone(phone), 'hasName': bool(sender_name), 'bsuid': bsuid, 'hasUsername': bool(username),
+            'phone': mask_phone(phone), 'hasName': bool(sender_name), 'hasBsuid': bool(bsuid), 'hasUsername': bool(username),
         }))
         return contact
     except Exception as e:
-        # Race: another invocation created it first — fetch and reuse (no duplicate).
-        if 'ConditionalCheckFailedException' in str(e):
-            try:
-                r = contacts_table.get_item(Key={'id': contact_id}, ConsistentRead=True)
-                existing = r.get('Item')
-                if existing:
-                    _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
-                    return existing
-            except Exception:
-                pass
-        else:
-            logger.warning(json.dumps({'event': 'contact_create_error', 'error': str(e), 'contactId': mask_contact_id(contact_id)}))
-        return contact
+        # A conditional collision can be a concurrent successful creator; re-read
+        # and attach to THAT row. Other write failures must not return a phantom
+        # customer ID which would orphan messages and payment history.
+        if isinstance(e, ClientError) and e.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            current = contacts_table.get_item(
+                Key={'id': contact_id}, ConsistentRead=True).get('Item')
+            if current and contact_store.is_live(current):
+                _update_contact_bsuid_fields(
+                    contacts_table, current, sender_name, username, phone, bsuid,
+                    contact_book_name, parent_bsuid, waba_id=waba_id)
+                return current
+        logger.warning(json.dumps({
+            'event': 'contact_create_failed', 'errorType': type(e).__name__,
+            'contactId': mask_contact_id(contact_id),
+        }))
+        raise contact_store.IdentityConflict('contact-create-failed', ()) from e
 
 
 def _update_contact_bsuid_fields(contacts_table, contact: Dict, sender_name: str, username: str, phone: str = '', bsuid: str = '', contact_book_name: str = '', parent_bsuid: str = '', waba_id: str = '') -> None:
