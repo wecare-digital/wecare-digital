@@ -162,3 +162,15 @@ test('ambiguous inbound BSUID identities are parked for replay, never silently d
   assert.ok(inbound.includes('if not parked:'), 'a failed DLQ write must trigger an upstream retry');
   assert.ok(inbound.includes('inbound_phone_change_requires_review'), 'new phone for an existing ID needs review');
 });
+
+test('BSUID change system messages preserve the previous customer and fence phone moves', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const before = inbound.indexOf('    previous_system_contact = None');
+  const resolution = inbound.indexOf('    contact = (previous_system_contact or');
+  assert.ok(before !== -1 && resolution > before,
+    'previous BSUID lookup must happen before a new contact can be auto-created');
+  assert.ok(inbound.includes("'unresolved-previous-bsuid'"), 'missing former identity must be reviewed');
+  assert.ok(inbound.includes("'system-bsuid-already-owned'"), 'changed BSUID must not steal another identity');
+  assert.ok(inbound.includes("'system_phone_change_requires_review'"), 'new phone must not silently redirect routing');
+  assert.ok(!inbound.includes("set_parts.append('phone = :p')"), 'system messages cannot overwrite a claimed phone');
+});
