@@ -45,7 +45,7 @@ test('customer card and drawer show canonical profile, verification and address'
 test('new contact editor follows the F001 profile, address, review steps', () => {
   for (const marker of [
     "'Profile', 'Address', 'Review'", 'Full name', 'WhatsApp phone number',
-    'WhatsApp username', 'Organization', 'Job title',
+    'Customer profile username', 'Organization', 'Job title',
     'ADDRESS_FIELDS.map', 'COUNTRY_OPTIONS.map', 'addressComplete(address)',
     'addressPayload(address)', 'formatAddress(address)',
     'Review before saving', 'Create contact',
@@ -105,4 +105,24 @@ test('staff-created contact persists the declared profile username separately fr
     'Meta/provider username stays separate');
   assert.ok(contactsHandler.includes("Staff creation NEVER manufactures consent"),
     'creation keeps consent-evidence rules');
+});
+
+
+test('BSUID-only WhatsApp customers remain editable but are not bulk-archived by missing phone', () => {
+  assert.ok(editor.includes("(!editing || Boolean(fullPhone))"), 'only newly created contacts require a phone');
+  assert.ok(editor.includes('required={!editing}'), 'editing a phone-hidden customer must not trigger HTML required');
+  assert.ok(editor.includes('...(!editing ? { phone: fullPhone } : {})'), 'staff editing never supplies a phone');
+  assert.ok(editor.includes('Meta BSUID (read-only)'), 'Meta identity is visible, never staff-editable');
+  assert.ok(directory.includes('contact.bsuid && !contact.phone'), 'phone-hidden contact is distinguished');
+  assert.ok(directory.includes('&& !(contact.bsuid && !contact.phone)'), 'bulk archive must exclude BSUID-only customers');
+});
+
+test('customer directory searches and displays Meta identities separately from WECARE profile username', () => {
+  for (const marker of [
+    'contact.bsuid, contact.parentBsuid', 'contact.contactBookName',
+    'Meta WhatsApp username', 'Business-scoped user ID (BSUID)', 'Parent BSUID',
+    'WECARE profile username', 'WhatsApp BSUID linked', 'Phone not shared',
+  ]) assert.ok(directory.includes(marker), marker);
+  assert.ok(!/payload\\.bsuid\\s*=|payload\\.parentBsuid\\s*=|payload\\.username\\s*=/.test(editor),
+    'the staff editor cannot overwrite Meta-owned identifiers');
 });
