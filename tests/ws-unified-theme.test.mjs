@@ -476,7 +476,7 @@ test('sidebar collapses to an icon rail, expands, and persists across /ws naviga
             shell.includes('--ws-sidebar-mini-w:80px'),
     'expanded and collapsed sidebar widths must both be intentional');
   assert.ok(shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-nav-label") &&
-            shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-nav-link"),
+            shell.includes(".ws-shell.ws-notion[data-ws-collapsed='true'] .ws-nav-link"),
     'collapsed rail hides labels, but keeps every navigation link visible');
   assert.ok(shell.includes('grid-template-columns:var(--ws-sidebar-w) minmax(0,1fr)'),
     'main content should claim reclaimed space, not sit under a hidden sidebar');
