@@ -181,3 +181,38 @@ test('duplicate live phone owners are never resolved by arbitrary oldest-row fal
   assert.ok(inbound.includes("raise contact_store.IdentityConflict('phone'"));
   assert.ok(!inbound.includes("contact = sorted(items, key=lambda x: x.get('createdAt', 0))[0]"));
 });
+
+test('phone-hidden customer is not incorrectly counted or labeled as unverified', () => {
+  assert.ok(directory.includes('contact.phone && <span className={contact.phoneVerifiedAt'),
+    'verification badge is rendered only when a phone exists');
+  assert.ok(directory.includes('Boolean(item.phone) && !item.phoneVerifiedAt'),
+    'unverified filter count must exclude phone-hidden customers');
+  assert.ok(directory.includes("(!contact.phone || contact.phoneVerifiedAt)"),
+    'unverified filter must exclude missing numbers');
+  assert.ok(directory.includes("Boolean(latest.phone) && !latest.phoneVerifiedAt"),
+    'bulk archive must recheck only real unverified phones');
+});
+
+test('Meta contact-book names are not mapped into an organization', () => {
+  const contacts = readSource('src/api/domains/contacts.ts');
+  assert.ok(contacts.includes("companyName: item.companyName || ''"));
+  assert.ok(!contacts.includes('item.companyName || item.contactBookName'),
+    'provider identity must stay separate from company name');
+});
+
+test('inbound resolves BSUID before deterministic phone and survives registry outages', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const start = inbound.indexOf('def _get_or_create_contact(');
+  const end = inbound.indexOf('def _update_contact_bsuid_fields(', start);
+  assert.ok(start >= 0 && end > start);
+  const method = inbound.slice(start, end);
+  const bsuidLookup = method.indexOf('contact_store.find_by_bsuid(contacts_table, bsuid)');
+  const phoneLookup = method.indexOf("r = contacts_table.get_item(Key={'id': det_id}");
+  assert.ok(bsuidLookup >= 0 && phoneLookup > bsuidLookup,
+    'phone disclosure must not reassign a BSUID-only customer to another phone owner');
+  const updateMethod = inbound.slice(end, inbound.indexOf('def _process_user_id_update(', end));
+  assert.ok(updateMethod.includes('except Exception as phone_link_error:'),
+    'operational registry errors should not lose inbound messages');
+  assert.ok(updateMethod.includes("'event': 'inbound_phone_link_unavailable'"),
+    'registry outage must be observable without exposing customer PII');
+});
