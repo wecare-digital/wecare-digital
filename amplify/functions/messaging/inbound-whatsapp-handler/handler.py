@@ -42,6 +42,7 @@ from lambda_utils import wa_status  # monotonic status ordering (no backward tra
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key, identity_claims
 from lambda_utils import contact_store  # one contact row per person, whichever channel minted it
+from lambda_utils import direct_send  # trusted Meta sender-phone-ID -> messaging-account mapping
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
@@ -3937,27 +3938,183 @@ def _deterministic_contact_id(phone: str) -> str:
     return f'wa{digits}' if digits else ''
 
 
-def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', username: str = '', contact_book_name: str = '', parent_bsuid: str = '') -> Dict[str, Any]:
+
+# Two verified Meta business portfolios. A BSUID is only an identity WITHIN its
+# portfolio: the same customer phone can legitimately carry two different BSUIDs.
+# Never use the old unscoped bsuid-index as a global person identifier.
+_WABA_PORTFOLIOS = {
+    '2094615664435155': '382642103987922',  # WECARE.DIGITAL
+    '2513394156072604': '125951953587391',  # Manish Agarwal
+}
+
+
+def _message_account_id(metadata: Dict, meta_waba_ids: list, *, needs_bsuid: bool) -> str:
+    """Use the known sender number and the webhook account together, never a default."""
+    phone_id = str((metadata or {}).get('phone_number_id') or '').strip()
+    mapped = direct_send.waba_for_meta_phone(phone_id)
+    declared = {str(v) for v in (meta_waba_ids or []) if v}
+    if mapped and mapped in _WABA_PORTFOLIOS and (not declared or mapped in declared):
+        return mapped
+    if not mapped and len(declared) == 1:
+        only = next(iter(declared))
+        if only in _WABA_PORTFOLIOS:
+            return only
+    if needs_bsuid:
+        raise contact_store.IdentityConflict('unknown-business-identity-scope', ())
+    return ''
+
+
+def _scoped_bsuid_key(waba_id: str, bsuid: str) -> str:
+    portfolio_id = _WABA_PORTFOLIOS.get(str(waba_id or ''))
+    value = str(bsuid or '').strip()
+    if not portfolio_id or not value or len(value) > 128:
+        raise contact_store.IdentityConflict('invalid-business-identity', ())
+    return f'WHATSAPP_BSUID#{portfolio_id}#{value}'
+
+
+def _find_scoped_bsuid(contacts_table, bsuid: str, waba_id: str,
+                       *, sender_phone: str = '') -> Optional[Dict]:
+    """Read exact (business portfolio,BSUID) owner. Legacy match needs phone evidence."""
+    if not bsuid:
+        return None
+    scoped_key = _scoped_bsuid_key(waba_id, bsuid)
+    item = dynamodb.Table(identity_claims.TABLE_NAME).get_item(
+        Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    owner_id = str(item.get('contactId') or '')
+    if owner_id:
+        owner = contact_store.lookup(contacts_table, contact_id=owner_id)
+        if owner is None:
+            raise contact_store.IdentityConflict('orphan-business-identity-claim', (owner_id,))
+        return owner
+
+    # A legacy unscoped identity is not proof of portfolio membership. Only a
+    # matching verified sender phone can reconnect it; otherwise quarantine for
+    # explicit reconciliation rather than minting a duplicate or guessing WABA.
+    legacy = contact_store.find_by_bsuid(contacts_table, bsuid)
+    if legacy:
+        legacy_phone = contact_store.canonical_phone(legacy.get('phone'))
+        new_phone = contact_store.canonical_phone(sender_phone)
+        if legacy_phone and new_phone and legacy_phone == new_phone:
+            return legacy
+        raise contact_store.IdentityConflict('unscoped-bsuid-reconciliation', ())
+    return None
+
+
+def _attach_scoped_bsuid(contacts_table, contact: Dict, *, waba_id: str,
+                         bsuid: str, username: str = '', parent_bsuid: str = '',
+                         contact_book_name: str = '',
+                         previous_bsuid: str = '') -> None:
+    """Idempotently claim one Meta identity and record it under its business.
+
+    Deliberately refuses cross-contact claims and unexplained changes. Separate
+    DynamoDB writes may leave a claim awaiting profile projection; the next
+    webhook can repair it without granting access to a different contact.
+    """
+    if not bsuid:
+        return
+    scoped_key = _scoped_bsuid_key(waba_id, bsuid)
+    portfolio_id = _WABA_PORTFOLIOS[waba_id]
+    contact_id = contact_key.resolve(contact)
+    if not contact_id:
+        raise contact_store.IdentityConflict('missing-canonical-contact', ())
+    current_profiles = contact.get('whatsappIdentities') or {}
+    if not isinstance(current_profiles, dict):
+        raise contact_store.IdentityConflict('invalid-portfolio-identity-map', ())
+    prior_profile = current_profiles.get(portfolio_id) or {}
+    if not isinstance(prior_profile, dict):
+        raise contact_store.IdentityConflict('invalid-portfolio-identity-profile', ())
+    old_bsuid = str(prior_profile.get('bsuid') or '')
+    if old_bsuid and old_bsuid != bsuid:
+        if not previous_bsuid or old_bsuid != previous_bsuid:
+            raise contact_store.IdentityConflict('business-identity-change-needs-review', ())
+    elif previous_bsuid and old_bsuid and old_bsuid != previous_bsuid:
+        raise contact_store.IdentityConflict('business-identity-transition-race', ())
+
+    table = dynamodb.Table(identity_claims.TABLE_NAME)
+    claim = table.get_item(Key={'claimKey': scoped_key}, ConsistentRead=True).get('Item') or {}
+    claimant = str(claim.get('contactId') or '')
+    if claimant and claimant != contact_id:
+        raise contact_store.IdentityConflict('business-identity-already-claimed', ())
+    now = int(time.time())
+    if not claimant:
+        try:
+            table.update_item(
+                Key={'claimKey': scoped_key},
+                UpdateExpression=('SET contactId=:cid, identityType=:kind, updatedAt=:now, '
+                                  'claimedAt=if_not_exists(claimedAt,:now)'),
+                ConditionExpression='attribute_not_exists(claimKey) OR contactId=:cid',
+                ExpressionAttributeValues={
+                    ':cid': contact_id, ':kind': 'WHATSAPP_BSUID', ':now': now,
+                },
+            )
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                raise contact_store.IdentityConflict('business-identity-race', ()) from exc
+            raise
+
+    profile = dict(prior_profile)
+    profile['bsuid'] = bsuid
+    for field, value in (('username', username), ('parentBsuid', parent_bsuid),
+                         ('contactBookName', contact_book_name)):
+        if value:
+            profile[field] = str(value)
+    if profile == prior_profile:
+        return
+    # Nested DynamoDB map attributes require the parent to exist before a
+    # separately conditional leaf write. Neither step replaces another business.
+    contacts_table.update_item(
+        Key={'id': contact_id},
+        UpdateExpression='SET #profiles = if_not_exists(#profiles, :empty)',
+        ExpressionAttributeNames={'#profiles': 'whatsappIdentities'},
+        ExpressionAttributeValues={':empty': {}},
+        ConditionExpression='attribute_exists(id)',
+    )
+    names = {'#profiles': 'whatsappIdentities', '#business': portfolio_id,
+             '#bsuid': 'bsuid'}
+    values = {':entry': profile, ':bsuid': bsuid, ':now': Decimal(str(now))}
+    if previous_bsuid:
+        condition = '#profiles.#business.#bsuid = :previous'
+        values[':previous'] = previous_bsuid
+    else:
+        condition = ('attribute_not_exists(#profiles.#business) '
+                     'OR #profiles.#business.#bsuid = :bsuid')
+    try:
+        contacts_table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #profiles.#business = :entry, updatedAt = :now',
+            ConditionExpression=condition,
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            raise contact_store.IdentityConflict('business-identity-write-conflict', ()) from exc
+        raise
+    contact['whatsappIdentities'] = {**current_profiles, portfolio_id: profile}
+
+
+def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', username: str = '', contact_book_name: str = '', parent_bsuid: str = '', waba_id: str = '') -> Dict[str, Any]:
     """Get existing contact or create new one. Supports BSUID and parent BSUID lookup and storage.
     Uses a deterministic phone-derived id + strongly-consistent get_item so repeated
     inbound/outbound events never create duplicate (churned) contacts."""
     contacts_table = dynamodb.Table(CONTACTS_TABLE)
 
-    # 0) Resolve the BSUID before phone: a disclosed phone can already belong
-    # to another contact, and must not steal a phone-hidden customer's identity.
-    # Use the canonical resolver: a BSUID may match historical merge aliases,
-    # but two LIVE owners must never be arbitrarily reduced to the oldest row.
+    # Resolve only the exact portfolio's BSUID claim before any phone lookup.
     if bsuid:
-        try:
-            matched_bsuid = contact_store.find_by_bsuid(contacts_table, bsuid)
-        except contact_store.IdentityConflict:
-            logger.warning(json.dumps({'event': 'bsuid_identity_conflict', 'hasBsuid': True}))
-            raise
-        if matched_bsuid:
-            _update_contact_bsuid_fields(contacts_table, matched_bsuid, sender_name,
-                                         username, phone, bsuid, contact_book_name,
-                                         parent_bsuid)
-            return matched_bsuid
+        if not waba_id:
+            if not phone:
+                raise contact_store.IdentityConflict('unscoped-phone-hidden-contact', ())
+            # A signed phone can still resolve canonically; do not attach an
+            # unscoped Meta user ID to a cross-business customer.
+            bsuid = ''
+        else:
+            matched_bsuid = _find_scoped_bsuid(
+                contacts_table, bsuid, waba_id, sender_phone=phone)
+            if matched_bsuid:
+                _update_contact_bsuid_fields(
+                    contacts_table, matched_bsuid, sender_name, username, phone,
+                    bsuid, contact_book_name, parent_bsuid, waba_id=waba_id)
+                return matched_bsuid
 
     # 1) Strongly-consistent lookup by deterministic phone id (no GSI lag / no churn)
     det_id = _deterministic_contact_id(phone)
