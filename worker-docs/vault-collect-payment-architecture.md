@@ -106,10 +106,26 @@ historical partially published invoices or erase numbering evidence.
 
 ## Retry and evidence rules
 
+**Staff Vault send policy (owner decision, 4 Nov 2026; PRs #2345/#2346 and this change).** Staff may
+send or resend a Vault payment card for any active UNPAID file at any time: there is no per-file,
+per-customer or time-based send limit, and the customer-wide `NATIVESERVICEACTIVE#` lock does not
+apply to staff Vault sends (it still applies to customer-started catalogue and Drop Docs
+purchases). The card carries the outbound sender's 24-hour Meta `order.expiration`. Every staff
+screen (`/workspace/vault`, `/ws` Vault panel, Vault workbench) uses the one shared delivery-address
+review (`src/lib/vault-delivery-review.ts`) and sends `deliveryAddressConfirmation`. A scheduled
+Vault payment is a staff reminder only: at its due time it records `STAFF_REVIEW_DUE` and sends
+nothing; scheduled Access links still send.
+
+**Two paid cards for one file (owner decision: option b).** Each resend is a separately payable
+card. If the customer pays two cards for the same file, the second capture adds one paid 24-hour
+window to the SAME `VAULT_ENTITLEMENT` (`paidWindowCount` + 1); no second entitlement is created and
+a replayed capture adds nothing (`tests/python/test_vault_two_paid_cards.py`). Tell the customer to
+pay only the newest card. `DUPLICATE_PAID_INTENT` in logs marks this case for staff awareness.
+
 | Observation | Meaning and permitted next step |
 | --- | --- |
 | Explicit pre-send validation refusal | Correct the customer/address/quote/config issue and review again. Preserve the audit. |
-| Vault `PAYMENT_REQUEST_REFUSED`, `VAULT_QUOTE_CHANGED`, `VAULT_DELIVERY_CONFIRMATION_REQUIRED` | The existing UI whitelist permits a manual reviewed retry only for an active UNPAID file without a local unresolved send. |
+| Vault `PAYMENT_REQUEST_REFUSED`, `VAULT_QUOTE_CHANGED`, `VAULT_DELIVERY_CONFIRMATION_REQUIRED` | Correct the cause and send again after review; any active UNPAID file may be sent (no send limit). |
 | `PAYMENT_REQUEST_NOT_SENT` | Backend has explicit unsent evidence. The current UI does not automatically clear historical/local guards; inspect Log and the original attempt. Do not broaden retry rules by guessing from an error. |
 | Sender 5xx, unreadable response, Lambda crash/FunctionError, transport timeout, `MESSAGE_SEND_IN_FLIGHT` | Unconfirmed: Meta may have accepted. Keep the original attempt/reference and purchase/send claim. Reconcile that identity; do not cancel and raise a fresh collection solely because of uncertainty. |
 | Collect `202`, `state: UNCONFIRMED`, `sendStatus: PENDING` | Acknowledges an unresolved operation. It is not confirmed delivery or payment. |
@@ -118,9 +134,13 @@ historical partially published invoices or erase numbering evidence.
 | Verified `PAYMENT_PAID`, linked paid invoice/order and exact-file entitlement | Payment/access evidence. Do not sell the paid Vault file again. |
 | `OPEN`, download count > 0 | Paid access has been used. The first customer download opened the window. |
 
-The frontend's local `requested` marker is intentionally retained on uncertainty.
-Do not delete it, delete a server lock or upload a duplicate file to bypass an
-unresolved send. A receipt resend has its own request identity/CAS rules and must
+The Vault Create screen's local in-flight marker (`{"at": <ms>}`) means "this browser started a
+request and has no server answer yet". It is cleared by any real server answer, and on reopening a
+file the screen reconciles it with the server's recorded answer (`lastPaymentRequestedAt` /
+`lastPaymentRequestOutcome`) and the WhatsApp `nativePay` delivery evidence before keeping it. It is
+retained only for `NO_RESPONSE`. The screen names the exact blocking reason (paid/open, ready,
+expired, unverified, inactive, or pending in this browser) instead of one grouped warning. Do not
+delete the marker or upload a duplicate file to bypass a pending send; check Log first. A receipt resend has its own request identity/CAS rules and must
 not recreate the payment attempt.
 
 The current Vault Create notice tracks only an accepted request's exact file. It

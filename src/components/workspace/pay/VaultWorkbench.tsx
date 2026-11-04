@@ -1,4 +1,5 @@
 import {canRequestVaultPayment} from '../../../lib/vault-payment';
+import {vaultDeliveryReview,vaultDeliveryReviewPrompt} from '../../../lib/vault-delivery-review';
 /**
  * Fresh Vault workbench for Pay & Flow.
  *
@@ -185,7 +186,21 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
     const canAccess = file.accessState === 'READY' || file.accessState === 'OPEN';
     if ((action === 'payment' && !canPay) || (action === 'access' && !canAccess)) return;
     let reviewedTotal: number | undefined;
+    let deliveryConfirmation: api.VaultDeliveryAddressConfirmation | undefined;
+    let addressText = '';
     if (action === 'payment') {
+      // Vault is physical goods: the same address review as /workspace/vault. The workbench only
+      // knows the owner when a customer is selected; otherwise refuse locally (never send
+      // without a confirmation the backend would refuse anyway).
+      const review = vaultDeliveryReview(customer || null);
+      if (!review.ok) { setActionOutcome(review.message + ' Nothing was sent.'); return; }
+      try {
+        const owned = await api.listSecureFiles(customer!.phone);
+        if (!owned.ok || !owned.data.files.some(row => row.fileId === file.fileId)) {
+          setActionOutcome('This file does not belong to the selected customer. Select its owner before reviewing the delivery address. Nothing was sent.'); return;
+        }
+      } catch { setActionOutcome('The file owner could not be verified. Nothing was sent.'); return; }
+      deliveryConfirmation = review.confirmation; addressText = review.addressText;
       inFlight.current = true; setActionFile(file.fileId); setActionOutcome('Checking the current Vault total…');
       try {
         const quote = (await fetchServicePrices()).vault;
@@ -196,13 +211,13 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
       } catch { setActionOutcome('Vault quote could not be loaded. Nothing was sent.'); return; }
       finally {inFlight.current = false; setActionFile('');}
     }
-    const approved = await confirm({
-      title: action === 'payment' ? 'Request native Review & Pay?' : 'Resend Access Vault link?',
-      message: action === 'payment'
-        ? `Customer: ${file.ownerName || file.displayName || 'Selected owner'}. Total ₹${rupeesFromPaise(reviewedTotal!)} including GST, Express and fees. Send one request for this exact file? If the quote changes, the backend will refuse it.`
-        : 'The backend must re-check a verified paid entitlement. This sends only the approved Access Vault URL template; it cannot charge the customer.',
-      confirmText: action === 'payment' ? 'Send payment request once' : 'Send approved access link',
-    });
+    const approved = await confirm(action === 'payment'
+      ? vaultDeliveryReviewPrompt({ownerName: customer?.name || file.ownerName || 'Selected owner',
+          ownerPhone: customer?.phone || file.ownerPhoneMasked || '', fileName: file.originalFilename || file.displayName || 'Vault file',
+          totalText: '\u20b9' + rupeesFromPaise(reviewedTotal!), addressText})
+      : {title: 'Resend Access Vault link?',
+         message: 'The backend must re-check a verified paid entitlement. This sends only the approved Access Vault URL template; it cannot charge the customer.',
+         confirmText: 'Send approved access link'});
     if (!approved || inFlight.current) return;
     inFlight.current = true;
     setActionFile(file.fileId);
@@ -218,7 +233,7 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
         sessionStorage.setItem(accessKey, requestId);
       }
       const response = action === 'payment'
-        ? await api.requestSecureFilePayment(file.fileId, undefined, reviewedTotal)
+        ? await api.requestSecureFilePayment(file.fileId, undefined, reviewedTotal, deliveryConfirmation)
         : await api.sendSecureFileAccess(file.fileId, requestId!, file.accessResendRequestId || '');
       if (action === 'access' && response.ok && response.status === 200) {
         sessionStorage.removeItem(accessKey);
