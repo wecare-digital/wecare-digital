@@ -526,9 +526,9 @@ test('text-only borderless sidebar search filters the six routes while typing', 
             section.includes('role="searchbox"') &&
             section.includes('inputMode="search"'),
     'search must be a real typable text field, not an icon-only button');
-  assert.ok(section.includes('aria-hidden={ collapsed }') &&
+  assert.ok(section.includes("aria-hidden={ collapsed ? 'true' : 'false' }") &&
             section.includes('disabled={ collapsed }'),
-    'collapsed sidebar must hide the input from assistive tech and keyboard focus');
+    'collapsed sidebar must explicitly emit true/false ARIA strings and disable keyboard focus');
   assert.ok(section.includes('placeholder="Type to search sections..."') &&
             section.includes('aria-label="Search workspace sections"'),
     'accessible placeholder clarifies this filters workspace sections');
@@ -584,10 +584,13 @@ test('sidebar search has no border on rest, hover, or focus, with accessible foc
 });
 
 test('sidebar and mobile bar use subtle /auth-lime edges without losing white surfaces', () => {
-  assert.ok(theme.includes('border-inline-end:2px solid var(--public-brand-lime,#d1f470)'),
+  assert.ok(shell.includes('border-inline-end:2px solid var(--public-brand-lime,#d1f470)'),
     'desktop right edge of the white sidebar must be a restrained 2px lime divider');
-  assert.ok(theme.includes('border-top:2px solid var(--public-brand-lime,#d1f470)'),
+  assert.ok(shell.includes('border-top:2px solid var(--public-brand-lime,#d1f470)'),
     'mobile bottom navigation uses the corresponding 2px lime separator');
+  assert.ok(!theme.includes('border-inline-end:2px solid var(--public-brand-lime') &&
+            !theme.includes('border-top:2px solid var(--public-brand-lime'),
+    'global theme must not compete with scoped layout styles for lime edge ownership');
   assert.ok(theme.includes('--ws-sidebar:#ffffff;') &&
             /\.ws-shell\.ws-notion \.ws-sidebar\s*\{[^}]*background:#ffffff/.test(theme),
     'the lime line must not become a filled or gray sidebar');
@@ -621,7 +624,7 @@ test('sidebar remains usable across Safari, iOS and Android app WebViews and des
     'desktop sidebar and compact mobile bottom-bar breakpoints stay separate');
   assert.ok(shell.includes('.ws-sidebar-search{visibility:hidden}') &&
             shell.includes('disabled={ collapsed }') &&
-            shell.includes('aria-hidden={ collapsed }'),
+            shell.includes("aria-hidden={ collapsed ? 'true' : 'false' }"),
     'mobile or collapsed sidebar search is not accidentally focusable in a WebView');
   assert.ok(shell.includes('@media(prefers-reduced-motion:reduce)'),
     'animated sidebar layout must honor reduced motion on operating systems');

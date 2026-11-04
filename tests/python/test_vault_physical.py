@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_requests
 from lambda_utils.ecommerce import order_delivery, payment_address
+from lambda_utils.identity import customer as customer_identity
 
 ROOT = Path(__file__).resolve().parents[2]
 HANDLER = ROOT / 'amplify/functions/ecommerce/checkout/handler.py'
@@ -19,17 +20,13 @@ def function(name, **extra):
                 if isinstance(n, ast.FunctionDef) and n.name == name)
     env = {'Dict':dict,'Any':object,'service_requests':service_requests,
            'CONTRIBUTION_PRODUCT_IDS':set(),'order_delivery':order_delivery,
-           # `_payment_shipping_info` now calls the shared Meta-shipping guard before returning.
-           'payment_address':payment_address, **extra}
+           'customer_identity':customer_identity,'payment_address':payment_address, **extra}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
     return env[name]
 
 
 def test_vault_physical_template_keeps_exact_quote_and_saved_address():
-    # profile carries `phone`: Meta requires phone_number on the shipping address, and a real
-    # Vault payment always has the owner's verified phone (see the Meta-shipping guard).
-    shipping = function('_payment_shipping_info')(
-        {'name':'Example Customer','phone':'+918100640044'}, ADDRESS)
+    shipping = function('_payment_shipping_info')({'name':'Example Customer','phone':'+919000000001'}, ADDRESS)
     quote = SimpleNamespace(collection_before_convenience_paise=8254,
                             convenience_fee_paise=206, convenience_gst_paise=37,
                             total_payable_paise=8497)
@@ -73,16 +70,16 @@ def test_payment_shipping_info_includes_meta_required_phone_number():
     Pin that a complete profile produces every Meta-required field.
     """
     shipping = function('_payment_shipping_info')(
-        {'name':'Example Customer','phone':'+918100640044'}, ADDRESS)
+        {'name':'Example Customer','phone':'+919000000001'}, ADDRESS)
     addr = shipping['addresses'][0]
     for field in payment_address.META_SHIPPING_ADDRESS_REQUIRED_FIELDS:
         assert str(addr.get(field) or '').strip(), f'missing Meta-required field {field}'
-    assert addr['phone_number'] == '918100640044'  # bare E.164 digits, no '+'
+    assert addr['phone_number'] == '919000000001'  # bare E.164 digits, no '+'
 
 
 def test_meta_shipping_guard_refuses_a_missing_required_field():
     """The shared guard must fail fast on a dropped field instead of shipping a bad payload."""
-    good = {'country':'IN','addresses':[{'name':'A','phone_number':'918100640044',
+    good = {'country':'IN','addresses':[{'name':'A','phone_number':'919000000001',
             'address':'Street','city':'Kolkata','state':'West Bengal','in_pin_code':'700012'}]}
     payment_address.assert_meta_shipping_info(good)  # complete: no raise
     for drop in payment_address.META_SHIPPING_ADDRESS_REQUIRED_FIELDS:

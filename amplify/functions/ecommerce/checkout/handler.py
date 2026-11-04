@@ -1081,6 +1081,8 @@ def _catalog_contents(snapshot) -> list:
 
 def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> Dict[str, Any]:
     """Canonical Meta delivery data from an already validated saved address."""
+    # Contacts are already bound to the verified customer; preserve their country code.
+    phone = customer_identity.normalize_phone_preserving_country(profile.get("phone"))
     full_address = ", ".join(
         part for part in (
             str(address.get("addressLine1") or "").strip(),
@@ -1092,13 +1094,7 @@ def _payment_shipping_info(profile: Dict[str, Any], address: Dict[str, Any]) -> 
             # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
             # name Meta shows before payment is the name the order page shows after it.
             "name": order_delivery.recipient_name(profile)[:60],
-            # Meta's order_details.shipping_info.addresses[0] schema REQUIRES `phone_number`.
-            # Omitting it made Meta reject the whole ORDER_DETAILS send with 400 metaCode 100
-            # ("violated 'required' for ...addresses.0"), which surfaced as PAYMENT_REQUEST_NOT_SENT
-            # on the native (AWS_NATIVE) Vault rail. The invoice-engine shipping builder already
-            # sends it as the bare E.164 digits; mirror that here. Phone comes off the
-            # session-owned contact profile row, never a request body.
-            "phone_number": str(profile.get("phone") or "").replace("+", "").replace(" ", "")[:20],
+            "phone_number": phone.removeprefix("+"),
             "address": full_address[:300],
             "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
             "city": str(address.get("city") or "")[:60],
@@ -3126,6 +3122,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # intent flow above; this arm is for ordinary product/contribution baskets.
     cart_profile: Optional[Dict[str, Any]] = None
     cart_address: Optional[Dict[str, Any]] = None
+    shipping_info: Optional[Dict[str, Any]] = None
     requires_delivery = bool((catalog_session is not None and catalog_session.get('kind') == service_requests.VAULT)
                              or (catalog_session is None and _basket_requires_delivery(line_items)))
     if catalog_session is None or requires_delivery:
@@ -3165,7 +3162,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             try:
                 payment_address.assert_payable(
                     cart_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
-            except payment_address.UnpayableAddress:
+                # Validate and freeze the actual Meta delivery packet before any payment
+                # reservation. A saved postal address alone cannot supply its required phone.
+                shipping_info = _payment_shipping_info(cart_profile, cart_address)
+            except (payment_address.UnpayableAddress, customer_identity.InvalidPhoneNumber):
                 return cors_response(409, {
                     "error": "DELIVERY_DETAILS_REQUIRED",
                     "message": "This delivery address cannot be used for WhatsApp payment. "
@@ -3555,7 +3555,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             catalog_session, snapshot.quote, reference_id,
             EXPECTED_CONFIGURATION_NAME, int(time.time()),
             invoice_lines=attempt.get("invoiceLines"),
-            shipping_info=_payment_shipping_info(cart_profile or {}, cart_address or {}) if requires_delivery else None,
+            shipping_info=shipping_info,
         )
     else:
         contact_id = contact_key.resolve(cart_profile or {})
@@ -3793,27 +3793,42 @@ def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
         raw = response["Payload"].read()
         result = json.loads(raw.decode("utf-8")) if raw else {}
         if response.get("FunctionError"):
-            # The sender crashed or timed out. A timeout can land after Meta accepted the send.
-            if "timed out" in str((result or {}).get("errorMessage") or "").lower():
-                logger.error(json.dumps({"event": "checkout_send_unconfirmed",
-                                         "error": "SenderTimedOut"}))
+            # Any crash can occur after Meta acceptance, including post-send processing.
+            return SEND_UNCONFIRMED
+        code = int(result.get("statusCode") or 0)
+        body = result.get("body") or "{}"
+        body = json.loads(body) if isinstance(body, str) else body
+        if isinstance(body, dict) and body.get("error") == "MESSAGE_SEND_IN_FLIGHT":
+            # A previous keyed send may already have reached Meta. Retain the purchase lock.
+            return SEND_UNCONFIRMED
+        if 200 <= code < 300:
+            # HTTP acceptance alone includes dry runs and unknown delivery outcomes. The
+            # sender and its cached-send response both expose Meta's accepted message id.
+            if not isinstance(body, dict):
                 return SEND_UNCONFIRMED
-            return SEND_FAILED
-        # TIGHTENED to add the lower bound; this is a change, not a preservation. The old form
-        # was `< 300` with no floor, so a `statusCode` of 0, 100 or 204 read as success. Nothing
-        # emits a sub-200 status today, so the 502 `SEND_FAILED` contract is unchanged in practice.
-        return SEND_SENT if 200 <= int(result.get("statusCode") or 500) < 300 else SEND_FAILED
+            wamid = str(body.get("whatsappMessageId") or body.get("messageId") or "")
+            accepted = (wamid.startswith("wamid.") and not body.get("error")
+                        and not body.get("sendUnconfirmed") and body.get("mode") != "DRY_RUN"
+                        and body.get("status") != "DELIVERY_OUTCOME_UNKNOWN")
+            return SEND_SENT if accepted else SEND_UNCONFIRMED
+        # Only a definite client refusal permits releasing the payment lock. Sender 5xx
+        # can follow provider timeouts or an exception after an accepted Meta send.
+        return SEND_FAILED if 400 <= code < 500 else SEND_UNCONFIRMED
     except (ReadTimeoutError, ConnectionClosedError) as error:
         # The request reached the sender and no answer came back: it may have been delivered.
         logger.error(json.dumps({"event": "checkout_send_unconfirmed",
                                  "error": type(error).__name__}))
         return SEND_UNCONFIRMED
     except Exception as error:  # noqa: BLE001
-        # The invoke was refused before the sender ran (e.g. `AccessDeniedException`, throttling).
-        # The attempt is stored and no order exists, so nothing was sent.
-        logger.error(json.dumps({"event": "checkout_send_failed",
+        # Recognize only explicit pre-invocation AWS rejections as definitely unsent.
+        # Decode failures and other exceptions may occur after the sender completed.
+        code = getattr(error, "response", {}).get("Error", {}).get("Code", "")
+        refused = code in {"AccessDeniedException", "ResourceNotFoundException",
+                           "TooManyRequestsException", "InvalidParameterValueException"}
+        logger.error(json.dumps({"event": "checkout_send_failed" if refused else "checkout_send_unconfirmed",
                                  "error": type(error).__name__}))
-        return SEND_FAILED
+        return SEND_FAILED if refused else SEND_UNCONFIRMED
+
 
 
 def _mark_request_sent(attempt_id: str) -> None:

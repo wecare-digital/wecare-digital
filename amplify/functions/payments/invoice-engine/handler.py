@@ -1177,6 +1177,11 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             if existing:
                 inv = existing[0]
                 existing_id = inv.get('invoiceId', '')
+                if inv.get('status') == 'claiming' or not inv.get('invoiceNumber'):
+                    return _resp(503, {
+                        'error': 'Invoice creation is unfinished. Retain the original reference and reconcile it before another action.',
+                        'errorCode': 'INVOICE_CREATE_IN_PROGRESS', 'retryable': True,
+                    })
 
                 # If caller says this is now paid, update the existing invoice status.
                 #
@@ -1282,7 +1287,13 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                     'event': 'invoice_claim_error', 'error': str(claim_err),
                     'referenceId': reference_id, 'requestId': request_id}))
                 return _resp(500, {'error': 'Could not claim invoice'})
-            existing_inv = table.get_item(Key={'invoiceId': invoice_id}).get('Item', {})
+            existing_inv = table.get_item(
+                Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item', {})
+            if existing_inv.get('status') == 'claiming' or not existing_inv.get('invoiceNumber'):
+                return _resp(503, {
+                    'error': 'Invoice creation is unfinished. Retain the original reference and reconcile it before another action.',
+                    'errorCode': 'INVOICE_CREATE_IN_PROGRESS', 'retryable': True,
+                })
             logger.info(json.dumps({
                 'event': 'invoice_dedup_hit_atomic',
                 'existingInvoiceId': invoice_id,
@@ -1825,11 +1836,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # able to tell apart.
     invoice.update(redemption_attributes)
 
-    # Unconditional: the claim above already established exclusivity for the derived id,
-    # and this write is what replaces the minimal claim row with the real invoice. A
-    # condition here would refuse our own claim. For the no-reference path the id is a
-    # fresh uuid4, so there is nothing to collide with either.
-    table.put_item(Item={k: v for k, v in invoice.items() if v is not None and v != ''})
+    # Unconditional: the claim above owns this id. Prepare all item rows before
+    # replacing that claim with the final invoice below.
 
     # Store invoice items (including greenPacking + notificationFee as line items)
     items_table = dynamodb.Table(INVOICE_ITEMS_TABLE)
@@ -1852,6 +1860,12 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         all_items.append({'name': 'Green Packing', 'amount': green_packing, 'quantity': 1, 'isCharge': True})
     if notification_fee > 0 and not has_notif:
         all_items.append({'name': 'Notification Fee', 'amount': notification_fee, 'quantity': 1, 'isCharge': True})
+    # Keep the statutory number, identity and financial evidence durable even if
+    # an item write is interrupted. This staged row is never a completed document:
+    # deduplication and payment sending refuse claiming rows until reconciled.
+    staged_invoice = {k: v for k, v in invoice.items() if v is not None and v != ''}
+    table.put_item(Item={**staged_invoice, 'status': 'claiming',
+                         'expectedItemCount': len(all_items)})
     if all_items:
         for idx, item in enumerate(all_items):
             item_amount = Decimal(str(item.get('amount', 0)))
@@ -1871,6 +1885,10 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'productId': item.get('productId', ''),
                 'isCharge': item.get('isCharge', False),
             })
+
+    # Publish only after every item is durable. An interrupted item write retains
+    # the staged invoice for manual reconciliation under its original number.
+    table.put_item(Item={k: v for k, v in invoice.items() if v is not None and v != ''})
 
     logger.info(json.dumps({'event': 'invoice_created', 'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id, 'total': float(total), 'requestId': request_id}))
 
@@ -3414,6 +3432,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
 
+    if invoice.get('status') == 'claiming' or not invoice.get('invoiceNumber'):
+        return _resp(503, {
+            'error': 'Invoice creation is unfinished. Reconcile the original reference before sending payment.',
+            'errorCode': 'INVOICE_CREATE_IN_PROGRESS', 'retryable': True,
+        })
+
     # Don't send payment link for already paid/cancelled invoices.
     #
     # Two fields, checked both ways on purpose. `status` is the document lifecycle; the ranked
@@ -3904,8 +3928,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             InvocationType='RequestResponse',
             Payload=json.dumps(wa_payload),
         )
+        if wa_response.get('FunctionError'):
+            raise RuntimeError('Outbound Lambda failed after a possible provider call')
         wa_result = json.loads(wa_response['Payload'].read())
-        wa_status_code = int(wa_result.get('statusCode', wa_response.get('StatusCode', 0)) or 0)
+        if not isinstance(wa_result, dict) or 'statusCode' not in wa_result:
+            raise ValueError('Outbound application status is missing')
+        wa_status_code = int(wa_result['statusCode'])
     except Exception as e:
         # ══ AMBIGUOUS ════════════════════════════════════════════════════════════════════════
         #
@@ -3946,6 +3974,18 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 downstream = str(parsed.get('error') or parsed.get('message') or '')[:200]
         except (ValueError, TypeError):
             downstream = ''
+        # A keyed provider call can have reached Meta even when the sender returns
+        # 5xx. Its in-flight conflict likewise proves no rejection. Keep the original
+        # claim/reference held until evidence reconciles the outcome.
+        if wa_status_code >= 500 or downstream == 'MESSAGE_SEND_IN_FLIGHT':
+            _log_delivery('unknown', error=f'outbound {wa_status_code}: {downstream}')
+            return _resp(202, {
+                'error': 'The payment request outcome is unconfirmed. Reconcile the original request before another action.',
+                'invoiceId': invoice_id, 'referenceId': reference_id,
+                'paymentAttemptId': payment_attempt_id,
+                'state': 'UNCONFIRMED', 'status': 'send_in_progress',
+                'sendStatus': 'PENDING', 'retryable': False,
+            })
         logger.error(json.dumps({
             'event': 'payment_link_outbound_error', 'invoiceId': invoice_id,
             'statusCode': wa_status_code, 'code': downstream,
@@ -3959,7 +3999,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         # take payments, a configuration it cannot prove, an envelope it refuses. Re-invoking the
         # identical request would be refused identically, so the claim is left HELD under
         # REJECTED and staff are told to raise the collection again. Any other rejection (a
-        # malformed request, a downstream 5xx) is one a staff member can fix and retry, so the
+        # malformed request) is one a staff member can fix and retry, so the
         # claim is RELEASED and the same reservation re-sends.
         terminal = wa_status_code == 409
         if terminal:
@@ -4001,17 +4041,10 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
 
     # ══ ACCEPTANCE ═══════════════════════════════════════════════════════════════════════════
     #
-    # The attempt advances only after a send Meta accepted. Monotonic by condition, and a failure
-    # to advance is logged rather than raised: the customer already has the message.
-    wa_payment_request.record_sent(attempts_table,
-                                   payment_attempt_id=payment_attempt_id,
-                                   now=int(time.time()))
-
-    # The REAL message id, read out of the outbound response the way `send_invoice_whatsapp`
-    # already reads it. Every row on this path used to carry `''`, which left the delivery log
-    # unjoinable to the message it claims to record. Parsed defensively: an id we cannot read is
-    # an empty id, never a failed send - the send was accepted either way.
+    # The attempt advances only after provider acceptance evidence. Lambda transport
+    # success and an application 200/202 alone cannot prove Meta took this message.
     wa_message_id = ''
+    accepted_body = {}
     try:
         accepted_body = wa_result.get('body')
         if isinstance(accepted_body, str):
@@ -4021,6 +4054,24 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                                 or accepted_body.get('messageId') or '')
     except (ValueError, TypeError):
         wa_message_id = ''
+
+    if (not wa_message_id.startswith('wamid.') or len(wa_message_id) <= len('wamid.')
+            or not isinstance(accepted_body, dict) or accepted_body.get('error')
+            or accepted_body.get('sendUnconfirmed')
+            or accepted_body.get('mode') == 'DRY_RUN'
+            or accepted_body.get('status') == 'DELIVERY_OUTCOME_UNKNOWN'):
+        _log_delivery('unknown', error='Outbound response lacks provider acceptance evidence')
+        return _resp(202, {
+            'error': 'The payment request outcome is unconfirmed. Reconcile the original request before another action.',
+            'invoiceId': invoice_id, 'referenceId': reference_id,
+            'paymentAttemptId': payment_attempt_id,
+            'state': 'UNCONFIRMED', 'status': 'send_in_progress',
+            'sendStatus': 'PENDING', 'retryable': False,
+        })
+
+    wa_payment_request.record_sent(attempts_table,
+                                   payment_attempt_id=payment_attempt_id,
+                                   now=int(time.time()))
 
     # Update invoice status to pending_payment
     try:

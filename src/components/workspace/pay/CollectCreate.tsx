@@ -1,7 +1,7 @@
 import React from 'react';
 import * as api from '../../../api/client';
 import * as collectApi from '../../../api/collect';
-import {blankCollectLine,collectDraft,collectInputKey,collectDraftIssues,latestInvoiceImage,type CollectLine} from '../../../lib/collect';
+import {blankCollectLine,collectDraft,collectInputKey,collectDraftIssues,latestInvoiceImage,verifiedCollectRecovery,type CollectLine} from '../../../lib/collect';
 import {useConfirm} from '../../../contexts/ConfirmContext';
 import PaymentCustomerPicker from './PaymentCustomerPicker';
 
@@ -38,7 +38,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
     onPreview({state:'blocked',label:`${invoice.invoiceNumber} · invoice saved`,details:['The saved image is not available yet. Open Log for receipt image recovery; do not create another invoice.']});
   };
   const refreshSaved=async()=>{if(!created||flight.current)return;flight.current=true;setBusy(true);onPreview({state:'loading',label:'Loading saved invoice image…'});try{const invoice=await collectApi.collectInvoice(created.invoiceId);setCreated(invoice);await showSaved(invoice);}catch{onPreview({state:'error',label:'Saved invoice image could not be loaded',details:['The invoice remains saved. Retry viewing it or open Log.']});}finally{flight.current=false;setBusy(false);}};
-  const recover=async()=>{if(!pending||flight.current)return;flight.current=true;setBusy(true);try{const rows=await collectApi.collectInvoices(pending);if(rows.length===1){const invoice=await collectApi.collectInvoice(rows[0].invoiceId);setCreated(invoice);await showSaved(invoice);setPending('');sessionStorage.removeItem(PENDING_KEY);setNotice('The existing invoice was found. No new invoice or payment request was sent. Open Log to review it.');onCreated();}else setNotice('Creation is not yet reconciled. Keep this request pending and check Log; do not raise a second invoice.');}catch{setNotice('Recovery read failed. The pending request is retained.');}finally{flight.current=false;setBusy(false);}};
+  const recover=async()=>{if(!pending||flight.current)return;flight.current=true;setBusy(true);try{const rows=await collectApi.collectInvoices(pending);if(rows.length===1){const invoice=await collectApi.collectInvoice(rows[0].invoiceId);if(!verifiedCollectRecovery(invoice,{referenceId:pending,invoiceId:rows[0].invoiceId})){setNotice('The saved invoice is incomplete or does not match this recovery reference. Keep this request pending and reconcile it in Log.');return;}setCreated(invoice);await showSaved(invoice);setPending('');sessionStorage.removeItem(PENDING_KEY);setNotice('The existing invoice was found. No new invoice or payment request was sent. Open Log to review it.');onCreated();}else setNotice('Creation is not yet reconciled. Keep this request pending and check Log; do not raise a second invoice.');}catch{setNotice('Recovery read failed. The pending request is retained.');}finally{flight.current=false;setBusy(false);}};
   const create=async()=>{if(!ready||!request||!quote||pending||flight.current)return;flight.current=true;setBusy(true);const reviewedKey=key,reviewed=quote.value;
     try{const yes=await confirm({title:'Confirm custom invoice and payment template',message:`${customer?.name} · ${customer?.phone}. Amount ₹${reviewed.total}. Create this invoice and send one approved Review and Pay template?`,confirmText:'Create & send template'});if(!yes)return;
       if(currentKey.current!==reviewedKey){setNotice('The draft changed. Review the new server preview.');return;}
@@ -48,7 +48,7 @@ export default function CollectCreate({onPreview,onCreated}:{onPreview:(p:Collec
       setPending(reference);
       const result=await collectApi.createCollectOnce({...request,referenceId:reference,confirmedPreviewFingerprint:reviewed.previewFingerprint});
       if(!result.ok){if(result.status!==null&&result.status<500){sessionStorage.removeItem(PENDING_KEY);setPending('');setQuote(null);onPreview(null);}setNotice(result.message||'Creation is unconfirmed. Check the saved invoice before another action.');return;}
-      const inv=await collectApi.collectInvoice(result.invoice.invoiceId);setCreated(inv);await showSaved(inv);sessionStorage.removeItem(PENDING_KEY);setPending('');onCreated();
+      const inv=await collectApi.collectInvoice(result.invoice.invoiceId);if(!verifiedCollectRecovery(inv,{referenceId:reference,invoiceId:result.invoice.invoiceId})){setNotice('The saved invoice is incomplete or does not match this request. The recovery reference is retained; no payment request was sent.');return;}setCreated(inv);await showSaved(inv);sessionStorage.removeItem(PENDING_KEY);setPending('');onCreated();
       if(Number(inv.total).toFixed(2)!==Number(reviewed.total).toFixed(2)){setNotice('Invoice saved, but its total differs from the reviewed preview. Payment was not sent. Review Log.');return;}
       const sent=await api.sendPaymentLinkResult(inv.invoiceId);
       setNotice(sent.ok&&sent.data.status==='payment_link_sent'?'Invoice saved. The approved payment request was accepted; delivery and payment remain separate.':'Invoice saved. Payment-request delivery is not confirmed. Check Log before another send.');
