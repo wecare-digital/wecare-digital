@@ -10,37 +10,22 @@ async function policy() {
   return result.exports;
 }
 
-test('a definitive refusal permits another reviewed request for the same unpaid file', async () => {
+test('staff can send or resend any active unpaid file with no limit', async () => {
   const {canRequestVaultPayment} = await policy();
-  assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-03T22:58:28Z',lastPaymentRequestOutcome:'PAYMENT_REQUEST_REFUSED'}),true);
-});
-
-test('sent, uncertain, missing outcomes and locally unresolved sends remain blocked', async () => {
-  const {canRequestVaultPayment,isVaultPaymentRefused} = await policy();
-  for (const outcome of ['PAYMENT_REQUEST_SENT','PAYMENT_REQUEST_UNCONFIRMED','NO_RESPONSE','',undefined,'UNKNOWN']) {
-    assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-03T22:58:28Z',lastPaymentRequestOutcome:outcome}),false);
-    assert.equal(isVaultPaymentRefused(outcome),false);
+  for (const outcome of ['PAYMENT_REQUEST_SENT','PAYMENT_REQUEST_UNCONFIRMED','PAYMENT_REQUEST_REFUSED','NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS','',undefined]) {
+    assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-04T05:51:20Z',lastPaymentRequestOutcome:outcome}),true);
   }
-  assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-03T22:58:28Z',lastPaymentRequestOutcome:'PAYMENT_REQUEST_REFUSED'},true),false);
-});
-
-test('paid, expired, unavailable and revoked files cannot be retried after a refusal', async () => {
-  const {canRequestVaultPayment} = await policy();
-  for (const accessState of ['OPEN','READY','EXPIRED','PAID_UNVERIFIED',undefined]) {
-    assert.equal(canRequestVaultPayment({status:'active',accessState,lastPaymentRequestOutcome:'PAYMENT_REQUEST_REFUSED'}),false);
-  }
-  assert.equal(canRequestVaultPayment({status:'revoked',accessState:'UNPAID',lastPaymentRequestOutcome:'PAYMENT_REQUEST_REFUSED'}),false);
-  assert.equal(canRequestVaultPayment(null),false);
   assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID'}),true);
 });
-test('only a lapsed legacy 15-minute card re-opens a request; a live card stays blocked', async () => {
+test('only a request still awaiting its answer waits', async () => {
   const {canRequestVaultPayment} = await policy();
-  const sent = {status:'active',accessState:'UNPAID',lastPaymentRequestedAt:'2026-11-04T04:47:25Z',lastPaymentRequestOutcome:'PAYMENT_REQUEST_SENT'};
-  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:true}),true);
-  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:false}),false);
-  assert.equal(canRequestVaultPayment(sent),false);
-  assert.equal(canRequestVaultPayment({...sent,paymentRequestLapsed:true},true),false);
-  for (const accessState of ['OPEN','READY','EXPIRED','PAID_UNVERIFIED']) {
-    assert.equal(canRequestVaultPayment({...sent,accessState,paymentRequestLapsed:true}),false);
+  assert.equal(canRequestVaultPayment({status:'active',accessState:'UNPAID'},true),false);
+});
+test('paid, open, expired, unverified and revoked files are never sold again', async () => {
+  const {canRequestVaultPayment} = await policy();
+  for (const accessState of ['OPEN','READY','EXPIRED','PAID_UNVERIFIED',undefined]) {
+    assert.equal(canRequestVaultPayment({status:'active',accessState}),false);
   }
+  assert.equal(canRequestVaultPayment({status:'revoked',accessState:'UNPAID'}),false);
+  assert.equal(canRequestVaultPayment(null),false);
 });

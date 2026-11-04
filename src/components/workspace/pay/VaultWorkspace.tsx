@@ -6,7 +6,7 @@ import {collectInvoice} from '../../../api/collect';
 import {latestInvoiceImage} from '../../../lib/collect';
 import {addressComplete,addressFieldsFromContact,formatAddress} from '../../../lib/address-format';
 import {fetchServicePrices,rupeesFromPaise,type ServicePriceBreakdown} from '../../../lib/servicePricing';
-import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
+import {canRequestVaultPayment} from '../../../lib/vault-payment';
 import {vaultPaymentStatusMessage} from '../../../lib/vault-payment-status';
 import {useConfirm} from '../../../contexts/ConfirmContext';
 import PaymentCustomerPicker from './PaymentCustomerPicker';
@@ -19,7 +19,8 @@ type Preview={src:string;label:string;type:string;onReady?:()=>void};
 const money=(value:number)=>'₹'+rupeesFromPaise(value);
 const when=(value?:string|number|null)=>{if(!value)return 'Not recorded';const n=Number(value);const d=Number.isFinite(n)&&n>0?new Date(n>1e12?n:n*1000):new Date(value);return Number.isNaN(d.getTime())?'Not recorded':d.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'});};
 const UPLOAD_KEY='wecare.vault.upload.v1';
-const sendKey=(id:string)=>'wecare.vault.payment.v1.'+id;
+// No send limit (owner decision): the flag only covers a request still awaiting its answer.
+const sendKey=(id:string)=>'wecare.vault.payment.v2.'+id;
 const accessKey=(id:string)=>'wecare.vault.access.v1.'+id;
 // Staff-facing label for a file's access state. EXPIRED means the file WAS paid and its 24-hour
 // window has closed — show "PAID · Expired" so a paid file is never read as unpaid.
@@ -101,7 +102,7 @@ function VaultCreate({visible,revision,onPreview,onChanged}:{visible:boolean;rev
    const current=await api.listSecureFiles(owner.phone);const verified=current.ok?current.data.files.find(row=>row.fileId===file.fileId):null;if(!canRequestVaultPayment(verified))throw Error('This exact file is no longer eligible for a new payment request. Refresh and inspect Log.');
    if(!await confirm({title:'Confirm delivery address and send Review & Pay?',message:`Verify with the customer that this is the CURRENT and CORRECT physical-goods delivery address: ${addressText}. Owner: ${owner.name} · ${owner.phone}. File: ${file.originalFilename}. Total ${money(fresh.totalPayablePaise)}, including ₹25 Express. Confirm only if this saved address is correct; the server checks it again before payment.`,confirmText:'Address verified · Send payment request'}))return;
    sessionStorage.setItem(sendKey(file.fileId),'requested');setPayBlocked(true);const r=await api.requestSecureFilePayment(file.fileId,undefined,fresh.totalPayablePaise,{confirmed:true,checkoutAddressUpdatedAt:addressRevision});
-   if(isVaultPaymentRefused(r.outcome)){sessionStorage.removeItem(sendKey(file.fileId));setPayBlocked(false);if(r.outcome==='VAULT_QUOTE_CHANGED')setQuote(null);}
+   sessionStorage.removeItem(sendKey(file.fileId));setPayBlocked(false);if(r.outcome==='VAULT_QUOTE_CHANGED')setQuote(null);
    if(r.ok&&r.outcome==='PAYMENT_REQUEST_SENT'){setPaymentFileId(file.fileId);setNotice('');}else{setPaymentFileId(null);setNotice(`${r.ok?'Server response':'Not confirmed'}: ${r.outcome} · ${r.message} Check Log before another action.`);}setRefresh(n=>n+1);onChanged();
  }catch(e){setNotice(e instanceof Error?e.message:'Payment outcome is uncertain. Inspect Log before another action.');}finally{flight.current=false;setBusy(false);}};
  const previewIssuedInvoice=async()=>{

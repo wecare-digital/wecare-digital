@@ -43,11 +43,6 @@ _NOT_PREPARED = frozenset({
 _NOT_SENT = _NOT_PREPARED | {'PAYMENT_REQUEST_NOT_SENT', 'PAYMENT_REQUEST_REFUSED',
                              'PAYMENT_INITIATION_DISABLED'}
 
-#: Per-file "a staff Vault payment card was just sent" slot on CommerceKeys (`liveUntil` epoch).
-STAFF_VAULT_LIVE_PREFIX = 'VAULTPAYLIVE#'
-#: Outcomes after which the card is, or may be, payable on the customer's phone.
-_CARD_MAY_BE_LIVE = frozenset({'PAYMENT_REQUEST_SENT', 'PAYMENT_REQUEST_UNCONFIRMED'})
-
 #: One Vault offer per row, keyed by its token. The token is what the quick reply returns; the
 #: row binds it to one file, its owner and the number it was sent to.
 OFFER_PREFIX = 'VAULTOFFER#'
@@ -673,46 +668,14 @@ def _send_native_payment(event, client, db, keys, contacts, now):
         'deliveryAddressDigest': confirmed_address['addressDigest'],
         **({'expectedTotalPaise': expected_total} if expected_total is not None else {}),
     }
-    # ONE PAYABLE CARD PER FILE. A staff Vault card never expires (like Collect; see
-    # `catalog.payment_expires`), so a quick resend would put a second payable card for the same
-    # file on the customer's phone. Claim the file's slot first and refuse a resend for 24 hours
-    # after a sent (or possibly sent) card. A paid file is refused earlier by `_file_state`.
-    live_until = now + catalog.STAFF_VAULT_RESEND_GUARD_SECONDS
-    slot = {'orderId': STAFF_VAULT_LIVE_PREFIX + file_id}
-    try:
-        keys.update_item(Key=slot,
-            UpdateExpression='SET liveUntil=:until, sessionKey=:session, customerId=:owner',
-            ConditionExpression='attribute_not_exists(liveUntil) OR liveUntil < :now',
-            ExpressionAttributeValues={':until': live_until, ':session': row['orderId'],
-                                       ':owner': owner, ':now': now})
-    except Exception as error:
-        if not _conditional_failed(error):
-            return {'outcome': 'VAULT_PAYMENT_NOT_PREPARED'}
-        current = keys.get_item(Key=slot, ConsistentRead=True).get('Item') or {}
-        return {'outcome': 'VAULT_PAYMENT_REQUEST_LIVE',
-                'liveUntil': int(current.get('liveUntil') or 0)}
-
-    def _release_slot():
-        try:
-            keys.update_item(Key=slot, UpdateExpression='SET liveUntil=:zero',
-                ConditionExpression='sessionKey=:session',
-                ExpressionAttributeValues={':zero': 0, ':session': row['orderId']})
-        except Exception:  # noqa: BLE001 - a stuck slot only over-blocks; it never double-sends
-            pass
-
     try:
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
     except Exception:
-        _release_slot()
         return {'outcome': 'VAULT_PAYMENT_NOT_PREPARED'}
 
     # The standard service checkout owns pricing, the payment attempt, ORDER_DETAILS, capture,
     # order/invoice projection and paid Vault entitlement. No separate template is sent here.
-    result = _prepare_payment(client, db, keys, row, identity, state, notify=False)
-    if result.get('outcome') not in _CARD_MAY_BE_LIVE:
-        # Definitively not on the customer's phone: free the file for an immediate retry.
-        _release_slot()
-    return result
+    return _prepare_payment(client, db, keys, row, identity, state, notify=False)
 
 
 def _prepare_drop_docs_payment(client, db, keys, row, identity, *, notify):
@@ -794,22 +757,27 @@ def _prepare_payment(client, db, keys, row, identity, state, *, notify):
     # an expired session, the ORDER_DETAILS request itself expires after 15 minutes, and
     # `finalizeNativeCatalogService` closes by `sessionKey`, so a late payment cannot release a
     # newer session's lock.
-    try:
-        keys.update_item(Key={'orderId': 'NATIVESERVICEACTIVE#' + identity.customer_id},
-            UpdateExpression='SET #s=:active, sessionKey=:session, activeUntil=:until',
-            ConditionExpression=('attribute_not_exists(orderId) OR #s=:closed '
-                                 'OR attribute_not_exists(activeUntil) OR activeUntil < :now'),
-            ExpressionAttributeNames={'#s': 'status'},
-            ExpressionAttributeValues={':active': 'ACTIVE', ':closed': 'CLOSED',
-                                       ':session': row['orderId'],
-                                       ':until': int(row.get('expiresAt') or now + 3600),
-                                       ':now': now})
-    except Exception as error:
-        if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-            if notify:
-                _send(client, row, content='You already have a service payment in progress. Please complete that payment before starting another purchase.')
-            return {'outcome': 'NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS'}
-        raise
+    # Owner decision (2026-11-04): staff-sent Vault payments have NO send limit. Staff may send
+    # any number of Vault files to one customer, and resend a file, at any time. The
+    # customer-wide purchase lock therefore applies only to customer-started purchases.
+    # A paid file is still never sold again (`bind_file` / state checks below).
+    if row.get('origin') != 'STAFF_VAULT':  # == catalog.STAFF_VAULT_ORIGIN
+        try:
+            keys.update_item(Key={'orderId': 'NATIVESERVICEACTIVE#' + identity.customer_id},
+                UpdateExpression='SET #s=:active, sessionKey=:session, activeUntil=:until',
+                ConditionExpression=('attribute_not_exists(orderId) OR #s=:closed '
+                                     'OR attribute_not_exists(activeUntil) OR activeUntil < :now'),
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={':active': 'ACTIVE', ':closed': 'CLOSED',
+                                           ':session': row['orderId'],
+                                           ':until': int(row.get('expiresAt') or now + 3600),
+                                           ':now': now})
+        except Exception as error:
+            if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                if notify:
+                    _send(client, row, content='You already have a service payment in progress. Please complete that payment before starting another purchase.')
+                return {'outcome': 'NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS'}
+            raise
     # Freeze the intent and selected file before native checkout can reserve any money reference.
     try:
         keys.update_item(Key={'orderId': row['orderId']},

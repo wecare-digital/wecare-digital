@@ -1,4 +1,4 @@
-import {canRequestVaultPayment,isVaultPaymentRefused} from '../../../lib/vault-payment';
+import {canRequestVaultPayment} from '../../../lib/vault-payment';
 /**
  * Fresh Vault workbench for Pay & Flow.
  *
@@ -223,7 +223,8 @@ const VaultWorkbench: React.FC<Props> = ({ workspaceView = 'display', initialHis
       if (action === 'access' && response.ok && response.status === 200) {
         sessionStorage.removeItem(accessKey);
       }
-      if (action === 'payment' && isVaultPaymentRefused(response.outcome)) {
+      if (action === 'payment') {
+        // No send limit (owner decision): once the server has answered, the file can be sent again.
         setAttempted(current => {const next=new Set(current);next.delete(file.fileId);return next;});
       }
       setActionOutcome((response.ok ? 'Server accepted: ' : 'Not confirmed: ')

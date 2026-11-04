@@ -811,8 +811,6 @@ export interface SecureFile {
   lastPaymentRequestedBy?: string;
   lastPaymentRequestedAt?: string;
   lastPaymentRequestOutcome?: string;
-  /** Server-computed: the earlier card was a legacy 15-minute card WhatsApp already cancelled. */
-  paymentRequestLapsed?: boolean;
   accessResendRequestId?: string;
   accessResendState?: string;
   lastAccessSentBy?: string;

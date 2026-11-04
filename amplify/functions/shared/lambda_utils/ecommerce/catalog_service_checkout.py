@@ -69,9 +69,6 @@ SESSION_PREFIX = 'CATALOGSERVICE#'
 CHECKOUT_PAYMENT_WINDOW_SECONDS = 900
 #: The session `origin` written only by the staff exact-file Vault send.
 STAFF_VAULT_ORIGIN = 'STAFF_VAULT'
-#: How long a staff Vault send blocks a SECOND card for the same file (see catalog_services).
-#: Not a payment deadline: the staff card itself never expires.
-STAFF_VAULT_RESEND_GUARD_SECONDS = 24 * 3600
 
 
 def payment_expires(row: dict) -> bool:
