@@ -721,3 +721,114 @@
   .primaryButton, .secondaryButton, .iconButton, .dangerButton { transition: none; }
   .primaryButton:hover { transform: none; }
 }
+
+
+/* Bulk quality review: a deliberately selected, confirm-gated action.
+ * Layout is appended after existing page breakpoints so iOS / Android rules stay explicit.
+ */
+.statAction {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+  padding: 18px 21px;
+  border: 1px solid var(--ws-hairline, #e8e8e5);
+  border-radius: 13px;
+  background: var(--ws-paper, #fff);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(35,35,35,.035));
+  color: var(--ws-ink, #262626);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.statAction > span {
+  color: var(--ws-muted, #787774);
+  font-size: 12px;
+  font-weight: 600;
+}
+.statAction > strong {
+  font-size: clamp(24px, 2.5vw, 33px);
+  font-weight: 730;
+  letter-spacing: -.8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.statAction > small { color: var(--ws-muted, #787774); font-size: 11px; line-height: 1.5; }
+.statAction:hover:not(:disabled) {
+  background: var(--ws-selected, #eaf0e7);
+  border-color: var(--ws-green, #24533b);
+}
+.statAction:focus-visible { outline: 2px solid var(--ws-green, #24533b); outline-offset: 2px; }
+.statAction:disabled { opacity: .55; cursor: not-allowed; }
+
+.cleanupInfo {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 19px;
+  border-top: 1px solid var(--ws-hairline, #e8e8e5);
+  background: var(--ws-soft-panel, #fbfcf9);
+}
+.cleanupInfo > div { min-width: 0; flex: 1 1 auto; }
+.cleanupInfo strong { display: block; color: var(--ws-ink, #262626); font-size: 13px; line-height: 1.5; }
+.cleanupInfo p { margin: 5px 0 0; color: var(--ws-muted, #787774); font-size: 12px; line-height: 1.65; }
+.cleanupInfo small { display: block; margin-top: 7px; color: #9d5e1b; font-size: 11px; line-height: 1.5; }
+.cleanupInfo > button { flex: 0 0 auto; }
+
+.personIdentity .protectedMarker {
+  display: block;
+  color: #9d5e1b;
+  font-weight: 700;
+  overflow: visible;
+  white-space: normal;
+}
+.bulkOutcome {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--ws-soft-panel, #fbfcf9);
+  border: 1px solid var(--ws-hairline, #e8e8e5);
+  color: var(--ws-ink, #262626);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.bulkTray { gap: 15px; }
+.bulkSummary { display: flex; flex-direction: column; gap: 4px; }
+.bulkSummary strong { font-size: 13px; color: var(--ws-ink, #262626); }
+.bulkSummary small { font-size: 11px; line-height: 1.45; color: var(--ws-muted, #787774); }
+.bulkActions { display: flex; align-items: center; gap: 9px; }
+.tab:disabled, .activeTab:disabled { cursor: not-allowed; opacity: .6; }
+
+@media (max-width: 860px) {
+  .statAction { padding: 14px; }
+}
+@media (max-width: 600px) {
+  .statAction { padding: 12px 10px; gap: 5px; border-radius: 10px; }
+  .statAction > span { font-size: 10px; min-height: 24px; }
+  .statAction > strong { font-size: 24px; }
+  .statAction > small { font-size: 9px; min-height: 28px; }
+  .tabs { flex-wrap: wrap; justify-content: flex-start; gap: 3px; }
+  .tab, .activeTab { padding: 9px 10px; font-size: 11px; min-width: 0; min-height: 40px; }
+  .cleanupInfo { flex-direction: column; align-items: stretch; gap: 10px; padding: 13px 12px; }
+  .cleanupInfo > button { width: 100%; min-height: 44px; }
+  .selectionBar { padding: 9px 12px; gap: 10px; line-height: 1.5; }
+  .selectionBar span { text-align: right; }
+  .bulkTray {
+    bottom: calc(75px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 2px;
+    margin-right: 2px;
+    padding: 11px 12px;
+  }
+  .bulkActions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .bulkActions > button { width: 100%; white-space: normal; min-height: 48px; line-height: 1.25; }
+}
+@media (max-width: 360px) {
+  .statAction > strong { font-size: 21px; }
+  .tab, .activeTab { font-size: 10px; padding-left: 8px; padding-right: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .statAction { transition: none; }
+}

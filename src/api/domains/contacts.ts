@@ -414,6 +414,7 @@ function normalizeContact ( item: any ): Contact {
     emailVerifiedAt: normalizeTimestamp( item.emailVerifiedAt ),
     blogSubscribedAt: normalizeTimestamp( item.blogSubscribedAt ),
     bsuid: item.bsuid || '',
+    parentBsuid: item.parentBsuid || '',
     username: item.username || '',
     profileUsername: item.profileUsername || '',
     contactBookName: item.contactBookName || '',

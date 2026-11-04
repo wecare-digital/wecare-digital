@@ -1400,15 +1400,19 @@ def _archive_contact(body: Dict[str, Any], auth: Dict[str, Any],
                 '#updated': 'updatedAt',
                 '#deleted': 'deletedAt',
                 '#merge_state': 'mergeState',
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
             },
             ExpressionAttributeValues={
                 ':now': now, ':actor': actor, ':reason': reason,
-                ':merged': MERGE_COMPLETE, ':null_type': 'NULL',
+                ':merged': MERGE_COMPLETE, ':null_type': 'NULL', ':unlocked': False,
             },
             ConditionExpression=(
                 'attribute_exists(id) '
                 'AND (attribute_not_exists(#deleted) OR attribute_type(#deleted, :null_type)) '
-                'AND (attribute_not_exists(#merge_state) OR #merge_state <> :merged)'
+                'AND (attribute_not_exists(#merge_state) OR #merge_state <> :merged) '
+                # Atomic check: staff bulk cleanup cannot archive a contact locked since
+                # the initial directory review. This matches the protected soft-delete path.
+                'AND (attribute_not_exists(#locked) OR #locked = :unlocked)'
             ),
             ReturnValues='ALL_NEW',
         )

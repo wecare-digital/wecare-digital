@@ -16,7 +16,8 @@ import CustomerActionsSheet from './CustomerActionsSheet';
 import CustomerEditor from './CustomerEditor';
 import styles from './CustomerList.module.css';
 
-type ViewFilter = 'all' | 'address' | 'incomplete';
+type ViewFilter = 'all' | 'address' | 'incomplete' | 'unnamed' | 'unverified';
+const MAX_BULK = 100; // Bound each deliberately confirmed operation; never fire unbounded writes.
 type SortOrder = 'recent' | 'name';
 
 const SearchGlyph = () => (
@@ -77,8 +78,15 @@ function formatFullDate(value?: string | number): string {
   const date = timestamp(value);
   return date ? new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
+function needsName(contact: Contact): boolean {
+  return !contact.name?.trim();
+}
 function missingDetails(contact: Contact): boolean {
-  return !contact.name?.trim() || !contactDeliveryAddress(contact);
+  return needsName(contact) || !contactDeliveryAddress(contact);
+}
+function isBulkEligible(contact: Contact): boolean {
+  // Identity or retention-lock uncertainty means review, not deletion/archiving.
+  return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt;
 }
 function consentLabel(contact: Contact): string {
   const status = contact.whatsappMarketingConsent;
@@ -181,6 +189,8 @@ const CustomerList: React.FC = () => {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [selecting, setSelecting] = React.useState(false);
   const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [bulkProgress, setBulkProgress] = React.useState<{ done: number; total: number } | null>(null);
+  const [bulkOutcome, setBulkOutcome] = React.useState('');
   const [detailsFor, setDetailsFor] = React.useState<Contact | null>(null);
   const [actionsFor, setActionsFor] = React.useState<Contact | null>(null);
   const [editorFor, setEditorFor] = React.useState<Contact | 'new' | null>(null);
@@ -242,12 +252,16 @@ const CustomerList: React.FC = () => {
   const withAddress = React.useMemo(
     () => contacts.filter(item => Boolean(contactDeliveryAddress(item))).length, [contacts]);
   const incomplete = React.useMemo(() => contacts.filter(missingDetails).length, [contacts]);
+  const unnamed = React.useMemo(() => contacts.filter(needsName).length, [contacts]);
+  const unverified = React.useMemo(() => contacts.filter(item => !item.phoneVerifiedAt).length, [contacts]);
 
   const visible = React.useMemo(() => {
     const term = search.trim().toLowerCase();
     return contacts.filter(contact => {
       if (filter === 'address' && !contactDeliveryAddress(contact)) return false;
       if (filter === 'incomplete' && !missingDetails(contact)) return false;
+      if (filter === 'unnamed' && !needsName(contact)) return false;
+      if (filter === 'unverified' && contact.phoneVerifiedAt) return false;
       if (!term) return true;
       const text = [
         contact.name, contact.phone, contact.email, contact.companyName, contact.designation,
@@ -267,28 +281,46 @@ const CustomerList: React.FC = () => {
   }, []);
 
   const toggleSelected = (id: string) => {
-    if (!id) { toast.warning('This record has no valid identity ID. Refresh before selecting it.'); return; }
+    const record = contacts.find(item => identityId(item) === id);
+    if (!record || !isBulkEligible(record)) {
+      toast.warning('Protected or unidentified contacts cannot be selected for bulk cleanup.');
+      return;
+    }
+    if (!selected.has(id) && selected.size >= MAX_BULK) {
+      toast.warning('Review up to ' + MAX_BULK + ' contacts at once.');
+      return;
+    }
     setSelected(previous => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
+      else if (next.size < MAX_BULK) next.add(id);
       return next;
     });
   };
   // Never retain a hidden bulk selection when staff switch search/filter criteria.
-  React.useEffect(() => { setSelected(new Set()); }, [search, filter]);
+  React.useEffect(() => { setSelected(new Set()); setBulkOutcome(''); }, [search, filter]);
 
-  const selectableVisible = visible.filter(contact => Boolean(identityId(contact)));
-  const allVisibleSelected = selectableVisible.length > 0
-    && selectableVisible.every(contact => selected.has(identityId(contact)));
+  const selectableVisible = visible.filter(isBulkEligible);
+  const protectedVisible = visible.length - selectableVisible.length;
+  const batchVisible = selectableVisible.slice(0, MAX_BULK);
+  const allVisibleSelected = batchVisible.length > 0
+    && batchVisible.every(contact => selected.has(identityId(contact)));
   const selectAllVisible = () => {
-    setSelected(previous => {
-      const next = new Set(previous);
-      selectableVisible.forEach(contact => allVisibleSelected ? next.delete(identityId(contact)) : next.add(identityId(contact)));
-      return next;
-    });
+    // Replace the selection instead of unioning. This cannot exceed MAX_BULK even when
+    // one manually selected row sits outside the first 100 visible candidates.
+    setSelected(allVisibleSelected ? new Set() : new Set(batchVisible.map(identityId)));
   };
   const endSelection = () => { setSelecting(false); setSelected(new Set()); };
+  const reviewUnnamed = () => {
+    setSearch('');
+    setFilter('unnamed');
+    setSelected(new Set());
+    setSelecting(true);
+  };
+  const selectEligible = () => {
+    setSelecting(true);
+    setSelected(new Set(selectableVisible.slice(0, MAX_BULK).map(identityId)));
+  };
 
   // Reuse the proven CSV export used by /workspace/customers, limited to the visible rows.
   const exportVisible = () => {
@@ -297,38 +329,107 @@ const CustomerList: React.FC = () => {
     toast.success('Exported ' + visible.length + ' contact(s).');
   };
 
-  const bulkDelete = async () => {
+  /**
+   * Archive-only bulk review. This is reversible and preserves contacts, consent, messages
+   * and financial history. Individual soft-delete remains in CustomerActionsSheet.
+   * Two server-side reads before writes reduce stale selection risks; the separately
+   * deployed Contacts Lambda enforces an atomic retention lock when released.
+   */
+  const bulkArchive = async () => {
     if (bulkBusy || selected.size === 0) return;
-    const ids = [...selected];
-    const locked = contacts.filter(contact => ids.includes(identityId(contact)) && contact.locked).length;
-    if (locked) {
-      toast.warning(locked + ' selected customer(s) are protected by a retention lock. Review them before deleting.');
-      return;
-    }
-    const approved = await confirm({
-      title: 'Delete ' + ids.length + ' customer' + (ids.length === 1 ? '' : 's') + '?',
-      message: 'This is a soft delete. Phone identities remain reserved, and payment, order and audit history are preserved. The server may refuse protected identities. Continue?',
-      confirmText: 'Delete selected',
-      danger: true,
-    });
-    if (!approved) return;
     setBulkBusy(true);
+    setBulkOutcome('');
+    setBulkProgress(null);
     try {
-      const result = await api.bulkDeleteContacts(ids);
-      if (result.deleted > 0) toast.success(result.deleted + ' customer(s) removed from the active directory.');
-      if (result.failed > 0) toast.warning(result.failed + ' customer(s) were kept because the server refused or failed the deletion.');
-      if (result.deleted === 0 && result.failed === 0) toast.warning('No deletion was confirmed.');
+      const snapshot = await api.listContactsResult();
+      if (!snapshot.ok) {
+        toast.error('Cannot confirm current retention status. Refresh the directory before archiving.');
+        return;
+      }
+      const authoritative = new Map(snapshot.data.map(contact => [identityId(contact), contact]));
+      const targets: Contact[] = [];
+      let excluded = 0;
+      for (const id of selected) {
+        const contact = authoritative.get(id);
+        if (!contact || !isBulkEligible(contact)
+          || (filter === 'unnamed' && !needsName(contact))
+          || (filter === 'unverified' && Boolean(contact.phoneVerifiedAt))) {
+          excluded++;
+        } else if (targets.length < MAX_BULK) {
+          targets.push(contact);
+        }
+      }
+      if (excluded) toast.warning(excluded + ' protected, changed or missing record(s) excluded from cleanup.');
+      if (targets.length === 0) {
+        toast.warning('No eligible records. Locked contacts must be kept and reviewed individually.');
+        return;
+      }
+
+      const approved = await confirm({
+        title: 'Archive ' + targets.length + ' customer' + (targets.length === 1 ? '' : 's') + '?',
+        message: 'These selected contacts will leave the active directory, but their phone identities, WhatsApp messages, orders, payments, consent records and audit history remain intact. Missing names and unverified phones do not prove inactivity. Confirm this reviewed bulk archive?',
+        confirmText: 'Archive selected',
+        danger: false,
+      });
+      if (!approved) return;
+
+      // Review may remain open while another operator names, verifies or locks a contact.
+      // Fail closed on an unreadable final directory; never run an unverified write batch.
+      const finalSnapshot = await api.listContactsResult();
+      if (!finalSnapshot.ok) {
+        toast.error('Cannot recheck locks after confirmation. No archive started.');
+        return;
+      }
+      const finalById = new Map(finalSnapshot.data.map(contact => [identityId(contact), contact]));
+      const finalTargets = targets.filter(contact => {
+        const latest = finalById.get(identityId(contact));
+        return Boolean(latest && isBulkEligible(latest)
+          && (filter !== 'unnamed' || needsName(latest))
+          && (filter !== 'unverified' || !latest.phoneVerifiedAt));
+      });
+      if (finalTargets.length !== targets.length) {
+        toast.warning((targets.length - finalTargets.length) + ' record(s) changed or became protected during review and were skipped.');
+      }
+      if (finalTargets.length === 0) return;
+
+      let archived = 0;
+      let refused = 0;
+      let unconfirmed = 0;
+      setBulkProgress({ done: 0, total: finalTargets.length });
+      for (const contact of finalTargets) {
+        try {
+          const result = await api.archiveContact(
+            identityId(contact), 'Staff-reviewed bulk cleanup via /ws/customers (' + filter + ')',
+          );
+          if (result.ok && result.data?.archivedAt) archived++;
+          else if (!result.ok) refused++;
+          else unconfirmed++;
+        } catch {
+          // Network failure may arrive after the server committed the archive.
+          // Never retry automatically; the next directory refresh reconciles reality.
+          unconfirmed++;
+        }
+        setBulkProgress(previous => previous ? { ...previous, done: previous.done + 1 } : null);
+      }
+      const outcome = archived + ' archived, ' + refused + ' refused, ' + unconfirmed + ' unconfirmed.';
+      setBulkOutcome(outcome);
+      if (archived) toast.success(outcome);
+      else toast.warning(outcome);
+      if (refused || unconfirmed) {
+        toast.warning('Some records were kept or unconfirmed. Review the directory before retrying.');
+      }
       endSelection();
       await load();
     } catch {
-      toast.error('Delete request failed. No deletion was confirmed. Refresh the directory before retrying.');
+      toast.error('Archive status could not be confirmed. Refresh the directory before trying again.');
     } finally {
+      setBulkProgress(null);
       setBulkBusy(false);
     }
   };
 
   const openDetails = (contact: Contact) => {
-    if (selecting) toggleSelected(identityId(contact));
+    if (selecting && isBulkEligible(contact)) toggleSelected(identityId(contact));
     else setDetailsFor(contact);
   };
   const saveContact = (saved: Contact, warning?: string) => {
@@ -348,9 +449,9 @@ const CustomerList: React.FC = () => {
           <p className={styles.description}>One place for customer profiles, WhatsApp identities and delivery details.</p>
         </div>
         <div className={styles.headingButtons}>
-          <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading}
+          <button type="button" className={styles.iconButton} onClick={() => void load()} disabled={loading || bulkBusy}
             aria-label="Refresh customers" title="Refresh customers"><RefreshGlyph /></button>
-          <button type="button" className={styles.primaryButton} onClick={() => { endSelection(); setEditorFor('new'); }}>
+          <button type="button" className={styles.primaryButton} onClick={() => { endSelection(); setEditorFor('new'); }} disabled={bulkBusy}>
             <PlusGlyph /> Create contact
           </button>
         </div>
@@ -360,7 +461,10 @@ const CustomerList: React.FC = () => {
         <div className={styles.stats} aria-label="Customer directory summary">
           <div className={styles.statCard}><span>All contacts</span><strong>{loading ? '—' : total}</strong><small>Active customer records</small></div>
           <div className={styles.statCard}><span>With address</span><strong>{loading ? '—' : withAddress}</strong><small>Delivery details saved</small></div>
-          <div className={styles.statCard}><span>Needs details</span><strong>{loading ? '—' : incomplete}</strong><small>Missing name or address</small></div>
+          <button type="button" className={styles.statAction} onClick={reviewUnnamed}
+            disabled={loading || bulkBusy} aria-label={'Review ' + unnamed + ' unnamed customer records'}>
+            <span>Unnamed customers</span><strong>{loading ? '—' : unnamed}</strong><small>Review and clean up</small>
+          </button>
         </div>
       )}
 
@@ -368,17 +472,20 @@ const CustomerList: React.FC = () => {
         <div className={styles.toolbar}>
           <label className={styles.searchBox}>
             <SearchGlyph />
-            <input ref={searchRef} type="search" value={search} onChange={e => setSearch(e.target.value)}
+            <input ref={searchRef} type="search" value={search} disabled={bulkBusy} onChange={e => setSearch(e.target.value)}
               placeholder="Search customers, numbers, addresses…" aria-label="Search customers" autoComplete="off" />
-            {search && <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear customer search">
+            {search && <button type="button" disabled={bulkBusy}
+              onClick={() => { if (!bulkBusy) { setSearch(''); searchRef.current?.focus(); } }}
+              aria-label="Clear customer search">
               <CloseGlyph />
             </button>}
             <kbd>/</kbd>
           </label>
           <div className={styles.utilityButtons}>
             <button type="button" className={styles.secondaryButton} onClick={exportVisible}
-              disabled={loading || loadError !== '' || visible.length === 0}>Export CSV</button>
-            <button type="button" className={styles.secondaryButton} onClick={() => setManageOpen(true)}>Manage data</button>
+              disabled={loading || bulkBusy || loadError !== '' || visible.length === 0}>Export CSV</button>
+            <button type="button" className={styles.secondaryButton} disabled={bulkBusy}
+              onClick={() => setManageOpen(true)}>Manage data</button>
             <button type="button" className={styles.secondaryButton}
               disabled={loading || total === 0 || bulkBusy}
               onClick={() => selecting ? endSelection() : setSelecting(true)}>
@@ -390,26 +497,52 @@ const CustomerList: React.FC = () => {
         <div className={styles.filterBar}>
           <div className={styles.tabs} role="group" aria-label="Filter customers">
             <button type="button" className={filter === 'all' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All <span>{total}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All <span>{total}</span></button>
+            <button type="button" className={filter === 'unnamed' ? styles.activeTab : styles.tab}
+              disabled={bulkBusy} aria-pressed={filter === 'unnamed'} onClick={() => setFilter('unnamed')}>Unnamed <span>{unnamed}</span></button>
+            <button type="button" className={filter === 'unverified' ? styles.activeTab : styles.tab}
+              disabled={bulkBusy} aria-pressed={filter === 'unverified'} onClick={() => setFilter('unverified')}>Unverified <span>{unverified}</span></button>
             <button type="button" className={filter === 'address' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'address'} onClick={() => setFilter('address')}>With address <span>{withAddress}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'address'} onClick={() => setFilter('address')}>With address <span>{withAddress}</span></button>
             <button type="button" className={filter === 'incomplete' ? styles.activeTab : styles.tab}
-              aria-pressed={filter === 'incomplete'} onClick={() => setFilter('incomplete')}>Needs details <span>{incomplete}</span></button>
+              disabled={bulkBusy} aria-pressed={filter === 'incomplete'} onClick={() => setFilter('incomplete')}>Needs details <span>{incomplete}</span></button>
           </div>
           <label className={styles.sortControl}>
             <span>Sort</span>
-            <select value={sort} onChange={event => setSort(event.target.value as SortOrder)} aria-label="Sort customers">
+            <select value={sort} disabled={bulkBusy} onChange={event => setSort(event.target.value as SortOrder)} aria-label="Sort customers">
               <option value="recent">Recently updated</option>
               <option value="name">Name A–Z</option>
             </select>
           </label>
         </div>
 
+        {(filter === 'unnamed' || filter === 'unverified') && !loading && !loadError && (
+          <div className={styles.cleanupInfo}>
+            <div>
+              <strong>{filter === 'unnamed' ? 'Review customers without a name' : 'Review phone verification'}</strong>
+              <p>
+                {filter === 'unnamed'
+                  ? 'A missing name does not mean a customer is inactive. Check activity before removing a record.'
+                  : 'An unverified phone does not mean an unused customer. Check messages and identity history first.'}
+                {' '}Archive preserves customer identity, orders, payments and audit history.
+              </p>
+              {protectedVisible > 0 && (
+                <small>{protectedVisible} protected or unidentified record(s) cannot be bulk-selected.</small>
+              )}
+            </div>
+            <button type="button" className={styles.secondaryButton}
+              disabled={bulkBusy || selectableVisible.length === 0} onClick={selectEligible}>
+              Select {Math.min(selectableVisible.length, MAX_BULK)} eligible
+            </button>
+          </div>
+        )}
+
         {selecting && visible.length > 0 && (
           <div className={styles.selectionBar}>
-            <label><input type="checkbox" checked={allVisibleSelected} onChange={selectAllVisible} />
-              Select all {visible.length} shown</label>
-            <span>{selected.size} selected</span>
+            <label><input type="checkbox" checked={allVisibleSelected} disabled={bulkBusy || batchVisible.length === 0}
+              onChange={selectAllVisible} />
+              Select all {batchVisible.length} eligible shown{selectableVisible.length > MAX_BULK ? ' (first 100)' : ''}</label>
+            <span>{selected.size} selected · {protectedVisible} protected</span>
           </div>
         )}
 
@@ -442,9 +575,10 @@ const CustomerList: React.FC = () => {
                 {selecting && (
                   <label className={styles.rowCheckbox}>
                     <input type="checkbox" checked={selected.has(identityId(contact))}
-                      disabled={!identityId(contact)}
+                      disabled={bulkBusy || !isBulkEligible(contact)}
                       onChange={() => toggleSelected(identityId(contact))}
-                      aria-label={'Select ' + displayName(contact)} />
+                      aria-label={'Select ' + displayName(contact)}
+                      title={isBulkEligible(contact) ? 'Select for reviewed cleanup' : 'Protected: review individually'} />
                   </label>
                 )}
                 <button type="button" className={styles.rowMain} onClick={() => openDetails(contact)}
@@ -454,6 +588,7 @@ const CustomerList: React.FC = () => {
                     <span className={styles.personIdentity}>
                       <strong>{displayName(contact)}</strong>
                       <small>{customerId(contact)}</small>
+                      {contact.locked && <small className={styles.protectedMarker}>Retention lock · Keep</small>}
                     </span>
                   </span>
                   <span className={styles.contactCell}>
@@ -485,12 +620,21 @@ const CustomerList: React.FC = () => {
         )}
       </div>
 
+      {bulkOutcome && (
+        <p className={styles.bulkOutcome} role="status">{bulkOutcome} Review remaining contacts before retrying any unconfirmed action.</p>
+      )}
       {selecting && selected.size > 0 && (
-        <div className={styles.bulkTray} role="region" aria-label="Selected customer actions">
-          <strong>{selected.size} selected</strong>
-          <button type="button" className={styles.dangerButton} onClick={() => void bulkDelete()} disabled={bulkBusy}>
-            {bulkBusy ? 'Deleting…' : 'Delete selected'}
-          </button>
+        <div className={styles.bulkTray} role="region" aria-label="Selected customer cleanup actions">
+          <div className={styles.bulkSummary}>
+            <strong>{selected.size} selected</strong>
+            <small>{bulkProgress
+              ? 'Archiving ' + bulkProgress.done + ' / ' + bulkProgress.total
+              : 'Archive keeps customer history. Delete individually after review.'}</small>
+          </div>
+          <div className={styles.bulkActions}>
+            <button type="button" className={styles.primaryButton} onClick={() => void bulkArchive()}
+              disabled={bulkBusy}>{bulkBusy ? 'Archiving…' : 'Archive selected'}</button>
+          </div>
         </div>
       )}
 

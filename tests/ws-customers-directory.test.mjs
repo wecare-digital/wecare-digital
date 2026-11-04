@@ -69,15 +69,16 @@ test('customer saves preserve identity, consent and server-side uniqueness', () 
 });
 
 test('destructive actions stay confirm-gated, protected and report server failure', () => {
-  assert.ok(directory.includes('api.bulkDeleteContacts(ids)'));
-  assert.ok(directory.includes('await confirm('));
+  assert.ok(!directory.includes('api.softDeleteContactResult('), 'bulk cleanup is archive-only; individual deletes are separate');
+  assert.ok(directory.includes('api.archiveContact('), 'archive preserves history by default');
+  assert.ok(directory.includes('await confirm('), 'each bulk action needs explicit confirmation');
   assert.ok(directory.includes('contact.locked'));
-  assert.ok(directory.includes('if (!id)'), 'missing identity IDs cannot be selected for deletion');
+  assert.ok(directory.includes('if (!record || !isBulkEligible(record))'), 'missing/locked IDs cannot be selected for bulk cleanup');
   assert.ok(directory.includes('CustomerActionsSheet'));
   assert.ok(directory.includes('CustomerManageData'));
   assert.ok(directory.includes('api.exportContactsToCSV(visible)'), 'safe export uses existing CSV serializer');
   assert.ok(directory.includes('setDetailsFor(current => current'), 'reload updates open customer details');
-  assert.ok(directory.includes('setSelected(new Set()); }, [search, filter]'), 'filter changes clear hidden bulk selections');
+  assert.ok(directory.includes("setSelected(new Set()); setBulkOutcome(''); }, [search, filter]"), 'filter changes clear hidden bulk selections and stale cleanup outcomes');
   const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
   assert.ok(actions.includes('api.softDeleteContactResult'));
   assert.ok(actions.includes('api.archiveContact'));
