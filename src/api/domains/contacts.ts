@@ -26,6 +26,14 @@ export interface ConsentEvent extends ConsentEvidence {
   recordedAt: number;
 }
 
+/** Meta identifiers, never to be edited or used as proof of website phone ownership. */
+export interface PortfolioWhatsAppIdentity {
+  bsuid: string;
+  username?: string;
+  parentBsuid?: string;
+  contactBookName?: string;
+}
+
 export type ContactMutation = Partial<Contact> & {
   /** Required by the server only when consent/allowlist state actually changes. */
   consentEvidence?: ConsentEvidence;
@@ -59,6 +67,8 @@ export interface Contact {
   username?: string;
   // Contact book name — auto-populated by Meta's contact book feature
   contactBookName?: string;
+  /** Provider-owned identities keyed by exact Meta business portfolio ID. */
+  whatsappIdentities?: Record<string, PortfolioWhatsAppIdentity>;
   shippingAddress?: string;
   billingAddress?: string;
   /**
@@ -406,6 +416,25 @@ export async function importConsent (
   } );
 }
 
+/** Only the two enabled business portfolios are projected to the Customers UI. */
+const CUSTOMER_WHATSAPP_PORTFOLIOS = ['382642103987922', '125951953587391'] as const;
+
+function normalizePortfolioIdentities(value: any): Record<string, PortfolioWhatsAppIdentity> {
+  const parsed: Record<string, PortfolioWhatsAppIdentity> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return parsed;
+  for (const portfolio of CUSTOMER_WHATSAPP_PORTFOLIOS) {
+    const entry = value[portfolio];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || typeof entry.bsuid !== 'string' || !entry.bsuid.trim()) continue;
+    parsed[portfolio] = {
+      bsuid: entry.bsuid.trim(),
+      ...(typeof entry.username === 'string' && entry.username ? { username: entry.username } : {}),
+      ...(typeof entry.parentBsuid === 'string' && entry.parentBsuid ? { parentBsuid: entry.parentBsuid } : {}),
+      ...(typeof entry.contactBookName === 'string' && entry.contactBookName ? { contactBookName: entry.contactBookName } : {}),
+    };
+  }
+  return parsed;
+}
+
 function normalizeContact ( item: any ): Contact {
   return {
     id: item.id || item.contactId || '',
@@ -431,6 +460,7 @@ function normalizeContact ( item: any ): Contact {
     username: item.username || '',
     profileUsername: item.profileUsername || '',
     contactBookName: item.contactBookName || '',
+    whatsappIdentities: normalizePortfolioIdentities(item.whatsappIdentities),
     shippingAddress: item.shippingAddress || '',
     billingAddress: item.billingAddress || '',
     /*

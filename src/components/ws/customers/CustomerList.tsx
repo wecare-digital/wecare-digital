@@ -45,6 +45,11 @@ const CloseGlyph = () => (
     strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
 );
 
+const WHATSAPP_BUSINESS_PORTFOLIOS = [
+  { id: '382642103987922', name: 'WECARE.DIGITAL' },
+  { id: '125951953587391', name: 'Manish Agarwal' },
+] as const;
+
 function displayName(contact: Contact): string {
   return contact.name?.trim() || 'Unnamed customer';
 }
@@ -88,8 +93,10 @@ function isBulkEligible(contact: Contact): boolean {
   // Identity or retention-lock uncertainty means review, not deletion/archiving.
   // Phone-hidden WhatsApp users must be reviewed individually, not bulk-archived
   // because a missing phone/verification is not evidence of inactivity.
+  const hasBusinessIdentity = Boolean(contact.bsuid)
+    || Object.values(contact.whatsappIdentities || {}).some(identity => Boolean(identity.bsuid));
   return Boolean(identityId(contact)) && !contact.locked && !contact.archivedAt
-    && !(contact.bsuid && !contact.phone);
+    && !(hasBusinessIdentity && !contact.phone);
 }
 function consentLabel(contact: Contact): string {
   const status = contact.whatsappMarketingConsent;
@@ -135,8 +142,9 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
             {contact.phone && <span className={contact.phoneVerifiedAt ? styles.successTag : styles.neutralTag}>
               {contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'}
             </span>}
-            {contact.bsuid && <span className={styles.neutralTag}>WhatsApp BSUID linked</span>}
-            {contact.bsuid && !contact.phone && <span className={styles.neutralTag}>Phone not shared</span>}
+            {(contact.bsuid || Object.keys(contact.whatsappIdentities || {}).length > 0) && <span className={styles.neutralTag}>WhatsApp BSUID linked</span>}
+            {!contact.phone && <span className={styles.neutralTag}>Phone not shared</span>}
+            {!contact.phone && <span className={styles.warningTag}>Website OTP and checkout require a phone</span>}
             {contact.locked && <span className={styles.warningTag}>Retention lock</span>}
             {contact.archivedAt && <span className={styles.neutralTag}>Archived</span>}
           </div>
@@ -144,11 +152,19 @@ const CustomerDetails: React.FC<DetailsProps> = ({ contact, onClose, onEdit, onA
           <section className={styles.detailSection} aria-labelledby="wsc-profile-title">
             <h3 id="wsc-profile-title">Profile</h3>
             <dl className={styles.detailFields}>
-              <dt>WhatsApp number</dt><dd>{contact.phone || (contact.bsuid ? 'Not shared by WhatsApp' : '—')}</dd>
+              <dt>WhatsApp number</dt><dd>{contact.phone || (contact.bsuid || Object.keys(contact.whatsappIdentities || {}).length ? 'Not shared by WhatsApp' : '—')}</dd>
               <dt>Meta WhatsApp username</dt><dd>{contact.username ? (contact.username.startsWith('@') ? contact.username : '@' + contact.username) : '—'}</dd>
               <dt>Business-scoped user ID (BSUID)</dt><dd>{contact.bsuid || '—'}</dd>
               <dt>Parent BSUID</dt><dd>{contact.parentBsuid || '—'}</dd>
               <dt>Meta contact-book name</dt><dd>{contact.contactBookName || '—'}</dd>
+              {WHATSAPP_BUSINESS_PORTFOLIOS.map(business => {
+                const identity = contact.whatsappIdentities?.[business.id];
+                return <React.Fragment key={business.id}>
+                  <dt>{business.name} BSUID</dt><dd>{identity?.bsuid || '—'}</dd>
+                  <dt>{business.name} Meta username</dt><dd>{identity?.username ? '@' + identity.username.replace(/^@/, '') : '—'}</dd>
+                  <dt>{business.name} parent BSUID</dt><dd>{identity?.parentBsuid || '—'}</dd>
+                </React.Fragment>;
+              })}
               <dt>WECARE profile username</dt><dd>{contact.profileUsername || '—'}</dd>
               <dt>Email</dt><dd>{contact.email || '—'}</dd>
               <dt>Organization</dt><dd>{contact.companyName || '—'}</dd>
@@ -275,7 +291,10 @@ const CustomerList: React.FC = () => {
       const text = [
         contact.name, contact.phone, contact.email, contact.companyName, contact.designation,
         contact.profileUsername, contact.username, contact.bsuid, contact.parentBsuid,
-        contact.contactBookName, customerId(contact), contactDeliveryAddress(contact),
+        contact.contactBookName,
+        ...Object.values(contact.whatsappIdentities || {}).flatMap(identity =>
+          [identity.bsuid, identity.username, identity.parentBsuid, identity.contactBookName]),
+        customerId(contact), contactDeliveryAddress(contact),
         ...(contact.tags || []),
       ].join(' ').toLowerCase();
       return text.includes(term);
@@ -599,12 +618,14 @@ const CustomerList: React.FC = () => {
                       <strong>{displayName(contact)}</strong>
                       <small>{customerId(contact)}</small>
                       {contact.username && <small>Meta @{contact.username.replace(/^@/, '')}</small>}
-                      {contact.bsuid && !contact.phone && <small>WhatsApp ID only · number not shared</small>}
+                      {WHATSAPP_BUSINESS_PORTFOLIOS.map(business => contact.whatsappIdentities?.[business.id]?.bsuid
+                        ? <small key={business.id}>{business.name} WhatsApp linked</small> : null)}
+                      {(contact.bsuid || Object.keys(contact.whatsappIdentities || {}).length > 0) && !contact.phone && <small>WhatsApp ID only · number not shared</small>}
                       {contact.locked && <small className={styles.protectedMarker}>Retention lock · Keep</small>}
                     </span>
                   </span>
                   <span className={styles.contactCell}>
-                    <strong>{contact.phone || (contact.bsuid ? 'BSUID-only customer' : '—')}</strong>
+                    <strong>{contact.phone || (contact.bsuid || Object.keys(contact.whatsappIdentities || {}).length ? 'BSUID-only customer' : '—')}</strong>
                     <small>{contact.email || (!contact.phone ? 'Phone not shared' : (contact.phoneVerifiedAt ? 'Phone verified' : 'Phone not verified'))}</small>
                   </span>
                   <span className={styles.profileCell}>

@@ -113,8 +113,8 @@ test('BSUID-only WhatsApp customers remain editable but are not bulk-archived by
   assert.ok(editor.includes('required={!editing}'), 'editing a phone-hidden customer must not trigger HTML required');
   assert.ok(editor.includes('...(!editing ? { phone: fullPhone } : {})'), 'staff editing never supplies a phone');
   assert.ok(editor.includes('Meta BSUID (read-only)'), 'Meta identity is visible, never staff-editable');
-  assert.ok(directory.includes('contact.bsuid && !contact.phone'), 'phone-hidden contact is distinguished');
-  assert.ok(directory.includes('&& !(contact.bsuid && !contact.phone)'), 'bulk archive must exclude BSUID-only customers');
+  assert.ok(directory.includes('Object.keys(contact.whatsappIdentities || {}).length'), 'phone-hidden contact is distinguished across either business');
+  assert.ok(directory.includes('&& !(hasBusinessIdentity && !contact.phone)'), 'bulk archive must exclude any business BSUID-only customer');
 });
 
 test('customer directory searches and displays Meta identities separately from WECARE profile username', () => {
@@ -135,7 +135,7 @@ test('inbound BSUID-only customer creation never fabricates cross-channel market
   ]) {
     assert.ok(inbound.includes("'" + field + "': False"), field + ' must default to false');
   }
-  assert.ok(inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
+  assert.ok(inbound.includes('_find_scoped_bsuid(') && inbound.includes('contact_store.find_by_bsuid(contacts_table, bsuid)'),
     'use canonical fail-closed BSUID lookup rather than selecting an arbitrary row');
 });
 
@@ -206,7 +206,7 @@ test('inbound resolves BSUID before deterministic phone and survives registry ou
   const end = inbound.indexOf('def _update_contact_bsuid_fields(', start);
   assert.ok(start >= 0 && end > start);
   const method = inbound.slice(start, end);
-  const bsuidLookup = method.indexOf('contact_store.find_by_bsuid(contacts_table, bsuid)');
+  const bsuidLookup = method.indexOf('_find_scoped_bsuid(');
   const phoneLookup = method.indexOf("r = contacts_table.get_item(Key={'id': det_id}");
   assert.ok(bsuidLookup >= 0 && phoneLookup > bsuidLookup,
     'phone disclosure must not reassign a BSUID-only customer to another phone owner');
@@ -232,4 +232,73 @@ test('outbound auto-created contacts never gain invented marketing permission', 
     'outbound phone lookup must reject multiple live owners');
   assert.ok(!create.includes("sorted(items, key=lambda x: x.get('createdAt', 0))[0]"),
     'a duplicate phone must never pick the oldest owner');
+});
+
+test('both Meta business portfolios maintain independent BSUID ownership claims', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  for (const id of ['2094615664435155', '2513394156072604',
+    '382642103987922', '125951953587391']) assert.ok(inbound.includes(id));
+  for (const marker of [
+    "f'WHATSAPP_BSUID#{portfolio_id}#{value}'",
+    "def _find_scoped_bsuid(", "def _attach_scoped_bsuid(",
+    'waba_id=source_waba_id', 'whatsappIdentities',
+    "'business-identity-already-claimed'", "'unknown-business-identity-scope'",
+    "'unscoped-bsuid-reconciliation'",
+  ]) assert.ok(inbound.includes(marker), marker);
+  assert.ok(inbound.includes("if waba_id != '2094615664435155':"),
+    'Manish BSUID must not overwrite WECARE legacy identity fields');
+  assert.ok(inbound.includes('scoped_identity ='),
+    'BSUID-only deterministic contact ID must include portfolio scope');
+});
+
+test('both WhatsApp business identities are read-only in /ws/customer search and details', () => {
+  const api = readSource('src/api/domains/contacts.ts');
+  for (const marker of [
+    'whatsappIdentities?: Record<string, PortfolioWhatsAppIdentity>',
+    'whatsappIdentities: normalizePortfolioIdentities(item.whatsappIdentities)',
+    "'382642103987922'", "'125951953587391'",
+  ]) assert.ok(api.includes(marker), marker);
+  for (const marker of [
+    'WHATSAPP_BUSINESS_PORTFOLIOS',
+    'WECARE.DIGITAL', 'Manish Agarwal',
+    "contact.whatsappIdentities?.[business.id]",
+    'Object.values(contact.whatsappIdentities || {}).flatMap',
+    'hasBusinessIdentity && !contact.phone',
+  ]) assert.ok(directory.includes(marker), marker);
+  assert.ok(!/payload\.whatsappIdentities\s*=/.test(editor),
+    'staff profile editor must never assign business-provider identities');
+});
+
+test('website registration and transactions still require a phone verified by OTP', () => {
+  const registration = readSource('amplify/functions/auth/customer-registration/handler.py');
+  const auth = readSource('amplify/functions/auth/customer-whatsapp-auth/handler.py');
+  assert.ok(registration.includes('phone_number_verified'), 'Cognito identity requires verified phone');
+  assert.ok(registration.includes('otp_challenge'), 'customer registration retains phone OTP');
+  const checkout = readSource('amplify/functions/ecommerce/checkout/handler.py');
+  assert.ok(checkout.includes('identity, denied = customer_auth.require_customer(event)'),
+    'website checkout must use authenticated Cognito customer identity');
+  assert.ok(auth.includes("if key != PRIMARY_WABA_ID or phone_number_id != PRIMARY_PHONE_NUMBER_ID"),
+    'website OTP route must not silently change to the second business');
+  assert.ok(editor.includes('if ((!editing || Boolean(fullPhone))'),
+    'new staff customer needs phone, provisional edits cannot manufacture one');
+  assert.ok(editor.includes('Website sign-in, shopping and transactions require') || 
+    editor.includes('WECARE.DIGITAL website sign-in, shopping and transactions require'),
+    'customer editor explains OTP requirement');
+  assert.ok(directory.includes('Website OTP and checkout require a phone'));
+});
+
+test('inbound WhatsApp dedup leases complete only after successful message processing', () => {
+  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
+  const workLoop = inbound.indexOf('leased_message_ids = []');
+  const call = inbound.indexOf('                        _process_message(', workLoop);
+  const complete = inbound.indexOf('                        if leased_message_ids:', call);
+  const catchFailure = inbound.indexOf('                    except Exception as e:', complete);
+  assert.ok(workLoop !== -1 && call > workLoop && complete > call && catchFailure > complete,
+    'a successful message must finish before its dedup lease is closed');
+  assert.ok(inbound.includes('claim_event_with_lease('),
+    'inbound message dedup must be recoverable after a processing failure');
+  assert.ok(inbound.includes('dedup_tracker.append(whatsapp_message_id)'));
+  assert.ok(inbound.includes('complete_event(leased_id)'));
+  assert.ok(!inbound.includes("claim_event(whatsapp_message_id, source='whatsapp_inbound')"),
+    'permanent pre-processing claim would swallow retry of a failed identity transition');
 });
