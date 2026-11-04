@@ -433,6 +433,16 @@ test('sidebar collapses to an icon rail, expands, and persists across /ws naviga
     'use a hydration-safe store for a persistent expand/collapse preference');
   assert.ok(shell.includes("const SIDEBAR_KEY = 'wecare-ws-sidebar-collapsed-v1'"),
     'sidebar state must use a dedicated versioned browser storage key');
+  assert.ok(shell.includes("const SIDEBAR_CHANGE = 'wecare:ws:sidebar-change'") &&
+            shell.includes('window.dispatchEvent(new Event(SIDEBAR_CHANGE))'),
+    'same-tab change notification must not depend on a shared server-side listener Set');
+  assert.ok(shell.includes('new WeakMap<Window, boolean>()') &&
+            !shell.includes('sidebarSubscribers') &&
+            !shell.includes('let sidebarFallback'),
+    'storage-disabled fallback must be per browser Window with no mutable server-side state');
+  assert.ok(shell.includes("window.addEventListener('storage', onStorage)") &&
+            shell.includes("window.removeEventListener('storage', onStorage)"),
+    'cross-tab storage subscriptions must have symmetric cleanup');
   assert.ok(shell.includes('window.localStorage.getItem(SIDEBAR_KEY)') &&
             shell.includes('window.localStorage.setItem(SIDEBAR_KEY, String(next))'),
     'expanded/collapsed state survives route changes and page reloads');
@@ -450,8 +460,8 @@ test('sidebar collapses to an icon rail, expands, and persists across /ws naviga
   assert.ok(shell.includes("aria-label={ collapsed ? 'Expand sidebar' : 'Collapse sidebar' }"),
     'the button name describes what pressing it will do');
   assert.ok(shell.includes("title={ collapsed ? item.label : undefined }") &&
-            shell.includes('aria-label={ item.label }'),
-    'icon-only navigation has tooltips and accessible destinations');
+            shell.includes('aria-label={ collapsed ? item.label : undefined }'),
+    'only collapsed icon links override their accessible name; expanded labels stay readable');
   assert.ok(shell.includes('--ws-sidebar-w:274px') &&
             shell.includes('--ws-sidebar-mini-w:80px'),
     'expanded and collapsed sidebar widths must both be intentional');
@@ -462,6 +472,13 @@ test('sidebar collapses to an icon rail, expands, and persists across /ws naviga
     'main content should claim reclaimed space, not sit under a hidden sidebar');
   assert.ok(shell.includes('.ws-sidebar-toggle:focus-visible'),
     'collapse control needs a visible keyboard focus ring');
+  assert.ok(shell.includes('.ws-sidebar-toggle{') && shell.includes('position:static;'),
+    'collapse button must be in the sidebar header flow, not over the content pane');
+  assert.ok(!shell.includes('right:-35px') && !shell.includes('right:-30px'),
+    'collapse control must never steal clicks from the right content pane');
+  assert.ok(shell.includes("flex-direction:column;") &&
+            shell.includes(".ws-shell[data-ws-collapsed='true'] .ws-sidebar-brand"),
+    'narrow rail stacks its logo and collapse button rather than overlapping them');
 });
 
 test('signout is icon-only but reachable in both desktop sidebar states', () => {
