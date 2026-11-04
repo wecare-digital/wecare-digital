@@ -7,11 +7,11 @@
  * The list and all of its actions live in CustomerList / CustomerActionsSheet under
  * src/components/ws/customers/. Archive is confirm()-gated and honours the
  * server ApiResult. Full customer erasure is explicitly unavailable until all linked
- * storage, identity and legal-retention records can be processed together. Data flows only through the existing src/api/client.ts exports
- * (listContactsResult, softDeleteContactResult, archiveContact, updateContactResult)
- * — no new endpoints and no bare fetch. Bulk archive/delete always re-reads
- * current lock state and requires explicit staff confirmation. Bulk removal is archive-only;
- * the existing individual action sheet owns reviewed soft deletion.
+ * storage, identity and legal-retention records can be processed together.
+ * Data flows only through the existing src/api/client.ts exports
+ * (listContactsResult, archiveContact, updateContactResult) — no bare fetch.
+ * Bulk archive re-reads current lock state and requires staff confirmation.
+ * Individual deletion is also unavailable until full erasure is audited.
  */
 import React from 'react';
 import SEO from '../../../components/SEO';
