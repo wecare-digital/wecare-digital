@@ -57,3 +57,12 @@ export function collectAddressSnapshot(contact:Contact):Record<string,unknown>{
   if(source.checkoutDeliveryAddress&&typeof source.checkoutDeliveryAddress==='object'&&Object.keys(source.checkoutDeliveryAddress).length)return {checkoutDeliveryAddress:clean(source.checkoutDeliveryAddress)};
   return clean(Object.fromEntries(['shippingAddressJson','addressLine1','addressLine2','landmark','city','state','postalCode','country','countryCode','houseNumber','buildingName','towerNumber','floorNumber'].map(k=>[k,source[k]]))) as Record<string,unknown>;
 }
+
+/** Only full saved details for this exact retained intent may resolve creation recovery. */
+export function verifiedCollectRecovery(invoice:Invoice|null|undefined,expected:{referenceId:string;invoiceId?:string}):boolean {
+  if(!invoice||!expected.referenceId||invoice.referenceId!==expected.referenceId)return false;
+  if(!invoice.invoiceId?.trim()||(expected.invoiceId!==undefined&&invoice.invoiceId!==expected.invoiceId))return false;
+  if(!invoice.invoiceNumber?.trim()||invoice.status==='claiming')return false;
+  const total=Number(invoice.total);
+  return Number.isFinite(total)&&total>0&&Array.isArray(invoice.items)&&invoice.items.length>0;
+}
