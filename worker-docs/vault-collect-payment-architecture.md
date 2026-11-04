@@ -45,6 +45,11 @@ invoice simply to recover a failed send.
    fields. Emit canonical international digits without `+`; reject a missing or
    invalid country-qualified phone before pricing/reservation. Do not truncate a
    malformed number into apparent validity.
+   Both native shipping builders call the shared
+   `payment_address.assert_meta_shipping_info()` guard before returning their
+   packets. It checks country/addresses and the required recipient name, phone,
+   street, city, state and PIN fields; missing data raises `UnpayableAddress`
+   before the native payment reservation or Collect send.
 5. The native session/intent binds the exact file and customer. Commerce owns the
    frozen quote, payment attempt, PAYREF reservation and keyed template send.
    `payment-request:<reference>` is the sender idempotency identity.
@@ -212,6 +217,7 @@ exercise behavior and injected failures, not merely look for source strings.
 - `amplify/functions/ecommerce/checkout/handler.py`: native shipping, quote/reservation/send, capture/finalization boundary.
 - `amplify/functions/payments/invoice-engine/handler.py`: Collect document creation, item persistence, payment send and saved receipt paths.
 - `amplify/functions/payments/razorpay-webhook/handler.py`: verified capture orchestration, order/invoice/status/receipt work and historical Vault settlement dispatch.
+- `amplify/functions/shared/lambda_utils/ecommerce/payment_address.py`: saved-address payability and shared outgoing Meta shipping-shape guard.
 - `amplify/functions/shared/lambda_utils/ecommerce/wa_payment_request.py`: attempt/send claim and shared native template rules.
 - `src/lib/vault-payment.ts`, `src/lib/vault-payment-status.ts`, `src/lib/collect.ts`: UI eligibility, current status and Collect draft/recovery contracts.
 - `tests/python/test_vault_payment_boundary.py`, `test_vault_payment_outcomes.py`, `test_collect_failure_boundaries.py`: offline failure-boundary regressions.

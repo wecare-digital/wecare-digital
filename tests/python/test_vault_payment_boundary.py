@@ -20,6 +20,7 @@ def function(name, **extra):
                 if isinstance(n, ast.FunctionDef) and n.name == name)
     env = {'Dict': dict, 'Any': object, 'Optional': __import__('typing').Optional,
            'json': json, 'order_delivery': order_delivery, 'customer_identity': customer_identity,
+           'payment_address': payment_address,
            **extra}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(HANDLER), 'exec'), env)
     return env[name]
