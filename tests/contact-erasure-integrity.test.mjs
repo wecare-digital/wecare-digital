@@ -29,42 +29,38 @@ test('contact DELETE delegates only approved erasure without direct destructive 
   assert.ok(!contacts.includes('def _delete_s3('), 'dangerous prefix fallback removed');
 });
 
-test('customer UIs no longer offer an incomplete deletion action', () => {
-  assert.ok(actions.includes('Delete all customer data — unavailable'));
-  assert.ok(actions.includes('Delete messages and media — unavailable'));
-  assert.ok(actions.includes('api.archiveContact('));
+test('customer actions allow message management and an approved erasure request', () => {
+  assert.ok(actions.includes('View and delete messages'));
+  assert.ok(actions.includes('Delete contact and release identity'));
+  assert.ok(actions.includes('api.requestApprovedContactErasure('));
+  assert.ok(actions.includes('result.data.erasureComplete'));
+  assert.ok(actions.includes('result.data.identityClaimsReleased === true'));
+  assert.ok(actions.includes('result.data.contactRecreatable === true'));
+  assert.ok(actions.includes('useConfirm()'));
   assert.ok(!actions.includes('api.softDeleteContactResult('));
-  assert.ok(!actions.includes('api.deleteContactMessages('));
-  assert.ok(oldCustomers.includes('Delete all data — unavailable'));
-  assert.ok(!oldCustomers.includes('api.softDeleteContactResult('));
   assert.ok(oldCustomers.includes('handleArchive'));
 });
 
-test('single-message delete never guesses prefix or reports DynamoDB failure as success', () => {
-  const start = messageDelete.indexOf('def _find_and_delete_s3_file(');
-  const end = messageDelete.indexOf('def _handle_update(', start);
-  const helper = messageDelete.slice(start, end);
-  assert.ok(start >= 0 && end > start);
-  assert.ok(helper.includes('media_paths.canonical(stored_key)'));
-  assert.ok(helper.includes('key.startswith(MESSAGE_MEDIA_PREFIXES)'));
-  assert.ok(helper.includes('s3_client.head_object('));
-  assert.ok(helper.includes('s3_client.delete_object(Bucket=MEDIA_BUCKET, Key=key)'));
-  assert.ok(!helper.includes('s3_client.list_objects_v2('), 'no prefix-based S3 search calls');
-  assert.ok(!helper.includes('base_prefix'));
-  assert.ok(!helper.includes("['Contents'][0]"));
-  // Scope the assertions to the actual single-message delete path; clear-all has
-  // its own separate success result and must not make these tests pass accidentally.
-  const dbDeleteStart = messageDelete.indexOf('            table.delete_item(', messageDelete.indexOf('def handler('));
-  const dbDeleteEnd = messageDelete.indexOf("    except ClientError as e:\n        return cors_response(500", dbDeleteStart);
-  const dbDelete = messageDelete.slice(dbDeleteStart, dbDeleteEnd);
-  assert.ok(dbDeleteStart > 0 && dbDeleteEnd > dbDeleteStart);
-  assert.ok(dbDelete.includes("ConditionExpression='attribute_exists(#pk)'"));
-  assert.match(dbDelete, /except ClientError as exc:[\s\S]*?return cors_response\(503,[\s\S]*?'MESSAGE_DELETE_UNCONFIRMED'/);
-  assert.match(dbDelete, /except Exception:[\s\S]*?return cors_response\(503,[\s\S]*?'MESSAGE_DELETE_UNCONFIRMED'/);
-  assert.ok(dbDelete.includes("'rowDeleted': True"), 'legacy success must specify message row outcome');
-  assert.ok(dbDelete.includes("'erasureComplete': False"), 'S3 object versions are not erased');
-  assert.ok(dbDelete.includes("'mediaPermanentlyErased': False"));
-  assert.ok(dbDelete.includes("'success': True"), 'legacy single-row API stays compatible');
+test('single-message deletion is canonical, audit-first, and retains financial/media evidence', () => {
+  const single = readSource('amplify/functions/shared/lambda_utils/erasure/inbox_delete.py');
+  const sharedDispatcher = readSource('amplify/functions/shared/lambda_utils/erasure/dispatch.py');
+  assert.ok(messageDelete.includes('delete_visible_message('));
+  assert.ok(messageDelete.includes("require_auth(event, required_role='Admin')"));
+  assert.ok(messageDelete.includes("staff.get('mfaEnrolled') is not True"));
+  assert.ok(single.includes('canonical_table.get_item('));
+  assert.ok(single.includes('source_table.get_item('));
+  assert.ok(single.includes('canonical_table.delete_item('));
+  assert.ok(single.includes('source_table.delete_item('));
+  assert.ok(single.includes('audit_id = audit('));
+  assert.ok(single.includes('contact_payment_links.has_payment_links('));
+  assert.ok(single.includes('"retention-hold"'));
+  assert.ok(single.includes('MESSAGE_FINANCIAL_RETENTION'));
+  assert.ok(single.includes('MESSAGE_MEDIA_REVIEW_REQUIRED'));
+  assert.ok(single.includes('"erasureComplete": False'));
+  assert.ok(sharedDispatcher.includes('identityClaimsReleased'));
+  assert.ok(sharedDispatcher.includes('contactRecreatable'));
+  assert.ok(!single.includes('.batch_writer('));
+  assert.ok(!single.includes('DeleteObjects'));
 });
 
 test('active scoped policy protects exact retained contacts, transaction evidence and provider copies', () => {
