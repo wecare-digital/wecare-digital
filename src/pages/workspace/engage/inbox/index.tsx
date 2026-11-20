@@ -1625,7 +1625,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             ) }
 
-            { showTemplateSender && replyChannel === 'whatsapp' && (
+            { !standbyReadOnly && showTemplateSender && replyChannel === 'whatsapp' && (
                 <TemplateSender
                     contactId={ replyTarget.contactId || undefined }
                     contactName={ selectedConv?.name || '' }
