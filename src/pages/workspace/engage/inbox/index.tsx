@@ -750,7 +750,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                     let contextClaimed = false;
                     if ( waText && !captionCapable )
                     {
-                        const textResult = await api.sendWhatsAppMessage( {
+                        const textResult = await api.sendWhatsAppStaffReplyOnce( {
                             contactId, content: waText, phoneNumberId: sendWaba || undefined,
                             recipientBsuid: bsuid, contextMessageId: waContext,
                         } );
@@ -770,7 +770,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                         // The first message to leave claims the native reply context —
                         // unless the separate text message above already took it.
                         const giveContext = !contextClaimed;
-                        const r = await api.sendWhatsAppMessage( {
+                        const r = await api.sendWhatsAppStaffReplyOnce( {
                             contactId,
                             content: giveCaption ? waText : '',
                             phoneNumberId: sendWaba || undefined,
@@ -799,7 +799,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                     }
                 } else
                 {
-                    const r = await api.sendWhatsAppMessage( { contactId, content: waText, phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
+                    const r = await api.sendWhatsAppStaffReplyOnce( { contactId, content: waText, phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
                     ok = !!r;
                 }
             } else if ( replyChannel === 'sms' )
@@ -826,11 +826,20 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 setTimeout( loadData, 800 );
             } else
             {
-                toast.error( 'Failed to send' );
+                const providerFailure = replyChannel === 'whatsapp' ? api.getLastApiFailure() : null;
+                const isMetaReplyFailure = !!providerFailure
+                    && providerFailure.url.includes( '/whatsapp/send' );
+                if ( isMetaReplyFailure )
+                {
+                    const reason = providerFailure.message;
+                    toast.error( /WhatsApp error (2494191|138038)/.test( reason )
+                        ? 'Meta refused this sender for the conversation. Check its routing in Meta Business Suite; no reply was delivered.'
+                        : reason.slice( 0, 200 ) );
+                } else toast.error( 'Failed to send' );
             }
         } catch
         {
-            toast.error( 'Failed to send' );
+            toast.error( 'Send outcome could not be confirmed. Check the conversation before trying again.' );
         } finally
         {
             setSending( false );
