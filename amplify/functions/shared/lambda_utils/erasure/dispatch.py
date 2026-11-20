@@ -84,7 +84,7 @@ def dispatch_approved_erasure(
             InvocationType="RequestResponse",
             Payload=json.dumps(invocation).encode("utf-8"),
         )
-        if response.get("FunctionError"):
+        if response.get("StatusCode") != 200 or response.get("FunctionError"):
             return _refuse(
                 "ERASURE_OUTCOME_UNVERIFIED", 502,
                 "Coordinator returned an error. Reconcile the approved case before retrying.",
@@ -93,6 +93,11 @@ def dispatch_approved_erasure(
         output = json.loads(body_stream.read() if hasattr(body_stream, "read") else body_stream)
         if not isinstance(output, dict):
             raise ValueError("invalid coordinator envelope")
+        if "statusCode" in output and output["statusCode"] not in (200, 202):
+            return _refuse(
+                "ERASURE_OUTCOME_UNVERIFIED", 502,
+                "Coordinator refused or could not confirm the approved erasure.",
+            )
         # API Gateway-style handler bodies have a nested JSON object.
         if "body" in output:
             raw_body = output["body"]
