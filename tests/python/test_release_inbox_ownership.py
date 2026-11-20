@@ -21,12 +21,13 @@ def prior_handler():
         "_SAFE_BSUID = re.compile(r'^[A-Za-z0-9._:-]{1,160}$')\n"
     )
     s = s.replace(extra, "", 1)
-    begin = s.index(release.BEGIN)
-    end = s.index(release.OLD_END, begin)
-    s = s[:begin] + release.OLD_READ_ONE + s[end:]
+    # Remove the injected helper before rebuilding the old read-one method.
     begin = s.index(release.HELPER_BEGIN)
     end = s.index(release.OLD_END, begin)
     s = s[:begin] + s[end + 2:]
+    begin = s.index(release.BEGIN)
+    end = s.index(release.OLD_END, begin)
+    s = s[:begin] + release.OLD_READ_ONE + s[end:]
     assert "threadOwnership" not in s
     return s.encode("utf-8")
 
