@@ -9,7 +9,7 @@ const contacts = readSource('amplify/functions/core/contacts/handler.py');
 const messageDelete = readSource('amplify/functions/core/messages-delete/handler.py');
 const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
 const oldCustomers = readSource('src/pages/workspace/customers/index.tsx');
-const manifest = readSource('docs/ops/contact-erasure-integrity-2026-11-04.md');
+const manifest = readSource('worker-docs/contact-erasure-policy.md');
 
 test('contact DELETE refuses incomplete erasure without mutating any customer data', () => {
   const start = contacts.indexOf('def _delete(contact_id: str, hard: bool,');
@@ -65,7 +65,7 @@ test('single-message delete never guesses prefix or reports DynamoDB failure as 
   assert.ok(dbDelete.includes("'success': True"), 'legacy single-row API stays compatible');
 });
 
-test('deletion manifest covers linked identities, payments, auth and S3 versions', () => {
+test('active deletion policy covers linked identities, payments, auth and S3 versions', () => {
   for (const marker of [
     'ContactsTable', 'IdentityClaimsTable', 'CustomerSessionsTable',
     'WhatsAppInboundTable', 'WhatsAppOutboundTable', 'MessagesTable',
@@ -74,4 +74,18 @@ test('deletion manifest covers linked identities, payments, auth and S3 versions
     'Cognito', 'Versioning', 'delete marker', 'ListObjectVersions',
     'audited', 'idempotent', 'retention', 'payment',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
+});
+
+test('selective erasure requires explicit approvals and never bypasses retention or contact delete guards', () => {
+  for (const marker of [
+    'protected contact', 'approved record IDs', 'per-record primary keys',
+    'Operator', 'fresh MFA', 'privacy/legal', 'independent approval',
+    'read-only dry run', 'write', 'fence all writers', 'idempotent',
+    'legally required invoices', 'unlinked', 'Cognito', 'Meta WhatsApp',
+    'CONTACT_ERASURE_NOT_READY', 'not deployed', 'system-cleanup',
+    'RETAINED_BY_POLICY', 'PARTIAL_REVIEW_REQUIRED', 'BLOCKED',
+  ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
+  assert.match(manifest, /Never run a scan-based/);
+  assert.match(manifest, /no bulk erasure is authorized/);
+  assert.match(manifest, /Do not commit names, phone numbers/);
 });
