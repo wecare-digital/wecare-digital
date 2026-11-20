@@ -93,8 +93,9 @@ def mirror(
     digest = hashlib.sha256(thread_key.encode("utf-8")).hexdigest()
     mid = "standby_" + hashlib.sha256(f"{phone_id}#{wamid}".encode("utf-8")).hexdigest()[:40]
     try:
-        timestamp = int(message.get("timestamp") or time.time())
-        if timestamp <= 0 or timestamp > int(time.time()) + 300:
+        now = int(time.time())
+        timestamp = int(message.get("timestamp") or now)
+        if timestamp <= 0 or timestamp > now + 300:
             raise ValueError("standby timestamp outside safe bounds")
 
         db = resource or boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -132,7 +133,7 @@ def mirror(
         # A media ID identifies the provider object; it is not a downloadable file.
         # Never fake an S3 key or public media URL for standby-only context.
         typ = str(message.get("type") or "")
-        media = message.get(typ)
+        media = message.get(typ) if typ in {"image", "video", "audio", "document", "sticker"} else None
         if isinstance(media, dict) and media.get("id"):
             item["mediaId"] = str(media["id"])
 
