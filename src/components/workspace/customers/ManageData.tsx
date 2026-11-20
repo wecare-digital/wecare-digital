@@ -3,6 +3,7 @@ import type { Contact } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import ContactCleanupPanel from './ContactCleanupPanel';
 
 type ReviewContact = Pick<Contact,
   'contactId' | 'customerUuid' | 'name' | 'phone' | 'email' |
@@ -348,6 +349,8 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
             </div>
           </section>
         ) }
+
+        <ContactCleanupPanel onChanged={ onChanged } />
 
         <section className="review-section" aria-labelledby="exceptions-title">
           <h3 id="exceptions-title">Exceptions</h3>

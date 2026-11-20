@@ -303,6 +303,91 @@ export async function restoreContact ( contactId: string ): Promise<ApiResult<Co
   return { ok: true, data: result.data ? normalizeContact( result.data.contact || result.data ) : null };
 }
 
+/** Operator hold list for a cleanup scan. Exact ids, phones or BSUIDs only; never names. */
+export interface ContactCleanupKeep {
+  keepContactIds?: string[];
+  keepPhones?: string[];
+  keepBsuids?: string[];
+}
+
+export interface ContactCleanupCandidate {
+  contactId: string;
+  maskedPhone: string;
+  messageTotal: number;
+}
+
+export interface ContactCleanupKept {
+  label: string;
+  maskedPhone: string;
+  classification: string;
+  keepReasons: string[];
+  messageTotal: number;
+}
+
+export interface ContactCleanupScanResult {
+  /** 'OK' only when the whole inventory was read. Anything else means zero archive candidates. */
+  status: string;
+  problems: string[];
+  counts: Record<string, number>;
+  eligible: ContactCleanupCandidate[];
+  eligibleOffset: number;
+  eligibleNextOffset: number | null;
+  kept: ContactCleanupKept[];
+  keptTotal: number;
+  keptNextOffset: number | null;
+  ttlGap: { perTable: Record<string, unknown>; note: string; checked: boolean };
+  confirmationToken: string | null;
+  batchMax: number;
+  action: string;
+  note: string;
+}
+
+export interface ContactCleanupArchiveResult {
+  archived: number;
+  refused: number;
+  results: Array<{ contactId: string; result: 'archived' | 'refused'; status: number }>;
+  reversible: boolean;
+}
+
+/** Read-only scan. Returns counts, one page of junk candidates, kept contacts and a token. */
+export async function scanContactCleanup (
+  keep: ContactCleanupKeep = {},
+  page: { offset?: number; limit?: number } = {},
+): Promise<ApiResult<ContactCleanupScanResult>> {
+  return apiCallResult<ContactCleanupScanResult>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( {
+      _action: 'cleanup_scan',
+      keepContactIds: keep.keepContactIds || [],
+      keepPhones: keep.keepPhones || [],
+      keepBsuids: keep.keepBsuids || [],
+      ...( page.offset ? { offset: page.offset } : {} ),
+      ...( page.limit ? { limit: page.limit } : {} ),
+    } ),
+  } );
+}
+
+/** Reversible bulk Archive of confirmed candidates. Admin + MFA. Never deletes. */
+export async function archiveCleanupCandidates ( input: {
+  confirmationToken: string;
+  contactIds: string[];
+  reason: string;
+  keep?: ContactCleanupKeep;
+} ): Promise<ApiResult<ContactCleanupArchiveResult>> {
+  return apiCallResult<ContactCleanupArchiveResult>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( {
+      _action: 'cleanup_archive',
+      confirmationToken: input.confirmationToken,
+      contactIds: input.contactIds,
+      reason: input.reason,
+      keepContactIds: input.keep?.keepContactIds || [],
+      keepPhones: input.keep?.keepPhones || [],
+      keepBsuids: input.keep?.keepBsuids || [],
+    } ),
+  } );
+}
+
 export interface CustomerMergeResult {
   merged: boolean;
   idempotent?: boolean;
