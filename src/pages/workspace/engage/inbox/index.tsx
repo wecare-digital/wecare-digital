@@ -1316,7 +1316,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 <div className="ui-msg-bubble">
                                                     <span className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>
                                                     { messageWabaId( m ) && <span className="ui-badge ui-waba-badge">{ wabaDisplay( messageWabaId( m ) ) }</span> }
-                                                    { m.standbySourced === true && <span className="ui-badge" title="Historical message delivered by WhatsApp as a standby copy">Received via standby</span> }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
