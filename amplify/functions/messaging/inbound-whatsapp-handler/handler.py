@@ -1462,9 +1462,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             except Exception:
                                 _c = ''
                             _mp, _mb, _mw = _thread_identity(value, _m)
+                            from lambda_utils import standby_inbox
+                            _sender_name = standby_inbox.profile_name_from_contacts(_m, _contacts)
                             if thread_ownership.store_standby_message(
                                     _mp or _pid, bsuid=_mb or _bsuid, wa_id=_mw or _waid,
-                                    message=_m, content=_c):
+                                    message=_m, content=_c, sender_name=_sender_name):
                                 _stored += 1
                         logger.info(json.dumps({'event': 'standby_webhook', 'total': len(_msgs),
                                                 'deterministic': len(_det), 'requestId': request_id}))

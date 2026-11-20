@@ -193,11 +193,17 @@ const messageWabaId = ( m: api.Message ): string => {
 };
 const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
 
-// Show a provider-supplied name only when it is not the read API's phone fallback.
+// AI-managed is a routing STATUS, not a person's name. Ignore the synthetic
+// names of older standby rows so a genuine WhatsApp profile name elsewhere in
+// the conversation can win even when the newest event is a standby copy.
+const standbyPlaceholderName = ( name?: string ): boolean =>
+    /^AI-managed(?: WhatsApp)? contact\b/i.test( ( name || '' ).trim() );
+
 const realWhatsAppName = ( m: api.Message ): string => {
     if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
     const name = ( m.senderName || '' ).trim();
-    if ( !name || name.toLowerCase() === 'unknown' || /^[+\d\s()-]+$/.test( name ) ) return '';
+    if ( !name || name.toLowerCase() === 'unknown' || standbyPlaceholderName( name )
+        || /^[+\d\s()-]+$/.test( name ) ) return '';
     return name;
 };
 const SMS_TYPE_OPTIONS: SelectOption[] = [
@@ -530,7 +536,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 map.set( cid, {
                     contactId: cid,
-                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone || m.receivingPhone || cid,
+                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone
+                        || m.receivingPhone || ( cid.startsWith( 'wa-standby:' )
+                            ? `WhatsApp contact #${ cid.slice( -6 ).toUpperCase() }` : cid ),
                     channels: new Set( [ ch ] ),
                     wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
@@ -542,7 +550,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 existing.channels.add( ch );
                 if ( waba ) existing.wabas.add( waba );
-                if ( !contactNames[ cid ] && /^[+\d\s()-]+$/.test( existing.name ) && realWhatsAppName( m ) )
+                if ( !contactNames[ cid ] && realWhatsAppName( m )
+                    && ( /^[+\d\s()-]+$/.test( existing.name )
+                        || standbyPlaceholderName( existing.name )
+                        || existing.name.startsWith( 'WhatsApp contact #' ) ) )
                     existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
                 {
@@ -603,17 +614,28 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // and the same customer can have independent Meta ownership on each sender.
     const standbyReadOnly = useMemo( () => {
         if ( replyChannel !== 'whatsapp' || !selected ) return false;
-        const senderAccount = messageWabaId( thread[ thread.length - 1 ] );
+        const latestVisible = [ ...thread ].reverse().find(
+            m => ( m.channel || '' ).toLowerCase() === 'whatsapp'
+        );
+        const senderAccount = latestVisible ? messageWabaId( latestVisible ) : '';
+        // Unknown sender account is not permission to infer ownership from a
+        // different WABA of this contact. Preserve the latest visible signal.
+        if ( !senderAccount ) return latestVisible?.standbySourced === true;
         const newest = messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
-            .filter( m => !senderAccount || messageWabaId( m ) === senderAccount )
+            .filter( m => messageWabaId( m ) === senderAccount )
             .reduce<api.Message | null>( ( prev, m ) => {
                 if ( !prev ) return m;
                 return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
             }, null );
         return newest?.standbySourced === true;
     }, [ messages, selected, replyChannel, thread ] );
+
+    const aiAccountId = thread.length ? messageWabaId( thread[ thread.length - 1 ] ) : '';
+    const aiAccountKey = aiAccountId === WABAS[ 0 ].id ? 'WABA1'
+        : aiAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
+    const aiSettingsUrl = `/workspace/communications?view=manage&section=whatsapp&tool=ai-agent${aiAccountKey ? `&waba=${aiAccountKey}` : ''}`;
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -1326,7 +1348,24 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 <div className="ui-reply">
                                     { standbyReadOnly ? (
                                         <div className="ui-reply-voice" role="status">
-                                            This conversation is currently AI-controlled. Messages are visible for review; sending is disabled until WhatsApp hands control back.
+                                            <strong>{ selectedConv?.name || 'WhatsApp contact' }</strong> · These messages were handled by Meta AI.
+                                            You can review the history here, but staff sending remains locked until WhatsApp hands control to this integration.
+                                            <div style={ { marginTop: 8 } }>
+                                                <Link href={ aiSettingsUrl } className="ui-reply-link">
+                                                    Stop AI for this WhatsApp number · AI settings
+                                                </Link>
+                                            </div>
+                                            <span style={ { fontSize: 12 } }>
+                                                Turning AI off affects every conversation on that number, not only this customer.
+                                                { !aiAccountKey && ' Confirm the correct WhatsApp sender account in AI settings first.' }
+                                                {' '}Stopping the AI does not release an existing thread; the Meta business owner must arrange handover.
+                                            </span>
+                                            <div style={ { marginTop: 6 } }>
+                                                <a href="https://business.facebook.com/latest/whatsapp_manager/"
+                                                    target="_blank" rel="noopener noreferrer" className="ui-reply-link">
+                                                    Manage conversation routing in WhatsApp Manager
+                                                </a>
+                                            </div>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">

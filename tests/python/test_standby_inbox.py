@@ -87,7 +87,45 @@ def test_legacy_or_unverified_bsuid_never_guesses_contact():
     assert row["contactId"].startswith("wa-standby:")
     assert "senderPhone" not in row
     assert row["replyAllowed"] is False
-    assert row["senderName"].startswith("AI-managed contact (")
+    assert row["senderName"].startswith("WhatsApp contact #")
+
+
+def test_signed_meta_profile_name_displays_without_merging_customer():
+    db = Db()
+    assert standby_inbox.mirror(
+        PHONE_ID, bsuid=BSUID, message=message(), sender_name="  Priya Kumar  ",
+        content="hello", resource=db
+    )
+    row = next(iter(db.Table(standby_inbox.MESSAGES_TABLE).items.values()))
+    assert row["senderName"] == "Priya Kumar"
+    assert row["contactId"].startswith("wa-standby:")
+    assert "senderPhone" not in row
+    assert row["replyAllowed"] is False
+
+
+def test_standby_contact_name_requires_exact_message_identity():
+    contacts = [
+        {"user_id": BSUID, "wa_id": "919000000001", "profile": {"name": "First Person"}},
+        {"user_id": "IN.other", "wa_id": "919000000002", "profile": {"name": "Second Person"}},
+    ]
+    assert standby_inbox.profile_name_from_contacts(
+        {"from_user_id": BSUID}, contacts
+    ) == "First Person"
+    assert standby_inbox.profile_name_from_contacts(
+        {"from": "919000000002"}, contacts
+    ) == "Second Person"
+    assert standby_inbox.profile_name_from_contacts(
+        {"from_user_id": "IN.missing"}, contacts
+    ) == ""
+    assert standby_inbox.profile_name_from_contacts(
+        {"from_user_id": BSUID, "from": "919000000002"}, contacts
+    ) == ""
+    assert standby_inbox.profile_name_from_contacts(
+        {}, [contacts[0]]
+    ) == ""
+    assert standby_inbox.profile_name_from_contacts(
+        {"from": "919000000001"}, [{"wa_id": "919000000001", "profile": {"name": "  Alex   Shah  "}}]
+    ) == "Alex Shah"
 
 
 def test_a_different_existing_message_does_not_suppress_new_wamid():

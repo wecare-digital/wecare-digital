@@ -38,6 +38,34 @@ INBOX_PHONE_ID = {
 }
 
 
+def profile_name_from_contacts(message: Dict[str, Any], contacts: Any) -> str:
+    """Read a signed WhatsApp profile name without guessing the sender identity.
+
+    A standby batch may include multiple messages/contacts. Use only an exact
+    message.from_user_id -> contact.user_id or message.from -> contact.wa_id
+    match. Never infer a match from array order or a single contact alone.
+    """
+    message = message or {}
+    bsuid = str(message.get("from_user_id") or "").strip()
+    wa_id = str(message.get("from") or "").strip()
+    if not bsuid and not wa_id or not isinstance(contacts, list):
+        return ""
+    matched = [
+        row for row in contacts if isinstance(row, dict)
+        and ((bsuid and str(row.get("user_id") or "") == bsuid)
+             or (wa_id and str(row.get("wa_id") or "") == wa_id))
+    ]
+    if len(matched) != 1:
+        return ""
+    profile = matched[0].get("profile") or {}
+    if not isinstance(profile, dict):
+        return ""
+    name = " ".join(str(profile.get("name") or "").split())[:160]
+    if not name or name.lower() == "unknown" or name.replace("+", "").isdigit():
+        return ""
+    return name
+
+
 def _verified_contact(resource: Any, phone_id: str, bsuid: str) -> Optional[Dict[str, Any]]:
     portfolio_id = PORTFOLIO_BY_PHONE.get(phone_id)
     if not portfolio_id or not bsuid or len(bsuid) > 128:
@@ -74,6 +102,7 @@ def mirror(
     wa_id: str = "",
     message: Optional[Dict[str, Any]] = None,
     content: str = "",
+    sender_name: str = "",
     resource: Any = None,
 ) -> bool:
     """Idempotently mirror one standby event into MessagesTable (read-only).
@@ -110,6 +139,13 @@ def mirror(
             contact = None
 
         cid = str(contact.get("contactId") or contact.get("id") or "") if contact else ""
+        # The signed standby webhook can carry a WhatsApp profile name even when
+        # the business-scoped identity is not yet linked to a CRM contact. Show
+        # that provider-supplied name; never turn it into a verified contact link.
+        profile_name = str(sender_name or "").strip()[:160]
+        saved_name = str(contact.get("name") or "").strip() if contact else ""
+        display_name = (saved_name if saved_name.lower() not in ("", "unknown") else "")
+        display_name = display_name or profile_name or f"WhatsApp contact #{digest[:6].upper()}"
         item = build_message_item(
             channel="whatsapp",
             direction="inbound",
@@ -121,7 +157,7 @@ def mirror(
             message_type=str(message.get("type") or "unsupported"),
             whatsapp_message_id=wamid,
             aws_phone_number_id=INBOX_PHONE_ID.get(phone_id, phone_id),
-            sender_name=str(contact.get("name") or "") if contact else f"AI-managed contact ({digest[:6]})",
+            sender_name=display_name,
         )
         item["standbySourced"] = True
         item["routingOwner"] = "ai_agent"
