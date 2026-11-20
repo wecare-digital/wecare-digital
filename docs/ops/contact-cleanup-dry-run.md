@@ -55,7 +55,7 @@ TTL is enabled on `expiresAt` for the three message tables and disabled for the 
 
 ## Acting on the result
 
-The only cleanup path is the existing reversible Archive in the contacts API, run by the operator with Admin + MFA and a reason, for individually reviewed contacts. Archive keeps identity and history. Permanent delete stays refused (`CONTACT_ERASURE_NOT_READY`), and locked contacts cannot be archived. Copies in S3, Meta and Razorpay are not covered by this report.
+The only cleanup path is the existing reversible Archive in the contacts API, run by the operator with Admin + MFA and a reason, for individually reviewed contacts. Archive keeps identity and history. Permanent delete is not part of cleanup: it runs only through the approved erasure coordinator for a verified Admin with MFA, and locked contacts cannot be archived. Copies in S3, Meta and Razorpay are not covered by this report.
 
 ## Cost and privacy notes
 

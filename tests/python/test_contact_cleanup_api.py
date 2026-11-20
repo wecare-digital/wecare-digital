@@ -372,11 +372,18 @@ def test_non_admin_cannot_reach_cleanup_archive(env, monkeypatch):
     assert ok["statusCode"] == 200
 
 
-def test_hard_delete_still_returns_erasure_not_ready(env, monkeypatch):
+def test_cleanup_does_not_open_permanent_delete(env, monkeypatch):
+    # Permanent erasure goes only through the approved coordinator with a
+    # verified Admin + MFA caller. Cleanup candidates get no shortcut.
     standard(env)
-    resp = h._delete("junk1", True, "req")
-    assert resp["statusCode"] == 409
-    assert "CONTACT_ERASURE_NOT_READY" in resp["body"]
+    unauthenticated = h._delete("junk1", True, "req")
+    assert unauthenticated["statusCode"] == 403
+    assert "ERASURE_ADMIN_MFA_REQUIRED" in unauthenticated["body"]
+    no_mfa = h._delete("junk1", True, "req", event={"_auth": {"role": "Admin", "mfaEnrolled": False}})
+    assert no_mfa["statusCode"] == 403
+    soft = h._delete("junk1", False, "req")
+    assert soft["statusCode"] == 400
+    assert "ERASURE_EXPLICIT_HARD_REQUEST_REQUIRED" in soft["body"]
     assert env.tables["contacts"].deletes == []
 
 

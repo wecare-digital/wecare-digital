@@ -66,4 +66,4 @@ Not fixed, with reasons:
 
 - Synchronous full-table scans and the 29 s API Gateway limit: not verified, and moving to a job plus poll design is a larger change than this review pass. If the route is behind a 29 s cap, the UI will see a 504 while the Lambda keeps running. Nothing is archived in that case (fail closed). Before using this on a large dataset, confirm the integration timeout. Follow-up: asynchronous scan job.
 - Memory ceiling: per-page aggregation is a classifier redesign. A crash fails closed. Follow-up with the async job.
-- Identity erasure: out of scope by policy, `CONTACT_ERASURE_NOT_READY` unchanged. The owner must start the legal review described above.
+- Identity erasure: out of scope for cleanup. Permanent delete runs only through the approved erasure coordinator (Admin with MFA), which this panel does not call. The owner must start the legal review described above.
