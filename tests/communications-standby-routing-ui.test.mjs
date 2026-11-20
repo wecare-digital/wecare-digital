@@ -24,14 +24,18 @@ test('standby status reports a routing handover, never claims AI is enabled', ()
 });
 
 test('reply block still honors the latest inbound signal on the exact WABA', () => {
-  const from = inbox.indexOf('const standbyReadOnly = useMemo');
-  const to = inbox.indexOf('const metaRoutingUrl = ', from);
-  assert.ok(from > 0 && to > from, 'inbox owns the sender-specific guard');
+  const from = inbox.indexOf('const latestInboundAccountMessage = useMemo');
+  const to = inbox.indexOf('const senderAccountId =', from);
+  assert.ok(from > 0 && to > from, 'inbox owns the sender-specific current ownership guard');
   const ownership = inbox.slice(from, to);
   assert.ok(ownership.includes("( m.direction || '' ).toLowerCase() === 'inbound'"));
   assert.ok(ownership.includes('messageWabaId( m ) === senderAccount'));
-  assert.ok(ownership.includes('newest?.standbySourced === true || newest?.replyAllowed === false'));
-  assert.ok(inbox.includes("if ( standbyReadOnly ) { toast.error( 'WhatsApp has not handed this thread"));
+  assert.ok(ownership.includes('latestInboundAccountMessage?.standbySourced === true'));
+  assert.ok(ownership.includes('latestInboundAccountMessage?.replyAllowed === false'));
+  assert.ok(ownership.includes('liveOwnership?.tracked === true'));
+  assert.ok(ownership.includes('liveOwnership.owned === true'));
+  assert.ok(ownership.includes('const standbyReadOnly = handoverPending || recipientUnresolved'));
+  assert.ok(inbox.includes('if ( standbyReadOnly ) { toast.error( recipientUnresolved'));
 });
 
 test('Meta routing link selects the verified business for each WhatsApp number', () => {
