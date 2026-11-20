@@ -112,8 +112,7 @@ type WhatsAppTool =
   | 'webhooks'
   | 'cost-controls'
   | 'ctwa-ads'
-  | 'conversions-api'
-;
+  | 'conversions-api';
 
 const MANAGE_GROUPS: Array<{
   title: string;
