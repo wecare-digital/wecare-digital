@@ -6,8 +6,8 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useUserRole } from '../../../hooks/useUserRole';
 
 export const CLEANUP_POLICY_NOTE =
-  'Identity deletion is not available. Archive is reversible. Permanent erasure requires legal review '
-  + 'and the audited deletion process (docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md).';
+  'Cleanup only archives, and archive is reversible. Permanent delete is a separate Admin + MFA action '
+  + 'below. It needs an approved case and is refused for contacts with payment history.';
 
 /**
  * Turn the keep textarea (one identifier per line) into exact identifier lists.
@@ -51,6 +51,43 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
   const [ scanning, setScanning ] = useState( false );
   const [ archiving, setArchiving ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
+  const [ delId, setDelId ] = useState( '' );
+  const [ delCase, setDelCase ] = useState( '' );
+  const [ delManifest, setDelManifest ] = useState( '' );
+  const [ delToken, setDelToken ] = useState( '' );
+  const [ delTyped, setDelTyped ] = useState( '' );
+  const [ deleting, setDeleting ] = useState( false );
+  const canDelete = !!delId.trim() && !!delCase.trim() && !!delManifest.trim() && !!delToken.trim()
+    && delTyped.trim() === 'DELETE';
+
+  const runPermanentDelete = async () => {
+    if ( !canDelete ) return;
+    const ok = await confirm( {
+      title: 'Permanently delete this contact?',
+      message: 'The contact is erased and its phone and identity keys are freed so the same number can be '
+        + 'added again. Payment, invoice and Razorpay records are kept. This cannot be undone.',
+      confirmText: 'Delete permanently',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setDeleting( true );
+    const result = await api.deleteContactPermanently( delId.trim(), {
+      caseId: delCase.trim(), manifestSha256: delManifest.trim(), approvalToken: delToken.trim(),
+    } );
+    setDeleting( false );
+    if ( result.ok ) {
+      toast.success( result.data.erasureComplete
+        ? 'Contact deleted. The same phone number can be added again.'
+        : 'Deletion is pending. Check the audit record before retrying.' );
+      setDelId( '' ); setDelCase( '' ); setDelManifest( '' ); setDelToken( '' ); setDelTyped( '' );
+      await onChanged?.();
+      return;
+    }
+    const code = result.failure.code || '';
+    toast.error( code === 'ERASURE_ADMIN_MFA_REQUIRED'
+      ? 'Permanent delete needs an Admin with MFA enrolled. Enrol MFA and sign in again.'
+      : ( result.failure.message || 'Permanent delete refused' ) );
+  };
 
   const incomplete = !!scan && scan.status !== 'OK';
   const candidates = incomplete ? [] : ( scan?.eligible || [] );
@@ -216,6 +253,33 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
 
           { scan.ttlGap?.note && <p className="cleanup-note">{ scan.ttlGap.note }</p> }
         </>
+      ) }
+
+      <h4>Delete a contact permanently</h4>
+      <p className="cleanup-note" role="note">
+        Admin with MFA only. Frees the phone and identity keys so the same number can be added again.
+        Payment, invoice and Razorpay records are kept, and a contact with payment history cannot be deleted (archive it instead).
+      </p>
+      { canArchive ? (
+        <>
+          <label className="cleanup-label" htmlFor="del-id">Contact id</label>
+          <input id="del-id" className="cleanup-text" type="text" value={ delId } onChange={ e => setDelId( e.target.value ) } disabled={ deleting } />
+          <label className="cleanup-label" htmlFor="del-case">Approved case id</label>
+          <input id="del-case" className="cleanup-text" type="text" value={ delCase } onChange={ e => setDelCase( e.target.value ) } disabled={ deleting } />
+          <label className="cleanup-label" htmlFor="del-manifest">Reviewed manifest SHA-256</label>
+          <input id="del-manifest" className="cleanup-text" type="text" value={ delManifest } onChange={ e => setDelManifest( e.target.value ) } disabled={ deleting } />
+          <label className="cleanup-label" htmlFor="del-token">Approval token</label>
+          <input id="del-token" className="cleanup-text" type="password" autoComplete="off" value={ delToken } onChange={ e => setDelToken( e.target.value ) } disabled={ deleting } />
+          <label className="cleanup-label" htmlFor="del-typed">Type DELETE to confirm</label>
+          <input id="del-typed" className="cleanup-text" type="text" value={ delTyped } onChange={ e => setDelTyped( e.target.value ) } disabled={ deleting } />
+          <div className="cleanup-actions">
+            <button type="button" className="action" onClick={ () => void runPermanentDelete() } disabled={ deleting || !canDelete }>
+              { deleting ? 'Deleting…' : 'Delete permanently' }
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="cleanup-note">Permanent delete requires the Admin role with MFA enrolled.</p>
       ) }
 
       <style jsx>{`
