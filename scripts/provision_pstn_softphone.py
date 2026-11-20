@@ -88,8 +88,8 @@ def function_arn() -> str:
 def ensure_table(dry_run: bool) -> str:
     """One row per softphone session, keyed on `{actor}#{tab}`.
 
-    TTL on `expiresAt`: a tab closed without signing out leaves a row behind, and a stale
-    `AVAILABLE` agent is worse than no record because it routes calls into a void.
+    No TTL: a tab closed without signing out leaves a row behind, so availability checks
+    the `expiresAt` heartbeat in code rather than relying on DynamoDB to remove the row.
 
     No PITR. Unlike the CRM tables this holds transient device state, not business history -
     a lost row costs one re-registration, and the session is rebuilt by the next token mint.
@@ -110,11 +110,7 @@ def ensure_table(dry_run: bool) -> str:
         Tags=[{"Key": "domain", "Value": "pstn"}, {"Key": "phase", "Value": "5"}],
     )
     _ddb().get_waiter("table_exists").wait(TableName=TABLE)
-    _ddb().update_time_to_live(
-        TableName=TABLE,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": "expiresAt"},
-    )
-    return "created + ttl"
+    return "created"
 
 
 def build_package() -> bytes:
@@ -241,8 +237,8 @@ def verify() -> int:
         status = ttl.get("TimeToLiveDescription", {}).get("TimeToLiveStatus")
         print(f"table        : {TABLE}  {described['TableStatus']}  "
               f"items={described.get('ItemCount', 0)}  TTL={status}")
-        if status not in ("ENABLED", "ENABLING"):
-            problems.append(f"{TABLE} TTL is {status}; stale sessions would persist")
+        if status not in ("DISABLED", "DISABLING", None):
+            problems.append(f"{TABLE} TTL is {status}, expected DISABLED")
     except ClientError:
         problems.append(f"{TABLE} missing")
         print(f"table        : MISSING")

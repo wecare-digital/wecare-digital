@@ -503,7 +503,6 @@ def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
             'dataKeys': list(data.keys()) if data else [],
             'requestId': request_id,
             'createdAt': Decimal(str(now)),
-            'ttl': now + FLOW_LOG_TTL_SECONDS,
         }
         if data:
             try:
@@ -529,7 +528,6 @@ def save_draft(phone: str, flow_code: str, screen: str, form_data: Dict) -> bool
             'screen': screen,
             'formData': json.dumps(form_data) if isinstance(form_data, dict) else str(form_data),
             'updatedAt': Decimal(str(now)),
-            'ttl': now + (7 * 86400),
         })
         return True
     except Exception as e:

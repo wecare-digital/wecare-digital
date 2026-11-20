@@ -546,7 +546,6 @@ def _log_webhook_event(event_type: str, event_data: Dict, request_id: str, razor
             'rawPayload': json.dumps(event_data, default=str)[:4000],  # Truncate large payloads
             'processedAt': now,
             'createdAt': now,
-            'expiresAt': now + 180 * 24 * 60 * 60,  # TTL: 180 days
         }
         # paymentId is the HASH key of paymentId-index. DynamoDB rejects an empty
         # string for an index key attribute, which previously made PutItem fail for

@@ -403,7 +403,6 @@ def _handle_tts(body: Dict, request_id: str) -> Dict[str, Any]:
             'transcription': message_text,
             'detectedLanguage': language_code,
             'createdAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(now + TTL_SECONDS)),
         })
 
         # Step 6: Also store in messages table for inbox display
@@ -461,7 +460,6 @@ def _handle_tts(body: Dict, request_id: str) -> Dict[str, Any]:
                 'type': 'tts', 'transcription': message_text,
                 'detectedLanguage': language_code,
                 'createdAt': Decimal(str(now)),
-                'expiresAt': Decimal(str(now + TTL_SECONDS)),
             })
             return _response(200, {
                 'success': True, 'messageId': msg_id,
@@ -539,7 +537,6 @@ def _handle_send_audio(body: Dict, request_id: str) -> Dict[str, Any]:
             'status': 'sent' if wa_message_id else 'failed',
             'type': 'recording',
             'createdAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(now + TTL_SECONDS)),
         })
 
         _store_message_record(
@@ -1001,7 +998,6 @@ def _store_message_record(msg_id: str, contact_id: str, content: str,
             'recipientPhone': recipient_phone,
             'createdAt': Decimal(str(now)),
             'updatedAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(now + 30 * 24 * 60 * 60)),
         }
         if transcription:
             item['transcription'] = transcription

@@ -747,7 +747,6 @@ def _save_draft(body: Dict) -> Dict:
     flow_code = body.get('flowCode', '')
     draft_key = f'{phone}#{flow_code}'
     now = _now()
-    ttl = now + (7 * 86400)  # 7 days
 
     table.put_item(Item={
         'draftKey': draft_key,
@@ -756,7 +755,6 @@ def _save_draft(body: Dict) -> Dict:
         'screen': body.get('screen', ''),
         'formData': body.get('formData', '{}'),
         'updatedAt': now,
-        'ttl': ttl,
     })
     return _resp(200, {'saved': True, 'draftKey': draft_key})
 

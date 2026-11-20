@@ -100,10 +100,6 @@
         },
         "PointInTimeRecoverySpecification": {
           "PointInTimeRecoveryEnabled": true
-        },
-        "TimeToLiveSpecification": {
-          "AttributeName": "ttl",
-          "Enabled": true
         }
       }
     },

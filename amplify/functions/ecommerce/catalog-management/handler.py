@@ -232,7 +232,6 @@ def _sync_catalog(catalog_id: str, waba_id: str, request_id: str) -> Dict:
                 'url': p.get('url', ''),
                 'description': p.get('description', ''),
                 'syncedAt': Decimal(str(now)),
-                'ttl': Decimal(str(now + 7 * 86400)),  # 7 day cache
             })
             synced += 1
 

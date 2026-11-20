@@ -623,7 +623,6 @@ def redirect(code, event):
                 "platform": platform,
                 "userAgent": user_agent[:500],
                 "sourceIp": source_ip,
-                "expiresAt": int(time.time()) + LINK_CLICK_RETENTION_SECONDS,
             }
         )
         links_table.update_item(

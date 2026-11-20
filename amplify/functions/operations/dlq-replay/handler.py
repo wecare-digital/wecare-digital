@@ -323,7 +323,6 @@ def _get_or_create_dlq_record(message_id: str, queue_name: str, payload: Dict) -
             'retryCount': 0,
             'lastAttemptAt': Decimal(str(now)),
             'payload': json.dumps(payload, default=str),
-            'expiresAt': Decimal(str(now + DLQ_TTL_SECONDS)),  # TTL: 7 days
         }
         
         dlq_table.put_item(Item=record)

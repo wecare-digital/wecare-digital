@@ -71,14 +71,6 @@ def ensure_table() -> None:
         ddb.get_waiter("table_exists").wait(TableName=TABLE_NAME)
         print(f"[ddb] created: {TABLE_NAME}")
 
-    ttl = ddb.describe_time_to_live(TableName=TABLE_NAME).get("TimeToLiveDescription", {})
-    if ttl.get("TimeToLiveStatus") not in ("ENABLED", "ENABLING"):
-        ddb.update_time_to_live(
-            TableName=TABLE_NAME,
-            TimeToLiveSpecification={"Enabled": True, "AttributeName": "expiresAt"},
-        )
-        print("[ddb] enabled TTL on expiresAt")
-
 
 def ensure_role_policy() -> None:
     iam = boto3.client("iam", region_name=REGION)

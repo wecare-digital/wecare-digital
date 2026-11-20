@@ -83,7 +83,6 @@ def claim_event(event_id: Optional[str], source: str = 'whatsapp', ttl_days: int
                 'source': source,
                 'processedAt': now,
                 'expiresAt': expires_at,
-                'ttl': expires_at,
             },
             ConditionExpression='attribute_not_exists(eventId)',
         )
@@ -145,7 +144,6 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
         'processedAt': now,
         'leaseExpiresAt': lease_until,
         'expiresAt': expires_at,
-        'ttl': expires_at,
     }
 
     try:

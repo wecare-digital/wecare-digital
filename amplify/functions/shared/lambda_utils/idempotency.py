@@ -54,7 +54,7 @@ def claim_admin_action(key: str, actor: str, action: str, ttl_seconds: int = 24 
     table_name = os.environ.get('WEBHOOK_DEDUP_TABLE', 'stack-wecare-digital-WebhookDedup')
     table = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')).Table(table_name)
     item = {'eventId': key, 'source': f'admin:{action}', 'actor': actor,
-            'processedAt': now, 'expiresAt': expires_at, 'ttl': expires_at}
+            'processedAt': now, 'expiresAt': expires_at}
     kwargs = {'Item': item, 'ConditionExpression': 'attribute_not_exists(eventId)'}
     if claim_token:
         item['claimToken'] = claim_token

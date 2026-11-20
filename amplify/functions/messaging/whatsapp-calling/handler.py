@@ -925,7 +925,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             'sdpType': sdp_type,
             'timestamp': timestamp,
             'createdAt': Decimal(str(now)),
-            'ttl': Decimal(str(now + TTL_SECONDS)),
         })
         # `caller_name` is the customer's own WhatsApp profile name, so its presence is
         # logged rather than its value - the same rule `inbound-whatsapp-handler` follows.
@@ -948,7 +947,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
                 'permission': 'GRANTED',
                 'timestamp': timestamp,
                 'createdAt': Decimal(str(now)),
-                'ttl': Decimal(str(now + TTL_SECONDS)),
             })
             logger.info(f"Pre-call auto-granted permission for {mask_phone(from_number or '')} on connect (call {call_id})")
 
@@ -997,7 +995,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             'duration': duration,
             'timestamp': timestamp,
             'createdAt': Decimal(str(now)),
-            'ttl': Decimal(str(now + TTL_SECONDS)),
         })
 
         # Unified timeline breadcrumb — one 'call' row in MessagesTable per ended call
@@ -1044,7 +1041,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
                 'permission': 'GRANTED',
                 'timestamp': timestamp,
                 'createdAt': Decimal(str(now)),
-                'ttl': Decimal(str(now + TTL_SECONDS)),
             })
             logger.info(f"Auto-granted call permission for {mask_phone(from_number or '')} after completed call {call_id} (duration={duration}s)")
 
@@ -1090,7 +1086,6 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             'rawEvent': json.dumps(call)[:1000],
             'timestamp': timestamp,
             'createdAt': Decimal(str(now)),
-            'ttl': Decimal(str(now + TTL_SECONDS)),
         })
 
 
@@ -1350,7 +1345,6 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
                 'awsPhoneNumberId': phone_number_id,
                 'timestamp': Decimal(str(now)),
                 'createdAt': Decimal(str(now)),
-                'expiresAt': Decimal(str(now + 30 * 24 * 60 * 60)),
             })
             logger.info(f"Post-call message stored in outbound table: id={store_id}")
         except Exception as e:
@@ -1892,7 +1886,6 @@ def _mark_sms_sent(phone_digits: str) -> None:
         table.put_item(Item={
             'id': f'sms_dedup_{phone_digits}',
             'configValue': str(now),
-            'ttl': Decimal(str(now + SMS_DEDUP_WINDOW_SECONDS + 60)),  # auto-cleanup
         })
     except Exception as e:
         logger.warning(f"SMS dedup mark failed: {e}")
@@ -2385,7 +2378,6 @@ def _process_account_settings_update(waba_id: str, value: Dict, request_id: str)
         'status': status or 'updated',
         'apiResponse': json.dumps(value, default=str)[:1000],
         'timestamp': Decimal(str(now)),
-        'ttl': Decimal(str(now + TTL_SECONDS)),
     })
 
     if restrictions:
@@ -2404,7 +2396,6 @@ def _process_account_settings_update(waba_id: str, value: Dict, request_id: str)
             'status': 'restricted',
             'apiResponse': json.dumps(restrictions, default=str)[:1000],
             'timestamp': Decimal(str(now)),
-            'ttl': Decimal(str(now + TTL_SECONDS)),
         })
 
 
@@ -2571,7 +2562,6 @@ def _store_notification_to_inbox(message_id: str, contact_id: str, contact_phone
             'messageType': message_type,
             'timestamp': Decimal(str(now)),
             'createdAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(now + 30 * 24 * 60 * 60)),
             'requestId': request_id,
         }
         # Only set GSI key fields if non-empty (DynamoDB rejects empty strings on GSI keys)
@@ -2693,7 +2683,6 @@ def _send_call_whatsapp_notification(caller_phone: str, call_id: str, receiving_
                 'smsStatus': 'sent_separately',
                 'requestId': request_id,
                 'createdAt': int(_time.time()),
-                'ttl': int(_time.time()) + 90 * 86400,
             })
         except Exception as e:
             logger.warning(f'CallNotifications log failed: {e}')

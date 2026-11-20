@@ -88,7 +88,6 @@ def build_message_item(
         'status': st,
         'timestamp': _dec(now),
         'createdAt': _dec(now),
-        'expiresAt': _dec(now + MESSAGE_TTL_SECONDS),
     }
     # contactId is a GSI key (contactId-index) — DynamoDB rejects an empty-string key
     # value. Only include it when non-empty so unmatched messages still store (sparse).

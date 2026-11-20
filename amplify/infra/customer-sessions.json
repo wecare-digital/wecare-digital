@@ -59,10 +59,6 @@
         "SSESpecification": {
           "SSEEnabled": true
         },
-        "TimeToLiveSpecification": {
-          "AttributeName": "absoluteExpiresAt",
-          "Enabled": true
-        },
         "PointInTimeRecoverySpecification": {
           "PointInTimeRecoveryEnabled": true
         },

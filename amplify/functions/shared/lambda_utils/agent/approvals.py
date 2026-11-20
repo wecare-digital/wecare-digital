@@ -205,9 +205,6 @@ class DynamoApprovalStore:
             "approvedBy": approval.approved_by,
             "approvedAt": approval.approved_at,
             "expiresAt": approval.expires_at,
-            # Reaped by DynamoDB eventually; the condition below is what actually
-            # enforces expiry.
-            "expiresTtl": approval.expires_at,
         }
         if approval.consumed_at is not None:
             row["consumedAt"] = approval.consumed_at

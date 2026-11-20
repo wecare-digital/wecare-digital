@@ -35,83 +35,8 @@ const backend = defineBackend( {
 
 // ─── DynamoDB TTL Configuration ──────────────────────────────────────
 // Enable TTL on tables that have expiresAt/ttl fields.
-// Amplify Gen 2 doesn't support TTL natively, so we use CDK overrides.
-// NOTE: TTL is also enforced directly on the physical tables via
-// scripts/_fix_ddb_ttl.py (the CDK override below historically failed silently).
-// RateLimitTracker is omitted here, but NOT for the reason this comment used to
-// give. It claimed 'lastUpdatedAt' is "NOT an expiry" and that enabling TTL on it
-// "would purge the entire table". Both halves are wrong, and were wrong when
-// written: every writer (lambda_utils/rate_limit.py and
-// outbound-whatsapp._check_rate_limit) sets it to windowStart + 86400, an absolute
-// future expiry, and DescribeTimeToLive on 2026-09-25 shows TTL already ENABLED on
-// lastUpdatedAt on the live table — with 143 rows present, so nothing was purged.
-// It stays omitted only because the physical table already has the TTL it needs and
-// this CDK override historically failed silently; the live table, not this file, is
-// the thing that is right.
-const TTL_CONFIG: Record<string, string> = {
-  Message: 'expiresAt',
-  DLQMessage: 'expiresAt',
-  AuditLog: 'expiresAt',
-  VoiceAws: 'expiresAt',
-  VoiceCDR: 'expiresAt',
-  WhatsAppVoice: 'expiresAt',
-  WhatsAppInbound: 'expiresAt',
-  WhatsAppOutbound: 'expiresAt',
-  WebhookDedup: 'ttl',
-  SystemEvent: 'ttl',
-  CatalogCache: 'ttl',
-  AdClickAttribution: 'ttl',
-  WhatsAppCalling: 'ttl',
-  RazorpayWebhookLog: 'expiresAt',
-  // PayUWebhookLog removed 2026-09-20 with the model; PayU is retired and its
-  // table was deleted from the account.
-  // PSTN voice (Plivo). PstnCall, PstnCallEvent and PstnAgentPresence were
-  // configured here until 2026-09-23. All three were removed along with their
-  // declarations in data/resource.ts: none existed in the account, and nothing in
-  // amplify/functions read or wrote them. A TTL entry for a model that has no
-  // table is a no-op on the `if ( table )` guard below, so this block was quietly
-  // configuring nothing.
-  //
-  // The dual-purpose presence clock survives where it is actually used: in
-  // PstnSoftphoneSessions, whose expiresAt is both the DynamoDB TTL and the
-  // availability cutoff, so an agent whose browser closed without signing out
-  // stops being routable when the heartbeat goes stale rather than when DynamoDB
-  // happens to sweep. See scripts/provision_pstn_softphone.py, which sets it.
-  //
-  // PstnNotificationDelivery was declared here and in data/resource.ts and
-  // existed in none of the 66 live tables, so every claim against it raised
-  // ClaimStoreUnavailable and the dial-events route answered 503 without
-  // sending. Removed 2026-09-21 rather than materialised (NOTIF-STORE-001);
-  // the replacement tables are provisioned and read back by
-  // scripts/provision_notification_domain.py, which sets their own TTL.
-  //
-  // PstnFlowVersion and PstnRecordingAudit were listed here as deliberately
-  // TTL-free - immutable routing history, and an audit record that must outlive
-  // the audio it describes. Both reasons are sound and both are moot: neither
-  // model had a table, and both declarations were removed on 2026-09-23. The
-  // reasoning is kept in data/resource.ts so it is available if either is ever
-  // built, rather than as a comment about a model that no longer exists.
-};
-
-try
-{
-  const dataStack = backend.data.resources.cfnResources;
-  for ( const [ modelName, ttlAttribute ] of Object.entries( TTL_CONFIG ) )
-  {
-    const table = dataStack.amplifyDynamoDbTables[ modelName ];
-    if ( table )
-    {
-      ( table as any ).addPropertyOverride( 'TimeToLiveSpecification', {
-        AttributeName: ttlAttribute,
-        Enabled: true,
-      } );
-    }
-  }
-} catch ( e )
-{
-  // TTL override may fail in some Amplify Gen 2 versions — log and continue
-  console.warn( 'TTL CDK override skipped:', e );
-}
+// DynamoDB TTL is intentionally NOT enabled on any table. Rows are retained until
+// deleted explicitly. Do not add a TimeToLiveSpecification override here.
 
 // ─── Additional CDK Resources ────────────────────────────────────────
 // All additional infrastructure is attached to the data stack so it

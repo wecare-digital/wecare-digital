@@ -183,7 +183,6 @@ def record_session(table: Any, *, capability: str, token: str, launch_channel: s
             **({'orderId': paid_order_id} if paid_order_id else {}),
             **({'orderNumber': paid_order_number} if paid_order_number else {}),
             **({'serviceCode': paid_service_code} if paid_service_code else {}),
-            'ttl': session.expires_at + _ROW_RETENTION_SECONDS,
         }, ConditionExpression='attribute_not_exists(draftKey)')
     except Exception as exc:  # noqa: BLE001 - every failure means "not issued"
         raise FlowSessionUnavailable(type(exc).__name__) from exc

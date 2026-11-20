@@ -2676,7 +2676,6 @@ def _process_message(
         'awsPhoneNumberId': aws_phone_number_id,
         'metaWabaIds': meta_waba_ids if meta_waba_ids else None,
         'createdAt': Decimal(str(now)),
-        'expiresAt': Decimal(str(expires_at)),
         # None when this is not a contacts message; the put_item below filters
         # None values out, so no attribute is added.
         'contactsPayload': _contacts_payload,
@@ -5975,7 +5974,6 @@ def _store_payment_record(reference_id: str, recipient_id: str, payment_status: 
             'webhookUdf4': webhook_udf4 if webhook_udf4 else None,
             'timestamp': Decimal(str(timestamp)),
             'createdAt': Decimal(str(now)),
-            'expiresAt': Decimal(str(expires_at)),
         }
         
         messages_table = dynamodb.Table(MESSAGES_TABLE)
@@ -6570,7 +6568,6 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
             'screen': 'REVIEW_FORM',
             'formData': json.dumps({'reference': reference, 'expiresAt': expires_at}),
             'updatedAt': Decimal(str(now)),
-            'ttl': expires_at,
         })
         return True
     except Exception as e:

@@ -144,7 +144,6 @@ def _ledger(waba_id: str, kind: str, amount: float, balance_after: float,
             'wabaId': waba_id, 'ts': ts, 'type': kind, 'amount': _dec(amount),
             'balanceAfter': _dec(balance_after), 'category': category or '',
             'note': note or '', 'messageId': message_id or '',
-            'ttl': int(time.time()) + LEDGER_TTL_DAYS * 86400,
         })
     except Exception as e:  # noqa: BLE001
         logger.warning(json.dumps({'event': 'partner_ledger_error', 'wabaId': waba_id, 'error': str(e)}))

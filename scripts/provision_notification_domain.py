@@ -52,10 +52,6 @@ OUTBOX = f"{PREFIX}-NotificationOutbox"
 QUEUE = f"{PREFIX}-notification-queue"
 DLQ = f"{PREFIX}-notification-dlq"
 
-#: Every table TTLs on the same attribute name, so a sweep or an audit does not need
-#: a per-table lookup to know which one to read.
-TTL_ATTRIBUTE = "expiresAt"
-
 TABLES = {
     EVENTS: {
         "keys": [("eventClaimKey", "HASH")],
@@ -135,21 +131,6 @@ def create_table(name: str, spec: dict, dry_run: bool) -> str:
     )
     _ddb().get_waiter("table_exists").wait(TableName=name)
     return "created"
-
-
-def enable_ttl(name: str, dry_run: bool) -> str:
-    """TTL bounds claim growth. A claim must outlive every provider retry window, or
-    it expiring would permit a duplicate send - hence 30 days in `store.py`, not 1."""
-    current = _ddb().describe_time_to_live(TableName=name)
-    desc = current.get("TimeToLiveDescription", {}) or {}
-    if desc.get("TimeToLiveStatus") in ("ENABLED", "ENABLING"):
-        return f"ttl already {desc.get('AttributeName')}"
-    if dry_run:
-        return f"would enable ttl on {TTL_ATTRIBUTE}"
-    _ddb().update_time_to_live(
-        TableName=name,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": TTL_ATTRIBUTE})
-    return f"ttl enabled on {TTL_ATTRIBUTE}"
 
 
 def enable_pitr(name: str, dry_run: bool) -> str:
@@ -246,7 +227,7 @@ def verify() -> int:
 
         ttl = (_ddb().describe_time_to_live(TableName=name)
                .get("TimeToLiveDescription", {}) or {})
-        ttl_ok = ttl.get("TimeToLiveStatus") == "ENABLED" and ttl.get("AttributeName") == TTL_ATTRIBUTE
+        ttl_ok = ttl.get("TimeToLiveStatus") in ("DISABLED", "DISABLING", None)
 
         pitr = (_ddb().describe_continuous_backups(TableName=name)
                 .get("ContinuousBackupsDescription", {})
@@ -325,7 +306,6 @@ def main(argv=None) -> int:
         print(f"  {name}")
         print(f"    {create_table(name, spec, args.dry_run)}")
         if not args.dry_run or table_exists(name):
-            print(f"    {enable_ttl(name, args.dry_run)}")
             print(f"    {enable_pitr(name, args.dry_run)}")
 
     print()

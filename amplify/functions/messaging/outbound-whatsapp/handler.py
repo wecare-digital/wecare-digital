@@ -4344,7 +4344,6 @@ def _store_message_record(message_id: str, contact_id: str, content: str, status
         # WABA tracking - which phone number sent this message
         'awsPhoneNumberId': phone_number_id,
         'createdAt': Decimal(str(now)),
-        'expiresAt': Decimal(str(expires_at)),
         # Payment tracking fields (for amount lookup on confirmation)
         'paymentReferenceId': payment_reference_id,
         # INTEGER PAISE, taken directly from the caller. The `Decimal(str(x * 100))` float

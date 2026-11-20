@@ -142,14 +142,6 @@ export const BEDROCK_CONFIG = {
   MODEL_ARN: 'arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0',
 };
 
-// TTL Configuration (in seconds)
-export const TTL_CONFIG = {
-  MESSAGES: 30 * 24 * 60 * 60,      // 30 days
-  DLQ_MESSAGES: 7 * 24 * 60 * 60,   // 7 days
-  AUDIT_LOGS: 180 * 24 * 60 * 60,   // 180 days
-  RATE_LIMIT: 24 * 60 * 60,         // 24 hours
-};
-
 // Rate Limits
 export const RATE_LIMITS = {
   WHATSAPP_PER_SECOND: 80,
