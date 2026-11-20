@@ -293,6 +293,23 @@ function normalizeMessage ( item: any ): Message {
 }
 
 // Send WhatsApp message via Lambda
+/**
+ * One staff-initiated WhatsApp send, never auto-replayed after a timeout or
+ * ambiguous gateway response. Meta may have accepted a message even if the
+ * response is lost. Leave retry decisions to the staff after reconciliation.
+ */
+export async function sendWhatsAppStaffReplyOnce (
+  request: SendMessageRequest
+): Promise<{ messageId: string; status: string } | null> {
+  const outcome = await apiCallResult<{ messageId: string; status: string }>(
+    `${API_BASE}/whatsapp/send`,
+    { method: 'POST', body: JSON.stringify( request ) },
+    0, 15000, false,
+  );
+  return outcome.ok ? outcome.data : null;
+}
+
+
 export interface SendMessageRequest {
   contactId: string;
   content?: string;
