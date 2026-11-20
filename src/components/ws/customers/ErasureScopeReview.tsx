@@ -149,8 +149,9 @@ const ErasureScopeReview: React.FC<Props> = ({ contacts, onClose }) => {
             independently reviewed cross-service inventory certifies eligibility.
           </p>
           <p>
-            Permanent deletion is unavailable: the production contact API currently returns
-            CONTACT_ERASURE_NOT_READY. No records have been changed by this review.
+            Permanent deletion still requires Admin MFA, approved case evidence and
+            an independently deployed erasure coordinator. Without that coordinator,
+            the API reports ERASURE_COORDINATOR_UNAVAILABLE. This review changes no records.
           </p>
         </div>
         <footer className={styles.footer}>
