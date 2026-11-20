@@ -3,11 +3,13 @@
 import importlib.util
 import io
 from pathlib import Path
+import sys
 import zipfile
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
 SPEC = importlib.util.spec_from_file_location(
     "standby_names_release", ROOT / "scripts/release_standby_names.py"
 )
@@ -33,33 +35,20 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
     except Exception:
         return False
 '''
-HANDLER = '''def process(value, _msgs, thread_ownership):
-    _pid = _bsuid = _waid = ""
-    _contacts = value.get("contacts")
-    _stored = 0
-    for _m in _msgs:
-        _c = ""
-        _mp, _mb, _mw = _thread_identity(value, _m)
-        if thread_ownership.store_standby_message(
-                _mp or _pid, bsuid=_mb or _bsuid, wa_id=_mw or _waid,
-                message=_m, content=_c):
-            _stored += 1
-'''
-# Source uses a fixed indent of 28 spaces at its webhook callsite.
-HANDLER = HANDLER.replace(
-    "        _mp, _mb, _mw = _thread_identity(value, _m)",
-    "                            _mp, _mb, _mw = _thread_identity(value, _m)",
-).replace(
-    "        if thread_ownership.store_standby_message(",
-    "                            if thread_ownership.store_standby_message(",
-).replace(
-    "                _mp or _pid, bsuid=",
-    "                                    _mp or _pid, bsuid=",
-).replace(
-    "                message=_m, content=_c):",
-    "                                    message=_m, content=_c):",
-)
-
+HANDLER = '\n'.join([
+    'def handler(event, context):',
+    '    if True:',
+    '        if True:',
+    '            if True:',
+    '                if True:',
+    '                    if True:',
+    '                        if True:',
+    '                            _mp, _mb, _mw = _thread_identity(value, _m)',
+    '                            if thread_ownership.store_standby_message(',
+    '                                    _mp or _pid, bsuid=_mb or _bsuid, wa_id=_mw or _waid,',
+    '                                    message=_m, content=_c):',
+    '                                _stored += 1',
+]) + '\n'
 
 def make_zip(writer=WRITER, handler=HANDLER):
     out = io.BytesIO()
