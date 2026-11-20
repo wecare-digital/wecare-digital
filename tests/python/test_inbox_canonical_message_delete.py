@@ -140,6 +140,13 @@ def test_missing_identity_or_audit_failure_fails_closed(setup, monkeypatch):
     assert not setup.tables[handler.CANONICAL_TABLE].deletes
 
 
+def test_legacy_unprefixed_id_cannot_trigger_canonical_delete(setup):
+    status, response = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    assert status == 400
+    assert "Canonical message marker" in response["error"]
+    assert not setup.tables[handler.CANONICAL_TABLE].deletes
+
+
 def test_admin_mfa_is_not_optional(setup):
     status, result = payload(handler._delete_canonical_message(event(False), "", "msg-1"))
     assert status == 403
