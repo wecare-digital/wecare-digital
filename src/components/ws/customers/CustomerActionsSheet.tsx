@@ -60,6 +60,7 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   const [ caseId, setCaseId ] = React.useState( '' );
   const [ manifestSha256, setManifestSha256 ] = React.useState( '' );
   const [ approvalToken, setApprovalToken ] = React.useState( '' );
+  const [ reviewStatus, setReviewStatus ] = React.useState( '' );
 
   const name = contact.name || contact.phone || 'this customer';
   const locked = contact.locked === true;
@@ -129,6 +130,48 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
     void router.push( `/workspace/communications/?view=inbox&contactId=${encodeURIComponent( contact.contactId )}` );
   };
 
+  const prepareDeletion = async () => {
+    if ( busy ) return;
+    setBusy( true );
+    try {
+      const result = await api.prepareContactErasure( contact.contactId );
+      if ( result.ok && result.data.status === 'PENDING_SECOND_REVIEW' ) {
+        setCaseId( result.data.caseId );
+        setManifestSha256( result.data.manifestSha256 );
+        setApprovalToken( '' );
+        setReviewStatus( 'Another administrator must approve this case before deletion.' );
+        toast.success( 'Eligible contact verified. Case prepared for a second reviewer.' );
+      } else {
+        setReviewStatus( 'Contact review did not pass. Nothing was deleted.' );
+        toast.error( result.ok ? 'Case preparation was not confirmed.' : result.failure.message );
+      }
+    } catch {
+      toast.error( 'Could not verify the contact and linked records.' );
+    } finally {
+      setBusy( false );
+    }
+  };
+
+  const approveDeletion = async () => {
+    if ( busy || !caseId.trim() ) return;
+    setBusy( true );
+    try {
+      const result = await api.approveContactErasure( caseId.trim() );
+      if ( result.ok && result.data.status === 'APPROVED' && result.data.approvalToken ) {
+        setManifestSha256( result.data.manifestSha256 );
+        setApprovalToken( result.data.approvalToken );
+        setReviewStatus( 'Second-reviewer approval confirmed. Deletion is now available for this exact contact.' );
+        toast.success( 'Approved. The one-use token is held only in this open form.' );
+      } else {
+        toast.error( result.ok ? 'Approval was not verified.' : result.failure.message );
+      }
+    } catch {
+      toast.error( 'Approval could not be verified.' );
+    } finally {
+      setBusy( false );
+    }
+  };
+
   const requestDeletion = async () => {
     if ( busy || !caseId || !approvalToken || !/^[a-f0-9]{64}$/.test( manifestSha256 ) ) return;
     const ok = await confirm( {
@@ -176,7 +219,9 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
 
         { locked && (
           <p className="cas-lock" role="note">
-            Protected by a retention lock. Blocking and deletion are disabled until an administrator reviews it.
+            { contact.lockedReason === 'created'
+              ? 'Creation lock: blocking is unavailable. Contact deletion requires two independent Admin reviews and a complete dependency check.'
+              : 'Protected by a retention lock. Blocking and deletion will be refused until a verified legal review.' }
           </p>
         ) }
 
@@ -217,23 +262,32 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
             </button>
             { showDeleteForm && (
               <div className="cas-deletion-form">
-                <p className="cas-hint">An approved deletion must preserve retained conversations and payment evidence. The backend verifies identity release before reporting success.</p>
+                <p className="cas-hint">Only an eligible contact with no linked conversations, payments or provider identity can be removed. Two different Admin accounts with MFA must review. Audit records remain retained.</p>
+                <button type="button" className="cas-btn" disabled={ busy }
+                  onClick={ () => void prepareDeletion() }>
+                  1. Check eligibility and prepare case
+                </button>
+                <button type="button" className="cas-btn" disabled={ busy || !caseId.trim() }
+                  onClick={ () => void approveDeletion() }>
+                  2. Approve as a different administrator
+                </button>
+                { reviewStatus && <p role="status" className="cas-hint">{ reviewStatus }</p> }
                 <label className="cas-deletion-field">Approved case ID
                   <input value={ caseId } onChange={ e => setCaseId( e.target.value ) }
                     placeholder="Case reference" autoComplete="off" />
                 </label>
                 <label className="cas-deletion-field">Reviewed manifest SHA-256
-                  <input value={ manifestSha256 } onChange={ e => setManifestSha256( e.target.value.toLowerCase() ) }
-                    placeholder="64-character review fingerprint" autoComplete="off" />
+                  <input value={ manifestSha256 } readOnly
+                    placeholder="Provided after approval" autoComplete="off" />
                 </label>
                 <label className="cas-deletion-field">Single-use approval token
-                  <input value={ approvalToken } onChange={ e => setApprovalToken( e.target.value ) }
-                    type="password" placeholder="Approval token" autoComplete="off" />
+                  <input value={ approvalToken } readOnly
+                    type="password" placeholder="Provided after second review" autoComplete="off" />
                 </label>
                 <button type="button" className="cas-btn cas-danger"
                   disabled={ busy || !caseId.trim() || !/^[a-f0-9]{64}$/.test( manifestSha256 ) || approvalToken.length < 24 }
                   onClick={ () => void requestDeletion() }>
-                  { busy ? 'Checking deletion…' : 'Submit approved deletion' }
+                  { busy ? 'Checking deletion…' : '3. Delete approved contact and release identity' }
                 </button>
               </div>
             ) }
