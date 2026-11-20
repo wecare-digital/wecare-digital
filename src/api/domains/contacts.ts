@@ -303,6 +303,9 @@ export async function restoreContact ( contactId: string ): Promise<ApiResult<Co
   return { ok: true, data: result.data ? normalizeContact( result.data.contact || result.data ) : null };
 }
 
+/** The scan reads whole tables (Lambda timeout 300s), so the default 8s client abort would cut it off. */
+const CLEANUP_TIMEOUT_MS = 300_000;
+
 /** Operator hold list for a cleanup scan. Exact ids, phones or BSUIDs only; never names. */
 export interface ContactCleanupKeep {
   keepContactIds?: string[];
@@ -364,7 +367,7 @@ export async function scanContactCleanup (
       ...( page.offset ? { offset: page.offset } : {} ),
       ...( page.limit ? { limit: page.limit } : {} ),
     } ),
-  } );
+  }, 0, CLEANUP_TIMEOUT_MS );
 }
 
 /** Reversible bulk Archive of confirmed candidates. Admin + MFA. Never deletes. */
@@ -385,7 +388,7 @@ export async function archiveCleanupCandidates ( input: {
       keepPhones: input.keep?.keepPhones || [],
       keepBsuids: input.keep?.keepBsuids || [],
     } ),
-  } );
+  }, 0, CLEANUP_TIMEOUT_MS, false );
 }
 
 export interface CustomerMergeResult {
