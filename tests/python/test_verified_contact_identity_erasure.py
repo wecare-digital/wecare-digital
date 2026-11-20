@@ -90,7 +90,8 @@ def test_two_admins_can_remove_only_dependency_free_contact():
     p = m.prepare(contact_id="subject-a", actor="admin-a", tables=tables, audit=audit)
     assert p["status"] == "PENDING_SECOND_REVIEW"
     assert p["erasureComplete"] is False
-    approved = m.approve(case_id=p["caseId"], actor="admin-b", tables=tables, audit=audit)
+    approved = m.approve(case_id=p["caseId"], expected_contact_id="subject-a",
+                actor="admin-b", tables=tables, audit=audit)
     assert approved["status"] == "APPROVED"
     action, calls = transact(tables)
     result = m.execute(contact_id="subject-a", case_id=p["caseId"],
@@ -111,7 +112,8 @@ def test_same_admin_cannot_approve():
     tables, audit, _ = setup()
     p = m.prepare(contact_id="subject-a", actor="admin-a", tables=tables, audit=audit)
     try:
-        m.approve(case_id=p["caseId"], actor="admin-a", tables=tables, audit=audit)
+        m.approve(case_id=p["caseId"], expected_contact_id="subject-a",
+                  actor="admin-a", tables=tables, audit=audit)
         assert False
     except m.Refused as exc:
         assert exc.code == "ERASURE_SECOND_REVIEWER_REQUIRED"
@@ -138,7 +140,8 @@ def test_dependencies_providers_and_locks_fail_closed():
 def test_bad_token_cannot_execute():
     tables, audit, _ = setup()
     p = m.prepare(contact_id="subject-a", actor="admin-a", tables=tables, audit=audit)
-    approved = m.approve(case_id=p["caseId"], actor="admin-b", tables=tables, audit=audit)
+    approved = m.approve(case_id=p["caseId"], expected_contact_id="subject-a",
+                actor="admin-b", tables=tables, audit=audit)
     action, calls = transact(tables)
     try:
         m.execute(contact_id="subject-a", case_id=p["caseId"],
@@ -156,7 +159,8 @@ def test_contact_change_invalidates_review():
     p = m.prepare(contact_id="subject-a", actor="admin-a", tables=tables, audit=audit)
     tables["ContactsTable"].items["subject-a"]["email"] = "new@example.org"
     try:
-        m.approve(case_id=p["caseId"], actor="admin-b", tables=tables, audit=audit)
+        m.approve(case_id=p["caseId"], expected_contact_id="subject-a",
+                actor="admin-b", tables=tables, audit=audit)
         assert False
     except m.Refused as exc:
         assert exc.code == "ERASURE_SNAPSHOT_CHANGED"
