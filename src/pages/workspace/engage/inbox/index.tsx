@@ -26,6 +26,7 @@ import { searchEmojiCategories } from '../../../../lib/emoji-data';
 import { resolveWaMime, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
+import { filterInboxCleanView } from '../../../../lib/inbox-clean-view';
 import { addressFieldsFromContact, contactDeliveryAddress, formatAddress } from '../../../../lib/address-format';
 
 type ProfileGroup = { title: string; note: string; rows: [ string, string ][] };
@@ -330,6 +331,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         presetChannel && presetChannel in CHANNEL ? presetChannel : 'ALL' );
     const [ wabaFilter, setWabaFilter ] = useState<string>( 'ALL' );
     const [ search, setSearch ] = useState( '' );
+    const [ todayOnly, setTodayOnly ] = useState( false );
+    const [ retainedKeys, setRetainedKeys ] = useState<Set<string>>( new Set() );
     const [ loading, setLoading ] = useState( true );
     const [ replyText, setReplyText ] = useState( '' );
     const [ sending, setSending ] = useState( false );
@@ -394,9 +397,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             // "the request failed", so the catch below never fires on an API error
             // and the page would render "No conversations" over an outage.
             // collectApiFailures recovers the reason without changing 300 wrappers.
-            const { data: [ msgs, contacts ], failures } = await api.collectApiFailures( () => Promise.all( [
+            const { data: [ msgs, contacts, metas ], failures } = await api.collectApiFailures( () => Promise.all( [
                 api.listMessages( undefined, 'ALL', 2000 ),
                 api.listContacts(),
+                api.listConversationMeta(),
             ] ) );
             setLoadFailure( failures[ 0 ] ?? null );
             const names: Record<string, string> = {};
@@ -408,6 +412,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             setContactNames( names );
             setContactDir( dir );
             setMessages( msgs );
+            setRetainedKeys( new Set( metas
+                .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
+                .map( m => m.conversationId ) ) );
+            if ( failures.length ) setTodayOnly( false ); // Never hide on an incomplete hold read.
         } catch
         {
             toast.error( 'Failed to load inbox' );
@@ -433,6 +441,20 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     //
     // Guarded on `router.isReady` so a deep link to `?channel=rcs` is not reset to
     // ALL during the pre-hydration pass when `router.query` is still empty.
+    useEffect( () => {
+        if ( !router.isReady ) return;
+        try {
+            const view = String( router.query.view || '' );
+            setTodayOnly( view === 'today' || ( !view && window.localStorage.getItem( 'wc-inbox-today-view' ) === '1' ) );
+        } catch { setTodayOnly( false ); }
+    }, [ router.isReady, router.query.view ] );
+
+    const toggleTodayOnly = () => {
+        const next = !todayOnly;
+        setTodayOnly( next );
+        try { window.localStorage.setItem( 'wc-inbox-today-view', next ? '1' : '0' ); } catch { /* optional */ }
+    };
+
     useEffect( () => {
         if ( presetChannel || !router.isReady ) return;
         const q = String( router.query.channel || '' ).toLowerCase();
@@ -520,10 +542,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // exist in the live account, so the control it backed always failed. A transcription
     // already stored on a message is still rendered below.
 
+    // The clean view is display-only: never delete, expire, alter sender routing or overwrite retention evidence.
+    const visibleMessages = useMemo( () => todayOnly
+        ? filterInboxCleanView( messages, new Date().setHours( 0, 0, 0, 0 ), retainedKeys )
+        : messages, [ messages, todayOnly, retainedKeys ] );
+
     // Group messages into conversations by contact.
     const conversations = useMemo<Conversation[]>( () => {
         const map = new Map<string, Conversation>();
-        for ( const m of messages )
+        for ( const m of visibleMessages )
         {
             const ch = ( m.channel || 'whatsapp' ).toLowerCase();
             if ( channelFilter !== 'ALL' && ch !== channelFilter ) continue;
@@ -571,17 +598,17 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             list = list.filter( c => c.name.toLowerCase().includes( q ) || c.lastContent.toLowerCase().includes( q ) );
         }
         return list.sort( ( a, b ) => b.lastTs - a.lastTs );
-    }, [ messages, contactNames, channelFilter, wabaFilter, search ] );
+    }, [ visibleMessages, contactNames, channelFilter, wabaFilter, search ] );
 
     // Thread for the selected conversation (chronological).
     const thread = useMemo( () => {
         if ( !selected ) return [];
-        return messages
+        return visibleMessages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => channelFilter === 'ALL' || ( m.channel || 'whatsapp' ).toLowerCase() === channelFilter )
             .filter( m => wabaFilter === 'ALL' || messageWabaId( m ) === wabaFilter )
             .sort( ( a, b ) => ( new Date( a.timestamp ).getTime() || 0 ) - ( new Date( b.timestamp ).getTime() || 0 ) );
-    }, [ messages, selected, channelFilter, wabaFilter ] );
+    }, [ visibleMessages, selected, channelFilter, wabaFilter ] );
 
     const selectedConv = conversations.find( c => c.contactId === selected );
     const selectedContact = selected ? contactDir[ selected ] : undefined;
@@ -1049,6 +1076,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
                 <div className="ui-toolbar">
                     <input className="ui-search" placeholder="Search conversations…" value={ search } onChange={ e => setSearch( e.target.value ) } />
+                    <button type="button" className="ui-icon-btn" aria-pressed={ todayOnly }
+                        onClick={ toggleTodayOnly } title="Reversible view filter: no messages are deleted">
+                        { todayOnly ? 'Show all old messages' : 'Hide old messages (today + retained)' }
+                    </button>
+                    { todayOnly && <span role="status" style={ { fontSize: 12, color: colors.textMuted } }>
+                        { messages.length - visibleMessages.length } older messages hidden, not deleted
+                    </span> }
                     { /* The first control migrated in this file, in batch 2b. Four of the six
                          that remained followed in 2c - the WABA chooser, the India
                          TRANSACTIONAL/PROMOTIONAL SMS class, and the two voice pickers - and the
