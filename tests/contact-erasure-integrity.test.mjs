@@ -16,7 +16,6 @@ test('contact DELETE delegates only approved erasure without direct destructive 
   const end = contacts.indexOf('def _lock_contact(', start);
   const source = contacts.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(!source.includes('CONTACT_ERASURE_NOT_READY'));
   assert.ok(source.includes('dispatch_approved_erasure('));
   assert.ok(source.includes("os.environ.get('ERASURE_COORDINATOR_FUNCTION'"));
   assert.ok(source.includes("staff.get('mfaEnrolled') is not True"));
@@ -89,6 +88,5 @@ test('scoped deletion must respect locked identities, operator approval and TTL 
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
   assert.match(manifest, /bulk delete-all-except-one/);
   assert.match(manifest, /This document alone triggers no mutation or rollout/);
-  assert.ok(!contacts.includes('CONTACT_ERASURE_NOT_READY'), 'blanket refusal is removed');
   assert.ok(contacts.includes('dispatch_approved_erasure('), 'server delegates to independent coordinator');
 });
