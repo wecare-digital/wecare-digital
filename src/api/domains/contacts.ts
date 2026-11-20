@@ -269,10 +269,11 @@ export async function deleteContact ( contactId: string ): Promise<boolean> {
 }
 
 /**
- * Legacy soft-delete endpoint wrapper. The server now refuses contact deletion with
- * CONTACT_ERASURE_NOT_READY instead of tombstoning a row while leaving identity claims,
- * messages, S3 versions and dependent records. Keep for compatibility with old callers;
- * never use this as full customer erasure. Prefer archiveContact for staff cleanup.
+ * Legacy soft-delete endpoint wrapper. A soft-delete request cannot erase a
+ * customer: permanent erasure is delegated only to an approved coordinator.
+ * Keep for compatibility with old callers, but never interpret a successful
+ * API request as full erasure without reconciliation proof. Use archiveContact
+ * for ordinary staff directory cleanup.
  */
 export async function softDeleteContactResult (
   contactId: string,
