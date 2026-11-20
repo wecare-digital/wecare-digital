@@ -81,7 +81,7 @@ test('scoped deletion must respect locked identities, operator approval and TTL 
     'do not bypass locks', 'reviewed retention/legal decision',
     'operator approval with MFA', 'audited', 'resumable deletion',
     'reconciliation', 'REVIEW_REQUIRED', 'idempotency',
-    'TTL is enabled', 'expiresAt', 'approved non-expiring evidence store',
+    'TTL is **enabled**', 'expiresAt', 'approved non-expiring evidence store',
     'do not globally disable chat retention limits',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
   assert.match(manifest, /bulk delete-all-except-one/);
