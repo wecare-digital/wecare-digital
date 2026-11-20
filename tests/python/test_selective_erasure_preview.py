@@ -77,7 +77,13 @@ def test_created_lock_is_reviewable_but_never_automatically_unlocked():
     # When a separate *complete* inventory exists, a created lock is not
     # misrepresented as a paid/legal lock. This is STILL not execution approval.
     # A purposely unlinked orphan message remains REVIEW_REQUIRED.
-    complete = build_preview(**data(complete=True))
+    completed_input = data(complete=True)
+    # Complete identity provenance requires resolving the orphan separately.
+    completed_input["messages"]["MessagesTable"] = [
+        row for row in completed_input["messages"]["MessagesTable"]
+        if row.get("id") != "unknown"
+    ]
+    complete = build_preview(**completed_input)
     assert complete.contacts["new-c"] == ELIGIBLE_FOR_APPROVAL
     assert not complete.executable
 
@@ -85,6 +91,7 @@ def test_created_lock_is_reviewable_but_never_automatically_unlocked():
 def test_orphans_are_never_marked_deletable_by_missing_finance_keywords():
     result = build_preview(**data(complete=True))
     assert result.messages[("MessagesTable", "unknown")] == REVIEW_REQUIRED
+    assert result.contacts["new-c"] == REVIEW_REQUIRED
 
 
 def test_finance_clue_retains_its_entire_conversation():
@@ -128,11 +135,26 @@ def test_duplicate_primary_key_never_produces_candidate():
 
 def test_unlinked_financial_record_refuses_candidate_even_with_complete_flag():
     inp = data(complete=True)
+    inp["messages"]["MessagesTable"] = [
+        row for row in inp["messages"]["MessagesTable"] if row.get("id") != "unknown"
+    ]
     inp["financial"]["payments"].append(
         {"note": "provider record without reconciliation identity"})
     result = build_preview(**inp)
     assert result.contacts["new-c"] == REVIEW_REQUIRED
+    assert result.summary["financial"]["unmatchedEvidence"] >= 1
     assert not result.executable
+
+
+def test_manifest_fingerprint_is_stable_and_changes_when_rows_change():
+    first = build_preview(**data())
+    again = build_preview(**data())
+    assert first.summary["snapshotSha256"] == again.summary["snapshotSha256"]
+    changed = data()
+    changed["messages"]["MessagesTable"].append(
+        {"id": "new-signal", "contactId": "new-c", "content": "hello"})
+    after = build_preview(**changed)
+    assert first.summary["snapshotSha256"] != after.summary["snapshotSha256"]
 
 
 def test_no_write_or_unconditional_bulk_delete_apis():
