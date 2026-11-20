@@ -70,7 +70,7 @@ test('active scoped policy protects exact retained contacts, transaction evidenc
     'ContactsTable', 'canonical', 'BSUID', 'same-name', 'Razorpay',
     'payment attempts', 'captured payments', 'refunds', 'invoices',
     'payment requests', 'webhook evidence', 'reconciliation',
-    'payment-related communications', 'MessagesTable', 'WhatsApp',
+    'Transaction-related communications', 'MessagesTable', 'WhatsApp',
     'S3 versions', 'Meta WhatsApp', 'backups', 'exports',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
 });
