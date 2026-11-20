@@ -704,15 +704,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const recipientUnresolved = !!standbyHistory && !handoverPending && !hasVerifiedRecipient;
     const standbyReadOnly = handoverPending || recipientUnresolved;
 
-    // A standby state is about the sender's Meta Conversation Routing, not whether
-    // Meta AI is enabled. Do not poll AI settings or label this as AI-controlled.
-    const senderAccountId = thread.length ? messageWabaId( thread[ thread.length - 1 ] ) : '';
-    const senderAccountKey = senderAccountId === WABAS[ 0 ].id ? 'WABA1'
-        : senderAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
-    const metaRoutingUrl = senderAccountKey === 'WABA2'
-        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922'
-        : 'https://business.facebook.com/latest/settings/conversation_routing?business_id=125951953587391';
-
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
     // WABA1 — 17 `typing_indicator_error` and 12 code-100 "Message ID … does not
@@ -752,9 +743,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
-        if ( standbyReadOnly ) { toast.error( recipientUnresolved
-            ? 'Thread ownership is confirmed, but the customer needs a verified recipient contact before sending.'
-            : 'WhatsApp has not handed this thread to our inbox. Complete Meta Conversation Routing before replying.' ); return; }
+        // The composer is always visible. Sending still needs an authenticated
+        // sender/recipient; never turn a standby-only display row into permission.
+        if ( replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient ) ) {
+            toast.error( !hasVerifiedRecipient
+                ? 'This conversation has no verified reply recipient. Nothing was sent.'
+                : 'This conversation is not yet available for outgoing replies. Nothing was sent.' );
+            return;
+        }
         if ( sending ) return;
         const base = replyText.trim();
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
@@ -883,7 +879,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly, recipientUnresolved ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly, hasVerifiedRecipient ] );
 
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
@@ -1105,7 +1101,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
     // Native WhatsApp typing indicator + read receipt while composing (throttled ~20s).
     useEffect( () => {
-        if ( replyChannel !== 'whatsapp' || !replyText.trim() || !selected ) return;
+        if ( replyChannel !== 'whatsapp' || !replyText.trim() || !selected
+            || standbyReadOnly || !hasVerifiedRecipient ) return;
         const lastInbound = [ ...thread ].reverse().find( m => ( m.direction || '' ).toUpperCase() === 'INBOUND' && ( m as any ).whatsappMessageId );
         const wamid = lastInbound && ( lastInbound as any ).whatsappMessageId;
         if ( !wamid ) return;
@@ -1117,7 +1114,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         // "Message ID … does not exist" that produced 12 errors in 30 days.
         api.sendTypingIndicator( replyTarget.waba || selectedWaba, wamid ).catch( () => { } );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ replyText, selected, replyChannel ] );
+    }, [ replyText, selected, replyChannel, standbyReadOnly, hasVerifiedRecipient ] );
 
     const content = (
         <>
@@ -1269,11 +1266,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                         } ) }
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
-                                        { standbyReadOnly && (
-                                            <span className="ui-badge" title="The latest WhatsApp inbound event was a standby copy. This integration has not received a confirmed handover.">
-                                                { recipientUnresolved ? 'Recipient verification needed' : 'WhatsApp handover pending' }
-                                            </span>
-                                        ) }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
@@ -1435,34 +1427,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     <div ref={ threadEndRef } />
                                 </div>
                                 <div className="ui-reply">
-                                    { standbyReadOnly ? (
-                                        <div className="ui-handover-notice" role="status">
-                                            <strong>
-                                                { selectedConv?.name || 'WhatsApp contact' } · { recipientUnresolved ? 'Verify recipient' : 'WhatsApp handover required' }
-                                            </strong>
-                                            <p>
-                                                This thread previously arrived as a standby copy.
-                                                { recipientUnresolved
-                                                    ? ' Our latest ownership check confirms thread control, but the customer lacks a verified saved contact and recipient phone.'
-                                                    : ' No later normal inbound event or ownership read has confirmed our control for this sender account.' }
-                                                {' '}Replies remain paused to prevent failed or misaddressed messages.
-                                            </p>
-                                            { !replyTarget.phone && (
-                                                <p>WhatsApp also withheld the customer phone in this standby event.
-                                                    The recipient must be resolved safely before sending.</p>
-                                            ) }
-                                            <div className="ui-handover-links">
-                                                <a href={ metaRoutingUrl } target="_blank" rel="noopener noreferrer">
-                                                    Check Meta Conversation Routing
-                                                </a>
-                                            </div>
-                                            <p className="ui-handover-footnote">
-                                                { recipientUnresolved
-                                                    ? "Verify and link this customer's WhatsApp identity through the authorized customer workflow. Do not guess a phone number."
-                                                    : 'Confirm this sender account owns the conversation in Meta. Ownership refreshes automatically after handover; turning AI off does not transfer the thread.' }
-                                            </p>
-                                        </div>
-                                    ) : replyChannel === 'voice' ? (
+                                    { replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
                                             <span>This is a call — reply by calling back.</span>
                                             <Link href={ chMeta( 'voice' ).reply } className="ui-reply-link">Open Voice →</Link>
@@ -1488,8 +1453,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                     <Select ariaLabel="Send from" value={ selectedWaba }
                                                         onChange={ v => { setWabaOverridden( true ); setSelectedWaba( v ); } }
                                                         options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
-                                                    <button className="ui-tpl-btn" onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
-                                                    { replyTarget.contactId && (
+                                                    <button className="ui-tpl-btn" disabled={ standbyReadOnly } onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
+                                                    { !standbyReadOnly && replyTarget.contactId && (
                                                         <button
                                                             className="ui-tpl-btn"
                                                             onClick={ () => {
@@ -1588,7 +1553,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 { quickReplies.length > 0 && (
                                                     <button type="button" className="ui-tool-btn" onClick={ () => setShowQuick( s => !s ) } title="Quick replies"><Icon name="chat" /></button>
                                                 ) }
-                                                { replyChannel === 'whatsapp' && (
+                                                { replyChannel === 'whatsapp' && !standbyReadOnly && (
                                                     <>
                                                         <button type="button" className="ui-tool-btn" onClick={ () => fileRef.current?.click() } title="Attach image / document / video / audio (multiple)"><Icon name="attach" /></button>
                                                         { replyTarget.contactId && (
@@ -1607,7 +1572,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 { replyChannel === 'sms' && (
                                                     <span className="ui-fmt-hint">{ replyText.length } chars · { Math.max( 1, Math.ceil( replyText.length / 160 ) ) } seg</span>
                                                 ) }
-                                                <button className="ui-reply-btn" disabled={ sending || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
+                                                <button className="ui-reply-btn"
+                                                    title={ replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient )
+                                                        ? 'Cannot send: this sender or recipient is not verified for replies yet'
+                                                        : 'Send reply' }
+                                                    disabled={ sending || ( replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient ) )
+                                                        || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) }
+                                                    onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
                                                 <input ref={ fileRef } type="file" hidden multiple accept={ MEDIA_ACCEPT } onChange={ handleMediaSelect } />
@@ -1961,13 +1932,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-reply-link { font-size: var(--text-xs); color: ${colors.textMuted}; text-decoration: none; }
         .ui-reply-link:hover { color: ${colors.primary}; }
         .ui-reply-voice { display: flex; justify-content: space-between; align-items: center; font-size: var(--text-sm); color: ${colors.textMuted}; width: 100%; }
-        /* A handover warning is a vertical message, never six horizontal flex items. */
-        .ui-handover-notice { display: flex; flex-direction: column; align-items: stretch; width: 100%; min-width: 0; max-height: min(30dvh, 230px); overflow-y: auto; padding: 10px 12px; border: 1px solid #fcd34d; border-radius: 10px; background: #fffbeb; color: ${colors.text}; gap: 6px; font-size: var(--text-sm); line-height: 1.5; box-sizing: border-box; }
-        .ui-handover-notice > p { margin: 0; overflow-wrap: anywhere; }
-        .ui-handover-notice strong { color: #92400e; }
-        .ui-handover-links { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-        .ui-handover-links a { font-weight: 700; color: ${colors.primary}; text-decoration: underline; overflow-wrap: anywhere; }
-        .ui-handover-footnote { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-reply-btn { background: ${colors.primary}; color: #fff; padding: 8px 18px; border: none; border-radius: 10px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
         .ui-reply-btn:hover:not(:disabled) { background: ${colors.primaryHover}; }
         .ui-reply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
