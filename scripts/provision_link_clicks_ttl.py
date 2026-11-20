@@ -79,8 +79,8 @@ def main() -> int:
     unreadable = [i for i in missing if clicked_epoch(i.get("clickedAt")) is None]
     past = [i for i in missing if (clicked_epoch(i.get("clickedAt")) or now) + keep <= now]
     print(f"{TABLE}: {len(items)} rows; {len(items) - len(missing)} have {TTL_ATTR}, {len(missing)} do not "
-          f"({len(past)} are older than {RETENTION_DAYS} days and TTL will delete them; "
-          f"{len(unreadable)} have an unreadable clickedAt and get {RETENTION_DAYS} days from now)")
+          f"({len(past)} are older than {RETENTION_DAYS} days (TTL is disabled); "
+          f"{len(unreadable)} have an unreadable clickedAt; no expiry backfill is performed)")
     print(f"TTL: {status} on {attr!r}")
 
     if args.verify:
@@ -95,23 +95,6 @@ def main() -> int:
     print("dry run: no TTL changes or expiry backfill are permitted")
     return 0
 
-    done = 0
-    for item in missing:
-        start = clicked_epoch(item.get("clickedAt")) or now
-        try:
-            table.update_item(
-                Key={"shortCode": item["shortCode"], "clickedAt": item["clickedAt"]},
-                UpdateExpression="SET #e = :e",
-                ConditionExpression="attribute_not_exists(#e)",
-                ExpressionAttributeNames={"#e": TTL_ATTR},
-                ExpressionAttributeValues={":e": start + keep},
-            )
-            done += 1
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
-                raise
-    print(f"backfilled {done} rows")
-    return 0
 
 
 if __name__ == "__main__":
