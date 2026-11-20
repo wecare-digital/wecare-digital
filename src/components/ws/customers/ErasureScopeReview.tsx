@@ -151,7 +151,7 @@ const ErasureScopeReview: React.FC<Props> = ({ contacts, onClose }) => {
           <p>
             Permanent deletion still requires Admin MFA, approved case evidence and
             an independently deployed erasure coordinator. Without that coordinator,
-            the API reports ERASURE_COORDINATOR_UNAVAILABLE. This review changes no records.
+            the API reports ERASURE_COORDINATOR_UNAVAILABLE. No records have been changed by this review.
           </p>
         </div>
         <footer className={styles.footer}>
