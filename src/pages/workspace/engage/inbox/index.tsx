@@ -1366,6 +1366,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                     </span>
                                                     { !!m.id && !( meta?.tags || [] ).includes( 'retention-hold' ) && (
                                                         <button type="button" className="ui-msg-delete" disabled={ !!deletingMessageId }
+                                                            style={ { marginTop: 6, padding: '3px 0', border: 0, background: 'transparent', color: colors.textMuted, fontSize: 11, cursor: 'pointer' } }
                                                             title="Delete this stored local message; provider or backup copies may remain"
                                                             onClick={ () => void deleteStoredMessage( m ) }>
                                                             { deletingMessageId === m.id ? 'Deleting…' : 'Delete message' }
