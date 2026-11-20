@@ -425,22 +425,24 @@ def test_source_has_no_write_api_calls():
 
 def test_output_redacts_phones_and_bodies(tmp_path, capsys):
     secret_phone = "+15559998877"
-    rows = [contact("k1", "+15550000001"), contact("e1", secret_phone)]
-    msgs = [msg("m1", "e1", content="SECRET BODY TEXT")]
+    rows = [contact("wa15550000001", "+15550000001"), contact("wa15559998877", secret_phone)]
+    msgs = [msg("m1", "wa15559998877", content="SECRET BODY TEXT")]
     tables = make_tables(rows, messages=msgs)
     out = tmp_path / "report.json"
-    code = dry.main(["--keep-contact-id", "k1", "--output", str(out)],
+    code = dry.main(["--keep-contact-id", "wa15550000001", "--output", str(out)],
                     backend=lambda region: (lambda name: tables[_logical(name)], None))
     assert code == 0
     printed = capsys.readouterr().out
     report_text = out.read_text()
-    for text in (printed, report_text):
-        assert secret_phone not in text and "9998877" not in text.replace("****8877", "")
-        assert "SECRET BODY TEXT" not in text
+    assert "15559998877" not in printed and "9998877" not in printed.replace("****8877", "")
+    assert "15550000001" not in printed
+    assert "SECRET BODY TEXT" not in printed and "SECRET BODY TEXT" not in report_text
+    assert secret_phone not in report_text
+    assert "wa15559998877" in report_text
     assert "****8877" in printed
     assert oct(os.stat(out).st_mode & 0o777) == "0o600"
     assert "Archive" in printed
-    assert "e1 ****8877 messages=1" in printed
+    assert "wa****8877 ****8877 messages=1" in printed
 
 
 def test_main_requires_a_selector(capsys):
@@ -462,8 +464,27 @@ def test_selection_file_roundtrip(tmp_path):
 
 
 def test_source_and_tests_hardcode_no_selection():
-    forbidden = ("su" + "vendu", "chow" + "dhuri")
+    # Operator-supplied words that must never appear in the repo; kept out of the repo itself.
+    forbidden = tuple(w.strip().lower() for w in
+                      os.environ.get("CONTACT_CLEANUP_FORBIDDEN_WORDS", "").split(",") if w.strip())
     for path in (_SCRIPT, __file__):
         text = open(path, encoding="utf-8").read().lower()
         assert not any(word in text for word in forbidden)
     assert not re.search(r"\+\d{10,}", open(_SCRIPT, encoding="utf-8").read())
+
+
+def test_location_guard_fails_closed_when_git_unavailable(monkeypatch):
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    monkeypatch.setattr(dry, "_git", lambda args, cwd: (128, ""))
+    inside = os.path.join(repo_root, "docs", "ops", "sel.json")
+    assert dry.refuse_if_tracked_location(inside)
+    assert dry.refuse_if_tracked_location("/tmp/outside-repo/selection.json") is None
+
+
+def test_write_report_replaces_loose_existing_file(tmp_path):
+    out = tmp_path / "r.json"
+    out.write_text("old")
+    os.chmod(out, 0o644)
+    dry.write_report(str(out), {"a": 1})
+    assert oct(os.stat(out).st_mode & 0o777) == "0o600"
+    assert json.loads(out.read_text()) == {"a": 1}

@@ -56,3 +56,8 @@ TTL is enabled on `expiresAt` for the three message tables and disabled for the 
 ## Acting on the result
 
 The only cleanup path is the existing reversible Archive in the contacts API, run by the operator with Admin + MFA and a reason, for individually reviewed contacts. Archive keeps identity and history. Permanent delete stays refused (`CONTACT_ERASURE_NOT_READY`), and locked contacts cannot be archived. Copies in S3, Meta and Razorpay are not covered by this report.
+
+## Cost and privacy notes
+
+- The script does full scans of the contacts, three message, payments, attempts and invoices tables and holds the rows in memory. Run it off-peak and check table sizes first, since scans consume read capacity.
+- Contact ids embed phone digits, so stdout shows them masked. Exact ids appear only in the `--output` JSON report (mode 0600). Keep that file outside the repository.

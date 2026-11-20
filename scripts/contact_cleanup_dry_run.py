@@ -157,6 +157,16 @@ def mask_phone(value: Any) -> str:
     return ("****" + digits[-4:]) if len(digits) >= 4 else ("****" if digits else "")
 
 
+def mask_contact_id(value: Any) -> str:
+    """Contact ids embed the phone digits (wa<digits>), so mask them like phones."""
+    text = _text(value)
+    digits = phone_digits(text)
+    if len(digits) < 4:
+        return opaque(text) if text else ""
+    prefix = text[: len(text) - len(text.lstrip("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_:-"))]
+    return f"{prefix}****{digits[-4:]}"
+
+
 def opaque(value: str) -> str:
     return "c_" + hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:10]
 
@@ -743,9 +753,11 @@ def render_summary(report: Dict[str, Any]) -> str:
                      f"uncertain={c['uncertainMessages']}")
     lines.append("")
     eligible = report.get("eligible", [])
-    lines.append(f"Eligible for the approved Archive action ({len(eligible)}):")
+    lines.append(f"Eligible for the approved Archive action ({len(eligible)}); exact ids are only "
+                 "in the --output report:")
     for e in eligible:
-        lines.append(f"  {e['contactId']} {e['maskedPhone'] or '-'} messages={e['messageTotal']}")
+        lines.append(f"  {mask_contact_id(e['contactId'])} {e['maskedPhone'] or '-'} "
+                     f"messages={e['messageTotal']}")
     ttl = report.get("ttl") or {}
     if ttl:
         lines.append("")
@@ -771,6 +783,17 @@ def _git(args: List[str], cwd: str) -> Tuple[int, str]:
         return 128, ""
 
 
+def _has_git_ancestor(directory: str) -> bool:
+    current = os.path.abspath(directory)
+    while True:
+        if os.path.exists(os.path.join(current, ".git")):
+            return True
+        parent = os.path.dirname(current)
+        if parent == current:
+            return False
+        current = parent
+
+
 def refuse_if_tracked_location(path: str) -> Optional[str]:
     """Return an error text if `path` is inside a git work tree and is not gitignored."""
     absolute = os.path.abspath(path)
@@ -780,6 +803,9 @@ def refuse_if_tracked_location(path: str) -> Optional[str]:
         probe = os.path.dirname(probe)
     code, top = _git(["rev-parse", "--show-toplevel"], probe or ".")
     if code != 0 or not top:
+        if _has_git_ancestor(probe or "."):
+            return (f"refusing to use {os.path.basename(absolute)}: it is under a directory with a "
+                    ".git ancestor and git could not confirm it is gitignored.")
         return None
     code, _ = _git(["check-ignore", "-q", absolute], probe or ".")
     if code == 0:
@@ -789,10 +815,17 @@ def refuse_if_tracked_location(path: str) -> Optional[str]:
 
 
 def write_report(path: str, report: Dict[str, Any]) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2, default=str)
-    os.chmod(path, 0o600)
+    absolute = os.path.abspath(path)
+    tmp = f"{absolute}.tmp{os.getpid()}"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(report, handle, indent=2, default=str)
+        os.replace(tmp, absolute)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────
