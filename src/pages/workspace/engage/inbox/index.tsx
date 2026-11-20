@@ -389,9 +389,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
-    // A historical standby webhook cannot establish whether Meta AI is still
-    // enabled today. Check the live, per-WABA agent settings instead.
-    const [ agentRolloutByAccount, setAgentRolloutByAccount ] = useState<Record<string, boolean | null>>( {} );
 
     const loadData = useCallback( async () => {
         try
@@ -647,62 +644,40 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return { phone, waba, contactId };
     }, [ thread, selected ] );
 
-    // Derive ownership from ALL messages for this exact WhatsApp sender account,
-    // not from the currently filtered thread. A filter may hide newer messages,
-    // and the same customer can have independent Meta ownership on each sender.
+    // A standby webhook means a different responder had this thread at that moment.
+    // It does NOT prove an AI agent is currently running. The latest INBOUND
+    // routing signal on the exact sender account must control this UI guard.
+    // A different WABA or a later outbound echo cannot establish ownership.
     const standbyReadOnly = useMemo( () => {
         if ( replyChannel !== 'whatsapp' || !selected ) return false;
         const latestVisible = [ ...thread ].reverse().find(
             m => ( m.channel || '' ).toLowerCase() === 'whatsapp'
+                && ( m.direction || '' ).toLowerCase() === 'inbound'
         );
         const senderAccount = latestVisible ? messageWabaId( latestVisible ) : '';
         // Unknown sender account is not permission to infer ownership from a
         // different WABA of this contact. Preserve the latest visible signal.
-        if ( !senderAccount ) return latestVisible?.standbySourced === true;
+        if ( !senderAccount ) return latestVisible?.standbySourced === true || latestVisible?.replyAllowed === false;
         const newest = messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
+            .filter( m => ( m.direction || '' ).toLowerCase() === 'inbound' )
             .filter( m => messageWabaId( m ) === senderAccount )
             .reduce<api.Message | null>( ( prev, m ) => {
                 if ( !prev ) return m;
                 return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
             }, null );
-        return newest?.standbySourced === true;
+        return newest?.standbySourced === true || newest?.replyAllowed === false;
     }, [ messages, selected, replyChannel, thread ] );
 
-    const aiAccountId = thread.length ? messageWabaId( thread[ thread.length - 1 ] ) : '';
-    const aiAccountKey = aiAccountId === WABAS[ 0 ].id ? 'WABA1'
-        : aiAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
-    const aiSettingsUrl = `/workspace/communications?view=manage&section=whatsapp&tool=ai-agent${aiAccountKey ? `&waba=${aiAccountKey}` : ''}`;
-    const agentRolloutEnabled = aiAccountKey ? agentRolloutByAccount[ aiAccountKey ] : undefined;
-    const metaRoutingUrl = aiAccountKey === 'WABA2'
-        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922'
-        : 'https://business.facebook.com/latest/settings/conversation_routing';
-
-    // Fetch current Meta rollout, not historical routing status. Refresh while
-    // the thread is open so disabling AI in a separate Meta tab is reflected.
-    // Failure remains unknown, never "AI is on".
-    useEffect( () => {
-        if ( !standbyReadOnly || !aiAccountKey ) return;
-        let live = true;
-        const refresh = async () => {
-            try
-            {
-                const response = await api.aiAgentApi.getSettings( aiAccountKey as 'WABA1' | 'WABA2' );
-                const raw = response?.settings;
-                const settings = Array.isArray( raw ) ? raw[ 0 ] : raw;
-                const enabled = typeof settings?.rollout?.enabled === 'boolean'
-                    ? settings.rollout.enabled : null;
-                if ( live ) setAgentRolloutByAccount( previous => ( { ...previous, [ aiAccountKey ]: enabled } ) );
-            } catch
-            {
-                if ( live ) setAgentRolloutByAccount( previous => ( { ...previous, [ aiAccountKey ]: null } ) );
-            }
-        };
-        void refresh();
-        const timer = window.setInterval( () => { void refresh(); }, 60000 );
-        return () => { live = false; window.clearInterval( timer ); };
-    }, [ aiAccountKey, standbyReadOnly ] );
+    // A standby state is about the sender's Meta Conversation Routing, not whether
+    // Meta AI is enabled. Do not poll AI settings or label this as AI-controlled.
+    const senderAccountId = thread.length ? messageWabaId( thread[ thread.length - 1 ] ) : '';
+    const senderAccountKey = senderAccountId === WABAS[ 0 ].id ? 'WABA1'
+        : senderAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
+    const metaRoutingUrl = senderAccountKey === 'WABA2'
+        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=125951953587391'
+        : 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922';
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -1259,8 +1234,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                         } ) }
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
                                         { standbyReadOnly && (
-                                            <span className="ui-badge" title="The last inbound webhook was standby; a handover back to this integration has not been confirmed">
-                                                { agentRolloutEnabled === false ? 'AI off · handover pending' : 'Handover pending · read-only' }
+                                            <span className="ui-badge" title="The latest WhatsApp inbound event was a standby copy. This integration has not received a confirmed handover.">
+                                                WhatsApp handover pending
                                             </span>
                                         ) }
                                     </span>
@@ -1427,15 +1402,12 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     { standbyReadOnly ? (
                                         <div className="ui-handover-notice" role="status">
                                             <strong>
-                                                { selectedConv?.name || 'WhatsApp contact' } ·
-                                                { agentRolloutEnabled === false ? ' Meta AI is OFF' : ' WhatsApp handover needed' }
+                                                { selectedConv?.name || 'WhatsApp contact' } · WhatsApp handover required
                                             </strong>
                                             <p>
-                                                WhatsApp last delivered this conversation as a standby copy.
-                                                { agentRolloutEnabled === false
-                                                    ? ' Turning AI off did not transfer the existing thread to the inbox.'
-                                                    : ' Staff control has not been confirmed by a normal inbound message or handover.' }
-                                                {' '}Replies remain paused to avoid failed or duplicate sends.
+                                                This thread arrived as a standby copy, not a message delivered for this integration to answer.
+                                                No later regular inbound message has confirmed control for this WhatsApp account.
+                                                You can read the history, but replying is unavailable until Meta routes the thread here.
                                             </p>
                                             { !replyTarget.phone && (
                                                 <p>WhatsApp also withheld the customer phone in this standby event.
@@ -1443,13 +1415,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             ) }
                                             <div className="ui-handover-links">
                                                 <a href={ metaRoutingUrl } target="_blank" rel="noopener noreferrer">
-                                                    Open Meta Conversation Routing
+                                                    Check Meta Conversation Routing
                                                 </a>
-                                                <Link href={ aiSettingsUrl }>Check AI settings</Link>
                                             </div>
                                             <p className="ui-handover-footnote">
-                                                Transfer the thread to this business integration in Meta, then refresh
-                                                the inbox or wait for the next regular incoming message.
+                                                Confirm this sender account owns the conversation in Meta.
+                                                After handover, refresh the inbox or wait for a regular incoming message.
+                                                Disabling AI alone does not change WhatsApp routing.
                                             </p>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
