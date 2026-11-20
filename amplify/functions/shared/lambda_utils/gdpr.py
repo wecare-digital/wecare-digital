@@ -30,7 +30,6 @@ USER_DATA_TABLES = {
     'AIInteraction': {'key_field': 'messageId', 'index': None},
     'SubmitRequest': {'key_field': 'phone', 'index': 'phone'},
     'Invoice': {'key_field': 'contactId', 'index': 'contactId'},
-    'AdClickAttribution': {'key_field': 'phone', 'index': None},
 }
 
 
