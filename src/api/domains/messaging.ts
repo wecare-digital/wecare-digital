@@ -131,7 +131,7 @@ export async function deleteInboxMessageRecord (
 > {
   if (!messageId) return { ok: false, code: 'MESSAGE_ID_REQUIRED', message: 'Message ID required.' };
   const result = await apiCallResult<any>(
-    `${API_BASE}/messages/${encodeURIComponent(messageId)}?scope=canonical`,
+    `${API_BASE}/messages/${encodeURIComponent('__canonical_inbox_v1__:' + messageId)}?scope=canonical`,
     { method: 'DELETE' }, 0, 15000, false,
   );
   if (!result.ok) return {
