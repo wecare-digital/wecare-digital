@@ -36,3 +36,13 @@ test('clean view is opt-in per browser, not default for every operator', () => {
   assert.ok(fresh.includes("wc-inbox-today-view"));
   assert.ok(legacy.includes("wc-inbox-today-view"));
 });
+
+test('missing retention metadata cannot hide messages or blank the inbox', () => {
+  for (const inbox of [ fresh, legacy ]) {
+    assert.ok(inbox.includes('const [ recordsResult, holdResult ] = await Promise.all'));
+    assert.ok(inbox.includes('recordsResult.failures[ 0 ] ?? null'));
+    assert.ok(inbox.includes('if ( holdResult.failures.length )'));
+    assert.ok(inbox.includes('setTodayOnly( false )'));
+    assert.ok(inbox.includes('setRetainedKeys( new Set() )'));
+  }
+});
