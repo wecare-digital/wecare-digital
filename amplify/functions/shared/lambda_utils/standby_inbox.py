@@ -74,6 +74,7 @@ def mirror(
     wa_id: str = "",
     message: Optional[Dict[str, Any]] = None,
     content: str = "",
+    sender_name: str = "",
     resource: Any = None,
 ) -> bool:
     """Idempotently mirror one standby event into MessagesTable (read-only).
@@ -110,6 +111,13 @@ def mirror(
             contact = None
 
         cid = str(contact.get("contactId") or contact.get("id") or "") if contact else ""
+        # The signed standby webhook can carry a WhatsApp profile name even when
+        # the business-scoped identity is not yet linked to a CRM contact. Show
+        # that provider-supplied name; never turn it into a verified contact link.
+        profile_name = str(sender_name or "").strip()[:160]
+        saved_name = str(contact.get("name") or "").strip() if contact else ""
+        display_name = (saved_name if saved_name.lower() not in ("", "unknown") else "")
+        display_name = display_name or profile_name or f"WhatsApp contact #{digest[:6].upper()}"
         item = build_message_item(
             channel="whatsapp",
             direction="inbound",
@@ -121,7 +129,7 @@ def mirror(
             message_type=str(message.get("type") or "unsupported"),
             whatsapp_message_id=wamid,
             aws_phone_number_id=INBOX_PHONE_ID.get(phone_id, phone_id),
-            sender_name=str(contact.get("name") or "") if contact else f"AI-managed contact ({digest[:6]})",
+            sender_name=display_name,
         )
         item["standbySourced"] = True
         item["routingOwner"] = "ai_agent"
