@@ -132,7 +132,7 @@ export interface LocalInboxDeleteResult {
  */
 export async function deleteInboxMessage ( messageId: string ) {
   return apiCallResult<LocalInboxDeleteResult>(
-    `${API_BASE}/messages/${encodeURIComponent( messageId )}?scope=inbox`,
+    `${API_BASE}/messages/${encodeURIComponent( '__canonical_inbox_v1__:' + messageId )}?scope=inbox`,
     { method: 'DELETE' }, 0, 15000, false,
   );
 }
