@@ -598,6 +598,23 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return { phone, waba, contactId };
     }, [ thread, selected ] );
 
+    // Derive ownership from ALL messages for this exact WhatsApp sender account,
+    // not from the currently filtered thread. A filter may hide newer messages,
+    // and the same customer can have independent Meta ownership on each sender.
+    const standbyReadOnly = useMemo( () => {
+        if ( replyChannel !== 'whatsapp' || !selected ) return false;
+        const senderAccount = messageWabaId( thread[ thread.length - 1 ] );
+        const newest = messages
+            .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
+            .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
+            .filter( m => !senderAccount || messageWabaId( m ) === senderAccount )
+            .reduce<api.Message | null>( ( prev, m ) => {
+                if ( !prev ) return m;
+                return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
+            }, null );
+        return newest?.standbySourced === true;
+    }, [ messages, selected, replyChannel, thread ] );
+
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
     // WABA1 — 17 `typing_indicator_error` and 12 code-100 "Message ID … does not
@@ -637,6 +654,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
+        if ( standbyReadOnly ) { toast.error( 'This WhatsApp thread is AI-controlled. Reply after handover.' ); return; }
         if ( sending ) return;
         const base = replyText.trim();
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
@@ -765,7 +783,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly ] );
 
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
@@ -1144,6 +1162,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                         } ) }
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
+                                        { standbyReadOnly && <span className="ui-badge" title="Another responder currently owns this thread">AI-controlled · read-only</span> }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
@@ -1206,6 +1225,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 <div className="ui-msg-bubble">
                                                     <span className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>
                                                     { messageWabaId( m ) && <span className="ui-badge ui-waba-badge">{ wabaDisplay( messageWabaId( m ) ) }</span> }
+                                                    { m.standbySourced === true && <span className="ui-badge" title="Observed while another WhatsApp responder owned this thread">AI-handled · read-only</span> }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
@@ -1304,7 +1324,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     <div ref={ threadEndRef } />
                                 </div>
                                 <div className="ui-reply">
-                                    { replyChannel === 'voice' ? (
+                                    { standbyReadOnly ? (
+                                        <div className="ui-reply-voice" role="status">
+                                            This conversation is currently AI-controlled. Messages are visible for review; sending is disabled until WhatsApp hands control back.
+                                        </div>
+                                    ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
                                             <span>This is a call — reply by calling back.</span>
                                             <Link href={ chMeta( 'voice' ).reply } className="ui-reply-link">Open Voice →</Link>
@@ -1463,7 +1487,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             </div>
 
-            { composer && replyTarget.contactId && (
+            { !standbyReadOnly && composer && replyTarget.contactId && (
                 <div className="ui-modal-backdrop" onClick={ () => setComposer( null ) }>
                     <div className="ui-modal" onClick={ e => e.stopPropagation() }>
                         { composer === 'location' && (
@@ -1601,7 +1625,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             ) }
 
-            { showTemplateSender && replyChannel === 'whatsapp' && (
+            { !standbyReadOnly && showTemplateSender && replyChannel === 'whatsapp' && (
                 <TemplateSender
                     contactId={ replyTarget.contactId || undefined }
                     contactName={ selectedConv?.name || '' }

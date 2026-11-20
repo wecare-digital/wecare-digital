@@ -39,6 +39,10 @@ export interface Message {
   senderPhone?: string;
   senderName?: string;
   senderBsuid?: string;
+  /** True for a read-only event observed while another responder (e.g. AI) owns the thread. */
+  standbySourced?: boolean;
+  routingOwner?: string;
+  replyAllowed?: boolean;
   senderUsername?: string;
   receivingPhone?: string;
   awsPhoneNumberId?: string;
@@ -243,6 +247,9 @@ function normalizeMessage ( item: any ): Message {
     senderPhone: item.senderPhone,
     senderName: item.senderName,
     senderBsuid: item.senderBsuid,
+    standbySourced: item.standbySourced === true,
+    routingOwner: item.routingOwner,
+    replyAllowed: item.replyAllowed === false ? false : undefined,
     senderUsername: item.senderUsername,
     receivingPhone: item.receivingPhone,
     awsPhoneNumberId: item.awsPhoneNumberId,

@@ -456,9 +456,9 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
     responder is handling, which is the context a later handover would need — and they
     were the ones being discarded.
 
-    These rows go **nowhere near** `MessagesTable` or the Unified Inbox. Marking inbox rows
-    is a separate, deferred change; keeping standby context in its own table is what keeps
-    it deferrable, because no UI reads this.
+    Preserve context here first, then best-effort project the message to the canonical
+    MessagesTable as a read-only, AI-controlled inbox entry. Projection never takes
+    conversation ownership and cannot send a reply.
 
     Never raises.
     """
@@ -482,6 +482,21 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
             "observedAt": moment,
             "expiresAt": moment + RECORD_TTL_SECONDS,
         })
+        # Preserve the complete AI-handled history in the staff Inbox as an
+        # explicitly read-only projection. This neither takes conversation
+        # ownership nor sends any message; the standby context remains the source
+        # for audit/reconciliation if the projection fails.
+        try:
+            from lambda_utils import standby_inbox
+            projected = standby_inbox.mirror(
+                phone_number_id, bsuid=bsuid, wa_id=wa_id,
+                message=message, content=content,
+            )
+            if not projected:
+                logger.warning('{"event":"standby_inbox_projection_retry_needed"}')
+        except Exception as exc:
+            logger.warning('{"event":"standby_inbox_projection_retry_needed","errorType":"%s"}',
+                           type(exc).__name__)
         return True
     except Exception as exc:  # noqa: BLE001
         logger.warning('{"event":"standby_context_write_failed","error":"%s"}',

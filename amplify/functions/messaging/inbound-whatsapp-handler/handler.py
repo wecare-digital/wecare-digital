@@ -1452,10 +1452,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         # free-form ones are precisely the conversation the OTHER responder
                         # is handling, which is the context a later handover would need.
                         #
-                        # These rows go NOWHERE NEAR MessagesTable or the Unified Inbox.
-                        # Marking inbox rows is a separate, deferred change; keeping standby
-                        # context in its own table is what keeps that deferrable, because no
-                        # UI reads this and no dashboard behaviour changes.
+                        # Keep source context in ThreadOwnershipTable first. Its shared
+                        # writer now projects a separate, read-only inbox entry so staff can
+                        # see AI-handled messages without taking reply ownership.
                         _stored = 0
                         for _m in _msgs:
                             try:
