@@ -18,7 +18,7 @@ class Table:
         return {"Item": copy.deepcopy(row)} if row is not None else {}
 
     def scan(self, **kwargs):
-        return {"Items": list(copy.deepcopy(self.items.values()))}
+        return {"Items": copy.deepcopy(list(self.items.values()))}
 
     def put_item(self, *, Item, **kwargs):
         assert Item["id"] not in self.items
