@@ -28,7 +28,7 @@ The reviewed manifest must enumerate every direct and indirect reference, not me
 - **Messages and routing:** `MessagesTable`, `WhatsAppInboundTable`, `WhatsAppOutboundTable`, `ThreadOwnershipTable`, voice/SMS/email records, `ScheduledMessagesTable`, `BulkRecipientsTable`, `DLQMessagesTable`, status/retry queues, and Meta WhatsApp/AI-managed conversation copies.
 - **Service and CRM:** `FlowSubmissionTable`, `CrmActivities`, CRM leads/opportunities, support requests, recordings, form submissions, delivery artifacts and consent evidence.
 - **Financial and fulfillment:** `OrderTable`, `InvoicesTable`, `InvoiceItemsTable`, `InvoiceAssetsTable`, `InvoiceDeliveryLogTable`, `PaymentsTable`, `PaymentAttemptsTable`, commerce idempotency keys, documents and download grants.
-- **Media:** the versioned S3 bucket, its private WhatsApp images, attachments and invoice assets, and external provider media. For each proven-owned object use `ListObjectVersions`, enumerate current versions and every **delete marker**, and check Object Lock, legal hold, KMS, backups and CDN copies. Never derive ownership from a filename or broad S3 prefix.
+- **Media:** the S3 Versioning-enabled bucket, its private WhatsApp images, attachments and invoice assets (including `DocumentTable` references), and external provider media. For each proven-owned object use `ListObjectVersions`, enumerate current versions and every **delete marker**, and check Object Lock, legal hold, KMS, backups and CDN copies. Never derive ownership from a filename or broad S3 prefix.
 
 An unreadable table, incomplete pagination, conflicting identity claim, unavailable external deletion endpoint, or unexamined S3 version makes the inventory **incomplete**. Do not delete first and reconcile later.
 
