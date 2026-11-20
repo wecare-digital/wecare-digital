@@ -17,6 +17,7 @@
  * React 19 removed the global JSX namespace, so icon helpers are typed React.JSX.Element.
  */
 import React from 'react';
+import { useRouter } from 'next/router';
 import type { Contact } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
@@ -52,8 +53,13 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   contact, onClose, onArchived, onChanged,
 } ) => {
   const toast = useToastContext();
+  const router = useRouter();
   const confirm = useConfirm();
   const [ busy, setBusy ] = React.useState( false );
+  const [ erasureOpen, setErasureOpen ] = React.useState( false );
+  const [ erasureCaseId, setErasureCaseId ] = React.useState( '' );
+  const [ erasureManifest, setErasureManifest ] = React.useState( '' );
+  const [ erasureToken, setErasureToken ] = React.useState( '' );
 
   const name = contact.name || contact.phone || 'this customer';
   const locked = contact.locked === true;
@@ -118,6 +124,57 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   };
 
 
+  // Restore the same canonical identity rather than creating a duplicate.
+  const restore = async () => {
+    if ( busy ) return;
+    const ok = await confirm( {
+      title: 'Restore existing contact?',
+      message: `Reactivate ${name} with the same customer ID, phone identity, messages and payment history?`,
+      confirmText: 'Restore contact',
+    } );
+    if ( !ok ) return;
+    setBusy( true );
+    try {
+      const response = await api.restoreContact( contact.contactId );
+      if ( response.ok ) {
+        toast.success( 'Existing contact restored. Re-adding does not create a duplicate identity.' );
+        await onChanged();
+        onClose();
+      } else toast.error( response.failure.message );
+    } catch { toast.error( 'Restore could not be confirmed.' ); }
+    finally { setBusy( false ); }
+  };
+
+  const permanentlyDelete = async () => {
+    if ( busy || !erasureCaseId.trim() || !/^[a-fA-F0-9]{64}$/.test(erasureManifest) ||
+        erasureToken.trim().length < 24 ) return;
+    const ok = await confirm( {
+      title: 'Permanently erase contact and identity?',
+      message: `Submit ${name} for approved cross-service erasure? Linked payments and legal holds cannot be bypassed. An identity can be reused only AFTER the server verifies complete erasure.`,
+      confirmText: 'Submit approved deletion',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setBusy( true );
+    try {
+      const result = await api.requestApprovedContactErasure( contact.contactId, {
+        caseId: erasureCaseId.trim(), manifestSha256: erasureManifest.trim().toLowerCase(),
+        approvalToken: erasureToken.trim(),
+      } );
+      if ( result.ok && result.complete ) {
+        toast.success( 'Confirmed deletion completed. Identity may be registered again.' );
+        await onChanged();
+        onClose();
+      } else if ( !result.ok ) {
+        toast.error( result.pending
+          ? 'Erasure pending approval/reconciliation. Do not resubmit before checking the case.'
+          : `Deletion refused (${result.code}): ${result.message}` );
+      }
+    } catch {
+      toast.error( 'Deletion outcome is unconfirmed. Check the erasure case before retrying.' );
+    } finally { setBusy( false ); }
+  };
+
   return (
     <div className="cas-backdrop" role="dialog" aria-modal="true" aria-labelledby="cas-title" onClick={ onClose }>
       <div className="cas-sheet" onClick={ e => e.stopPropagation() }>
@@ -161,22 +218,53 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         <div className="cas-group">
           <h3 className="cas-group-title">Danger</h3>
           <div className="cas-actions">
-            <button type="button" className="cas-btn" disabled
-              title="Message rows and versioned S3 media need one audited erasure workflow">
-              Delete messages and media — unavailable
+            <button type="button" className="cas-btn" disabled={ busy }
+              onClick={ () => { onClose(); void router.push( {
+                pathname: '/workspace/communications', query: { view: 'inbox', contactId: contact.contactId },
+              } ); } }>
+              Open messages · delete individually
             </button>
-            <button type="button" className="cas-btn" disabled={ busy || locked } onClick={ archive }>
-              Block / archive
+            { contact.archivedAt ? (
+              <button type="button" className="cas-btn" disabled={ busy } onClick={ restore }>
+                Restore existing contact
+              </button>
+            ) : (
+              <button type="button" className="cas-btn" disabled={ busy || locked } onClick={ archive }>
+                Block / archive
+              </button>
+            ) }
+            <button type="button" className="cas-btn cas-danger" disabled={ busy }
+              onClick={ () => setErasureOpen( open => !open ) }>
+              Delete contact and release identity…
             </button>
-            <p className="cas-lock" role="note">
-              Permanent deletion is unavailable until all linked identity claims, messages,
-              versioned S3 files, sessions and service records can be erased safely.
-              Archive this customer to hide them without orphaning their history.
-            </p>
-            <button type="button" className="cas-btn cas-danger" disabled
-              title="End-to-end contact erasure is not yet supported">
-              Delete all customer data — unavailable
-            </button>
+            { erasureOpen && (
+              <div className="cas-erasure-form" role="group" aria-label="Approved permanent deletion">
+                <p className="cas-lock">
+                  Admin MFA and a reviewed erasure case are required. Paid, locked or otherwise
+                  protected customers cannot be erased. No identity is released until all
+                  dependencies and payment evidence are reconciled by the server.
+                </p>
+                <label>Approved case ID
+                  <input value={ erasureCaseId } onChange={ e => setErasureCaseId( e.target.value ) }
+                    autoComplete="off" placeholder="Erasure case ID" />
+                </label>
+                <label>Reviewed manifest SHA-256
+                  <input value={ erasureManifest } onChange={ e => setErasureManifest( e.target.value ) }
+                    autoComplete="off" placeholder="64-character checksum" />
+                </label>
+                <label>Single-use approval token
+                  <input type="password" value={ erasureToken }
+                    onChange={ e => setErasureToken( e.target.value ) } autoComplete="off"
+                    placeholder="Approval token" />
+                </label>
+                <button type="button" className="cas-btn cas-danger"
+                  disabled={ busy || !erasureCaseId.trim() ||
+                    !/^[a-fA-F0-9]{64}$/.test(erasureManifest) || erasureToken.trim().length < 24 }
+                  onClick={ () => { void permanentlyDelete(); } }>
+                  Submit approved deletion
+                </button>
+              </div>
+            ) }
           </div>
         </div>
       </div>
@@ -241,6 +329,10 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         }
 
         .cas-actions{ display:grid; gap:8px; }
+        .cas-erasure-form { display:grid; gap:10px; padding:12px; border:1px solid var(--danger,#dc2626); border-radius:10px; }
+        .cas-erasure-form label { display:grid; gap:4px; font-size:12px; font-weight:700; }
+        .cas-erasure-form input { box-sizing:border-box; width:100%; min-height:40px; padding:8px; border:1px solid var(--border,#d1d5db); border-radius:8px; }
+
         .cas-btn{
           width:100%; min-height:var(--tap-min,44px); box-sizing:border-box;
           padding:12px 16px;
