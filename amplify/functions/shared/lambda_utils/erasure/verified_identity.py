@@ -32,7 +32,7 @@ DEPENDENCY_TABLES = (
     "CrmActivities", "CrmLeads", "CrmOpportunities",
     "VoiceAwsTable", "VoiceCDRTable", "WhatsAppVoiceTable",
     "PstnSoftphoneSessions", "InvoiceAssetsTable", "InvoiceItemsTable",
-    "InvoiceDeliveryLogTable", "AuditLogsTable",
+    "InvoiceDeliveryLogTable",
 )
 # These are exact reference fields, never free-text substring searches.
 DEPENDENCY_FIELDS = (
@@ -277,4 +277,5 @@ def execute(*, contact_id: str, case_id: str, manifest_sha256: str,
             "erasureComplete": True, "reconciliationComplete": True,
             "protectedContactsVerified": True, "financialEvidencePreserved": True,
             "identityClaimsReleased": True, "contactRecreatable": True,
-            "localOnly": True, "providerCopiesErased": False}
+            "localOnly": True, "auditRecordsPreserved": True,
+            "providerCopiesErased": False}
