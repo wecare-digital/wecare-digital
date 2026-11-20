@@ -35,9 +35,10 @@ class Table:
 
 
 def setup(*, has_message=False, paid=False, legal=False,
-          source_identity=False, held=False):
-    contact = {"id": "subject-a", "phone": "+919999000999",
+          source_identity=False, held=False, phone=False):
+    contact = {"id": "subject-a", "phone": "+919999000999" if phone else "",
                "email": "subject@example.org",
+               "customerUuid": "cust-public-1", "subscriberId": "sub-public-1",
                "locked": True, "lockedReason": "legal" if legal else "created"}
     if source_identity:
         contact["bsuid"] = "IN.provider-token"
@@ -47,15 +48,15 @@ def setup(*, has_message=False, paid=False, legal=False,
         d[name] = Table(name)
     d["ContactsTable"] = Table("ContactsTable", [contact])
     d["IdentityClaimsTable"] = Table("IdentityClaimsTable", [
-        {"claimKey": "PHONE#+919999000999", "contactId": "subject-a"},
         {"claimKey": "EMAIL#subject@example.org", "contactId": "subject-a"},
+        *([{"claimKey": "PHONE#+919999000999", "contactId": "subject-a"}] if phone else []),
     ])
     if has_message:
         d["MessagesTable"] = Table("MessagesTable", [
             {"id": "message-one", "contactId": "subject-a"}])
     if paid:
         d["PaymentsTable"] = Table("PaymentsTable", [
-            {"id": "pay-one", "customerPhone": "9999000999"}])
+            {"id": "pay-one", "contactId": "subject-a"}])
     if held:
         d["ConversationMetaTable"] = Table("ConversationMetaTable", [
             {"conversationId": "subject-a", "tags": ["retention-hold"]}])
@@ -70,7 +71,7 @@ def transact(tables):
     calls = []
     def do(ops):
         calls.append(ops)
-        assert len(ops) == 4
+        assert len(ops) == 3
         for op in ops:
             if "Update" in op:
                 entry = op["Update"]
@@ -122,6 +123,7 @@ def test_dependencies_providers_and_locks_fail_closed():
         ({"paid": True}, "ERASURE_DEPENDENCY_RETAINED"),
         ({"legal": True}, "CONTACT_LOCKED"),
         ({"source_identity": True}, "ERASURE_EXTERNAL_IDENTITY_REVIEW_REQUIRED"),
+        ({"phone": True}, "ERASURE_EXTERNAL_IDENTITY_REVIEW_REQUIRED"),
         ({"held": True}, "CONTACT_HAS_HISTORY"),
     ):
         tables, audit, _ = setup(**options)
