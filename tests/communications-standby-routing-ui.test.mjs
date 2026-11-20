@@ -44,8 +44,10 @@ test('reply tools are available for eligible saved contacts', () => {
   assert.ok(inbox.includes("{ replyChannel === 'whatsapp' && canReplyWhatsApp && ("));
 });
 
-test('message UI neither deletes rows nor bypasses the actual WhatsApp API', () => {
-  assert.ok(!inbox.includes('deleteMessage('));
-  assert.ok(!inbox.includes('deleteContact('));
+test('message delete is explicit and does not bypass WhatsApp send API', () => {
+  assert.ok(inbox.includes('api.deleteInboxMessageRecord( id )'));
+  assert.ok(inbox.includes('await confirm( {'));
+  assert.ok(inbox.includes('Delete inbox message'));
+  assert.ok(!inbox.includes('api.deleteContact('));
   assert.ok(inbox.includes('api.sendWhatsAppMessage( {'));
 });
