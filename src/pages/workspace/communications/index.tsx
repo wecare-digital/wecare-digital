@@ -45,7 +45,6 @@ const LinksPanel = lazyTab<PageProps>( () => import( '../../../components/worksp
 const WhatsAppProfilePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/business-profile' ) );
 const CallingPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/calling' ) );
 const WebhooksPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/webhooks' ) );
-const AiAgentPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/ai-agent' ) );
 const WabaPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/waba-dashboard' ) );
 const EmbeddedSignupPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/embedded-signup' ) );
 const ConnectedAccountsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/connected-accounts' ) );
@@ -79,7 +78,6 @@ type SectionId =
   | 'flows'
   | 'automation'
   | 'scheduled'
-  | 'ai'
   | 'delivery'
   | 'analytics'
   | 'usage'
@@ -115,7 +113,7 @@ type WhatsAppTool =
   | 'cost-controls'
   | 'ctwa-ads'
   | 'conversions-api'
-  | 'ai-agent';
+;
 
 const MANAGE_GROUPS: Array<{
   title: string;
@@ -148,7 +146,6 @@ const MANAGE_GROUPS: Array<{
     hint: 'Rules and assisted communication.',
     items: [
       { id: 'automation', label: 'Rules', detail: 'Cross-channel automation rules' },
-      { id: 'ai', label: 'AI Agent', detail: 'Customer-facing agent configuration and routing' },
     ],
   },
   {
@@ -192,7 +189,6 @@ const WHATSAPP_GROUPS: Array<{
       { id: 'welcome', label: 'Welcome', detail: 'Welcome-message behavior' },
       { id: 'auto-response', label: 'Auto response', detail: 'Keyword and automatic response rules' },
       { id: 'scripts', label: 'Scripts', detail: 'WhatsApp automation script configuration' },
-      { id: 'ai-agent', label: 'AI Agent', detail: 'WhatsApp customer-agent configuration' },
     ],
   },
   {
@@ -289,7 +285,6 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'cost-controls': return <CostControlsPanel signOut={ signOut } user={ user } embedded />;
       case 'ctwa-ads': return <CtwaPanel signOut={ signOut } user={ user } embedded />;
       case 'conversions-api': return <ConversionsPanel signOut={ signOut } user={ user } embedded />;
-      case 'ai-agent': return <AiAgentPanel signOut={ signOut } user={ user } embedded />;
       default: return null;
     }
   };
@@ -306,7 +301,6 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'flows': return <FlowsPanel signOut={ signOut } user={ user } embedded />;
       case 'automation': return <AutomationPanel signOut={ signOut } user={ user } embedded />;
       case 'scheduled': return <ScheduledPanel signOut={ signOut } user={ user } embedded />;
-      case 'ai': return <AiAgentPanel signOut={ signOut } user={ user } embedded />;
       case 'delivery': return <LogsPanel signOut={ signOut } user={ user } embedded />;
       case 'webhooks': return <WebhooksPanel signOut={ signOut } user={ user } embedded />;
       case 'calling': return <CallingPanel signOut={ signOut } user={ user } embedded />;
