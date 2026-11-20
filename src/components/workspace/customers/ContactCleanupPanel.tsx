@@ -147,7 +147,7 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
       <textarea id="cleanup-keep" className="cleanup-text" rows={ 3 } value={ keepText }
         onChange={ e => setKeepText( e.target.value ) } disabled={ scanning || archiving } />
       <div className="cleanup-actions">
-        <button type="button" className="action" onClick={ () => void runScan() } disabled={ scanning || archiving }>
+        <button type="button" className="action" onClick={ () => void runScan() } disabled={ scanning || archiving || !canArchive } title={ canArchive ? undefined : 'Scanning requires the Admin role' }>
           { scanning ? 'Scanning…' : 'Scan contacts' }
         </button>
       </div>

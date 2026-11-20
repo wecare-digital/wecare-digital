@@ -28,7 +28,7 @@ Everything else that is not already archived is a junk candidate.
 - Archive applies to the whole scanned page. To exclude a contact, add it to the keep list and scan again.
 - A reason is required (up to 500 characters).
 - Each scan returns a single-use confirmation token bound to exactly the ids on that page. Archive consumes it.
-- Archive requires an Admin with MFA.
+- Scan and archive both require an Admin with MFA (the scan reads every table and writes a token row, so Operators cannot start it).
 - Archive re-runs the scan first. If any contact is no longer eligible (new evidence, a lock, already archived), the request returns 409 `CLEANUP_NOT_ELIGIBLE` with a per-id reason map, nothing is archived, and the UI shows the first reasons. Scan again.
 - Archived contacts are restored from the contact's Restore action. Every archive is audited with masked ids.
 
@@ -54,3 +54,16 @@ Permanent deletion of contact identities is not implemented. The only cleanup ac
 - reconciliation of every dependent record, with any partial state reported as a refusal
 
 Until then, remove junk by archiving, and do not delete rows from DynamoDB or S3 by hand.
+
+## Review follow-up (2026-11-20)
+
+Fixed:
+
+- MFA gate: tests now run the real `require_auth` with `ADMIN_MFA_REQUIRED=true`. An Admin without MFA is refused on scan and archive, an Admin with MFA passes, and an Operator is refused.
+- Unthrottled scans: `cleanup_scan` is now Admin with MFA, and the Scan button is disabled for other roles.
+
+Not fixed, with reasons:
+
+- Synchronous full-table scans and the 29 s API Gateway limit: not verified, and moving to a job plus poll design is a larger change than this review pass. If the route is behind a 29 s cap, the UI will see a 504 while the Lambda keeps running. Nothing is archived in that case (fail closed). Before using this on a large dataset, confirm the integration timeout. Follow-up: asynchronous scan job.
+- Memory ceiling: per-page aggregation is a classifier redesign. A crash fails closed. Follow-up with the async job.
+- Identity erasure: out of scope by policy, `CONTACT_ERASURE_NOT_READY` unchanged. The owner must start the legal review described above.

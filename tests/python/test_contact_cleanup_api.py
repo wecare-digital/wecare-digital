@@ -363,10 +363,12 @@ def test_non_admin_cannot_reach_cleanup_archive(env, monkeypatch):
     denied = h.handler(_event("cleanup_archive", "Operator"), None)
     assert denied["statusCode"] == 403 and "Admin" in asked
     assert env.tables["contacts"].updates == []
-    # Operator can scan.
+    # Operator cannot scan either (expensive full-table read); Admin can.
     standard(env)
-    ok = h.handler({**_event("cleanup_scan", "Operator"), "body": json.dumps(
-        {"_action": "cleanup_scan", **KEEP})}, None)
+    body = json.dumps({"_action": "cleanup_scan", **KEEP})
+    scan_denied = h.handler({**_event("cleanup_scan", "Operator"), "body": body}, None)
+    assert scan_denied["statusCode"] == 403
+    ok = h.handler({**_event("cleanup_scan", "Admin"), "body": body}, None)
     assert ok["statusCode"] == 200
 
 
@@ -385,3 +387,51 @@ def test_cleanup_code_never_calls_delete_item():
                         handler_src.index("# ─── DELETE (soft / hard)")]
     assert "delete_item" not in layer
     assert "delete_item" not in block
+
+
+def _real_auth_event(action, monkeypatch, groups, mfa_settings, mfa_required="true"):
+    """Drive the real require_auth with a faked Cognito client."""
+    from lambda_utils import middleware
+
+    class FakeCognito:
+        class exceptions:
+            class NotAuthorizedException(Exception):
+                pass
+
+        def get_user(self, AccessToken):
+            return {"Username": "u1", "UserAttributes": []}
+
+        def admin_list_groups_for_user(self, **kw):
+            return {"Groups": [{"GroupName": g} for g in groups]}
+
+        def admin_get_user(self, **kw):
+            return {"UserMFASettingList": mfa_settings}
+
+    monkeypatch.setattr(middleware, "cognito", FakeCognito())
+    monkeypatch.setattr(middleware, "_unverified_issuer", lambda t: middleware.staff_pool_issuer())
+    monkeypatch.setattr(middleware, "_unverified_clients", lambda t: {middleware.STAFF_APP_CLIENT_ID})
+    monkeypatch.setenv("ADMIN_MFA_REQUIRED", mfa_required)
+    return {
+        "httpMethod": "POST",
+        "headers": {"Authorization": "Bearer t"},
+        "requestContext": {"apiId": "api", "http": {"sourceIp": "1.2.3.4"}},
+        "body": json.dumps({"_action": action, **KEEP}),
+    }
+
+
+@pytest.mark.parametrize("action", ["cleanup_scan", "cleanup_archive"])
+def test_admin_without_mfa_refused_by_real_middleware(env, monkeypatch, action):
+    standard(env)
+    event = _real_auth_event(action, monkeypatch, ["Admin"], [])
+    resp = h.handler(event, None)
+    assert resp["statusCode"] == 403 and "MFA required" in resp["body"]
+    assert env.tables["contacts"].updates == []
+
+
+def test_admin_with_mfa_passes_real_middleware_and_operator_refused(env, monkeypatch):
+    standard(env)
+    event = _real_auth_event("cleanup_scan", monkeypatch, ["Admin"], ["SMS_MFA"])
+    assert h.handler(event, None)["statusCode"] == 200
+    event = _real_auth_event("cleanup_scan", monkeypatch, ["Operator"], ["SMS_MFA"])
+    resp = h.handler(event, None)
+    assert resp["statusCode"] == 403 and "Insufficient permissions" in resp["body"]

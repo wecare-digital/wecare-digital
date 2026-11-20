@@ -292,6 +292,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         or merge_command
         or post_action == 'restore'
         or post_action == 'cleanup_archive'
+        # The scan reads every contact, message and payment table and writes a token
+        # row, so it is Admin too: Operators cannot start repeated full scans.
+        or post_action == 'cleanup_scan'
     ):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
