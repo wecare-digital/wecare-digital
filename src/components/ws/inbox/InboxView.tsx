@@ -29,6 +29,7 @@ import React from 'react';
 import type { Message, Contact, ConversationMeta, ApiFailure } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 
 interface Conversation {
   key: string;
@@ -97,6 +98,7 @@ function previewText ( m: Message ): string {
 
 const InboxView: React.FC = () => {
   const toast = useToastContext();
+  const confirm = useConfirm();
 
   const [ messages, setMessages ] = React.useState<Message[]>( [] );
   const [ names, setNames ] = React.useState<Record<string, string>>( {} );
@@ -108,6 +110,7 @@ const InboxView: React.FC = () => {
 
   const [ draft, setDraft ] = React.useState( '' );
   const [ sending, setSending ] = React.useState( false );
+  const [ deletingMessageId, setDeletingMessageId ] = React.useState<string | null>( null );
 
   const load = React.useCallback( async () => {
     setFailure( null );
@@ -227,6 +230,31 @@ const InboxView: React.FC = () => {
     }
   };
 
+  const deleteStoredMessage = async ( message: Message ) => {
+    if ( !message.id || deletingMessageId ) return;
+    const approved = await confirm( {
+      title: 'Delete stored message?',
+      message: 'Remove this local inbox message and matching WhatsApp source when eligible? Payment evidence and held conversations are protected. Meta/provider copies and backups may remain.',
+      confirmText: 'Delete message',
+      danger: true,
+    } );
+    if ( !approved ) return;
+    setDeletingMessageId( message.id );
+    try {
+      const result = await api.deleteInboxMessage( message.id );
+      if ( result.ok && result.data.rowDeleted ) {
+        toast.success( 'Local message removed. Provider copies may remain.' );
+        await load();
+      } else {
+        toast.error( result.ok ? 'Delete was not confirmed.' : result.failure.message );
+      }
+    } catch {
+      toast.error( 'Delete result could not be verified. Refresh before retrying.' );
+    } finally {
+      setDeletingMessageId( null );
+    }
+  };
+
   const showThreadPane = selected !== null;
 
   return (
@@ -333,6 +361,13 @@ const InboxView: React.FC = () => {
                         { timeFull( m.timestamp ) }
                         { m.channel !== selectedConv.channel ? ` · ${ CHANNEL_LABEL[ m.channel ] }` : '' }
                       </span>
+                      { !!m.id && !( meta?.tags || [] ).includes( 'retention-hold' ) && (
+                        <button type="button" className="ib-ghost" disabled={ !!deletingMessageId }
+                          title="Delete stored local message; provider copies may remain"
+                          onClick={ () => void deleteStoredMessage( m ) }>
+                          { deletingMessageId === m.id ? 'Deleting…' : 'Delete message' }
+                        </button>
+                      ) }
                     </div>
                   </div>
                 );
