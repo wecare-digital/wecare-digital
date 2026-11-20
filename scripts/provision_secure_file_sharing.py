@@ -138,20 +138,13 @@ def ensure_table(schema: dict, dry_run: bool) -> str:
 
 
 def ensure_ttl(name: str, attribute: str, dry_run: bool) -> str:
-    """Enable TTL so unredeemed grants disappear without a sweeper."""
+    """Compatibility hook; never re-enable DynamoDB TTL after retention disable."""
     if not table_exists(name):
-        return "would enable" if dry_run else "table missing"
+        return "would verify" if dry_run else "table missing"
     current = ddb().describe_time_to_live(TableName=name)["TimeToLiveDescription"]
-    status = current.get("TimeToLiveStatus")
-    if status in ("ENABLED", "ENABLING"):
-        return f"already {status.lower()} on {current.get('AttributeName')}"
-    if dry_run:
-        return "would enable"
-    ddb().update_time_to_live(
-        TableName=name,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": attribute},
-    )
-    return f"enabled on {attribute}"
+    if current.get("TimeToLiveStatus") != "DISABLED":
+        raise RuntimeError("DynamoDB TTL unexpectedly enabled on " + name)
+    return "TTL disabled"
 
 
 def verify() -> int:
@@ -180,10 +173,10 @@ def verify() -> int:
             failures += 1
 
     ttl = ddb().describe_time_to_live(TableName=GRANTS_TABLE)["TimeToLiveDescription"]
-    if ttl.get("TimeToLiveStatus") == "ENABLED" and ttl.get("AttributeName") == "expiresAt":
-        print("PASS grants TTL enabled on expiresAt")
+    if ttl.get("TimeToLiveStatus") == "DISABLED":
+        print("PASS grants DynamoDB TTL disabled")
     else:
-        print(f"FAIL grants TTL not enabled on expiresAt: {ttl}")
+        print(f"FAIL grants TTL unexpectedly enabled: {ttl}")
         failures += 1
 
     print()
