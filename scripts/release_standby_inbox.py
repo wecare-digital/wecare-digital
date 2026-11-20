@@ -187,12 +187,17 @@ def main():
         RevisionId=current_alias["RevisionId"])
     verified_alias = api.get_alias(FunctionName=FUNCTION, Name="live")
     if str(verified_alias.get("FunctionVersion")) != new_version:
-        # Best-effort rollback only if this script's alias version is still active.
-        if str(verified_alias.get("FunctionVersion")) == new_version:
+        # Another operator may have moved the alias. Do not overwrite their choice.
+        raise RuntimeError("unexpected alias target after release")
+    observed = api.get_function_configuration(FunctionName=FUNCTION, Qualifier="live")
+    if observed.get("CodeSha256") != new_sha:
+        # Roll back only while our new version still owns the live alias.
+        check_alias = api.get_alias(FunctionName=FUNCTION, Name="live")
+        if str(check_alias.get("FunctionVersion")) == new_version:
             api.update_alias(
                 FunctionName=FUNCTION, Name="live", FunctionVersion=current_version,
-                RevisionId=verified_alias["RevisionId"])
-        raise RuntimeError("unexpected alias target after release")
+                RevisionId=check_alias["RevisionId"])
+        raise RuntimeError("live code checksum verification failed; rolled back where safe")
     print(json.dumps({
         "release": "verified",
         "previousVersion": current_version,
