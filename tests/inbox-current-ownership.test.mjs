@@ -26,4 +26,7 @@ test('backend ownership visibility remains read-only and historical messages are
   assert.ok(messageReader.includes('THREAD_OWNERSHIP_TABLE'));
   assert.ok(!inbox.includes('deleteMessage('));
   assert.ok(!inbox.includes('deleteContact('));
+  assert.ok(inbox.includes('api.sendWhatsAppStaffReplyOnce( {'));
+  assert.ok(messagingApi.includes('export async function sendWhatsAppStaffReplyOnce'));
+  assert.ok(messagingApi.includes('0, 15000, false'));
 });
