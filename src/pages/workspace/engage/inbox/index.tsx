@@ -397,12 +397,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             // "the request failed", so the catch below never fires on an API error
             // and the page would render "No conversations" over an outage.
             // collectApiFailures recovers the reason without changing 300 wrappers.
-            const { data: [ msgs, contacts, metas ], failures } = await api.collectApiFailures( () => Promise.all( [
-                api.listMessages( undefined, 'ALL', 2000 ),
-                api.listContacts(),
-                api.listConversationMeta(),
-            ] ) );
-            setLoadFailure( failures[ 0 ] ?? null );
+            const [ recordsResult, holdResult ] = await Promise.all( [
+                api.collectApiFailures( () => Promise.all( [
+                    api.listMessages( undefined, 'ALL', 2000 ),
+                    api.listContacts(),
+                ] ) ),
+                api.collectApiFailures( () => Promise.all( [ api.listConversationMeta() ] ) ),
+            ] );
+            const [ msgs, contacts ] = recordsResult.data;
+            const [ metas ] = holdResult.data;
+            setLoadFailure( recordsResult.failures[ 0 ] ?? null );
             const names: Record<string, string> = {};
             const dir: Record<string, api.Contact> = {};
             contacts.forEach( c => {
@@ -412,10 +416,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             setContactNames( names );
             setContactDir( dir );
             setMessages( msgs );
-            setRetainedKeys( new Set( metas
-                .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
-                .map( m => m.conversationId ) ) );
-            if ( failures.length ) setTodayOnly( false ); // Never hide on an incomplete hold read.
+            if ( holdResult.failures.length ) {
+                setTodayOnly( false ); // Never hide on an incomplete hold read.
+                setRetainedKeys( new Set() );
+            } else {
+                setRetainedKeys( new Set( metas
+                    .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
+                    .map( m => m.conversationId ) ) );
+            }
         } catch
         {
             toast.error( 'Failed to load inbox' );
