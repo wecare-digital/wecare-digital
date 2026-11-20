@@ -26,7 +26,7 @@ test('scope review marks every record as uncertified until authoritative full re
     'eligibleToDelete: 0',
     'Razorpay transaction',
     'payment-related communications',
-    'CONTACT_ERASURE_NOT_READY',
+    'ERASURE_COORDINATOR_UNAVAILABLE',
   ]) assert.ok(scope.includes(marker), marker);
   assert.ok(scope.includes('disabled'));
   assert.ok(scope.includes('No records have been changed by this review'));
@@ -39,5 +39,6 @@ test('scope preview cannot send destructive mutations or bypass backend refusal'
     'dynamodb', 'DeleteItem', 'clear-all', 'window.fetch(', 'apiCall(',
   ];
   for (const bad of prohibited) assert.ok(!scope.includes(bad), bad);
-  assert.ok(contactApi.includes("'CONTACT_ERASURE_NOT_READY'"));
+  assert.ok(!contactApi.includes('CONTACT_ERASURE_NOT_READY'));
+  assert.ok(contactApi.includes('dispatch_approved_erasure('));
 });
