@@ -283,6 +283,40 @@ export async function softDeleteContactResult (
   );
 }
 
+export interface ErasureCasePreview {
+  caseId: string;
+  contactId: string;
+  manifestSha256: string;
+  status: 'PENDING_SECOND_REVIEW' | 'APPROVED' | string;
+  erasureComplete: false;
+  expiresAt?: number;
+  approvalToken?: string;
+}
+
+/** Admin + MFA: create a short-lived case only when all linked dependencies
+ * have been inventoried and the contact has no business/financial history.
+ */
+export async function prepareContactErasure ( contactId: string ) {
+  return apiCallResult<ErasureCasePreview>(
+    `${API_BASE}/contacts`,
+    { method: 'POST', body: JSON.stringify( {
+      _action: 'erasure_prepare', contactId,
+    } ) }, 0, 20000, false,
+  );
+}
+
+/** A second, distinct Admin with MFA approves the exact reviewed digest.
+ * The grant can be used once and expires; it is never stored in localStorage.
+ */
+export async function approveContactErasure ( caseId: string, contactId: string ) {
+  return apiCallResult<ErasureCasePreview>(
+    `${API_BASE}/contacts`,
+    { method: 'POST', body: JSON.stringify( {
+      _action: 'erasure_approve', caseId, contactId,
+    } ) }, 0, 20000, false,
+  );
+}
+
 export interface ApprovedContactErasureRequest {
   caseId: string;
   manifestSha256: string;
