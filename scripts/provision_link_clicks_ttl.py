@@ -79,42 +79,22 @@ def main() -> int:
     unreadable = [i for i in missing if clicked_epoch(i.get("clickedAt")) is None]
     past = [i for i in missing if (clicked_epoch(i.get("clickedAt")) or now) + keep <= now]
     print(f"{TABLE}: {len(items)} rows; {len(items) - len(missing)} have {TTL_ATTR}, {len(missing)} do not "
-          f"({len(past)} are older than {RETENTION_DAYS} days and TTL will delete them; "
-          f"{len(unreadable)} have an unreadable clickedAt and get {RETENTION_DAYS} days from now)")
+          f"({len(past)} are older than {RETENTION_DAYS} days (TTL is disabled); "
+          f"{len(unreadable)} have an unreadable clickedAt; no expiry backfill is performed)")
     print(f"TTL: {status} on {attr!r}")
 
     if args.verify:
-        ok = status == "ENABLED" and attr == TTL_ATTR and not missing
+        ok = status == "DISABLED"
         print("verified" if ok else "NOT verified")
         return 0 if ok else 1
-    if not args.apply:
-        print("dry run: re-run with --apply to enable TTL and backfill")
+    # Retention was explicitly switched to non-expiring DynamoDB rows.
+    # This legacy provisioning command must never re-enable physical TTL.
+    if args.apply:
+        print("TTL remains disabled; refusing legacy expiry backfill.")
         return 0
-
-    if status == "DISABLED" or status is None:
-        client.update_time_to_live(TableName=TABLE,
-                                   TimeToLiveSpecification={"Enabled": True, "AttributeName": TTL_ATTR})
-        print(f"TTL enabled on {TTL_ATTR}")
-    elif attr != TTL_ATTR:
-        sys.exit(f"refusing: TTL already uses {attr!r}")
-
-    done = 0
-    for item in missing:
-        start = clicked_epoch(item.get("clickedAt")) or now
-        try:
-            table.update_item(
-                Key={"shortCode": item["shortCode"], "clickedAt": item["clickedAt"]},
-                UpdateExpression="SET #e = :e",
-                ConditionExpression="attribute_not_exists(#e)",
-                ExpressionAttributeNames={"#e": TTL_ATTR},
-                ExpressionAttributeValues={":e": start + keep},
-            )
-            done += 1
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
-                raise
-    print(f"backfilled {done} rows")
+    print("dry run: no TTL changes or expiry backfill are permitted")
     return 0
+
 
 
 if __name__ == "__main__":

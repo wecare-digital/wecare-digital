@@ -61,7 +61,7 @@
         },
         "TimeToLiveSpecification": {
           "AttributeName": "absoluteExpiresAt",
-          "Enabled": true
+          "Enabled": false
         },
         "PointInTimeRecoverySpecification": {
           "PointInTimeRecoveryEnabled": true
