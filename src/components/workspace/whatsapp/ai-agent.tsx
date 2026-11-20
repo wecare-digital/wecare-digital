@@ -246,8 +246,14 @@ function AiAgentPageBody ( { }: PageProps ) {
             const verified = await api.aiAgentApi.getSettings( waba );
             const value = verified?.settings;
             const actual = Array.isArray( value ) ? value[ 0 ] : value;
-            if ( !actual || ( typeof patch.enabled === 'boolean'
-                && actual.rollout?.enabled !== patch.enabled ) )
+            const confirmed = !!actual
+                && ( typeof patch.enabled !== 'boolean' || actual.rollout?.enabled === patch.enabled )
+                && ( !patch.aiAudience || actual.ai_audience === patch.aiAudience )
+                && ( !patch.handoff || actual.handoff?.enabled === patch.handoff.enabled )
+                && ( !patch.followup || ( actual.followup?.enabled === patch.followup.enabled
+                    && ( patch.followup.followup_interval_in_seconds === undefined
+                        || actual.followup?.followup_interval_in_seconds === patch.followup.followup_interval_in_seconds ) ) );
+            if ( !confirmed )
             {
                 toast.error( 'Meta has not confirmed this AI setting. Verify in Business Suite.' );
                 return;
