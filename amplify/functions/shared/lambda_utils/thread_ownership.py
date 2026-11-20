@@ -447,7 +447,7 @@ def may_send(phone_number_id: str, *, bsuid: str = "", wa_id: str = "",
 
 def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str = "",
                           message: Dict[str, Any], content: str = "",
-                          now: Optional[int] = None) -> bool:
+                          sender_name: str = "", now: Optional[int] = None) -> bool:
     """Persist one standby message as standby-MARKED context. Returns True if stored.
 
     Why every standby message and not just the ones we act on: the docs direct you to
@@ -478,6 +478,8 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
             "whatsappMessageId": wamid,
             "messageType": str(message.get("type") or ""),
             "content": str(content or "")[:4000],
+            # A profile name from Meta is display-only, never an identity claim.
+            "senderName": str(sender_name or "").strip()[:160],
             "messageTimestamp": int(message.get("timestamp") or moment),
             "observedAt": moment,
             "expiresAt": moment + RECORD_TTL_SECONDS,
@@ -490,7 +492,7 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
             from lambda_utils import standby_inbox
             projected = standby_inbox.mirror(
                 phone_number_id, bsuid=bsuid, wa_id=wa_id,
-                message=message, content=content,
+                message=message, content=content, sender_name=sender_name,
             )
             if not projected:
                 logger.warning('{"event":"standby_inbox_projection_retry_needed"}')
