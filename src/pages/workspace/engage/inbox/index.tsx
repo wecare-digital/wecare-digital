@@ -576,6 +576,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const selectedContact = selected ? contactDir[ selected ] : undefined;
     const whatsAppName = [ ...thread ].reverse().map( realWhatsAppName ).find( Boolean ) || '';
     const replyChannel = thread.length ? ( thread[ thread.length - 1 ].channel || 'whatsapp' ).toLowerCase() : 'whatsapp';
+    // A standby copy was observed while Meta's AI/another responder owned the
+    // conversation. Show its history, but do not offer sends until a normal
+    // owned message/handover has advanced the thread.
+    const standbyReadOnly = replyChannel === 'whatsapp' && thread.length > 0
+        && thread[ thread.length - 1 ].standbySourced === true;
 
     // Derive the reply target (recipient phone, WABA, contactId) from the thread.
     const replyTarget = useMemo( () => {
@@ -637,6 +642,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
+        if ( standbyReadOnly ) { toast.error( 'This WhatsApp thread is AI-controlled. Reply after handover.' ); return; }
         if ( sending ) return;
         const base = replyText.trim();
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
@@ -765,7 +771,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly ] );
 
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
@@ -1144,6 +1150,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                         } ) }
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
+                                        { standbyReadOnly && <span className="ui-badge" title="Another responder currently owns this thread">AI-controlled · read-only</span> }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
@@ -1206,6 +1213,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 <div className="ui-msg-bubble">
                                                     <span className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>
                                                     { messageWabaId( m ) && <span className="ui-badge ui-waba-badge">{ wabaDisplay( messageWabaId( m ) ) }</span> }
+                                                    { m.standbySourced === true && <span className="ui-badge" title="Observed while another WhatsApp responder owned this thread">AI-handled · read-only</span> }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
@@ -1304,7 +1312,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     <div ref={ threadEndRef } />
                                 </div>
                                 <div className="ui-reply">
-                                    { replyChannel === 'voice' ? (
+                                    { standbyReadOnly ? (
+                                        <div className="ui-reply-voice" role="status">
+                                            This conversation is currently AI-controlled. Messages are visible for review; sending is disabled until WhatsApp hands control back.
+                                        </div>
+                                    ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
                                             <span>This is a call — reply by calling back.</span>
                                             <Link href={ chMeta( 'voice' ).reply } className="ui-reply-link">Open Voice →</Link>
@@ -1463,7 +1475,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             </div>
 
-            { composer && replyTarget.contactId && (
+            { !standbyReadOnly && composer && replyTarget.contactId && (
                 <div className="ui-modal-backdrop" onClick={ () => setComposer( null ) }>
                     <div className="ui-modal" onClick={ e => e.stopPropagation() }>
                         { composer === 'location' && (
