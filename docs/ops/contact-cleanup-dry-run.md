@@ -61,5 +61,3 @@ The only cleanup path is the existing reversible Archive in the contacts API, ru
 
 - The script does full scans of the contacts, three message, payments, attempts and invoices tables and holds the rows in memory. Run it off-peak and check table sizes first, since scans consume read capacity.
 - Contact ids embed phone digits, so stdout shows them masked. Exact ids appear only in the `--output` JSON report (mode 0600). Keep that file outside the repository.
-
-To archive candidates from the workspace instead of the command line, see `docs/ops/contact-cleanup-workspace.md`.
