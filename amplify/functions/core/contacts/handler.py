@@ -295,6 +295,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # The scan reads every contact, message and payment table and writes a token
         # row, so it is Admin too: Operators cannot start repeated full scans.
         or post_action == 'cleanup_scan'
+        or post_action in ('erasure_prepare', 'erasure_approve')
     ):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
@@ -406,6 +407,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _cleanup_scan(preauth_body, event.get('_auth') or {}, request_id, origin)
         if method == 'POST' and post_action == 'cleanup_archive':
             return _cleanup_archive(preauth_body, event.get('_auth') or {}, request_id, origin)
+        if method == 'POST' and post_action in ('erasure_prepare', 'erasure_approve'):
+            staff = event.get('_auth') or {}
+            if staff.get('role') != 'Admin' or staff.get('mfaEnrolled') is not True:
+                return cors_response(403, {'errorCode': 'ERASURE_ADMIN_MFA_REQUIRED',
+                                           'error': 'Admin MFA is required.'}, origin)
+            return _verified_erasure_prepare_or_approve(
+                post_action, preauth_body, staff, request_id, origin)
 
         # Same Operator-gated route for repairing a retained partial create or legacy contact.
         if method == 'POST' and post_action == 'provision_customer_identity':
@@ -1705,6 +1713,89 @@ def _cleanup_archive(body: Dict[str, Any], auth: Dict[str, Any],
 
 
 
+# ─── VERIFIED LOCAL CONTACT / IDENTITY REMOVAL ────────────────────────────────
+
+def _verified_erasure_tables():
+    prefix = os.environ.get('DYNAMODB_TABLE_PREFIX', 'stack-wecare-digital-')
+    from lambda_utils.erasure.verified_identity import DEPENDENCY_TABLES
+    names = set(DEPENDENCY_TABLES) | {
+        'ContactsTable', 'IdentityClaimsTable',
+        'ConversationMetaTable', 'SystemConfigTable',
+    }
+    return {name: dynamodb.Table(prefix + name) for name in names}
+
+
+def _verified_erasure_actor(staff):
+    return str((staff.get('attributes') or {}).get('sub')
+               or staff.get('username') or '').strip()
+
+
+def _verified_erasure_error(exc, origin):
+    from lambda_utils.erasure.verified_identity import Refused
+    if isinstance(exc, Refused):
+        status = 404 if exc.code == 'CONTACT_NOT_FOUND' else (
+            503 if exc.code in ('ERASURE_INVENTORY_INCOMPLETE',
+                                'ERASURE_AUDIT_UNAVAILABLE',
+                                'ERASURE_RECONCILIATION_REQUIRED') else 409)
+        return cors_response(status, {
+            'errorCode': exc.code, 'error': exc.reason,
+            'erasureComplete': False,
+        }, origin)
+    logger.warning('verified_erasure_refused', extra={'errorType': type(exc).__name__})
+    return cors_response(503, {
+        'errorCode': 'ERASURE_INVENTORY_INCOMPLETE',
+        'error': 'The contact or dependency review failed. No successful deletion was confirmed.',
+        'erasureComplete': False,
+    }, origin)
+
+
+def _verified_erasure_prepare_or_approve(action, body, staff, request_id, origin):
+    from lambda_utils.erasure import verified_identity
+    actor = _verified_erasure_actor(staff)
+    if not actor:
+        return cors_response(403, {'errorCode': 'ERASURE_ACTOR_UNVERIFIED'}, origin)
+    try:
+        tables = _verified_erasure_tables()
+        if action == 'erasure_prepare':
+            result = verified_identity.prepare(
+                contact_id=str(body.get('contactId') or '').strip(),
+                actor=actor, tables=tables, audit=record_audit)
+        else:
+            result = verified_identity.approve(
+                case_id=str(body.get('caseId') or '').strip(),
+                actor=actor, tables=tables, audit=record_audit)
+        return cors_response(200, result, origin)
+    except Exception as exc:
+        return _verified_erasure_error(exc, origin)
+
+
+def _verified_erasure_execute_local(contact_id, body, actor, request_id, origin):
+    from lambda_utils.erasure import verified_identity
+    try:
+        tables = _verified_erasure_tables()
+        result = verified_identity.execute(
+            contact_id=contact_id,
+            case_id=str(body.get('caseId') or '').strip(),
+            manifest_sha256=str(body.get('manifestSha256') or '').strip(),
+            approval_token=str(body.get('approvalToken') or '').strip(),
+            actor=actor, tables=tables,
+            transact_write=lambda ops: dynamodb.meta.client.transact_write_items(
+                TransactItems=ops),
+            audit=record_audit)
+        return cors_response(200, {
+            'success': True,
+            'erasureComplete': result['erasureComplete'],
+            'identityClaimsReleased': result['identityClaimsReleased'],
+            'contactRecreatable': result['contactRecreatable'],
+            'auditId': result['auditId'],
+            'localOnly': True,
+            'auditRecordsPreserved': True,
+            'providerCopiesErased': False,
+        }, origin)
+    except Exception as exc:
+        return _verified_erasure_error(exc, origin)
+
+
 # ─── DELETE (soft / hard) ───────────────────────────────────────────────────
 
 #: The two refusals, distinct on the wire so the UI can say WHICH happened rather than offering
@@ -1728,7 +1819,12 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
     # A lock blocks EVERY delete, hard or soft, before anything else.
     lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
     if lock_refusal is not None:
-        return lock_refusal
+        # The default creation lock is not a legal/financial retention hold.
+        # Its release requires the full two-Admin approved identity workflow.
+        locked_payload = json.loads(lock_refusal.get('body') or '{}')
+        if not (hard and locked_payload.get('error') == DELETE_REFUSED_LOCKED
+                and locked_payload.get('lockedReason') == 'created'):
+            return lock_refusal
     # Payment/order provenance must survive archiving as well as permanent deletion.
     # Otherwise re-adding the phone creates a new identity and strands the old links.
     refusal = _hard_delete_refusal(contact_id, request_id, origin)
@@ -1767,6 +1863,13 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
 
     from lambda_utils.erasure.dispatch import dispatch_approved_erasure
     actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '')
+    # With no external coordinator configured, the internally reviewed,
+    # dependency-free local identity-removal path is available. It cannot
+    # remove message, provider, financial or S3 data, and will refuse any
+    # contact with such dependencies.
+    if not os.environ.get('ERASURE_COORDINATOR_FUNCTION', '').strip():
+        return _verified_erasure_execute_local(
+            contact_id, body, actor, request_id, origin)
     outcome = dispatch_approved_erasure(
         coordinator_function=os.environ.get('ERASURE_COORDINATOR_FUNCTION', '').strip(),
         contact_id=contact_id,
