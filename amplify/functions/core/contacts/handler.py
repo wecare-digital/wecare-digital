@@ -442,20 +442,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Re-gated at Operator before any delete work. A Viewer can read a contact
             # and must not be able to remove one.
             #
-            # No destructive delete is currently available. Payment/order and retention
-            # guards still return their specific refusal. All other requests return
-            # CONTACT_ERASURE_NOT_READY; archive is the only staff cleanup action.
-            # `_hard_delete_refusal` refuses CONTACT_HAS_PAYMENTS and
-            # PAYMENT_LINKAGE_UNKNOWN via
-            # `lambda_utils.ecommerce.contact_payment_links.has_payment_links`, and the
-            # lock guard refuses CONTACT_LOCKED. An Operator does not outrank those.
-            denied = require_auth(event, required_role='Operator')
+            # A destructive request requires Admin+MFA. The actual erasure must
+            # be delegated to an independently approved and audited coordinator;
+            # no direct deletion, lock override or broad clear-all is permitted.
+            denied = require_auth(event, required_role='Admin')
             if denied is not None:
                 return denied
+            staff = event.get('_auth') or {}
+            if staff.get('role') != 'Admin' or staff.get('mfaEnrolled') is not True:
+                return cors_response(403, {
+                    'error': 'Admin MFA required for approved customer erasure',
+                    'errorCode': 'ERASURE_ADMIN_MFA_REQUIRED',
+                }, origin)
             if not contact_id:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
             hard = query_params.get('hard', 'false').lower() == 'true'
-            return _delete(contact_id, hard, request_id, origin)
+            return _delete(contact_id, hard, request_id, origin, event=event)
 
         return cors_response(405, {'error': f'Method {method} not allowed'}, origin)
 
@@ -1529,7 +1531,8 @@ HARD_DELETE_REFUSED_UNKNOWN = 'PAYMENT_LINKAGE_UNKNOWN'
 DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
 
 
-def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
+def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
+            *, event: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     merged_refusal = _merged_alias_mutation_refusal(
         contact_id, origin, defer_unreadable=hard)
     if merged_refusal:
@@ -1548,25 +1551,50 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> D
         payload['reason'] = 'Payment or order history must be retained. ' + payload.get('reason', '')
         refusal['body'] = json.dumps(payload)
         return refusal
-    # This DELETE endpoint MUST NOT create a dangling identity, claim, S3 object or
-    # cross-service reference. A soft tombstone is NOT erasure and the historical hard
-    # delete implementation did not cover all DynamoDB/Cognito/S3 dependencies.
-    # The versioned media bucket retains old object versions after DeleteObject.
-    # Until a separately approved, complete deletion saga is deployed, fail closed.
-    # Archive is the only supported way to remove a contact from daily queues.
-    log_event(logger, 'contact_erasure_refused_incomplete',
-              contactId=contact_id, hardRequested=hard, requestId=request_id)
-    return cors_response(409, {
-        'error': 'CONTACT_ERASURE_NOT_READY',
-        'errorCode': 'CONTACT_ERASURE_NOT_READY',
-        'reason': (
-            'Permanent customer erasure requires a verified cross-service deletion '
-            'plan covering identity claims, all dependent tables, versioned S3 '
-            'media and customer authentication. No data was deleted. '
-            'Use Archive for reversible directory cleanup.'
-        ),
-        'archiveInstead': True,
-    }, origin)
+    # The legacy unconditional refusal is removed. A "soft delete" tombstone
+    # is not erasure: callers must opt into an approved, fully reconciled
+    # permanent-erasure workflow. Ordinary directory cleanup uses Archive.
+    if not hard:
+        return cors_response(400, {
+            'error': 'Use Archive for reversible cleanup or request an approved permanent erasure',
+            'errorCode': 'ERASURE_EXPLICIT_HARD_REQUEST_REQUIRED',
+            'archiveInstead': True,
+        }, origin)
+
+    staff = (event or {}).get('_auth') or {}
+    if staff.get('role') != 'Admin' or staff.get('mfaEnrolled') is not True:
+        return cors_response(403, {
+            'error': 'A verified Admin with enrolled MFA is required',
+            'errorCode': 'ERASURE_ADMIN_MFA_REQUIRED',
+        }, origin)
+
+    try:
+        body = json.loads((event or {}).get('body') or '{}')
+        if not isinstance(body, dict):
+            raise ValueError('request body must be an object')
+    except (ValueError, TypeError):
+        return cors_response(400, {
+            'error': 'Invalid approved erasure request',
+            'errorCode': 'ERASURE_REQUEST_INVALID',
+        }, origin)
+
+    from lambda_utils.erasure.dispatch import dispatch_approved_erasure
+    actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '')
+    outcome = dispatch_approved_erasure(
+        coordinator_function=os.environ.get('ERASURE_COORDINATOR_FUNCTION', '').strip(),
+        contact_id=contact_id,
+        actor=actor,
+        case_id=str(body.get('caseId') or '').strip(),
+        approval_token=str(body.get('approvalToken') or '').strip(),
+        manifest_sha256=str(body.get('manifestSha256') or '').strip(),
+        request_id=request_id,
+        invoke=boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1')).invoke,
+    )
+    # Never record the opaque approval token or customer identifiers in error logs.
+    log_event(logger, 'contact_erasure_coordinator_result',
+              errorCode=outcome.payload.get('errorCode', ''),
+              statusCode=outcome.status, requestId=request_id)
+    return cors_response(outcome.status, outcome.payload, origin)
 
 
 def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:
