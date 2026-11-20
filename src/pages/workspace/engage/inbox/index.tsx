@@ -389,8 +389,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
-    // Snapshot of current Meta thread ownership; unknown remains read-only.
-    const [ ownershipByMessage, setOwnershipByMessage ] = useState<Record<string, api.Message[ 'threadOwnership' ] | null>>( {} );
 
     const loadData = useCallback( async () => {
         try
@@ -646,63 +644,22 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return { phone, waba, contactId };
     }, [ thread, selected ] );
 
-    // Use the latest inbound routing event on this exact sending account.
-    // Historical standby is evidence of previous ownership, not proof of now.
-    // A later outbound echo or a different WABA cannot claim this thread.
-    const latestInboundAccountMessage = useMemo<api.Message | null>( () => {
-        if ( replyChannel !== 'whatsapp' || !selected ) return null;
-        const latestVisible = [ ...thread ].reverse().find(
-            m => ( m.channel || '' ).toLowerCase() === 'whatsapp'
-                && ( m.direction || '' ).toLowerCase() === 'inbound'
-        );
-        const senderAccount = latestVisible ? messageWabaId( latestVisible ) : '';
-        if ( !senderAccount ) return latestVisible || null;
-        return messages
-            .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
-            .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
-            .filter( m => ( m.direction || '' ).toLowerCase() === 'inbound' )
-            .filter( m => messageWabaId( m ) === senderAccount )
-            .reduce<api.Message | null>( ( prev, m ) => {
-                if ( !prev ) return m;
-                return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
-            }, null );
-    }, [ messages, selected, replyChannel, thread ] );
-    const standbyHistory = latestInboundAccountMessage?.standbySourced === true
-        || latestInboundAccountMessage?.replyAllowed === false;
-    const ownershipMessageId = latestInboundAccountMessage?.standbySourced === true
-        ? latestInboundAccountMessage.id : '';
-
-    // Authenticated /messages/{id} reads a consistent OWNER row keyed by the
-    // stored phone-number ID + stored BSUID. Never allow unknown ownership to send.
-    useEffect( () => {
-        if ( !ownershipMessageId ) return;
-        let active = true;
-        const check = async () => {
-            try {
-                const item = await api.getMessage( ownershipMessageId );
-                if ( active ) setOwnershipByMessage( prev => ( {
-                    ...prev, [ ownershipMessageId ]: item?.threadOwnership ?? null,
-                } ) );
-            } catch {
-                if ( active ) setOwnershipByMessage( prev => ( {
-                    ...prev, [ ownershipMessageId ]: null,
-                } ) );
-            }
-        };
-        void check();
-        const timer = window.setInterval( () => { void check(); }, 15000 );
-        return () => { active = false; window.clearInterval( timer ); };
-    }, [ ownershipMessageId ] );
-
-    const liveOwnership = ownershipMessageId ? ownershipByMessage[ ownershipMessageId ] : null;
-    const handoverPending = !!standbyHistory
-        && !( liveOwnership?.tracked === true && liveOwnership.owned === true && liveOwnership.idle !== true );
-    // A BSUID-only placeholder is not a saved contact. Our live send path
-    // requires a verified customer record and a real recipient phone.
-    const hasVerifiedRecipient = !!selectedContact && !!replyTarget.phone
-        && !!( selectedContact.phone || selectedContact.bsuid );
-    const recipientUnresolved = !!standbyHistory && !handoverPending && !hasVerifiedRecipient;
-    const standbyReadOnly = handoverPending || recipientUnresolved;
+    // Historical standby copies do not block staff sending. WhatsApp/Meta
+    // remains the authority for the live service window and routing, at send time.
+    // Before allowing a send, match this thread to an actual saved recipient and
+    // the sender account that received the conversation. This is not a takeover.
+    const threadSenderAccount = [ ...thread ].reverse().map( messageWabaId ).find( Boolean ) || '';
+    const savedPhoneDigits = ( selectedContact?.phone || '' ).replace( /\D/g, '' );
+    const replyPhoneDigits = ( replyTarget.phone || '' ).replace( /\D/g, '' );
+    const matchesSavedPhone = savedPhoneDigits.length >= 10 && savedPhoneDigits === replyPhoneDigits;
+    const matchesKnownBsuid = !replyPhoneDigits && !!selectedContact?.bsuid && thread.some( m =>
+        ( m.channel || '' ).toLowerCase() === 'whatsapp'
+        && ( m.direction || '' ).toUpperCase() === 'INBOUND'
+        && messageWabaId( m ) === threadSenderAccount
+        && !!m.senderBsuid && m.senderBsuid === selectedContact.bsuid
+    );
+    const hasVerifiedRecipient = !!replyTarget.contactId && !!selectedContact
+        && !!threadSenderAccount && ( matchesSavedPhone || matchesKnownBsuid );
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -743,12 +700,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
-        // The composer is always visible. Sending still needs an authenticated
-        // sender/recipient; never turn a standby-only display row into permission.
-        if ( replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient ) ) {
-            toast.error( !hasVerifiedRecipient
-                ? 'This conversation has no verified reply recipient. Nothing was sent.'
-                : 'This conversation is not yet available for outgoing replies. Nothing was sent.' );
+        // Do not let old AI/standby history veto a valid staff reply.
+        // A real saved recipient is still essential: the Meta API decides
+        // routing and service-window eligibility when the message is submitted.
+        if ( replyChannel === 'whatsapp' && !hasVerifiedRecipient ) {
+            toast.error( 'This conversation needs a verified WhatsApp recipient and sender account. Nothing was sent.' );
             return;
         }
         if ( sending ) return;
@@ -879,7 +835,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly, hasVerifiedRecipient ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, hasVerifiedRecipient ] );
 
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
@@ -1102,7 +1058,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // Native WhatsApp typing indicator + read receipt while composing (throttled ~20s).
     useEffect( () => {
         if ( replyChannel !== 'whatsapp' || !replyText.trim() || !selected
-            || standbyReadOnly || !hasVerifiedRecipient ) return;
+            || !hasVerifiedRecipient ) return;
         const lastInbound = [ ...thread ].reverse().find( m => ( m.direction || '' ).toUpperCase() === 'INBOUND' && ( m as any ).whatsappMessageId );
         const wamid = lastInbound && ( lastInbound as any ).whatsappMessageId;
         if ( !wamid ) return;
@@ -1114,7 +1070,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         // "Message ID … does not exist" that produced 12 errors in 30 days.
         api.sendTypingIndicator( replyTarget.waba || selectedWaba, wamid ).catch( () => { } );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ replyText, selected, replyChannel, standbyReadOnly, hasVerifiedRecipient ] );
+    }, [ replyText, selected, replyChannel, hasVerifiedRecipient ] );
 
     const content = (
         <>
@@ -1453,8 +1409,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                     <Select ariaLabel="Send from" value={ selectedWaba }
                                                         onChange={ v => { setWabaOverridden( true ); setSelectedWaba( v ); } }
                                                         options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
-                                                    <button className="ui-tpl-btn" disabled={ standbyReadOnly } onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
-                                                    { !standbyReadOnly && replyTarget.contactId && (
+                                                    <button className="ui-tpl-btn" disabled={ !hasVerifiedRecipient } onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
+                                                    { hasVerifiedRecipient && replyTarget.contactId && (
                                                         <button
                                                             className="ui-tpl-btn"
                                                             onClick={ () => {
@@ -1553,7 +1509,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 { quickReplies.length > 0 && (
                                                     <button type="button" className="ui-tool-btn" onClick={ () => setShowQuick( s => !s ) } title="Quick replies"><Icon name="chat" /></button>
                                                 ) }
-                                                { replyChannel === 'whatsapp' && !standbyReadOnly && (
+                                                { replyChannel === 'whatsapp' && hasVerifiedRecipient && (
                                                     <>
                                                         <button type="button" className="ui-tool-btn" onClick={ () => fileRef.current?.click() } title="Attach image / document / video / audio (multiple)"><Icon name="attach" /></button>
                                                         { replyTarget.contactId && (
@@ -1573,10 +1529,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                     <span className="ui-fmt-hint">{ replyText.length } chars · { Math.max( 1, Math.ceil( replyText.length / 160 ) ) } seg</span>
                                                 ) }
                                                 <button className="ui-reply-btn"
-                                                    title={ replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient )
-                                                        ? 'Cannot send: this sender or recipient is not verified for replies yet'
+                                                    title={ replyChannel === 'whatsapp' && !hasVerifiedRecipient
+                                                        ? 'Verify the saved recipient phone and WhatsApp sender account before replying'
                                                         : 'Send reply' }
-                                                    disabled={ sending || ( replyChannel === 'whatsapp' && ( standbyReadOnly || !hasVerifiedRecipient ) )
+                                                    disabled={ sending || ( replyChannel === 'whatsapp' && !hasVerifiedRecipient )
                                                         || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) }
                                                     onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
@@ -1592,7 +1548,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             </div>
 
-            { !standbyReadOnly && composer && replyTarget.contactId && (
+            { hasVerifiedRecipient && composer && replyTarget.contactId && (
                 <div className="ui-modal-backdrop" onClick={ () => setComposer( null ) }>
                     <div className="ui-modal" onClick={ e => e.stopPropagation() }>
                         { composer === 'location' && (
@@ -1730,7 +1686,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 </div>
             ) }
 
-            { !standbyReadOnly && showTemplateSender && replyChannel === 'whatsapp' && (
+            { hasVerifiedRecipient && showTemplateSender && replyChannel === 'whatsapp' && (
                 <TemplateSender
                     contactId={ replyTarget.contactId || undefined }
                     contactName={ selectedConv?.name || '' }
