@@ -51,6 +51,8 @@ def verified_body(**overrides):
         "reconciliationComplete": True,
         "protectedContactsVerified": True,
         "financialEvidencePreserved": True,
+        "identityClaimsReleased": True,
+        "contactRecreatable": True,
         "auditId": "audit-synthetic-1",
     } | overrides
 
@@ -111,6 +113,8 @@ def test_false_completion_signal_cannot_claim_erasure():
         {"reconciliationComplete": False},
         {"protectedContactsVerified": False},
         {"financialEvidencePreserved": False},
+        {"identityClaimsReleased": False},
+        {"contactRecreatable": False},
         {"auditId": ""},
         {"manifestSha256": "b" * 64},
         {"caseId": "other-case"},

@@ -59,7 +59,10 @@ test('bulk action remains archive-only and requires confirmation + two authorita
   assert.ok(!directory.includes("runBulk('delete')"));
   assert.ok(directory.includes('onClick={() => void bulkArchive()}'));
   assert.ok(!actions.includes('api.softDeleteContactResult('), 'individual soft delete must not orphan identity history');
-  assert.ok(actions.includes('Delete all customer data — unavailable'));
+  assert.ok(actions.includes('Delete contact and release identity'));
+  assert.ok(actions.includes('api.requestApprovedContactErasure('));
+  assert.ok(actions.includes('result.data.identityClaimsReleased === true'));
+  assert.ok(actions.includes('result.data.contactRecreatable === true'));
 });
 
 test('no archives run automatically and in-flight progress cannot be hidden by clearing search', () => {
