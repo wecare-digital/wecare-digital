@@ -9,7 +9,7 @@ const contacts = readSource('amplify/functions/core/contacts/handler.py');
 const messageDelete = readSource('amplify/functions/core/messages-delete/handler.py');
 const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
 const oldCustomers = readSource('src/pages/workspace/customers/index.tsx');
-const manifest = readSource('worker-docs/contact-erasure-policy.md');
+const manifest = readSource('docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md');
 
 test('contact DELETE refuses incomplete erasure without mutating any customer data', () => {
   const start = contacts.indexOf('def _delete(contact_id: str, hard: bool,');
@@ -65,27 +65,26 @@ test('single-message delete never guesses prefix or reports DynamoDB failure as 
   assert.ok(dbDelete.includes("'success': True"), 'legacy single-row API stays compatible');
 });
 
-test('active deletion policy covers linked identities, payments, auth and S3 versions', () => {
+test('active scoped policy protects exact retained contacts, transaction evidence and provider copies', () => {
   for (const marker of [
-    'ContactsTable', 'IdentityClaimsTable', 'CustomerSessionsTable',
-    'WhatsAppInboundTable', 'WhatsAppOutboundTable', 'MessagesTable',
-    'FlowSubmissionTable', 'CrmActivities', 'DocumentTable',
-    'OrderTable', 'InvoicesTable', 'PaymentAttemptsTable',
-    'Cognito', 'Versioning', 'delete marker', 'ListObjectVersions',
-    'audited', 'idempotent', 'retention', 'payment',
+    'ContactsTable', 'canonical', 'BSUID', 'same-name', 'Razorpay',
+    'payment attempts', 'captured payments', 'refunds', 'invoices',
+    'payment requests', 'webhook evidence', 'reconciliation',
+    'payment-related communications', 'MessagesTable', 'WhatsApp',
+    'S3 versions', 'Meta WhatsApp', 'backups', 'exports',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
 });
 
-test('selective erasure requires explicit approvals and never bypasses retention or contact delete guards', () => {
+test('scoped deletion must respect locked identities, operator approval and TTL evidence retention', () => {
   for (const marker of [
-    'protected contact', 'approved record IDs', 'per-record primary keys',
-    'Operator', 'fresh MFA', 'privacy/legal', 'independent approval',
-    'read-only dry run', 'write', 'fence all writers', 'idempotent',
-    'legally required invoices', 'unlinked', 'Cognito', 'Meta WhatsApp',
-    'CONTACT_ERASURE_NOT_READY', 'not deployed', 'system-cleanup',
-    'RETAINED_BY_POLICY', 'PARTIAL_REVIEW_REQUIRED', 'BLOCKED',
+    'CONTACT_ERASURE_NOT_READY', 'legal/financial retention checks',
+    'do not bypass locks', 'reviewed retention/legal decision',
+    'operator approval with MFA', 'audited', 'resumable deletion',
+    'reconciliation', 'REVIEW_REQUIRED', 'idempotency',
+    'TTL is enabled', 'expiresAt', 'approved non-expiring evidence store',
+    'do not globally disable chat retention limits',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
-  assert.match(manifest, /Never run a scan-based/);
-  assert.match(manifest, /no bulk erasure is authorized/);
-  assert.match(manifest, /Do not commit names, phone numbers/);
+  assert.match(manifest, /bulk delete-all-except-one/);
+  assert.match(manifest, /This document alone triggers no mutation or rollout/);
+  assert.ok(contacts.includes("'CONTACT_ERASURE_NOT_READY'"), 'server still refuses incomplete contact erasure');
 });
