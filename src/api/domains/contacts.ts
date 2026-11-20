@@ -1,6 +1,6 @@
 import { API_BASE } from '../../config/constants';
 import '../../lib/amplifyConfig';
-import { apiCall, apiCallResult, normalizeCheckoutAddress, normalizeEpochSeconds, normalizeTimestamp } from '../core';
+import { apiCall, apiCallResult, authFetch, normalizeCheckoutAddress, normalizeEpochSeconds, normalizeTimestamp } from '../core';
 import type { ApiResult, CheckoutDeliveryAddress } from '../core';
 
 // ============================================================================
@@ -281,6 +281,45 @@ export async function softDeleteContactResult (
   return apiCallResult<{ success: boolean; contactId: string; deleteType: 'soft' }>(
     `${API_BASE}/contacts/${encodeURIComponent(contactId)}`, { method: 'DELETE' },
   );
+}
+
+/**
+ * Submit a narrowly approved permanent contact/identity erasure.
+ * One request only; the backend verifies Admin MFA, retention locks, the
+ * approved manifest and independent coordinator before any deletion.
+ * This is NOT archive and must never be described as succeeded on HTTP 202.
+ */
+export async function requestApprovedContactErasure (
+  contactId: string,
+  approval: { caseId: string; manifestSha256: string; approvalToken: string },
+): Promise<
+  | { ok: true; complete: true; auditId: string }
+  | { ok: false; code: string; message: string; pending?: boolean }
+> {
+  if (!contactId || !/^[a-fA-F0-9]{64}$/.test(approval.manifestSha256) ||
+    !approval.caseId.trim() || approval.approvalToken.trim().length < 24) {
+    return { ok: false, code: 'INVALID_ERASURE_APPROVAL', message: 'An approved case, manifest checksum and authorization token are required.' };
+  }
+  try {
+    // authFetch is deliberately single-shot; do not auto-retry after an
+    // ambiguous timeout because the coordinator may already be deleting.
+    const response = await authFetch(`${API_BASE}/contacts/${encodeURIComponent(contactId)}?hard=true`, {
+      method: 'DELETE', body: JSON.stringify(approval),
+    });
+    const data = await response.json().catch(() => null);
+    if (response.ok && data?.erasureComplete === true && data?.reconciliationComplete === true &&
+        typeof data.auditId === 'string' && data.auditId) {
+      return { ok: true, complete: true, auditId: data.auditId };
+    }
+    return {
+      ok: false,
+      pending: response.status === 202,
+      code: String(data?.errorCode || 'ERASURE_UNAVAILABLE'),
+      message: String(data?.error || 'Erasure was not confirmed; check the approved case before retrying.'),
+    };
+  } catch {
+    return { ok: false, code: 'ERASURE_RESULT_UNKNOWN', message: 'No confirmed deletion result. Reconcile the approved case before retrying.' };
+  }
 }
 
 export async function archiveContact (
