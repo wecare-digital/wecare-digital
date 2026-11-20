@@ -15,6 +15,7 @@ must never be inferred to mean safe to erase.
 from __future__ import annotations
 
 from collections import Counter, defaultdict, deque
+from hashlib import sha256
 from dataclasses import dataclass
 import re
 from typing import Any, Iterable, Mapping, Sequence
@@ -206,6 +207,13 @@ def build_preview(
         raise ErasurePreviewError("At least one protected contact is missing")
 
     groups, financial_rows, unresolved_finance = _index_financial_evidence(financial)
+    # Any financial row that cannot be connected to a canonical contact is
+    # unresolved provenance. Do not infer that it belongs to nobody.
+    reachable_finance: set[int] = set()
+    for contact in contacts_by_id.values():
+        reachable_finance.update(
+            _connected_financial_records(_tokens(contact), groups, financial_rows))
+    unmatched_financial_rows = len(financial_rows) - len(reachable_finance)
     raw_message_rows: dict[tuple[str, str], Mapping[str, Any]] = {}
     financially_flagged_conversations: set[str] = set()
     unresolved_message_rows = 0
@@ -248,7 +256,8 @@ def build_preview(
         # Even a default 'created' lock is not removed by the planner.
         # Unmatched payment records or missing dependency enumeration block
         # any inference that unrelated history is safe to delete.
-        if unresolved_finance or not dependency_inventory_complete:
+        if (unresolved_finance or unmatched_financial_rows
+                or unresolved_message_rows or not dependency_inventory_complete):
             contact_results[cid] = REVIEW_REQUIRED
         else:
             contact_results[cid] = ELIGIBLE_FOR_APPROVAL
@@ -297,6 +306,7 @@ def build_preview(
         "financial": {
             "sourceRecordCounts": {kind: len(financial[kind]) for kind in FINANCIAL_SOURCES},
             "unlinkedEvidence": unresolved_finance,
+            "unmatchedEvidence": unmatched_financial_rows,
         },
         "dependencyInventoryComplete": bool(dependency_inventory_complete),
         "notYetInventoried": [] if dependency_inventory_complete
@@ -305,4 +315,12 @@ def build_preview(
         "deletedContacts": 0,
         "deletedMessages": 0,
     }
+    # Only the digest is eligible for output; the exact subject and message
+    # key sets must remain private and be reviewed in a later approval flow.
+    normalized = "\n".join(
+        [f"C:{cid}:{status}" for cid, status in sorted(contact_results.items())]
+        + [f"M:{src}:{mid}:{status}" for (src, mid), status
+           in sorted(message_results.items())]
+    )
+    summary["snapshotSha256"] = sha256(normalized.encode("utf-8")).hexdigest()
     return Preview(contact_results, message_results, summary)
