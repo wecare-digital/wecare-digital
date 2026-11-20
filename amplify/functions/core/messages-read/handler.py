@@ -14,6 +14,8 @@ DynamoDB Tables (actual names):
 import os
 import json
 import logging
+import re
+import time
 import boto3
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
@@ -43,6 +45,9 @@ VOICE_AWS_TABLE = os.environ.get('VOICE_AWS_TABLE', 'stack-wecare-digital-VoiceA
 EMAIL_MESSAGES_TABLE = os.environ.get('EMAIL_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 # Canonical unified message table (all channels). The single source the inbox reads.
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
+THREAD_OWNERSHIP_TABLE = os.environ.get('THREAD_OWNERSHIP_TABLE', 'stack-wecare-digital-ThreadOwnershipTable')
+_META_SENDER_PHONE_IDS = frozenset({'1016149501586345', '1055232054343117'})
+_SAFE_BSUID = re.compile(r'^[A-Za-z0-9._:-]{1,160}$')
 FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)  # CloudFront host + path
@@ -149,9 +154,43 @@ def _read_one_message(message_id: str, request_id: str, origin: str = '') -> Dic
     if not item:
         return cors_response(404, {'error': 'Message not found'}, origin)
     message = _convert_from_dynamodb(item)
+    # A standby event is history, not proof of today's thread owner.
+    if item.get('standbySourced') is True:
+        message['threadOwnership'] = _read_standby_thread_ownership(item)
     log_event(logger, 'message_read_one', messageId=message_id, requestId=request_id)
     return cors_response(200, {'message': message}, origin)
 
+
+def _read_standby_thread_ownership(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Consistent, fail-closed ownership read for a selected canonical message.
+
+    Never accept a BSUID from arbitrary query parameters or expose it in the
+    response. Unknown ownership does not grant permission to send.
+    """
+    unknown = {'tracked': False, 'owned': False, 'idle': False, 'lastSignal': ''}
+    phone_id = str(item.get('awsPhoneNumberId') or '').split('-')[-1]
+    bsuid = str(item.get('senderBsuid') or '').strip()
+    if phone_id not in _META_SENDER_PHONE_IDS or not _SAFE_BSUID.fullmatch(bsuid):
+        return unknown
+    try:
+        record = dynamodb.Table(THREAD_OWNERSHIP_TABLE).get_item(
+            Key={'threadKey': f'{phone_id}#{bsuid}', 'recordType': 'OWNER'},
+            ConsistentRead=True,
+        ).get('Item') or {}
+    except Exception as exc:
+        logger.warning(json.dumps({'event': 'message_thread_ownership_read_failed',
+                                   'errorType': type(exc).__name__}))
+        return unknown
+    if not record:
+        return unknown
+    last_activity = int(record.get('lastUserActivityAt') or record.get('updatedAt') or 0)
+    idle = (int(time.time()) - last_activity) >= 86400 if last_activity else True
+    return {
+        'tracked': True,
+        'owned': bool(record.get('owned')) and not idle,
+        'idle': idle,
+        'lastSignal': str(record.get('lastSignal') or ''),
+    }
 
 def _update_payment_message(message_id: str, event: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str, Any]:
     from lambda_utils.middleware import require_auth
