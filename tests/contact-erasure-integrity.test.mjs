@@ -11,12 +11,15 @@ const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx
 const oldCustomers = readSource('src/pages/workspace/customers/index.tsx');
 const manifest = readSource('docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md');
 
-test('contact DELETE refuses incomplete erasure without mutating any customer data', () => {
+test('contact DELETE delegates only approved erasure without direct destructive writes', () => {
   const start = contacts.indexOf('def _delete(contact_id: str, hard: bool,');
   const end = contacts.indexOf('def _lock_contact(', start);
   const source = contacts.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(source.includes("'CONTACT_ERASURE_NOT_READY'"));
+  assert.ok(!source.includes('CONTACT_ERASURE_NOT_READY'));
+  assert.ok(source.includes('dispatch_approved_erasure('));
+  assert.ok(source.includes("os.environ.get('ERASURE_COORDINATOR_FUNCTION'"));
+  assert.ok(source.includes("staff.get('mfaEnrolled') is not True"));
   assert.ok(source.includes("'archiveInstead': True"));
   assert.ok(source.includes('_locked_delete_refusal('), 'retention protection remains');
   assert.ok(source.includes('_hard_delete_refusal('), 'financial linkage remains protected');
@@ -77,7 +80,7 @@ test('active scoped policy protects exact retained contacts, transaction evidenc
 
 test('scoped deletion must respect locked identities, operator approval and TTL evidence retention', () => {
   for (const marker of [
-    'CONTACT_ERASURE_NOT_READY', 'legal/financial retention checks',
+    'ERASURE_COORDINATOR_UNAVAILABLE', 'legal/financial retention checks',
     'do not bypass locks', 'reviewed retention/legal decision',
     'operator approval with MFA', 'audited', 'resumable deletion',
     'reconciliation', 'REVIEW_REQUIRED', 'idempotency',
@@ -86,5 +89,6 @@ test('scoped deletion must respect locked identities, operator approval and TTL 
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
   assert.match(manifest, /bulk delete-all-except-one/);
   assert.match(manifest, /This document alone triggers no mutation or rollout/);
-  assert.ok(contacts.includes("'CONTACT_ERASURE_NOT_READY'"), 'server still refuses incomplete contact erasure');
+  assert.ok(!contacts.includes('CONTACT_ERASURE_NOT_READY'), 'blanket refusal is removed');
+  assert.ok(contacts.includes('dispatch_approved_erasure('), 'server delegates to independent coordinator');
 });
