@@ -138,18 +138,12 @@ def create_table(name: str, spec: dict, dry_run: bool) -> str:
 
 
 def enable_ttl(name: str, dry_run: bool) -> str:
-    """TTL bounds claim growth. A claim must outlive every provider retry window, or
-    it expiring would permit a duplicate send - hence 30 days in `store.py`, not 1."""
+    """Compatibility hook: never turn DynamoDB expiry on after retention disable."""
     current = _ddb().describe_time_to_live(TableName=name)
     desc = current.get("TimeToLiveDescription", {}) or {}
     if desc.get("TimeToLiveStatus") in ("ENABLED", "ENABLING"):
-        return f"ttl already {desc.get('AttributeName')}"
-    if dry_run:
-        return f"would enable ttl on {TTL_ATTRIBUTE}"
-    _ddb().update_time_to_live(
-        TableName=name,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": TTL_ATTRIBUTE})
-    return f"ttl enabled on {TTL_ATTRIBUTE}"
+        raise RuntimeError(f"{name}: TTL unexpectedly enabled; review table policy")
+    return "TTL intentionally disabled"
 
 
 def enable_pitr(name: str, dry_run: bool) -> str:
@@ -246,7 +240,7 @@ def verify() -> int:
 
         ttl = (_ddb().describe_time_to_live(TableName=name)
                .get("TimeToLiveDescription", {}) or {})
-        ttl_ok = ttl.get("TimeToLiveStatus") == "ENABLED" and ttl.get("AttributeName") == TTL_ATTRIBUTE
+        ttl_ok = ttl.get("TimeToLiveStatus") == "DISABLED"
 
         pitr = (_ddb().describe_continuous_backups(TableName=name)
                 .get("ContinuousBackupsDescription", {})

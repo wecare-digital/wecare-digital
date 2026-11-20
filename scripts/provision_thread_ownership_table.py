@@ -128,11 +128,8 @@ def create(dry_run: bool) -> str:
     )
     ddb().get_waiter("table_exists").wait(TableName=TABLE)
 
-    # TTL and PITR are separate calls that can fail independently of create, so they are
-    # applied after the waiter rather than assumed to have happened.
-    ddb().update_time_to_live(
-        TableName=TABLE,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": TTL_ATTRIBUTE})
+    # Retention is non-expiring at the DynamoDB layer. Do not re-enable TTL.
+    # PITR is still required independently of TTL.
     ddb().update_continuous_backups(
         TableName=TABLE,
         PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
@@ -166,12 +163,8 @@ def verify() -> int:
         problems.append("unexpected GSI - every access path here is by threadKey")
 
     ttl = ddb().describe_time_to_live(TableName=TABLE).get("TimeToLiveDescription", {})
-    if ttl.get("TimeToLiveStatus") not in ("ENABLED", "ENABLING"):
-        problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected ENABLED on "
-                        f"{TTL_ATTRIBUTE} - this is operational state, not a record of "
-                        f"what a customer was told, so a dormant thread must self-clean")
-    elif ttl.get("AttributeName") not in (TTL_ATTRIBUTE, None):
-        problems.append(f"TTL is on {ttl.get('AttributeName')}, expected {TTL_ATTRIBUTE}")
+    if ttl.get("TimeToLiveStatus") != "DISABLED":
+        problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected DISABLED")
 
     backups = ddb().describe_continuous_backups(TableName=TABLE)
     pitr = ((backups.get("ContinuousBackupsDescription") or {})

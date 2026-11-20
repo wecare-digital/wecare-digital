@@ -120,8 +120,18 @@ def handler(event, context):
             'error': 'Only exact local inbox message deletion is supported.',
         }, origin)
     message_id = str((event.get('pathParameters') or {}).get('messageId') or '').strip()
-    if not message_id:
-        return cors_response(400, {'error': 'messageId is required'}, origin)
+    # The legacy production handler silently ignores scope=inbox. A distinct
+    # marker prevents a new UI from deleting a legacy source row while the
+    # canonical handler is still awaiting its approved Lambda release.
+    prefix = '__canonical_inbox_v1__:'
+    if not message_id.startswith(prefix):
+        return cors_response(400, {
+            'errorCode': 'MESSAGE_DELETE_MARKER_REQUIRED',
+            'error': 'Canonical inbox message marker required',
+        }, origin)
+    message_id = message_id[len(prefix):]
+    if not message_id or message_id.startswith(prefix):
+        return cors_response(400, {'error': 'Invalid canonical message id'}, origin)
 
     denied = require_auth(event, required_role='Admin')
     if denied is not None:
@@ -133,6 +143,11 @@ def handler(event, context):
             'error': 'Admin MFA is required to delete stored messages.',
         }, origin)
     actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '').strip()
+    if not actor:
+        return cors_response(403, {
+            'errorCode': 'MESSAGE_DELETE_ACTOR_REQUIRED',
+            'error': 'Verified staff identity required for deletion.',
+        }, origin)
 
     from lambda_utils.erasure.inbox_delete import delete_visible_message
     try:
