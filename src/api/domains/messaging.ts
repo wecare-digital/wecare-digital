@@ -151,6 +151,16 @@ export async function deleteSelectedContactMessages (
   } );
 }
 
+/** Admin + MFA, read-only: counts and which messages are payment-protected. Mints no confirmation token. */
+export async function getContactMessageProtection (
+  contactId: string,
+): Promise<ApiResult<Pick<ContactMessagesPreview, 'counts' | 'protectedMessages'>>> {
+  return apiCallResult<Pick<ContactMessagesPreview, 'counts' | 'protectedMessages'>>( `${API_BASE}/messages`, {
+    method: 'DELETE',
+    body: JSON.stringify( { contactId, all: true, info: true } ),
+  } );
+}
+
 /** Step 1 of delete-all (Admin + MFA): live counts, the protected payment messages and a single-use token. */
 export async function previewDeleteAllContactMessages (
   contactId: string,

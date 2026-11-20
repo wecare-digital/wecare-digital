@@ -166,6 +166,22 @@ def test_coordinator_path_gating_is_unchanged_and_end_to_end_frees_phone(world, 
     assert payments.rows["inv1"]["paymentStatus"] == "captured"
 
 
+def test_coordinator_configured_without_approval_fields_is_400_naming_them(world, monkeypatch):
+    contacts, claims, _ = world
+    monkeypatch.setattr(h, "dynamodb", type("D", (), {"Table": lambda self, n: contacts})())
+    monkeypatch.setattr(h, "_hard_delete_refusal", lambda *a, **k: None)
+    monkeypatch.setattr(h, "_locked_delete_refusal", lambda *a, **k: None)
+    monkeypatch.setattr(h, "_merged_alias_mutation_refusal", lambda *a, **k: None)
+    monkeypatch.setenv("ERASURE_COORDINATOR_FUNCTION", "coordinator-fn")
+    resp = h._delete("wa15550001234", True, "r",
+                     event={"_auth": ADMIN_MFA, "body": json.dumps({"caseId": "c-1"})})
+    body = json.loads(resp["body"])
+    assert resp["statusCode"] == 400
+    assert body["errorCode"] == "ERASURE_APPROVAL_FIELDS_REQUIRED"
+    assert body["missingFields"] == ["manifestSha256", "approvalToken"]
+    assert "wa15550001234" in contacts.rows
+
+
 def test_in_process_delete_then_readd_without_coordinator(world, monkeypatch):
     contacts, claims, payments = world
     tables = {"contacts": contacts, "claims": claims}

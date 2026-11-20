@@ -1775,6 +1775,16 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
         # action is audited. A configured coordinator keeps the full approval contract below.
         return _hard_delete_in_process(contact_id, actor, request_id, origin)
 
+    missing = [k for k in ('caseId', 'manifestSha256', 'approvalToken')
+               if not str(body.get(k) or '').strip()]
+    if missing:
+        return cors_response(400, {
+            'error': 'An external erasure coordinator is configured; approval fields are required: '
+                     + ', '.join(missing),
+            'errorCode': 'ERASURE_APPROVAL_FIELDS_REQUIRED',
+            'missingFields': missing,
+        }, origin)
+
     from lambda_utils.erasure.dispatch import dispatch_approved_erasure
     outcome = dispatch_approved_erasure(
         coordinator_function=coordinator,

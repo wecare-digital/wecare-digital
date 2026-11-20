@@ -292,6 +292,13 @@ export interface PermanentDeleteResult {
   status?: string;
 }
 
+/** Only needed when the server has an external erasure coordinator configured (otherwise ignored). */
+export interface ExternalErasureApproval {
+  caseId?: string;
+  manifestSha256?: string;
+  approvalToken?: string;
+}
+
 /**
  * Permanent delete. Admin with MFA enrolled only (server answers 403 ERASURE_ADMIN_MFA_REQUIRED
  * otherwise). Runs in the contacts function (or an external coordinator when one is configured), frees the phone, BSUID and identity
@@ -300,10 +307,16 @@ export interface PermanentDeleteResult {
  */
 export async function deleteContactPermanently (
   contactId: string,
+  approval?: ExternalErasureApproval,
 ): Promise<ApiResult<PermanentDeleteResult>> {
+  const fields = approval
+    ? Object.fromEntries( Object.entries( approval ).filter( ( [ , v ] ) => !!v && String( v ).trim() ) )
+    : {};
   return apiCallResult<PermanentDeleteResult>(
     `${API_BASE}/contacts/${encodeURIComponent( contactId )}?hard=true`,
-    { method: 'DELETE' },
+    Object.keys( fields ).length
+      ? { method: 'DELETE', body: JSON.stringify( fields ) }
+      : { method: 'DELETE' },
   );
 }
 

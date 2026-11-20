@@ -321,6 +321,8 @@ def _handle_contact_messages(event, origin):
     """Delete selected messages, or all messages, of one contact. Payment messages are skipped.
 
     * `{contactId, messageIds: [...]}`  Operator. Only ids that belong to this contact.
+    * `{contactId, all: true, info: true}`  Admin + MFA. Counts and protected messages only.
+      Read-only: mints NO token and writes nothing, so listing a contact stays side-effect free.
     * `{contactId, all: true, preview: true}`  Admin + MFA. Counts and a single-use token.
     * `{contactId, all: true, confirmationToken}`  Admin + MFA, token bound to the contact id.
 
@@ -380,6 +382,10 @@ def _handle_contact_messages(event, origin):
         else:
             deletable.append((table_name, direction, item))
     counts = {'deletable': len(deletable), 'protected': len(protected)}
+
+    if delete_all and body.get('info'):
+        return cors_response(200, {'info': True, 'counts': counts,
+                                   'protectedMessages': protected[:50]}, origin)
 
     if delete_all and body.get('preview'):
         token = destructive_confirm.mint(

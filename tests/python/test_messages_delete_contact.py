@@ -154,3 +154,18 @@ def test_selected_delete_is_audited_and_fails_closed(env, monkeypatch):
     monkeypatch.setattr(md, "record_audit", lambda **kw: audits.append(kw) or "audit-1")
     status, _ = call({"contactId": "c1", "messageIds": ["m1"]})
     assert status == 200 and audits[0]["action"] == "messages.delete_contact_selected"
+
+
+def test_info_mode_mints_no_token_and_deletes_nothing(env):
+    status, out = call({"contactId": "c1", "all": True, "info": True})
+    assert status == 200
+    assert out["counts"] == {"deletable": 3, "protected": 1}
+    assert out["protectedMessages"][0]["id"] == "pay1"
+    assert "confirmationToken" not in out
+    assert env.inbound.deleted == [] and env.outbound.deleted == []
+    assert destructive_confirm._table().rows == {}
+
+
+def test_info_mode_still_requires_admin_mfa(env):
+    status, out = call({"contactId": "c1", "all": True, "info": True}, mfa=False)
+    assert status == 403 and out["errorCode"] == "ADMIN_MFA_REQUIRED"

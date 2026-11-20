@@ -54,6 +54,11 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
   const [ delId, setDelId ] = useState( '' );
   const [ delTyped, setDelTyped ] = useState( '' );
   const [ deleting, setDeleting ] = useState( false );
+  const [ alsoDeleteMsgs, setAlsoDeleteMsgs ] = useState( false );
+  // Only used when the server has an external erasure coordinator configured.
+  const [ apprCaseId, setApprCaseId ] = useState( '' );
+  const [ apprManifest, setApprManifest ] = useState( '' );
+  const [ apprToken, setApprToken ] = useState( '' );
   const canDelete = !!delId.trim() && delTyped.trim() === 'DELETE';
 
   const runPermanentDelete = async () => {
@@ -61,19 +66,31 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
     const ok = await confirm( {
       title: 'Permanently delete this contact?',
       message: 'The contact is erased and its phone and identity keys are freed so the same number can be '
-        + 'added again. Payment, invoice and Razorpay records are kept. This cannot be undone.',
+        + 'added again. Payment, invoice and Razorpay records are kept. This cannot be undone. '
+        + 'If this contact\'s messages are not deleted too, a contact re-added with the same number gets the '
+        + 'same id and will show the old message history again.'
+        + ( alsoDeleteMsgs ? ' This contact\'s messages will be deleted afterwards; payment messages remain.' : '' ),
       confirmText: 'Delete permanently',
       danger: true,
     } );
     if ( !ok ) return;
     setDeleting( true );
-    const result = await api.deleteContactPermanently( delId.trim() );
+    const contactId = delId.trim();
+    const result = await api.deleteContactPermanently( contactId, {
+      caseId: apprCaseId.trim(), manifestSha256: apprManifest.trim(), approvalToken: apprToken.trim(),
+    } );
     setDeleting( false );
     if ( result.ok ) {
       toast.success( result.data.erasureComplete
         ? 'Contact deleted. The same phone number can be added again.'
         : 'Deletion is pending. Check the audit record before retrying.' );
       setDelId( '' ); setDelTyped( '' );
+      setApprCaseId( '' ); setApprManifest( '' ); setApprToken( '' );
+      if ( alsoDeleteMsgs && result.data.erasureComplete ) {
+        setAlsoDeleteMsgs( false );
+        // Same Admin + MFA preview, confirm and token flow as the Delete messages section.
+        await deleteAllMessages( contactId );
+      }
       await onChanged?.();
       return;
     }
@@ -99,7 +116,7 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
     setMsgs( list );
     // Admin + MFA preview tells us which messages are payment evidence. Without it the
     // server still refuses to delete them, they are just not marked in advance.
-    const preview = await api.previewDeleteAllContactMessages( id );
+    const preview = await api.getContactMessageProtection( id );
     setMsgProtected( preview.ok
       ? Object.fromEntries( preview.data.protectedMessages.map( p => [ p.id, p ] ) )
       : {} );
@@ -137,8 +154,8 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
     else toast.error( result.failure.message || 'Message delete refused' );
   };
 
-  const deleteAllMessages = async () => {
-    const id = msgContactId.trim();
+  const deleteAllMessages = async ( contactId?: string ) => {
+    const id = ( contactId ?? msgContactId ).trim();
     setMsgBusy( true );
     const preview = await api.previewDeleteAllContactMessages( id );
     setMsgBusy( false );
@@ -333,6 +350,8 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
       <p className="cleanup-note" role="note">
         Admin with MFA only. Frees the phone and identity keys so the same number can be added again.
         Payment, invoice and Razorpay records are kept, and a contact with payment history cannot be deleted (archive it instead).
+        Messages are NOT removed with the contact. Adding the same number again gives the same contact id,
+        so the old message history reappears unless you also delete the messages.
       </p>
       { canArchive ? (
         <>
@@ -340,6 +359,19 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
           <input id="del-id" className="cleanup-text" type="text" value={ delId } onChange={ e => setDelId( e.target.value ) } disabled={ deleting } />
           <label className="cleanup-label" htmlFor="del-typed">Type DELETE to confirm</label>
           <input id="del-typed" className="cleanup-text" type="text" value={ delTyped } onChange={ e => setDelTyped( e.target.value ) } disabled={ deleting } />
+          <label className="cleanup-check">
+            <input type="checkbox" checked={ alsoDeleteMsgs } onChange={ e => setAlsoDeleteMsgs( e.target.checked ) } disabled={ deleting } />
+            Also delete this contact&apos;s messages (Admin + MFA confirmation; payment messages remain)
+          </label>
+          <details className="cleanup-kept">
+            <summary>External coordinator approval (only if your deployment uses one)</summary>
+            <label className="cleanup-label" htmlFor="appr-case">Case id</label>
+            <input id="appr-case" className="cleanup-text" type="text" value={ apprCaseId } onChange={ e => setApprCaseId( e.target.value ) } disabled={ deleting } />
+            <label className="cleanup-label" htmlFor="appr-manifest">Manifest SHA-256</label>
+            <input id="appr-manifest" className="cleanup-text" type="text" value={ apprManifest } onChange={ e => setApprManifest( e.target.value ) } disabled={ deleting } />
+            <label className="cleanup-label" htmlFor="appr-token">Approval token</label>
+            <input id="appr-token" className="cleanup-text" type="password" autoComplete="off" value={ apprToken } onChange={ e => setApprToken( e.target.value ) } disabled={ deleting } />
+          </details>
           <div className="cleanup-actions">
             <button type="button" className="action" onClick={ () => void runPermanentDelete() } disabled={ deleting || !canDelete }>
               { deleting ? 'Deleting…' : 'Delete permanently' }
