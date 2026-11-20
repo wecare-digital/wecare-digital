@@ -283,6 +283,35 @@ export async function softDeleteContactResult (
   );
 }
 
+export interface ApprovedContactErasureRequest {
+  caseId: string;
+  manifestSha256: string;
+  approvalToken: string;
+}
+
+export interface ApprovedContactErasureResult {
+  success?: boolean;
+  erasureComplete: boolean;
+  caseId?: string;
+  auditId?: string;
+  status?: string;
+}
+
+/** Exact-customer deletion request. The server enforces Admin MFA, legal and
+ * financial retention, protected conversation holds and reconciled identity
+ * release. Never automatically retry an irreversible request.
+ */
+export async function requestApprovedContactErasure (
+  contactId: string,
+  request: ApprovedContactErasureRequest,
+): Promise<ApiResult<ApprovedContactErasureResult>> {
+  return apiCallResult<ApprovedContactErasureResult>(
+    `${API_BASE}/contacts/${encodeURIComponent( contactId )}?hard=true`,
+    { method: 'DELETE', body: JSON.stringify( request ) },
+    0, 15000, false,
+  );
+}
+
 export async function archiveContact (
   contactId: string,
   reason: string,
