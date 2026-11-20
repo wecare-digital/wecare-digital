@@ -29,9 +29,10 @@ test('contact DELETE delegates only approved erasure without direct destructive 
   assert.ok(!contacts.includes('def _delete_s3('), 'dangerous prefix fallback removed');
 });
 
-test('customer UIs no longer offer an incomplete deletion action', () => {
-  assert.ok(actions.includes('Delete all customer data — unavailable'));
-  assert.ok(actions.includes('Delete messages and media — unavailable'));
+test('customer UI permits approved deletion requests but never legacy partial erasure', () => {
+  assert.ok(actions.includes('Delete contact and release identity'));
+  assert.ok(actions.includes('api.requestApprovedContactErasure('));
+  assert.ok(actions.includes('api.restoreContact('), 'archived contacts reactivate their existing identity');
   assert.ok(actions.includes('api.archiveContact('));
   assert.ok(!actions.includes('api.softDeleteContactResult('));
   assert.ok(!actions.includes('api.deleteContactMessages('));
