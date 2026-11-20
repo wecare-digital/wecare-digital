@@ -3,7 +3,7 @@
  *
  * Built ground-up for /ws; it does NOT copy the 138KB legacy inbox
  * (src/pages/workspace/engage/inbox/index.tsx). From that file it borrows only the DATA MODEL,
- * not the layout:
+ * not the layout (retention policy does not itself filter the inbox):
  *   - read every channel's messages once with api.listMessages(undefined, 'ALL', limit),
  *   - group them into conversations by contactId (falling back to senderPhone / receivingPhone),
  *   - resolve participant names with api.listContacts,
