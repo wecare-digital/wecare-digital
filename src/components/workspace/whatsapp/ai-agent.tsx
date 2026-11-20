@@ -13,6 +13,7 @@ import { useRouter } from 'next/router';
 import * as api from '../../../api/client';
 import { API_BASE } from '../../../config/constants';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import Spinner from '../../../components/ui/Spinner';
 import MaybeLayout from '../../../components/MaybeLayout';
 import Select, { type SelectOption } from '../../../components/ui/Select';
@@ -69,6 +70,7 @@ const TabBtn = ( { id, active, onSelect, children }: TabBtnProps ) => (
 
 function AiAgentPageBody ( { }: PageProps ) {
     const toast = useToastContext();
+    const confirm = useConfirm();
     const router = useRouter();
     const [ waba, setWaba ] = useState<WabaKey>( 'WABA1' );
     // Inbox handover links include the exact sending business. Do not quietly
@@ -319,13 +321,14 @@ function AiAgentPageBody ( { }: PageProps ) {
                     <h3 style={ { margin: '0 0 16px', fontSize: 'var(--text-base)', color: 'var(--text)' } }>Agent behaviour</h3>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
                         <div><b>AI responder</b><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>When on, the AI answers customers directly.</div></div>
-                        <button disabled={ saving } onClick={ () => {
-                            if ( enabled && !window.confirm(
-                                `Stop Meta AI for ${WABAS.find( entry => entry.key === waba )?.label || waba}?` +
-                                ' This turns off AI for ALL conversations on this WhatsApp number, not just one customer.' +
-                                ' Existing threads may still need a Meta routing handover before staff can send.'
-                            ) ) return;
-                            saveSettings( { enabled: !enabled } );
+                        <button disabled={ saving } onClick={ async () => {
+                            if ( enabled && !( await confirm( {
+                                title: 'Stop Meta AI on this WhatsApp number?',
+                                message: `Stop Meta AI for ${WABAS.find( entry => entry.key === waba )?.label || waba}? This stops AI for ALL conversations on this number, not just one customer. Existing threads may still need a Meta routing handover before staff can send.`,
+                                confirmText: 'Stop AI for all chats',
+                                danger: true,
+                            } ) ) ) return;
+                            await saveSettings( { enabled: !enabled } );
                         } }
                             style={ btn( enabled ? '#dc2626' : '#059669' ) }>{ enabled ? 'Stop AI · all chats' : 'Turn ON' }</button>
                     </div>
