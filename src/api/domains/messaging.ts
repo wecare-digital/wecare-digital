@@ -113,7 +113,28 @@ export async function deleteMessage ( messageId: string, direction: 'INBOUND' | 
     method: 'DELETE',
   } );
   // Accept success if we got a response (even if success field is missing)
-  return data !== null && ( data.success === true || data.messageId === messageId || !data.error );
+  return data !== null && data.success === true && data.rowDeleted === true;
+}
+
+export interface LocalInboxDeleteResult {
+  success: true;
+  rowDeleted: true;
+  sourceRowDeleted: boolean;
+  messageId: string;
+  erasureComplete: false;
+  mediaPermanentlyErased: false;
+  warning?: string;
+}
+
+/** Exact-key text-message delete with a structured, non-retried result.
+ * The backend enforces Admin MFA, identity and financial/retention checks.
+ * Never interpret a removed local inbox row as provider/S3 erasure.
+ */
+export async function deleteInboxMessage ( messageId: string ) {
+  return apiCallResult<LocalInboxDeleteResult>(
+    `${API_BASE}/messages/${encodeURIComponent( messageId )}?scope=inbox`,
+    { method: 'DELETE' }, 0, 15000, false,
+  );
 }
 
 export async function updateMessage ( messageId: string, updates: Record<string, any> ): Promise<boolean> {
