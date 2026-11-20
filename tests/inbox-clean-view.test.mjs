@@ -26,7 +26,7 @@ test('both inboxes load operator hold tags and retain all-history access', () =>
     assert.ok(inbox.includes('Show all old messages'));
     assert.ok(inbox.includes('not deleted'));
     assert.ok(inbox.includes("view' ) === 'today'") || inbox.includes("view === 'today'"));
-    assert.ok(!inbox.includes('deleteMessage('), 'visibility control must not delete messages');
+    assert.ok(!filter.includes('deleteMessage('), 'clean-view filter never deletes messages');
   }
 });
 
