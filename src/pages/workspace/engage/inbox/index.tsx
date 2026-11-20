@@ -614,11 +614,17 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // and the same customer can have independent Meta ownership on each sender.
     const standbyReadOnly = useMemo( () => {
         if ( replyChannel !== 'whatsapp' || !selected ) return false;
-        const senderAccount = messageWabaId( thread[ thread.length - 1 ] );
+        const latestVisible = [ ...thread ].reverse().find(
+            m => ( m.channel || '' ).toLowerCase() === 'whatsapp'
+        );
+        const senderAccount = latestVisible ? messageWabaId( latestVisible ) : '';
+        // Unknown sender account is not permission to infer ownership from a
+        // different WABA of this contact. Preserve the latest visible signal.
+        if ( !senderAccount ) return latestVisible?.standbySourced === true;
         const newest = messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
-            .filter( m => !senderAccount || messageWabaId( m ) === senderAccount )
+            .filter( m => messageWabaId( m ) === senderAccount )
             .reduce<api.Message | null>( ( prev, m ) => {
                 if ( !prev ) return m;
                 return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
@@ -1351,6 +1357,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             </div>
                                             <span style={ { fontSize: 12 } }>
                                                 Turning AI off affects every conversation on that number, not only this customer.
+                                                { !aiAccountKey && ' Confirm the correct WhatsApp sender account in AI settings first.' }
                                             </span>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
