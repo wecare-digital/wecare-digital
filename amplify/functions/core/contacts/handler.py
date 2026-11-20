@@ -55,6 +55,8 @@ from lambda_utils.identity import consent as consent_evidence
 # never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
 # so the word `captured` never has to be compared in this handler.
 from lambda_utils.ecommerce import contact_address, contact_lock, contact_payment_links
+# Junk-contact cleanup. The classifier is read-only; the only action is the reversible Archive.
+from lambda_utils import contact_cleanup, destructive_confirm
 
 logger = get_logger(__name__)
 
@@ -289,6 +291,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         or str(event.get('resource') or '').rstrip('/').endswith('/unlock')
         or merge_command
         or post_action == 'restore'
+        or post_action == 'cleanup_archive'
     ):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
@@ -348,6 +351,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _archive_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
         if method == 'POST' and post_action == 'restore':
             return _restore_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
+        if method == 'POST' and post_action == 'cleanup_scan':
+            return _cleanup_scan(preauth_body, event.get('_auth') or {}, request_id, origin)
+        if method == 'POST' and post_action == 'cleanup_archive':
+            return _cleanup_archive(preauth_body, event.get('_auth') or {}, request_id, origin)
 
         # Same Operator-gated route for repairing a retained partial create or legacy contact.
         if method == 'POST' and post_action == 'provision_customer_identity':
@@ -1466,6 +1473,183 @@ def _restore_contact(body: Dict[str, Any], auth: Dict[str, Any],
         raise
     log_event(logger, 'contact_restored', contactId=contact_id, requestId=request_id)
     return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+# ─── JUNK CONTACT CLEANUP (scan + bulk Archive) ──────────────────────────────
+
+CLEANUP_SCOPE = 'contact_cleanup'
+CLEANUP_BATCH_MAX = 200
+CLEANUP_KEEP_LIST_MAX = 500
+CLEANUP_KEPT_PAGE_MAX = 200
+
+
+def _cleanup_tables() -> Dict[str, Any]:
+    """Read-capable tables for every store the classifier needs. Names come from the env."""
+    names = contact_cleanup.table_names_from_env(os.environ)
+    return {logical: dynamodb.Table(name) for logical, name in names.items()}
+
+
+def _cleanup_selection(body: Dict[str, Any]) -> Any:
+    """Operator hold list. Exact identifiers only: a name is never a selector."""
+    for forbidden in ('names', 'keepNames', 'name'):
+        if forbidden in body:
+            raise ValueError('Names are not accepted. Use exact contact ids, phones or BSUIDs')
+    lists = []
+    for key in ('keepContactIds', 'keepPhones', 'keepBsuids'):
+        value = body.get(key) or []
+        if not isinstance(value, list) or len(value) > CLEANUP_KEEP_LIST_MAX:
+            raise ValueError(f'{key} must be a list of at most {CLEANUP_KEEP_LIST_MAX} values')
+        if any(not isinstance(v, (str, int)) for v in value):
+            raise ValueError(f'{key} must contain only strings')
+        lists.append(value)
+    return contact_cleanup.Selection(*lists)
+
+
+def _cleanup_int(value: Any, default: int, low: int, high: int) -> int:
+    try:
+        return max(low, min(high, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _cleanup_run(selection: Any) -> Dict[str, Any]:
+    return contact_cleanup.scan_for_cleanup(_cleanup_tables(), selection)
+
+
+def _cleanup_scan(body: Dict[str, Any], auth: Dict[str, Any],
+                  request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Read-only scan. Returns counts, a capped page of junk candidates and a confirmation token."""
+    actor = str((auth or {}).get('username') or (auth or {}).get('email') or 'staff').strip()
+    try:
+        selection = _cleanup_selection(body)
+    except ValueError as exc:
+        return cors_response(400, {'error': str(exc)}, origin)
+    limit = _cleanup_int(body.get('limit'), 100, 1, CLEANUP_BATCH_MAX)
+    offset = _cleanup_int(body.get('offset'), 0, 0, 10_000_000)
+    kept_limit = _cleanup_int(body.get('keptLimit'), 50, 0, CLEANUP_KEPT_PAGE_MAX)
+    kept_offset = _cleanup_int(body.get('keptOffset'), 0, 0, 10_000_000)
+
+    report = _cleanup_run(selection)
+    complete = report.get('status') == 'OK'
+    eligible_all = sorted(report.get('eligible') or [], key=lambda e: str(e['contactId']))
+    page = eligible_all[offset:offset + limit]
+    kept = [c for c in report.get('contacts') or []
+            if c.get('classification') != contact_cleanup.ELIGIBLE and not c.get('alreadyArchived')]
+    kept_page = kept[kept_offset:kept_offset + kept_limit]
+
+    totals = report.get('totals') or {}
+    counts = {
+        'scanned': int(totals.get('contactsScanned') or 0),
+        'eligible': len(eligible_all),
+        'alreadyArchived': int(totals.get('contactsAlreadyArchived') or 0),
+        **{k: int(v) for k, v in (totals.get('byClassification') or {}).items()},
+    }
+    token = None
+    if complete and page:
+        # Bound to exactly this page of ids, so cleanup_archive must name the same set.
+        token = destructive_confirm.mint(
+            scope=CLEANUP_SCOPE, selection=[e['contactId'] for e in page],
+            counts={'eligible': len(page)}, actor=actor)
+    ttl = report.get('ttl') or {}
+    log_event(logger, 'contact_cleanup_scan', status=report.get('status'),
+              eligible=len(eligible_all), requestId=request_id)
+    return cors_response(200, {
+        'status': report.get('status'),
+        'problems': report.get('problems') or [],
+        'counts': counts,
+        'eligible': [{'contactId': e['contactId'], 'maskedPhone': e['maskedPhone'],
+                      'messageTotal': e['messageTotal']} for e in page],
+        'eligibleOffset': offset,
+        'eligibleNextOffset': offset + len(page) if offset + len(page) < len(eligible_all) else None,
+        'kept': [{'label': c['label'], 'maskedPhone': c['maskedPhone'],
+                  'classification': c['classification'],
+                  'keepReasons': contact_cleanup.keep_reasons(c),
+                  'messageTotal': c.get('messageTotal', 0)} for c in kept_page],
+        'keptTotal': len(kept),
+        'keptNextOffset': kept_offset + len(kept_page) if kept_offset + len(kept_page) < len(kept) else None,
+        'ttlGap': {
+            'perTable': ttl.get('perTable') or {},
+            'note': ttl.get('remediation') or '',
+            'checked': False,
+        },
+        'confirmationToken': token,
+        'batchMax': CLEANUP_BATCH_MAX,
+        'action': 'archive',
+        'note': 'Cleanup is a reversible Archive. Restore brings a contact back. Nothing is deleted.',
+    }, origin)
+
+
+def _cleanup_archive(body: Dict[str, Any], auth: Dict[str, Any],
+                     request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Archive the confirmed junk candidates. Admin + MFA. Never deletes a ContactsTable row."""
+    actor = str((auth or {}).get('username') or (auth or {}).get('email') or 'staff').strip()
+    reason = str(body.get('reason') or '').strip()
+    if not reason:
+        return cors_response(400, {'error': 'Archive reason is required'}, origin)
+    if len(reason) > 500:
+        return cors_response(400, {'error': 'Archive reason is too long'}, origin)
+    raw_ids = body.get('contactIds')
+    if not isinstance(raw_ids, list) or not raw_ids or any(not isinstance(i, str) for i in raw_ids):
+        return cors_response(400, {'error': 'contactIds must be a non-empty list of ids'}, origin)
+    contact_ids = sorted({i.strip() for i in raw_ids if i.strip()})
+    if not contact_ids:
+        return cors_response(400, {'error': 'contactIds must be a non-empty list of ids'}, origin)
+    if len(contact_ids) > CLEANUP_BATCH_MAX:
+        return cors_response(400, {'error': f'At most {CLEANUP_BATCH_MAX} contacts per request'}, origin)
+    try:
+        selection = _cleanup_selection(body)
+    except ValueError as exc:
+        return cors_response(400, {'error': str(exc)}, origin)
+
+    confirmed = destructive_confirm.consume(
+        CLEANUP_SCOPE, str(body.get('confirmationToken') or ''), contact_ids)
+    if not confirmed.get('ok'):
+        return cors_response(int(confirmed.get('status') or 409),
+                             {'error': confirmed.get('error') or 'Confirmation refused'}, origin)
+
+    # Re-run the scan now. Evidence may have arrived since the preview.
+    report = _cleanup_run(selection)
+    current = {c['contactId']: c for c in report.get('contacts') or [] if c.get('contactId')}
+    eligible_now = {e['contactId'] for e in report.get('eligible') or []}
+    refused = {}
+    for cid in contact_ids:
+        if cid in eligible_now:
+            continue
+        row = current.get(cid)
+        if report.get('status') != 'OK':
+            why = 'Inventory could not be fully read: ' + '; '.join(report.get('problems') or [])
+        elif row is None:
+            why = 'Contact not found'
+        elif row.get('alreadyArchived'):
+            why = 'Already archived'
+        else:
+            why = '; '.join(contact_cleanup.keep_reasons(row))
+        refused[cid] = why
+    if refused:
+        log_event(logger, 'contact_cleanup_refused', refused=len(refused), requestId=request_id)
+        return cors_response(409, {
+            'error': 'Some contacts are no longer eligible. Nothing was archived. Scan again.',
+            'errorCode': 'CLEANUP_NOT_ELIGIBLE',
+            'refused': refused,
+        }, origin)
+
+    results = []
+    for cid in contact_ids:
+        resp = _archive_contact({'contactId': cid, 'reason': f'cleanup: {reason}'[:500]},
+                                auth, request_id, origin)
+        ok = int(resp.get('statusCode') or 500) == 200
+        results.append({'contactId': cid, 'result': 'archived' if ok else 'refused',
+                        'status': int(resp.get('statusCode') or 500)})
+    archived = sum(1 for r in results if r['result'] == 'archived')
+    record_audit(
+        action='contact_cleanup_archive', actor=actor, resource_type='contact', resource_id='bulk',
+        details={'requested': len(contact_ids), 'archived': archived,
+                 'refused': len(results) - archived, 'reason': reason,
+                 'contacts': [mask_contact_id(c) for c in contact_ids]})
+    log_event(logger, 'contact_cleanup_archived', archived=archived,
+              refused=len(results) - archived, requestId=request_id)
+    return cors_response(200, {'archived': archived, 'refused': len(results) - archived,
+                               'results': results, 'reversible': True}, origin)
+
 
 
 # ─── DELETE (soft / hard) ───────────────────────────────────────────────────
