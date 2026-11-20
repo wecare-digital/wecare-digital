@@ -735,7 +735,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
-        if ( standbyReadOnly ) { toast.error( 'This WhatsApp thread is AI-controlled. Reply after handover.' ); return; }
+        if ( standbyReadOnly ) { toast.error( 'WhatsApp has not handed this thread to our inbox. Complete Meta Conversation Routing before replying.' ); return; }
         if ( sending ) return;
         const base = replyText.trim();
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
