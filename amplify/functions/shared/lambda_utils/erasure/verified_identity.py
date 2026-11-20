@@ -43,7 +43,7 @@ DEPENDENCY_FIELDS = (
 )
 PROVIDER_FIELDS = (
     "bsuid", "parentBsuid", "username", "whatsappIdentities", "cognitoSub",
-    "checkoutCustomerId", "customerUuid", "subscriberId", "checkoutDeliveryAddress",
+    "checkoutCustomerId", "checkoutDeliveryAddress",
     "profileUsername", "lastPaymentId", "paymentId", "invoiceId", "orderId",
 )
 
@@ -111,6 +111,13 @@ def _validate_target(contact_id: str, tables: Mapping[str, Any]) -> tuple[dict, 
         Key={"conversationId": contact_id}, ConsistentRead=True).get("Item") or {}
     if meta:
         raise Refused("CONTACT_HAS_HISTORY", "Conversation metadata must be retained or reviewed.")
+    # Staff-created phone contacts are linked to Cognito via secure-files, and
+    # even a partial provision can exist without checkoutCustomerId. We do not
+    # remove or verify Cognito users in this local-only transaction, so a phone
+    # contact cannot use this narrow delete path.
+    if row.get("phone"):
+        raise Refused("ERASURE_EXTERNAL_IDENTITY_REVIEW_REQUIRED",
+                      "Phone contacts require a verified Cognito/provider identity release.")
     if any(row.get(field) not in (None, "", [], {}) for field in PROVIDER_FIELDS):
         raise Refused("ERASURE_EXTERNAL_IDENTITY_REVIEW_REQUIRED",
                       "A linked business, checkout, or provider identity needs independent review.")
