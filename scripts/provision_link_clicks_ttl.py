@@ -84,19 +84,16 @@ def main() -> int:
     print(f"TTL: {status} on {attr!r}")
 
     if args.verify:
-        ok = status == "ENABLED" and attr == TTL_ATTR and not missing
+        ok = status == "DISABLED"
         print("verified" if ok else "NOT verified")
         return 0 if ok else 1
-    if not args.apply:
-        print("dry run: re-run with --apply to enable TTL and backfill")
+    # Retention was explicitly switched to non-expiring DynamoDB rows.
+    # This legacy provisioning command must never re-enable physical TTL.
+    if args.apply:
+        print("TTL remains disabled; refusing legacy expiry backfill.")
         return 0
-
-    if status == "DISABLED" or status is None:
-        client.update_time_to_live(TableName=TABLE,
-                                   TimeToLiveSpecification={"Enabled": True, "AttributeName": TTL_ATTR})
-        print(f"TTL enabled on {TTL_ATTR}")
-    elif attr != TTL_ATTR:
-        sys.exit(f"refusing: TTL already uses {attr!r}")
+    print("dry run: no TTL changes or expiry backfill are permitted")
+    return 0
 
     done = 0
     for item in missing:
