@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import * as api from '../../../api/client';
-import type { ContactCleanupKeep, ContactCleanupScanResult } from '../../../api/client';
+import type { ContactCleanupKeep, ContactCleanupScanResult, Message, ProtectedMessage } from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useUserRole } from '../../../hooks/useUserRole';
@@ -87,6 +87,86 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
     toast.error( code === 'ERASURE_ADMIN_MFA_REQUIRED'
       ? 'Permanent delete needs an Admin with MFA enrolled. Enrol MFA and sign in again.'
       : ( result.failure.message || 'Permanent delete refused' ) );
+  };
+
+  // Message deletion for one contact: single, selected, or all. Payment messages stay protected.
+  const [ msgContactId, setMsgContactId ] = useState( '' );
+  const [ msgs, setMsgs ] = useState<Message[]>( [] );
+  const [ msgSel, setMsgSel ] = useState<Set<string>>( new Set() );
+  const [ msgProtected, setMsgProtected ] = useState<Record<string, ProtectedMessage>>( {} );
+  const [ msgBusy, setMsgBusy ] = useState( false );
+
+  const loadMessages = async () => {
+    const id = msgContactId.trim();
+    if ( !id ) return;
+    setMsgBusy( true );
+    setMsgSel( new Set() );
+    const list = await api.listMessages( id );
+    setMsgs( list );
+    // Admin + MFA preview tells us which messages are payment evidence. Without it the
+    // server still refuses to delete them, they are just not marked in advance.
+    const preview = await api.previewDeleteAllContactMessages( id );
+    setMsgProtected( preview.ok
+      ? Object.fromEntries( preview.data.protectedMessages.map( p => [ p.id, p ] ) )
+      : {} );
+    setMsgBusy( false );
+  };
+
+  const toggleMsg = ( id: string ) => {
+    setMsgSel( prev => {
+      const next = new Set( prev );
+      if ( next.has( id ) ) next.delete( id ); else next.add( id );
+      return next;
+    } );
+  };
+
+  const reportMessageDelete = async ( data: api.ContactMessagesDeleteResult ) => {
+    toast.success( `Deleted ${data.deleted} messages`
+      + ( data.protected ? `, kept ${data.protected} payment messages` : '' ) + '.' );
+    await loadMessages();
+  };
+
+  const deleteSelectedMessages = async () => {
+    const ids = [ ...msgSel ].filter( id => !msgProtected[ id ] );
+    if ( ids.length === 0 ) return;
+    const ok = await confirm( {
+      title: 'Delete selected messages?',
+      message: `Delete ${ids.length} messages? Payment-related messages are kept.`,
+      confirmText: 'Delete messages',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setMsgBusy( true );
+    const result = await api.deleteSelectedContactMessages( msgContactId.trim(), ids );
+    setMsgBusy( false );
+    if ( result.ok ) await reportMessageDelete( result.data );
+    else toast.error( result.failure.message || 'Message delete refused' );
+  };
+
+  const deleteAllMessages = async () => {
+    const id = msgContactId.trim();
+    setMsgBusy( true );
+    const preview = await api.previewDeleteAllContactMessages( id );
+    setMsgBusy( false );
+    if ( !preview.ok ) {
+      toast.error( preview.failure.code === 'ADMIN_MFA_REQUIRED'
+        ? 'Deleting all messages needs an Admin with MFA enrolled.'
+        : ( preview.failure.message || 'Preview failed' ) );
+      return;
+    }
+    const { deletable, protected: kept } = preview.data.counts;
+    const ok = await confirm( {
+      title: 'Delete all messages for this contact?',
+      message: `Delete ${deletable} messages. ${kept} payment-related messages are kept. This cannot be undone.`,
+      confirmText: 'Delete all messages',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setMsgBusy( true );
+    const result = await api.deleteAllContactMessages( id, preview.data.confirmationToken );
+    setMsgBusy( false );
+    if ( result.ok ) await reportMessageDelete( result.data );
+    else toast.error( result.failure.message || 'Message delete refused' );
   };
 
   const incomplete = !!scan && scan.status !== 'OK';
@@ -280,6 +360,48 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
         </>
       ) : (
         <p className="cleanup-note">Permanent delete requires the Admin role with MFA enrolled.</p>
+      ) }
+
+      <h4>Delete messages</h4>
+      <p className="cleanup-note" role="note">
+        Delete one, selected or all messages of a contact. Payment-related messages are protected and never deleted.
+        Deleting all needs an Admin with MFA enrolled.
+      </p>
+      <label className="cleanup-label" htmlFor="msg-contact">Contact id</label>
+      <input id="msg-contact" className="cleanup-text" type="text" value={ msgContactId }
+        onChange={ e => setMsgContactId( e.target.value ) } disabled={ msgBusy } />
+      <div className="cleanup-actions">
+        <button type="button" className="action" onClick={ () => void loadMessages() } disabled={ msgBusy || !msgContactId.trim() }>
+          { msgBusy ? 'Working…' : 'Load messages' }
+        </button>
+        <button type="button" className="action" onClick={ () => void deleteSelectedMessages() }
+          disabled={ msgBusy || msgSel.size === 0 }>
+          { `Delete selected (${msgSel.size})` }
+        </button>
+        <button type="button" className="action" onClick={ () => void deleteAllMessages() }
+          disabled={ msgBusy || msgs.length === 0 || !canArchive }
+          title={ canArchive ? undefined : 'Requires the Admin role with MFA' }>
+          Delete all
+        </button>
+      </div>
+      { msgs.length > 0 && (
+        <ul className="cleanup-list">
+          { msgs.map( m => {
+            const prot = msgProtected[ m.id ];
+            return (
+              <li key={ `${m.direction}-${m.id}` }>
+                <label className="cleanup-check">
+                  <input type="checkbox" checked={ msgSel.has( m.id ) && !prot } disabled={ !!prot || msgBusy }
+                    onChange={ () => toggleMsg( m.id ) } />
+                  <span>
+                    { m.direction === 'INBOUND' ? 'In' : 'Out' } · { ( m.content || '' ).slice( 0, 80 ) || m.messageType || 'Message' }
+                    { prot && <strong> · Protected (payment)</strong> }
+                  </span>
+                </label>
+              </li>
+            );
+          } ) }
+        </ul>
       ) }
 
       <style jsx>{`

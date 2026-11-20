@@ -16,6 +16,7 @@ from lambda_utils import destructive_confirm
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger, log_event
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils import contact_cleanup  # payment-message classifier shared with contact cleanup
 
 logger = get_logger(__name__)
 
@@ -96,6 +97,11 @@ def handler(event, context):
     if 'clear-all' in path and http_method in ('DELETE', 'POST'):
         return _handle_clear_all(event, origin)
 
+    # ── DELETE /messages with a JSON body: selected messages or all messages of a contact ──
+    if (http_method == 'DELETE'
+            and not (event.get('pathParameters') or {}).get('messageId')):
+        return _handle_contact_messages(event, origin)
+
     # ── PATCH/PUT: Update payment/invoice fields ──
     if http_method in ('PUT', 'PATCH'):
         return _handle_update(event, origin)
@@ -165,6 +171,14 @@ def handler(event, context):
         
         if not item:
             return cors_response(404, {'error': 'Message not found; nothing deleted'}, origin)
+
+        protected = _payment_protection(item)
+        if protected:
+            return cors_response(409, {
+                'error': PAYMENT_PROTECTED,
+                'reason': 'Payment-related messages are kept as financial evidence.',
+                'signals': protected,
+            }, origin)
 
         delete_key = _build_delete_key(table_name, item)
         if not delete_key:
@@ -238,6 +252,177 @@ def handler(event, context):
         return cors_response(500, {'error': 'Database error'}, origin)
     except Exception as e:
         return cors_response(500, {'error': 'Internal server error'}, origin)
+
+
+#: Error code for a message the payment classifier says must be retained.
+PAYMENT_PROTECTED = 'MESSAGE_PAYMENT_PROTECTED'
+#: Confirmation scope for "delete every deletable message of one contact".
+CONTACT_CONFIRM_SCOPE = 'messages_delete_contact'
+MAX_SELECTED_MESSAGES = 200
+
+
+def _payment_protection(item):
+    """Reasons this message is payment evidence, using the contact-cleanup classifier.
+
+    Keywords and payment attributes only ever ADD protection, so an unclassifiable
+    message is never reported as safe on the strength of a missing signal.
+    """
+    return contact_cleanup.message_financial_signals(item, contact_cleanup.PaymentIndex())
+
+
+def _contact_message_rows(contact_id):
+    """Every inbound and outbound row for one contact as (table_name, direction, item)."""
+    rows = []
+    for table_name, direction in ((INBOUND_TABLE, 'INBOUND'), (OUTBOUND_TABLE, 'OUTBOUND')):
+        table = dynamodb.Table(table_name)
+        kwargs = {'FilterExpression': 'contactId = :cid',
+                  'ExpressionAttributeValues': {':cid': contact_id}}
+        while True:
+            resp = table.scan(**kwargs)
+            rows.extend((table_name, direction, it) for it in resp.get('Items', []))
+            if 'LastEvaluatedKey' not in resp:
+                break
+            kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
+    return rows
+
+
+def _delete_one_row(table_name, item):
+    """Delete one message row (media first). Returns (deleted, reason)."""
+    key_names = [c['AttributeName'] for c in _get_key_schema(table_name)]
+    delete_key = _build_delete_key(table_name, item)
+    if not delete_key or not all(k in delete_key for k in key_names):
+        return False, 'MESSAGE_KEY_UNAVAILABLE'
+    s3_key = item.get('s3Key')
+    if s3_key:
+        try:
+            _find_and_delete_s3_file(s3_key, str(item.get('id') or item.get('messageId') or ''))
+        except Exception:  # noqa: BLE001 - keep the row so media can be reconciled
+            return False, 'MESSAGE_MEDIA_DELETE_UNCONFIRMED'
+    try:
+        dynamodb.Table(table_name).delete_item(
+            Key=delete_key,
+            ConditionExpression='attribute_exists(#pk)',
+            ExpressionAttributeNames={'#pk': key_names[0]},
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return False, 'MESSAGE_NOT_FOUND'
+        return False, 'MESSAGE_DELETE_UNCONFIRMED'
+    except Exception:  # noqa: BLE001
+        return False, 'MESSAGE_DELETE_UNCONFIRMED'
+    return True, ''
+
+
+def _message_id_of(item):
+    return str(item.get('id') or item.get('messageId') or '')
+
+
+def _handle_contact_messages(event, origin):
+    """Delete selected messages, or all messages, of one contact. Payment messages are skipped.
+
+    * `{contactId, messageIds: [...]}`  Operator. Only ids that belong to this contact.
+    * `{contactId, all: true, preview: true}`  Admin + MFA. Counts and a single-use token.
+    * `{contactId, all: true, confirmationToken}`  Admin + MFA, token bound to the contact id.
+
+    A message the classifier flags as payment evidence is never deleted; it is returned in
+    `protectedMessages` so the workspace can show it as kept.
+    """
+    try:
+        body = json.loads(event.get('body') or '{}')
+        if not isinstance(body, dict):
+            raise ValueError('body must be an object')
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return cors_response(400, {'error': 'Invalid JSON in request body'}, origin)
+
+    contact_id = str(body.get('contactId') or '').strip()
+    if not contact_id:
+        return cors_response(400, {'error': 'contactId is required'}, origin)
+
+    delete_all = body.get('all') is True
+    selected = body.get('messageIds')
+    if delete_all == bool(selected):
+        return cors_response(400, {'error': 'Send either messageIds or all: true'}, origin)
+
+    if delete_all:
+        from lambda_utils.middleware import require_auth
+        denied = require_auth(event, required_role='Admin')
+        if denied is not None:
+            return denied
+        if (event.get('_auth') or {}).get('mfaEnrolled') is not True:
+            return cors_response(403, {
+                'error': 'MFA required',
+                'errorCode': 'ADMIN_MFA_REQUIRED',
+                'detail': 'Deleting all messages of a contact needs an Admin with MFA enrolled.',
+            }, origin)
+    elif (not isinstance(selected, list) or len(selected) > MAX_SELECTED_MESSAGES
+            or not all(isinstance(m, str) and m.strip() for m in selected)):
+        return cors_response(400, {
+            'error': f'messageIds must be a list of at most {MAX_SELECTED_MESSAGES} ids'}, origin)
+
+    try:
+        rows = _contact_message_rows(contact_id)
+    except Exception:  # noqa: BLE001
+        return cors_response(503, {'error': 'MESSAGES_UNREADABLE',
+                                   'reason': 'Messages could not be read; nothing deleted.'}, origin)
+
+    if not delete_all:
+        wanted = {m.strip() for m in selected}
+        rows = [r for r in rows if _message_id_of(r[2]) in wanted]
+        missing = sorted(wanted - {_message_id_of(r[2]) for r in rows})
+    else:
+        missing = []
+
+    deletable, protected = [], []
+    for table_name, direction, item in rows:
+        signals = _payment_protection(item)
+        if signals:
+            protected.append({'id': _message_id_of(item), 'direction': direction, 'signals': signals[:3]})
+        else:
+            deletable.append((table_name, direction, item))
+    counts = {'deletable': len(deletable), 'protected': len(protected)}
+
+    if delete_all and body.get('preview'):
+        token = destructive_confirm.mint(
+            CONTACT_CONFIRM_SCOPE, [contact_id], counts, _clear_all_actor(event))
+        out = {'preview': True, 'counts': counts, 'protectedMessages': protected[:50],
+               'confirmationToken': token or ''}
+        if token is None:
+            out['warning'] = 'Confirmation store unavailable; nothing can be deleted until it recovers.'
+        return cors_response(200, out, origin)
+
+    actor = _clear_all_actor(event)
+    if delete_all:
+        consumed = destructive_confirm.consume(
+            CONTACT_CONFIRM_SCOPE, str(body.get('confirmationToken') or '').strip(), [contact_id])
+        if not consumed.get('ok'):
+            return cors_response(consumed.get('status', 409),
+                                 {'error': consumed.get('error', 'Confirmation failed')}, origin)
+        log_id = record_audit(
+            action='messages.delete_contact_all', actor=actor, resource_type='contact',
+            resource_id=contact_id,
+            details={'previewCounts': consumed.get('counts', {}), 'counts': counts})
+        if not log_id:
+            return cors_response(503, {'error': 'Audit log unavailable; nothing was deleted'}, origin)
+
+    deleted, failed = 0, {}
+    for table_name, direction, item in deletable:
+        ok, reason = _delete_one_row(table_name, item)
+        if ok:
+            deleted += 1
+        else:
+            failed[_message_id_of(item)] = reason
+
+    log_event(logger, 'contact_messages_deleted', contactId=contact_id, deleted=deleted,
+              protected=len(protected), failed=len(failed), mode='all' if delete_all else 'selected')
+    return cors_response(200, {
+        'success': not failed,
+        'deleted': deleted,
+        'protected': len(protected),
+        'protectedMessages': protected[:50],
+        'notFound': missing,
+        'failed': failed,
+        'erasureComplete': False,
+    }, origin)
 
 
 #: Namespaces this route's confirmation tokens so one minted for a cleanup cannot be

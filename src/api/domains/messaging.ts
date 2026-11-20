@@ -2,6 +2,7 @@ import { API_BASE } from '../../config/constants';
 import '../../lib/amplifyConfig';
 import { validateWaMediaSize } from '../../lib/wa-media';
 import { apiCall, apiCallResult, authFetch, normalizeTimestamp } from '../core';
+import type { ApiResult } from '../core';
 
 // ============================================================================
 // MESSAGES API
@@ -114,6 +115,61 @@ export async function deleteMessage ( messageId: string, direction: 'INBOUND' | 
   } );
   // Accept success if we got a response (even if success field is missing)
   return data !== null && ( data.success === true || data.messageId === messageId || !data.error );
+}
+
+export interface ProtectedMessage {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  signals: string[];
+}
+
+export interface ContactMessagesPreview {
+  preview: true;
+  counts: { deletable: number; protected: number };
+  protectedMessages: ProtectedMessage[];
+  confirmationToken: string;
+  warning?: string;
+}
+
+export interface ContactMessagesDeleteResult {
+  success: boolean;
+  deleted: number;
+  protected: number;
+  protectedMessages: ProtectedMessage[];
+  notFound: string[];
+  failed: Record<string, string>;
+}
+
+/** Delete chosen messages of one contact (Operator). Payment messages are skipped and reported as protected. */
+export async function deleteSelectedContactMessages (
+  contactId: string,
+  messageIds: string[],
+): Promise<ApiResult<ContactMessagesDeleteResult>> {
+  return apiCallResult<ContactMessagesDeleteResult>( `${API_BASE}/messages`, {
+    method: 'DELETE',
+    body: JSON.stringify( { contactId, messageIds } ),
+  } );
+}
+
+/** Step 1 of delete-all (Admin + MFA): live counts, the protected payment messages and a single-use token. */
+export async function previewDeleteAllContactMessages (
+  contactId: string,
+): Promise<ApiResult<ContactMessagesPreview>> {
+  return apiCallResult<ContactMessagesPreview>( `${API_BASE}/messages`, {
+    method: 'DELETE',
+    body: JSON.stringify( { contactId, all: true, preview: true } ),
+  } );
+}
+
+/** Step 2 of delete-all (Admin + MFA). Payment messages are never deleted. */
+export async function deleteAllContactMessages (
+  contactId: string,
+  confirmationToken: string,
+): Promise<ApiResult<ContactMessagesDeleteResult>> {
+  return apiCallResult<ContactMessagesDeleteResult>( `${API_BASE}/messages`, {
+    method: 'DELETE',
+    body: JSON.stringify( { contactId, all: true, confirmationToken } ),
+  } );
 }
 
 export async function updateMessage ( messageId: string, updates: Record<string, any> ): Promise<boolean> {
