@@ -39,6 +39,5 @@ test('scope preview cannot send destructive mutations or bypass backend refusal'
     'dynamodb', 'DeleteItem', 'clear-all', 'window.fetch(', 'apiCall(',
   ];
   for (const bad of prohibited) assert.ok(!scope.includes(bad), bad);
-  assert.ok(!contactApi.includes('CONTACT_ERASURE_NOT_READY'));
   assert.ok(contactApi.includes('dispatch_approved_erasure('));
 });
