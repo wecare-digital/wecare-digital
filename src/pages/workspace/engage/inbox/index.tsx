@@ -1358,7 +1358,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             <span style={ { fontSize: 12 } }>
                                                 Turning AI off affects every conversation on that number, not only this customer.
                                                 { !aiAccountKey && ' Confirm the correct WhatsApp sender account in AI settings first.' }
+                                                {' '}Stopping the AI does not release an existing thread; the Meta business owner must arrange handover.
                                             </span>
+                                            <div style={ { marginTop: 6 } }>
+                                                <a href="https://business.facebook.com/latest/whatsapp_manager/"
+                                                    target="_blank" rel="noopener noreferrer" className="ui-reply-link">
+                                                    Manage conversation routing in WhatsApp Manager
+                                                </a>
+                                            </div>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
