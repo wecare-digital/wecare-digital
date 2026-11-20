@@ -13,6 +13,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import { contactDeliveryAddress } from '../../../lib/address-format';
 import CustomerManageData from '../../workspace/customers/ManageData';
 import CustomerActionsSheet from './CustomerActionsSheet';
+import ErasureScopeReview from './ErasureScopeReview';
 import CustomerEditor from './CustomerEditor';
 import styles from './CustomerList.module.css';
 
@@ -220,6 +221,7 @@ const CustomerList: React.FC = () => {
   const [actionsFor, setActionsFor] = React.useState<Contact | null>(null);
   const [editorFor, setEditorFor] = React.useState<Contact | 'new' | null>(null);
   const [manageOpen, setManageOpen] = React.useState(false);
+  const [erasureReviewOpen, setErasureReviewOpen] = React.useState(false);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const openedDeepLink = React.useRef<string | null>(null);
 
@@ -265,13 +267,13 @@ const CustomerList: React.FC = () => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
-      if (detailsFor || editorFor || actionsFor || manageOpen) return;
+      if (detailsFor || editorFor || actionsFor || manageOpen || erasureReviewOpen) return;
       if (event.key === '/') { event.preventDefault(); searchRef.current?.focus(); }
       if (event.key.toLowerCase() === 'n' && !selecting) { event.preventDefault(); setEditorFor('new'); }
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, [detailsFor, editorFor, actionsFor, manageOpen, selecting]);
+  }, [detailsFor, editorFor, actionsFor, manageOpen, erasureReviewOpen, selecting]);
 
   const total = contacts.length;
   const withAddress = React.useMemo(
@@ -516,6 +518,9 @@ const CustomerList: React.FC = () => {
             <button type="button" className={styles.secondaryButton} disabled={bulkBusy}
               onClick={() => setManageOpen(true)}>Manage data</button>
             <button type="button" className={styles.secondaryButton}
+              disabled={loading || bulkBusy || Boolean(loadError)}
+              onClick={() => setErasureReviewOpen(true)}>Review deletion scope</button>
+            <button type="button" className={styles.secondaryButton}
               disabled={loading || total === 0 || bulkBusy}
               onClick={() => selecting ? endSelection() : setSelecting(true)}>
               {selecting ? 'Done' : 'Select'}
@@ -696,6 +701,9 @@ const CustomerList: React.FC = () => {
             if (contact) setDetailsFor(contact);
           }}
           onChanged={load} />
+      )}
+      {erasureReviewOpen && (
+        <ErasureScopeReview contacts={contacts} onClose={() => setErasureReviewOpen(false)} />
       )}
     </section>
   );

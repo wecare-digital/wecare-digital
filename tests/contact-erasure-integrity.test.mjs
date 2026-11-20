@@ -9,14 +9,16 @@ const contacts = readSource('amplify/functions/core/contacts/handler.py');
 const messageDelete = readSource('amplify/functions/core/messages-delete/handler.py');
 const actions = readSource('src/components/ws/customers/CustomerActionsSheet.tsx');
 const oldCustomers = readSource('src/pages/workspace/customers/index.tsx');
-const manifest = readSource('worker-docs/contact-erasure-policy.md');
+const manifest = readSource('docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md');
 
-test('contact DELETE refuses incomplete erasure without mutating any customer data', () => {
+test('contact DELETE delegates only approved erasure without direct destructive writes', () => {
   const start = contacts.indexOf('def _delete(contact_id: str, hard: bool,');
   const end = contacts.indexOf('def _lock_contact(', start);
   const source = contacts.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(source.includes("'CONTACT_ERASURE_NOT_READY'"));
+  assert.ok(source.includes('dispatch_approved_erasure('));
+  assert.ok(source.includes("os.environ.get('ERASURE_COORDINATOR_FUNCTION'"));
+  assert.ok(source.includes("staff.get('mfaEnrolled') is not True"));
   assert.ok(source.includes("'archiveInstead': True"));
   assert.ok(source.includes('_locked_delete_refusal('), 'retention protection remains');
   assert.ok(source.includes('_hard_delete_refusal('), 'financial linkage remains protected');
@@ -65,27 +67,26 @@ test('single-message delete never guesses prefix or reports DynamoDB failure as 
   assert.ok(dbDelete.includes("'success': True"), 'legacy single-row API stays compatible');
 });
 
-test('active deletion policy covers linked identities, payments, auth and S3 versions', () => {
+test('active scoped policy protects exact retained contacts, transaction evidence and provider copies', () => {
   for (const marker of [
-    'ContactsTable', 'IdentityClaimsTable', 'CustomerSessionsTable',
-    'WhatsAppInboundTable', 'WhatsAppOutboundTable', 'MessagesTable',
-    'FlowSubmissionTable', 'CrmActivities', 'DocumentTable',
-    'OrderTable', 'InvoicesTable', 'PaymentAttemptsTable',
-    'Cognito', 'Versioning', 'delete marker', 'ListObjectVersions',
-    'audited', 'idempotent', 'retention', 'payment',
+    'ContactsTable', 'canonical', 'BSUID', 'same-name', 'Razorpay',
+    'payment attempts', 'captured payments', 'refunds', 'invoices',
+    'payment requests', 'webhook evidence', 'reconciliation',
+    'Transaction-related communications', 'MessagesTable', 'WhatsApp',
+    'S3 versions', 'Meta WhatsApp', 'backups', 'exports',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
 });
 
-test('selective erasure requires explicit approvals and never bypasses retention or contact delete guards', () => {
+test('scoped deletion must respect locked identities, operator approval and TTL evidence retention', () => {
   for (const marker of [
-    'protected contact', 'approved record IDs', 'per-record primary keys',
-    'Operator', 'fresh MFA', 'privacy/legal', 'independent approval',
-    'read-only dry run', 'write', 'fence all writers', 'idempotent',
-    'legally required invoices', 'unlinked', 'Cognito', 'Meta WhatsApp',
-    'CONTACT_ERASURE_NOT_READY', 'not deployed', 'system-cleanup',
-    'RETAINED_BY_POLICY', 'PARTIAL_REVIEW_REQUIRED', 'BLOCKED',
+    'ERASURE_COORDINATOR_UNAVAILABLE', 'legal/financial retention checks',
+    'do not bypass locks', 'reviewed retention/legal decision',
+    'operator approval with MFA', 'audited', 'resumable deletion',
+    'reconciliation', 'REVIEW_REQUIRED', 'idempotency',
+    'TTL is **enabled**', 'expiresAt', 'approved non-expiring evidence store',
+    'do not globally disable chat retention limits',
   ]) assert.ok(manifest.toLowerCase().includes(marker.toLowerCase()), marker);
-  assert.match(manifest, /Never run a scan-based/);
-  assert.match(manifest, /no bulk erasure is authorized/);
-  assert.match(manifest, /Do not commit names, phone numbers/);
+  assert.match(manifest, /bulk delete-all-except-one/);
+  assert.match(manifest, /This document alone triggers no mutation or rollout/);
+  assert.ok(contacts.includes('dispatch_approved_erasure('), 'server delegates to independent coordinator');
 });
