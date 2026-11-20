@@ -36,8 +36,8 @@ test('preview inventories all payment evidence and three message tables', () => 
   assert.ok(preview.includes('"readOnly": True'));
 });
 
-test('the existing direct DELETE remains blocked until a complete saga exists', () => {
-  assert.ok(contacts.includes("'CONTACT_ERASURE_NOT_READY'"));
+test('direct DELETE delegates to a separate approved coordinator', () => {
+  assert.ok(contacts.includes('dispatch_approved_erasure('));
   assert.ok(!preview.includes('.delete_item('));
   assert.ok(!preview.includes('.batch_writer('));
   assert.ok(!preview.includes('.update_item('));
