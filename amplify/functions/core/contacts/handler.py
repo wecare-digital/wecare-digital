@@ -1763,6 +1763,7 @@ def _verified_erasure_prepare_or_approve(action, body, staff, request_id, origin
         else:
             result = verified_identity.approve(
                 case_id=str(body.get('caseId') or '').strip(),
+                expected_contact_id=str(body.get('contactId') or '').strip(),
                 actor=actor, tables=tables, audit=record_audit)
         return cors_response(200, result, origin)
     except Exception as exc:
