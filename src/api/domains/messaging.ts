@@ -116,6 +116,34 @@ export async function deleteMessage ( messageId: string, direction: 'INBOUND' | 
   return data !== null && ( data.success === true || data.messageId === messageId || !data.error );
 }
 
+/**
+ * Delete one reviewed TEXT inbox row only. The backend refuses financial,
+ * held, media and unlinked records, and requires Admin MFA + an audit write.
+ * This does not erase WhatsApp's own message, S3 versions or backups.
+ *
+ * Do not auto-retry a destructive request on a 502, timeout or lost response.
+ */
+export async function deleteInboxMessageRecord (
+  messageId: string,
+): Promise<
+  | { ok: true; rowDeleted: true; auditId: string }
+  | { ok: false; code: string; message: string }
+> {
+  if (!messageId) return { ok: false, code: 'MESSAGE_ID_REQUIRED', message: 'Message ID required.' };
+  const result = await apiCallResult<any>(
+    `${API_BASE}/messages/${encodeURIComponent(messageId)}?scope=canonical`,
+    { method: 'DELETE' }, 0, 15000, false,
+  );
+  if (!result.ok) return {
+    ok: false, code: result.failure.code || 'MESSAGE_DELETE_REFUSED',
+    message: result.failure.message || 'Could not confirm deletion.',
+  };
+  if (result.data?.rowDeleted === true && typeof result.data.auditId === 'string') {
+    return { ok: true, rowDeleted: true, auditId: result.data.auditId };
+  }
+  return { ok: false, code: 'MESSAGE_DELETE_UNCONFIRMED', message: 'The server did not confirm deletion. Refresh before retrying.' };
+}
+
 export async function updateMessage ( messageId: string, updates: Record<string, any> ): Promise<boolean> {
   const data = await apiCall<any>( `${API_BASE}/messages/${messageId}`, {
     method: 'PUT',
