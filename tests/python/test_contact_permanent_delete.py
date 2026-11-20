@@ -164,3 +164,44 @@ def test_coordinator_path_gating_is_unchanged_and_end_to_end_frees_phone(world, 
     assert "wa15550001234" not in contacts.rows
     identity_claims.claim_identities(claims, contact_id="new-uuid", phone=PHONE)
     assert payments.rows["inv1"]["paymentStatus"] == "captured"
+
+
+def test_in_process_delete_then_readd_without_coordinator(world, monkeypatch):
+    contacts, claims, payments = world
+    tables = {"contacts": contacts, "claims": claims}
+    monkeypatch.setattr(h, "dynamodb", type("D", (), {
+        "Table": lambda self, n: claims if n == identity_claims.TABLE_NAME else contacts})())
+    monkeypatch.setattr(h, "_hard_delete_refusal", lambda *a, **k: None)
+    monkeypatch.setattr(h, "_locked_delete_refusal", lambda *a, **k: None)
+    monkeypatch.setattr(h, "_merged_alias_mutation_refusal", lambda *a, **k: None)
+    monkeypatch.delenv("ERASURE_COORDINATOR_FUNCTION", raising=False)
+    audits = []
+    monkeypatch.setattr(h, "record_audit", lambda **kw: audits.append(kw) or "audit-1")
+    assert tables
+
+    ev = {"_auth": ADMIN_MFA, "body": ""}  # no case id / manifest / token needed
+    assert h._delete("wa15550001234", True, "r", event={"_auth": {"role": "Admin", "mfaEnrolled": False}})["statusCode"] == 403
+    assert h._delete("wa15550001234", False, "r", event=ev)["statusCode"] == 400
+    assert "wa15550001234" in contacts.rows and audits == []
+
+    ok = h._delete("wa15550001234", True, "r", event=ev)
+    assert ok["statusCode"] == 200 and json.loads(ok["body"])["erasureComplete"] is True
+    assert audits[0]["action"] == "contact.permanent_delete"
+    assert "wa15550001234" not in contacts.rows and claims.rows == {}
+    identity_claims.claim_identities(claims, contact_id="new-uuid", phone=PHONE, email="a@example.test")
+    assert payments.rows["inv1"]["paymentStatus"] == "captured"
+
+
+def test_claim_admin_action_condition_allows_expired_rows(monkeypatch):
+    from lambda_utils import idempotency
+    seen = {}
+
+    class T:
+        def put_item(self, **kw):
+            seen.update(kw)
+
+    monkeypatch.setattr(idempotency.boto3, "resource",
+                        lambda *a, **k: type("R", (), {"Table": lambda self, n: T()})())
+    assert idempotency.claim_admin_action("k", "a", "act") is True
+    assert "expiresAt < :now" in seen["ConditionExpression"]
+    assert ":now" in seen["ExpressionAttributeValues"]

@@ -143,3 +143,14 @@ def test_single_delete_refuses_payment_message(env, monkeypatch):
     assert resp["statusCode"] == 409
     assert json.loads(resp["body"])["error"] == md.PAYMENT_PROTECTED
     assert out_t.deleted == []
+
+
+def test_selected_delete_is_audited_and_fails_closed(env, monkeypatch):
+    audits = []
+    monkeypatch.setattr(md, "record_audit", lambda **kw: audits.append(kw) or "audit-1")
+    monkeypatch.setattr(md, "record_audit", lambda **kw: None)
+    status, _ = call({"contactId": "c1", "messageIds": ["m1"]})
+    assert status == 503 and env.inbound.deleted == []
+    monkeypatch.setattr(md, "record_audit", lambda **kw: audits.append(kw) or "audit-1")
+    status, _ = call({"contactId": "c1", "messageIds": ["m1"]})
+    assert status == 200 and audits[0]["action"] == "messages.delete_contact_selected"

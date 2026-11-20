@@ -283,12 +283,6 @@ export async function softDeleteContactResult (
   );
 }
 
-export interface PermanentDeleteApproval {
-  caseId: string;
-  manifestSha256: string;
-  approvalToken: string;
-}
-
 export interface PermanentDeleteResult {
   success: boolean;
   erasureComplete: boolean;
@@ -300,17 +294,16 @@ export interface PermanentDeleteResult {
 
 /**
  * Permanent delete. Admin with MFA enrolled only (server answers 403 ERASURE_ADMIN_MFA_REQUIRED
- * otherwise). Goes through the approved erasure coordinator, frees the phone, BSUID and identity
+ * otherwise). Runs in the contacts function (or an external coordinator when one is configured), frees the phone, BSUID and identity
  * keys so the same number can be added again, and keeps payment, invoice and Razorpay records.
  * Contacts with payment history are refused with 409; use archiveContact for those.
  */
 export async function deleteContactPermanently (
   contactId: string,
-  approval: PermanentDeleteApproval,
 ): Promise<ApiResult<PermanentDeleteResult>> {
   return apiCallResult<PermanentDeleteResult>(
     `${API_BASE}/contacts/${encodeURIComponent( contactId )}?hard=true`,
-    { method: 'DELETE', body: JSON.stringify( approval ) },
+    { method: 'DELETE' },
   );
 }
 

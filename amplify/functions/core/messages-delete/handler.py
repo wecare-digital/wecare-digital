@@ -403,6 +403,14 @@ def _handle_contact_messages(event, origin):
             details={'previewCounts': consumed.get('counts', {}), 'counts': counts})
         if not log_id:
             return cors_response(503, {'error': 'Audit log unavailable; nothing was deleted'}, origin)
+    elif deletable:
+        log_id = record_audit(
+            action='messages.delete_contact_selected', actor=actor, resource_type='contact',
+            resource_id=contact_id,
+            details={'requested': len(wanted), 'counts': counts,
+                     'messageIds': sorted(wanted)[:MAX_SELECTED_MESSAGES]})
+        if not log_id:
+            return cors_response(503, {'error': 'Audit log unavailable; nothing was deleted'}, origin)
 
     deleted, failed = 0, {}
     for table_name, direction, item in deletable:

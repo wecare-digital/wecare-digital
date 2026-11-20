@@ -52,13 +52,9 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
   const [ archiving, setArchiving ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
   const [ delId, setDelId ] = useState( '' );
-  const [ delCase, setDelCase ] = useState( '' );
-  const [ delManifest, setDelManifest ] = useState( '' );
-  const [ delToken, setDelToken ] = useState( '' );
   const [ delTyped, setDelTyped ] = useState( '' );
   const [ deleting, setDeleting ] = useState( false );
-  const canDelete = !!delId.trim() && !!delCase.trim() && !!delManifest.trim() && !!delToken.trim()
-    && delTyped.trim() === 'DELETE';
+  const canDelete = !!delId.trim() && delTyped.trim() === 'DELETE';
 
   const runPermanentDelete = async () => {
     if ( !canDelete ) return;
@@ -71,15 +67,13 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
     } );
     if ( !ok ) return;
     setDeleting( true );
-    const result = await api.deleteContactPermanently( delId.trim(), {
-      caseId: delCase.trim(), manifestSha256: delManifest.trim(), approvalToken: delToken.trim(),
-    } );
+    const result = await api.deleteContactPermanently( delId.trim() );
     setDeleting( false );
     if ( result.ok ) {
       toast.success( result.data.erasureComplete
         ? 'Contact deleted. The same phone number can be added again.'
         : 'Deletion is pending. Check the audit record before retrying.' );
-      setDelId( '' ); setDelCase( '' ); setDelManifest( '' ); setDelToken( '' ); setDelTyped( '' );
+      setDelId( '' ); setDelTyped( '' );
       await onChanged?.();
       return;
     }
@@ -344,12 +338,6 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
         <>
           <label className="cleanup-label" htmlFor="del-id">Contact id</label>
           <input id="del-id" className="cleanup-text" type="text" value={ delId } onChange={ e => setDelId( e.target.value ) } disabled={ deleting } />
-          <label className="cleanup-label" htmlFor="del-case">Approved case id</label>
-          <input id="del-case" className="cleanup-text" type="text" value={ delCase } onChange={ e => setDelCase( e.target.value ) } disabled={ deleting } />
-          <label className="cleanup-label" htmlFor="del-manifest">Reviewed manifest SHA-256</label>
-          <input id="del-manifest" className="cleanup-text" type="text" value={ delManifest } onChange={ e => setDelManifest( e.target.value ) } disabled={ deleting } />
-          <label className="cleanup-label" htmlFor="del-token">Approval token</label>
-          <input id="del-token" className="cleanup-text" type="password" autoComplete="off" value={ delToken } onChange={ e => setDelToken( e.target.value ) } disabled={ deleting } />
           <label className="cleanup-label" htmlFor="del-typed">Type DELETE to confirm</label>
           <input id="del-typed" className="cleanup-text" type="text" value={ delTyped } onChange={ e => setDelTyped( e.target.value ) } disabled={ deleting } />
           <div className="cleanup-actions">

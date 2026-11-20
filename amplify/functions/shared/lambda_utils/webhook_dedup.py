@@ -105,7 +105,7 @@ def is_duplicate(event_id: Optional[str], source: str = 'whatsapp', ttl_days: in
 
 #: How long a handler may hold a leased claim before another delivery may take it. Long enough to
 #: cover a Lambda timeout plus a provider verification round trip; short enough that a crash does
-#: not stall recovery until the 7-day TTL.
+#: not stall recovery for days.
 DEFAULT_LEASE_SECONDS = int(os.environ.get('WEBHOOK_LEASE_SECONDS', '900'))
 
 

@@ -33,8 +33,8 @@ SESSION_CODE = 'WD_FLOW_SESSION'
 #: How long a sent Flow message stays openable: one sitting or the next day. After that the
 #: customer asks again and receives a fresh token.
 SESSION_TTL_SECONDS = 24 * 3600
-#: Rows outlive their expiry briefly so an operator can still see why a late tap failed.
-#: DynamoDB TTL deletion is best effort; `expiresAt` is what actually bounds a session.
+#: Rows are kept past their expiry so an operator can still see why a late tap failed.
+#: There is no DynamoDB TTL; `expiresAt` is a logical expiry that alone bounds a session.
 _ROW_RETENTION_SECONDS = 7 * 86400
 
 LAUNCH_KEYWORD = 'keyword'

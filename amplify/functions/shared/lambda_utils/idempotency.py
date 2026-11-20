@@ -55,11 +55,12 @@ def claim_admin_action(key: str, actor: str, action: str, ttl_seconds: int = 24 
     table = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')).Table(table_name)
     item = {'eventId': key, 'source': f'admin:{action}', 'actor': actor,
             'processedAt': now, 'expiresAt': expires_at}
-    kwargs = {'Item': item, 'ConditionExpression': 'attribute_not_exists(eventId)'}
+    # No DynamoDB TTL: an expired row is simply overwritten, so `expiresAt` is a logical expiry.
+    kwargs = {'Item': item,
+              'ConditionExpression': 'attribute_not_exists(eventId) OR expiresAt < :now',
+              'ExpressionAttributeValues': {':now': now}}
     if claim_token:
         item['claimToken'] = claim_token
-        kwargs.update(ConditionExpression='attribute_not_exists(eventId) OR expiresAt < :now',
-                      ExpressionAttributeValues={':now': now})
     try:
         table.put_item(**kwargs)
         return True
