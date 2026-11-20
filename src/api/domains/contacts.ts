@@ -295,6 +295,8 @@ export interface ApprovedContactErasureResult {
   caseId?: string;
   auditId?: string;
   status?: string;
+  identityClaimsReleased?: boolean;
+  contactRecreatable?: boolean;
 }
 
 /** Exact-customer deletion request. The server enforces Admin MFA, legal and
