@@ -283,40 +283,34 @@ export async function softDeleteContactResult (
   );
 }
 
-export interface PermanentDeleteResult {
-  success: boolean;
+export interface ApprovedContactErasureRequest {
+  caseId: string;
+  manifestSha256: string;
+  approvalToken: string;
+}
+
+export interface ApprovedContactErasureResult {
+  success?: boolean;
   erasureComplete: boolean;
   caseId?: string;
   auditId?: string;
-  reconciliationComplete?: boolean;
   status?: string;
+  identityClaimsReleased?: boolean;
+  contactRecreatable?: boolean;
 }
 
-/** Only needed when the server has an external erasure coordinator configured (otherwise ignored). */
-export interface ExternalErasureApproval {
-  caseId?: string;
-  manifestSha256?: string;
-  approvalToken?: string;
-}
-
-/**
- * Permanent delete. Admin with MFA enrolled only (server answers 403 ERASURE_ADMIN_MFA_REQUIRED
- * otherwise). Runs in the contacts function (or an external coordinator when one is configured), frees the phone, BSUID and identity
- * keys so the same number can be added again, and keeps payment, invoice and Razorpay records.
- * Contacts with payment history are refused with 409; use archiveContact for those.
+/** Exact-customer deletion request. The server enforces Admin MFA, legal and
+ * financial retention, protected conversation holds and reconciled identity
+ * release. Never automatically retry an irreversible request.
  */
-export async function deleteContactPermanently (
+export async function requestApprovedContactErasure (
   contactId: string,
-  approval?: ExternalErasureApproval,
-): Promise<ApiResult<PermanentDeleteResult>> {
-  const fields = approval
-    ? Object.fromEntries( Object.entries( approval ).filter( ( [ , v ] ) => !!v && String( v ).trim() ) )
-    : {};
-  return apiCallResult<PermanentDeleteResult>(
+  request: ApprovedContactErasureRequest,
+): Promise<ApiResult<ApprovedContactErasureResult>> {
+  return apiCallResult<ApprovedContactErasureResult>(
     `${API_BASE}/contacts/${encodeURIComponent( contactId )}?hard=true`,
-    Object.keys( fields ).length
-      ? { method: 'DELETE', body: JSON.stringify( fields ) }
-      : { method: 'DELETE' },
+    { method: 'DELETE', body: JSON.stringify( request ) },
+    0, 15000, false,
   );
 }
 

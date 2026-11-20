@@ -91,6 +91,7 @@ def record_audit(action: str, actor: Optional[str] = None, resource_type: Option
             'resourceId': resource_id or '',
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'details': json.dumps(mask_secrets(details or {}), default=str)[:8000],
+            'expiresAt': now + TTL_DAYS * 24 * 60 * 60,
         }
         # Empty values are stripped, but never the keys: a filter that can drop the
         # partition key is how a write becomes unconditionally invalid.

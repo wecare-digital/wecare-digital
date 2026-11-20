@@ -719,6 +719,7 @@ def _persist_cdr(params: dict, route: str, request_id: str) -> bool:
         'billableDurationMs': Decimal(str(seconds * 1000)),
         'callUuid': call_uuid,
 
+        'expiresAt': Decimal(str(now + CDR_TTL_SECONDS)),
     }
     if not _write_cdr_row(item, route, call_uuid, request_id):
         return False

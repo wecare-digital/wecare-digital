@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import * as api from '../../../api/client';
-import type { ContactCleanupKeep, ContactCleanupScanResult, Message, ProtectedMessage } from '../../../api/client';
+import type { ContactCleanupKeep, ContactCleanupScanResult } from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useUserRole } from '../../../hooks/useUserRole';
 
 export const CLEANUP_POLICY_NOTE =
-  'Cleanup only archives, and archive is reversible. Permanent delete is a separate Admin + MFA action '
-  + 'below. It needs an approved case and is refused for contacts with payment history.';
+  'Identity deletion is not available. Archive is reversible. Permanent erasure requires legal review '
+  + 'and the audited deletion process (docs/ops/scoped-whatsapp-contact-payment-retention-2026-11-20.md).';
 
 /**
  * Turn the keep textarea (one identifier per line) into exact identifier lists.
@@ -51,134 +51,6 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
   const [ scanning, setScanning ] = useState( false );
   const [ archiving, setArchiving ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
-  const [ delId, setDelId ] = useState( '' );
-  const [ delTyped, setDelTyped ] = useState( '' );
-  const [ deleting, setDeleting ] = useState( false );
-  const [ alsoDeleteMsgs, setAlsoDeleteMsgs ] = useState( false );
-  // Only used when the server has an external erasure coordinator configured.
-  const [ apprCaseId, setApprCaseId ] = useState( '' );
-  const [ apprManifest, setApprManifest ] = useState( '' );
-  const [ apprToken, setApprToken ] = useState( '' );
-  const canDelete = !!delId.trim() && delTyped.trim() === 'DELETE';
-
-  const runPermanentDelete = async () => {
-    if ( !canDelete ) return;
-    const ok = await confirm( {
-      title: 'Permanently delete this contact?',
-      message: 'The contact is erased and its phone and identity keys are freed so the same number can be '
-        + 'added again. Payment, invoice and Razorpay records are kept. This cannot be undone. '
-        + 'If this contact\'s messages are not deleted too, a contact re-added with the same number gets the '
-        + 'same id and will show the old message history again.'
-        + ( alsoDeleteMsgs ? ' This contact\'s messages will be deleted afterwards; payment messages remain.' : '' ),
-      confirmText: 'Delete permanently',
-      danger: true,
-    } );
-    if ( !ok ) return;
-    setDeleting( true );
-    const contactId = delId.trim();
-    const result = await api.deleteContactPermanently( contactId, {
-      caseId: apprCaseId.trim(), manifestSha256: apprManifest.trim(), approvalToken: apprToken.trim(),
-    } );
-    setDeleting( false );
-    if ( result.ok ) {
-      toast.success( result.data.erasureComplete
-        ? 'Contact deleted. The same phone number can be added again.'
-        : 'Deletion is pending. Check the audit record before retrying.' );
-      setDelId( '' ); setDelTyped( '' );
-      setApprCaseId( '' ); setApprManifest( '' ); setApprToken( '' );
-      if ( alsoDeleteMsgs && result.data.erasureComplete ) {
-        setAlsoDeleteMsgs( false );
-        // Same Admin + MFA preview, confirm and token flow as the Delete messages section.
-        await deleteAllMessages( contactId );
-      }
-      await onChanged?.();
-      return;
-    }
-    const code = result.failure.code || '';
-    toast.error( code === 'ERASURE_ADMIN_MFA_REQUIRED'
-      ? 'Permanent delete needs an Admin with MFA enrolled. Enrol MFA and sign in again.'
-      : ( result.failure.message || 'Permanent delete refused' ) );
-  };
-
-  // Message deletion for one contact: single, selected, or all. Payment messages stay protected.
-  const [ msgContactId, setMsgContactId ] = useState( '' );
-  const [ msgs, setMsgs ] = useState<Message[]>( [] );
-  const [ msgSel, setMsgSel ] = useState<Set<string>>( new Set() );
-  const [ msgProtected, setMsgProtected ] = useState<Record<string, ProtectedMessage>>( {} );
-  const [ msgBusy, setMsgBusy ] = useState( false );
-
-  const loadMessages = async () => {
-    const id = msgContactId.trim();
-    if ( !id ) return;
-    setMsgBusy( true );
-    setMsgSel( new Set() );
-    const list = await api.listMessages( id );
-    setMsgs( list );
-    // Admin + MFA preview tells us which messages are payment evidence. Without it the
-    // server still refuses to delete them, they are just not marked in advance.
-    const preview = await api.getContactMessageProtection( id );
-    setMsgProtected( preview.ok
-      ? Object.fromEntries( preview.data.protectedMessages.map( p => [ p.id, p ] ) )
-      : {} );
-    setMsgBusy( false );
-  };
-
-  const toggleMsg = ( id: string ) => {
-    setMsgSel( prev => {
-      const next = new Set( prev );
-      if ( next.has( id ) ) next.delete( id ); else next.add( id );
-      return next;
-    } );
-  };
-
-  const reportMessageDelete = async ( data: api.ContactMessagesDeleteResult ) => {
-    toast.success( `Deleted ${data.deleted} messages`
-      + ( data.protected ? `, kept ${data.protected} payment messages` : '' ) + '.' );
-    await loadMessages();
-  };
-
-  const deleteSelectedMessages = async () => {
-    const ids = [ ...msgSel ].filter( id => !msgProtected[ id ] );
-    if ( ids.length === 0 ) return;
-    const ok = await confirm( {
-      title: 'Delete selected messages?',
-      message: `Delete ${ids.length} messages? Payment-related messages are kept.`,
-      confirmText: 'Delete messages',
-      danger: true,
-    } );
-    if ( !ok ) return;
-    setMsgBusy( true );
-    const result = await api.deleteSelectedContactMessages( msgContactId.trim(), ids );
-    setMsgBusy( false );
-    if ( result.ok ) await reportMessageDelete( result.data );
-    else toast.error( result.failure.message || 'Message delete refused' );
-  };
-
-  const deleteAllMessages = async ( contactId?: string ) => {
-    const id = ( contactId ?? msgContactId ).trim();
-    setMsgBusy( true );
-    const preview = await api.previewDeleteAllContactMessages( id );
-    setMsgBusy( false );
-    if ( !preview.ok ) {
-      toast.error( preview.failure.code === 'ADMIN_MFA_REQUIRED'
-        ? 'Deleting all messages needs an Admin with MFA enrolled.'
-        : ( preview.failure.message || 'Preview failed' ) );
-      return;
-    }
-    const { deletable, protected: kept } = preview.data.counts;
-    const ok = await confirm( {
-      title: 'Delete all messages for this contact?',
-      message: `Delete ${deletable} messages. ${kept} payment-related messages are kept. This cannot be undone.`,
-      confirmText: 'Delete all messages',
-      danger: true,
-    } );
-    if ( !ok ) return;
-    setMsgBusy( true );
-    const result = await api.deleteAllContactMessages( id, preview.data.confirmationToken );
-    setMsgBusy( false );
-    if ( result.ok ) await reportMessageDelete( result.data );
-    else toast.error( result.failure.message || 'Message delete refused' );
-  };
 
   const incomplete = !!scan && scan.status !== 'OK';
   const candidates = incomplete ? [] : ( scan?.eligible || [] );
@@ -344,84 +216,6 @@ const ContactCleanupPanel: React.FC<Props> = ( { onChanged } ) => {
 
           { scan.ttlGap?.note && <p className="cleanup-note">{ scan.ttlGap.note }</p> }
         </>
-      ) }
-
-      <h4>Delete a contact permanently</h4>
-      <p className="cleanup-note" role="note">
-        Admin with MFA only. Frees the phone and identity keys so the same number can be added again.
-        Payment, invoice and Razorpay records are kept, and a contact with payment history cannot be deleted (archive it instead).
-        Messages are NOT removed with the contact. Adding the same number again gives the same contact id,
-        so the old message history reappears unless you also delete the messages.
-      </p>
-      { canArchive ? (
-        <>
-          <label className="cleanup-label" htmlFor="del-id">Contact id</label>
-          <input id="del-id" className="cleanup-text" type="text" value={ delId } onChange={ e => setDelId( e.target.value ) } disabled={ deleting } />
-          <label className="cleanup-label" htmlFor="del-typed">Type DELETE to confirm</label>
-          <input id="del-typed" className="cleanup-text" type="text" value={ delTyped } onChange={ e => setDelTyped( e.target.value ) } disabled={ deleting } />
-          <label className="cleanup-check">
-            <input type="checkbox" checked={ alsoDeleteMsgs } onChange={ e => setAlsoDeleteMsgs( e.target.checked ) } disabled={ deleting } />
-            Also delete this contact&apos;s messages (Admin + MFA confirmation; payment messages remain)
-          </label>
-          <details className="cleanup-kept">
-            <summary>External coordinator approval (only if your deployment uses one)</summary>
-            <label className="cleanup-label" htmlFor="appr-case">Case id</label>
-            <input id="appr-case" className="cleanup-text" type="text" value={ apprCaseId } onChange={ e => setApprCaseId( e.target.value ) } disabled={ deleting } />
-            <label className="cleanup-label" htmlFor="appr-manifest">Manifest SHA-256</label>
-            <input id="appr-manifest" className="cleanup-text" type="text" value={ apprManifest } onChange={ e => setApprManifest( e.target.value ) } disabled={ deleting } />
-            <label className="cleanup-label" htmlFor="appr-token">Approval token</label>
-            <input id="appr-token" className="cleanup-text" type="password" autoComplete="off" value={ apprToken } onChange={ e => setApprToken( e.target.value ) } disabled={ deleting } />
-          </details>
-          <div className="cleanup-actions">
-            <button type="button" className="action" onClick={ () => void runPermanentDelete() } disabled={ deleting || !canDelete }>
-              { deleting ? 'Deleting…' : 'Delete permanently' }
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="cleanup-note">Permanent delete requires the Admin role with MFA enrolled.</p>
-      ) }
-
-      <h4>Delete messages</h4>
-      <p className="cleanup-note" role="note">
-        Delete one, selected or all messages of a contact. Payment-related messages are protected and never deleted.
-        Deleting all needs an Admin with MFA enrolled.
-      </p>
-      <label className="cleanup-label" htmlFor="msg-contact">Contact id</label>
-      <input id="msg-contact" className="cleanup-text" type="text" value={ msgContactId }
-        onChange={ e => setMsgContactId( e.target.value ) } disabled={ msgBusy } />
-      <div className="cleanup-actions">
-        <button type="button" className="action" onClick={ () => void loadMessages() } disabled={ msgBusy || !msgContactId.trim() }>
-          { msgBusy ? 'Working…' : 'Load messages' }
-        </button>
-        <button type="button" className="action" onClick={ () => void deleteSelectedMessages() }
-          disabled={ msgBusy || msgSel.size === 0 }>
-          { `Delete selected (${msgSel.size})` }
-        </button>
-        <button type="button" className="action" onClick={ () => void deleteAllMessages() }
-          disabled={ msgBusy || msgs.length === 0 || !canArchive }
-          title={ canArchive ? undefined : 'Requires the Admin role with MFA' }>
-          Delete all
-        </button>
-      </div>
-      { msgs.length > 0 && (
-        <ul className="cleanup-list">
-          { msgs.map( m => {
-            const prot = msgProtected[ m.id ];
-            return (
-              <li key={ `${m.direction}-${m.id}` }>
-                <label className="cleanup-check">
-                  <input type="checkbox" checked={ msgSel.has( m.id ) && !prot } disabled={ !!prot || msgBusy }
-                    onChange={ () => toggleMsg( m.id ) } />
-                  <span>
-                    { m.direction === 'INBOUND' ? 'In' : 'Out' } · { ( m.content || '' ).slice( 0, 80 ) || m.messageType || 'Message' }
-                    { prot && <strong> · Protected (payment)</strong> }
-                  </span>
-                </label>
-              </li>
-            );
-          } ) }
-        </ul>
       ) }
 
       <style jsx>{`

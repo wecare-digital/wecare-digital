@@ -73,15 +73,18 @@ export function addCatalogResources ( stack: Stack ) {
  * AWS-native cart table — the server-side cart record used when
  * CHECKOUT_MODE=AWS_NATIVE.
  *
- * A cart is a short-lived working document and has no TTL: abandoned carts are
- * kept until deleted explicitly. The ORDER record, not the cart, is the durable
- * artifact.
+ * A cart is a short-lived working document, so unlike ProductsTable it carries a
+ * TTL (expiresTtl) to reap abandoned carts automatically — a cart is NOT a
+ * liability ledger. The
+ * ORDER record, not the cart, is the durable artifact; a reaped cart loses only
+ * an in-progress session, never a paid order.
  *
  *   PK cartId
  *   GSI customerId-updatedAt-index  -> resume a customer's open cart
  * Item attributes: lineItems[] (productId, variantId, quantity, unitPricePaise
  * resolved server-side from ProductsTable at add-time), couponCode, status
- * (open|reserved|converted|expired), deliveryAddressRef, createdAt, updatedAt.
+ * (open|reserved|converted|expired), deliveryAddressRef, createdAt, updatedAt,
+ * expiresTtl.
  *
  * NOT YET WIRED, same as ProductsTable: calling addCartResources() from
  * backend.ts creates a billable table — an owner-approval-gated Phase-4 step.
@@ -95,6 +98,7 @@ export function addCartResources ( stack: Stack ) {
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         pointInTimeRecovery: true,
         removalPolicy: RemovalPolicy.RETAIN,
+        timeToLiveAttribute: 'expiresTtl',
     } );
 
     table.addGlobalSecondaryIndex( {

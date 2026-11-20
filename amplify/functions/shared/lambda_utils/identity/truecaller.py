@@ -145,6 +145,8 @@ def nonce_record(nonce: str, *, session_id: str, actor: str = "",
         "status": STATUS_PENDING,
         "createdAt": now,
         "expiresAt": now + int(ttl_seconds),
+        # TTL attribute, so an abandoned consent cleans itself up.
+        "ttl": now + int(ttl_seconds) + 86400,
     }
 
 

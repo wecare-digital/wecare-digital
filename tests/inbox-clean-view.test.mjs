@@ -1,48 +1,46 @@
-// Non-destructive inbox presentation contract, not a payment-retention proof.
-// The typecheck/build and runtime review are required before release.
+// The workspace inbox always displays full stored history. Message deletion is
+// a separate, confirmed Admin/MFA backend action; no view filter can hide rows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSource } from './helpers/loadTsx.mjs';
 
-const filter = readSource('src/lib/inbox-clean-view.ts');
 const fresh = readSource('src/components/ws/inbox/InboxView.tsx');
 const legacy = readSource('src/pages/workspace/engage/inbox/index.tsx');
+const backend = readSource('amplify/functions/core/messages-delete/handler.py');
+const checker = readSource('amplify/functions/shared/lambda_utils/erasure/inbox_delete.py');
+const api = readSource('src/api/domains/messaging.ts');
 
-test('clean view never deletes records and fails open for ambiguous conversation keys', () => {
-  assert.ok(filter.includes("key === 'unknown'"));
-  assert.ok(filter.includes('retainedConversationIds.has( key )'));
-  assert.ok(filter.includes('financialConversations.has( key )'));
-  assert.ok(filter.includes('return !Number.isFinite( timestamp ) || timestamp >= todayStartMs'));
-  assert.ok(!filter.includes('delete_item'));
-  assert.ok(!filter.includes('DeleteItem'));
-  assert.ok(!filter.includes('expiresAt'));
-});
-
-test('both inboxes load operator hold tags and retain all-history access', () => {
+test('both inbox screens show all messages without an old-message filter', () => {
   for (const inbox of [ fresh, legacy ]) {
-    assert.ok(inbox.includes('api.listConversationMeta()'));
-    assert.ok(inbox.includes("includes( 'retention-hold' )"));
-    assert.ok(inbox.includes('filterInboxCleanView( messages'));
-    assert.ok(inbox.includes('Show all old messages'));
-    assert.ok(inbox.includes('not deleted'));
-    assert.ok(inbox.includes("view' ) === 'today'") || inbox.includes("view === 'today'"));
-    assert.ok(!inbox.includes('deleteMessage('), 'visibility control must not delete messages');
+    assert.ok(inbox.includes('api.listMessages( undefined, \'ALL\', 2000 )'));
+    for (const old of [
+      'Hide old messages', 'Show all old messages', 'todayOnly',
+      'toggleTodayOnly', 'filterInboxCleanView', 'wc-inbox-today-view',
+      'retainedKeys', 'setRetainedKeys', 'setTodayOnly',
+    ]) assert.ok(!inbox.includes(old), old);
   }
 });
 
-test('clean view is opt-in per browser, not default for every operator', () => {
-  assert.ok(fresh.includes("useState( false )"));
-  assert.ok(legacy.includes("useState( false )"));
-  assert.ok(fresh.includes("wc-inbox-today-view"));
-  assert.ok(legacy.includes("wc-inbox-today-view"));
+test('each message has an explicit confirmed delete control', () => {
+  for (const inbox of [ fresh, legacy ]) {
+    assert.ok(inbox.includes('useConfirm'));
+    assert.ok(inbox.includes('api.deleteInboxMessage( message.id )') ||
+      inbox.includes('api.deleteInboxMessage( m.id )'));
+    assert.ok(inbox.includes("'retention-hold'"));
+    assert.ok(inbox.includes('Delete message'));
+    assert.ok(inbox.includes('Meta/provider copies') ||
+      inbox.includes('provider copies'));
+  }
 });
 
-test('missing retention metadata cannot hide messages or blank the inbox', () => {
-  for (const inbox of [ fresh, legacy ]) {
-    assert.ok(inbox.includes('const [ recordsResult, holdResult ] = await Promise.all'));
-    assert.ok(inbox.includes('recordsResult.failures[ 0 ] ?? null'));
-    assert.ok(inbox.includes('if ( holdResult.failures.length )'));
-    assert.ok(inbox.includes('setTodayOnly( false )'));
-    assert.ok(inbox.includes('setRetainedKeys( new Set() )'));
-  }
+test('the actual server deletes canonical and exact matching source, not an arbitrary table', () => {
+  assert.ok(backend.includes('delete_visible_message('));
+  assert.ok(backend.includes("staff.get('mfaEnrolled') is not True"));
+  assert.ok(checker.includes('canonical_table.delete_item('));
+  assert.ok(checker.includes('source_table.delete_item('));
+  assert.ok(checker.includes('contact_payment_links.has_payment_links('));
+  assert.ok(checker.includes('"retention-hold"'));
+  assert.ok(checker.includes('erasureComplete'));
+  assert.ok(api.includes('deleteInboxMessage'));
+  assert.ok(api.includes("0, 15000, false"), 'do not retry destructive sends');
 });

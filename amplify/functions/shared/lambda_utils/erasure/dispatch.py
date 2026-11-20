@@ -123,6 +123,8 @@ def dispatch_approved_erasure(
             and body.get("reconciliationComplete") is True
             and body.get("protectedContactsVerified") is True
             and body.get("financialEvidencePreserved") is True
+            and body.get("identityClaimsReleased") is True
+            and body.get("contactRecreatable") is True
             and isinstance(body.get("auditId"), str)
             and bool(body.get("auditId"))):
         return ErasureDispatchResult(200, {
@@ -130,6 +132,8 @@ def dispatch_approved_erasure(
             "caseId": case_id,
             "auditId": body["auditId"],
             "reconciliationComplete": True,
+            "identityClaimsReleased": True,
+            "contactRecreatable": True,
         })
 
     if (body.get("caseId") == case_id

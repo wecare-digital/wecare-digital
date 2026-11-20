@@ -156,6 +156,7 @@ def _to_row(plan: "plan_module.Plan", ttl_seconds: int,
         # them, and a silent Decimal conversion here would change the hash.
         "arguments": plan_module.canonical_arguments(plan.arguments),
         "createdAt": plan.created_at,
+        "expiresTtl": now + ttl_seconds,
     }
 
 

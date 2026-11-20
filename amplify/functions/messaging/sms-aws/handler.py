@@ -379,6 +379,7 @@ def _send_sms(body: Dict, request_id: str) -> Dict[str, Any]:
         'campaignName': campaign_name,
         'errorDetails': result.get('error', ''),
         'createdAt': Decimal(str(now)),
+        'expiresAt': Decimal(str(now + MESSAGE_TTL_SECONDS)),
     })
 
     if not result.get('success'):

@@ -23,7 +23,7 @@ listing one customer's files is a single query rather than a scan.
 -------------------------------------------
 Nothing is permanent here. A grant is written only after Razorpay's webhook
 signature verifies, is redeemed by a conditional write so a forwarded link is dead
-on second use, and has no TTL; expiry is checked in code. The
+on second use, and carries a TTL so unredeemed grants evaporate. The
 ``order-index`` GSI exists because the webhook knows only the Razorpay order id and
 has to find the pending grant from it.
 
@@ -137,6 +137,16 @@ def ensure_table(schema: dict, dry_run: bool) -> str:
     return f"created ({wait_active(name)})"
 
 
+def ensure_ttl(name: str, attribute: str, dry_run: bool) -> str:
+    """Compatibility hook; never re-enable DynamoDB TTL after retention disable."""
+    if not table_exists(name):
+        return "would verify" if dry_run else "table missing"
+    current = ddb().describe_time_to_live(TableName=name)["TimeToLiveDescription"]
+    if current.get("TimeToLiveStatus") != "DISABLED":
+        raise RuntimeError("DynamoDB TTL unexpectedly enabled on " + name)
+    return "TTL disabled"
+
+
 def verify() -> int:
     failures = 0
 
@@ -163,10 +173,10 @@ def verify() -> int:
             failures += 1
 
     ttl = ddb().describe_time_to_live(TableName=GRANTS_TABLE)["TimeToLiveDescription"]
-    if ttl.get("TimeToLiveStatus") in ("DISABLED", "DISABLING", None):
-        print("PASS grants TTL disabled")
+    if ttl.get("TimeToLiveStatus") == "DISABLED":
+        print("PASS grants DynamoDB TTL disabled")
     else:
-        print(f"FAIL grants TTL is enabled, expected disabled: {ttl}")
+        print(f"FAIL grants TTL unexpectedly enabled: {ttl}")
         failures += 1
 
     print()
@@ -187,6 +197,7 @@ def main(argv=None) -> int:
     print(f"dry run: {args.dry_run}\n")
     print(f"{FILES_TABLE}: {ensure_table(FILES_SCHEMA, args.dry_run)}")
     print(f"{GRANTS_TABLE}: {ensure_table(GRANTS_SCHEMA, args.dry_run)}")
+    print(f"grants TTL: {ensure_ttl(GRANTS_TABLE, 'expiresAt', args.dry_run)}")
 
     if args.dry_run:
         print("\ndry run: nothing changed")

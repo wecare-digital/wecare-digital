@@ -17,6 +17,7 @@
  * React 19 removed the global JSX namespace, so icon helpers are typed React.JSX.Element.
  */
 import React from 'react';
+import { useRouter } from 'next/router';
 import type { Contact } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
@@ -53,7 +54,12 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
 } ) => {
   const toast = useToastContext();
   const confirm = useConfirm();
+  const router = useRouter();
   const [ busy, setBusy ] = React.useState( false );
+  const [ showDeleteForm, setShowDeleteForm ] = React.useState( false );
+  const [ caseId, setCaseId ] = React.useState( '' );
+  const [ manifestSha256, setManifestSha256 ] = React.useState( '' );
+  const [ approvalToken, setApprovalToken ] = React.useState( '' );
 
   const name = contact.name || contact.phone || 'this customer';
   const locked = contact.locked === true;
@@ -118,6 +124,43 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
   };
 
 
+  const openMessages = () => {
+    onClose();
+    void router.push( `/workspace/communications/?view=inbox&contactId=${encodeURIComponent( contact.contactId )}` );
+  };
+
+  const requestDeletion = async () => {
+    if ( busy || !caseId || !approvalToken || !/^[a-f0-9]{64}$/.test( manifestSha256 ) ) return;
+    const ok = await confirm( {
+      title: 'Delete contact and release identity?',
+      message: `Request deletion of ${name} and their phone/email identity claims so the contact can be added again? Only an approved, audited deletion may complete. Protected messages, payment records and unrelated customers remain untouched.`,
+      confirmText: 'Request deletion',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setBusy( true );
+    try {
+      const result = await api.requestApprovedContactErasure( contact.contactId, {
+        caseId, manifestSha256, approvalToken,
+      } );
+      if ( result.ok && result.data.erasureComplete
+        && result.data.identityClaimsReleased === true && result.data.contactRecreatable === true ) {
+        toast.success( 'Contact deleted and identity released for re-creation.' );
+        onArchived( contact.contactId );
+        onClose();
+      } else if ( result.ok && result.data.status === 'PENDING' ) {
+        toast.warning( 'Deletion accepted for review; the contact has not been deleted.' );
+      } else {
+        toast.error( result.ok ? 'Deletion was not verified; nothing is marked removed.'
+          : result.failure.message );
+      }
+    } catch {
+      toast.error( 'Deletion could not be verified. The customer remains in the list.' );
+    } finally {
+      setBusy( false );
+    }
+  };
+
   return (
     <div className="cas-backdrop" role="dialog" aria-modal="true" aria-labelledby="cas-title" onClick={ onClose }>
       <div className="cas-sheet" onClick={ e => e.stopPropagation() }>
@@ -161,22 +204,42 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         <div className="cas-group">
           <h3 className="cas-group-title">Danger</h3>
           <div className="cas-actions">
-            <button type="button" className="cas-btn" disabled
-              title="Message rows and versioned S3 media need one audited erasure workflow">
-              Delete messages and media — unavailable
+            <button type="button" className="cas-btn" disabled={ busy } onClick={ openMessages }>
+              View and delete messages
             </button>
             <button type="button" className="cas-btn" disabled={ busy || locked } onClick={ archive }>
               Block / archive
             </button>
-            <p className="cas-lock" role="note">
-              Permanent deletion is unavailable until all linked identity claims, messages,
-              versioned S3 files, sessions and service records can be erased safely.
-              Archive this customer to hide them without orphaning their history.
-            </p>
-            <button type="button" className="cas-btn cas-danger" disabled
-              title="End-to-end contact erasure is not yet supported">
-              Delete all customer data — unavailable
+            <button type="button" className="cas-btn cas-danger" disabled={ busy }
+              onClick={ () => setShowDeleteForm( value => !value ) }
+              aria-expanded={ showDeleteForm }>
+              Delete contact and release identity…
             </button>
+            { showDeleteForm && (
+              <div className="cas-deletion-form">
+                <p className="cas-hint">An approved deletion must preserve retained conversations and payment evidence. The backend verifies identity release before reporting success.</p>
+                <label className="cas-deletion-field">Approved case ID
+                  <input value={ caseId } onChange={ e => setCaseId( e.target.value ) }
+                    placeholder="Case reference" autoComplete="off" />
+                </label>
+                <label className="cas-deletion-field">Reviewed manifest SHA-256
+                  <input value={ manifestSha256 } onChange={ e => setManifestSha256( e.target.value.toLowerCase() ) }
+                    placeholder="64-character review fingerprint" autoComplete="off" />
+                </label>
+                <label className="cas-deletion-field">Single-use approval token
+                  <input value={ approvalToken } onChange={ e => setApprovalToken( e.target.value ) }
+                    type="password" placeholder="Approval token" autoComplete="off" />
+                </label>
+                <button type="button" className="cas-btn cas-danger"
+                  disabled={ busy || !caseId.trim() || !/^[a-f0-9]{64}$/.test( manifestSha256 ) || approvalToken.length < 24 }
+                  onClick={ () => void requestDeletion() }>
+                  { busy ? 'Checking deletion…' : 'Submit approved deletion' }
+                </button>
+              </div>
+            ) }
+            <p className="cas-lock" role="note">
+              Contact and identity deletion requires the backend to confirm protected-history and payment retention. A request is not a completed deletion.
+            </p>
           </div>
         </div>
       </div>
@@ -241,6 +304,11 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
         }
 
         .cas-actions{ display:grid; gap:8px; }
+        .cas-deletion-form{ display:grid; gap:10px; padding:12px; border:1px solid var(--border,#e5e7eb); border-radius:12px; }
+        .cas-hint{ margin:0; color:var(--text-muted,#6b7280); font-size:12px; line-height:1.5; }
+        .cas-deletion-field{ display:grid; gap:5px; font-size:12px; font-weight:600; }
+        .cas-deletion-field input{ width:100%; box-sizing:border-box; min-height:40px; padding:8px 10px; border:1px solid var(--border,#e5e7eb); border-radius:8px; background:var(--surface,#fff); color:var(--text,#1a1a1a); }
+
         .cas-btn{
           width:100%; min-height:var(--tap-min,44px); box-sizing:border-box;
           padding:12px 16px;

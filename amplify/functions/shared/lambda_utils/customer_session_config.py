@@ -74,13 +74,15 @@ REQUIRED_APP_CLIENT_SETTINGS: Dict[str, Any] = {
 }
 
 #: The DynamoDB table backing server-side custody. Keyed on the HASH of the opaque id (never the id)
-#: so a table read cannot yield a usable session. No DynamoDB TTL is enabled, so dead rows are
-#: not swept. `customer_session.validate` enforces both deadlines in code.
+#: so a table read cannot yield a usable session. TTL on `absoluteExpiresAt` sweeps dead rows, but
+#: it is a janitor, NOT the security boundary - `customer_session.validate` enforces both deadlines
+#: in code regardless of whether TTL has fired yet.
 REQUIRED_SESSION_TABLE: Dict[str, Any] = {
     "TableName": "stack-wecare-digital-CustomerSessionsTable",
     "KeySchema": [{"AttributeName": "sidHash", "KeyType": "HASH"}],
     "AttributeDefinitions": [{"AttributeName": "sidHash", "AttributeType": "S"}],
     "BillingMode": "PAY_PER_REQUEST",
+    "TimeToLiveSpecification": {"AttributeName": "absoluteExpiresAt", "Enabled": True},
     "SSESpecification": {"Enabled": True},
     "PointInTimeRecoverySpecification": {"PointInTimeRecoveryEnabled": True},
 }

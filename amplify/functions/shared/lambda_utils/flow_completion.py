@@ -346,6 +346,9 @@ def claim_completion(*, flow_token: str, screen: str = '',
         'channel': channel,
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
+        # Absent rather than "now" for a record that must not expire: a `ttl` of `now + 0`
+        # would mark the row for deletion the moment TTL is enabled on the table.
+        'ttl': now + int(ttl_seconds) if int(ttl_seconds or 0) > 0 else None,
     }
     if extra:
         for field_name, value in extra.items():

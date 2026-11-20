@@ -83,6 +83,7 @@ def claim_event(event_id: Optional[str], source: str = 'whatsapp', ttl_days: int
                 'source': source,
                 'processedAt': now,
                 'expiresAt': expires_at,
+                'ttl': expires_at,
             },
             ConditionExpression='attribute_not_exists(eventId)',
         )
@@ -105,7 +106,7 @@ def is_duplicate(event_id: Optional[str], source: str = 'whatsapp', ttl_days: in
 
 #: How long a handler may hold a leased claim before another delivery may take it. Long enough to
 #: cover a Lambda timeout plus a provider verification round trip; short enough that a crash does
-#: not stall recovery for days.
+#: not stall recovery until the 7-day TTL.
 DEFAULT_LEASE_SECONDS = int(os.environ.get('WEBHOOK_LEASE_SECONDS', '900'))
 
 
@@ -144,6 +145,7 @@ def claim_event_with_lease(event_id: Optional[str], source: str = 'razorpay',
         'processedAt': now,
         'leaseExpiresAt': lease_until,
         'expiresAt': expires_at,
+        'ttl': expires_at,
     }
 
     try:

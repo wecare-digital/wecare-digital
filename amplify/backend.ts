@@ -33,10 +33,11 @@ const backend = defineBackend( {
   storage,
 } );
 
-// ─── DynamoDB TTL Configuration ──────────────────────────────────────
-// Enable TTL on tables that have expiresAt/ttl fields.
-// DynamoDB TTL is intentionally NOT enabled on any table. Rows are retained until
-// deleted explicitly. Do not add a TimeToLiveSpecification override here.
+// ─── DynamoDB retention configuration ───────────────────────────────
+// DynamoDB TTL was disabled on the physical WECARE tables on 2026-11-20.
+// Do not re-enable it through an Amplify CDK override during a later deploy.
+// Application-level expiries (sessions, signed URLs, rate limits, etc.) still
+// require their own enforcement even when DynamoDB retains the rows.
 
 // ─── Additional CDK Resources ────────────────────────────────────────
 // All additional infrastructure is attached to the data stack so it

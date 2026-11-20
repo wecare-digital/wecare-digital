@@ -286,9 +286,9 @@ def oauth_begin(owner, provider):
     # Bounded per-principal outstanding flows. Replacing the previous flow invalidates it.
     state_hash = hashlib.sha256(state.encode()).hexdigest()
     table().put_item(Item={"pk": "pending:" + owner + ":" + provider,
-        "stateHash": state_hash, "expiresAt": now + 600})
+        "stateHash": state_hash, "expiresAt": now + 600, "ttl": now + 600})
     table().put_item(Item={"pk": "oauth:" + state_hash, "owner": owner,
-        "provider": provider, "expiresAt": now + 600,
+        "provider": provider, "expiresAt": now + 600, "ttl": now + 600,
         "cipher": encrypt({"verifier": verifier}, owner, provider)})
     parameters = {"response_type": "code", "client_id": registered["client_id"], "redirect_uri": CALLBACK,
         "state": state,

@@ -18,8 +18,10 @@ Shape, and why:
                 version and canonical arguments. One row per intent means the
                 single-use condition has exactly one thing to test.
 
-  No DynamoDB TTL. Expiry is the `expiresAt > :now` condition in
-                DynamoApprovalStore.consume.
+  expiresTtl    DynamoDB TTL attribute. Housekeeping only. TTL deletion is
+                documented as taking up to 48 hours, so an expired approval would
+                stay spendable for two days if TTL were the control. The control is
+                the `expiresAt > :now` condition in DynamoApprovalStore.consume.
 
   PAY_PER_REQUEST. Approvals are granted by a human clicking approve; the traffic is
   measured in per-day, not per-second. Provisioned capacity here would be paying a
@@ -39,12 +41,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 import boto3
 from botocore.exceptions import ClientError
 
 REGION = "us-east-1"
 TABLE = "stack-wecare-digital-AgentApprovalsTable"
+TTL_ATTRIBUTE = "expiresTtl"
 
 
 def ddb():
@@ -64,7 +68,7 @@ def create(dry_run: bool) -> str:
     if describe():
         return "exists"
     if dry_run:
-        return "would create (planHash PK, PAY_PER_REQUEST, PITR)"
+        return "would create (planHash PK, PAY_PER_REQUEST, TTL on expiresTtl, PITR)"
 
     ddb().create_table(
         TableName=TABLE,
@@ -78,8 +82,8 @@ def create(dry_run: bool) -> str:
     )
     ddb().get_waiter("table_exists").wait(TableName=TABLE)
 
-    # PITR is a separate call that can fail independently of create, so it is
-    # applied after the waiter rather than assumed. No TTL is enabled.
+    # Do not enable DynamoDB TTL. Approval validity remains checked in code.
+    # Backups and PITR are independent of expiration.
     ddb().update_continuous_backups(
         TableName=TABLE,
         PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
@@ -109,7 +113,7 @@ def verify() -> int:
 
     ttl = ddb().describe_time_to_live(TableName=TABLE).get(
         "TimeToLiveDescription", {})
-    if ttl.get("TimeToLiveStatus") not in ("DISABLED", "DISABLING", None):
+    if ttl.get("TimeToLiveStatus") != "DISABLED":
         problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected DISABLED")
 
     backups = ddb().describe_continuous_backups(TableName=TABLE)

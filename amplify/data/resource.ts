@@ -49,8 +49,9 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  * were removed on 2026-09-24, and every remaining disagreement is recorded with its
  * reason in that script rather than left to be rediscovered.
  *
- * No table has DynamoDB TTL enabled. Attributes named expiresAt / ttl / expiresTtl
- * are kept in the schema so existing items stay valid, but nothing reaps them.
+ * TTL is configured in `backend.ts` for 14 models, and is additionally enforced
+ * on the physical tables by `scripts/_fix_ddb_ttl.py` - which is what actually
+ * takes effect, since the CDK override has nothing to attach to.
  */
 const schema = a.schema( {
   // Table 1: Contacts - Contact records with opt-in preferences
@@ -151,7 +152,7 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 2: Messages - All inbound/outbound messages (no TTL)
+  // Table 2: Messages - All inbound/outbound messages (TTL: 30 days)
   Message: a
     .model( {
       messageId: a.id().required(),
@@ -176,7 +177,7 @@ const schema = a.schema( {
       partnerWabaId: a.string(), // Embedded-Signup tenant WABA id (scalar, for tenant-scoped inbox GSI)
       transcription: a.string(), // English transcription of voice notes (audio messages)
       detectedLanguage: a.string(), // Detected language of voice note (e.g. "hi-IN", "en-US")
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: Unix epoch seconds (30 days)
     } )
     .identifier( [ 'messageId' ] )
     .secondaryIndexes( ( index ) => [
@@ -234,7 +235,7 @@ const schema = a.schema( {
     .secondaryIndexes( ( index ) => [ index( 'messageId' ) ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 7: DLQMessages - Failed message retry queue (no TTL)
+  // Table 7: DLQMessages - Failed message retry queue (TTL: 7 days)
   DLQMessage: a
     .model( {
       dlqMessageId: a.id().required(),
@@ -243,12 +244,12 @@ const schema = a.schema( {
       retryCount: a.integer().default( 0 ),
       lastAttemptAt: a.datetime(),
       payload: a.string(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: Unix epoch seconds (7 days)
     } )
     .identifier( [ 'dlqMessageId' ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 8: AuditLogs - System audit trail (no TTL)
+  // Table 8: AuditLogs - System audit trail (TTL: 180 days)
   AuditLog: a
     .model( {
       logId: a.id().required(),
@@ -258,7 +259,7 @@ const schema = a.schema( {
       resourceId: a.string(),
       timestamp: a.datetime(),
       details: a.string(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: Unix epoch seconds (180 days)
     } )
     .identifier( [ 'logId' ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
@@ -298,8 +299,8 @@ const schema = a.schema( {
       channel: a.string(),
       windowStart: a.string(),
       messageCount: a.integer().default( 0 ),
-      // Holds an absolute expiry (windowStart + 24h), checked in code. DynamoDB no
-      // longer reaps it.
+      // TTL is ENABLED on this attribute on the live table, so it holds an
+      // absolute expiry (windowStart + 24h), not a "last touched" stamp.
       lastUpdatedAt: a.integer(),
     } )
     .identifier( [ 'id' ] )
@@ -325,7 +326,7 @@ const schema = a.schema( {
   // channel='sms' (messaging/sms-aws/handler.py `_store_message`). The three dead
   // constants naming the absent table, and the system-cleanup registry entry that
   // raised ResourceNotFound on every run, were removed in the same change.
-  // Table 17: VoiceAws - AWS End User Messaging voice calls (dedicated, no TTL)
+  // Table 17: VoiceAws - AWS End User Messaging voice calls (dedicated, TTL: 90 days)
   VoiceAws: a
     .model( {
       callId: a.id().required(),
@@ -344,7 +345,7 @@ const schema = a.schema( {
       errorDetails: a.string(),
       createdAt: a.integer(),
       updatedAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL
     } )
     .identifier( [ 'callId' ] )
     .secondaryIndexes( ( index ) => [
@@ -375,7 +376,7 @@ const schema = a.schema( {
   // RCS_TABLE constants naming the absent table went on 2026-09-21. The name stays
   // in ACCEPTED_ABSENT in scripts/audit_data_model_drift.py so a reintroduction is
   // still reported.
-  // Table 13: VoiceCDR - Voice call detail records (no TTL)
+  // Table 13: VoiceCDR - Voice call detail records (TTL: 90 days)
   // Physical table: stack-wecare-digital-VoiceCDRTable (the model name maps to it in
   // scripts/check_data_model_drift.py). One writer: messaging/plivo-answer
   // `_persist_cdr`, one row per PSTN call under id `plivo#{CallUUID}`, merged forward
@@ -413,7 +414,7 @@ const schema = a.schema( {
       // Time
       timestamp: a.string(), // UTC, '%Y-%m-%d %H:%M:%S'
       createdAt: a.integer(), // Unix epoch seconds, set once; the readers' sort key
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: Unix epoch seconds (90 days)
 
       // snake_case copies the writer still stores beside the camelCase fields, so a
       // later callback never strips them off an older row
@@ -460,7 +461,7 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 19: WhatsAppVoice - WhatsApp TTS/Audio voice message logs (no TTL)
+  // Table 19: WhatsAppVoice - WhatsApp TTS/Audio voice message logs (TTL: 90 days)
   WhatsAppVoice: a
     .model( {
       messageId: a.id().required(),
@@ -479,7 +480,7 @@ const schema = a.schema( {
       transcription: a.string(), // English transcription of voice note
       detectedLanguage: a.string(), // Detected source language
       createdAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL
     } )
     .identifier( [ 'messageId' ] )
     .secondaryIndexes( ( index ) => [
@@ -540,7 +541,7 @@ const schema = a.schema( {
       timestamp: a.string(),
       createdAt: a.integer(),
       updatedAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: Unix epoch seconds (90 days)
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -602,7 +603,7 @@ const schema = a.schema( {
       detectedLanguage: a.string(), // Detected language of voice note
       timestamp: a.string(),
       createdAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -634,7 +635,7 @@ const schema = a.schema( {
       detectedLanguage: a.string(), // Language of outbound voice note
       timestamp: a.string(),
       createdAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -819,7 +820,7 @@ const schema = a.schema( {
       razorpayEventId: a.string(), // Idempotency key
       processedAt: a.integer(),
       createdAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: Unix epoch seconds (180 days)
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -841,8 +842,8 @@ const schema = a.schema( {
       eventId: a.string().required(), // Unique event identifier
       source: a.string().required(), // whatsapp, razorpay
       processedAt: a.integer(),
-      expiresAt: a.integer(), // legacy retention attribute, no longer reaped
-      ttl: a.integer(), // legacy attribute, no longer reaped
+      expiresAt: a.integer(), // TTL: 7 days
+      ttl: a.integer(), // TTL attribute for backend.ts override
       // Lease fields. `claim_event` claims permanently, which is right for an inbound message:
       // a Meta redelivery hours later must not re-insert it. But taking the claim BEFORE the work
       // and never releasing it means a handler exception makes the provider's retry look like a
@@ -923,7 +924,7 @@ const schema = a.schema( {
       severity: a.string().default( 'info' ), // info, warning, error, critical
       acknowledged: a.boolean().default( false ),
       createdAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: 180 days
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -946,7 +947,7 @@ const schema = a.schema( {
       availability: a.string(), // in_stock, out_of_stock
       rawData: a.string(), // Full product JSON
       syncedAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: 7 days (cache refresh)
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -969,7 +970,7 @@ const schema = a.schema( {
       convertedAt: a.integer(), // When user performed target action
       conversionType: a.string(), // message_sent, purchase, signup
       createdAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: 180 days
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
@@ -1291,7 +1292,7 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table: FlowDraft — Draft persistence for interrupted flows (no TTL)
+  // Table: FlowDraft — Draft persistence for interrupted flows (TTL: 7 days)
   FlowDraft: a
     .model( {
       draftKey: a.string().required(), // "{phone}#{flowCode}"
@@ -1300,7 +1301,7 @@ const schema = a.schema( {
       screen: a.string(), // Last screen the user was on
       formData: a.string(), // JSON of accumulated form data
       updatedAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: 7 days
     } )
     .identifier( [ 'draftKey' ] )
     .secondaryIndexes( ( index ) => [
@@ -1392,7 +1393,7 @@ const schema = a.schema( {
       errorType: a.string(),
       errorMessage: a.string(),
       createdAt: a.integer(),
-      ttl: a.integer(), // legacy retention attribute, no longer reaped
+      ttl: a.integer(), // TTL: 90 days
     } )
     .identifier( [ 'logId' ] )
     .secondaryIndexes( ( index ) => [

@@ -47,7 +47,11 @@ Shape, and why
                   `query` on the partition: the owner row and the context that explains it
                   come back together.
 
-  No TTL. Rows are kept until deleted explicitly.
+  TTL on expiresAt, 7 days. Ownership is operational routing state, not a record of what a
+  customer was told, so a dormant thread should self-clean. 7 days rather than 1: the
+  documented idle reset is 24 hours, and state that expired at exactly the reset boundary
+  could not be *reconciled against* that reset — you need to still be holding the stale
+  value to notice it went idle.
 
   PAY_PER_REQUEST. Volume tracks inbound WhatsApp traffic, which is 473 real customer
   messages in 30 days. Provisioned capacity would pay a baseline for an idle table.
@@ -79,6 +83,7 @@ TABLE = "stack-wecare-digital-ThreadOwnershipTable"
 
 HASH_KEY = "threadKey"
 RANGE_KEY = "recordType"
+TTL_ATTRIBUTE = "expiresAt"
 
 #: Only key attributes. DynamoDB is schemaless for the rest and rejects a non-key
 #: attribute declared here.
@@ -106,7 +111,7 @@ def create(dry_run: bool) -> str:
         return "exists"
     if dry_run:
         return (f"would create ({HASH_KEY} HASH + {RANGE_KEY} RANGE, PAY_PER_REQUEST, "
-                f"no GSI, no TTL, PITR)")
+                f"no GSI, TTL on {TTL_ATTRIBUTE}, PITR)")
 
     ddb().create_table(
         TableName=TABLE,
@@ -123,8 +128,8 @@ def create(dry_run: bool) -> str:
     )
     ddb().get_waiter("table_exists").wait(TableName=TABLE)
 
-    # PITR is a separate call that can fail independently of create, so it is
-    # applied after the waiter rather than assumed to have happened. No TTL is enabled.
+    # Retention is non-expiring at the DynamoDB layer. Do not re-enable TTL.
+    # PITR is still required independently of TTL.
     ddb().update_continuous_backups(
         TableName=TABLE,
         PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
@@ -158,7 +163,7 @@ def verify() -> int:
         problems.append("unexpected GSI - every access path here is by threadKey")
 
     ttl = ddb().describe_time_to_live(TableName=TABLE).get("TimeToLiveDescription", {})
-    if ttl.get("TimeToLiveStatus") not in ("DISABLED", "DISABLING", None):
+    if ttl.get("TimeToLiveStatus") != "DISABLED":
         problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected DISABLED")
 
     backups = ddb().describe_continuous_backups(TableName=TABLE)

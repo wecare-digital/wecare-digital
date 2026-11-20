@@ -96,6 +96,7 @@ def create(table: Any, product_reader: ProductReader, items: Sequence[Mapping[st
         # Live CartTable: updatedAt is the STRING sort key of customerId-updatedAt-index.
         # Decimal epoch seconds preserve chronological ordering and existing readers call int(...).
         "updatedAt": str(now),
+        "expiresTtl": now + CART_TTL_SECONDS,
     }
     for item in items:
         _merge_line(cart, product_reader, item)

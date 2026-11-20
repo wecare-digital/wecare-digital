@@ -340,10 +340,10 @@ def record_signal(phone_number_id: str, *, bsuid: str = "", wa_id: str = "",
 
     owned = _SIGNAL_OWNERSHIP[signal]
     names = {"#owned": "owned", "#last": "lastSignal", "#upd": "updatedAt",
-             "#act": "lastUserActivityAt", "#det": "lastSignalDetail"}
+             "#exp": "expiresAt", "#act": "lastUserActivityAt", "#det": "lastSignalDetail"}
     values = {":owned": owned, ":last": signal, ":now": moment,
-              ":det": str(detail or "")[:200]}
-    sets = ["#owned = :owned", "#last = :last", "#upd = :now",
+              ":exp": moment + RECORD_TTL_SECONDS, ":det": str(detail or "")[:200]}
+    sets = ["#owned = :owned", "#last = :last", "#upd = :now", "#exp = :exp",
             "#det = :det"]
 
     if signal in _USER_ACTIVITY_SIGNALS:
@@ -482,6 +482,7 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
             "senderName": str(sender_name or "").strip()[:160],
             "messageTimestamp": int(message.get("timestamp") or moment),
             "observedAt": moment,
+            "expiresAt": moment + RECORD_TTL_SECONDS,
         })
         # Preserve the complete AI-handled history in the staff Inbox as an
         # explicitly read-only projection. This neither takes conversation

@@ -1765,29 +1765,10 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
             'errorCode': 'ERASURE_REQUEST_INVALID',
         }, origin)
 
-    actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '')
-    coordinator = os.environ.get('ERASURE_COORDINATOR_FUNCTION', '').strip()
-    if not coordinator:
-        # DEVIATION from the approval workflow: with no external coordinator deployed, the
-        # Admin+MFA gate and the explicit hard=true request are the approval. caseId,
-        # manifestSha256 and approvalToken are NOT required here (they exist only for a
-        # coordinator to validate). The payment/lock/alias guards above still run, and the
-        # action is audited. A configured coordinator keeps the full approval contract below.
-        return _hard_delete_in_process(contact_id, actor, request_id, origin)
-
-    missing = [k for k in ('caseId', 'manifestSha256', 'approvalToken')
-               if not str(body.get(k) or '').strip()]
-    if missing:
-        return cors_response(400, {
-            'error': 'An external erasure coordinator is configured; approval fields are required: '
-                     + ', '.join(missing),
-            'errorCode': 'ERASURE_APPROVAL_FIELDS_REQUIRED',
-            'missingFields': missing,
-        }, origin)
-
     from lambda_utils.erasure.dispatch import dispatch_approved_erasure
+    actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '')
     outcome = dispatch_approved_erasure(
-        coordinator_function=coordinator,
+        coordinator_function=os.environ.get('ERASURE_COORDINATOR_FUNCTION', '').strip(),
         contact_id=contact_id,
         actor=actor,
         case_id=str(body.get('caseId') or '').strip(),
@@ -1801,42 +1782,6 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '',
               errorCode=outcome.payload.get('errorCode', ''),
               statusCode=outcome.status, requestId=request_id)
     return cors_response(outcome.status, outcome.payload, origin)
-
-
-def _hard_delete_in_process(contact_id: str, actor: str, request_id: str, origin: str) -> Dict[str, Any]:
-    """Delete the contact row and free its identity claims so the number can be re-added.
-
-    Runs only after the Admin+MFA and payment/lock/alias gates in `_delete`. Payment, invoice
-    and Razorpay tables are never touched. The audit record is written first and must succeed.
-    """
-    from lambda_utils.erasure import identity_release
-    audit_id = record_audit(
-        action='contact.permanent_delete', actor=actor, resource_type='contact',
-        resource_id=contact_id, details={'requestId': request_id, 'mode': 'in_process'})
-    if not audit_id:
-        return cors_response(503, {
-            'error': 'Audit log unavailable; nothing was deleted',
-            'errorCode': 'ERASURE_AUDIT_UNAVAILABLE', 'erasureComplete': False}, origin)
-    try:
-        result = identity_release.release_contact_identity(
-            contacts_table=dynamodb.Table(CONTACTS_TABLE),
-            claims_table=dynamodb.Table(identity_claims.TABLE_NAME),
-            contact_id=contact_id)
-    except identity_release.ErasureRefused as refusal:
-        return cors_response(409, {
-            'error': str(refusal), 'errorCode': 'ERASURE_REFUSED',
-            'erasureComplete': False, 'archiveInstead': True}, origin)
-    except Exception:  # noqa: BLE001 - retryable: claims are released before the row is removed
-        logger.exception('contact_permanent_delete_failed')
-        return cors_response(500, {
-            'error': 'Delete did not finish; it is safe to retry',
-            'errorCode': 'ERASURE_INCOMPLETE', 'erasureComplete': False,
-            'auditId': audit_id}, origin)
-    log_event(logger, 'contact_permanent_delete', statusCode=200, requestId=request_id,
-              auditId=audit_id, **result)
-    return cors_response(200, {
-        'success': True, 'erasureComplete': True, 'auditId': audit_id, 'status': 'deleted',
-        **result}, origin)
 
 
 def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:

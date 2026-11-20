@@ -71,6 +71,11 @@ def ensure_table() -> None:
         ddb.get_waiter("table_exists").wait(TableName=TABLE_NAME)
         print(f"[ddb] created: {TABLE_NAME}")
 
+    ttl = ddb.describe_time_to_live(TableName=TABLE_NAME).get("TimeToLiveDescription", {})
+    if ttl.get("TimeToLiveStatus") != "DISABLED":
+        raise RuntimeError("DynamoDB TTL unexpectedly enabled for SiteLanguageCache")
+    print("[ddb] TTL disabled; not changing retention")
+
 
 def ensure_role_policy() -> None:
     iam = boto3.client("iam", region_name=REGION)

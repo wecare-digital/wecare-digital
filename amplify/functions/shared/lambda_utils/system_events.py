@@ -57,6 +57,7 @@ def record_system_event(event_type: str, waba_id: Optional[str] = None,
             'severity': severity,
             'acknowledged': False,
             'createdAt': now,
+            'ttl': now + TTL_DAYS * 24 * 60 * 60,
         }
         _dynamodb.Table(SYSTEM_EVENT_TABLE).put_item(Item={k: v for k, v in item.items() if v != ''})
         return event_id

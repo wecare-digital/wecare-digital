@@ -52,6 +52,10 @@ OUTBOX = f"{PREFIX}-NotificationOutbox"
 QUEUE = f"{PREFIX}-notification-queue"
 DLQ = f"{PREFIX}-notification-dlq"
 
+#: Every table TTLs on the same attribute name, so a sweep or an audit does not need
+#: a per-table lookup to know which one to read.
+TTL_ATTRIBUTE = "expiresAt"
+
 TABLES = {
     EVENTS: {
         "keys": [("eventClaimKey", "HASH")],
@@ -131,6 +135,15 @@ def create_table(name: str, spec: dict, dry_run: bool) -> str:
     )
     _ddb().get_waiter("table_exists").wait(TableName=name)
     return "created"
+
+
+def enable_ttl(name: str, dry_run: bool) -> str:
+    """Compatibility hook: never turn DynamoDB expiry on after retention disable."""
+    current = _ddb().describe_time_to_live(TableName=name)
+    desc = current.get("TimeToLiveDescription", {}) or {}
+    if desc.get("TimeToLiveStatus") in ("ENABLED", "ENABLING"):
+        raise RuntimeError(f"{name}: TTL unexpectedly enabled; review table policy")
+    return "TTL intentionally disabled"
 
 
 def enable_pitr(name: str, dry_run: bool) -> str:
@@ -227,7 +240,7 @@ def verify() -> int:
 
         ttl = (_ddb().describe_time_to_live(TableName=name)
                .get("TimeToLiveDescription", {}) or {})
-        ttl_ok = ttl.get("TimeToLiveStatus") in ("DISABLED", "DISABLING", None)
+        ttl_ok = ttl.get("TimeToLiveStatus") == "DISABLED"
 
         pitr = (_ddb().describe_continuous_backups(TableName=name)
                 .get("ContinuousBackupsDescription", {})
@@ -306,6 +319,7 @@ def main(argv=None) -> int:
         print(f"  {name}")
         print(f"    {create_table(name, spec, args.dry_run)}")
         if not args.dry_run or table_exists(name):
+            print(f"    {enable_ttl(name, args.dry_run)}")
             print(f"    {enable_pitr(name, args.dry_run)}")
 
     print()

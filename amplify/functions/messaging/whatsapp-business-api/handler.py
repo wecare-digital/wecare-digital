@@ -4139,6 +4139,7 @@ def _log_flow_interaction(flow_config: Dict, flow_token: str, phone: str,
             'screen': screen,
             'requestId': request_id,
             'createdAt': Decimal(str(now)),
+            'ttl': now + (90 * 86400),  # 90 days
         }
         if data:
             try:
@@ -6656,6 +6657,7 @@ def _track_customer_menu_template_send(*, phone: str, contact: Dict[str, Any],
         'status': 'pending',
         'timestamp': Decimal(str(now)),
         'createdAt': Decimal(str(now)),
+        'expiresAt': Decimal(str(now + 30 * 86400)),
         'awsPhoneNumberId': PHONE1_META_ID,
     }
     try:
