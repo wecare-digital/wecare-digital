@@ -604,6 +604,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return list.sort( ( a, b ) => b.lastTs - a.lastTs );
     }, [ messages, contactNames, channelFilter, wabaFilter, search ] );
 
+    // Customer Actions -> View and delete messages opens the exact saved
+    // conversation; never infer a customer from display name or partial phone.
+    useEffect( () => {
+        if ( !router.isReady ) return;
+        const contactId = String( router.query.contactId || '' ).trim();
+        if ( contactId && conversations.some( c => c.contactId === contactId ) )
+            setSelected( contactId );
+    }, [ router.isReady, router.query.contactId, conversations ] );
+
     // Thread for the selected conversation (chronological).
     const thread = useMemo( () => {
         if ( !selected ) return [];
