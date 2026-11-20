@@ -456,9 +456,9 @@ def store_standby_message(phone_number_id: str, *, bsuid: str = "", wa_id: str =
     responder is handling, which is the context a later handover would need — and they
     were the ones being discarded.
 
-    These rows go **nowhere near** `MessagesTable` or the Unified Inbox. Marking inbox rows
-    is a separate, deferred change; keeping standby context in its own table is what keeps
-    it deferrable, because no UI reads this.
+    Preserve context here first, then best-effort project the message to the canonical
+    MessagesTable as a read-only, AI-controlled inbox entry. Projection never takes
+    conversation ownership and cannot send a reply.
 
     Never raises.
     """
