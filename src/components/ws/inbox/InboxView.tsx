@@ -28,7 +28,6 @@
 import React from 'react';
 import type { Message, Contact, ConversationMeta, ApiFailure } from '../../../api/client';
 import * as api from '../../../api/client';
-import { filterInboxCleanView } from '../../../lib/inbox-clean-view';
 import { useToastContext } from '../../../contexts/ToastContext';
 
 interface Conversation {
@@ -104,29 +103,11 @@ const InboxView: React.FC = () => {
   const [ loading, setLoading ] = React.useState( true );
   const [ failure, setFailure ] = React.useState<ApiFailure | null>( null );
   const [ query, setQuery ] = React.useState( '' );
-  const [ todayOnly, setTodayOnly ] = React.useState( false );
-  const [ retainedKeys, setRetainedKeys ] = React.useState<Set<string>>( new Set() );
-
   const [ selected, setSelected ] = React.useState<string | null>( null );
   const [ meta, setMeta ] = React.useState<ConversationMeta | null>( null );
 
   const [ draft, setDraft ] = React.useState( '' );
   const [ sending, setSending ] = React.useState( false );
-
-  // This is a per-browser, reversible visibility preference; never deletes records.
-  React.useEffect( () => {
-    try {
-      const params = new URLSearchParams( window.location.search );
-      setTodayOnly( params.get( 'view' ) === 'today'
-        || ( !params.has( 'view' ) && window.localStorage.getItem( 'wc-inbox-today-view' ) === '1' ) );
-    } catch { setTodayOnly( false ); }
-  }, [] );
-
-  const toggleTodayOnly = () => {
-    const next = !todayOnly;
-    setTodayOnly( next );
-    try { window.localStorage.setItem( 'wc-inbox-today-view', next ? '1' : '0' ); } catch { /* storage optional */ }
-  };
 
   const load = React.useCallback( async () => {
     setFailure( null );
@@ -135,28 +116,16 @@ const InboxView: React.FC = () => {
       // render "No conversations" over an outage. collectApiFailures recovers the reason.
       // An unavailable retention tag registry must never turn the inbox blank,
       // nor allow a filtered view to hide a potentially held conversation.
-      const [ recordsResult, holdResult ] = await Promise.all( [
-        api.collectApiFailures( () => Promise.all( [
-          api.listMessages( undefined, 'ALL', 2000 ),
-          api.listContacts(),
-        ] ) ),
-        api.collectApiFailures( () => Promise.all( [ api.listConversationMeta() ] ) ),
-      ] );
+      const recordsResult = await api.collectApiFailures( () => Promise.all( [
+        api.listMessages( undefined, 'ALL', 2000 ),
+        api.listContacts(),
+      ] ) );
       const [ msgs, contacts ] = recordsResult.data;
-      const [ metas ] = holdResult.data;
       setFailure( recordsResult.failures[ 0 ] ?? null );
       const dir: Record<string, string> = {};
       ( contacts as Contact[] ).forEach( c => { dir[ c.contactId ] = c.name || c.email || c.phone || ''; } );
       setNames( dir );
       setMessages( msgs as Message[] );
-      if ( holdResult.failures.length ) {
-        setTodayOnly( false ); // Fail open to full message history.
-        setRetainedKeys( new Set() );
-      } else {
-        setRetainedKeys( new Set( ( metas as ConversationMeta[] )
-          .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
-          .map( m => m.conversationId ) ) );
-      }
     } catch {
       setFailure( {
         kind: 'network',
@@ -182,13 +151,9 @@ const InboxView: React.FC = () => {
   // Reset the composer when switching threads.
   React.useEffect( () => { setDraft( '' ); }, [ selected ] );
 
-  const visibleMessages = React.useMemo( () => todayOnly
-    ? filterInboxCleanView( messages, new Date().setHours( 0, 0, 0, 0 ), retainedKeys )
-    : messages, [ messages, todayOnly, retainedKeys ] );
-
   const conversations = React.useMemo<Conversation[]>( () => {
     const map = new Map<string, Conversation>();
-    for ( const m of visibleMessages ) {
+    for ( const m of messages ) {
       const key = convKeyOf( m );
       const title = names[ m.contactId ] || m.senderName || m.senderPhone || m.receivingPhone || m.contactId || 'Unknown';
       const existing = map.get( key );
@@ -216,7 +181,7 @@ const InboxView: React.FC = () => {
     return Array.from( map.values() ).sort(
       ( a, b ) => new Date( b.last.timestamp ).getTime() - new Date( a.last.timestamp ).getTime()
     );
-  }, [ visibleMessages, names ] );
+  }, [ messages, names ] );
 
   const filtered = React.useMemo( () => {
     const q = query.trim().toLowerCase();
@@ -232,11 +197,11 @@ const InboxView: React.FC = () => {
 
   const thread = React.useMemo<Message[]>( () => {
     if ( !selected ) return [];
-    return visibleMessages
+    return messages
       .filter( m => convKeyOf( m ) === selected )
       .slice()
       .sort( ( a, b ) => new Date( a.timestamp ).getTime() - new Date( b.timestamp ).getTime() );
-  }, [ visibleMessages, selected ] );
+  }, [ messages, selected ] );
 
   // Send is only wired for a WhatsApp thread with a saved contactId (the one clean existing
   // export, api.sendWhatsAppMessage). Everything else stays read-only.
@@ -288,14 +253,7 @@ const InboxView: React.FC = () => {
               aria-label="Search conversations"
             />
           </label>
-          <button type="button" className="ib-ghost" aria-pressed={ todayOnly }
-            onClick={ toggleTodayOnly }>
-            { todayOnly ? 'Show all old messages' : 'Hide old messages (today + retained)' }
-          </button>
-          { todayOnly && <p className="ib-note" role="status">
-            { messages.length - visibleMessages.length } older messages hidden in this view, not deleted. Financially flagged and retention-held conversations remain visible.
-          </p> }
-        </header>
+                  </header>
 
         { loading ? (
           <p className="ib-note">Loading conversations…</p>
