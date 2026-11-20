@@ -179,10 +179,13 @@ def prepare(*, contact_id: str, actor: str, tables: Mapping[str, Any],
             "expiresAt": now + CASE_SECONDS, "erasureComplete": False}
 
 
-def approve(*, case_id: str, actor: str, tables: Mapping[str, Any],
-            audit: Any) -> dict:
+def approve(*, case_id: str, expected_contact_id: str, actor: str,
+            tables: Mapping[str, Any], audit: Any) -> dict:
     cases = tables["SystemConfigTable"]
     case = _case(cases, case_id)
+    if case.get("contactId") != expected_contact_id:
+        raise Refused("ERASURE_CASE_CONTACT_MISMATCH",
+                      "The approval case belongs to a different contact.")
     if actor == case.get("preparedBy"):
         raise Refused("ERASURE_SECOND_REVIEWER_REQUIRED",
                       "A different administrator must approve the deletion.")
