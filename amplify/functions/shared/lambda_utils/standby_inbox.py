@@ -38,6 +38,34 @@ INBOX_PHONE_ID = {
 }
 
 
+def profile_name_from_contacts(message: Dict[str, Any], contacts: Any) -> str:
+    """Read a signed WhatsApp profile name without guessing the sender identity.
+
+    A standby batch may include multiple messages/contacts. Use only an exact
+    message.from_user_id -> contact.user_id or message.from -> contact.wa_id
+    match. Never infer a match from array order or a single contact alone.
+    """
+    message = message or {}
+    bsuid = str(message.get("from_user_id") or "").strip()
+    wa_id = str(message.get("from") or "").strip()
+    if not bsuid and not wa_id or not isinstance(contacts, list):
+        return ""
+    matched = [
+        row for row in contacts if isinstance(row, dict)
+        and ((bsuid and str(row.get("user_id") or "") == bsuid)
+             or (wa_id and str(row.get("wa_id") or "") == wa_id))
+    ]
+    if len(matched) != 1:
+        return ""
+    profile = matched[0].get("profile") or {}
+    if not isinstance(profile, dict):
+        return ""
+    name = " ".join(str(profile.get("name") or "").split())[:160]
+    if not name or name.lower() == "unknown" or name.replace("+", "").isdigit():
+        return ""
+    return name
+
+
 def _verified_contact(resource: Any, phone_id: str, bsuid: str) -> Optional[Dict[str, Any]]:
     portfolio_id = PORTFOLIO_BY_PHONE.get(phone_id)
     if not portfolio_id or not bsuid or len(bsuid) > 128:
