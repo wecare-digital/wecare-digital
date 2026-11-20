@@ -1,8 +1,8 @@
 """
 Messages Delete Lambda Handler
-Deletes messages from WhatsAppInboundTable or WhatsAppOutboundTable
-Also deletes associated media files from S3
-ONLY deletes messages - does NOT delete contacts
+Deletes eligible local inbox text messages by exact ID, from the canonical
+MessagesTable and a matching WhatsApp source row. Never deletes contacts,
+financial evidence, protected conversations, or versioned S3 media.
 """
 
 import json
@@ -109,135 +109,58 @@ def handler(event, context):
             'message': 'Create invoices from Workspace > Payments.',
         }, origin)
     
-    try:
-        # Get message ID from path
-        path_params = event.get('pathParameters', {}) or {}
-        message_id = path_params.get('messageId')
-        
-        if not message_id:
-            return cors_response(400, {'error': 'messageId is required'}, origin)
-        
-        # Get direction from query params to determine which table
-        query_params = event.get('queryStringParameters', {}) or {}
-        direction = query_params.get('direction', 'INBOUND').upper()
-        
-        # Also check if we should delete media (default: yes for hard delete)
-        delete_media = query_params.get('deleteMedia', 'true').lower() == 'true'
-        
-        # Select table based on direction
-        if direction == 'OUTBOUND':
-            table_name = OUTBOUND_TABLE
-        else:
-            table_name = INBOUND_TABLE
-        
-        table = dynamodb.Table(table_name)
-        
-        # First, get the message to check for s3Key (and get all key attributes)
-        s3_key = None
-        item = None
-        try:
-            response = table.get_item(Key={'id': message_id})
-            item = response.get('Item')
-            if item:
-                s3_key = item.get('s3Key')
-        except ClientError as e:
-            if 'ValidationException' in str(e):
-                try:
-                    response = table.get_item(Key={'messageId': message_id})
-                    item = response.get('Item')
-                    if item:
-                        s3_key = item.get('s3Key')
-                except Exception as e:
-                    logger.warning(f'Fallback message lookup by messageId failed: {e}')
-            if not item:
-                try:
-                    resp = table.scan(
-                        FilterExpression='id = :mid OR messageId = :mid',
-                        ExpressionAttributeValues={':mid': message_id},
-                        Limit=1
-                    )
-                    items = resp.get('Items', [])
-                    if items:
-                        item = items[0]
-                        s3_key = item.get('s3Key')
-                except Exception as e:
-                    logger.warning(f'Scan fallback for message {message_id} failed: {e}')
-        
-        if not item:
-            return cors_response(404, {'error': 'Message not found; nothing deleted'}, origin)
-
-        delete_key = _build_delete_key(table_name, item)
-        if not delete_key:
-            return cors_response(503, {
-                'error': 'MESSAGE_KEY_UNAVAILABLE',
-                'reason': 'Cannot verify the message primary key; nothing deleted.',
-            }, origin)
-
-        # Remove exact media FIRST. If this fails, preserve the message row so a
-        # later reviewed operation can reconcile its S3 reference.
-        media_hidden = False
-        if delete_media and s3_key:
-            try:
-                media_hidden = bool(_find_and_delete_s3_file(s3_key, message_id))
-            except Exception:
-                log_event(logger, 'message_media_delete_refused', level='warning',
-                          messageId=message_id)
-                return cors_response(503, {
-                    'error': 'MESSAGE_MEDIA_DELETE_UNCONFIRMED',
-                    'reason': 'Media removal was not confirmed; the message row was kept.',
-                }, origin)
-
-        try:
-            key_names = [component['AttributeName'] for component in _get_key_schema(table_name)]
-            if not all(key_name in delete_key for key_name in key_names):
-                return cors_response(503, {
-                    'error': 'MESSAGE_KEY_UNAVAILABLE',
-                    'reason': 'Incomplete primary key; the message row was kept.',
-                }, origin)
-            table.delete_item(
-                Key=delete_key,
-                ConditionExpression='attribute_exists(#pk)',
-                ExpressionAttributeNames={'#pk': key_names[0]},
-            )
-        except ClientError as exc:
-            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-                return cors_response(409, {
-                    'error': 'MESSAGE_NOT_FOUND',
-                    'reason': 'The message no longer exists; verify remaining media separately.',
-                }, origin)
-            return cors_response(503, {
-                'error': 'MESSAGE_DELETE_UNCONFIRMED',
-                'reason': 'Message deletion could not be confirmed; refresh before retrying.',
-            }, origin)
-        except Exception:
-            return cors_response(503, {
-                'error': 'MESSAGE_DELETE_UNCONFIRMED',
-                'reason': 'Message deletion could not be confirmed; refresh before retrying.',
-            }, origin)
-
-        # 'success' is the LEGACY single-message-row result used by existing clients,
-        # NOT a claim of full customer erasure. New integrations must read rowDeleted and
-        # erasureComplete and never treat the former as the latter.
-        return cors_response(200, {
-            'success': True,
-            'rowDeleted': True,
-            'erasureComplete': False,
-            'messageId': message_id,
-            'table': table_name,
-            'mediaHidden': media_hidden,
-            'mediaPermanentlyErased': False,
-            'warning': (
-                'S3 object versions may remain after a delete marker. '
-                'This is not a permanent customer erasure.'
-            ) if s3_key else '',
-            'message': 'Message row deleted; linked versioned media may remain.'
-                       if s3_key else 'Message row deleted.',
+    # All single-message deletes now target the exact canonical inbox row and
+    # matching WhatsApp source, not just one source table selected by direction.
+    query_params = event.get('queryStringParameters', {}) or {}
+    if http_method != 'DELETE':
+        return cors_response(405, {'error': 'Method not allowed'}, origin)
+    if query_params.get('scope', 'inbox') not in ('inbox', ''):
+        return cors_response(400, {
+            'errorCode': 'MESSAGE_DELETE_SCOPE_INVALID',
+            'error': 'Only exact local inbox message deletion is supported.',
         }, origin)
+    message_id = str((event.get('pathParameters') or {}).get('messageId') or '').strip()
+    if not message_id:
+        return cors_response(400, {'error': 'messageId is required'}, origin)
 
-    except ClientError as e:
-        return cors_response(500, {'error': 'Database error'}, origin)
-    except Exception as e:
-        return cors_response(500, {'error': 'Internal server error'}, origin)
+    denied = require_auth(event, required_role='Admin')
+    if denied is not None:
+        return denied
+    staff = event.get('_auth') or {}
+    if staff.get('role') != 'Admin' or staff.get('mfaEnrolled') is not True:
+        return cors_response(403, {
+            'errorCode': 'MESSAGE_DELETE_ADMIN_MFA_REQUIRED',
+            'error': 'Admin MFA is required to delete stored messages.',
+        }, origin)
+    actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '').strip()
+
+    from lambda_utils.erasure.inbox_delete import delete_visible_message
+    try:
+        outcome = delete_visible_message(
+            message_id=message_id,
+            actor=actor,
+            canonical_table=dynamodb.Table(
+                os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')),
+            inbound_table=dynamodb.Table(INBOUND_TABLE),
+            outbound_table=dynamodb.Table(OUTBOUND_TABLE),
+            contacts_table=dynamodb.Table(
+                os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')),
+            meta_table=dynamodb.Table(
+                os.environ.get('CONVERSATION_META_TABLE',
+                               'stack-wecare-digital-ConversationMetaTable')),
+            invoices_table=dynamodb.Table(
+                os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')),
+            orders_table=dynamodb.Table(
+                os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')),
+            audit=record_audit,
+        )
+    except Exception:
+        return cors_response(503, {
+            'errorCode': 'MESSAGE_DELETE_RECONCILIATION_REQUIRED',
+            'error': 'Message deletion could not be verified.',
+            'erasureComplete': False,
+        }, origin)
+    return cors_response(outcome.status, outcome.body, origin)
 
 
 #: Namespaces this route's confirmation tokens so one minted for a cleanup cannot be
