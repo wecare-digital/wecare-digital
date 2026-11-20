@@ -389,6 +389,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
+    // Snapshot of current Meta thread ownership; unknown remains read-only.
+    const [ ownershipByMessage, setOwnershipByMessage ] = useState<Record<string, api.Message[ 'threadOwnership' ] | null>>( {} );
 
     const loadData = useCallback( async () => {
         try
@@ -644,21 +646,18 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         return { phone, waba, contactId };
     }, [ thread, selected ] );
 
-    // A standby webhook means a different responder had this thread at that moment.
-    // It does NOT prove an AI agent is currently running. The latest INBOUND
-    // routing signal on the exact sender account must control this UI guard.
-    // A different WABA or a later outbound echo cannot establish ownership.
-    const standbyReadOnly = useMemo( () => {
-        if ( replyChannel !== 'whatsapp' || !selected ) return false;
+    // Use the latest inbound routing event on this exact sending account.
+    // Historical standby is evidence of previous ownership, not proof of now.
+    // A later outbound echo or a different WABA cannot claim this thread.
+    const latestInboundAccountMessage = useMemo<api.Message | null>( () => {
+        if ( replyChannel !== 'whatsapp' || !selected ) return null;
         const latestVisible = [ ...thread ].reverse().find(
             m => ( m.channel || '' ).toLowerCase() === 'whatsapp'
                 && ( m.direction || '' ).toLowerCase() === 'inbound'
         );
         const senderAccount = latestVisible ? messageWabaId( latestVisible ) : '';
-        // Unknown sender account is not permission to infer ownership from a
-        // different WABA of this contact. Preserve the latest visible signal.
-        if ( !senderAccount ) return latestVisible?.standbySourced === true || latestVisible?.replyAllowed === false;
-        const newest = messages
+        if ( !senderAccount ) return latestVisible || null;
+        return messages
             .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
             .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
             .filter( m => ( m.direction || '' ).toLowerCase() === 'inbound' )
@@ -667,8 +666,43 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 if ( !prev ) return m;
                 return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
             }, null );
-        return newest?.standbySourced === true || newest?.replyAllowed === false;
     }, [ messages, selected, replyChannel, thread ] );
+    const standbyHistory = latestInboundAccountMessage?.standbySourced === true
+        || latestInboundAccountMessage?.replyAllowed === false;
+    const ownershipMessageId = latestInboundAccountMessage?.standbySourced === true
+        ? latestInboundAccountMessage.id : '';
+
+    // Authenticated /messages/{id} reads a consistent OWNER row keyed by the
+    // stored phone-number ID + stored BSUID. Never allow unknown ownership to send.
+    useEffect( () => {
+        if ( !ownershipMessageId ) return;
+        let active = true;
+        const check = async () => {
+            try {
+                const item = await api.getMessage( ownershipMessageId );
+                if ( active ) setOwnershipByMessage( prev => ( {
+                    ...prev, [ ownershipMessageId ]: item?.threadOwnership ?? null,
+                } ) );
+            } catch {
+                if ( active ) setOwnershipByMessage( prev => ( {
+                    ...prev, [ ownershipMessageId ]: null,
+                } ) );
+            }
+        };
+        void check();
+        const timer = window.setInterval( () => { void check(); }, 15000 );
+        return () => { active = false; window.clearInterval( timer ); };
+    }, [ ownershipMessageId ] );
+
+    const liveOwnership = ownershipMessageId ? ownershipByMessage[ ownershipMessageId ] : null;
+    const handoverPending = !!standbyHistory
+        && !( liveOwnership?.tracked === true && liveOwnership.owned === true && liveOwnership.idle !== true );
+    // A BSUID-only placeholder is not a saved contact. Our live send path
+    // requires a verified customer record and a real recipient phone.
+    const hasVerifiedRecipient = !!selectedContact && !!replyTarget.phone
+        && !!( selectedContact.phone || selectedContact.bsuid );
+    const recipientUnresolved = !!standbyHistory && !handoverPending && !hasVerifiedRecipient;
+    const standbyReadOnly = handoverPending || recipientUnresolved;
 
     // A standby state is about the sender's Meta Conversation Routing, not whether
     // Meta AI is enabled. Do not poll AI settings or label this as AI-controlled.
@@ -676,8 +710,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const senderAccountKey = senderAccountId === WABAS[ 0 ].id ? 'WABA1'
         : senderAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
     const metaRoutingUrl = senderAccountKey === 'WABA2'
-        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=125951953587391'
-        : 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922';
+        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922'
+        : 'https://business.facebook.com/latest/settings/conversation_routing?business_id=125951953587391';
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -718,7 +752,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     }, [ replyTarget, toast, loadData ] );
 
     const handleReply = useCallback( async () => {
-        if ( standbyReadOnly ) { toast.error( 'WhatsApp has not handed this thread to our inbox. Complete Meta Conversation Routing before replying.' ); return; }
+        if ( standbyReadOnly ) { toast.error( recipientUnresolved
+            ? 'Thread ownership is confirmed, but the customer needs a verified recipient contact before sending.'
+            : 'WhatsApp has not handed this thread to our inbox. Complete Meta Conversation Routing before replying.' ); return; }
         if ( sending ) return;
         const base = replyText.trim();
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
@@ -847,7 +883,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData, standbyReadOnly, recipientUnresolved ] );
 
     const openTts = useCallback( () => {
         if ( !replyTarget.contactId ) { toast.error( 'Voice note needs a saved contact' ); return; }
@@ -1235,7 +1271,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
                                         { standbyReadOnly && (
                                             <span className="ui-badge" title="The latest WhatsApp inbound event was a standby copy. This integration has not received a confirmed handover.">
-                                                WhatsApp handover pending
+                                                { recipientUnresolved ? 'Recipient verification needed' : 'WhatsApp handover pending' }
                                             </span>
                                         ) }
                                     </span>
@@ -1402,12 +1438,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     { standbyReadOnly ? (
                                         <div className="ui-handover-notice" role="status">
                                             <strong>
-                                                { selectedConv?.name || 'WhatsApp contact' } · WhatsApp handover required
+                                                { selectedConv?.name || 'WhatsApp contact' } · { recipientUnresolved ? 'Verify recipient' : 'WhatsApp handover required' }
                                             </strong>
                                             <p>
-                                                This thread arrived as a standby copy, not a message delivered for this integration to answer.
-                                                No later regular inbound message has confirmed control for this WhatsApp account.
-                                                You can read the history, but replying is unavailable until Meta routes the thread here.
+                                                This thread previously arrived as a standby copy.
+                                                { recipientUnresolved
+                                                    ? ' Our latest ownership check confirms thread control, but the customer lacks a verified saved contact and recipient phone.'
+                                                    : ' No later normal inbound event or ownership read has confirmed our control for this sender account.' }
+                                                {' '}Replies remain paused to prevent failed or misaddressed messages.
                                             </p>
                                             { !replyTarget.phone && (
                                                 <p>WhatsApp also withheld the customer phone in this standby event.
@@ -1419,9 +1457,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 </a>
                                             </div>
                                             <p className="ui-handover-footnote">
-                                                Confirm this sender account owns the conversation in Meta.
-                                                After handover, refresh the inbox or wait for a regular incoming message.
-                                                Disabling AI alone does not change WhatsApp routing.
+                                                { recipientUnresolved
+                                                    ? "Verify and link this customer's WhatsApp identity through the authorized customer workflow. Do not guess a phone number."
+                                                    : 'Confirm this sender account owns the conversation in Meta. Ownership refreshes automatically after handover; turning AI off does not transfer the thread.' }
                                             </p>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
