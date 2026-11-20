@@ -133,19 +133,30 @@ const InboxView: React.FC = () => {
     try {
       // Both calls return [] on failure as well as on an empty table, so a bare catch would
       // render "No conversations" over an outage. collectApiFailures recovers the reason.
-      const { data: [ msgs, contacts, metas ], failures } = await api.collectApiFailures( () => Promise.all( [
-        api.listMessages( undefined, 'ALL', 2000 ),
-        api.listContacts(),
-        api.listConversationMeta(),
-      ] ) );
-      setFailure( failures[ 0 ] ?? null );
+      // An unavailable retention tag registry must never turn the inbox blank,
+      // nor allow a filtered view to hide a potentially held conversation.
+      const [ recordsResult, holdResult ] = await Promise.all( [
+        api.collectApiFailures( () => Promise.all( [
+          api.listMessages( undefined, 'ALL', 2000 ),
+          api.listContacts(),
+        ] ) ),
+        api.collectApiFailures( () => Promise.all( [ api.listConversationMeta() ] ) ),
+      ] );
+      const [ msgs, contacts ] = recordsResult.data;
+      const [ metas ] = holdResult.data;
+      setFailure( recordsResult.failures[ 0 ] ?? null );
       const dir: Record<string, string> = {};
       ( contacts as Contact[] ).forEach( c => { dir[ c.contactId ] = c.name || c.email || c.phone || ''; } );
       setNames( dir );
       setMessages( msgs as Message[] );
-      setRetainedKeys( new Set( ( metas as ConversationMeta[] )
-        .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
-        .map( m => m.conversationId ) ) );
+      if ( holdResult.failures.length ) {
+        setTodayOnly( false ); // Fail open to full message history.
+        setRetainedKeys( new Set() );
+      } else {
+        setRetainedKeys( new Set( ( metas as ConversationMeta[] )
+          .filter( m => ( m.tags || [] ).includes( 'retention-hold' ) )
+          .map( m => m.conversationId ) ) );
+      }
     } catch {
       setFailure( {
         kind: 'network',
