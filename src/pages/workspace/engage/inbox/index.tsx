@@ -576,11 +576,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const selectedContact = selected ? contactDir[ selected ] : undefined;
     const whatsAppName = [ ...thread ].reverse().map( realWhatsAppName ).find( Boolean ) || '';
     const replyChannel = thread.length ? ( thread[ thread.length - 1 ].channel || 'whatsapp' ).toLowerCase() : 'whatsapp';
-    // A standby copy was observed while Meta's AI/another responder owned the
-    // conversation. Show its history, but do not offer sends until a normal
-    // owned message/handover has advanced the thread.
-    const standbyReadOnly = replyChannel === 'whatsapp' && thread.length > 0
-        && thread[ thread.length - 1 ].standbySourced === true;
 
     // Derive the reply target (recipient phone, WABA, contactId) from the thread.
     const replyTarget = useMemo( () => {
@@ -602,6 +597,23 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         if ( isPhone && !phone ) phone = selected || '';
         return { phone, waba, contactId };
     }, [ thread, selected ] );
+
+    // Derive ownership from ALL messages for this exact WhatsApp sender account,
+    // not from the currently filtered thread. A filter may hide newer messages,
+    // and the same customer can have independent Meta ownership on each sender.
+    const standbyReadOnly = useMemo( () => {
+        if ( replyChannel !== 'whatsapp' || !selected ) return false;
+        const senderAccount = messageWabaId( thread[ thread.length - 1 ] );
+        const newest = messages
+            .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
+            .filter( m => ( m.channel || '' ).toLowerCase() === 'whatsapp' )
+            .filter( m => !senderAccount || messageWabaId( m ) === senderAccount )
+            .reduce<api.Message | null>( ( prev, m ) => {
+                if ( !prev ) return m;
+                return ( new Date( m.timestamp ).getTime() || 0 ) > ( new Date( prev.timestamp ).getTime() || 0 ) ? m : prev;
+            }, null );
+        return newest?.standbySourced === true;
+    }, [ messages, selected, replyChannel, thread ] );
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
