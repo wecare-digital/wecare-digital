@@ -308,11 +308,11 @@ export async function prepareContactErasure ( contactId: string ) {
 /** A second, distinct Admin with MFA approves the exact reviewed digest.
  * The grant can be used once and expires; it is never stored in localStorage.
  */
-export async function approveContactErasure ( caseId: string ) {
+export async function approveContactErasure ( caseId: string, contactId: string ) {
   return apiCallResult<ErasureCasePreview>(
     `${API_BASE}/contacts`,
     { method: 'POST', body: JSON.stringify( {
-      _action: 'erasure_approve', caseId,
+      _action: 'erasure_approve', caseId, contactId,
     } ) }, 0, 20000, false,
   );
 }
