@@ -41,6 +41,8 @@ export interface Message {
   senderBsuid?: string;
   /** True for a read-only event observed while another responder (e.g. AI) owns the thread. */
   standbySourced?: boolean;
+  /** Live owner snapshot, verified by the authenticated single-message read. */
+  threadOwnership?: { tracked: boolean; owned: boolean; idle: boolean; lastSignal?: string };
   routingOwner?: string;
   replyAllowed?: boolean;
   senderUsername?: string;
@@ -248,6 +250,12 @@ function normalizeMessage ( item: any ): Message {
     senderName: item.senderName,
     senderBsuid: item.senderBsuid,
     standbySourced: item.standbySourced === true,
+    threadOwnership: item.threadOwnership && typeof item.threadOwnership === 'object' ? {
+      tracked: item.threadOwnership.tracked === true,
+      owned: item.threadOwnership.owned === true,
+      idle: item.threadOwnership.idle === true,
+      lastSignal: typeof item.threadOwnership.lastSignal === 'string' ? item.threadOwnership.lastSignal : '',
+    } : undefined,
     routingOwner: item.routingOwner,
     replyAllowed: item.replyAllowed === false ? false : undefined,
     senderUsername: item.senderUsername,
