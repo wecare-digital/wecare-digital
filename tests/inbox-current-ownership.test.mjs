@@ -11,7 +11,7 @@ test('standby badge is history, reply requires current ownership and a verified 
     'ownershipMessageId', 'api.getMessage( ownershipMessageId )',
     'liveOwnership?.tracked === true', 'liveOwnership.owned === true',
     'liveOwnership.idle !== true', 'hasVerifiedRecipient',
-    'const recipientUnresolved = standbyHistory && !handoverPending',
+    'const recipientUnresolved = !!standbyHistory && !handoverPending',
     'const standbyReadOnly = handoverPending || recipientUnresolved',
   ]) assert.ok(inbox.includes(marker), marker);
   assert.ok(inbox.includes('WhatsApp has not handed this thread to our inbox'));
