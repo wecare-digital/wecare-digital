@@ -81,7 +81,7 @@ def setup(monkeypatch):
 
 
 def test_normal_text_requires_audit_and_exact_primary_key(setup):
-    status, result = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    status, result = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
     assert status == 200
     assert result["rowDeleted"] is True
     assert result["erasureComplete"] is False
@@ -102,7 +102,7 @@ def test_media_and_payment_words_are_not_deleted(setup):
         record(messageType="flow_response"),
     ]:
         setup.tables[handler.CANONICAL_TABLE].row = row
-        status, result = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+        status, result = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
         assert status == 409
         assert result["errorCode"] == "MESSAGE_REVIEW_REQUIRED"
     assert not setup.tables[handler.CANONICAL_TABLE].deletes
@@ -112,7 +112,7 @@ def test_captured_payment_protects_even_plain_text(setup, monkeypatch):
     monkeypatch.setattr(
         handler.contact_payment_links, "has_payment_links", lambda **_kw: Link(True),
     )
-    status, result = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    status, result = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
     assert status == 409
     assert result["errorCode"] == "MESSAGE_FINANCIAL_HISTORY"
     assert not setup.tables[handler.CANONICAL_TABLE].deletes
@@ -122,7 +122,7 @@ def test_retention_hold_blocks_deletion(setup):
     setup.tables[handler.CONVERSATION_META_TABLE].row = {
         "conversationId": "contact-1", "tags": ["retention-hold"]
     }
-    status, result = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    status, result = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
     assert status == 409
     assert result["errorCode"] == "MESSAGE_RETENTION_HOLD"
     assert not setup.tables[handler.CANONICAL_TABLE].deletes
@@ -130,11 +130,11 @@ def test_retention_hold_blocks_deletion(setup):
 
 def test_missing_identity_or_audit_failure_fails_closed(setup, monkeypatch):
     setup.tables[handler.CONTACTS_TABLE].row = None
-    status, _ = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    status, _ = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
     assert status == 409
     setup.tables[handler.CONTACTS_TABLE].row = {"id": "contact-1"}
     monkeypatch.setattr(handler, "record_audit", lambda **_kw: None)
-    status, result = payload(handler._delete_canonical_message(event(), "", "msg-1"))
+    status, result = payload(handler._delete_canonical_message(event(), "", "__canonical_inbox_v1__:msg-1"))
     assert status == 503
     assert result["errorCode"] == "MESSAGE_AUDIT_UNAVAILABLE"
     assert not setup.tables[handler.CANONICAL_TABLE].deletes
