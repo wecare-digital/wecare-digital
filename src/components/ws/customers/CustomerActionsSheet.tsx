@@ -156,7 +156,7 @@ const CustomerActionsSheet: React.FC<CustomerActionsSheetProps> = ( {
     if ( busy || !caseId.trim() ) return;
     setBusy( true );
     try {
-      const result = await api.approveContactErasure( caseId.trim() );
+      const result = await api.approveContactErasure( caseId.trim(), contact.contactId );
       if ( result.ok && result.data.status === 'APPROVED' && result.data.approvalToken ) {
         setManifestSha256( result.data.manifestSha256 );
         setApprovalToken( result.data.approvalToken );
