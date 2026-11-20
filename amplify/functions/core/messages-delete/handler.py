@@ -8,11 +8,13 @@ ONLY deletes messages - does NOT delete contacts
 import json
 import os
 import logging
+import re
 import boto3
 from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils import destructive_confirm
+from lambda_utils.ecommerce import contact_payment_links
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger, log_event
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -27,6 +29,12 @@ s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east
 # Table names - actual tables used by the system
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
+CANONICAL_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
+CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
+INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
+ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
+CONVERSATION_META_TABLE = os.environ.get('CONVERSATION_META_TABLE', 'stack-wecare-digital-ConversationMetaTable')
+_PAYMENT_TEXT = re.compile(r'(?i)(?:\\bra(?:zor)?pay\\b|\\bpayment\\b|\\bpaid\\b|\\binvoice\\b|\\border\\b|\\brefund\\b|\\btransaction\\b|\\breceipt\\b|\\bupi\\b|\\bgst\\b|[₹])')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
 # Cache key schemas to avoid repeated describe_table calls
@@ -56,6 +64,137 @@ def _build_delete_key(table_name, item):
         elif attr == 'messageId' and 'id' in item:
             key[attr] = item['id']
     return key
+
+def _delete_canonical_message(event, origin, message_id):
+    """Delete an eligible inbox text row, never a payment or media record.
+
+    This is a single-row Inbox removal, NOT deletion from WhatsApp, provider
+    history, S3 versions, backups, invoices or payment/identity tables.
+    """
+    from lambda_utils.middleware import require_auth
+    denied = require_auth(event, required_role='Admin')
+    if denied is not None:
+        return denied
+    auth = event.get('_auth') or {}
+    if auth.get('role') != 'Admin' or auth.get('mfaEnrolled') is not True:
+        return cors_response(403, {
+            'error': 'Admin MFA is required for deleting a stored message',
+            'errorCode': 'MESSAGE_DELETE_ADMIN_MFA_REQUIRED',
+        }, origin)
+    if not message_id or len(str(message_id)) > 180:
+        return cors_response(400, {'error': 'Invalid message id'}, origin)
+
+    table = dynamodb.Table(CANONICAL_TABLE)
+    try:
+        item = table.get_item(Key={'id': message_id}, ConsistentRead=True).get('Item')
+    except Exception:
+        return cors_response(503, {
+            'error': 'Message could not be verified. Nothing deleted.',
+            'errorCode': 'MESSAGE_READ_UNAVAILABLE',
+        }, origin)
+    if not item:
+        return cors_response(404, {'error': 'Message not found. Nothing deleted.'}, origin)
+    cid = str(item.get('contactId') or '')
+    if not cid:
+        return cors_response(409, {
+            'error': 'Unlinked message needs identity review before deletion.',
+            'errorCode': 'MESSAGE_IDENTITY_UNRESOLVED',
+        }, origin)
+
+    # Do not orphan attachments, metadata or payment communications. Unknown
+    # message types and non-text channel data require separate review.
+    channel = str(item.get('channel') or '').lower()
+    kind = str(item.get('messageType') or 'text').lower()
+    financial_keys = (
+        'paymentId', 'invoiceId', 'orderId', 'razorpayPaymentId',
+        'razorpayOrderId', 'paymentRequestId', 'paymentReferenceId',
+        'transactionId', 'checkoutCustomerId',
+    )
+    media_keys = (
+        's3Key', 'mediaId', 'mediaUrl', 'recordingUrl', 'flowAttachments',
+        'contactsPayload', 'flowSubmissionId',
+    )
+    if (kind not in ('text', 'reaction') or
+            channel not in ('whatsapp', 'sms', 'email', 'rcs') or
+            any(item.get(k) for k in financial_keys + media_keys) or
+            _PAYMENT_TEXT.search(str(item.get('content') or ''))):
+        return cors_response(409, {
+            'error': 'This message may contain financial evidence, media or another retained record. Nothing deleted.',
+            'errorCode': 'MESSAGE_REVIEW_REQUIRED',
+        }, origin)
+
+    try:
+        contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+            Key={'id': cid}, ConsistentRead=True,
+        ).get('Item') or {}
+        if not contact:
+            return cors_response(409, {
+                'error': 'Message contact could not be verified. Nothing deleted.',
+                'errorCode': 'MESSAGE_IDENTITY_UNRESOLVED',
+            }, origin)
+        meta = dynamodb.Table(CONVERSATION_META_TABLE).get_item(
+            Key={'conversationId': cid}, ConsistentRead=True,
+        ).get('Item') or {}
+        if 'retention-hold' in (meta.get('tags') or []):
+            return cors_response(409, {
+                'error': 'This conversation is on a retention hold.',
+                'errorCode': 'MESSAGE_RETENTION_HOLD',
+            }, origin)
+        linkage = contact_payment_links.has_payment_links(
+            invoices_table=dynamodb.Table(INVOICES_TABLE),
+            orders_table=dynamodb.Table(ORDERS_TABLE),
+            contact_row=contact,
+        )
+        if linkage.blocked:
+            return cors_response(409, {
+                'error': 'This customer has payment/order history. Message deletion requires reviewed preservation.',
+                'errorCode': 'MESSAGE_FINANCIAL_HISTORY',
+            }, origin)
+    except Exception as exc:
+        log_event(logger, 'canonical_message_review_unavailable', errorType=type(exc).__name__)
+        return cors_response(503, {
+            'error': 'Financial or identity checks are unavailable. Nothing deleted.',
+            'errorCode': 'MESSAGE_REVIEW_UNAVAILABLE',
+        }, origin)
+
+    actor = str((auth.get('attributes') or {}).get('sub') or auth.get('username') or '')
+    if not actor:
+        return cors_response(403, {'error': 'Verified staff identity required.'}, origin)
+    audit_id = record_audit(
+        action='messages.delete_inbox_text',
+        actor=actor,
+        resource_type='message',
+        resource_id=message_id,
+        details={'channel': channel, 'type': kind, 'scope': 'one_canonical_row'},
+    )
+    if not audit_id:
+        return cors_response(503, {
+            'error': 'Audit record unavailable. Nothing deleted.',
+            'errorCode': 'MESSAGE_AUDIT_UNAVAILABLE',
+        }, origin)
+
+    try:
+        table.delete_item(
+            Key={'id': message_id},
+            ConditionExpression=(
+                'attribute_exists(id) AND contactId = :cid AND '
+                'attribute_not_exists(s3Key) AND attribute_not_exists(mediaId) AND '
+                'attribute_not_exists(mediaUrl) AND attribute_not_exists(paymentId) AND '
+                'attribute_not_exists(invoiceId) AND attribute_not_exists(orderId)'
+            ),
+            ExpressionAttributeValues={':cid': cid},
+        )
+    except Exception:
+        return cors_response(503, {
+            'error': 'Deletion could not be confirmed. Refresh before retrying.',
+            'errorCode': 'MESSAGE_DELETE_UNCONFIRMED',
+        }, origin)
+    return cors_response(200, {
+        'success': True, 'rowDeleted': True, 'erasureComplete': False,
+        'messageId': message_id, 'auditId': audit_id,
+        'message': 'Inbox row deleted. Provider copies and backups may remain.',
+    }, origin)
+
 
 def handler(event, context):
     """
@@ -120,6 +259,8 @@ def handler(event, context):
         # Get direction from query params to determine which table
         query_params = event.get('queryStringParameters', {}) or {}
         direction = query_params.get('direction', 'INBOUND').upper()
+        if query_params.get('scope') == 'canonical':
+            return _delete_canonical_message(event, origin, message_id)
         
         # Also check if we should delete media (default: yes for hard delete)
         delete_media = query_params.get('deleteMedia', 'true').lower() == 'true'
