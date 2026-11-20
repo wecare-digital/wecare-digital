@@ -110,11 +110,8 @@ def ensure_table(dry_run: bool) -> str:
         Tags=[{"Key": "domain", "Value": "pstn"}, {"Key": "phase", "Value": "5"}],
     )
     _ddb().get_waiter("table_exists").wait(TableName=TABLE)
-    _ddb().update_time_to_live(
-        TableName=TABLE,
-        TimeToLiveSpecification={"Enabled": True, "AttributeName": "expiresAt"},
-    )
-    return "created + ttl"
+    # Session validity is checked by the application; DynamoDB TTL is disabled.
+    return "created (TTL disabled)"
 
 
 def build_package() -> bytes:
