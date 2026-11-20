@@ -34,7 +34,7 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
 ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
 CONVERSATION_META_TABLE = os.environ.get('CONVERSATION_META_TABLE', 'stack-wecare-digital-ConversationMetaTable')
-_PAYMENT_TEXT = re.compile(r'(?i)(?:\\bra(?:zor)?pay\\b|\\bpayment\\b|\\bpaid\\b|\\binvoice\\b|\\border\\b|\\brefund\\b|\\btransaction\\b|\\breceipt\\b|\\bupi\\b|\\bgst\\b|[₹])')
+_PAYMENT_TEXT = re.compile(r'(?i)(?:\bra(?:zor)?pay\b|\bpayment\b|\bpaid\b|\binvoice\b|\border\b|\brefund\b|\btransaction\b|\breceipt\b|\bupi\b|\bgst\b|[₹])')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
 # Cache key schemas to avoid repeated describe_table calls
