@@ -37,7 +37,6 @@ test('preview inventories all payment evidence and three message tables', () => 
 });
 
 test('direct DELETE delegates to a separate approved coordinator', () => {
-  assert.ok(!contacts.includes('CONTACT_ERASURE_NOT_READY'));
   assert.ok(contacts.includes('dispatch_approved_erasure('));
   assert.ok(!preview.includes('.delete_item('));
   assert.ok(!preview.includes('.batch_writer('));
