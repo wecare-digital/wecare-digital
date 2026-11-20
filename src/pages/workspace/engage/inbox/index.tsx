@@ -389,6 +389,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
+    // A historical standby webhook cannot establish whether Meta AI is still
+    // enabled today. Check the live, per-WABA agent settings instead.
+    const [ agentRolloutByAccount, setAgentRolloutByAccount ] = useState<Record<string, boolean | null>>( {} );
 
     const loadData = useCallback( async () => {
         try
@@ -663,6 +666,35 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const aiAccountKey = aiAccountId === WABAS[ 0 ].id ? 'WABA1'
         : aiAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
     const aiSettingsUrl = `/workspace/communications?view=manage&section=whatsapp&tool=ai-agent${aiAccountKey ? `&waba=${aiAccountKey}` : ''}`;
+    const agentRolloutEnabled = aiAccountKey ? agentRolloutByAccount[ aiAccountKey ] : undefined;
+    const metaRoutingUrl = aiAccountKey === 'WABA2'
+        ? 'https://business.facebook.com/latest/settings/conversation_routing?business_id=382642103987922'
+        : 'https://business.facebook.com/latest/settings/conversation_routing';
+
+    // Fetch current Meta rollout, not historical routing status. Refresh while
+    // the thread is open so disabling AI in a separate Meta tab is reflected.
+    // Failure remains unknown, never "AI is on".
+    useEffect( () => {
+        if ( !standbyReadOnly || !aiAccountKey ) return;
+        let live = true;
+        const refresh = async () => {
+            try
+            {
+                const response = await api.aiAgentApi.getSettings( aiAccountKey as 'WABA1' | 'WABA2' );
+                const raw = response?.settings;
+                const settings = Array.isArray( raw ) ? raw[ 0 ] : raw;
+                const enabled = typeof settings?.rollout?.enabled === 'boolean'
+                    ? settings.rollout.enabled : null;
+                if ( live ) setAgentRolloutByAccount( previous => ( { ...previous, [ aiAccountKey ]: enabled } ) );
+            } catch
+            {
+                if ( live ) setAgentRolloutByAccount( previous => ( { ...previous, [ aiAccountKey ]: null } ) );
+            }
+        };
+        void refresh();
+        const timer = window.setInterval( () => { void refresh(); }, 60000 );
+        return () => { live = false; window.clearInterval( timer ); };
+    }, [ aiAccountKey, standbyReadOnly ] );
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -1218,7 +1250,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                             return <span key={ ch } className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>;
                                         } ) }
                                         { selectedConv && Array.from( selectedConv.wabas ).map( id => <span key={ id } className="ui-badge ui-waba-badge">{ wabaDisplay( id ) }</span> ) }
-                                        { standbyReadOnly && <span className="ui-badge" title="Another responder currently owns this thread">AI-controlled · read-only</span> }
+                                        { standbyReadOnly && (
+                                            <span className="ui-badge" title="The last inbound webhook was standby; a handover back to this integration has not been confirmed">
+                                                { agentRolloutEnabled === false ? 'AI off · handover pending' : 'Handover pending · read-only' }
+                                            </span>
+                                        ) }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
@@ -1281,7 +1317,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                 <div className="ui-msg-bubble">
                                                     <span className="ui-badge" style={ { color: cm.fg, background: cm.bg } }>{ cm.label }</span>
                                                     { messageWabaId( m ) && <span className="ui-badge ui-waba-badge">{ wabaDisplay( messageWabaId( m ) ) }</span> }
-                                                    { m.standbySourced === true && <span className="ui-badge" title="Observed while another WhatsApp responder owned this thread">AI-handled · read-only</span> }
+                                                    { m.standbySourced === true && <span className="ui-badge" title="Historical message delivered by WhatsApp as a standby copy">Received via standby</span> }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
@@ -1381,25 +1417,32 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 </div>
                                 <div className="ui-reply">
                                     { standbyReadOnly ? (
-                                        <div className="ui-reply-voice" role="status">
-                                            <strong>{ selectedConv?.name || 'WhatsApp contact' }</strong> · These messages were handled by Meta AI.
-                                            You can review the history here, but staff sending remains locked until WhatsApp hands control to this integration.
-                                            <div style={ { marginTop: 8 } }>
-                                                <Link href={ aiSettingsUrl } className="ui-reply-link">
-                                                    Stop AI for this WhatsApp number · AI settings
-                                                </Link>
-                                            </div>
-                                            <span style={ { fontSize: 12 } }>
-                                                Turning AI off affects every conversation on that number, not only this customer.
-                                                { !aiAccountKey && ' Confirm the correct WhatsApp sender account in AI settings first.' }
-                                                {' '}Stopping the AI does not release an existing thread; the Meta business owner must arrange handover.
-                                            </span>
-                                            <div style={ { marginTop: 6 } }>
-                                                <a href="https://business.facebook.com/latest/whatsapp_manager/"
-                                                    target="_blank" rel="noopener noreferrer" className="ui-reply-link">
-                                                    Manage conversation routing in WhatsApp Manager
+                                        <div className="ui-handover-notice" role="status">
+                                            <strong>
+                                                { selectedConv?.name || 'WhatsApp contact' } ·
+                                                { agentRolloutEnabled === false ? ' Meta AI is OFF' : ' WhatsApp handover needed' }
+                                            </strong>
+                                            <p>
+                                                WhatsApp last delivered this conversation as a standby copy.
+                                                { agentRolloutEnabled === false
+                                                    ? ' Turning AI off did not transfer the existing thread to the inbox.'
+                                                    : ' Staff control has not been confirmed by a normal inbound message or handover.' }
+                                                {' '}Replies remain paused to avoid failed or duplicate sends.
+                                            </p>
+                                            { !replyTarget.phone && (
+                                                <p>WhatsApp also withheld the customer phone in this standby event.
+                                                    The recipient must be resolved safely before sending.</p>
+                                            ) }
+                                            <div className="ui-handover-links">
+                                                <a href={ metaRoutingUrl } target="_blank" rel="noopener noreferrer">
+                                                    Open Meta Conversation Routing
                                                 </a>
+                                                <Link href={ aiSettingsUrl }>Check AI settings</Link>
                                             </div>
+                                            <p className="ui-handover-footnote">
+                                                Transfer the thread to this business integration in Meta, then refresh
+                                                the inbox or wait for the next regular incoming message.
+                                            </p>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
@@ -1900,6 +1943,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-reply-link { font-size: var(--text-xs); color: ${colors.textMuted}; text-decoration: none; }
         .ui-reply-link:hover { color: ${colors.primary}; }
         .ui-reply-voice { display: flex; justify-content: space-between; align-items: center; font-size: var(--text-sm); color: ${colors.textMuted}; width: 100%; }
+        /* A handover warning is a vertical message, never six horizontal flex items. */
+        .ui-handover-notice { display: flex; flex-direction: column; align-items: stretch; width: 100%; min-width: 0; max-height: min(30dvh, 230px); overflow-y: auto; padding: 10px 12px; border: 1px solid #fcd34d; border-radius: 10px; background: #fffbeb; color: ${colors.text}; gap: 6px; font-size: var(--text-sm); line-height: 1.5; box-sizing: border-box; }
+        .ui-handover-notice > p { margin: 0; overflow-wrap: anywhere; }
+        .ui-handover-notice strong { color: #92400e; }
+        .ui-handover-links { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .ui-handover-links a { font-weight: 700; color: ${colors.primary}; text-decoration: underline; overflow-wrap: anywhere; }
+        .ui-handover-footnote { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-reply-btn { background: ${colors.primary}; color: #fff; padding: 8px 18px; border: none; border-radius: 10px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
         .ui-reply-btn:hover:not(:disabled) { background: ${colors.primaryHover}; }
         .ui-reply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
