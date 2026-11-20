@@ -308,6 +308,54 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     resource = event.get('resource', event.get('rawPath', ''))
 
     try:
+        # GET /contacts?erasurePreview=1 — new, read-only staff erasure inventory.
+        # Exact private holds, message history and payment evidence are assessed
+        # without unlocking, deleting, archiving or changing customer records.
+        if method == 'GET' and query_params.get('erasurePreview') == '1':
+            # A Viewer GET must not expose a cross-customer deletion manifest.
+            # Require an actual authenticated Admin + enrolled MFA even for a
+            # direct Lambda invoke whose middleware normally skips API auth.
+            denied = require_auth(event, required_role='Admin')
+            if denied is not None:
+                return denied
+            staff = event.get('_auth') or {}
+            if staff.get('role') != 'Admin' or staff.get('mfaEnrolled') is not True:
+                return cors_response(403, {
+                    'error': 'Admin MFA required for erasure inventory',
+                    'errorCode': 'ERASURE_PREVIEW_ADMIN_MFA_REQUIRED',
+                }, origin)
+            try:
+                from lambda_utils.erasure.live_preview import inspect_tables
+                prefix = 'stack-wecare-digital-'
+                tables = {
+                    'contacts': dynamodb.Table(CONTACTS_TABLE),
+                    'conversation_meta': dynamodb.Table(
+                        os.environ.get('CONVERSATION_META_TABLE', prefix + 'ConversationMetaTable')),
+                    'message': dynamodb.Table(
+                        os.environ.get('MESSAGES_TABLE', prefix + 'MessagesTable')),
+                    'inbound': dynamodb.Table(
+                        os.environ.get('INBOUND_TABLE', prefix + 'WhatsAppInboundTable')),
+                    'outbound': dynamodb.Table(
+                        os.environ.get('OUTBOUND_TABLE', prefix + 'WhatsAppOutboundTable')),
+                    'payments': dynamodb.Table(
+                        os.environ.get('PAYMENTS_TABLE', prefix + 'PaymentsTable')),
+                    'attempts': dynamodb.Table(
+                        os.environ.get('PAYMENT_ATTEMPTS_TABLE', prefix + 'PaymentAttemptsTable')),
+                    'invoices': dynamodb.Table(INVOICES_TABLE),
+                    'orders': dynamodb.Table(ORDERS_TABLE),
+                }
+                counts = inspect_tables(tables, required_protected_contacts=2)
+                return cors_response(200, counts, origin)
+            except Exception as exc:
+                # Read access to an unknown dependency is not proof it is empty.
+                # No raw provider error, customer ID or payment value on the wire.
+                log_event(logger, 'contact_erasure_preview_unavailable',
+                          errorType=type(exc).__name__, requestId=request_id)
+                return cors_response(503, {
+                    'error': 'Erasure dependency inventory incomplete. Nothing deleted.',
+                    'errorCode': 'ERASURE_PREVIEW_UNAVAILABLE',
+                }, origin)
+
         # GET [retired public path]?consent=<contactId> — the append-only consent evidence
         # ledger plus its derived per-channel summary. A Viewer read; the writes are POST actions.
         if method == 'GET' and query_params.get('consent'):
