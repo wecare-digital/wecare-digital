@@ -10,8 +10,8 @@ export const contacts = defineFunction({
   name: 'wecare-contacts',
   entry: './handler.py',
   runtime: 20, // Python 3.12
-  timeoutSeconds: 60, // Legacy limit; no deletion saga runs in this request
-  memoryMB: 256,
+  timeoutSeconds: 300, // Junk-contact cleanup scan reads the contact, message and payment tables
+  memoryMB: 512,
   environment: {
     AWS_REGION: 'us-east-1',
     LOG_LEVEL: 'INFO',
@@ -24,6 +24,12 @@ export const contacts = defineFunction({
     // guard works whether or not the variable is live yet.
     INVOICES_TABLE: 'stack-wecare-digital-InvoicesTable',
     ORDERS_TABLE: 'stack-wecare-digital-OrderTable',
+    // Read-only inputs to the junk-contact cleanup scan (payment evidence and message history).
+    // The shared role already reads every stack-wecare-digital-* table (amplify/iam-policies.ts).
+    MESSAGES_TABLE: 'stack-wecare-digital-MessagesTable',
+    PAYMENTS_TABLE: 'stack-wecare-digital-PaymentsTable',
+    PAYMENT_ATTEMPTS_TABLE: 'stack-wecare-digital-PaymentAttemptsTable',
+    SYSTEM_CONFIG_TABLE: 'stack-wecare-digital-SystemConfigTable',
     // The handler already defaults to media_paths.BUCKET, so this line only mattered
     // on deploy — where it would have overridden a correct default with the bucket
     // deleted on 2026-09-28.
