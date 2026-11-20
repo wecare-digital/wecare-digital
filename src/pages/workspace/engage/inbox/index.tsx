@@ -19,6 +19,7 @@ import LocationSendComposer from '../../../../components/LocationSendComposer';
 import TemplateSender from '../../../../components/TemplateSender';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
+import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
@@ -318,6 +319,7 @@ const fmtTime = ( ts: string | number ) => {
 
 const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const toast = useToastContext();
+    const confirm = useConfirm();
     const [ messages, setMessages ] = useState<api.Message[]>( [] );
     const [ contactNames, setContactNames ] = useState<Record<string, string>>( {} );
     const [ contactDir, setContactDir ] = useState<Record<string, api.Contact>>( {} );
@@ -336,6 +338,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ loading, setLoading ] = useState( true );
     const [ replyText, setReplyText ] = useState( '' );
     const [ sending, setSending ] = useState( false );
+    const [ deletingMessageId, setDeletingMessageId ] = useState( '' );
     const [ replyingTo, setReplyingTo ] = useState<api.Message | null>( null );
     const [ visibleCount, setVisibleCount ] = useState( 50 );
     const [ selectedWaba, setSelectedWaba ] = useState( WABAS[ 0 ].id );
@@ -380,6 +383,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // Block + mark-unread
     const [ blocking, setBlocking ] = useState( false );
     const [ unreadIds, setUnreadIds ] = useState<Set<string>>( new Set() );
+    const autoSelectedRef = useRef( '' );
     const fileRef = useRef<HTMLInputElement | null>( null );
     const threadBodyRef = useRef<HTMLDivElement | null>( null );
     const threadEndRef = useRef<HTMLDivElement | null>( null );
@@ -484,6 +488,44 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             ( rs || [] ).filter( r => r.enabled && r.actionType === 'reply' && r.actionValue ).map( r => r.actionValue )
         ) ).catch( () => { } );
     }, [] );
+
+    // A deep link from Workspace > Customers opens that customer's messages.
+    // Apply at most once per link, otherwise background polls steal selection.
+    useEffect( () => {
+        if ( !router.isReady ) return;
+        const requested = String( router.query.contactId || '' );
+        if ( !requested || autoSelectedRef.current === requested ||
+            !contactDir[ requested ] || !messages.some( m => m.contactId === requested ) ) return;
+        autoSelectedRef.current = requested;
+        setSelected( requested );
+    }, [ router.isReady, router.query.contactId, contactDir, messages ] );
+
+    const handleDeleteInboxMessage = useCallback( async ( msg: api.Message ) => {
+        const id = msg.id;
+        if ( !id || deletingMessageId ) return;
+        const approved = await confirm( {
+            title: 'Delete this inbox message?',
+            message: 'Delete this stored inbox text record? This cannot delete provider copies, backups or attachments. Financial and retention-held records are protected by the server.',
+            confirmText: 'Delete inbox message',
+            danger: true,
+        } );
+        if ( !approved ) return;
+        setDeletingMessageId( id );
+        try {
+            const result = await api.deleteInboxMessageRecord( id );
+            if ( result.ok ) {
+                setMessages( prev => prev.filter( m => m.id !== id ) );
+                setReplyingTo( prev => prev?.id === id ? null : prev );
+                toast.success( 'Inbox text record deleted. Provider copies may remain.' );
+            } else {
+                toast.error( `Delete refused: ${result.message}` );
+            }
+        } catch {
+            toast.error( 'Deletion outcome unknown. Refresh before trying again.' );
+        } finally {
+            setDeletingMessageId( '' );
+        }
+    }, [ deletingMessageId, confirm, toast ] );
 
     // Reset composer context when switching conversations.
     useEffect( () => {
@@ -1346,6 +1388,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                                         </span>
                                                     ) }
                                                     { m.transcription && <span className="ui-msg-transcript">📝 { m.transcription }</span> }
+                                                    { m.id && (
+                                                        <button type="button" className="ui-msg-delete"
+                                                            disabled={ !!deletingMessageId }
+                                                            onClick={ () => { void handleDeleteInboxMessage( m ); } }
+                                                            title="Delete only this reviewed inbox text row; attachments and payment records are protected">
+                                                            { deletingMessageId === m.id ? 'Deleting…' : 'Delete message' }
+                                                        </button>
+                                                    ) }
                                                     <span className="ui-msg-meta">
                                                         { fmtTime( m.timestamp ) } · { ( () => {
                                                             const st = ( m.status || '' ).toLowerCase();
@@ -1877,6 +1927,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         .ui-reply-via { font-size: var(--text-xs); font-weight: 600; padding: 3px 9px; border-radius: 9999px; margin-right: auto; }
         .ui-reply-link { font-size: var(--text-xs); color: ${colors.textMuted}; text-decoration: none; }
         .ui-reply-link:hover { color: ${colors.primary}; }
+        .ui-msg-delete { display: inline-flex; align-self: flex-start; margin-top: 5px; padding: 3px 5px; border: 0; background: transparent; color: #9b2828; font-size: 11px; cursor: pointer; text-decoration: underline; }
+        .ui-msg-delete:disabled { opacity: .5; cursor: not-allowed; }
+        .ui-msg-delete:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         .ui-reply-voice { display: flex; justify-content: space-between; align-items: center; font-size: var(--text-sm); color: ${colors.textMuted}; width: 100%; }
         .ui-reply-btn { background: ${colors.primary}; color: #fff; padding: 8px 18px; border: none; border-radius: 10px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
         .ui-reply-btn:hover:not(:disabled) { background: ${colors.primaryHover}; }
