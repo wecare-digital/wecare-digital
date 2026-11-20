@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import * as api from '../../../api/client';
 import { API_BASE } from '../../../config/constants';
 import { useToastContext } from '../../../contexts/ToastContext';
@@ -68,7 +69,15 @@ const TabBtn = ( { id, active, onSelect, children }: TabBtnProps ) => (
 
 function AiAgentPageBody ( { }: PageProps ) {
     const toast = useToastContext();
+    const router = useRouter();
     const [ waba, setWaba ] = useState<WabaKey>( 'WABA1' );
+    // Inbox handover links include the exact sending business. Do not quietly
+    // default such a link to WABA1 and let staff turn off AI on the wrong number.
+    useEffect( () => {
+        if ( !router.isReady ) return;
+        const requested = String( router.query.waba || '' ).toUpperCase();
+        if ( requested === 'WABA1' || requested === 'WABA2' ) setWaba( requested );
+    }, [ router.isReady, router.query.waba ] );
     const [ tab, setTab ] = useState<Tab>( 'settings' );
 
     // Settings + eligibility
@@ -231,8 +240,20 @@ function AiAgentPageBody ( { }: PageProps ) {
         try
         {
             const r = await api.aiAgentApi.updateSettings( waba, patch );
-            if ( r?.settings ) { setSettings( r.settings ); toast.success( 'Agent settings updated' ); }
-            else toast.error( 'Update failed (check terms accepted)' );
+            if ( !r?.settings ) { toast.error( 'Update failed (check terms accepted)' ); return; }
+            // Do not report AI as stopped from a write acknowledgement alone.
+            // Read the current Meta settings back; rollout is number-specific.
+            const verified = await api.aiAgentApi.getSettings( waba );
+            const value = verified?.settings;
+            const actual = Array.isArray( value ) ? value[ 0 ] : value;
+            if ( !actual || ( typeof patch.enabled === 'boolean'
+                && actual.rollout?.enabled !== patch.enabled ) )
+            {
+                toast.error( 'Meta has not confirmed this AI setting. Verify in Business Suite.' );
+                return;
+            }
+            setSettings( actual );
+            toast.success( patch.enabled === false ? 'Meta AI turned off for this WhatsApp number' : 'Agent settings updated' );
         } catch { toast.error( 'Update failed' ); }
         finally { setSaving( false ); }
     };
@@ -292,8 +313,15 @@ function AiAgentPageBody ( { }: PageProps ) {
                     <h3 style={ { margin: '0 0 16px', fontSize: 'var(--text-base)', color: 'var(--text)' } }>Agent behaviour</h3>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
                         <div><b>AI responder</b><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>When on, the AI answers customers directly.</div></div>
-                        <button disabled={ saving } onClick={ () => saveSettings( { enabled: !enabled } ) }
-                            style={ btn( enabled ? '#dc2626' : '#059669' ) }>{ enabled ? 'Turn OFF' : 'Turn ON' }</button>
+                        <button disabled={ saving } onClick={ () => {
+                            if ( enabled && !window.confirm(
+                                `Stop Meta AI for ${WABAS.find( entry => entry.key === waba )?.label || waba}?` +
+                                ' This turns off AI for ALL conversations on this WhatsApp number, not just one customer.' +
+                                ' Existing threads may still need a Meta routing handover before staff can send.'
+                            ) ) return;
+                            saveSettings( { enabled: !enabled } );
+                        } }
+                            style={ btn( enabled ? '#dc2626' : '#059669' ) }>{ enabled ? 'Stop AI · all chats' : 'Turn ON' }</button>
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
                         <div><b>Audience</b><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Who the AI replies to.</div></div>
