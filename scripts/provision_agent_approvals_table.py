@@ -82,20 +82,8 @@ def create(dry_run: bool) -> str:
     )
     ddb().get_waiter("table_exists").wait(TableName=TABLE)
 
-    # TTL and PITR are separate calls and both can fail independently of create, so
-    # they are applied after the waiter rather than assumed.
-    for attempt in range(6):
-        try:
-            ddb().update_time_to_live(
-                TableName=TABLE,
-                TimeToLiveSpecification={"Enabled": True,
-                                         "AttributeName": TTL_ATTRIBUTE})
-            break
-        except ClientError:
-            if attempt == 5:
-                raise
-            time.sleep(3)
-
+    # Do not enable DynamoDB TTL. Approval validity remains checked in code.
+    # Backups and PITR are independent of expiration.
     ddb().update_continuous_backups(
         TableName=TABLE,
         PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
@@ -125,11 +113,8 @@ def verify() -> int:
 
     ttl = ddb().describe_time_to_live(TableName=TABLE).get(
         "TimeToLiveDescription", {})
-    if ttl.get("TimeToLiveStatus") not in ("ENABLED", "ENABLING"):
-        problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected ENABLED")
-    if ttl.get("AttributeName") not in (TTL_ATTRIBUTE, None):
-        problems.append(f"TTL attribute is {ttl.get('AttributeName')}, "
-                        f"expected {TTL_ATTRIBUTE}")
+    if ttl.get("TimeToLiveStatus") != "DISABLED":
+        problems.append(f"TTL is {ttl.get('TimeToLiveStatus')}, expected DISABLED")
 
     backups = ddb().describe_continuous_backups(TableName=TABLE)
     pitr = ((backups.get("ContinuousBackupsDescription") or {})
