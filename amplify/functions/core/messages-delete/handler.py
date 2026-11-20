@@ -81,8 +81,15 @@ def _delete_canonical_message(event, origin, message_id):
             'error': 'Admin MFA is required for deleting a stored message',
             'errorCode': 'MESSAGE_DELETE_ADMIN_MFA_REQUIRED',
         }, origin)
-    if not message_id or len(str(message_id)) > 180:
-        return cors_response(400, {'error': 'Invalid message id'}, origin)
+    # Distinct namespace prevents the pre-release legacy handler (which ignores
+    # the scope parameter) from mistaking a canonical ID for a legacy row.
+    # This prefix is never a real provider message ID.
+    prefix = '__canonical_inbox_v1__:'
+    if not str(message_id or '').startswith(prefix):
+        return cors_response(400, {'error': 'Canonical message marker required'}, origin)
+    message_id = str(message_id)[len(prefix):]
+    if not message_id or len(message_id) > 180 or message_id.startswith('__canonical_'):
+        return cors_response(400, {'error': 'Invalid canonical message id'}, origin)
 
     table = dynamodb.Table(CANONICAL_TABLE)
     try:
