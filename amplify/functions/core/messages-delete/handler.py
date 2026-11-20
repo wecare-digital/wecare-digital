@@ -143,6 +143,11 @@ def handler(event, context):
             'error': 'Admin MFA is required to delete stored messages.',
         }, origin)
     actor = str((staff.get('attributes') or {}).get('sub') or staff.get('username') or '').strip()
+    if not actor:
+        return cors_response(403, {
+            'errorCode': 'MESSAGE_DELETE_ACTOR_REQUIRED',
+            'error': 'Verified staff identity required for deletion.',
+        }, origin)
 
     from lambda_utils.erasure.inbox_delete import delete_visible_message
     try:
