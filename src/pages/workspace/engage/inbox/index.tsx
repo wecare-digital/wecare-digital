@@ -193,11 +193,17 @@ const messageWabaId = ( m: api.Message ): string => {
 };
 const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
 
-// Show a provider-supplied name only when it is not the read API's phone fallback.
+// AI-managed is a routing STATUS, not a person's name. Ignore the synthetic
+// names of older standby rows so a genuine WhatsApp profile name elsewhere in
+// the conversation can win even when the newest event is a standby copy.
+const standbyPlaceholderName = ( name?: string ): boolean =>
+    /^AI-managed(?: WhatsApp)? contact\b/i.test( ( name || '' ).trim() );
+
 const realWhatsAppName = ( m: api.Message ): string => {
     if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
     const name = ( m.senderName || '' ).trim();
-    if ( !name || name.toLowerCase() === 'unknown' || /^[+\d\s()-]+$/.test( name ) ) return '';
+    if ( !name || name.toLowerCase() === 'unknown' || standbyPlaceholderName( name )
+        || /^[+\d\s()-]+$/.test( name ) ) return '';
     return name;
 };
 const SMS_TYPE_OPTIONS: SelectOption[] = [
@@ -530,7 +536,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 map.set( cid, {
                     contactId: cid,
-                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone || m.receivingPhone || cid,
+                    name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone
+                        || m.receivingPhone || ( cid.startsWith( 'wa-standby:' )
+                            ? `WhatsApp contact #${ cid.slice( -6 ).toUpperCase() }` : cid ),
                     channels: new Set( [ ch ] ),
                     wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
@@ -542,7 +550,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             {
                 existing.channels.add( ch );
                 if ( waba ) existing.wabas.add( waba );
-                if ( !contactNames[ cid ] && /^[+\d\s()-]+$/.test( existing.name ) && realWhatsAppName( m ) )
+                if ( !contactNames[ cid ] && realWhatsAppName( m )
+                    && ( /^[+\d\s()-]+$/.test( existing.name )
+                        || standbyPlaceholderName( existing.name )
+                        || existing.name.startsWith( 'WhatsApp contact #' ) ) )
                     existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )
                 {
@@ -614,6 +625,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             }, null );
         return newest?.standbySourced === true;
     }, [ messages, selected, replyChannel, thread ] );
+
+    const aiAccountId = thread.length ? messageWabaId( thread[ thread.length - 1 ] ) : '';
+    const aiAccountKey = aiAccountId === WABAS[ 0 ].id ? 'WABA1'
+        : aiAccountId === WABAS[ 1 ].id ? 'WABA2' : '';
+    const aiSettingsUrl = `/workspace/communications?view=manage&section=whatsapp&tool=ai-agent${aiAccountKey ? `&waba=${aiAccountKey}` : ''}`;
 
     // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
     // and never synced, which is why an agent answering a WABA2 thread sent from
@@ -1326,7 +1342,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 <div className="ui-reply">
                                     { standbyReadOnly ? (
                                         <div className="ui-reply-voice" role="status">
-                                            This conversation is currently AI-controlled. Messages are visible for review; sending is disabled until WhatsApp hands control back.
+                                            <strong>{ selectedConv?.name || 'WhatsApp contact' }</strong> · These messages were handled by Meta AI.
+                                            You can review the history here, but staff sending remains locked until WhatsApp hands control to this integration.
+                                            <div style={ { marginTop: 8 } }>
+                                                <Link href={ aiSettingsUrl } className="ui-reply-link">
+                                                    Stop AI for this WhatsApp number · AI settings
+                                                </Link>
+                                            </div>
+                                            <span style={ { fontSize: 12 } }>
+                                                Turning AI off affects every conversation on that number, not only this customer.
+                                            </span>
                                         </div>
                                     ) : replyChannel === 'voice' ? (
                                         <div className="ui-reply-voice">
