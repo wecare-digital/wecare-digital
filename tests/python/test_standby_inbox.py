@@ -19,7 +19,9 @@ class Table:
     def query(self, *, IndexName, KeyConditionExpression, Limit=2):
         if IndexName != "whatsappMessageId-index":
             raise ValueError("unexpected index")
-        return {"Items": list(self.items.values())[:Limit]}
+        wamid = KeyConditionExpression.get_expression()["values"][1]
+        return {"Items": [item for item in self.items.values()
+                          if item.get("whatsappMessageId") == wamid][:Limit]}
 
     def put_item(self, *, Item, ConditionExpression=None):
         if Item["id"] in self.items:
@@ -86,6 +88,20 @@ def test_legacy_or_unverified_bsuid_never_guesses_contact():
     assert "senderPhone" not in row
     assert row["replyAllowed"] is False
     assert row["senderName"].startswith("AI-managed contact (")
+
+
+def test_a_different_existing_message_does_not_suppress_new_wamid():
+    db = Db()
+    table = db.Table(standby_inbox.MESSAGES_TABLE)
+    table.items["existing-message"] = {
+        "id": "existing-message",
+        "whatsappMessageId": "wamid.other-message",
+        "content": "old",
+    }
+    assert standby_inbox.mirror(PHONE_ID, bsuid=BSUID, message=message(), content="new", resource=db)
+    assert len(table.items) == 2
+    assert table.puts == 1
+    assert any(row.get("whatsappMessageId") == WAMID for row in table.items.values())
 
 
 def test_retries_do_not_create_duplicate_messages_or_replies():
