@@ -20,7 +20,7 @@ MAX_CONVERSATION_SCAN = 5000
 _PAYMENT_PATTERN = re.compile(
     r"razorpay|\bpayment\b|\bpaid\b|\brefund\b|\breceipt\b|"
     r"\binvoice\b|\btransaction\b|\bupi\b|\bchargeback\b|"
-    r"\bdispute\b|payment link|\bpay now\b|\bpay request\b|\binr\b|₹",
+    r"\bdispute\b|\bpay\b|\bcheckout\b|\bbooking\b|\bfee\b|\bamount\b|payment link|\binr\b|₹",
     re.IGNORECASE,
 )
 _PAYMENT_FIELDS = (
