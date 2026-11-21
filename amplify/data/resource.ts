@@ -956,29 +956,6 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 41: AdClickAttribution - Ads that Click to WhatsApp tracking
-  AdClickAttribution: a
-    .model( {
-      id: a.id().required(),
-      adId: a.string(),
-      campaignId: a.string(),
-      referralSource: a.string(), // ctwa (click-to-whatsapp)
-      referralBody: a.string(), // Referral message body
-      referralUrl: a.string(), // Source URL
-      senderPhone: a.string(),
-      contactId: a.string(),
-      convertedAt: a.integer(), // When user performed target action
-      conversionType: a.string(), // message_sent, purchase, signup
-      createdAt: a.integer(),
-      ttl: a.integer(), // TTL: 180 days
-    } )
-    .identifier( [ 'id' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'adId' ),
-      index( 'contactId' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
-
   // ============================================================
   // FLOW MANAGEMENT TABLES
   // ============================================================
@@ -1407,7 +1384,7 @@ const schema = a.schema( {
   // CRM — Lead, Pipeline, Stage, Opportunity, Activity.
   //
   // Added in Phase 4. Before this the live account held 70 tables and not one CRM
-  // entity: FlowSubmission, AdClickAttribution, SubmitRequest, Order and
+  // entity: FlowSubmission, SubmitRequest, Order and
   // ConversationMeta each carried a fragment of the funnel, and none could be
   // joined into "who is in the pipeline, at what stage, worth how much".
   //

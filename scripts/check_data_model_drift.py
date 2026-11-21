@@ -102,7 +102,6 @@ EXPLICIT_TABLE: dict[str, str] = {
     "CommerceKey": "CommerceKeys",
     "ConversationHistory": "ConversationHistoryTable",
     "TemplateAnalytics": "TemplateAnalyticsTable",
-    "AdClickAttribution": "AdClickAttributionTable",
     "FlowRegistry": "FlowRegistryTable",
     "FlowSubmission": "FlowSubmissionTable",
     "FlowDraft": "FlowDraftTable",

@@ -116,7 +116,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'InvoiceDeliveryLog', purpose: 'Invoice delivery tracking (WhatsApp/email)', keyFields: 'id', indexes: 'invoiceId', usedBy: 'invoice-engine', category: 'Payments' },
   { name: 'InvoiceSequence', purpose: 'Auto-increment invoice number per FY', keyFields: 'fy', indexes: '-', usedBy: 'invoice-engine', category: 'Payments' },
   { name: 'InvoicePayment', purpose: 'Invoice payment tracking', keyFields: 'id', indexes: 'invoiceId', usedBy: 'invoice-engine, razorpay-webhook', category: 'Payments' },
-  { name: 'AdClickAttribution', purpose: 'Click-to-WhatsApp ad tracking (no writer since ad-attribution was retired on 2026-10-24)', keyFields: 'id', ttl: '180d', indexes: 'adId, contactId', usedBy: '-', category: 'Analytics' },
   { name: 'MetaAnalyticsLog', purpose: 'Meta conversation analytics logs', keyFields: 'id', indexes: '-', usedBy: 'meta-analytics', category: 'Analytics' },
   { name: 'RazorpayWebhookLog', purpose: 'Razorpay webhook event log', keyFields: 'id', ttl: '180d', indexes: 'paymentId, eventType', usedBy: 'razorpay-webhook', category: 'Payments' },
   { name: 'WebhookDedup', purpose: 'Webhook idempotency tracking', keyFields: 'eventId', ttl: '7d', indexes: '-', usedBy: 'inbound-whatsapp-handler', category: 'Core' },
@@ -214,7 +213,7 @@ const RISKS: RiskItem[] = [
   // ── IMPORTANT (18) ──
   { id: 'R13', title: 'Silent error swallowing in 15+ catch blocks', description: 'Found 15+ empty catch blocks (catch {}, catch(() => {})) across whatsapp/scripts.tsx, auto-response.tsx, flow-responses.tsx, pay/flow/index.tsx, contacts/index.tsx, dashboard/index.tsx. Failed API calls and config loads are silently ignored, making debugging impossible.', priority: 'Important', category: 'Frontend' },
   { id: 'R15', title: 'Lambda functions deployed outside Amplify', description: '42 Python Lambda functions are deployed separately and not managed by Amplify Gen 2. backend.ts explicitly states "Lambda functions are deployed separately and already exist in AWS." Risk of infrastructure drift between code and deployed state.', priority: 'Important', category: 'Infrastructure' },
-  { id: 'R16', title: 'DynamoDB TTL not enforced on all temporal tables', description: 'Tables like TemplateAnalytics, AdClickAttribution, MetaAnalyticsLog, FlowSubmission, FlowLog have no TTL configured despite storing temporal data. These will grow unbounded over time.', priority: 'Important', category: 'Database' },
+  { id: 'R16', title: 'DynamoDB TTL not enforced on all temporal tables', description: 'Tables like TemplateAnalytics, MetaAnalyticsLog, FlowSubmission, FlowLog have no TTL configured despite storing temporal data. These will grow unbounded over time.', priority: 'Important', category: 'Database' },
   { id: 'R17', title: '✅ FIXED — DynamoDB backup coverage established', description: 'All current stack-wecare-digital-* project tables have point-in-time recovery enabled, and AWS Backup has an active wecare-backup-plan with recovery points in wecare-backup-vault. S3 recovery remains a separate storage-policy concern.', priority: 'Important', category: 'Infrastructure' },
   { id: 'R18', title: 'Missing API documentation', description: 'No OpenAPI/Swagger spec found. API endpoints are only documented in scattered code comments and the lambda-functions admin page. New developers have no API reference.', priority: 'Important', category: 'Documentation' },
   { id: 'R19', title: '✅ FIXED — Amplify production builds healthy', description: 'The wecare.digital production branch is connected to Amplify with auto-build enabled; the recent cleanup deployments completed successfully. Keep failed-build alerting and deployment verification in place.', priority: 'Important', category: 'DevOps' },
@@ -1129,7 +1128,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               { name: 'AI: AIInteraction, ConversationHistory' },
               { name: 'Flows: FlowRegistry, FlowSubmission, FlowLog' },
               { name: 'Operations: BulkJob, BulkRecipient, DLQMessage, ScheduledMessage, SystemEvent, ...' },
-              { name: 'Analytics: TemplateAnalytics, AdClickAttribution, MetaAnalyticsLog' },
+              { name: 'Analytics: TemplateAnalytics, MetaAnalyticsLog' },
             ]
           },
           {

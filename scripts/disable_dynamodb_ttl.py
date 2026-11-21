@@ -32,7 +32,6 @@ AMPLIFY_MODELS = {
     "WebhookDedup": "ttl",
     "SystemEvent": "ttl",
     "CatalogCache": "ttl",
-    "AdClickAttribution": "ttl",
     "WhatsAppCalling": "ttl",
     "RateLimitTracker": "lastUpdatedAt",
     "FlowDraft": "ttl",
