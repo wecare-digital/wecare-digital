@@ -81,3 +81,29 @@ def test_unknown_identity_or_missing_owner_cannot_grant_send(monkeypatch):
     assert handler._read_standby_thread_ownership(
         dict(msg(), awsPhoneNumberId="unrecognized-sender")
     )["tracked"] is False
+
+
+def test_ai_standby_records_are_not_customer_inbox_messages():
+    assert handler._visible_in_customer_inbox({
+        "contactId": "wa-standby:synthetic-thread",
+        "standbySourced": True, "routingOwner": "ai_agent",
+        "senderName": "WhatsApp contact #DB4CF1",
+    }) is False
+    assert handler._visible_in_customer_inbox({
+        "contactId": "wa-standby:old-projector",
+        "senderName": "WhatsApp contact #OLD",
+    }) is False
+    assert handler._visible_in_customer_inbox({
+        "contactId": "saved-customer-id", "standbySourced": True,
+    }) is False
+
+
+def test_real_customer_and_payment_messages_remain_visible():
+    assert handler._visible_in_customer_inbox({
+        "contactId": "saved-customer-id", "channel": "whatsapp",
+        "content": "Order Status: completed - Payment complete."
+    }) is True
+    assert handler._visible_in_customer_inbox({
+        "contactId": "saved-customer-id", "standbySourced": False,
+        "messageType": "image", "content": "Invoice sent",
+    }) is True
