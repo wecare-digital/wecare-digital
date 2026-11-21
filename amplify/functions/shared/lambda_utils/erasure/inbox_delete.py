@@ -329,8 +329,10 @@ def redact_visible_message_content(
         if source and str(source.get("contactId") or "") != contact_id:
             return _refuse("MESSAGE_SOURCE_IDENTITY_CONFLICT",
                            "The source message belongs to a different identity.")
-        conversation = _scan_conversation(canonical_table, contact_id)
-        guard = _guard(contact, meta, canonical, source, conversation,
+        # Check complete inbox inventory but decide content-only eligibility
+        # for the exact message: money-related neighboring messages are retained.
+        _scan_conversation(canonical_table, contact_id)
+        guard = _guard(contact, meta, canonical, source, [canonical],
                        invoices_table, orders_table)
         if guard:
             return guard
