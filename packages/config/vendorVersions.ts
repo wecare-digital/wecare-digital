@@ -86,9 +86,9 @@ export interface VendorVersion {
  * premise, and the audit that established that is
  * `docs/execution/meta-graph-version-audit-20261001.md`.
  *
- * `meta-business-agent/handler.py:231-234` pinned away from v26.0 on the grounds that it
- * "blocked a batch of commerce endpoints" and that `_tool_product_lookup` reads
- * `/{catalog_id}/products`. Checked against Meta's v26.0 changelog, that does not hold:
+ * A former handler pinned away from v26.0 on the grounds that it "blocked a batch of
+ * commerce endpoints" and that a product lookup reads `/{catalog_id}/products`.
+ * Checked against Meta's v26.0 changelog, that does not hold:
  * v26.0 deprecates the **Commerce Order Management API** — 47 endpoints shaped
  * `/{commerce-order-id}/…`, `/{page-id}/commerce_orders`, `/{commerce-merchant-settings-id}/…`
  * — because checkout on Facebook and Instagram Shops was sunset. `/{catalog_id}/products` is

@@ -57,7 +57,6 @@ from lambda_utils.ecommerce import order_keys  # reference_id contract; never tr
 # tested without a client, and this handler stays wiring. See `_handle_cart_order`.
 from lambda_utils.ecommerce import whatsapp_basket, short_purchase
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
-from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
 from lambda_utils.system_events import record_system_event
 from botocore.exceptions import ClientError
 try:
@@ -285,72 +284,6 @@ SERVICE_WEBSITE_REPLY = "Visit https://wecare.digital/ for services, or tell us 
 
 
 
-# Deterministic-trigger keywords for the Meta Business Agent hybrid. When the AI
-# holds control (standby), we take control + run OUR flow only for these; free-form
-# text is left to the AI.
-_DETERMINISTIC_KEYWORDS = {
-    'hi', 'hello', 'hey', 'menu', 'main menu', 'show menu', 'browse menu', '/menu',
-    'start', 'get started', 'need help!', 'subscribe', 'help',
-    # Our own QR / widget prefills — see the HI_KEYWORDS comment. These must take
-    # control from the Meta AI agent, not be treated as free-form questions.
-    'get help', 'hi 👋',
-}
-_DETERMINISTIC_CONTAINS = (
-    'get started', 'main menu', 'subscribe', 'track request', 'track', 'submit request',
-    'amend request', 'appointment', 'rx slot', 'drop docs', 'enterprise', 'leave review',
-    'catalog', 'catalogue', 'pay', 'payment', 'invoice', 'faq',
-)
-
-
-_routing_cache = {'v': None, 't': 0.0}
-
-
-def _get_routing_config() -> Dict:
-    """Load the AI hybrid routing config (which triggers the bot handles vs the AI)
-    from SystemConfigTable id='ai_hybrid_routing'. Cached 60s. Falls back to the
-    built-in defaults so behaviour is safe if unset."""
-    import time as _t
-    now = _t.time()
-    if _routing_cache['v'] is not None and (now - _routing_cache['t']) < 60:
-        return _routing_cache['v']
-    # ── These defaults REPRODUCE the deleted hardcoded _is_deterministic_trigger ──
-    # Until 2026-10-06 a second definition of that function shadowed the config-driven
-    # one below, so the config-driven one was dead code and its defaults had never run.
-    # Deleting the shadow without changing these would have been a BEHAVIOUR CHANGE, in
-    # three measured ways:
-    #
-    #   types     the live function also accepted 'nfm_reply' (flow + address submissions)
-    #   keywords  it matched _STANDBY_TEXT_TRIGGERS, which does NOT contain 'help'
-    #   contains  it had no substring matching at all, whereas _DETERMINISTIC_CONTAINS
-    #             would have claimed any body containing 'pay', 'track', 'faq', …
-    #
-    # So the defaults are the standby trigger set with substring matching OFF.
-    # _DETERMINISTIC_KEYWORDS / _DETERMINISTIC_CONTAINS stay in the module as the
-    # *optional widening* a seeded config row can opt into; they are no longer the
-    # default. tests/test_deterministic_trigger_equivalence.py is the proof, and it
-    # retypes its expectations from the deleted function rather than from this code.
-    cfg = {
-        'enabled': True,
-        'keywords': sorted(_STANDBY_TEXT_TRIGGERS),
-        'contains': [],
-        'types': ['button', 'interactive', 'order', 'nfm_reply'],
-        'commandPrefix': '/',
-    }
-    try:
-        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(Key={'id': 'ai_hybrid_routing'}).get('Item')
-        if item:
-            raw = item.get('configValue')
-            data = json.loads(raw) if isinstance(raw, str) else (raw or {})
-            for k in ('enabled', 'keywords', 'contains', 'types', 'commandPrefix'):
-                if k in data and data[k] is not None:
-                    cfg[k] = data[k]
-    except Exception:
-        pass
-    _routing_cache['v'] = cfg
-    _routing_cache['t'] = now
-    return cfg
-
-
 # General review entry uses the published private v2 Flow. Order-attributed
 # `review <reference>` remains a separate route below the exact keyword loop.
 CUSTOMER_IDEA_KEYWORDS = frozenset({
@@ -361,158 +294,11 @@ CUSTOMER_IDEA_KEYWORDS = frozenset({
 })
 
 
-def _is_deterministic_trigger(message: Dict) -> bool:
-    """True if the message should be handled by OUR deterministic flows (menu,
-    lists, flows, catalog/cart, commands) rather than the Meta AI agent.
-
-    The ONLY definition of this name since 2026-10-06, when the hardcoded second copy
-    that shadowed it was deleted. Driven by the `ai_hybrid_routing` row in
-    SystemConfigTable, whose defaults reproduce the deleted copy exactly — so this is a
-    live kill switch (`enabled: false` stops every standby reply with no deploy) rather
-    than the dead code it had been.
-
-    Deciding that our flow HANDLES a message is not the same as deciding a reply is
-    SENT. The send decision is `_standby_reply_enabled()` plus `_may_send()`.
-    """
-    cfg = _get_routing_config()
-    if not cfg.get('enabled', True):
-        return False  # hybrid off → everything goes to the AI
-    # `or {}` because the deleted definition tolerated None and this one has to as well,
-    # or removing the shadow would turn a no-op into an AttributeError on the webhook path.
-    message = message or {}
-    t = message.get('type')
-    if t in set(cfg.get('types') or ['button', 'interactive', 'order', 'nfm_reply']):
-        return True  # ice-breaker taps, list/flow replies, catalog cart orders
-    if t == 'text':
-        body = ((message.get('text', {}) or {}).get('body', '') or '').strip().lower()
-        if not body:
-            return False
-        prefix = cfg.get('commandPrefix', '/')
-        if prefix and body.startswith(prefix):
-            return True  # slash commands
-        kws = {k.lower() for k in (cfg.get('keywords') or [])} | CUSTOMER_IDEA_KEYWORDS
-        kws |= {'orders', 'my orders', 'order history', 'all orders', 'customer id',
-                'my customer id', 'customer uuid', 'vault', 'my vault',
-                'request amendment', 'drop docs', 'shipments', 'submit request'}
-        if re.fullmatch(r'orders page [1-9][0-9]{0,2}', body):
-            return True
-        if body in kws or strip_decorative_edges(body) in kws:
-            return True
-        return any(kw.lower() in body for kw in (cfg.get('contains') or []))
-    return False
-
-
-# ── Which standby messages our deterministic flow claims ──
-# When another responder holds control, the customer's messages arrive on the
-# `standby` field as copies. This is the set `_get_routing_config` defaults its
-# `keywords` to, so it remains the decision set in force — it is now READ through the
-# config loader instead of being hardcoded into a second copy of the decision function.
-#
-# A SECOND definition of `_is_deterministic_trigger` used to sit here and shadow the
-# config-driven one above, which the file's own docstring called out as a known defect.
-# It was deleted on 2026-10-06. The consequence of the shadowing was not cosmetic: the
-# `ai_hybrid_routing` kill switch could never work, because the function that reads it
-# was never the function being called. There was no runtime way to stop replying from
-# standby without a code deploy.
-#
-# Note what this set does and does not decide. It decides whether OUR deterministic flow
-# handles a standby message. Whether a reply is then actually SENT from standby is
-# `STANDBY_REPLY_ENABLED`'s decision, not this set's — see `_standby_reply_enabled`.
-_STANDBY_TEXT_TRIGGERS = {
-    'hi', 'hello', 'hey', 'menu', 'main menu', 'show menu', 'start', 'get started',
-    'browse menu', '/menu', 'need help!', 'subscribe', 'pay', '/pay', 'catalog',
-    'view catalog', 'submit request', 'track request', 'track', 'amend request',
-    'appointment', 'rx slot', 'drop docs', 'enterprise', 'leave review', 'faq',
-    # Our own QR / widget prefills — see the HI_KEYWORDS comment.
-    'get help', 'hi 👋',
-}
-
-
-def _standby_reply_enabled() -> bool:
-    """Whether a deterministic standby message falls through into a real reply.
-
-    **Defaults TRUE, which is today's exact behaviour.** Shipped true deliberately: the
-    ingress invokes `wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production and
-    this code is live the instant `update-function-code` returns, before any alias move.
-    There is no staging gap, so a behaviour change cannot be landed and then verified —
-    it has to default to what already happens.
-
-    Read per call rather than cached at module scope, following `_auto_thumb_enabled`:
-    a module-scope read is frozen for the life of the execution environment, so a
-    configuration change would not take effect until every warm sandbox recycled.
-
-    Setting it false stores standby messages as context but sends nothing from standby,
-    which is the correct behaviour under an active Conversation Routing configuration
-    where we are a standby partner — Meta rejects a Service message from a non-owner.
-    The flip waits on the owner confirming such a configuration exists.
-    """
-    return os.environ.get('STANDBY_REPLY_ENABLED', 'true').strip().lower() \
-        not in ('false', '0', 'no', 'off')
-
-
-# ── Per-message send context, for the standby ownership guard ──
+# ── Per-message send context ──
 # A module-level dict following the existing `_current_direct_api_phone` precedent
 # (declared `global` in `_process_message`): the handler processes messages serially
-# within an invocation, so this is the established pattern here rather than a new one.
-# RESET at the top of `_process_message` on every message — a `standby` flag leaking
-# across two messages in one invocation is the one way `_may_send` can misfire.
-_send_context = {'standby': False, 'phone_number_id': '', 'bsuid': '', 'wa_id': ''}
-
-
-def _may_send(purpose: str) -> bool:
-    """May we send, given who owns this thread?
-
-    **With `STANDBY_REPLY_ENABLED` at its shipped `true` default this is unconditionally
-    `True`**, so every call site is a no-op and behaviour is identical to before this
-    guard existed. That is the whole design: the ingress invokes this function unqualified,
-    so `$LATEST` is production and there is no staging gap in which to verify a behaviour
-    change — it has to ship inert.
-
-    When the flag is false, a message that arrived as a **standby copy** is checked against
-    derived ownership. Messages that arrived on the normal `messages` field are never
-    checked, because receiving one is itself the documented proof that we own the thread.
-
-    `thread_ownership.may_send` fails OPEN on unknown or unreadable state, so even with
-    the flag off a DynamoDB blip does not silence a customer.
-    """
-    if _standby_reply_enabled() or not _send_context.get('standby'):
-        return True
-    ok = thread_ownership.may_send(_send_context.get('phone_number_id', ''),
-                                  bsuid=_send_context.get('bsuid', ''),
-                                  wa_id=_send_context.get('wa_id', ''))
-    if not ok:
-        logger.info(json.dumps({
-            'event': 'send_suppressed_not_owner',
-            'purpose': purpose,
-            'bsuid': _send_context.get('bsuid', ''),
-            'waId': mask_phone(_send_context.get('wa_id', '') or ''),
-        }))
-    return ok
-
-
-def _thread_identity(value: Dict, message: Optional[Dict] = None) -> Tuple[str, str, str]:
-    """`(phone_number_id, bsuid, wa_id)` for a webhook `value`, optionally narrowed to
-    one message.
-
-    One helper rather than four copies, because the three identifiers are spelled
-    differently depending on where they are read from and getting one of them wrong is
-    silent: `from_user_id` on a message, `user_id` on a contact, both meaning BSUID.
-
-    BSUID is preferred over `wa_id` by `thread_ownership.thread_key`, not here — this
-    returns both and lets the key contract decide, so there is one place that rule lives.
-    """
-    message = message or {}
-    phone_number_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
-    contacts = value.get('contacts')
-    if not isinstance(contacts, list):
-        contacts = (value.get('standby') or {}).get('contacts') \
-            if isinstance(value.get('standby'), dict) else None
-    contact = contacts[0] if isinstance(contacts, list) and contacts \
-        and isinstance(contacts[0], dict) else {}
-    bsuid = str(message.get('from_user_id') or contact.get('user_id')
-                or contact.get('from_user_id') or '')
-    wa_id = str(message.get('from') or contact.get('wa_id') or '')
-    return phone_number_id, bsuid, wa_id
+# within an invocation. RESET at the top of `_process_message` on every message.
+_send_context = {'phone_number_id': '', 'bsuid': '', 'wa_id': ''}
 
 
 # ── Decorative-edge stripping for menu keyword matching ────────────────────
@@ -893,8 +679,7 @@ PAYMENT_PHONE_NUMBER_ID = 'phone-number-id-waba1-direct-1016149501586345'
 
 # ── Coexistence: the owner running the WhatsApp Business APP on the same number as the
 # Cloud API. NOT adopted on this deployment. Both fields are audited and counted and
-# nothing else — see the `messaging_handovers` arm in `handler` for the same discipline
-# and the same reason: structured parse, NO decision taken from it. `smb_message_echoes`
+# nothing else: structured parse, NO decision taken from them. `smb_message_echoes`
 # carries copies of messages the owner sent from the app, so writing them to the inbox
 # would duplicate the owner's own messages into the CRM timeline on a deployment that has
 # no coexistence configured. `COEXISTENCE_INGEST_ENABLED` is the seam a future adoption
@@ -1349,177 +1134,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 value = change.get('value', {})
                 metadata = value.get('metadata', {})
 
-                # ── Meta Business Agent handover protocol ──
-                # When the Meta AI agent is the primary responder it HOLDS control,
-                # and the customer's messages arrive on the `standby` field (copies),
-                # while `messaging_handovers` notifies of control changes. We must NOT
-                # run our normal responder on standby traffic (that would hijack the
-                # AI's thread by implicitly taking control). Capture the payload for
-                # audit + to finalise command routing, then skip normal processing.
+                # `standby` and `messaging_handovers` webhooks were only used by the
+                # removed Meta Business AI agent. Acknowledge them (200) and ignore
+                # them: log only, no storage, no reply, never an error.
                 _wh_field = change.get('field', '')
-                # Per-change, so a standby entry cannot mark a normal `messages` entry
-                # later in the same webhook body. Set only by the standby fall-through.
-                _standby_sourced = False
-                if _wh_field == 'messaging_handovers':
-                    # Control-change notification — audit only.
-                    try:
-                        _store_system_event(_wh_field, value, request_id)
-                    except Exception:
-                        pass
-                    # Structured parse, NO decision taken from it. The ring buffer above
-                    # keeps only the last 10 events per type, which is an audit sample
-                    # rather than a trail — the ten real handovers from Jul-Aug 2026 are
-                    # all that survived of a period when routing was live on both WABAs.
-                    # A named log line is queryable and alarmable; a buffer is neither.
-                    #
-                    # `wa_id` is a phone number, so it is masked. `bsuid` is
-                    # business-scoped and is logged in full — that pairing is what makes
-                    # a routing event traceable without disclosing a customer's number.
-                    try:
-                        _ho = thread_ownership.parse_handover(value)
-                        logger.info(json.dumps({
-                            'event': 'thread_control_changed',
-                            'control': _ho['control'],
-                            'previousOwnerRole': _ho['previous_owner_role'],
-                            'newOwnerRole': _ho['new_owner_role'],
-                            'reason': _ho['reason'],
-                            'shape': _ho['shape'],
-                            'hasConversationContext': _ho['conversation_context'] is not None,
-                            'phoneNumberId': _ho['phone_number_id'],
-                            'bsuid': _ho['bsuid'],
-                            'waId': mask_phone(_ho['wa_id'] or ''),
-                            'requestId': request_id,
-                        }))
-                        # Fold the control change into derived ownership state. WRITE AND
-                        # LOG ONLY — nothing in this function gates a send on it. Meta has
-                        # no ownership API, so this state is the only possible answer to
-                        # "may I send?", and derived state has to be observed to be right
-                        # before it is allowed to refuse a customer a reply.
-                        _sig = thread_ownership.signal_for_control(_ho)
-                        if _sig:
-                            _st = thread_ownership.record_signal(
-                                _ho['phone_number_id'],
-                                bsuid=_ho['bsuid'], wa_id=_ho['wa_id'],
-                                signal=_sig,
-                                # Persisted only when present. It carries the previous
-                                # responder's summary of the conversation and arrives only
-                                # on control_passed, and only sometimes; passing None
-                                # through would overwrite a stored one with nothing.
-                                conversation_context=_ho['conversation_context'],
-                                detail=_ho['reason'])
-                            logger.info(json.dumps({
-                                'event': 'thread_ownership_signal',
-                                'signal': _sig,
-                                'tracked': _st.get('tracked'),
-                                'owned': _st.get('owned'),
-                                'idle': _st.get('idle'),
-                                'bsuid': _ho['bsuid'],
-                                'waId': mask_phone(_ho['wa_id'] or ''),
-                                'requestId': request_id,
-                            }))
-                    except Exception as _hoe:
-                        logger.warning(json.dumps({
-                            'event': 'thread_control_parse_error',
-                            'error': type(_hoe).__name__, 'requestId': request_id}))
+                if _wh_field in ('standby', 'messaging_handovers'):
+                    logger.info(json.dumps({'event': 'webhook_field_ignored',
+                                            'field': _wh_field, 'requestId': request_id}))
                     continue
-                if _wh_field == 'standby':
-                    # AI holds control. In the handover payload the message + contacts are
-                    # nested under value["standby"] (not value["messages"]). Unwrap it, then
-                    # take control + run OUR flow ONLY for deterministic triggers
-                    # (menu/list/flow/catalog/commands); leave free-form to the AI.
-                    try:
-                        _sb = value.get('standby')
-                        if isinstance(_sb, dict):
-                            _msgs = _sb.get('messages', []) or value.get('messages', []) or []
-                            _contacts = _sb.get('contacts')
-                        elif isinstance(_sb, list):
-                            _msgs = _sb; _contacts = None
-                        else:
-                            _msgs = value.get('messages', []) or []; _contacts = None
-                        _det = [m for m in _msgs if _is_deterministic_trigger(m)]
-                        # A standby copy means SOMEBODY ELSE owns this thread. Recorded as
-                        # an ownership signal; nothing here reads it back, and the arm's
-                        # control flow is untouched.
-                        _pid, _bsuid, _waid = _thread_identity(
-                            value, _msgs[0] if _msgs else None)
-                        _sb_state = thread_ownership.record_signal(
-                            _pid, bsuid=_bsuid, wa_id=_waid,
-                            signal=thread_ownership.SIGNAL_STANDBY_OBSERVED)
-                        # Store EVERY standby message as standby-MARKED context, including
-                        # the free-form ones the `continue` below discards. Meta's docs
-                        # direct you to store incoming standby events locally so you can
-                        # retrieve them if you receive control, indexed by BSUID — and the
-                        # free-form ones are precisely the conversation the OTHER responder
-                        # is handling, which is the context a later handover would need.
-                        #
-                        # Keep source context in ThreadOwnershipTable first. Its shared
-                        # writer now projects a separate, read-only inbox entry so staff can
-                        # see AI-handled messages without taking reply ownership.
-                        _stored = 0
-                        for _m in _msgs:
-                            try:
-                                _c = _extract_content(_m, (_m or {}).get('type', 'text'))
-                            except Exception:
-                                _c = ''
-                            _mp, _mb, _mw = _thread_identity(value, _m)
-                            from lambda_utils import standby_inbox
-                            _sender_name = standby_inbox.profile_name_from_contacts(_m, _contacts)
-                            if thread_ownership.store_standby_message(
-                                    _mp or _pid, bsuid=_mb or _bsuid, wa_id=_mw or _waid,
-                                    message=_m, content=_c, sender_name=_sender_name):
-                                _stored += 1
-                        logger.info(json.dumps({'event': 'standby_webhook', 'total': len(_msgs),
-                                                'deterministic': len(_det), 'requestId': request_id}))
-                        logger.info(json.dumps({
-                            'event': 'thread_ownership_signal',
-                            'signal': thread_ownership.SIGNAL_STANDBY_OBSERVED,
-                            'tracked': _sb_state.get('tracked'),
-                            'owned': _sb_state.get('owned'),
-                            'stored': _stored,
-                            'bsuid': _bsuid,
-                            'waId': mask_phone(_waid or ''),
-                            'requestId': request_id,
-                        }))
-                        if not _standby_reply_enabled():
-                            # The fix, shipped OFF. Reached only when somebody deliberately
-                            # sets STANDBY_REPLY_ENABLED=false, which is the correct state
-                            # under an active routing configuration where we are a standby
-                            # partner: Meta REJECTS a Service message from a non-owner, so
-                            # replying from here produces a silent dead end rather than a
-                            # double reply. The messages are stored above either way, so
-                            # suppression keeps the context instead of discarding it.
-                            logger.info(json.dumps({
-                                'event': 'standby_reply_suppressed',
-                                'total': len(_msgs), 'deterministic': len(_det),
-                                'stored': _stored, 'requestId': request_id}))
-                            continue
-                        if not _det:
-                            continue  # free-form → let the Meta AI agent respond
-                        # Unwrap so normal processing (below) handles the deterministic
-                        # triggers.
-                        #
-                        # The comment that used to sit here said "sending a reply takes
-                        # thread control from the AI". That was TRUE when this was written
-                        # on 2026-07-21 — the Meta Business Agent shared the number and no
-                        # routing configuration existed — and it is contradicted by Meta's
-                        # current Standby-partners doc: once Conversation Routing is active,
-                        # only the designated escalation partner can take a thread that way,
-                        # and a Service message from any other standby partner is rejected.
-                        # Ownership is claimed by RECEIVING, not by replying. A comment
-                        # stating a false protocol rule is how the next reader repeats the
-                        # mistake, so it is recorded here rather than deleted.
-                        # `STANDBY_REPLY_ENABLED` is the switch between the two worlds.
-                        value['messages'] = _det
-                        if _contacts is not None:
-                            value['contacts'] = _contacts
-                        # Mark the rest of this entry as standby-sourced so `_may_send` can
-                        # see it. Inert while the flag is true.
-                        _standby_sourced = True
-                        # fall through to normal message processing
-                    except Exception as _he:
-                        logger.warning(json.dumps({'event': 'standby_webhook_error',
-                                                   'error': str(_he), 'requestId': request_id}))
-                        continue
 
                 # Extract receiving phone number info from metadata
                 display_phone_number = metadata.get('display_phone_number', '')
@@ -1638,7 +1260,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             sender_parent_bsuid=sender_parent_bsuid,
                             sender_username=sender_username,
                             sender_contact_book_name=sender_contact_book_name,
-                            standby_sourced=_standby_sourced,
                             dedup_tracker=leased_message_ids,
                         )
                         if leased_message_ids:
@@ -2177,18 +1798,12 @@ def _process_message(
     sender_parent_bsuid: str = '',
     sender_username: str = '',
     sender_contact_book_name: str = '',
-    standby_sourced: bool = False,
     dedup_tracker: Optional[list] = None,
 ) -> None:
     """
     Process a single inbound message.
     Stores which WABA/phone number received the message.
     Supports BSUID (Business-Scoped User ID), parent BSUID, and username from webhook.
-
-    `standby_sourced` marks a message that arrived as a **standby copy** rather than on
-    the normal `messages` field, i.e. one another responder owns the thread for. It only
-    has an effect when `STANDBY_REPLY_ENABLED` is false; with the shipped `true` default
-    `_may_send` short-circuits and every guard below is a no-op.
     """
     whatsapp_message_id = message.get('id')
     sender_phone = message.get('from', '')
@@ -2201,12 +1816,10 @@ def _process_message(
     msg_type = message.get('type', 'text')
     timestamp = int(message.get('timestamp', time.time()))
 
-    # Reset the send context for THIS message. Unconditional, before anything can send:
-    # a `standby` flag leaking from a previous message in the same invocation is the one
-    # way `_may_send` can misfire, and the handler processes messages serially.
+    # Reset the send context for THIS message, before anything can send; the handler
+    # processes messages serially.
     global _send_context
     _send_context = {
-        'standby': bool(standby_sourced),
         'phone_number_id': str((metadata or {}).get('phone_number_id') or ''),
         'bsuid': msg_bsuid,
         'wa_id': sender_phone,
@@ -2810,41 +2423,12 @@ def _process_message(
             logger.warning(json.dumps({'event': 'revoke_apply_error',
                                        'error': type(e).__name__, 'requestId': request_id}))
 
-    # ── Thread ownership signal: we received this message ──
-    # Meta's docs are explicit that RECEIVING is what claims a thread — "you do not have
-    # to reply to claim the thread". So an arrival on the `messages` field (as opposed to
-    # `standby`) is the strongest of the four signals.
-    #
-    # Placed AFTER both stores on purpose: an ownership-write failure must not be able to
-    # cost us the message itself. WRITE AND LOG ONLY — nothing gates on this yet.
-    try:
-        _own_state = thread_ownership.record_signal(
-            str((metadata or {}).get('phone_number_id') or ''),
-            bsuid=msg_bsuid, wa_id=sender_phone,
-            signal=thread_ownership.SIGNAL_MESSAGE_RECEIVED,
-            detail=msg_type)
-        logger.info(json.dumps({
-            'event': 'thread_ownership_signal',
-            'signal': thread_ownership.SIGNAL_MESSAGE_RECEIVED,
-            'tracked': _own_state.get('tracked'),
-            'owned': _own_state.get('owned'),
-            'idle': _own_state.get('idle'),
-            'bsuid': msg_bsuid,
-            'waId': mask_phone(sender_phone or ''),
-            'requestId': request_id,
-        }))
-    except Exception as _oe:
-        logger.warning(json.dumps({'event': 'thread_ownership_signal_error',
-                                   'error': type(_oe).__name__, 'requestId': request_id}))
-
     # Automation rules — auto-reply if an enabled rule matches (guarded, fire-and-forget
     # via async outbound invoke so it can never block/break inbound processing).
     try:
         if content and msg_type == 'text':
             _auto = evaluate_rules(content, 'whatsapp')
-            # SEND #1. Skipping the block rather than returning, because a `return` here
-            # would also skip everything after it and change today's flow.
-            if _auto and _may_send('automation_auto_reply'):
+            if _auto:
                 lambda_client.invoke(
                     FunctionName=os.environ.get('OUTBOUND_FUNCTION', OUTBOUND_WHATSAPP_FUNCTION),
                     InvocationType='Event',
@@ -2899,9 +2483,7 @@ def _process_message(
                 # Opens the 24-hour window like any customer message (see the `order` branch):
                 # the submission can resume a waiting cart, whose replies must not be refused.
                 _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
-                # SEND #4.
-                if _may_send('address_submission'):
-                    _handle_address_submission(nfm, contact_id, sender_phone, aws_phone_number_id, request_id)
+                _handle_address_submission(nfm, contact_id, sender_phone, aws_phone_number_id, request_id)
                 return  # Stop processing — address submission handled
             # Post-payment (endpointless) flow completion: the DETAILS screen's
             # "complete" action returns a payload with reference_id + order details.
@@ -2911,9 +2493,7 @@ def _process_message(
                 if isinstance(_rj, dict) and (_rj.get('reference_id') or _rj.get('request_id')) and (
                     'delivery_note' in _rj or 'preferred_time' in _rj or 'order_number' in _rj
                     or 'description' in _rj or 'request_id' in _rj):
-                    # SEND #5.
-                    if _may_send('postpay_submission'):
-                        _handle_postpay_submission(_rj, contact_id, sender_phone, aws_phone_number_id, request_id)
+                    _handle_postpay_submission(_rj, contact_id, sender_phone, aws_phone_number_id, request_id)
                     return  # Stop processing — post-payment submission handled
             except Exception as _pp_err:
                 logger.warning(json.dumps({'event': 'postpay_nfm_parse_error', 'error': str(_pp_err), 'requestId': request_id}))
@@ -2933,10 +2513,7 @@ def _process_message(
         # stale window and refusing every non-template reply to the cart (the address request
         # and the refusal replies) for a customer whose last message was a day old.
         _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
-        # SEND #6 — the money path. This may-send guard runs before `_handle_cart_order`; the
-        # reference mint, pricing and send all live in ecommerce/checkout.
-        if _may_send('cart_order'):
-            _handle_cart_order(message, contact_id, sender_phone, aws_phone_number_id, request_id)
+        _handle_cart_order(message, contact_id, sender_phone, aws_phone_number_id, request_id)
         return
 
     # Handle system status messages with user_changed_user_id
@@ -3140,10 +2717,7 @@ def _process_message(
             # 250 `read_receipt_sent_direct_api` against 61 real failures in 14 days.
             # Branch on the returned dict so a refusal is reported as one.
             try:
-                # SEND #7. A 👍 reaction IS a Service message, so ownership gates it.
-                # Guarded alongside the existing `_auto_thumb_enabled()` rather than
-                # replacing it: the two switches answer different questions.
-                if _auto_thumb_enabled() and _may_send('auto_reaction'):
+                if _auto_thumb_enabled():
                     _rx = _send_direct_api_reaction(sender_phone, whatsapp_message_id, emoji=AUTO_THUMB_EMOJI)
                     if _rx.get('error'):
                         logger.warning(json.dumps({
@@ -3162,35 +2736,9 @@ def _process_message(
                             'whatsappMessageId': whatsapp_message_id,
                             'requestId': request_id
                         }))
-                        # The fourth documented signal, and the only place in this handler
-                        # that can honestly emit it. A Service message Meta ACCEPTED
-                        # proves we owned the thread at that moment — and this is the one
-                        # send site with a synchronous answer from Meta to branch on.
-                        # Every other send here is a fire-and-forget async invoke, where
-                        # "sent" means "handed to a queue", which proves nothing about
-                        # ownership. Recording it from those would be inventing evidence.
-                        thread_ownership.record_signal(
-                            str((metadata or {}).get('phone_number_id') or ''),
-                            bsuid=msg_bsuid, wa_id=sender_phone,
-                            signal=thread_ownership.SIGNAL_SERVICE_MESSAGE_SENT,
-                            detail='auto_reaction')
             except Exception as e:
                 logger.warning(f"Direct API auto-reaction failed: {type(e).__name__}")
             try:
-                # SEND #8 — DELIBERATELY NOT GATED on ownership. Do not "finish the job"
-                # by adding `_may_send` here.
-                #
-                # TODO(conversation-routing): does a `status: read` / `typing_indicator`
-                # count as an ownership-gated Service message? Meta's docs gate "Service
-                # messages" and never classify either of these. Both go to the same
-                # /{phone_id}/messages endpoint, which argues they do; the typing
-                # indicator is user-visible, which argues the same; mark-as-read
-                # plausibly does not. It is UNVERIFIED, it is ungated today, and it fires
-                # 462 times per 30 days — so guessing either way is worse than leaving one
-                # known unknown labelled. The empirical check that would settle it:
-                # observe whether Meta rejects a mark-as-read from a non-owner under a
-                # live routing configuration. Note the reaction immediately above IS
-                # gated: that one is unambiguously a Service message, this one is not.
                 _rr = _send_direct_api_read_receipt(whatsapp_message_id, show_typing=True)
                 if _rr.get('error'):
                     # `messageType` is what makes the deferred unsupported-skip
@@ -3212,16 +2760,12 @@ def _process_message(
             except Exception as e:
                 logger.warning(f"Direct API read receipt failed: {type(e).__name__}")
         else:
-            # SEND #9 — the AWS-path twins of #7 and #8, gated the same way and for the
-            # same reasons: the reaction is a Service message, the receipt is the
-            # ambiguous one. The asymmetry here is deliberate, not an oversight.
-            if _may_send('auto_reaction_aws'):
-                _send_auto_reaction(
-                    contact_id=contact_id,
-                    whatsapp_message_id=whatsapp_message_id,
-                    phone_number_id=aws_phone_number_id,
-                    request_id=request_id
-                )
+            _send_auto_reaction(
+                contact_id=contact_id,
+                whatsapp_message_id=whatsapp_message_id,
+                phone_number_id=aws_phone_number_id,
+                request_id=request_id
+            )
 
             # Send read receipt to show message was received.
             # NOT GATED — see the TODO on send #8 above.
@@ -3246,11 +2790,7 @@ def _process_message(
             'senderPhone': mask_phone(sender_phone),
             'requestId': request_id,
         }))
-        # SEND #10 — the site menu. Note `request_welcome` is NOT a deterministic
-        # trigger, so a standby "Start" tap never reaches here anyway; the guard is for
-        # completeness rather than for a path that exists today.
-        if _may_send('request_welcome_menu'):
-            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+        _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
         # Mark welcomeSent so brand-new contact path doesn't double-send
         try:
             dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -3296,9 +2836,7 @@ def _process_message(
         if (button_text_lower in BUTTON_MENU_TRIGGERS
                 or strip_decorative_edges(button_text_lower) in BUTTON_MENU_TRIGGERS
                 or button_text_lower.startswith('get started')):
-            # SEND #11.
-            if _may_send('button_text_menu'):
-                _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             logger.info(json.dumps({
                 'event': 'button_triggered_menu_sent',
                 'buttonText': button_text_lower,
@@ -3308,13 +2846,7 @@ def _process_message(
             return  # Skip AI automation — menu sent via button trigger
 
     # ── Keyword triggers (before AI automation) ──
-    # SEND #12 — one guard covering the WHOLE keyword-routing table below, which is
-    # every menu, flow, CTA, payment and link reply a text message can produce. One
-    # guard rather than ~20, because the block contains no DynamoDB writes and no state
-    # changes: it reads `content_lower` and sends. Skipping it therefore skips only
-    # sends, which is exactly the intent. Any future write added inside this block must
-    # be hoisted above this guard or it will silently stop happening when the flag is off.
-    if msg_type == 'text' and content and _may_send('text_keyword_routing'):
+    if msg_type == 'text' and content:
         content_lower = content.strip().lower()
 
         # ── Slash-command normalization (WhatsApp Conversational Components) ──
@@ -3526,8 +3058,7 @@ def _process_message(
                         trigger=review_trigger).allowed
                 except Exception:
                     review_allowed = False
-                if review_allowed and review_trigger.get('flowId') \
-                        and _may_send('leave_review_attributed'):
+                if review_allowed and review_trigger.get('flowId'):
                     # The park result is CARRIED INTO THE LOG, not discarded. A park
                     # failure degrades to an unattributed review, which is the right
                     # trade - the customer still gets the form - but silently, and a
@@ -3808,17 +3339,7 @@ def _process_message(
         try:
             # A brand-new contact gets the site menu. The welcomeSent write below
             # MUST stay, or this re-sends on every message from a new contact.
-            #
-            # SEND #13 — the SEND is guarded, the write is NOT, and that asymmetry is a
-            # deliberate trade with a cost worth naming: when a welcome is suppressed the
-            # contact is still marked welcomed, so they never get one later. The
-            # alternative — skipping the write too — means retrying the welcome on EVERY
-            # subsequent message from that contact, which under an active routing
-            # configuration is a rejected Graph send every time, forever. A thread we do
-            # not own is being answered by whoever does own it, so the missed welcome is
-            # the cheaper of the two failures.
-            if _may_send('brand_new_contact_welcome'):
-                _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
+            _send_ai_auto_reply(contact_id, SERVICE_WEBSITE_REPLY, aws_phone_number_id, request_id)
             # Mark contact so welcome isn't sent again
             try:
                 dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -3899,8 +3420,6 @@ def _route_retired_vault_notice(contact_id: str, sender_phone: str,
         logger.warning(json.dumps({'event': 'vault_retired_missing_inbound_id',
                                    'requestId': request_id}))
         return True
-    if not _may_send('vault_retired_notice'):
-        return True
     try:
         lambda_client.invoke(
             FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
@@ -3935,21 +3454,20 @@ def _route_vault_offer_tap(message: Dict, button_text_lower: str, contact_id: st
     if (not whatsapp_message_id or aws_phone_number_id != PHONE_NUMBER_ID_1
             or os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true'):
         return False
-    if _may_send('vault_offer_tap'):
-        try:
-            lambda_client.invoke(
-                FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
-                Payload=json.dumps({
-                    'internalAction': 'catalogService', 'action': 'unlock',
-                    'offerToken': token,
-                    'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
-                    'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id,
-                }).encode())
-        except Exception as error:  # noqa: BLE001 - never retry a maybe-accepted tap
-            logger.warning(json.dumps({'event': 'vault_offer_tap_unrouted',
-                                       'errorType': type(error).__name__,
-                                       'requestId': request_id}))
-            return False
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'catalogService', 'action': 'unlock',
+                'offerToken': token,
+                'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
+                'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id,
+            }).encode())
+    except Exception as error:  # noqa: BLE001 - never retry a maybe-accepted tap
+        logger.warning(json.dumps({'event': 'vault_offer_tap_unrouted',
+                                   'errorType': type(error).__name__,
+                                   'requestId': request_id}))
+        return False
     logger.info(json.dumps({'event': 'vault_offer_tap_routed', 'withOffer': True,
                             'contactId': mask_contact_id(contact_id),
                             'requestId': request_id}))
@@ -6397,7 +5915,7 @@ def _send_unreadable_hint(contact_id: str, phone_number_id: str, now: int,
     concurrent deliveries of the same burst produce one reply. Any failure to claim it sends
     nothing: a missed hint is better than a repeated one.
     """
-    if not contact_id or not _may_send('unreadable_message_hint'):
+    if not contact_id:
         return False
     try:
         dynamodb.Table(CONTACTS_TABLE).update_item(
@@ -6459,9 +5977,6 @@ def _launch_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: 
     if not decision.allowed:
         count('launch_blocked', reason=decision.reason)
         return False
-    if not _may_send('subscribe_flow'):
-        count('launch_blocked', reason='not_thread_owner')
-        return True
     _send_flow_link(contact_id, phone_number_id, 'subscribe', trigger, request_id,
                     reason='service_keyword')
     count('launch_redirected')
@@ -6518,7 +6033,7 @@ def _review_attribution_enabled() -> bool:
     anything and that fall-through is preserved byte for byte.
 
     It has to default off rather than ship enabled, for the same reason
-    `_standby_reply_enabled` has to default to TODAY'S behaviour: the inbound ingress
+    it has to default to TODAY'S behaviour: the inbound ingress
     invokes `wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production the instant
     `update-function-code` returns and there is no alias gap in which to verify. The owner
     flips this after publishing the Flow version on Meta.

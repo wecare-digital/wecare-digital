@@ -194,16 +194,16 @@ const messageWabaId = ( m: api.Message ): string => {
 };
 const wabaDisplay = ( id: string ): string => WABAS.find( w => w.id === id )?.display || '';
 
-// AI-managed is a routing STATUS, not a person's name. Ignore the synthetic
-// names of older standby rows so a genuine WhatsApp profile name elsewhere in
-// the conversation can win even when the newest event is a standby copy.
-const standbyPlaceholderName = ( name?: string ): boolean =>
+// "AI-managed contact" is a synthetic placeholder written on older rows, not a
+// person's name. Ignore it so a genuine WhatsApp profile name elsewhere in the
+// conversation can win.
+const legacyPlaceholderName = ( name?: string ): boolean =>
     /^AI-managed(?: WhatsApp)? contact\b/i.test( ( name || '' ).trim() );
 
 const realWhatsAppName = ( m: api.Message ): string => {
     if ( ( m.channel || '' ).toLowerCase() !== 'whatsapp' ) return '';
     const name = ( m.senderName || '' ).trim();
-    if ( !name || name.toLowerCase() === 'unknown' || standbyPlaceholderName( name )
+    if ( !name || name.toLowerCase() === 'unknown' || legacyPlaceholderName( name )
         || /^[+\d\s()-]+$/.test( name ) ) return '';
     return name;
 };
@@ -583,7 +583,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 if ( waba ) existing.wabas.add( waba );
                 if ( !contactNames[ cid ] && realWhatsAppName( m )
                     && ( /^[+\d\s()-]+$/.test( existing.name )
-                        || standbyPlaceholderName( existing.name )
+                        || legacyPlaceholderName( existing.name )
                         || existing.name.startsWith( 'WhatsApp contact #' ) ) )
                     existing.name = realWhatsAppName( m );
                 if ( ts > existing.lastTs )

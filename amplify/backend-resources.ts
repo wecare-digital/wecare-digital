@@ -191,7 +191,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-service-api',
     // Live functions found during the 2026-07 drift audit that were absent from
     // this list (their log groups existed with no retention policy).
-    'wecare-marketing-ads', 'wecare-meta-business-agent', 'wecare-partner-onboarding',
+    'wecare-marketing-ads', 'wecare-partner-onboarding',
     'wecare-partner-token-refresh', 'wecare-docs-scraper',
   ];
 

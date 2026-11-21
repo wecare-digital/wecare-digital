@@ -161,22 +161,6 @@ CONTACTS_TABLE = shared_tables.contacts_table_name()
 ORDERS_TABLE = shared_tables.orders_table_name()
 STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
-AI_ROUTING_ID = 'ai_hybrid_routing'  # SystemConfigTable key for AI-vs-bot routing rules
-DEFAULT_AI_ROUTING = {
-    'enabled': True,
-    'keywords': ['hi', 'hello', 'hey', 'menu', 'main menu', 'show menu', 'browse menu',
-                 '/menu', 'start', 'get started', 'need help!', 'subscribe', 'help',
-                 # Our own QR / widget prefills. Must stay in step with
-                 # inbound-whatsapp-handler's _DETERMINISTIC_KEYWORDS, or a dashboard
-                 # save of this config would silently drop them again.
-                 'get help', 'hi 👋'],
-    'contains': ['get started', 'main menu', 'subscribe', 'track request', 'track',
-                 'submit request', 'amend request', 'appointment', 'rx slot', 'drop docs',
-                 'enterprise', 'leave review', 'catalog', 'catalogue', 'pay', 'payment',
-                 'invoice', 'faq'],
-    'types': ['button', 'interactive', 'order'],
-    'commandPrefix': '/',
-}
 
 # Flow management tables
 FLOW_REGISTRY_TABLE = os.environ.get('FLOW_REGISTRY_TABLE', 'stack-wecare-digital-FlowRegistryTable')
@@ -1416,45 +1400,6 @@ def _list_generated_templates(waba_id: str) -> Dict:
         return _resp(400, result)
     data = result.get('data', []) or []
     return _resp(200, {'wabaId': waba_id, 'total': len(data), 'templates': data})
-
-
-# ============================================================================
-# AI Hybrid Routing — which triggers the bot handles vs the Meta AI agent.
-# Read by the inbound handler (id='ai_hybrid_routing') to decide, on standby,
-# whether to take control (deterministic keyword/command/type) or let the AI reply.
-# ============================================================================
-def _get_ai_routing() -> Dict:
-    try:
-        t = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        item = t.get_item(Key={'id': AI_ROUTING_ID}).get('Item') or {}
-        raw = item.get('configValue') or '{}'
-        data = json.loads(raw) if isinstance(raw, str) else (raw or {})
-        cfg = dict(DEFAULT_AI_ROUTING)
-        cfg.update({k: v for k, v in data.items() if v is not None})
-        return cfg
-    except Exception as e:
-        logger.warning(json.dumps({'event': 'ai_routing_read_error', 'error': str(e)}))
-        return dict(DEFAULT_AI_ROUTING)
-
-
-def _list_ai_routing(params: Dict) -> Dict:
-    return _resp(200, {'routing': _get_ai_routing(), 'defaults': DEFAULT_AI_ROUTING})
-
-
-def _update_ai_routing(body: Dict) -> Dict:
-    """Update AI routing rules. Body may include: enabled(bool), keywords[list],
-    contains[list], types[list], commandPrefix(str). Missing keys keep current values."""
-    cfg = _get_ai_routing()
-    for k in ('enabled', 'keywords', 'contains', 'types', 'commandPrefix'):
-        if k in body and body[k] is not None:
-            cfg[k] = body[k]
-    try:
-        dynamodb.Table(SYSTEM_CONFIG_TABLE).put_item(Item={
-            'id': AI_ROUTING_ID, 'configValue': json.dumps(cfg), 'updatedAt': int(time.time())})
-    except Exception as e:
-        return _resp(500, {'error': f'Failed to save routing: {e}'})
-    logger.info(json.dumps({'event': 'ai_routing_updated', 'enabled': cfg.get('enabled')}))
-    return _resp(200, {'success': True, 'routing': cfg})
 
 
 # ============================================================================
@@ -7443,13 +7388,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/catalog-sync' in path:
             return _resp(410, {'error': 'Meta Commerce catalog synchronization is retired'})
-
-        elif '/ai-routing' in path:
-            if method == 'GET':
-                return _list_ai_routing(params)
-            elif method in ('POST', 'PUT'):
-                return _update_ai_routing(body)
-            return _resp(405, {'error': 'GET/POST only'})
 
         elif '/capi' in path:
             # Conversions API for Business Messaging (whatsapp_business_manage_events)

@@ -1,7 +1,6 @@
 [
   "ANY /marketing-ads",
   "ANY /mcp",
-  "ANY /meta-agent",
   "ANY /seo-tools",
   "ANY /seo-tools/{proxy+}",
   "ANY /wa-business/{proxy+}",

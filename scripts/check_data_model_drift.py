@@ -206,13 +206,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "`expiresAt` - a download grant is deliberately short-lived, so expiry is "
         "the point of the record rather than a cache detail. Not modelled here for "
         "the same reason as PstnSoftphoneSessions: Amplify does not own that clock.",
-    "ThreadOwnershipTable":
-        "Provisioned 2026-10-06 by scripts/provision_thread_ownership_table.py for WhatsApp "
-        "Conversation Routing. Deliberately not modelled here: it is operational routing "
-        "state with a 7-day TTL, keyed on {phone_number_id}#{BSUID-or-wa_id} because one "
-        "contact can hold two independent threads (the same person talks to both WABA "
-        "numbers). A contact-keyed GraphQL model cannot express that, which is the reason "
-        "it is a table of its own rather than attributes on Contact.",
 }
 
 

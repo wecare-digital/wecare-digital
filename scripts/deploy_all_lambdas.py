@@ -408,7 +408,6 @@ SPECS: List[Spec] = [
     Spec("wecare-scheduled-messages", "messaging/scheduled-messages"),
     # --- messaging / ads + analytics ---
     Spec("wecare-marketing-ads", "messaging/marketing-ads"),
-    Spec("wecare-meta-business-agent", "messaging/meta-business-agent"),
     # --- ai ---
     Spec("wecare-ai-query-kb", "ai/ai-query-kb"),
     Spec("wecare-ai-config-management", "ai/ai-config-management"),
@@ -638,9 +637,9 @@ def validate_handler(members: Dict[str, bytes], handler_string: str) -> List[str
 
     The import check below cannot catch this: a package can have every import
     satisfied and still be unbootable because AWS is configured to call a
-    symbol that does not exist. Two functions in this fleet define
-    ``lambda_handler`` rather than ``handler`` (messaging/marketing-ads,
-    messaging/meta-business-agent) and neither has a ``resource.ts``, so the
+    symbol that does not exist. One function in this fleet defines
+    ``lambda_handler`` rather than ``handler`` (messaging/marketing-ads)
+    and it has no ``resource.ts``, so the
     only record of their entry point is the live configuration. Renaming a
     handler function would deploy cleanly and then fail on the first
     invocation with ``Runtime.HandlerNotFound``.
