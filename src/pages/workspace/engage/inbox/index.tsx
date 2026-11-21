@@ -287,6 +287,7 @@ const ICON_PATHS: Record<string, string> = {
     phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z',
     block: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM5.6 5.6l12.8 12.8',
     mail: 'M4 6h16v12H4zM4 7l8 6 8-6',
+    trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
 };
 const Icon: React.FC<{ name: string; size?: number }> = ( { name, size = 18 } ) => (
     <svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={ { display: 'block' } }>
@@ -336,6 +337,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const [ replyText, setReplyText ] = useState( '' );
     const [ sending, setSending ] = useState( false );
     const [ deletingMessageId, setDeletingMessageId ] = useState<string | null>( null );
+    const [ deletingContact, setDeletingContact ] = useState( false );
     const [ replyingTo, setReplyingTo ] = useState<api.Message | null>( null );
     const [ visibleCount, setVisibleCount ] = useState( 50 );
     const [ selectedWaba, setSelectedWaba ] = useState( WABAS[ 0 ].id );
@@ -445,6 +447,48 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             setDeletingMessageId( null );
         }
     }, [ confirm, deletingMessageId, loadData, toast ] );
+
+    const CONTACT_DELETE_REFUSALS: Record<string, string> = {
+        CONTACT_DELETE_VERIFIED_CUSTOMER: 'This is a verified customer. Verified customers cannot be deleted from the inbox.',
+        CONTACT_DELETE_FINANCIAL_RETENTION: 'This contact has payment history that must be retained, so it cannot be deleted.',
+        CONTACT_DELETE_LOCKED: 'Another delete is in progress for this contact. Try again shortly.',
+        CONTACT_DELETE_RETENTION_HOLD: 'This contact is under a legal or retention hold and cannot be deleted.',
+        CONTACT_DELETE_LINKAGE_UNKNOWN: 'Links to customer or payment records could not be checked. Nothing was deleted. Try again later.',
+        CONTACT_DELETE_INCOMPLETE: 'Delete was only partly completed. Run Delete conversation and contact again to finish.',
+    };
+
+    const deleteConversationAndContact = useCallback( async () => {
+        const contactId = selected;
+        if ( !contactId || deletingContact ) return;
+        const approved = await confirm( {
+            title: 'Delete conversation and contact?',
+            message: 'This removes this chat, its stored media and the saved contact, so the number can message again as a new contact. It is not allowed for verified customers or contacts with payment history. Meta/provider copies and backups may remain.',
+            confirmText: 'Delete conversation and contact',
+            danger: true,
+        } );
+        if ( !approved ) return;
+        setDeletingContact( true );
+        try {
+            const result = await api.deleteInboxContactConversation( contactId );
+            if ( result.ok && result.data.contactDeleted ) {
+                toast.success( `Deleted ${result.data.messagesDeleted} message(s) and the contact. Provider copies may remain.` );
+                setSelected( null );
+                setReplyingTo( null );
+                setMessages( prev => prev.filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) !== contactId ) );
+                setContactDir( prev => { const next = { ...prev }; delete next[ contactId ]; return next; } );
+                await loadData();
+            } else if ( !result.ok ) {
+                toast.error( CONTACT_DELETE_REFUSALS[ result.failure.code || '' ] || result.failure.message );
+                if ( result.failure.code === 'CONTACT_DELETE_INCOMPLETE' ) await loadData();
+            } else {
+                toast.error( 'Delete was not confirmed.' );
+            }
+        } catch {
+            toast.error( 'Delete request could not be verified. Refresh before retrying.' );
+        } finally {
+            setDeletingContact( false );
+        }
+    }, [ selected, deletingContact, confirm, loadData, toast ] );
 
     // `?channel=` applied after hydration. On a statically exported page
     // router.query is EMPTY on first render, so the state initializer above cannot
@@ -568,8 +612,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 map.set( cid, {
                     contactId: cid,
                     name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone
-                        || m.receivingPhone || ( cid.startsWith( 'wa-standby:' )
-                            ? `WhatsApp contact #${ cid.slice( -6 ).toUpperCase() }` : cid ),
+                        || m.receivingPhone || cid,
                     channels: new Set( [ ch ] ),
                     wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
@@ -1214,6 +1257,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
+                                    <button className="ui-icon-btn ui-icon-danger" disabled={ deletingContact } onClick={ deleteConversationAndContact } title="Delete conversation and contact">
+                                        { deletingContact ? 'Deleting…' : <Icon name="trash" size={ 16 } /> }
+                                    </button>
                                     { replyChannel === 'whatsapp' && (
                                         <button className="ui-icon-btn ui-icon-danger" disabled={ blocking } onClick={ () => handleBlockToggle( true ) } title="Block contact (only if they messaged in last 24h)"><Icon name="block" size={ 16 } /></button>
                                     ) }
