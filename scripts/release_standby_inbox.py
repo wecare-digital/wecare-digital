@@ -141,6 +141,12 @@ def main():
     p.add_argument("--expected-version", default="", help="required on --apply")
     p.add_argument("--expected-code-sha", default="", help="required on --apply")
     args = p.parse_args()
+    # Retired: this legacy release would recreate synthetic AI standby inbox
+    # messages. Routing context remains in ThreadOwnershipTable instead.
+    if args.apply:
+        raise RuntimeError(
+            "RETIRED_STANDBY_INBOX_PROJECTION: do not redeploy AI mirror into MessagesTable"
+        )
     if args.apply and (not args.expected_version or not args.expected_code_sha):
         p.error("--apply requires --expected-version and --expected-code-sha")
 
