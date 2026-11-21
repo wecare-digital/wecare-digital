@@ -58,6 +58,18 @@ MAX_LIMIT = 5000
 PRESIGNED_URL_EXPIRY = 3600  # 1 hour
 
 
+def _visible_in_customer_inbox(item: Dict[str, Any]) -> bool:
+    """A standby copy is routing context, not a customer-facing conversation.
+
+    Older deployments mirrored AI/other-responder webhooks into MessagesTable
+    using a synthetic wa-standby contact ID. Exclude both flagged and legacy
+    synthetic rows from the normal Inbox API without touching financial records.
+    """
+    if item.get('standbySourced') is True:
+        return False
+    return not str(item.get('contactId') or '').startswith('wa-standby:')
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Read messages from DynamoDB Messages table.
@@ -126,6 +138,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # (WhatsApp/SMS/RCS/Email via dual-write + backfill). Uses GSIs so reads are
         # bounded Query calls, never full-table scans (anti-overload).
         messages = _read_from_messages_table(contact_id, channel, direction, limit)
+        # Do not surface AI/other-responder standby copies as customer threads.
+        messages = [m for m in messages if _visible_in_customer_inbox(m)]
 
         # Sort by timestamp descending
         messages.sort(key=lambda x: float(x.get('timestamp', x.get('createdAt', 0)) or 0), reverse=True)
