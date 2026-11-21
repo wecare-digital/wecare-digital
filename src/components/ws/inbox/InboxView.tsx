@@ -128,7 +128,8 @@ const InboxView: React.FC = () => {
       const dir: Record<string, string> = {};
       ( contacts as Contact[] ).forEach( c => { dir[ c.contactId ] = c.name || c.email || c.phone || ''; } );
       setNames( dir );
-      setMessages( msgs as Message[] );
+      setMessages( ( msgs as Message[] ).filter( m => m.standbySourced !== true
+        && !( m.contactId || '' ).startsWith( 'wa-standby:' ) ) );
     } catch {
       setFailure( {
         kind: 'network',
