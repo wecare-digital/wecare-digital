@@ -92,3 +92,36 @@ def test_unattributable_admin_cannot_delete(invoke):
     assert status == 403
     assert result["errorCode"] == "MESSAGE_DELETE_ACTOR_REQUIRED"
     assert calls == []
+
+
+def test_content_only_scope_uses_separate_audited_operation(invoke, monkeypatch):
+    import lambda_utils.erasure.inbox_delete as delete_module
+    _, delete_calls = invoke
+    redact_calls = []
+
+    def fake_redact(**kwargs):
+        redact_calls.append(kwargs)
+        return delete_module.DeleteDecision(
+            200, {"success": True, "contentDeleted": True,
+                  "rowDeleted": False, "erasureComplete": False}
+        )
+
+    monkeypatch.setattr(delete_module, "redact_visible_message_content", fake_redact)
+    scoped = request(MARKER + "msg-one")
+    scoped["queryStringParameters"] = {"scope": "content-only"}
+    status, payload = body(HANDLER.handler(scoped, None))
+    assert status == 200
+    assert payload["contentDeleted"] is True
+    assert payload["rowDeleted"] is False
+    assert [call["message_id"] for call in redact_calls] == ["msg-one"]
+    assert delete_calls == []
+
+
+def test_content_only_unmarked_id_is_rejected(invoke):
+    _, delete_calls = invoke
+    scoped = request("msg-one")
+    scoped["queryStringParameters"] = {"scope": "content-only"}
+    status, payload = body(HANDLER.handler(scoped, None))
+    assert status == 400
+    assert payload["errorCode"] == "MESSAGE_DELETE_MARKER_REQUIRED"
+    assert delete_calls == []
