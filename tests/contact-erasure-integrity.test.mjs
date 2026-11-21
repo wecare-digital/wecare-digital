@@ -44,7 +44,8 @@ test('customer actions allow message management and an approved erasure request'
 test('single-message deletion is canonical, audit-first, and retains financial/media evidence', () => {
   const single = readSource('amplify/functions/shared/lambda_utils/erasure/inbox_delete.py');
   const sharedDispatcher = readSource('amplify/functions/shared/lambda_utils/erasure/dispatch.py');
-  assert.ok(messageDelete.includes('delete_visible_message('));
+  assert.ok(messageDelete.includes('outcome = operation('));
+  assert.ok(messageDelete.includes('else delete_visible_message'));
   assert.ok(messageDelete.includes("require_auth(event, required_role='Admin')"));
   assert.ok(messageDelete.includes("staff.get('mfaEnrolled') is not True"));
   assert.ok(single.includes('canonical_table.get_item('));
