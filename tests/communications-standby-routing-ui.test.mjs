@@ -49,3 +49,17 @@ test('message UI neither deletes rows nor bypasses the actual WhatsApp API', () 
   assert.ok(!inbox.includes('deleteContact('));
   assert.ok(inbox.includes('api.sendWhatsAppMessage( {'));
 });
+
+
+test('standby events stay in routing audit, never create phantom inbox conversations', () => {
+  const routing = readSource('amplify/functions/shared/lambda_utils/thread_ownership.py');
+  const readHandler = readSource('amplify/functions/core/messages-read/handler.py');
+  const alternateInbox = readSource('src/components/ws/inbox/InboxView.tsx');
+  assert.ok(routing.includes('TABLE_RANGE_KEY: f"{RECORD_STANDBY_PREFIX}'));
+  assert.ok(!routing.includes('standby_inbox.mirror('));
+  assert.ok(readHandler.includes('_visible_in_customer_inbox(m)'));
+  assert.ok(readHandler.includes("item.get('standbySourced') is True"));
+  assert.ok(inbox.includes('m.standbySourced !== true'));
+  assert.ok(alternateInbox.includes('m.standbySourced !== true'));
+  assert.ok(!inbox.includes('WhatsApp contact #${ cid.slice( -6 )'));
+});
