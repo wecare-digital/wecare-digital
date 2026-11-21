@@ -204,7 +204,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=auto-response', label: 'Auto Response' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=conversions-api', label: 'Conversions API (CTWA)' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=ctwa-ads', label: 'Ads to WhatsApp (CTWA)' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=tech-partner', label: 'Tech Partner Readiness' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=templates', label: 'WhatsApp Templates' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=template-builder', label: 'Create WhatsApp Template' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=catalog-builder', label: 'Catalog & Flow Mapping' },
@@ -216,7 +215,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=cost-controls', label: 'Cost Controls' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=scripts', label: 'Scripts' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=welcome', label: 'Welcome Message' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent', label: 'WhatsApp AI Agent' },
     ],
   },
   {

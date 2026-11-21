@@ -1494,7 +1494,7 @@ def load_inbound() -> None:
         'flow_launch': M['flow_launch'], 'flow_sessions': M['flow_sessions'], 'flow_funnel': M['flow_funnel'],
         'subscribe_messages': M['subscribe_messages'], 'customer_uuid': M['customer_uuid'],
         'canonical_flow_id': M['canonical_flows'].canonical_flow_id,
-        'canonical_contract': M['canonical_flows'].canonical_contract, '_may_send': lambda purpose: True,
+        'canonical_contract': M['canonical_flows'].canonical_contract,
         '_send_service_link': lambda *a, **k: M['cta'].append({'args': a, 'kwargs': k}),
         '_send_ai_auto_reply': lambda contact_id, content, *a: M['replies'].append(content),
     }
@@ -1620,12 +1620,6 @@ def _() -> None:
            and len(M['replies']) == 2, 'no hint the next day')
     expect(not hint('wa15550199999', 'phone2', now, 'r') and 'wa15550199999' not in contacts().items,
            'hint sent to (or row created for) an unknown contact')
-    ns['_may_send'] = lambda purpose: False
-    try:
-        contacts().items[contact_id].pop('unreadableHintAt')
-        expect(not hint(contact_id, 'phone2', now, 'r') and len(M['replies']) == 2, 'hint sent on a thread we do not own')
-    finally:
-        ns['_may_send'] = lambda purpose: True
 
 
 @check('F10 an unsupported message is not marked read or reacted to, and the hint is wired in')

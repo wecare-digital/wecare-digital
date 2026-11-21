@@ -56,7 +56,6 @@ const CampaignPanel = lazyTab<PageProps>( () => import( '../../../components/wor
 const AutoResponsePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/auto-response' ) );
 const ConversionsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/conversions-api' ) );
 const CtwaPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/ctwa-ads' ) );
-const TechPartnerPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/tech-partner' ) );
 const WhatsAppTemplatesPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/templates' ) );
 const TemplateBuilderPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/template-builder' ) );
 const CatalogBuilderPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/catalog-builder' ) );
@@ -95,7 +94,6 @@ type WhatsAppTool =
   | 'profile'
   | 'bsuid'
   | 'migration'
-  | 'tech-partner'
   | 'send-test'
   | 'campaign'
   | 'welcome'
@@ -177,7 +175,6 @@ const WHATSAPP_GROUPS: Array<{
       { id: 'profile', label: 'Business profile', detail: 'Business identity presented to customers' },
       { id: 'bsuid', label: 'BSUID & usernames', detail: 'Business-scoped identity and username operations' },
       { id: 'migration', label: 'Migration', detail: 'Number and WABA migration tools' },
-      { id: 'tech-partner', label: 'Tech Partner readiness', detail: 'Partner and app readiness checks' },
     ],
   },
   {
@@ -266,7 +263,6 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'profile': return <WhatsAppProfilePanel signOut={ signOut } user={ user } embedded />;
       case 'bsuid': return <BsuidPanel signOut={ signOut } user={ user } embedded />;
       case 'migration': return <MigrationPanel signOut={ signOut } user={ user } embedded />;
-      case 'tech-partner': return <TechPartnerPanel signOut={ signOut } user={ user } embedded />;
       case 'send-test': return <SendTestPanel signOut={ signOut } user={ user } embedded />;
       case 'campaign': return <CampaignPanel signOut={ signOut } user={ user } embedded />;
       case 'welcome': return <WelcomePanel signOut={ signOut } user={ user } embedded />;

@@ -92,8 +92,6 @@ COMPLETED = [
      "file(1) reports ASCII; matches node v24.21.0 and engines >=24.0.0"),
     ("Linter restored", "next lint removed in Next 16; added eslint 9 + eslint-config-next 16.3.5 flat config",
      "npm run lint executes; 317 pre-existing findings surfaced across 98 files"),
-    ("Graph API version drift", "meta-business-agent moved off v22.0 to v25.0, fleet-aligned",
-     "module imports, GRAPH resolves v25.0, no v22.0 refs remain; NOT yet deployed"),
     ("Lambda deploy tooling", "scripts/deploy_all_lambdas.py: portable replacement for Windows-only .ps1",
      "62 AWS functions == 62 handled; earlier run deployed 60/60 with 0 failures"),
     ("lambda_utils/__init__.py", "restored; .gitignore `_*.py` had silently excluded it",
@@ -114,8 +112,6 @@ COMPLETED = [
      "verified in fresh login AND interactive shells and via boto3: arn:aws:iam::775261844268:user/wecare-admin"),
     ("Shell PATH fix", "tool PATHs moved to ~/.zprofile; .zshrc is interactive-only so scripts missed them",
      "`zsh -lc` now resolves aws/brew and inherits AWS_PROFILE; single definition, no duplicates"),
-    ("Deploy wecare-meta-business-agent", "Graph v22.0 -> v25.0; published v19, live alias v18 -> v19",
-     "alias sha == $LATEST; code the ALIAS serves contains v25.0 and no v22.0; smoke test 200, no FunctionError"),
     ("Amplify build verification", "job 665 SUCCEED for HEAD 3c05a904; six most recent jobs all SUCCEED",
      "aws amplify list-jobs; live site HTTP 200 and the served chunk carries height:108px"),
     ("Private S3 report bucket", "wecare-maintenance-reports-775261844268 created",
@@ -316,10 +312,6 @@ CONFIRMATIONS = [
      "Removes 6 credential-bearing allow-patterns and adds 29 ask / 56 deny gates",
      "cp ~/.local/share/kiro-maintenance-backup/20260919-063734/STAGED-workspace-permissions.yaml ~/.kiro/workspace-roots/df7bb16a63efe7f7/permissions.yaml",
      "Reply: DONE 1"),
-    ("CONFIRM-2", "Restore AWS auth, then deploy the Graph v25 fix",
-     "Production serves Graph v22.0; the fix is committed but unshipped",
-     "aws login && python scripts/deploy_all_lambdas.py wecare-meta-business-agent",
-     "Reply: YES 2"),
     ("CONFIRM-3", "Revoke OpenAI + Plivo now (zero production risk)",
      "Neither is consumed by any Lambda; revoking cannot break the project",
      "Provider consoles; no code or secret change needed",
@@ -539,16 +531,6 @@ def render_txt(d: dict) -> str:
     add("Runtime: python3.12 across the fleet - all current, none deprecated.")
     add("Last full deploy: 60/60 updated, 0 failures; 53 live aliases verified")
     add("       serving $LATEST; all 60 smoke-tested with no import errors.")
-    add("")
-    add("wecare-meta-business-agent")
-    add("  Source:     amplify/functions/messaging/meta-business-agent/handler.py")
-    add("  Change:     Graph API v22.0 -> v25.0")
-    add(f"  Commit:     1ecff8d0")
-    add("  Validation: module imports and targeted operational checks")
-    add("  Deployment: DEPLOYED - v19 published, live alias v18 -> v19")
-    add("  Version:    live=v19, alias sha == $LATEST, verified to contain v25.0")
-    add("  Rollback:   aws lambda update-alias --function-name wecare-meta-business-agent --name live --function-version 18")
-    add("  Status:     COMPLETE")
     add("")
     add(bar); add("GIT STATUS"); add(bar); add("")
     add(f"Branch:          {d['branch']}")

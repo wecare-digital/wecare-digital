@@ -43,7 +43,6 @@ FIXED_TABLES = [
     f"{PREFIX}-CustomerSessionsTable",
     f"{PREFIX}-CartTable",
     f"{PREFIX}-AgentApprovalsTable",
-    f"{PREFIX}-ThreadOwnershipTable",
     f"{PREFIX}-PstnSoftphoneSessions",
     f"{PREFIX}-DownloadGrantsTable",  # secure-file grants
     f"{PREFIX}-SecureFilesTable",
