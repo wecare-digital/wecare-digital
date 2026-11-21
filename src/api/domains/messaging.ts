@@ -137,6 +137,30 @@ export async function deleteInboxMessage ( messageId: string ) {
   );
 }
 
+export interface LocalInboxContentDeleteResult {
+  success: true;
+  contentDeleted: true;
+  rowDeleted: false;
+  sourceContentDeleted: boolean;
+  contactDeleted: false;
+  erasureComplete: false;
+  mediaPermanentlyErased: false;
+  messageId: string;
+  warning?: string;
+}
+
+/** Deletes eligible message TEXT only, keeping the message row, customer and
+ * financial history. The server rejects legal/retention holds and payment or
+ * media evidence; an Admin MFA session and durable audit are still required.
+ * No automatic retry is permitted for a destructive write.
+ */
+export async function deleteInboxMessageContent ( messageId: string ) {
+  return apiCallResult<LocalInboxContentDeleteResult>(
+    `${API_BASE}/messages/${encodeURIComponent( '__canonical_inbox_v1__:' + messageId )}?scope=content-only`,
+    { method: 'DELETE' }, 0, 15000, false,
+  );
+}
+
 export async function updateMessage ( messageId: string, updates: Record<string, any> ): Promise<boolean> {
   const data = await apiCall<any>( `${API_BASE}/messages/${messageId}`, {
     method: 'PUT',
