@@ -246,7 +246,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=analytics', label: 'Analytics' },
       { path: '/workspace/communications?view=manage&section=usage', label: 'Cost & Usage' },
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
-      { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
       // Short Links is inside Communications > Manage. The retired /workspace/link
       // alias no longer exists and must not reappear in menu entries.

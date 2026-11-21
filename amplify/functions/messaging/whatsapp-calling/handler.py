@@ -674,8 +674,7 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                            # Coexistence and Multi-Partner Solutions. Forwarded
                            # IDENTICALLY by the catch-all `else` below, so naming them
                            # here is byte-identical in behaviour — the reason is triage
-                           # readability, the same reason `standby` and
-                           # `messaging_handovers` were named on 2026-10-06: landing in
+                           # readability: landing in
                            # "Unhandled webhook field" reads as a defect, and this tuple
                            # is the list a reader consults to answer "do we receive this?".
                            'smb_app_state_sync', 'smb_message_echoes',
@@ -684,23 +683,14 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                 # The inbound handler has full logic for template status, account updates, etc.
                 _forward(entry, waba_id)
             elif field in ('standby', 'messaging_handovers'):
-                # ── Conversation Routing ──
-                # These two forwarded identically to the tuple above via the catch-all
-                # `else` below, so the ONLY change here is which log line is emitted.
-                # They kept landing in "Unhandled webhook field", which reads as a defect
-                # during triage and, worse, made this branch list the wrong answer to
-                # "do we receive routing webhooks?" — we do, and a named event is what
-                # lets a metric filter see one arrive. Routing is dormant (0 of either
-                # field in 30 days) but WAS live on both WABAs in Jul-Aug 2026, so the
-                # first arrival after an owner flips the console toggle is exactly the
-                # moment somebody needs to know.
+                # Conversation Routing webhooks only served the removed Meta Business AI
+                # agent. Acknowledge with 200 and do not forward.
                 logger.info(json.dumps({
-                    'event': 'conversation_routing_webhook',
+                    'event': 'webhook_field_ignored',
                     'field': field,
                     'wabaId': waba_id,
                     'requestId': request_id,
                 }))
-                _forward(entry, waba_id)
             else:
                 logger.info(f"Unhandled webhook field: {field} — forwarding to inbound handler")
                 _forward(entry, waba_id)
