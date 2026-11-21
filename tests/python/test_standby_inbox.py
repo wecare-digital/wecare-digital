@@ -157,7 +157,7 @@ def test_invalid_identity_is_rejected_before_database_access():
     assert standby_inbox.mirror(PHONE_ID, bsuid=BSUID, message={"type": "text"}, resource=Db()) is False
 
 
-def test_standby_context_remains_available_if_inbox_projection_fails(monkeypatch):
+def test_standby_context_is_stored_without_projection_to_customer_inbox(monkeypatch):
     class ContextTable:
         def __init__(self):
             self.rows = []
@@ -167,12 +167,19 @@ def test_standby_context_remains_available_if_inbox_projection_fails(monkeypatch
             return {}
 
     table = ContextTable()
-    monkeypatch.setattr(standby_inbox, "mirror", lambda *args, **kwargs: False)
+
+    def reject_canonical_projection(*args, **kwargs):
+        raise AssertionError("Standby events must not enter MessagesTable")
+
+    monkeypatch.setattr(standby_inbox, "mirror", reject_canonical_projection)
     thread_ownership.set_table(table)
     try:
         assert thread_ownership.store_standby_message(
             PHONE_ID, bsuid=BSUID, message=message(), content="hello", now=1795100001
         ) is True
+        assert len(table.rows) == 1
         assert table.rows[0]["recordType"].startswith("SB#")
+        assert table.rows[0]["standbySourced"] is True
+        assert table.rows[0]["content"] == "hello"
     finally:
         thread_ownership.set_table(None)
