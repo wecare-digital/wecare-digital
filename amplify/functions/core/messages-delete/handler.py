@@ -1,8 +1,13 @@
 """
 Messages Delete Lambda Handler
 Deletes eligible local inbox text messages by exact ID, from the canonical
-MessagesTable and a matching WhatsApp source row. Never deletes contacts,
-financial evidence, protected conversations, or versioned S3 media.
+MessagesTable and a matching WhatsApp source row. Message scopes (inbox,
+content-only) never delete contacts, financial evidence or protected chats.
+
+scope=contact deletes a whole conversation plus its contact (chat rows, exact
+S3 message media, ConversationMeta, identity claims and the Contacts row) so the
+number can be added again. It refuses only verified customers, payment or order
+linkage and legal lock/retention hold. See erasure/contact_conversation_delete.
 """
 
 import json
@@ -61,7 +66,7 @@ def handler(event, context):
     """
     Delete a message by ID from the appropriate table.
     Also deletes associated media files from S3.
-    ONLY deletes the message - does NOT affect contacts.
+    Message scopes do NOT affect contacts; scope=contact removes chat and contact.
     """
     origin = extract_origin(event)
     
@@ -116,7 +121,7 @@ def handler(event, context):
     if http_method != 'DELETE':
         return cors_response(405, {'error': 'Method not allowed'}, origin)
     scope = query_params.get('scope', 'inbox')
-    if scope not in ('inbox', '', 'content-only'):
+    if scope not in ('inbox', '', 'content-only', 'contact'):
         return cors_response(400, {
             'errorCode': 'MESSAGE_DELETE_SCOPE_INVALID',
             'error': 'Only exact local inbox message deletion is supported.',
@@ -125,7 +130,8 @@ def handler(event, context):
     # The legacy production handler silently ignores scope=inbox. A distinct
     # marker prevents a new UI from deleting a legacy source row while the
     # canonical handler is still awaiting its approved Lambda release.
-    prefix = '__canonical_inbox_v1__:'
+    prefix = ('__canonical_contact_v1__:' if scope == 'contact'
+              else '__canonical_inbox_v1__:')
     if not message_id.startswith(prefix):
         return cors_response(400, {
             'errorCode': 'MESSAGE_DELETE_MARKER_REQUIRED',
@@ -150,6 +156,9 @@ def handler(event, context):
             'errorCode': 'MESSAGE_DELETE_ACTOR_REQUIRED',
             'error': 'Verified staff identity required for deletion.',
         }, origin)
+
+    if scope == 'contact':
+        return _handle_contact_delete(message_id, actor, origin)
 
     from lambda_utils.erasure.inbox_delete import (delete_visible_message,
                                                    redact_visible_message_content)
@@ -179,6 +188,44 @@ def handler(event, context):
             'errorCode': 'MESSAGE_DELETE_RECONCILIATION_REQUIRED',
             'error': 'Message deletion could not be verified.',
             'erasureComplete': False,
+        }, origin)
+    return cors_response(outcome.status, outcome.body, origin)
+
+
+def _handle_contact_delete(contact_id, actor, origin):
+    """scope=contact: delete the conversation and the contact (Admin + MFA already checked)."""
+    from lambda_utils import identity_claims
+    from lambda_utils.erasure.contact_conversation_delete import delete_contact_conversation
+    try:
+        scheduled_name = os.environ.get(
+            'SCHEDULED_TABLE', 'stack-wecare-digital-ScheduledMessagesTable')
+        scheduled_keys = tuple(k['AttributeName'] for k in _get_key_schema(scheduled_name))
+        outcome = delete_contact_conversation(
+            contact_id=contact_id,
+            actor=actor,
+            canonical_table=dynamodb.Table(
+                os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')),
+            inbound_table=dynamodb.Table(INBOUND_TABLE),
+            outbound_table=dynamodb.Table(OUTBOUND_TABLE),
+            contacts_table=dynamodb.Table(
+                os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')),
+            meta_table=dynamodb.Table(
+                os.environ.get('CONVERSATION_META_TABLE',
+                               'stack-wecare-digital-ConversationMetaTable')),
+            claims_table=dynamodb.Table(identity_claims.TABLE_NAME),
+            invoices_table=dynamodb.Table(
+                os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')),
+            orders_table=dynamodb.Table(
+                os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')),
+            audit=record_audit,
+            delete_media=lambda key: _find_and_delete_s3_file(key, contact_id),
+            extra_tables={'scheduled': (dynamodb.Table(scheduled_name), scheduled_keys)},
+        )
+    except Exception:
+        return cors_response(503, {
+            'errorCode': 'CONTACT_DELETE_INCOMPLETE',
+            'error': 'Contact deletion could not be verified. Run it again.',
+            'contactDeleted': False, 'erasureComplete': False,
         }, origin)
     return cors_response(outcome.status, outcome.body, origin)
 

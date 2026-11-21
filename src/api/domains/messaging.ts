@@ -39,9 +39,6 @@ export interface Message {
   senderPhone?: string;
   senderName?: string;
   senderBsuid?: string;
-  /** True for a read-only event observed while another responder (e.g. AI) owns the thread. */
-  /** Live owner snapshot, verified by the authenticated single-message read. */
-  threadOwnership?: { tracked: boolean; owned: boolean; idle: boolean; lastSignal?: string };
   routingOwner?: string;
   replyAllowed?: boolean;
   senderUsername?: string;
@@ -133,6 +130,30 @@ export async function deleteInboxMessage ( messageId: string ) {
   return apiCallResult<LocalInboxDeleteResult>(
     `${API_BASE}/messages/${encodeURIComponent( '__canonical_inbox_v1__:' + messageId )}?scope=inbox`,
     { method: 'DELETE' }, 0, 15000, false,
+  );
+}
+
+export interface ContactConversationDeleteResult {
+  success: true;
+  contactDeleted: true;
+  messagesDeleted: number;
+  mediaObjectsDeleted: number;
+  identityClaimsReleased: boolean;
+  contactRecreatable: boolean;
+  auditId: string;
+  providerCopiesErased: false;
+}
+
+/** Deletes a whole conversation (messages and stored media) plus the saved
+ * contact and its identity claims so the number can message in again as new.
+ * The server refuses verified customers, payment/financial history, locks and
+ * retention holds (see `failure.code`). A 503 CONTACT_DELETE_INCOMPLETE can be
+ * re-run by the operator, but it is never retried automatically.
+ */
+export async function deleteInboxContactConversation ( contactId: string ) {
+  return apiCallResult<ContactConversationDeleteResult>(
+    `${API_BASE}/messages/${encodeURIComponent( '__canonical_contact_v1__:' + contactId )}?scope=contact`,
+    { method: 'DELETE' }, 0, 30000, false,
   );
 }
 
@@ -293,12 +314,6 @@ function normalizeMessage ( item: any ): Message {
     senderPhone: item.senderPhone,
     senderName: item.senderName,
     senderBsuid: item.senderBsuid,
-    threadOwnership: item.threadOwnership && typeof item.threadOwnership === 'object' ? {
-      tracked: item.threadOwnership.tracked === true,
-      owned: item.threadOwnership.owned === true,
-      idle: item.threadOwnership.idle === true,
-      lastSignal: typeof item.threadOwnership.lastSignal === 'string' ? item.threadOwnership.lastSignal : '',
-    } : undefined,
     routingOwner: item.routingOwner,
     replyAllowed: item.replyAllowed === false ? false : undefined,
     senderUsername: item.senderUsername,
