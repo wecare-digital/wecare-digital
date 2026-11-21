@@ -138,7 +138,7 @@ export interface ContactConversationDeleteResult {
   contactDeleted: true;
   messagesDeleted: number;
   mediaObjectsDeleted: number;
-  identityClaimsReleased: number;
+  identityClaimsReleased: boolean;
   contactRecreatable: boolean;
   auditId: string;
   providerCopiesErased: false;

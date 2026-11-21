@@ -451,7 +451,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const CONTACT_DELETE_REFUSALS: Record<string, string> = {
         CONTACT_DELETE_VERIFIED_CUSTOMER: 'This is a verified customer. Verified customers cannot be deleted from the inbox.',
         CONTACT_DELETE_FINANCIAL_RETENTION: 'This contact has payment history that must be retained, so it cannot be deleted.',
-        CONTACT_DELETE_LOCKED: 'Another delete is in progress for this contact. Try again shortly.',
+        CONTACT_DELETE_LOCKED: 'This contact is locked for legal or payment retention, so it cannot be deleted.',
         CONTACT_DELETE_RETENTION_HOLD: 'This contact is under a legal or retention hold and cannot be deleted.',
         CONTACT_DELETE_LINKAGE_UNKNOWN: 'Links to customer or payment records could not be checked. Nothing was deleted. Try again later.',
         CONTACT_DELETE_INCOMPLETE: 'Delete was only partly completed. Run Delete conversation and contact again to finish.',

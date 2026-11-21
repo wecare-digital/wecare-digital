@@ -43,6 +43,9 @@ class Table:
         if self.fail_delete_on and Key[self.pk] == self.fail_delete_on:
             raise RuntimeError("delete failed")
         values = kw.get("ExpressionAttributeValues", {})
+        if getattr(self, "reject_conditional", False) and ":empty" in values:
+            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}},
+                              "DeleteItem")
         row = self.rows.get(Key[self.pk])
         if ":cid" in values and (not row or row.get("contactId") != values[":cid"]):
             raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}},
@@ -124,6 +127,46 @@ def test_unconverted_contact_with_long_history_is_deletable():
     assert out.status == 200 and out.body["messagesDeleted"] == 30
 
 
+@pytest.mark.parametrize("text", ["what is the fee?", "booking for Saturday",
+                                  "amount? can I pay in INR \u20b9500"])
+def test_unconverted_lead_mentioning_fee_or_booking_is_deletable(text):
+    msgs = [{"id": "m1", "contactId": CID, "direction": "INBOUND",
+             "content": text, "messageType": "text"}]
+    args, _, _ = build(messages=msgs)
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 200 and not args["contacts_table"].rows
+
+
+def test_conditional_final_delete_keeps_contact_when_verified_meanwhile():
+    args, _, _ = build()
+    args["contacts_table"].reject_conditional = True
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 503 and out.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
+    assert CID in args["contacts_table"].rows
+    cond = ccd._final_delete_condition()[0]
+    assert "attribute_exists(#id)" in cond and "cognitoSub" in str(ccd._final_delete_condition()[1].values())
+    assert "#locked" in cond and "#reason" in cond
+
+
+def test_straggler_before_final_check_keeps_contact_and_rerun_cleans_up():
+    args, _, _ = build()
+    canonical, injected = args["canonical_table"], []
+
+    def media(key):
+        if not injected:
+            injected.append(1)
+            canonical.rows["late"] = {"id": "late", "contactId": CID,
+                                      "direction": "INBOUND", "content": "hi"}
+        return True
+
+    args["delete_media"] = media
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 503 and out.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
+    assert out.body["contactDeleted"] is False and CID in args["contacts_table"].rows
+    again = ccd.delete_contact_conversation(**args)
+    assert again.status == 200 and not canonical.rows and not args["contacts_table"].rows
+
+
 @pytest.mark.parametrize("fields", [
     {"checkoutCustomerId": "sub-1"}, {"cognitoSub": "sub-1"},
     {"phoneVerifiedAt": 5}, {"identityClaimedAt": 5},
@@ -143,7 +186,7 @@ def test_bsuid_and_inbound_activity_do_not_count_as_verified():
 
 
 @pytest.mark.parametrize("message", [
-    {"paymentReferenceId": "pay_1"}, {"content": "Please pay via razorpay link"},
+    {"paymentReferenceId": "pay_1"}, {"invoiceId": "inv_1"}, {"paymentAmount": 500},
 ])
 def test_payment_messages_refused(message):
     msgs = [{"id": "m1", "contactId": CID, "direction": "INBOUND",

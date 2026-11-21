@@ -77,6 +77,30 @@ def _media_keys(rows: list[Mapping[str, Any]]) -> list[str]:
         str(r.get("s3Key")).strip() for r in rows if str(r.get("s3Key") or "").strip()))
 
 
+def _has_payment_fields(row: Mapping[str, Any]) -> bool:
+    return any(row.get(f) not in (None, "", [], {}) for f in inbox_delete._PAYMENT_FIELDS)
+
+
+def _final_delete_condition() -> tuple[str, dict[str, str], dict[str, Any]]:
+    """Delete only if the row is still unverified and not under a legal lock."""
+    names = {"#id": "id", "#locked": "locked", "#reason": "lockedReason"}
+    parts = ["attribute_exists(#id)"]
+    for i, field in enumerate(VERIFIED_FIELDS):
+        names[f"#v{i}"] = field
+        parts.append(f"(attribute_not_exists(#v{i}) OR #v{i} = :empty)")
+    parts.append("(attribute_not_exists(#locked) OR #locked = :false OR #reason = :created)")
+    values = {":empty": "", ":false": False, ":created": "created"}
+    return " AND ".join(parts), names, values
+
+
+def _leftovers_remain(contact_id: str, claim_keys: list[str], tables: list[Any],
+                      claims_table: Any) -> bool:
+    if any(inbox_delete._scan_conversation(t, contact_id) for t in tables):
+        return True
+    return any((claims_table.get_item(Key={"claimKey": k}, ConsistentRead=True)
+                .get("Item") or {}).get("contactId") == contact_id for k in claim_keys)
+
+
 def _guard(contact: Mapping[str, Any], meta: Mapping[str, Any], rows: list[Mapping[str, Any]],
            invoices: Any, orders: Any) -> inbox_delete.DeleteDecision | None:
     if bool(contact.get("locked")) and str(contact.get("lockedReason") or "").lower() != "created":
@@ -96,7 +120,9 @@ def _guard(contact: Mapping[str, Any], meta: Mapping[str, Any], rows: list[Mappi
     if linked.blocked:
         return _refuse("CONTACT_DELETE_FINANCIAL_RETENTION",
                        "This contact has payment or order history.")
-    if any(inbox_delete._is_financial(r) for r in rows):
+    # Structured payment fields only. Free text such as "fee" or "booking" in a
+    # lead's chat is not evidence of payment, so no keyword matching here.
+    if any(_has_payment_fields(r) for r in rows):
         return _refuse("CONTACT_DELETE_FINANCIAL_RETENTION",
                        "This chat has payment messages that must be retained.")
     return None
@@ -208,24 +234,22 @@ def delete_contact_conversation(
         for claim_key in claim_keys:
             identity_claims.release(claims_table, claim_key, contact_id)
 
-        # Contact row last, and only if still the same unlocked, unverified row.
-        contacts_table.delete_item(
-            Key={"id": contact_id}, ConditionExpression="attribute_exists(#id)",
-            ExpressionAttributeNames={"#id": "id"})
-
-        leftovers = (
-            contacts_table.get_item(Key={"id": contact_id}, ConsistentRead=True).get("Item")
-            or inbox_delete._scan_conversation(canonical_table, contact_id)
-            or inbox_delete._scan_conversation(inbound_table, contact_id)
-            or inbox_delete._scan_conversation(outbound_table, contact_id)
-            or any((claims_table.get_item(Key={"claimKey": k}, ConsistentRead=True)
-                    .get("Item") or {}).get("contactId") == contact_id for k in claim_keys)
-        )
-        if leftovers:
+        # Verify nothing is left BEFORE the contact row goes: while the row exists
+        # the operation stays retryable. Includes scheduled/extra rows.
+        if _leftovers_remain(
+                contact_id, claim_keys,
+                [canonical_table, inbound_table, outbound_table,
+                 *(tbl for tbl, _keys in extra_tables.values())], claims_table):
             return inbox_delete.DeleteDecision(503, {
-                "errorCode": "CONTACT_DELETE_RECONCILIATION_REQUIRED",
-                "error": "Some stored rows could not be verified as removed.",
-                "contactDeleted": False, "erasureComplete": False})
+                "errorCode": "CONTACT_DELETE_INCOMPLETE",
+                "error": "Some stored rows are still present. Run the delete again.",
+                "rowDeleted": False, "contactDeleted": False, "erasureComplete": False})
+
+        # Contact row last, and only if still the same unlocked, unverified row.
+        condition, names, values = _final_delete_condition()
+        contacts_table.delete_item(
+            Key={"id": contact_id}, ConditionExpression=condition,
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values)
     except Exception:
         # The contact row is still present unless the final delete succeeded, so a
         # retry is safe. Never claim 'nothing deleted' for an indeterminate result.
