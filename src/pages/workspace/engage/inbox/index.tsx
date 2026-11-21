@@ -410,7 +410,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             } );
             setContactNames( names );
             setContactDir( dir );
-            setMessages( msgs );
+            setMessages( msgs.filter( m => m.standbySourced !== true
+                && !( m.contactId || '' ).startsWith( 'wa-standby:' ) ) );
         } catch
         {
             toast.error( 'Failed to load inbox' );
@@ -568,8 +569,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 map.set( cid, {
                     contactId: cid,
                     name: contactNames[ cid ] || realWhatsAppName( m ) || m.senderPhone
-                        || m.receivingPhone || ( cid.startsWith( 'wa-standby:' )
-                            ? `WhatsApp contact #${ cid.slice( -6 ).toUpperCase() }` : cid ),
+                        || m.receivingPhone || cid,
                     channels: new Set( [ ch ] ),
                     wabas: new Set<string>( waba ? [ waba ] : [] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
