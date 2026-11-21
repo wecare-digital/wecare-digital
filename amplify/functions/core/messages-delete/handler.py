@@ -109,12 +109,14 @@ def handler(event, context):
             'message': 'Create invoices from Workspace > Payments.',
         }, origin)
     
-    # All single-message deletes now target the exact canonical inbox row and
-    # matching WhatsApp source, not just one source table selected by direction.
+    # Exact-key modes: inbox removes eligible text rows; content-only removes
+    # eligible text payload while retaining the message identity and timeline.
+    # Both require Admin MFA and both enforce retention/financial safeguards.
     query_params = event.get('queryStringParameters', {}) or {}
     if http_method != 'DELETE':
         return cors_response(405, {'error': 'Method not allowed'}, origin)
-    if query_params.get('scope', 'inbox') not in ('inbox', ''):
+    scope = query_params.get('scope', 'inbox')
+    if scope not in ('inbox', '', 'content-only'):
         return cors_response(400, {
             'errorCode': 'MESSAGE_DELETE_SCOPE_INVALID',
             'error': 'Only exact local inbox message deletion is supported.',
@@ -149,9 +151,12 @@ def handler(event, context):
             'error': 'Verified staff identity required for deletion.',
         }, origin)
 
-    from lambda_utils.erasure.inbox_delete import delete_visible_message
+    from lambda_utils.erasure.inbox_delete import (delete_visible_message,
+                                                   redact_visible_message_content)
     try:
-        outcome = delete_visible_message(
+        operation = (redact_visible_message_content if scope == 'content-only'
+                     else delete_visible_message)
+        outcome = operation(
             message_id=message_id,
             actor=actor,
             canonical_table=dynamodb.Table(
