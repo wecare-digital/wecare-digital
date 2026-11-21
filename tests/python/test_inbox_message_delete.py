@@ -1,5 +1,5 @@
 """Eligible local message deletion is exact-key and preserves retention evidence."""
-from lambda_utils.erasure.inbox_delete import delete_visible_message
+from lambda_utils.erasure.inbox_delete import delete_visible_message, redact_visible_message_content
 
 
 class MemoryTable:
@@ -32,6 +32,21 @@ class MemoryTable:
             raise RuntimeError("conditional conflict")
         self.deleted.append(Key["id"])
         del self.rows[Key["id"]]
+
+    def update_item(self, Key, **kwargs):
+        if self.fail_delete:
+            raise RuntimeError("redaction write failed")
+        row = self.rows.get(Key["id"])
+        values = kwargs.get("ExpressionAttributeValues", {})
+        if not row or row.get("contactId") != values.get(":cid"):
+            raise RuntimeError("conditional conflict")
+        if ":expectedContent" in values and row.get("content") != values[":expectedContent"]:
+            raise RuntimeError("message content changed")
+        if "attribute_not_exists(#expectedContent)" in kwargs.get("ConditionExpression", "") and "content" in row:
+            raise RuntimeError("unexpected content")
+        for alias, field in kwargs.get("ExpressionAttributeNames", {}).items():
+            if alias.startswith("#payload"):
+                row.pop(field, None)
 
     def query(self, **kwargs):
         values = kwargs.get("ExpressionAttributeValues", {})
@@ -163,3 +178,66 @@ def test_missing_actor_and_missing_canonical_identity_refused():
     args["actor"] = "admin-1"
     args["canonical_table"].rows = {}
     assert delete_visible_message(**args).status == 404
+
+
+def test_content_only_removes_text_but_preserves_canonical_and_source_rows():
+    args, calls = fixtures(content="Private conversation")
+    result = redact_visible_message_content(**args)
+    assert result.status == 200
+    assert result.body["contentDeleted"] is True
+    assert result.body["rowDeleted"] is False
+    assert result.body["contactDeleted"] is False
+    assert result.body["erasureComplete"] is False
+    assert "message-1" in args["canonical_table"].rows
+    assert "message-1" in args["inbound_table"].rows
+    assert "content" not in args["canonical_table"].rows["message-1"]
+    assert "content" not in args["inbound_table"].rows["message-1"]
+    assert args["canonical_table"].rows["message-1"]["contactId"] == "person-c"
+    assert args["contacts_table"].rows["person-c"]["locked"] is True
+    assert len(calls) == 1
+    assert calls[0]["action"] == "messages.delete_content_only"
+
+
+def test_content_only_does_not_override_retention_hold():
+    args, calls = fixtures(held=True)
+    result = redact_visible_message_content(**args)
+    assert result.status == 409
+    assert result.body["errorCode"] == "MESSAGE_RETENTION_HOLD"
+    assert args["canonical_table"].rows["message-1"]["content"] == "Hello"
+    assert calls == []
+
+
+def test_content_only_refuses_payment_media_and_paid_customers():
+    for option in ({"content": "UPI payment captured"}, {"media": True},
+                   {"financial": True}):
+        args, calls = fixtures(**option)
+        result = redact_visible_message_content(**args)
+        assert result.status == 409
+        assert result.body.get("contentDeleted") is not True
+        assert "content" in args["canonical_table"].rows["message-1"]
+        assert calls == []
+
+
+def test_content_only_checks_exact_message_not_unrelated_neighboring_message():
+    args, calls = fixtures(content="Private greeting")
+    args["canonical_table"].rows["message-2"] = {
+        "id": "message-2", "contactId": "person-c",
+        "content": "An unrelated invoice receipt", "messageType": "text",
+    }
+    result = redact_visible_message_content(**args)
+    assert result.status == 200
+    assert "content" not in args["canonical_table"].rows["message-1"]
+    assert args["canonical_table"].rows["message-2"]["content"] == "An unrelated invoice receipt"
+
+
+def test_content_only_fails_closed_without_audit_or_on_partial_write():
+    args, calls = fixtures(fail_audit=True)
+    result = redact_visible_message_content(**args)
+    assert result.status == 503
+    assert result.body["errorCode"] == "MESSAGE_DELETE_AUDIT_UNAVAILABLE"
+    assert args["canonical_table"].rows["message-1"]["content"] == "Hello"
+    args, calls = fixtures(fail_source=True)
+    result = redact_visible_message_content(**args)
+    assert result.status == 503
+    assert result.body["errorCode"] == "MESSAGE_DELETE_RECONCILIATION_REQUIRED"
+    assert args["canonical_table"].rows["message-1"]["content"] == "Hello"
