@@ -1,13 +1,15 @@
 // Keep ESLint errors blocking, and prevent new warning debt without requiring
 // unrelated cleanup. Run with --prune after fixing warnings; this can only
 // reduce the committed budget, never approve new warnings.
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ESLint } from 'eslint';
 
 const root = fileURLToPath( new URL( '..', import.meta.url ) );
-const budgetFile = path.join( root, 'config', 'eslint-warning-budget.json' );
+const budgetPath = 'config/eslint-warning-budget.json';
+const budgetFile = path.join( root, budgetPath );
 
 export function warningBudget( results, cwd ) {
   const counts = new Map();
@@ -50,9 +52,35 @@ export function formatBudget( budget ) {
   ).join( ',\n' ) + '\n}\n';
 }
 
+export function readCommittedBudget( cwd, sha ) {
+  if ( !/^[a-f0-9]{40}$/.test( sha ) ) throw new Error( 'Expected a full Git base commit SHA' );
+  const git = ( ...args ) => execFileSync( 'git', args, { cwd, encoding: 'utf8' } );
+  // An unavailable base is an error, not an invitation to initialize a new budget.
+  if ( !git( 'ls-tree', sha, '--', budgetPath ).trim() ) return null;
+  return JSON.parse( git( 'show', `${sha}:${budgetPath}` ) );
+}
+
 async function main( args ) {
   if ( args.length > 1 || ( args.length === 1 && args[ 0 ] !== '--prune' ) ) {
     throw new Error( 'Usage: node scripts/check_lint_warning_ratchet.mjs [--prune]' );
+  }
+  const baseline = JSON.parse( await fs.readFile( budgetFile, 'utf8' ) );
+  const baseSha = process.env.WECARE_LINT_BASE_SHA;
+  if ( process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_EVENT_NAME === 'pull_request' && !baseSha ) {
+    throw new Error( 'GitHub pull request CI requires the base commit SHA for the warning budget' );
+  }
+  const describe = ( { file, rule, previous, observed } ) => `${file}: ${rule} ${previous} -> ${observed}`;
+  if ( baseSha ) {
+    const committed = readCommittedBudget( root, baseSha );
+    if ( committed ) {
+      const increased = compareBudgets( committed, baseline ).increased;
+      if ( increased.length ) {
+        console.error( 'A pull request may not raise the base branch warning budget:\n' + increased.map( describe ).join( '\n' ) );
+        return 1;
+      }
+    } else {
+      console.log( 'Base commit has no warning budget; checking first adoption against the PR baseline.' );
+    }
   }
   const eslint = new ESLint( { cwd: root } );
   const results = await eslint.lintFiles( [ '.' ] );
@@ -62,9 +90,7 @@ async function main( args ) {
   if ( results.some( result => result.errorCount > 0 ) ) return 1;
 
   const current = warningBudget( results, root );
-  const baseline = JSON.parse( await fs.readFile( budgetFile, 'utf8' ) );
   const { increased, decreased } = compareBudgets( baseline, current );
-  const describe = ( { file, rule, previous, observed } ) => `${file}: ${rule} ${previous} -> ${observed}`;
 
   if ( increased.length > 0 ) {
     console.error( 'New ESLint warning debt (fix it without raising the budget):\n' + increased.map( describe ).join( '\n' ) );

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { compareBudgets, formatBudget, warningBudget } from '../scripts/check_lint_warning_ratchet.mjs';
+import { compareBudgets, formatBudget, readCommittedBudget, warningBudget } from '../scripts/check_lint_warning_ratchet.mjs';
 
 const cwd = process.cwd();
 const report = ( file, messages ) => ( { filePath: path.join( cwd, file ), messages } );
@@ -43,4 +46,26 @@ test( 'only fully pruned budgets match after warning cleanup', () => {
   assert.equal( comparison.increased.length, 0 );
   assert.equal( comparison.decreased.length, 2 );
   assert.deepEqual( compareBudgets( cleaned, cleaned ), { increased: [], decreased: [] } );
+} );
+
+test( 'a raised worktree budget cannot redefine the PR base allowance', t => {
+  const repo = fs.mkdtempSync( path.join( os.tmpdir(), 'wecare-lint-base-' ) );
+  t.after( () => fs.rmSync( repo, { recursive: true, force: true } ) );
+  const git = ( ...args ) => execFileSync( 'git', args, { cwd: repo, encoding: 'utf8' } ).trim();
+  const commit = () => git( '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+    'commit', '--allow-empty', '-qm', 'fixture' );
+  git( 'init', '-q' );
+  commit();
+  const first = git( 'rev-parse', 'HEAD' );
+  assert.equal( readCommittedBudget( repo, first ), null );
+  fs.mkdirSync( path.join( repo, 'config' ) );
+  const budget = path.join( repo, 'config', 'eslint-warning-budget.json' );
+  fs.writeFileSync( budget, formatBudget( { 'a.ts': { example: 1 } } ) );
+  git( 'add', 'config/eslint-warning-budget.json' );
+  commit();
+  const base = git( 'rev-parse', 'HEAD' );
+  const raised = { 'a.ts': { example: 2 } };
+  fs.writeFileSync( budget, formatBudget( raised ) );
+  assert.deepEqual( compareBudgets( readCommittedBudget( repo, base ), raised ).increased,
+    [ { file: 'a.ts', rule: 'example', previous: 1, observed: 2 } ] );
 } );

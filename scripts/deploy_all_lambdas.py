@@ -44,12 +44,12 @@ invokes at the end unless ``--no-publish`` is passed. See
 Shared checkout, concurrent deployers
 -------------------------------------
 Many sessions share this checkout, and other deployers (CodeBuild, MCP clients) write the
-same functions. Packaging reads whatever is on disk, and nothing serialises deploys, so:
+same functions. Nothing serialises deploys, so:
 
-* A real deploy refuses when a file it would package differs from HEAD (modified, staged or
-  untracked): it would ship another session's unfinished edit. Release from a clean,
-  detached worktree of the production-verified commit. Archive trees are for dry
-  runs only. Verified CI and artifact/alias evidence goes into a local receipt.
+* A real deploy requires a clean checkout. It packages only regular tracked files exported
+  from the exact production-verified commit, not the mutable checkout. Ignored files
+  and concurrent local edits cannot enter the ZIP. Verified CI and artifact/alias
+  evidence goes into a local receipt.
 * The upload carries the ``RevisionId`` this run read, and the publish step gets
   ``--expect <function>=<CodeSha256>``, so a function another deploy touched in between fails
   instead of being overwritten or published with the other run's code.
@@ -76,6 +76,7 @@ import json
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import zipfile
@@ -83,9 +84,13 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 if __package__:
-    from .require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
+    from .require_release_ci import (
+        clean_checkout_commit, committed_function_sources, wait_for_release,
+    )
 else:
-    from require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
+    from require_release_ci import (
+        clean_checkout_commit, committed_function_sources, wait_for_release,
+    )
 
 try:
     import boto3
@@ -474,52 +479,57 @@ def _iter_dir(root: Path) -> Iterable[Path]:
         yield path
 
 
-def build_zip(spec: Spec) -> Tuple[bytes, Dict[str, bytes]]:
+def build_zip(spec: Spec, *, functions_root: Optional[Path] = None) -> Tuple[bytes, Dict[str, bytes]]:
     """Return (zip bytes, {arcname: content}). Deterministic."""
     members: Dict[str, bytes] = {}
+    functions_root = FUNCTIONS if functions_root is None else functions_root
+    source = functions_root / spec.source.relative_to(FUNCTIONS)
+    handler_file = source / "handler.py"
+    lambda_utils = functions_root / "shared" / "lambda_utils"
+    static_kb = functions_root / "shared" / "static_knowledge_base.py"
 
-    if not spec.handler_file.exists():
-        raise FileNotFoundError(f"missing handler: {spec.handler_file}")
-    members["handler.py"] = spec.handler_file.read_bytes()
+    if not handler_file.exists():
+        raise FileNotFoundError(f"missing handler: {handler_file}")
+    members["handler.py"] = handler_file.read_bytes()
 
     if not spec.standalone:
-        if not LAMBDA_UTILS.is_dir():
-            raise FileNotFoundError(f"missing {LAMBDA_UTILS}")
-        for path in _iter_dir(LAMBDA_UTILS):
+        if not lambda_utils.is_dir():
+            raise FileNotFoundError(f"missing {lambda_utils}")
+        for path in _iter_dir(lambda_utils):
             if path.suffix == ".py":
-                members[f"lambda_utils/{path.relative_to(LAMBDA_UTILS).as_posix()}"] = path.read_bytes()
+                members[f"lambda_utils/{path.relative_to(lambda_utils).as_posix()}"] = path.read_bytes()
         if len(members) - 1 < 3:
             raise RuntimeError(f"lambda_utils looks incomplete ({len(members) - 1} files)")
-        if STATIC_KB.exists():
-            members["static_knowledge_base.py"] = STATIC_KB.read_bytes()
+        if static_kb.exists():
+            members["static_knowledge_base.py"] = static_kb.read_bytes()
 
-        modules = spec.source / "modules"
+        modules = source / "modules"
         if modules.is_dir():
             for path in _iter_dir(modules):
                 members[f"modules/{path.relative_to(modules).as_posix()}"] = path.read_bytes()
 
         for rel in spec.extra_dirs:
-            extra = spec.source / rel
+            extra = source / rel
             if not extra.is_dir():
                 raise FileNotFoundError(f"missing extra dir: {extra}")
             for path in _iter_dir(extra):
                 members[f"{rel}/{path.relative_to(extra).as_posix()}"] = path.read_bytes()
 
         for rel in spec.extra_files:
-            extra = spec.source / rel
+            extra = source / rel
             if not extra.is_file():
                 raise FileNotFoundError(f"missing extra file: {extra}")
             members[rel] = extra.read_bytes()
 
         for source_rel, dest_rel in spec.external_dirs:
-            extra = FUNCTIONS / source_rel
+            extra = functions_root / source_rel
             if not extra.is_dir():
                 raise FileNotFoundError(f"missing external dir: {extra}")
             for path in _iter_dir(extra):
                 members[f"{dest_rel}/{path.relative_to(extra).as_posix()}"] = path.read_bytes()
 
         for source_rel, dest_rel in spec.external_files:
-            extra = FUNCTIONS / source_rel
+            extra = functions_root / source_rel
             if not extra.is_file():
                 raise FileNotFoundError(f"missing external file: {extra}")
             members[dest_rel] = extra.read_bytes()
@@ -1175,6 +1185,19 @@ def prepare_payment_environment(lam, name: str, current: dict, *,
     return updated
 
 
+def build_commit_packages(root: Path, commit: str, selected: Iterable[Spec]):
+    """Build all selected packages from one commit snapshot before touching AWS."""
+    specs = tuple(selected)
+    function_path = FUNCTIONS.relative_to(ROOT)
+    external = {
+        Path(os.path.normpath(function_path / relative))
+        for spec in specs for relative, _ in (*spec.external_dirs, *spec.external_files)
+    }
+    external = sorted(path.as_posix() for path in external if not path.is_relative_to(function_path))
+    with committed_function_sources(root, commit, external) as source:
+        return {spec.name: build_zip(spec, functions_root=source) for spec in specs}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1240,10 +1263,12 @@ def main() -> int:
             print("A real deploy refuses this tree.\n")
 
     receipt = None
+    verified_packages = None
     if not args.dry_run:
         try:
             commit = clean_checkout_commit(ROOT)
             evidence = wait_for_release(commit, 0)
+            verified_packages = build_commit_packages(ROOT, commit, selected)
             # Exclusive file creation prevents one release from overwriting another's receipt.
             receipts_dir = ROOT / ".scratch" / "release-receipts"
             receipts_dir.mkdir(parents=True, exist_ok=True)
@@ -1251,10 +1276,21 @@ def main() -> int:
             with os.fdopen(fd, "w", encoding="utf-8") as output:
                 output.write(json.dumps({"event": "ci-verified", **evidence}, sort_keys=True) + "\n")
             receipt = Path(name)
-        except (OSError, ValueError, KeyError, TypeError, ReleaseGateError) as exc:
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError, tarfile.TarError) as exc:
             print(f"Release blocked: {exc}")
             return 1
         print(f"Release receipt: {receipt}")
+    elif dirty is not None:
+        try:
+            commit = clean_checkout_commit(ROOT)
+        except RuntimeError:
+            print("WARNING: this exploratory dry run uses local files, not release bytes.")
+        else:
+            try:
+                verified_packages = build_commit_packages(ROOT, commit, selected)
+            except (OSError, ValueError, RuntimeError, tarfile.TarError) as exc:
+                print(f"Commit packaging failed: {exc}")
+                return 1
 
     lam = boto3.client("lambda", region_name=REGION)
     print(f"region={REGION} targets={len(selected)} dry_run={args.dry_run}")
@@ -1272,7 +1308,8 @@ def main() -> int:
     for spec in selected:
         print(f"  {spec.name}")
         try:
-            zip_bytes, members = build_zip(spec)
+            zip_bytes, members = (build_zip(spec) if verified_packages is None
+                                  else verified_packages[spec.name])
         except Exception as exc:  # noqa: BLE001
             print(f"    package failed: {exc}")
             tally["failed"] += 1

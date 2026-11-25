@@ -18,7 +18,8 @@
 3. Both GitHub and Amplify run `python scripts/check_release_contracts.py`.
    Amplify still owns the static-export, credential and other environment-specific
    checks. Verify blocks new lint warnings above the committed per-rule,
-   per-file budget. When a change removes warnings, run
+   per-file budget. After first adoption, PR CI also checks that the PR does not
+   raise the target branch’s committed budget. When a change removes warnings, run
    `node scripts/check_lint_warning_ratchet.mjs --prune` and commit the decrease.
    Independently confirming the active Amplify revision and backend aliases
    is necessary; a green GitHub job is not deployment evidence.
@@ -28,9 +29,12 @@
 1. Review the intended function list and create a clean detached worktree of the
    successful production commit. Run `scripts/deploy_all_lambdas.py --dry-run`
    on the exact targets before requesting authorization for any production use.
+   A clean-checkout dry run compares ZIPs built from the commit itself. Dirty
+   checkouts and exported trees may preview local packages only.
 2. The canonical apply command verifies production CI **before** changing even
    `$LATEST` (some functions do not use an alias). It preserves existing code
-   hash and alias revision checks. A failed multi-function release can still be
+   hash and alias revision checks. ZIP inputs come from a private export of
+   the exact verified Git commit, never ignored files or live checkout edits. A failed multi-function release can still be
    partially staged or promoted: read the receipt and re-check individual targets.
 3. Keep the mode-0600 JSONL file in `.scratch/release-receipts/` privately. It
    records the Git commit and Verify run/attempt/job; staged package hashes; and

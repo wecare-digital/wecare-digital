@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import re
+from shutil import copyfileobj
 import subprocess
+import tarfile
+import tempfile
 import time
 from urllib.parse import urlencode
 from urllib.error import HTTPError
@@ -110,6 +114,44 @@ def clean_checkout_commit(root: Path) -> str:
         return git("rev-parse", "HEAD")
     except (OSError, subprocess.CalledProcessError) as exc:
         raise ReleaseGateError("A clean Git checkout is required for production release") from exc
+
+
+@contextmanager
+def committed_function_sources(root: Path, commit: str, extra_paths=()):
+    """Yield a private snapshot of regular function files from the verified commit."""
+    if not re.fullmatch("[0-9a-f]{40}", commit):
+        raise ReleaseGateError("A full lowercase Git commit SHA is required")
+    paths = tuple(Path(name) for name in ("amplify/functions", *extra_paths))
+    if any(path.is_absolute() or not path.parts or ".." in path.parts for path in paths):
+        raise ReleaseGateError("Function package inputs must stay within the repository")
+    with tempfile.TemporaryDirectory(prefix="wecare-verified-source-") as tmp:
+        snapshot = Path(tmp).resolve()
+        with tempfile.TemporaryFile() as archive:
+            try:
+                subprocess.run(
+                    ["git", "-C", str(root), "archive", "--format=tar", commit,
+                     "--", *(path.as_posix() for path in paths)], stdout=archive, check=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                raise ReleaseGateError("Could not export the verified function sources") from exc
+            archive.seek(0)
+            with tarfile.open(fileobj=archive, mode="r:") as files:
+                for entry in files:
+                    rel = Path(entry.name)
+                    if (rel.is_absolute() or ".." in rel.parts
+                            or not (entry.isdir() or entry.isreg())
+                            or not any(rel.is_relative_to(path)
+                                       or (entry.isdir() and path.is_relative_to(rel))
+                                       for path in paths)):
+                        raise ReleaseGateError("Unexpected path or file type in function source export")
+                    target = snapshot / rel
+                    if entry.isdir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with files.extractfile(entry) as source, target.open("xb") as destination:
+                            copyfileobj(source, destination)
+        yield snapshot / "amplify" / "functions"
 
 
 def main() -> int:

@@ -21,6 +21,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # A PR's synthetic merge checkout must include its base parent.
+          fetch-depth: 2
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -47,6 +49,8 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
+        env:
+          WECARE_LINT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/check_lint_warning_ratchet.mjs
 
       - name: Test

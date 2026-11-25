@@ -110,3 +110,70 @@ def test_canonical_promotion_refuses_without_a_verified_rollback_hash(monkeypatc
         object(), "test-function", False, True, "new-code-hash", receipt,
     ) == "failed"
     assert not receipt.read_text()
+
+
+def test_canonical_apply_uploads_only_verified_commit_bytes(monkeypatch, tmp_path):
+    import io
+    import subprocess
+    import sys
+    import zipfile
+    from scripts import deploy_all_lambdas as deploy
+
+    function = tmp_path / "amplify/functions/test"
+    modules = function / "modules"
+    modules.mkdir(parents=True)
+    shared = function.parent / "shared/lambda_utils"
+    shared.mkdir(parents=True)
+    for name in ("__init__.py", "logging.py", "response.py"):
+        (shared / name).write_text("")
+    handler = function / "handler.py"
+    reviewed_handler = "def lambda_handler(event, context):\n    return 'reviewed'\n"
+    handler.write_text(reviewed_handler)
+    (modules / "tracked.py").write_text("NAME = 'reviewed'\n")
+    config = tmp_path / "src/config.json"
+    config.parent.mkdir()
+    config.write_text('{"reviewed":true}\n')
+    (tmp_path / ".gitignore").write_text(".scratch/\n/amplify/functions/test/modules/local-note.txt\n")
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(tmp_path), *args], text=True).strip()
+
+    git("init", "-q")
+    git("add", "--", ".gitignore", "amplify/functions", "src/config.json")
+    git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "reviewed")
+    verified_commit = git("rev-parse", "HEAD")
+    (modules / "local-note.txt").write_text("harmless ignored fixture\n")
+    assert git("status", "--porcelain") == ""
+
+    monkeypatch.setattr(deploy, "ROOT", tmp_path)
+    monkeypatch.setattr(deploy, "FUNCTIONS", function.parent)
+    monkeypatch.setattr(deploy, "LAMBDA_UTILS", shared)
+    monkeypatch.setattr(deploy, "STATIC_KB", shared.parent / "static_knowledge_base.py")
+    spec = deploy.Spec("example", "test", external_files=[("../../src/config.json", "config.json")])
+    monkeypatch.setattr(deploy, "SPECS", [spec])
+    monkeypatch.setattr(sys, "argv", ["deploy_all_lambdas.py", "--no-publish", "example"])
+
+    def verify(commit, wait):
+        assert (commit, wait) == (verified_commit, 0)
+        # Model a real concurrent local edit after the clean-checkout check.
+        handler.write_text("def lambda_handler(event, context):\n    return 'local edit'\n")
+        return {"commit": commit, "runId": 8}
+
+    class Lambda:
+        def get_function_configuration(self, **_kwargs):
+            return {"Handler": "handler.lambda_handler"}
+
+    captured = []
+    def upload(_client, _spec, package, _current):
+        with zipfile.ZipFile(io.BytesIO(package)) as archive:
+            captured.append(archive.namelist())
+            assert archive.read("handler.py").decode() == reviewed_handler
+            assert archive.read("modules/tracked.py") == b"NAME = 'reviewed'\n"
+            assert archive.read("config.json") == b'{"reviewed":true}\n'
+            assert "modules/local-note.txt" not in archive.namelist()
+        return "updated"
+
+    monkeypatch.setattr(deploy, "wait_for_release", verify)
+    monkeypatch.setattr(deploy.boto3, "client", lambda *_args, **_kwargs: Lambda())
+    monkeypatch.setattr(deploy, "deploy", upload)
+    assert deploy.main() == 0
+    assert len(captured) == 1
