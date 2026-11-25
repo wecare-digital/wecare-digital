@@ -13,7 +13,7 @@ import { API_BASE } from '../config/constants';
 import { publicActionText } from '../lib/publicActionNotices';
 
 /**
- * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
+ * Nano Climate LIVE content, appended BELOW the rotating-word hero on /vayulok/.
  *
  * WHAT THIS IS. The REAL, live-wired version of docs/mocks/vayulok-live-mock.html.
  * The mock is a VISUAL reference only: its layout and styled-jsx design tokens are
@@ -47,7 +47,7 @@ import { publicActionText } from '../lib/publicActionNotices';
  * the lightweight local atmospheric treatment supplies day/night sky and cloud/rain context from
  * the selected place's Google Weather values. The former Source Cooperative / NOAA GFS particle
  * layer was removed because it added a separate public-data transport, Zarr decoding and a
- * continuous canvas animation to the public page. VayuLok no longer mounts any non-Google map
+ * continuous canvas animation to the public page. Nano Climate no longer mounts any non-Google map
  * data layer or deck.gl overlay.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
@@ -144,7 +144,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( mode );
-  // VayuLok's weather/AQI map is below the hero. Defer paid Google calls until
+  // Nano Climate's weather/AQI map is below the hero. Defer paid Google calls until
   // the visitor is approaching this real map, not on every landing-page view.
   const [ mapViewRequested, setMapViewRequested ] = useState( false );
   const [ mapVisible, setMapVisible ] = useState( false );
@@ -1375,7 +1375,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         // key or raw response - the URL carries the key in its query string, so log status only.
         if ( process.env.NODE_ENV !== 'production' ) {
           // eslint-disable-next-line no-console
-          console.error( `[VayuLok] air forecast:lookup failed - HTTP ${res.status} ${res.statusText}` );
+          console.error( `[Nano Climate] air forecast:lookup failed - HTTP ${res.status} ${res.statusText}` );
         }
         setAirForecastStatus( 'error' );
         return;
@@ -1393,7 +1393,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         if ( ac.signal.aborted ) return;
         if ( process.env.NODE_ENV !== 'production' ) {
           // eslint-disable-next-line no-console
-          console.error( '[VayuLok] air forecast:lookup threw', err instanceof Error ? err.message : err );
+          console.error( '[Nano Climate] air forecast:lookup threw', err instanceof Error ? err.message : err );
         }
         setAirForecastStatus( 'error' );
       }
@@ -2375,7 +2375,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   return (
-    <section className="vl-live" aria-label="VayuLok conditions">
+    <section className="vl-live" aria-label="Nano Climate conditions">
       <VayuLokUiStyles />
       {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
           a city or pincode while the map is still loading or if it fails entirely. The map is a
@@ -2459,7 +2459,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   and follows normal page scrolling; on phones/tablets it appears below the
                   whole India map. It must never cover map controls or provider attribution.
                   The static empty state does not trigger extra provider requests. */}
-              <div className="vl-live-mobile-snapshot" aria-label="Current VayuLok summary">
+              <div className="vl-live-mobile-snapshot" aria-label="Current Nano Climate summary">
                 <div className="vl-live-mobile-snapshot-head" data-wc-no-translate="true">
                   <span>
                     <strong>{ place.name }</strong>
@@ -2474,7 +2474,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   <div
                     className={ `vl-live-mobile-mode ${ detailTab === 'weather' ? 'is-weather' : 'is-air' }` }
                     role="group"
-                    aria-label="VayuLok view"
+                    aria-label="Nano Climate view"
                   >
                     <span className="vl-live-mobile-mode-indicator" aria-hidden="true" />
                     <button
@@ -3111,7 +3111,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         </ul>
 
                         {/* ALERTS - empty/unsupported states stay out of the layout. A provider
-                            failure remains visible, matching VayuLok's failure contract; real
+                            failure remains visible, matching Nano Climate's failure contract; real
                             alerts render with their authority/source attribution as before. */}
                         { ( weatherAlertStatus === 'error' || ( weatherAlertStatus === 'active' && weatherAlerts.length > 0 ) ) && (
                           <div className="vl-live-wx-alerts">
@@ -3309,7 +3309,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             </div>
                             <p className="vl-live-wn3-intro">
                               Google has integrated WeatherNext 3 into its Weather API. These next-24-hour
-                              highlights use VayuLok&apos;s existing live Google Weather forecast;
+                              highlights use Nano Climate&apos;s existing live Google Weather forecast;
                               the API does not identify which model produced an individual value.
                             </p>
                             { ( () => {
@@ -3907,15 +3907,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           --green:var(--public-brand-green);--hair:var(--public-hairline);--heading:var(--public-heading);--body:var(--public-body);
           --muted:var(--public-muted);--status:rgba(0,0,0,.70);
           /* Corner radii source from the shared homepage tokens (src/styles/tokens.css) so
-             VayuLok's cards, controls and the map shell match the rest of the site rather than
+             Nano Climate's cards, controls and the map shell match the rest of the site rather than
              carrying their own hard-coded values. Fallbacks keep the component self-contained if
              the tokens are ever absent. --panel-r (cards/panels) = --radius-xl (14px),
              --pill-r (pills/toggles) = --radius-full. */
           --panel-r:var(--radius-xl,14px);--pill-r:var(--radius-full,999px);
-          /* Shared VayuLok UI system, pinned to the homepage card/body ladder. */
+          /* Shared Nano Climate UI system, pinned to the homepage card/body ladder. */
           --vl-card-heading-size:var(--public-card-size);--vl-card-heading-weight:var(--public-card-weight);--vl-card-heading-lh:var(--public-card-leading);--vl-card-heading-track:var(--public-card-tracking);
           --vl-body-size:var(--public-body-size);--vl-body-weight:var(--public-body-weight);--vl-body-lh:var(--public-body-leading);--vl-body-track:var(--public-body-tracking);
-          /* Deep typography audit: every visible VayuLok role below resolves to the canonical
+          /* Deep typography audit: every visible Nano Climate role below resolves to the canonical
              Home/public ladder. Compact panel headings deliberately use the 17px data rung (the
              same visual scale as compact readings such as "Feels 17°"); narrative/tool headings
              keep the Home card/body rungs, while metadata stays on the 14px public meta rung. */
@@ -4115,7 +4115,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-range{display:inline-flex;align-items:center;gap:6px;padding:0;border-radius:var(--pill-r);background:transparent}
         /* The 44px tap floor (--tap-min) on the AQI/PM2.5 switch, the forecast scroll arrows and
            the health-profile pager - at every width, because the steering file's 44x44 applies to
-           mouse and pen as well as touch, and tools/browser/devicecheck.js asserts it on VayuLok's
+           mouse and pen as well as touch, and tools/browser/devicecheck.js asserts it on Nano Climate's
            live app at all 21 postures. These were 32px (measured on the live page, 2026-10-25). */
         .vl-live-air-range button{min-height:var(--tap-min);padding:0 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1;white-space:nowrap}
         .vl-live-air-range button.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
@@ -4219,7 +4219,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Profiles are one touch/keyboard scroll rail using the same small pill language as
-           VayuLok's other selectors. Advisory copy stays regular and muted so it does not compete with live data. */
+           Nano Climate's other selectors. Advisory copy stays regular and muted so it does not compete with live data. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-head-nav{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
@@ -4362,7 +4362,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-mobile-snapshot{display:none}
         }
         /* A browser that exposes physical viewport segments is telling us part of the viewport
-           may be occluded by a hinge. Keep the live VayuLok application wholly inside one pane,
+           may be occluded by a hinge. Keep the live Nano Climate application wholly inside one pane,
            matching the migrated hero. Physical margin-left/right is intentional here because
            viewport-segment-* itself describes physical screen geometry, not document direction. */
         @media(horizontal-viewport-segments:2){

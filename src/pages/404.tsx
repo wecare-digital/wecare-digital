@@ -3,31 +3,29 @@ import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-/**
- * PURE REDIRECT TO HOME - no visible 404 page (owner 2026-10-13).
- *
- * The site has no "page not found" screen. Every unknown URL is sent straight to the home page.
- * There are two redirect paths, both pointing at '/', so the bounce works with or without
- * JavaScript and on the static export:
- *   - a <meta http-equiv="refresh"> in the head fires immediately on first paint, before and
- *     without any script, which is the one path a static 404 can always rely on;
- *   - router.replace('/') runs once hydrated, so an in-app navigation that lands here is swapped
- *     for home without a second full load.
- * The body renders nothing visible - no heading, no card, no Subscribe/Share block - because a
- * waypoint that redirects on sight is never meant to be read. noindex so it is never surfaced,
- * and the canonical points at the destination (home), overriding _app.tsx's computed one because
- * next/head dedupes by key.
- */
+// Owner-requested retirement: these former product paths must not redirect.
+const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat' ] );
+
 const NotFound: React.FC = () => {
   const router = useRouter();
-  useEffect( () => { void router.replace( '/' ); }, [ router ] );
+  useEffect( () => {
+    const path = window.location.pathname.replace( /\/+$/, '' ) || '/';
+    if ( !RETIRED_PRODUCT_PATHS.has( path ) ) void router.replace( '/' );
+  }, [ router ] );
+  // A static export cannot distinguish a missing URL until JS runs. No meta refresh:
+  // retired paths must remain at their own 404, including without JavaScript.
   return (
-    <Head>
-      <title>{ buildPageTitle( 'Page not found' ) }</title>
-      <meta name="robots" content="noindex, follow" />
-      <meta httpEquiv="refresh" content="0; url=/" />
-      <link rel="canonical" key="canonical" href="https://wecare.digital/" />
-    </Head>
+    <>
+      <Head>
+        <title>{ buildPageTitle( 'Page not found' ) }</title>
+        <meta name="robots" content="noindex, follow" />
+      </Head>
+      <main style={ { maxWidth: 680, margin: '80px auto', padding: '24px' } }>
+        <h1>Page not found</h1>
+        <p>This page is no longer available.</p>
+        <a href="/">Visit WECARE.DIGITAL</a>
+      </main>
+    </>
   );
 };
 

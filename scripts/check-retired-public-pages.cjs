@@ -12,6 +12,10 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const retired = [
+  '/grahak-os',
+  '/vayulok',
+  '/sehat',
+  '/atmos',
   '/bharat-rx',
   '/submit-request',
   '/request-amendment',

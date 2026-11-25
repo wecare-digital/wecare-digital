@@ -142,7 +142,7 @@ customHeaders:
       # REVIEW PASS 2026-10-26, from the console. 33 public routes loaded live in Chromium
       # (desktop, phone, and no-JS for /, /contact/ and /cart/). Every violation came from an
       # origin the site really uses, so each was added here rather than left as noise:
-      #   script-src   maps.googleapis.com                      Maps JS on /contact/ and /vayulok/
+      #   script-src   maps.googleapis.com                      Maps JS on /contact/ and /atmos/nano-climate/
       #   img-src      maps.googleapis.com, maps.gstatic.com    the map on /contact/
       #   connect-src  maps.googleapis.com, weather.googleapis.com,
       #                airquality.googleapis.com                VayuLok readings and the map
@@ -235,22 +235,22 @@ customHeaders:
   #
   # Restate the security headers because Amplify does not document whether matching
   # customHttp.yml patterns merge or replace.
-  - pattern: "/vayulok"
+  - pattern: "/atmos/nano-climate"
     headers:
       - key: Cache-Control
         value: "no-store, max-age=0, must-revalidate"
 
-  - pattern: "/vayulok/"
+  - pattern: "/atmos/nano-climate/"
     headers:
       - key: Cache-Control
         value: "no-store, max-age=0, must-revalidate"
 
-  - pattern: "/vayulok/index.html"
+  - pattern: "/atmos/nano-climate/index.html"
     headers:
       - key: Cache-Control
         value: "no-store, max-age=0, must-revalidate"
 
-  - pattern: "/vayulok*"
+  - pattern: "/atmos/nano-climate*"
     headers:
       - key: Cache-Control
         value: "no-store, max-age=0, must-revalidate"

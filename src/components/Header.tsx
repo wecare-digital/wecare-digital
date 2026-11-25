@@ -78,9 +78,15 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Products',
         links: [
-          { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
-          { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
-          { label: 'Sehat', href: '/sehat/', match: '/sehat', searchTerms: [ 'health', 'appointment', 'booking' ] },
+          { label: 'Dispatch', href: '/dispatch/', match: '/dispatch', searchTerms: [ 'messaging', 'customer engagement', 'WhatsApp', 'SMS', 'RCS', 'email', 'voice' ] },
+          {
+            label: 'Atmos',
+            searchTerms: [ 'environment', 'climate', 'sustainability' ],
+            children: [
+              { label: 'Nano Climate', href: '/atmos/nano-climate/', match: '/atmos/nano-climate', searchTerms: [ 'air quality', 'weather', 'forecast', 'AQI' ] },
+              { label: 'Green Ledger', href: '/atmos/green-ledger/', match: '/atmos/green-ledger', searchTerms: [ 'environmental records', 'sustainability' ] },
+            ],
+          },
           {
             label: 'Elsewhere',
             searchTerms: [ 'travel' ],
@@ -88,6 +94,9 @@ const COLUMNS: NavColumn[] = [
               { label: 'Visa', href: '/elsewhere/visa/', match: '/elsewhere/visa', searchTerms: [ 'elsewhere' ] },
               { label: 'Trip', href: '/elsewhere/trip/', match: '/elsewhere/trip', searchTerms: [ 'elsewhere', 'travel' ] },
               { label: 'Activities', href: '/elsewhere/activities/', match: '/elsewhere/activities', searchTerms: [ 'elsewhere' ] },
+              { label: 'Rail', href: '/elsewhere/rail/', match: '/elsewhere/rail', searchTerms: [ 'train', 'railway', 'travel' ] },
+              { label: 'Cruise', href: '/elsewhere/cruise/', match: '/elsewhere/cruise', searchTerms: [ 'ship', 'voyage', 'travel' ] },
+              { label: 'Arogya Yatra', href: '/elsewhere/arogya-yatra/', match: '/elsewhere/arogya-yatra', searchTerms: [ 'medical tourism', 'medical travel', 'health', 'appointment', 'booking' ] },
             ],
           },
           { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
@@ -249,9 +258,13 @@ const menuSearchKey = ( link: Pick<NavLink, 'label' | 'href'> ) => `${link.href 
 const NAV_ICON_PATHS: Record<string, string> = {
   Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
-  'Grahak OS': 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 15h4',
-  VayuLok: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
-  'Sehat': 'M345-120q-94 0-159.5-65.5T120-345q0-45 17-86t49-73l270-270q32-32 73-49t86-17q94 0 159.5 65.5T840-615q0 45-17 86t-49 73L504-186q-32 32-73 49t-86 17Zm266-286 107-106q20-20 31-47t11-56q0-60-42.5-102.5T615-760q-29 0-56 11t-47 31L406-611l205 205ZM345-200q29 0 56-11t47-31l106-107-205-205-107 106q-20 20-31 47t-11 56q0 60 42.5 102.5T345-200Z',
+  Dispatch: 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
+  Atmos: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c-5 5-5 13 0 18m0-18c5 5 5 13 0 18',
+  'Nano Climate': 'M4 16a4 4 0 0 1 2-7 6 6 0 0 1 11 1 3 3 0 1 1 0 6ZM6 20h12',
+  'Green Ledger': 'M5 4h14v16H5ZM9 8h6m-6 4h6m-6 4h4',
+  'Arogya Yatra': 'M12 21 4 13a5 5 0 0 1 8-6 5 5 0 0 1 8 6ZM6 12h4l2-3 2 5h4',
+  Rail: 'M6 4h12v13H6ZM6 10h12M9 17l-3 4m9-4 3 4',
+  Cruise: 'M3 14l9-4 9 4-3 6H6ZM7 12V6h10v6M12 3v3',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
@@ -298,8 +311,6 @@ const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
 };
 
 const MATERIAL_NAV_ICON_LABELS = new Set( [
-  'VayuLok',
-  'Sehat',
   'Hunar',
   'Niji Setu',
   'Submit Request',

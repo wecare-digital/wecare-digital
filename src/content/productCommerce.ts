@@ -43,16 +43,16 @@ const PHYSICAL_PRODUCT_SLUGS = new Set<string>( [
 ] );
 
 const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
-  // Grahak OS is the copy benchmark for the rest of the site.
+  // Dispatch is the copy benchmark for the rest of the site.
   'grahak-os': {
     shipping: 'Delivered digitally; no physical shipping applies. Separate physical items follow their own delivery terms.',
     returns: 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.',
-    disclaimer: 'Your purchase covers one Grahak OS consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
+    disclaimer: 'Your purchase covers one Dispatch consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
   },
   'sehat': {
-    shipping: 'Sehat is fulfilled as an appointment-booking service; no physical delivery applies.',
+    shipping: 'Arogya Yatra is fulfilled as an appointment-booking service; no physical delivery applies.',
     returns: 'Service work and digital records are not returnable; physical items follow their disclosed terms.',
-    disclaimer: 'Sehat books appointments with qualified professionals. It does not provide medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
+    disclaimer: 'Arogya Yatra books appointments with qualified professionals. It does not provide medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
   },
   'elsewhere-visa': {
     disclaimer: 'We can prepare and track the application; approval and timing remain with the relevant authority.',
