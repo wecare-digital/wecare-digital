@@ -6,7 +6,7 @@
         "appID": "TEAM_ID.digital.wecare.stackcrm",
         "paths": [
           "/workspace/*",
-          "/dispatch",
+          "/relay-os",
           "/r/*",
           "/"
         ]

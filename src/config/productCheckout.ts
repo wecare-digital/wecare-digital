@@ -13,7 +13,7 @@ const line = (
 
 /** Ordinary products. Request services and Contribute use their dedicated guarded checkout paths. */
 export const PRODUCT_CHECKOUT: Readonly<Record<string, ProductCheckoutLine>> = {
-  'grahak-os': line( '2d5dff1a-2542-5839-9c6e-e65d10fcc643', 'grahak-os', 'GOS7K4M2', 'Dispatch', '₹899.00' ),
+  'grahak-os': line( '2d5dff1a-2542-5839-9c6e-e65d10fcc643', 'grahak-os', 'GOS7K4M2', 'Relay OS', '₹899.00' ),
   'sehat': line( '032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', 'sehat', 'BRX5N8Q3', 'Arogya Yatra', '₹850.00' ),
   'elsewhere-visa': line( 'f74ed861-5945-5893-a0cc-02024511687a', 'elsewhere-visa', 'EVS9P4L7', 'Elsewhere · Visa', '₹899.00' ),
   'elsewhere-trip': line( '619ac1ba-159e-5811-b1b7-98131020cd03', 'elsewhere-trip', 'ETR6M3K8', 'Elsewhere · Trip', '₹899.00' ),

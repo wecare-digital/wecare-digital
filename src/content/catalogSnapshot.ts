@@ -35,10 +35,10 @@ export interface CatalogSnapshot {
 
 const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   {
-    id:'2d5dff1a-2542-5839-9c6e-e65d10fcc643', name:'Dispatch', slug:'grahak-os',
+    id:'2d5dff1a-2542-5839-9c6e-e65d10fcc643', name:'Relay OS', slug:'grahak-os',
     formattedPrice:'₹899.00', price:'899.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/dispatch/',
-    descriptionHtml:'<p>Dispatch from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/relay-os/',
+    descriptionHtml:'<p>Relay OS from WECARE.DIGITAL.</p>',
     variants:[{ id:'GOS7K4M2', label:'Standard', inStock:true }],
   },
   {
