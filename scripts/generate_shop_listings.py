@@ -62,13 +62,17 @@ SHELF_ORDER: tuple[str, ...] = (
     "dastavez-drafting", "dastavez-registration", "dastavez-legal-reference",
     "guided-resolution", "file-assist", "paperwork",
     "ritual-guru-puja-guidance", "ritual-guru-diy-puja-kit", "ritual-guru-ritva",
-    "anew", "hunar-kaushal", "hunar-prastuti", "niji-setu",
+    "anew", "hunar-kaushal", "hunar-prastuti",
     "merchandise", "kiosk",
     "contribute",
 )
 
 #: Live, purchasable rows kept off the horizontal image rail (owner rule: Contribute).
 OFF_SHELF_SLUGS: frozenset[str] = frozenset({"contribute"})
+
+# Retired website product pages are excluded from publication, without deleting their
+# underlying product IDs or existing customer orders.
+RETIRED_PUBLIC_SLUGS: frozenset[str] = frozenset({"niji-setu"})
 
 # These remain active paid-service identities for Orders, not standalone pages.
 # They are intentionally absent from SHELF_ORDER. Re-enabling websiteEnabled
@@ -276,7 +280,8 @@ def render(listings: list[dict[str, Any]]) -> str:
 
 def build(rows: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]], list[str]]:
     projection = load_projection()
-    listed = [r for r in rows if r.get("status") == "active" and r.get("websiteEnabled") is True]
+    listed = [r for r in rows if r.get("status") == "active" and r.get("websiteEnabled") is True
+              and r.get("slug") not in RETIRED_PUBLIC_SLUGS]
     skipped = [f"{r.get('slug')} (status={r.get('status')}, websiteEnabled={r.get('websiteEnabled')})"
                for r in rows if r not in listed]
     unplaced = sorted(str(r.get("slug")) for r in listed if r.get("slug") not in SHELF_ORDER)

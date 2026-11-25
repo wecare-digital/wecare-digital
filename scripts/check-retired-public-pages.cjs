@@ -16,6 +16,7 @@ const retired = [
   '/vayulok',
   '/sehat',
   '/atmos',
+  '/niji-setu',
   '/bharat-rx',
   '/submit-request',
   '/request-amendment',
@@ -195,7 +196,7 @@ for (const file of listFiles('public').filter(file => /\.html?$/i.test(file))) {
 const RETIRED_SHOP_SLUGS = new Set([
   'bharat-rx', 'submit-request', 'request-amendment', 'drop-docs', 'vault',
   'shipments-track', 'request-pickup', 'leave-review', 'subscribe', 'get',
-  'request-services',
+  'request-services', 'niji-setu',
 ]);
 const ACTIVE_ORDER_SERVICE_SLUGS = new Set([
   'submit-request', 'request-amendment', 'drop-docs', 'vault',

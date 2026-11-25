@@ -166,7 +166,7 @@ const ORDER_HUB_SERVICE_SLUGS = new Set( [
   'shipments-track', 'request-pickup',
   // Historical or retired public slugs must never be revived via /shop/[slug].
   // Do not confuse a catalog/payment identity with a public page.
-  'bharat-rx', 'leave-review', 'subscribe', 'get', 'request-services',
+  'bharat-rx', 'leave-review', 'subscribe', 'get', 'request-services', 'niji-setu',
 ] );
 const isServicesRow = ( raw: RawProduct ): boolean =>
   SERVICE_PRODUCT_IDS.has( String( raw.id || '' ).trim().toLowerCase() )

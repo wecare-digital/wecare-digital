@@ -5,10 +5,9 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 /**
  * The WECARE.DIGITAL product pages, as data.
  *
- * THREE TOP-LEVEL PAGES, ONE SHAPE. Expo Week, Anew and Niji Setu remain direct product
- * pages. Elsewhere, Dastavez, Clear Closure, Ritual Guru and Hunar are non-clickable families;
- * their real destinations live in child routes instead. Three copy-pasted page files
- * would mean three places to fix a spacing bug and three chances for them to drift apart,
+ * Expo Week and Anew remain direct product pages. Elsewhere, Dastavez, Clear Closure,
+ * Ritual Guru, Hunar and Niji Setu are non-clickable families; their destinations live
+ * in child routes instead. Copy-pasted page files would let the same layout drift apart,
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.
  *
@@ -23,9 +22,6 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
  * "CLEAR CLOSURE STORE". That is the same chrome that had leaked into section 45 of the
  * Terms and sat live for a session. It is navigation and slogans, not product copy, and
  * none of it is here.
- *
- * NIJI SETU HAD NO OLD-SITE PAGE. Its copy comes from the owner's description: a QR code people
- * scan to reach you on a masked call, with your real number never shown.
  *
  * TINTS AND DOTS ARE REUSED VERBATIM from the Grahak OS hero - four pairs, no new colours.
  * Cycle words are held close in length on purpose so the pill barely travels; the animation
@@ -186,28 +182,6 @@ export const PRODUCTS: ProductDef[] = [
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
     // Text-only pill plus the quiet "Checkout on WhatsApp →" microcopy, matching the blog post
     // page's Subscribe/Contribute pills. The arrow is part of the text, not an icon.
-    ctaNote: 'Checkout on WhatsApp →',
-  },
-  {
-    slug: 'niji-setu',
-    name: 'Niji Setu',
-    blurb: 'A QR code that reaches you on a masked call.',
-    title: buildPageTitle( 'Niji Setu — a QR code that reaches you privately' ),
-    description:
-      'Niji Setu by WECARE.DIGITAL — a QR code people scan to reach you on a masked call. Your real number is never shown and never shared.',
-    frame: 'Your number stays',
-    words: cycle( 'private', 'masked', 'hidden', 'yours' ),
-    sub: 'A QR code people can scan to reach you on a masked call — your real number is never shown.',
-    sectionHeading: 'What Niji Setu does',
-    lead:
-      'Niji Setu is a bridge that does not hand over your phone number. Put the code where someone might need to reach you; if there is ever a problem, they scan it and get through on a masked call. Your number stays completely private.',
-    points: [
-      { heading: 'They scan, they do not see', body: 'The scan starts a call. It does not reveal a number, so there is nothing to save, copy or pass on.' },
-      { heading: 'Calls are masked both ways', body: 'The connection runs through us, so neither side ends up holding the other\'s personal number.' },
-      { heading: 'Useful exactly when it matters', body: 'A blocked car, a lost bag, a delivery at a gate — reachable in the moment, unreachable afterwards.' },
-    ],
-    ctaLabel: 'Get a code',
-    ctaHref: whatsappKeywordLink( 'Niji Setu' ),
     ctaNote: 'Checkout on WhatsApp →',
   },
 ];

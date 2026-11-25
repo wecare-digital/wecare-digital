@@ -155,6 +155,8 @@ const STRUCTURAL = [
   // generate-sitemap.js lists both in PUBLIC_EXACT with no group rule to place them.
   { path: '/hunar/kaushal', group: 'services' },
   { path: '/hunar/prastuti', group: 'services' },
+  { path: '/niji-setu/parichay', group: 'services' },
+  { path: '/niji-setu/khata', group: 'services' },
 ];
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );

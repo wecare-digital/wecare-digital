@@ -202,6 +202,18 @@
       "description": "CV, professional profile and pitch deck creation built from real experience."
     },
     {
+      "path": "/niji-setu/parichay",
+      "group": "services",
+      "name": "Parichay",
+      "description": "A planned digital bio and personal profile tool for sharing your identity and links."
+    },
+    {
+      "path": "/niji-setu/khata",
+      "group": "services",
+      "name": "Khata",
+      "description": "A planned invoice creation tool for preparing and sharing professional invoices."
+    },
+    {
       "path": "/expo-week",
       "group": "services",
       "name": "Expo Week",
@@ -212,12 +224,6 @@
       "group": "services",
       "name": "Anew",
       "description": "Reflection-led conversations that create clarity and action."
-    },
-    {
-      "path": "/niji-setu",
-      "group": "services",
-      "name": "Niji Setu",
-      "description": "A QR code people scan to reach you on a masked call."
     },
     {
       "path": "/privacy",
