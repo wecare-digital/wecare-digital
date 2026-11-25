@@ -250,6 +250,52 @@ def test_late_financial_marker_on_media_row_prevents_any_effect(table_name, row_
     assert_no_destructive_writes(args, media)
 
 
+@pytest.mark.parametrize("late_change", ["mark_text", "new_text", "new_scheduled"])
+def test_late_financial_text_row_does_not_delete_sibling_media(late_change, monkeypatch):
+    args, _, media = build()
+    contacts = args["contacts_table"]
+    update = contacts.update_item
+
+    def add_finance_after_started(**kw):
+        update(**kw)
+        if len(contacts.updates) != 2:
+            return
+        canonical = args["canonical_table"]
+        if late_change == "mark_text":
+            assert "s3Key" not in canonical.rows["m1"]
+            canonical.rows["m1"]["paymentReferenceId"] = "new-payment"
+            return
+        table = args["extra_tables"]["scheduled"][0] if late_change == "new_scheduled" else canonical
+        table.rows["late"] = {"id": "late", "contactId": CID, "messageType": "text",
+                              "paymentReferenceId": "new-payment"}
+
+    contacts.update_item = add_finance_after_started
+    configure_real_handler(monkeypatch, args)
+    status, body = run(request(MARKER + CID))
+    assert status == 409 and body["errorCode"] == "CONTACT_DELETE_FINANCIAL_RETENTION"
+    assert ccd._RESERVATION not in contacts.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+def test_new_message_without_finance_still_refuses_stale_media_inventory():
+    args, _, media = build()
+    contacts = args["contacts_table"]
+    update = contacts.update_item
+
+    def add_message_after_started(**kw):
+        update(**kw)
+        if len(contacts.updates) == 2:
+            args["outbound_table"].rows["late"] = {
+                "id": "late", "contactId": CID, "messageType": "text",
+            }
+
+    contacts.update_item = add_message_after_started
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 409 and result.body["errorCode"] == "CONTACT_DELETE_STATE_CHANGED"
+    assert ccd._RESERVATION not in contacts.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
 def test_metadata_recreated_after_cleanup_keeps_contact_and_retry_finishes():
     args, audits, _ = build()
     claims = args["claims_table"]
@@ -496,11 +542,9 @@ def test_inbox_scope_still_needs_inbox_marker_and_contact_marker_rejected(invoke
     assert calls == []
 
 
-def test_handler_contact_delete_refuses_noncanonical_lock_before_any_effect(monkeypatch):
+def configure_real_handler(monkeypatch, args):
     import lambda_utils.middleware as middleware
     from lambda_utils import identity_claims
-
-    args, audits, media = build(contact={"lockedReason": "Created"})
     tables = {
         HANDLER.INBOUND_TABLE: args["inbound_table"],
         HANDLER.OUTBOUND_TABLE: args["outbound_table"],
@@ -533,6 +577,10 @@ def test_handler_contact_delete_refuses_noncanonical_lock_before_any_effect(monk
     monkeypatch.setattr(HANDLER, "record_audit", args["audit"])
     monkeypatch.setattr(HANDLER, "_find_and_delete_s3_file", lambda key, _: args["delete_media"](key))
 
+
+def test_handler_contact_delete_refuses_noncanonical_lock_before_any_effect(monkeypatch):
+    args, audits, media = build(contact={"lockedReason": "Created"})
+    configure_real_handler(monkeypatch, args)
     status, body = run(request(MARKER + CID))
     assert status == 409 and body["errorCode"] == "CONTACT_DELETE_LOCKED"
     assert audits == [] and args["contacts_table"].updates == []

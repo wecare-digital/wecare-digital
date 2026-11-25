@@ -205,6 +205,38 @@ def _guard(contact: Mapping[str, Any], meta: Mapping[str, Any], rows: list[Mappi
     return None
 
 
+def _recheck_cleanup_scope(contact_id, tables_and_rows) -> inbox_delete.DeleteDecision | None:
+    """Re-inventory every authoritative message source before deleting S3 media.
+
+    A financial marker anywhere in the conversation, including a newly written
+    text-only or scheduled row, protects its sibling media. Strongly consistent
+    pages narrow the race; they are not an atomic cross-table snapshot.
+    """
+    scope_changed = False
+    guarded_fields = ("contactId", "s3Key", *inbox_delete._PAYMENT_FIELDS)
+    for table, keys, observed_rows in tables_and_rows:
+        fresh_rows = inbox_delete._scan_conversation(table, contact_id)
+        if any(_has_payment_fields(row) for row in fresh_rows):
+            return _refuse(
+                "CONTACT_DELETE_FINANCIAL_RETENTION",
+                "This chat has payment messages that must be retained.",
+            )
+        fresh_by_key = {tuple(row[k] for k in keys): row for row in fresh_rows}
+        observed_by_key = {tuple(row[k] for k in keys): row for row in observed_rows}
+        if len(fresh_by_key) != len(fresh_rows) or len(observed_by_key) != len(observed_rows):
+            raise ValueError("Message inventory contains duplicate keys")
+        if (fresh_by_key.keys() != observed_by_key.keys()
+                or any(not _still_same(fresh_by_key[key], row, guarded_fields)
+                       for key, row in observed_by_key.items())):
+            scope_changed = True
+    if scope_changed:
+        return _refuse(
+            "CONTACT_DELETE_STATE_CHANGED",
+            "The message inventory changed before deletion. Refresh and review it again.",
+        )
+    return None
+
+
 def _recheck_media_rows(tables_and_rows) -> inbox_delete.DeleteDecision | None:
     """Re-read exact source rows before S3 writes; the scan is not a snapshot."""
     for table, rows in tables_and_rows:
@@ -395,14 +427,27 @@ def delete_contact_conversation(
         check_current()
         if media_keys:
             try:
-                media_refusal = _recheck_media_rows((
-                    (canonical_table, canonical), (inbound_table, inbound),
-                    (outbound_table, outbound),
+                message_sources = (
+                    (canonical_table, ("id",), canonical),
+                    (inbound_table, ("id",), inbound),
+                    (outbound_table, ("id",), outbound),
+                )
+                cleanup_sources = (*message_sources, *(
+                    (table, keys, extras[name]) for name, (table, keys) in extra_tables.items()
                 ))
+                media_refusal = _recheck_cleanup_scope(contact_id, cleanup_sources)
+                if media_refusal is None:
+                    media_refusal = _recheck_media_rows(
+                        (table, rows) for table, _keys, rows in message_sources
+                    )
+                if media_refusal is None:
+                    # The full-scope read may take time. Confirm ownership
+                    # and contact/financial retention again near the S3 write.
+                    check_current(recheck_finance=True)
             except Exception:
                 media_refusal = _refuse(
                     "CONTACT_DELETE_LINKAGE_UNKNOWN",
-                    "Message media could not be reverified. No deletion was started.", 503,
+                    "The message inventory could not be reverified. No deletion was started.", 503,
                 )
             if media_refusal:
                 # The started marker is durable before any effects, but this
