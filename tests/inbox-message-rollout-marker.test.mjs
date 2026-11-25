@@ -7,7 +7,9 @@ const handler = readSource('amplify/functions/core/messages-delete/handler.py');
 
 test('canonical message delete IDs are namespaced for safe rollout', () => {
   assert.ok(client.includes("encodeURIComponent( '__canonical_inbox_v1__:' + messageId )"));
-  assert.ok(handler.includes("prefix = '__canonical_inbox_v1__:'"));
+  // The two namespaces must remain distinct; the Python rollout tests exercise
+  // valid and mismatched markers against the real handler with fake dependencies.
+  assert.match(handler, /prefix = \('__canonical_contact_v1__:' if scope == 'contact'\s+else '__canonical_inbox_v1__:'\)/);
   assert.ok(handler.includes("if not message_id.startswith(prefix):"));
   assert.ok(handler.includes("message_id = message_id[len(prefix):]"));
   assert.ok(handler.includes("'MESSAGE_DELETE_MARKER_REQUIRED'"));
