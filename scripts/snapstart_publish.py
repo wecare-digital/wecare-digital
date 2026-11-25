@@ -49,6 +49,8 @@ Exit codes: 0 all good (or nothing to do), 1 one or more functions failed.
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 import sys
 import time
 from typing import Dict, List, NamedTuple, Optional
@@ -141,7 +143,8 @@ def wait_active(lam, name: str, version: str) -> bool:
 
 
 def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
-                     expected_sha: Optional[str] = None) -> str:
+                     expected_sha: Optional[str] = None,
+                     release_receipt: Path | None = None) -> str:
     """Returns one of: 'updated', 'skipped', 'failed'.
 
     expected_sha: the CodeSha256 the calling deploy uploaded. When given, a $LATEST holding
@@ -172,6 +175,10 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
         print(f"  {name}")
         print(f"    no {ALIAS} alias; invokes $LATEST directly, nothing to move")
         return "skipped"
+
+    if release_receipt is not None and not alias_sha:
+        print(f"  {name}: cannot verify the current {ALIAS} version's rollback hash; not promoting")
+        return "failed"
 
     try:
         already_current = (alias_sha is not None and alias_sha == latest_sha
@@ -228,10 +235,18 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
 
     # verify rather than assume
     check = current_state(lam, name)
-    if check.alias_version != new_version:
-        print(f"    VERIFY FAILED: {ALIAS} is v{check.alias_version}, expected v{new_version}")
+    if check.alias_version != new_version or check.alias_sha != latest_sha:
+        print(f"    VERIFY FAILED: {ALIAS} did not resolve to expected v{new_version} and code SHA")
         return "failed"
 
+
+    if release_receipt is not None:
+        with release_receipt.open("a", encoding="utf-8") as output:
+            output.write(json.dumps({
+                "event": "alias-verified", "function": name, "alias": ALIAS,
+                "version": new_version, "codeSha256": check.alias_sha,
+                "rollbackVersion": alias_version, "rollbackCodeSha256": alias_sha,
+            }, sort_keys=True) + "\n")
 
     print(f"    {ALIAS}: v{alias_version} -> v{new_version}  "
           f"(rollback: aws lambda update-alias --function-name {name} "
@@ -252,7 +267,11 @@ def main() -> int:
     ap.add_argument("--expect", action="append", default=[], metavar="FUNCTION=CODESHA256",
                     help="publish FUNCTION only while $LATEST holds exactly this code "
                          "(repeatable; deploy_all_lambdas.py passes what it uploaded)")
+    ap.add_argument("--release-receipt", type=Path,
+                    help="append successful alias readbacks to the canonical deploy receipt")
     args = ap.parse_args()
+    if args.release_receipt is not None and not args.release_receipt.is_file():
+        ap.error("--release-receipt must be an existing canonical deploy receipt")
 
     expected: Dict[str, str] = {}
     for item in args.expect:
@@ -281,7 +300,7 @@ def main() -> int:
     for name in targets:
         try:
             outcome = publish_and_move(lam, name, args.dry_run, args.only_stale,
-                                       expected.get(name))
+                                       expected.get(name), args.release_receipt)
         except ValueError as error:
             print(f"  {name}: {error}")
             outcome = "failed"

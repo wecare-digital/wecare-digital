@@ -26,7 +26,7 @@ from typing import Dict, Any, Optional, Tuple
 from decimal import Decimal
 
 # Configure logging
-from lambda_utils.logging import get_logger
+from lambda_utils.logging import get_logger, log_event
 from lambda_utils.response import extract_origin
 from lambda_utils.privacy import mask_phone, mask_flow_token, mask_contact_id, redact_pii  # contactId is `wa` + the customer's digits
 # Aliased because `payment_status` is a local variable throughout the payment handlers below,
@@ -65,6 +65,7 @@ except Exception:  # noqa: BLE001
     partner_billing = None
 
 # Sub-modules (monolith decomposition)
+from modules import message_dedup, webhook_routing
 from modules.content import extract_content as _extract_content_v2
 from modules.content import extract_unsupported_content as _extract_unsupported_content_v2
 from modules.content import extract_contacts_payload as _extract_contacts_payload
@@ -685,20 +686,7 @@ PAYMENT_PHONE_NUMBER_ID = 'phone-number-id-waba1-direct-1016149501586345'
 # no coexistence configured. `COEXISTENCE_INGEST_ENABLED` is the seam a future adoption
 # would open; it defaults false, and false means audit-only.
 #
-# This is a MODULE-LEVEL frozenset, deliberately a different convention from the
-# `_SYSTEM_EVENT_FIELDS` set beside its membership test. That set looks like a module
-# constant but is a set literal rebuilt INSIDE the per-`change` webhook loop in `handler`,
-# with its membership test immediately below it. `_process_coexistence_event` is a
-# module-level function and needs these names too, so a loop-local set would have to be
-# passed in or duplicated. Rebuilding a 10-element set per webhook change is harmless;
-# duplicating a field-name list is not. The asymmetry is recorded rather than resolved:
-# normalising `_SYSTEM_EVENT_FIELDS` to module scope would touch a loop nine existing
-# fields depend on, for no behavioural gain.
-_COEXISTENCE_FIELDS = frozenset({'smb_app_state_sync', 'smb_message_echoes'})
-# History media enrichment can carry value.messages, just like live inbound
-# traffic. Replay must stay audit-only and never run customer automation.
-# https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/history/
-_AUDIT_ONLY_REPLAY_FIELDS = _COEXISTENCE_FIELDS | {'history'}
+# The routing module keeps replay payloads out of the live message/status lane.
 
 
 def _coexistence_ingest_enabled() -> bool:
@@ -1131,73 +1119,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Process each change in the webhook entry
             for change in webhook_entry.get('changes', []):
-                value = change.get('value', {})
-                metadata = value.get('metadata', {})
+                routed = webhook_routing.parse_change(change)
+                value = routed.value
+                metadata = routed.metadata
 
-                # `standby` and `messaging_handovers` webhooks were only used by the
-                # removed Meta Business AI agent. Acknowledge them (200) and ignore
-                # them: log only, no storage, no reply, never an error.
-                _wh_field = change.get('field', '')
-                if _wh_field in ('standby', 'messaging_handovers'):
-                    logger.info(json.dumps({'event': 'webhook_field_ignored',
-                                            'field': _wh_field, 'requestId': request_id}))
+                # Keep acknowledging these retired routing changes without storage
+                # or replies. The alarm catches a provider-side rollout mismatch.
+                if routed.retired_routing:
+                    log_event(
+                        logger, webhook_routing.IGNORED_ROUTING_EVENT, level='warning',
+                        field=routed.field, requestId=request_id,
+                        wabaId=webhook_routing.ignored_account_label(
+                            webhook_entry.get('id'),
+                            _item.get('waba_id') if _item.get('shape') != 'legacy-sns' else '',
+                            direct_send.META_PHONE_TO_WABA.values()),
+                    )
                     continue
 
-                # Extract receiving phone number info from metadata
                 display_phone_number = metadata.get('display_phone_number', '')
                 phone_number_id = metadata.get('phone_number_id', '')
-                
-                # Determine AWS phone number ID for this WABA. Only meaningful when
-                # the change carries messages — the _process_message call below is
-                # the sole consumer, and _process_status takes no such parameter.
-                # WABA-level notifications (`flows` endpoint-availability alerts: 938
-                # in 14 days) carry no `metadata`, so resolving here produced ~96
-                # WARNING lines a day about a value that was then discarded.
+                _inbound_messages = routed.live_messages
+                # Status and replay changes do not need an AWS number lookup.
                 aws_phone_number_id = (
                     _get_aws_phone_number_id(display_phone_number, phone_number_id,
                                              meta_phone_number_ids)
-                    if value.get('messages') and _wh_field not in _AUDIT_ONLY_REPLAY_FIELDS else ''
+                    if _inbound_messages else ''
                 )
-                
-                # Extract contacts info (contains profile names, BSUIDs, usernames)
-                # WhatsApp webhook format: contacts array has wa_id, user_id, profile.name, profile.username
-                contacts_info = value.get('contacts', [])
-                contacts_map = {}
-                for contact_info in contacts_info:
-                    wa_id = contact_info.get('wa_id', '')
-                    user_id = contact_info.get('user_id', '')  # BSUID
-                    parent_user_id = contact_info.get('parent_user_id', '')
-                    profile = contact_info.get('profile', {})
-                    profile_name = profile.get('name', '')
-                    username = profile.get('username', '')  # WhatsApp username (e.g. @pablomorales)
-                    # Map by wa_id (phone) and user_id (BSUID) for flexible lookup
-                    entry = {
-                        'name': profile_name,
-                        'bsuid': user_id,
-                        'parent_bsuid': parent_user_id,
-                        'username': username,
-                        'contact_book_name': profile.get('contact_book_name', ''),
-                        'wa_id': wa_id,
-                    }
-                    if wa_id:
-                        contacts_map[wa_id] = entry
-                    if user_id:
-                        contacts_map[user_id] = entry
-                
-                # ── A coexistence change never enters normal message processing ──
-                # MEASURED, not hypothetical: `smb_message_echoes` may carry its copies
-                # under `messages` (which is why `_process_coexistence_event` reads that
-                # key as a fallback), and this loop runs BEFORE the `_COEXISTENCE_FIELDS`
-                # arm below. Driven with that payload shape, the handler wrote a row to
-                # WhatsAppInboundTable, auto-created a contact, called `put_message` and
-                # attempted a welcome send — i.e. it ingested the owner's own outbound
-                # copies as inbound CUSTOMER messages and replied to them. Coexistence is
-                # not adopted here, so the field is audited and counted and nothing else.
-                # Guarding with a computed list rather than a `continue` keeps the audit
-                # arm below reachable; the four group arms it sits beside use no
-                # `continue` either. Inert for every other field.
-                _coexistence_change = _wh_field in _AUDIT_ONLY_REPLAY_FIELDS
-                _inbound_messages = [] if _coexistence_change else value.get('messages', [])
+                contacts_map = webhook_routing.contacts_by_identity(value)
 
                 # Process incoming messages
                 for _message_index, message in enumerate(_inbound_messages):
@@ -1229,43 +1177,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                 'timeout_guard', request_id)
                             break
                         
-                        # Get sender info from contacts array (BSUID-aware)
-                        sender_phone = message.get('from', '')
-                        sender_bsuid = message.get('from_user_id', '')  # BSUID from message
-                        sender_parent_bsuid = message.get('from_parent_user_id', '')  # Parent BSUID from message
-                        # Lookup contact info by phone or BSUID
-                        contact_entry = contacts_map.get(sender_phone) or contacts_map.get(sender_bsuid) or {}
-                        sender_profile_name = contact_entry.get('name', '') if isinstance(contact_entry, dict) else contact_entry
-                        sender_username = contact_entry.get('username', '') if isinstance(contact_entry, dict) else ''
-                        sender_contact_book_name = contact_entry.get('contact_book_name', '') if isinstance(contact_entry, dict) else ''
-                        # Use BSUID from contacts_map if not in message directly
-                        if not sender_bsuid and isinstance(contact_entry, dict):
-                            sender_bsuid = contact_entry.get('bsuid', '')
-                        # Use parent BSUID from contacts_map if not in message directly
-                        if not sender_parent_bsuid and isinstance(contact_entry, dict):
-                            sender_parent_bsuid = contact_entry.get('parent_bsuid', '')
-                        
-                        # Completion belongs AFTER the whole message handler has
-                        # returned successfully, not when a dedup claim is acquired.
-                        leased_message_ids = []
-                        _process_message(
+                        message_dedup.process_tracked_message(
+                            _process_message,
                             message=message,
                             metadata=metadata,
                             request_id=request_id,
                             receiving_phone=display_phone_number,
                             aws_phone_number_id=aws_phone_number_id,
                             meta_waba_ids=meta_waba_ids,
-                            sender_profile_name=sender_profile_name,
-                            sender_bsuid=sender_bsuid,
-                            sender_parent_bsuid=sender_parent_bsuid,
-                            sender_username=sender_username,
-                            sender_contact_book_name=sender_contact_book_name,
-                            dedup_tracker=leased_message_ids,
+                            **webhook_routing.sender_profile(message, contacts_map),
                         )
-                        if leased_message_ids:
-                            from lambda_utils.webhook_dedup import complete_event
-                            for leased_id in leased_message_ids:
-                                complete_event(leased_id)
                         processed_count += 1
                     except Exception as e:
                         logger.error(json.dumps({
@@ -1301,7 +1222,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Same coexistence guard, same reason: `_process_status` writes to both
                 # message tables, and a coexistence envelope must reach neither.
                 _status_waba_id = (meta_waba_ids[0] if meta_waba_ids else '')
-                for status in ([] if _coexistence_change else value.get('statuses', [])):
+                for status in routed.live_statuses:
                     try:
                         _process_status(status, request_id, contacts_map=contacts_map, waba_id=_status_waba_id)
                     except Exception as e:
@@ -1313,7 +1234,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         }))
                 
                 # Process template status updates (APPROVED, REJECTED, PAUSED, etc.)
-                field = change.get('field', '')
+                field = routed.field
                 if field == 'message_template_status_update':
                     try:
                         _process_template_status(value, request_id)
@@ -1459,7 +1380,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # `_SYSTEM_EVENT_FIELDS` membership test below. Falling through is safe
                 # because neither coexistence field is in that set, so the fall-through
                 # reaches no second handler.
-                if field in _COEXISTENCE_FIELDS:
+                if field in webhook_routing.COEXISTENCE_FIELDS:
                     try:
                         _process_coexistence_event(field, value, request_id)
                     except Exception as e:
@@ -2005,39 +1926,10 @@ def _process_message(
             message_id=whatsapp_message_id, dynamodb=dynamodb,
             request_id=request_id)
 
-    # Claim with an expiring lease. A failure after the claim must remain
-    # replayable; a permanent `claim_event` mark would swallow a later DLQ
-    # replay even if the message never reached storage. Complete this lease
-    # ONLY after _process_message returns normally to its invocation loop.
-    leased = False
-    duplicate = False
-    try:
-        from lambda_utils.webhook_dedup import claim_event_with_lease
-        if whatsapp_message_id:
-            leased = claim_event_with_lease(
-                whatsapp_message_id, source='whatsapp_inbound')
-            duplicate = not leased
-    except Exception as dedup_error:
-        # Fail open on dedup infrastructure problems, never discard a customer
-        # webhook for an unresponsive optional dedup store.
-        logger.warning(json.dumps({
-            'event': 'inbound_dedup_unavailable',
-            'errorType': type(dedup_error).__name__,
-        }))
-    if duplicate or _message_exists(whatsapp_message_id):
-        if leased and whatsapp_message_id:
-            # The message already exists; finishing the reclaimed lease is
-            # safe, and prevents repeated expired-lease retries.
-            from lambda_utils.webhook_dedup import complete_event
-            complete_event(whatsapp_message_id)
-        logger.info(json.dumps({
-            'event': 'message_duplicate_skipped',
-            'whatsappMessageId': whatsapp_message_id,
-            'requestId': request_id
-        }))
+    if message_dedup.should_skip_duplicate(
+            whatsapp_message_id, message_exists=_message_exists,
+            dedup_tracker=dedup_tracker, logger=logger, request_id=request_id):
         return
-    if leased and dedup_tracker is not None and whatsapp_message_id:
-        dedup_tracker.append(whatsapp_message_id)
 
     # A Meta BSUID change must rejoin the PREVIOUS canonical contact before
     # resolving the new BSUID. Otherwise a phone-hidden system event auto-creates
@@ -6110,7 +6002,7 @@ FLOW_LINKS = {
     'track_request': 'https://wecare.digital/shipments/track/',
     'amend_request': 'https://wecare.digital/request-amendment/',
     'schedule_appointment': 'https://wecare.digital/contact/',
-    'rx_slot': 'https://wecare.digital/sehat/',
+    'rx_slot': 'https://wecare.digital/elsewhere/arogya-yatra/',
     'drop_docs': 'https://wecare.digital/drop-docs/',
     'enterprise_assist': 'https://wecare.digital/contact/',
     # Both review doors share one Meta Flow, so they share the owner's verified review link.

@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 import PageMeta from '../../components/PageMeta';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import ProductBuyBox from '../../components/ProductBuyBox';
@@ -66,15 +67,17 @@ const GrahakOsPage: React.FC = () => {
     if (typeof IntersectionObserver === 'undefined') return;
 
     const sections = Array.from(document.querySelectorAll<HTMLElement>('.anim'));
-    const onScreenNow = sections
-      .filter((el) => {
-        const r = el.getBoundingClientRect();
-        return r.top < window.innerHeight && r.bottom > 0;
-      })
-      .map((el) => el.id);
-
-    setVisible((p) => new Set([...p, ...onScreenNow]));
-    setArmed(true);
+    const armFrame = window.requestAnimationFrame(() => {
+      const onScreenNow = sections
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top < window.innerHeight && r.bottom > 0;
+        })
+        .map((el) => el.id);
+      // Batch visibility and arming in the browser callback, not in the effect body.
+      setVisible((p) => new Set([...p, ...onScreenNow]));
+      setArmed(true);
+    });
 
     const obs = new IntersectionObserver(
       (entries) => entries.forEach((e) => {
@@ -98,7 +101,7 @@ const GrahakOsPage: React.FC = () => {
       setVisible((p) => new Set([...p, ...sections.map((el) => el.id)]));
     }, 1200);
 
-    return () => { obs.disconnect(); window.clearTimeout(failsafe); };
+    return () => { window.cancelAnimationFrame(armFrame); obs.disconnect(); window.clearTimeout(failsafe); };
   }, []);
 
   const show = (id: string) => visible.has(id);
@@ -306,7 +309,7 @@ response = requests.post(
                         sits on a white disc with a little padding so the mark reads as a
                         real profile photo in the thread. Decorative: alt="" + aria-hidden,
                         because .contact-name beside it already announces the business. */}
-                    <div className="avatar"><img className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width="80" height="80" decoding="async" /></div>
+                    <div className="avatar"><Image unoptimized className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width={80} height={80} decoding="async" /></div>
                     <div className="contact-info">
                       {/* A company name, not copy. Without this the translation
                           widget rewrote it, so the mock WhatsApp thread showed a

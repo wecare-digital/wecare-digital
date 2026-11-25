@@ -64,6 +64,7 @@ const SehatPage: React.FC = () => (
       path="/elsewhere/arogya-yatra/"
     />
     <RotatingHero
+      mobileFoundation
       ariaLabel="Arogya Yatra"
       badgeLabel="Arogya Yatra · Elsewhere by WECARE.DIGITAL"
       frame="Arogya Yatra"
