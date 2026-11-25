@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,39 @@ class Table:
         self.fail_delete_on = fail_delete_on
         self.bad_query = bad_query
         self.deleted = []
+        self.updates = []
+
+    def _check_condition(self, row, kwargs, operation):
+        condition = kwargs.get("ConditionExpression", "")
+        names = kwargs.get("ExpressionAttributeNames", {})
+        values = kwargs.get("ExpressionAttributeValues", {})
+        parts = condition.split(" AND ") if condition else []
+        for part in parts:
+            target = re.fullmatch(r"attribute_(exists|not_exists)\((#[a-z0-9]+)\)", part)
+            if target:
+                exists = bool(row and names[target[2]] in row)
+                matched = exists if target[1] == "exists" else not exists
+            else:
+                field, val = (x.strip() for x in part.split("="))
+                field = names.get(field, field)
+                matched = bool(row and field in row and row[field] == values[val])
+            if not matched:
+                raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}},
+                                  operation)
+
+    def update_item(self, Key, UpdateExpression, **kw):
+        row = self.rows.get(Key[self.pk])
+        self._check_condition(row, kw, "UpdateItem")
+        verb, expr = UpdateExpression.split(" ", 1)
+        names = kw["ExpressionAttributeNames"]
+        if verb == "SET":
+            lhs, rhs = expr.split(" = ")
+            row[names[lhs]] = dict(kw["ExpressionAttributeValues"][rhs])
+        elif verb == "REMOVE":
+            del row[names[expr]]
+        else:
+            raise AssertionError(verb)
+        self.updates.append(UpdateExpression)
 
     def get_item(self, Key, **kw):
         row = self.rows.get(Key[self.pk])
@@ -42,14 +76,7 @@ class Table:
     def delete_item(self, Key, **kw):
         if self.fail_delete_on and Key[self.pk] == self.fail_delete_on:
             raise RuntimeError("delete failed")
-        values = kw.get("ExpressionAttributeValues", {})
-        if getattr(self, "reject_conditional", False) and ":empty" in values:
-            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}},
-                              "DeleteItem")
-        row = self.rows.get(Key[self.pk])
-        if ":cid" in values and (not row or row.get("contactId") != values[":cid"]):
-            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}},
-                              "DeleteItem")
+        self._check_condition(self.rows.get(Key[self.pk]), kw, "DeleteItem")
         self.rows.pop(Key[self.pk], None)
         self.deleted.append(Key[self.pk])
 
@@ -137,15 +164,174 @@ def test_unconverted_lead_mentioning_fee_or_booking_is_deletable(text):
     assert out.status == 200 and not args["contacts_table"].rows
 
 
-def test_conditional_final_delete_keeps_contact_when_verified_meanwhile():
+def assert_no_destructive_writes(args, media):
+    assert not media
+    for name in ("contacts_table", "canonical_table", "inbound_table",
+                 "outbound_table", "meta_table", "claims_table"):
+        assert not args[name].deleted, name
+    assert not args["extra_tables"]["scheduled"][0].deleted
+
+
+@pytest.mark.parametrize("reason", ["Created", "CREATED", " created "])
+def test_noncanonical_creation_lock_refuses_before_any_effect(reason):
+    args, audits, media = build(contact={"lockedReason": reason})
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 409 and out.body["errorCode"] == "CONTACT_DELETE_LOCKED"
+    assert audits == [] and args["contacts_table"].updates == []
+    assert_no_destructive_writes(args, media)
+
+
+def test_eligibility_change_during_reservation_does_not_allow_any_effect():
+    args, _, media = build()
+    original_audit = args["audit"]
+
+    def audit(**kw):
+        args["contacts_table"].rows[CID]["cognitoSub"] = "newly-verified"
+        return original_audit(**kw)
+
+    args["audit"] = audit
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 409 and out.body["errorCode"] == "CONTACT_DELETE_STATE_CHANGED"
+    assert args["contacts_table"].updates == []
+    assert_no_destructive_writes(args, media)
+
+
+def test_hold_added_before_first_effect_refuses_and_relinquishes_reservation():
+    args, _, media = build()
+    table = args["contacts_table"]
+    update = table.update_item
+
+    def with_new_hold(**kw):
+        update(**kw)
+        if len(table.updates) == 1:
+            args["meta_table"].rows[CID]["tags"] = ["retention-hold"]
+
+    table.update_item = with_new_hold
+    out = ccd.delete_contact_conversation(**args)
+    assert out.status == 409 and out.body["errorCode"] == "CONTACT_DELETE_RETENTION_HOLD"
+    assert ccd._RESERVATION not in table.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+def test_verification_during_effects_stops_before_message_or_claim_deletes():
     args, _, _ = build()
-    args["contacts_table"].reject_conditional = True
+
+    def media(_):
+        assert args["contacts_table"].rows[CID][ccd._RESERVATION]["started"] is True
+        args["contacts_table"].rows[CID]["fieldSources"] = {"phone": "PAYMENT_VERIFIED"}
+        return True
+
+    args["delete_media"] = media
     out = ccd.delete_contact_conversation(**args)
     assert out.status == 503 and out.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
     assert CID in args["contacts_table"].rows
-    cond = ccd._final_delete_condition()[0]
-    assert "attribute_exists(#id)" in cond and "cognitoSub" in str(ccd._final_delete_condition()[1].values())
-    assert "#locked" in cond and "#reason" in cond
+    assert_no_destructive_writes(args, [])
+    assert args["contacts_table"].rows[CID][ccd._RESERVATION]["expiresAt"] == 0
+
+
+@pytest.mark.parametrize(("table_name", "row_id"), [
+    ("canonical_table", "m2"), ("inbound_table", "src-m2"),
+])
+def test_late_financial_marker_on_media_row_prevents_any_effect(table_name, row_id):
+    args, _, media = build()
+    table = args["contacts_table"]
+    update = table.update_item
+
+    def mark_payment_after_started(**kw):
+        update(**kw)
+        if len(table.updates) == 2:
+            args[table_name].rows[row_id]["paymentReferenceId"] = "new-payment"
+
+    table.update_item = mark_payment_after_started
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 409
+    assert result.body["errorCode"] == "CONTACT_DELETE_FINANCIAL_RETENTION"
+    assert ccd._RESERVATION not in table.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+@pytest.mark.parametrize("late_change", ["mark_text", "new_text", "new_scheduled"])
+def test_late_financial_text_row_does_not_delete_sibling_media(late_change, monkeypatch):
+    args, _, media = build()
+    contacts = args["contacts_table"]
+    update = contacts.update_item
+
+    def add_finance_after_started(**kw):
+        update(**kw)
+        if len(contacts.updates) != 2:
+            return
+        canonical = args["canonical_table"]
+        if late_change == "mark_text":
+            assert "s3Key" not in canonical.rows["m1"]
+            canonical.rows["m1"]["paymentReferenceId"] = "new-payment"
+            return
+        table = args["extra_tables"]["scheduled"][0] if late_change == "new_scheduled" else canonical
+        table.rows["late"] = {"id": "late", "contactId": CID, "messageType": "text",
+                              "paymentReferenceId": "new-payment"}
+
+    contacts.update_item = add_finance_after_started
+    configure_real_handler(monkeypatch, args)
+    status, body = run(request(MARKER + CID))
+    assert status == 409 and body["errorCode"] == "CONTACT_DELETE_FINANCIAL_RETENTION"
+    assert ccd._RESERVATION not in contacts.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+def test_new_message_without_finance_still_refuses_stale_media_inventory():
+    args, _, media = build()
+    contacts = args["contacts_table"]
+    update = contacts.update_item
+
+    def add_message_after_started(**kw):
+        update(**kw)
+        if len(contacts.updates) == 2:
+            args["outbound_table"].rows["late"] = {
+                "id": "late", "contactId": CID, "messageType": "text",
+            }
+
+    contacts.update_item = add_message_after_started
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 409 and result.body["errorCode"] == "CONTACT_DELETE_STATE_CHANGED"
+    assert ccd._RESERVATION not in contacts.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+def test_metadata_recreated_after_cleanup_keeps_contact_and_retry_finishes():
+    args, audits, _ = build()
+    claims = args["claims_table"]
+    delete_claim = claims.delete_item
+    inserted = []
+
+    def recreate_meta_after_cleanup(**kw):
+        delete_claim(**kw)
+        if not inserted:
+            inserted.append(True)
+            args["meta_table"].rows[CID] = {"conversationId": CID, "tags": ["new"]}
+
+    claims.delete_item = recreate_meta_after_cleanup
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 503 and result.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
+    assert args["contacts_table"].rows[CID][ccd._RESERVATION]["started"] is True
+    assert CID in args["meta_table"].rows
+    assert ccd.delete_contact_conversation(**args).status == 200
+    assert not args["contacts_table"].rows and not args["meta_table"].rows
+    assert audits[-1]["details"]["priorAuditId"] == "audit-1"
+
+
+def test_second_invocation_cannot_make_destructive_writes_during_reservation():
+    args, audits, _ = build()
+    nested = []
+
+    def media(_):
+        nested.append(ccd.delete_contact_conversation(**args))
+        return True
+
+    args["delete_media"] = media
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 200
+    assert len(audits) == 1 and len(nested) == 1
+    assert nested[0].status == 409
+    assert nested[0].body["errorCode"] == "CONTACT_DELETE_IN_PROGRESS"
 
 
 def test_straggler_before_final_check_keeps_contact_and_rerun_cleans_up():
@@ -241,14 +427,17 @@ def test_missing_contact_is_404_and_audit_failure_deletes_nothing():
 
 
 def test_mid_way_failure_keeps_contact_and_rerun_completes():
-    args, _, _ = build(fail_message="m2")
+    args, audits, _ = build(fail_message="m2")
     out = ccd.delete_contact_conversation(**args)
     assert out.status == 503 and out.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
     assert out.body["contactDeleted"] is False
-    assert CID in args["contacts_table"].rows
+    pending = args["contacts_table"].rows[CID][ccd._RESERVATION]
+    assert pending["started"] is True and pending["expiresAt"] == 0
+    assert pending["auditId"] == "audit-1"
     args["canonical_table"].fail_delete_on = None
     again = ccd.delete_contact_conversation(**args)
     assert again.status == 200 and not args["contacts_table"].rows
+    assert audits[-1]["details"]["priorAuditId"] == "audit-1"
 
 
 def test_foreign_claim_is_not_released_and_non_message_media_skipped():
@@ -351,3 +540,48 @@ def test_inbox_scope_still_needs_inbox_marker_and_contact_marker_rejected(invoke
     assert run(request(MARKER + CID, scope="inbox"))[0] == 400
     assert run(request(CID, scope="bogus"))[0] == 400
     assert calls == []
+
+
+def configure_real_handler(monkeypatch, args):
+    import lambda_utils.middleware as middleware
+    from lambda_utils import identity_claims
+    tables = {
+        HANDLER.INBOUND_TABLE: args["inbound_table"],
+        HANDLER.OUTBOUND_TABLE: args["outbound_table"],
+        identity_claims.TABLE_NAME: args["claims_table"],
+    }
+    # The handler is exercised without a stub for the deletion policy itself.
+    for env, default, arg in (
+        ("MESSAGES_TABLE", "MessagesTable", "canonical_table"),
+        ("CONTACTS_TABLE", "ContactsTable", "contacts_table"),
+        ("CONVERSATION_META_TABLE", "ConversationMetaTable", "meta_table"),
+        ("INVOICES_TABLE", "InvoicesTable", "invoices_table"),
+        ("ORDERS_TABLE", "OrderTable", "orders_table"),
+        ("SCHEDULED_TABLE", "ScheduledMessagesTable", None),
+    ):
+        table = args[arg] if arg else args["extra_tables"]["scheduled"][0]
+        tables[os.environ.get(env, "stack-wecare-digital-" + default)] = table
+
+    class Db:
+        def Table(self, name):
+            return tables[name]
+
+    def permit(event, required_role=None):
+        event["_auth"] = {
+            "role": "Admin", "mfaEnrolled": True, "username": "synthetic-admin",
+        }
+
+    monkeypatch.setattr(middleware, "require_auth", permit)
+    monkeypatch.setattr(HANDLER, "dynamodb", Db())
+    monkeypatch.setattr(HANDLER, "_get_key_schema", lambda name: [{"AttributeName": "id"}])
+    monkeypatch.setattr(HANDLER, "record_audit", args["audit"])
+    monkeypatch.setattr(HANDLER, "_find_and_delete_s3_file", lambda key, _: args["delete_media"](key))
+
+
+def test_handler_contact_delete_refuses_noncanonical_lock_before_any_effect(monkeypatch):
+    args, audits, media = build(contact={"lockedReason": "Created"})
+    configure_real_handler(monkeypatch, args)
+    status, body = run(request(MARKER + CID))
+    assert status == 409 and body["errorCode"] == "CONTACT_DELETE_LOCKED"
+    assert audits == [] and args["contacts_table"].updates == []
+    assert_no_destructive_writes(args, media)
