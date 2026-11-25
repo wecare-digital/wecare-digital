@@ -205,6 +205,28 @@ def _guard(contact: Mapping[str, Any], meta: Mapping[str, Any], rows: list[Mappi
     return None
 
 
+def _recheck_media_rows(tables_and_rows) -> inbox_delete.DeleteDecision | None:
+    """Re-read exact source rows before S3 writes; the scan is not a snapshot."""
+    for table, rows in tables_and_rows:
+        for observed in rows:
+            if not str(observed.get("s3Key") or "").strip():
+                continue
+            fresh = table.get_item(
+                Key={"id": observed["id"]}, ConsistentRead=True,
+            ).get("Item") or {}
+            if not fresh or not _still_same(fresh, observed, ("contactId", "s3Key")):
+                return _refuse(
+                    "CONTACT_DELETE_STATE_CHANGED",
+                    "Message media ownership changed before deletion. Refresh and review it again.",
+                )
+            if _has_payment_fields(fresh):
+                return _refuse(
+                    "CONTACT_DELETE_FINANCIAL_RETENTION",
+                    "This chat has payment messages that must be retained.",
+                )
+    return None
+
+
 def _delete_rows(table: Any, rows: list[Mapping[str, Any]], key_names: tuple[str, ...],
                  contact_id: str) -> int:
     count = 0
@@ -371,6 +393,22 @@ def delete_contact_conversation(
             return current_meta
 
         check_current()
+        if media_keys:
+            try:
+                media_refusal = _recheck_media_rows((
+                    (canonical_table, canonical), (inbound_table, inbound),
+                    (outbound_table, outbound),
+                ))
+            except Exception:
+                media_refusal = _refuse(
+                    "CONTACT_DELETE_LINKAGE_UNKNOWN",
+                    "Message media could not be reverified. No deletion was started.", 503,
+                )
+            if media_refusal:
+                # The started marker is durable before any effects, but this
+                # invocation can still prove it made none on this return path.
+                started = was_pending
+                return _incomplete() if was_pending else media_refusal
         for media_key in media_keys:
             try:
                 if delete_media(media_key):

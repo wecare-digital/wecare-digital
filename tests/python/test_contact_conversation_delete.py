@@ -229,6 +229,49 @@ def test_verification_during_effects_stops_before_message_or_claim_deletes():
     assert args["contacts_table"].rows[CID][ccd._RESERVATION]["expiresAt"] == 0
 
 
+@pytest.mark.parametrize(("table_name", "row_id"), [
+    ("canonical_table", "m2"), ("inbound_table", "src-m2"),
+])
+def test_late_financial_marker_on_media_row_prevents_any_effect(table_name, row_id):
+    args, _, media = build()
+    table = args["contacts_table"]
+    update = table.update_item
+
+    def mark_payment_after_started(**kw):
+        update(**kw)
+        if len(table.updates) == 2:
+            args[table_name].rows[row_id]["paymentReferenceId"] = "new-payment"
+
+    table.update_item = mark_payment_after_started
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 409
+    assert result.body["errorCode"] == "CONTACT_DELETE_FINANCIAL_RETENTION"
+    assert ccd._RESERVATION not in table.rows[CID]
+    assert_no_destructive_writes(args, media)
+
+
+def test_metadata_recreated_after_cleanup_keeps_contact_and_retry_finishes():
+    args, audits, _ = build()
+    claims = args["claims_table"]
+    delete_claim = claims.delete_item
+    inserted = []
+
+    def recreate_meta_after_cleanup(**kw):
+        delete_claim(**kw)
+        if not inserted:
+            inserted.append(True)
+            args["meta_table"].rows[CID] = {"conversationId": CID, "tags": ["new"]}
+
+    claims.delete_item = recreate_meta_after_cleanup
+    result = ccd.delete_contact_conversation(**args)
+    assert result.status == 503 and result.body["errorCode"] == "CONTACT_DELETE_INCOMPLETE"
+    assert args["contacts_table"].rows[CID][ccd._RESERVATION]["started"] is True
+    assert CID in args["meta_table"].rows
+    assert ccd.delete_contact_conversation(**args).status == 200
+    assert not args["contacts_table"].rows and not args["meta_table"].rows
+    assert audits[-1]["details"]["priorAuditId"] == "audit-1"
+
+
 def test_second_invocation_cannot_make_destructive_writes_during_reservation():
     args, audits, _ = build()
     nested = []
