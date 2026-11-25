@@ -388,7 +388,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const prevThreadLen = useRef( 0 );
     const lastTypingRef = useRef<{ id: string; at: number }>( { id: '', at: 0 } );
     const [ loadingOlder, setLoadingOlder ] = useState( false );
-    const overview = useInboxMessageFeed();
+    // Fetch the selected channel at the server, not only from an all-channel sample.
+    const overview = useInboxMessageFeed( { channel: channelFilter } );
     const { messages, loading, failure: loadFailure, refresh: refreshOverview, removeMessage: removeOverviewMessage, removeConversation } = overview;
     const { contacts, contactFailure, refreshContacts, removeContact } = useInboxContactDirectory();
     const contactDir = useMemo( () => Object.fromEntries( contacts.map( c => [ c.contactId, c ] ) ), [ contacts ] );

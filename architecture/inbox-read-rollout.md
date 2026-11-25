@@ -67,3 +67,13 @@ do not replace the older indexes used by existing routes.
   instance, not fleet-wide. If the read budget is exhausted, add an independently
   reconciled aggregate, not a higher synchronous scan limit or authoritative-
   looking partial counts.
+
+### Compatibility reads on existing chronological indexes
+
+When the dedicated timeline rollout is disabled, the reader now checks the existing
+`channel-index` and `contactId-index` for active status, the exact string partition and
+numeric timestamp keys, and ALL projection. If verified, bounded compatibility reads
+use descending Query rather than an arbitrary first scan page. The response remains
+`sampled` with no cursor; unverified schemas retain the old fallback. This does not
+activate the dedicated timeline feature or provision indexes. The channel selector
+also scopes overview requests on the server.

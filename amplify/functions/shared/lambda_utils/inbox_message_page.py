@@ -90,7 +90,7 @@ def _ordered(rows):
     return sorted(rows, key=lambda row: (_timestamp(row), str(row.get("id") or "")), reverse=True)
 
 
-def read_sample(table, *, contact_id, channel, direction, limit):
+def read_sample(table, *, contact_id, channel, direction, limit, ordered_indexes=None):
     """Bounded compatibility sample; never imply full chronological server paging."""
     _validate_scope(contact_id, channel, direction)
     limit = max(1, min(MAX_PAGE, limit))
@@ -105,6 +105,35 @@ def read_sample(table, *, contact_id, channel, direction, limit):
         for term in terms[1:]:
             expression &= term
         return {"FilterExpression": expression}
+
+    # The existing live indexes may already be chronological. A scan's first
+    # 300 evaluated items are arbitrary and can hide the newest inbound messages.
+    # Keep the compatibility response bounded and cursor-free, but prefer recent
+    # rows when DescribeTable has proved the relevant index's exact schema.
+    ordered_indexes = ordered_indexes or {}
+    if contact_id and "contactId" in ordered_indexes:
+        result = table.query(
+            IndexName=ordered_indexes["contactId"],
+            KeyConditionExpression=Key("contactId").eq(contact_id),
+            ScanIndexForward=False,
+            Limit=SAMPLE_LIMIT,
+            **options(filters),
+        )
+        return _ordered(result["Items"])[:limit]
+    if not contact_id and "channel" in ordered_indexes:
+        streams = CHANNELS if channel == "all" else (channel,)
+        per_stream = max(1, min(limit, SAMPLE_LIMIT // len(streams)))
+        rows = []
+        for stream in streams:
+            result = table.query(
+                IndexName=ordered_indexes["channel"],
+                KeyConditionExpression=Key("channel").eq(stream),
+                ScanIndexForward=False,
+                Limit=per_stream,
+                **options([Attr("direction").eq(direction)] if direction else []),
+            )
+            rows.extend(result["Items"])
+        return _ordered(rows)[:limit]
 
     if contact_id:
         try:

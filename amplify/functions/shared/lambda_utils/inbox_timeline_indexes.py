@@ -6,6 +6,7 @@ INDEXES = {
     "contactId": "inbox-contact-timestamp-index",
 }
 TIME_KEY = "timestamp"
+LEGACY_INDEXES = {"channel": "channel-index", "contactId": "contactId-index"}
 
 
 def key_schema(partition: str) -> list[dict]:
@@ -53,3 +54,25 @@ def all_active(table: dict) -> bool:
     return len(found) == len(INDEXES) and all(
         idx.get("IndexStatus") == "ACTIVE" and not idx.get("Backfilling") for idx in found.values()
     )
+
+
+def legacy_ordered_indexes(table: dict) -> dict[str, str]:
+    """Reuse active ALL-projected chronological indexes only when proven.
+
+    A legacy name alone is not proof of ordering: earlier installations used
+    HASH-only indexes. Never change or duplicate an existing index here.
+    """
+    require_canonical_table(table)
+    attrs = {d["AttributeName"]: d["AttributeType"] for d in table.get("AttributeDefinitions", [])}
+    existing = {g["IndexName"]: g for g in table.get("GlobalSecondaryIndexes") or []}
+    found = {}
+    for partition, name in LEGACY_INDEXES.items():
+        index = existing.get(name, {})
+        expected = {(k["AttributeName"], k["KeyType"]) for k in key_schema(partition)}
+        actual = {(k["AttributeName"], k["KeyType"]) for k in index.get("KeySchema", [])}
+        if (table.get("TableStatus") == "ACTIVE"
+                and index.get("IndexStatus") == "ACTIVE" and not index.get("Backfilling")
+                and actual == expected and attrs.get(partition) == "S" and attrs.get(TIME_KEY) == "N"
+                and (index.get("Projection") or {}).get("ProjectionType") == "ALL"):
+            found[partition] = name
+    return found

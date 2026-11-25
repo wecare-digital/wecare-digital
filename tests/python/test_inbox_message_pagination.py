@@ -10,7 +10,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from lambda_utils import middleware
-from lambda_utils.inbox_timeline_indexes import INDEXES, index_definition
+from lambda_utils.inbox_timeline_indexes import INDEXES, LEGACY_INDEXES, index_definition
 
 
 PATH = Path(__file__).resolve().parents[2] / "amplify/functions/core/messages-read/handler.py"
@@ -72,7 +72,9 @@ class FakeTable:
         if value in self.fail_channels:
             raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException"}}, "Query")
         rows = [row for row in self.rows if row.get(key.name) == value]
-        if index in INDEXES.values():
+        if index in INDEXES.values() or (
+            index in LEGACY_INDEXES.values() and kwargs.get("ScanIndexForward") is False
+        ):
             assert kwargs["ScanIndexForward"] is False
             rows.sort(key=lambda row: (row["timestamp"], row["id"]), reverse=True)
         elif index == "contactId-index":
@@ -233,7 +235,7 @@ def test_legacy_environment_uses_hash_only_contact_sample_when_opted_out(run, mo
     status, page = run(table, contactId="a")
     assert status == 200 and page["historyMode"] == "sampled" and page["nextCursor"] is None
     assert [m["id"] for m in page["messages"]] == ["new", "old"]
-    assert not table.scans and not table.describes
+    assert not table.scans and len(table.describes) == 1
     assert table.calls[0]["IndexName"] == "contactId-index"
 
 
@@ -280,3 +282,40 @@ def test_invalid_native_key_is_rejected_before_query(run, key):
     cursor = urlsafe_b64encode(json.dumps([2, ["a", "all", ""], {"a": key}]).encode()).decode()
     assert run(table, contactId="a", cursor=cursor)[0] == 400
     assert not table.calls
+
+
+def legacy_schema():
+    schema = describe(active=())
+    schema["GlobalSecondaryIndexes"] = [
+        {**index_definition(key), "IndexName": name, "IndexStatus": "ACTIVE"}
+        for key, name in LEGACY_INDEXES.items()
+    ]
+    return schema
+
+
+def test_legacy_ordered_indexes_return_latest_inbound_outside_scan_sample(run, monkeypatch):
+    monkeypatch.delenv("INBOX_TIMELINE_INDEXES_ENABLED", raising=False)
+    rows = [row(f"older-{i}", i) for i in range(400)]
+    newest = row("recent-secondary", 10000)
+    newest["awsPhoneNumberId"] = "synthetic-secondary"
+    table = FakeTable([*rows, newest], schema=legacy_schema())
+    status, page = run(table, channel="whatsapp", limit="20")
+    assert status == 200 and page["historyMode"] == "sampled"
+    assert page["nextCursor"] is None and page["messages"][0]["id"] == "recent-secondary"
+    assert page["messages"][0]["awsPhoneNumberId"] == "synthetic-secondary"
+    assert not table.scans and table.calls[0]["IndexName"] == LEGACY_INDEXES["channel"]
+    assert table.calls[0]["ScanIndexForward"] is False
+    status, page = run(table, contactId="a", limit="20")
+    assert status == 200 and page["messages"][0]["id"] == "recent-secondary"
+    assert table.calls[-1]["IndexName"] == LEGACY_INDEXES["contactId"]
+    assert not table.scans
+
+
+def test_unproven_legacy_index_is_not_assumed_ordered(run, monkeypatch):
+    monkeypatch.delenv("INBOX_TIMELINE_INDEXES_ENABLED", raising=False)
+    schema = legacy_schema()
+    schema["GlobalSecondaryIndexes"][0]["Projection"] = {"ProjectionType": "KEYS_ONLY"}
+    table = FakeTable([row("sample", 5)], schema=schema)
+    status, page = run(table, channel="whatsapp")
+    assert status == 200 and page["historyMode"] == "sampled"
+    assert not table.calls and len(table.scans) == 1

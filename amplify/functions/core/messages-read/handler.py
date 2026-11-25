@@ -178,6 +178,25 @@ def _timeline_ready(table) -> bool:
     return ready
 
 
+def _legacy_inbox_indexes(table) -> dict[str, str]:
+    """Use the existing index only after checking its active ordered schema."""
+    from botocore.exceptions import BotoCoreError, ClientError
+    from lambda_utils.inbox_timeline_indexes import legacy_ordered_indexes
+
+    cache_key = ('legacy-ordered', table.name)
+    now = time.monotonic()
+    previous = _TIMELINE_STATUS.get(cache_key)
+    if previous and now - previous[0] < 60:
+        return previous[1]
+    try:
+        indexes = legacy_ordered_indexes(table.meta.client.describe_table(TableName=table.name)['Table'])
+    except (BotoCoreError, ClientError, ValueError):
+        logger.warning('inbox_legacy_index_metadata_unavailable', exc_info=False)
+        indexes = {}
+    _TIMELINE_STATUS[cache_key] = (now, indexes)
+    return indexes
+
+
 def _read_inbox_page(params: Dict[str, Any], origin: str) -> Dict[str, Any]:
     from botocore.exceptions import BotoCoreError, ClientError
     from lambda_utils.inbox_message_page import read_page, read_sample
@@ -204,7 +223,7 @@ def _read_inbox_page(params: Dict[str, Any], origin: str) -> Dict[str, Any]:
                     'error': 'Ordered history is unavailable. Reload the current inbox.',
                     'errorCode': 'INBOX_TIMELINE_RELOAD_REQUIRED',
                 }, origin)
-            rows = read_sample(table, **options)
+            rows = read_sample(table, ordered_indexes=_legacy_inbox_indexes(table), **options)
             failed_channels = []
     except (ValueError, TypeError):
         return cors_response(400, {'error': 'Invalid inbox filters or cursor.'}, origin)

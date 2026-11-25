@@ -260,11 +260,6 @@ const NAV_ICON_PATHS: Record<string, string> = {
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
   Dispatch: 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
   Atmos: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c-5 5-5 13 0 18m0-18c5 5 5 13 0 18',
-  'Nano Climate': 'M4 16a4 4 0 0 1 2-7 6 6 0 0 1 11 1 3 3 0 1 1 0 6ZM6 20h12',
-  'Green Ledger': 'M5 4h14v16H5ZM9 8h6m-6 4h6m-6 4h4',
-  'Arogya Yatra': 'M12 21 4 13a5 5 0 0 1 8-6 5 5 0 0 1 8 6ZM6 12h4l2-3 2 5h4',
-  Rail: 'M6 4h12v13H6ZM6 10h12M9 17l-3 4m9-4 3 4',
-  Cruise: 'M3 14l9-4 9 4-3 6H6ZM7 12V6h10v6M12 3v3',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
@@ -856,7 +851,7 @@ const Header: React.FC = () => {
                                 onClick={ event => handleNavClick( event, child ) }
                               >
                                 <svg className="nav-sub-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                  <path d={ NAV_ICON_PATHS[ child.label ] || SUBNAV_ICON_PATH } />
+                                  <path d={ SUBNAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ child.label }</span>
                               </a>
