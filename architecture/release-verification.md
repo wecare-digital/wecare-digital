@@ -17,7 +17,10 @@
    `NEXT_PUBLIC_*` variable or place the token in the repository.
 3. Both GitHub and Amplify run `python scripts/check_release_contracts.py`.
    Amplify still owns the static-export, credential and other environment-specific
-   checks. Independently confirming the active Amplify revision and backend aliases
+   checks. Verify blocks new lint warnings above the committed per-rule,
+   per-file budget. When a change removes warnings, run
+   `node scripts/check_lint_warning_ratchet.mjs --prune` and commit the decrease.
+   Independently confirming the active Amplify revision and backend aliases
    is necessary; a green GitHub job is not deployment evidence.
 
 ## Script-deployed Lambda fleet

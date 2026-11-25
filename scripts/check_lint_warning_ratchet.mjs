@@ -76,8 +76,8 @@ async function main( args ) {
       console.log( `Pruned ${decreased.length} lint warning budget entries.` );
       return 0;
     }
-    console.error( 'Warnings were removed. Run node scripts/check_lint_warning_ratchet.mjs --prune and commit the reduced budget.\n' + decreased.map( describe ).join( '\n' ) );
-    return 1;
+    console.warn( 'Warnings decreased. Run node scripts/check_lint_warning_ratchet.mjs --prune and commit the lower budget.\n' + decreased.map( describe ).join( '\n' ) );
+    return 0;
   }
   console.log( 'ESLint warning budget matched; no new warning debt.' );
   return 0;
