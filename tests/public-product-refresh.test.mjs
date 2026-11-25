@@ -25,19 +25,21 @@ const retired = [
 test('new product pages and public registries agree; retired pages are absent', () => {
   const header = read('src/components/Header.tsx');
   const sitemap = read('scripts/generate-sitemap.js');
+  // The retired-family denylist may name an old URL; only PUBLIC_EXACT advertises it.
+  const publicExact = sitemap.split('const PUBLIC_EXACT = new Set( [')[1].split('] );')[0];
   const meta = read('src/pages/_app.tsx');
   const catalog = JSON.parse(read('config/public-pages.json')).pages;
   for (const [route, file] of added) {
     assert.ok(existsSync(file), file);
     assert.ok(header.includes("href: '" + route + "/'"), route);
-    assert.ok(sitemap.includes("'" + route + "'"), route);
+    assert.ok(publicExact.includes("'" + route + "'"), route);
     assert.ok(meta.includes("'" + route + "':"), route);
     assert.ok(catalog.some(page => page.path === route), route);
   }
   for (const [route, file] of retired) {
     assert.ok(!existsSync(file), file);
     assert.ok(!header.includes("href: '" + route + "/'"), route);
-    assert.ok(!sitemap.includes("'" + route + "'"), route);
+    assert.ok(!publicExact.includes("'" + route + "'"), route);
     assert.ok(!meta.includes("'" + route + "':"), route);
     assert.ok(!catalog.some(page => page.path === route), route);
   }
