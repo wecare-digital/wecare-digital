@@ -5,6 +5,8 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
+  ['/niji-setu/parichay', 'src/pages/niji-setu/parichay.tsx'],
+  ['/niji-setu/khata', 'src/pages/niji-setu/khata.tsx'],
   ['/relay-os', 'src/pages/relay-os/index.tsx'],
   ['/atmos/nano-climate', 'src/pages/atmos/nano-climate.tsx'],
   ['/atmos/green-ledger', 'src/pages/atmos/green-ledger.tsx'],
@@ -13,6 +15,7 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/niji-setu', 'src/pages/niji-setu.tsx'],
   ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
   ['/vayulok', 'src/pages/vayulok/index.tsx'],
@@ -22,19 +25,21 @@ const retired = [
 test('new product pages and public registries agree; retired pages are absent', () => {
   const header = read('src/components/Header.tsx');
   const sitemap = read('scripts/generate-sitemap.js');
+  // The retired-family denylist may name an old URL; only PUBLIC_EXACT advertises it.
+  const publicExact = sitemap.split('const PUBLIC_EXACT = new Set( [')[1].split('] );')[0];
   const meta = read('src/pages/_app.tsx');
   const catalog = JSON.parse(read('config/public-pages.json')).pages;
   for (const [route, file] of added) {
     assert.ok(existsSync(file), file);
     assert.ok(header.includes("href: '" + route + "/'"), route);
-    assert.ok(sitemap.includes("'" + route + "'"), route);
+    assert.ok(publicExact.includes("'" + route + "'"), route);
     assert.ok(meta.includes("'" + route + "':"), route);
     assert.ok(catalog.some(page => page.path === route), route);
   }
   for (const [route, file] of retired) {
     assert.ok(!existsSync(file), file);
     assert.ok(!header.includes("href: '" + route + "/'"), route);
-    assert.ok(!sitemap.includes("'" + route + "'"), route);
+    assert.ok(!publicExact.includes("'" + route + "'"), route);
     assert.ok(!meta.includes("'" + route + "':"), route);
     assert.ok(!catalog.some(page => page.path === route), route);
   }
@@ -75,4 +80,14 @@ test('Atmos uses the official outlined grass symbol at its native viewBox', () =
   assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
   assert.ok(header.includes("'0 -960 960 960'"));
   assert.ok(header.includes("label: 'Relay OS', href: '/relay-os/'"));
+});
+
+test('Niji Setu is a non-clickable family and both destinations use shared submenu icons', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("label: 'Parichay', href: '/niji-setu/parichay/'"));
+  assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
+  assert.ok(!header.includes("href: '/niji-setu/'"));
+  assert.ok(header.includes('{ link.nested ? ('));
+  const notFound = read('src/pages/404.tsx');
+  assert.ok(notFound.includes("'/dispatch', '/niji-setu', '/shop/niji-setu'"));
 });

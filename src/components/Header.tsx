@@ -55,6 +55,7 @@ interface NavColumn {
 interface SearchableNavLink extends NavLink {
   href: string;
   searchText: string;
+  nested?: boolean;
 }
 
 /**
@@ -133,7 +134,14 @@ const COLUMNS: NavColumn[] = [
               { label: 'Prastuti', href: '/hunar/prastuti/', match: '/hunar/prastuti', searchTerms: [ 'hunar', 'cv', 'resume', 'profile', 'pitch', 'deck' ] },
             ],
           },
-          { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
+          {
+            label: 'Niji Setu',
+            searchTerms: [ 'identity', 'bio', 'invoicing' ],
+            children: [
+              { label: 'Parichay', href: '/niji-setu/parichay/', match: '/niji-setu/parichay', searchTerms: [ 'bio', 'digital identity', 'profile', 'links' ] },
+              { label: 'Khata', href: '/niji-setu/khata/', match: '/niji-setu/khata', searchTerms: [ 'invoice', 'billing', 'invoice creation' ] },
+            ],
+          },
         ],
       },
     ],
@@ -215,16 +223,17 @@ const COLUMNS: NavColumn[] = [
 
 const flattenMenuLinks = (): SearchableNavLink[] => {
   const result: SearchableNavLink[] = [];
-  const push = ( link: NavLink, inheritedTerms: string[] ) => {
+  const push = ( link: NavLink, inheritedTerms: string[], nested = false ) => {
     const terms = [ ...inheritedTerms, ...( link.searchTerms || [] ) ];
     if ( link.href ) {
       result.push( {
         ...link,
         href: link.href,
+        nested,
         searchText: [ link.label, ...terms ].join( ' ' ).toLocaleLowerCase(),
       } );
     }
-    for ( const child of link.children || [] ) push( child, [ ...terms, link.label ] );
+    for ( const child of link.children || [] ) push( child, [ ...terms, link.label ], true );
   };
 
   for ( const column of COLUMNS ) {
@@ -237,7 +246,7 @@ const flattenMenuLinks = (): SearchableNavLink[] => {
           searchText: section.heading.toLocaleLowerCase(),
         } );
       }
-      for ( const link of section.links ) push( link, section.heading ? [ section.heading ] : [] );
+      for ( const link of section.links ) push( link, section.heading ? [ section.heading ] : [], section.nestedLinks === true );
     }
   }
 
@@ -693,7 +702,11 @@ const Header: React.FC = () => {
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
-                      { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
+                      { link.nested ? (
+                        <svg className="nav-sub-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d={ SUBNAV_ICON_PATH } />
+                        </svg>
+                      ) : NAV_MATERIAL_SYMBOLS[ link.label ] ? (
                         <span
                           className="nav-row-material-symbol"
                           aria-hidden="true"
@@ -791,7 +804,11 @@ const Header: React.FC = () => {
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
-                                { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
+                                { section.nestedLinks ? (
+                                  <svg className="nav-sub-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d={ SUBNAV_ICON_PATH } />
+                                  </svg>
+                                ) : NAV_MATERIAL_SYMBOLS[ link.label ] ? (
                                   <span
                           className="nav-row-material-symbol"
                           aria-hidden="true"
@@ -809,7 +826,7 @@ const Header: React.FC = () => {
                                   </svg>
                                 ) }
                                 <span className="nav-item-label">{ link.label }</span>
-                                { ( section.nestedLinks || link.children?.length ) ? (
+                                { link.children?.length ? (
                                   <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <path d={ ROW_CHEVRON_PATH } />
                                   </svg>

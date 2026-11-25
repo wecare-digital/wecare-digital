@@ -28,8 +28,10 @@ import urllib.request
 
 SITE = "https://wecare.digital"
 
-NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/"}
+NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/", "/niji-setu/", "/shop/niji-setu/"}
 RETIRED: dict[str, str] = {
+    "/niji-setu/": "Niji Setu is a non-clickable product family; HTTP 404/410 only",
+    "/shop/niji-setu/": "Retired Niji Setu shop detail; HTTP 404/410 only",
     "/dispatch/": "Relay OS replaced this page; HTTP 404/410 only",
     "/grahak-os/": "Relay OS replaced this page; HTTP 404/410 only",
     "/vayulok/": "Nano Climate replaced this page; HTTP 404/410 only",
