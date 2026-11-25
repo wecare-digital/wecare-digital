@@ -59,3 +59,10 @@ test('Pause/Play control reserves a stable width and shares the title bar height
   assert.ok(terminal.includes('width:76px;height:47px'));
   assert.ok(terminal.includes('font-size:16px;font-weight:500;line-height:1'));
 });
+
+
+test('every submenu child uses the shared bent arrow, not a product-specific glyph', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes('<path d={ SUBNAV_ICON_PATH } />'));
+  assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
+});
