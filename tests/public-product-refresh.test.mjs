@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
-  ['/dispatch', 'src/pages/dispatch/index.tsx'],
+  ['/relay-os', 'src/pages/relay-os/index.tsx'],
   ['/atmos/nano-climate', 'src/pages/atmos/nano-climate.tsx'],
   ['/atmos/green-ledger', 'src/pages/atmos/green-ledger.tsx'],
   ['/elsewhere/rail', 'src/pages/elsewhere/rail.tsx'],
@@ -13,6 +13,7 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
   ['/vayulok', 'src/pages/vayulok/index.tsx'],
   ['/sehat', 'src/pages/sehat.tsx'],
@@ -65,4 +66,15 @@ test('every submenu child uses the shared bent arrow, not a product-specific gly
   const header = read('src/components/Header.tsx');
   assert.ok(header.includes('<path d={ SUBNAV_ICON_PATH } />'));
   assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
+});
+
+
+test('Relay OS keeps the existing checkout identity and public label', () => {
+  const page = read('src/pages/relay-os/index.tsx');
+  const checkout = read('src/config/productCheckout.ts');
+  assert.ok(page.includes('slug="grahak-os"'));
+  assert.ok(page.includes('path="/relay-os/"'));
+  assert.ok(page.includes('title="Relay OS - End-user messaging"'));
+  assert.ok(checkout.includes("'grahak-os', 'GOS7K4M2', 'Relay OS'"));
+  assert.ok(!page.includes('/dispatch/'));
 });

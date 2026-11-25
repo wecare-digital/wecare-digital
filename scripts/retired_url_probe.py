@@ -28,9 +28,10 @@ import urllib.request
 
 SITE = "https://wecare.digital"
 
-NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/"}
+NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/"}
 RETIRED: dict[str, str] = {
-    "/grahak-os/": "Dispatch replaced this page; HTTP 404/410 only",
+    "/dispatch/": "Relay OS replaced this page; HTTP 404/410 only",
+    "/grahak-os/": "Relay OS replaced this page; HTTP 404/410 only",
     "/vayulok/": "Nano Climate replaced this page; HTTP 404/410 only",
     "/sehat/": "Arogya Yatra replaced this page; HTTP 404/410 only",
     '/release-check-missing-page/': 'shared missing-page response must remain HTTP 404',

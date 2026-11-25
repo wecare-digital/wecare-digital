@@ -184,7 +184,7 @@ _DYNAMIC_SITEMAP_PREFIXES = (
 )
 
 _START_PATHS = {"/", "/contact", "/blog", "/shop", "/orders"}
-_PLATFORM_PATHS = {"/dispatch", "/atmos/nano-climate", "/atmos/green-ledger"}
+_PLATFORM_PATHS = {"/relay-os", "/atmos/nano-climate", "/atmos/green-ledger"}
 _CUSTOMER_SERVICE_PATHS = {
     "/submit-request", "/request-amendment", "/drop-docs", "/vault",
     "/request-pickup",

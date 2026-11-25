@@ -10,7 +10,7 @@ export interface PublicPolicyCopy {
  * The shared public tail must not add a second copy on those pages.
  */
 export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
-  '/dispatch',
+  '/relay-os',
   '/elsewhere/arogya-yatra',
   '/elsewhere/visa',
   '/elsewhere/trip',

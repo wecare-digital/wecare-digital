@@ -13,7 +13,7 @@
  * Conditions, History and Heatmap. The page keeps the lighter hero presentation while Weather
  * remains a first-class live section below.
  *
- * The hero is the shared RotatingHero, as on Dispatch, so the two pages animate identically:
+ * The hero is the shared RotatingHero, as on Relay OS, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
  * saturated dot of the same hue swapping with the word, and the same easing and
  * 2400ms interval. The four tint/dot pairs are reused verbatim from that page - no
@@ -30,7 +30,7 @@
  * there, which is what lets .vl-hero-visual below style it; lifting it into a variable
  * or a child component silently drops those rules.
  *
- * Every class is vl- prefixed, following pp- on the Dispatch page and ft- in the
+ * Every class is vl- prefixed, following pp- on the Relay OS page and ft- in the
  * Footer. The globally imported src/styles/*.css declares unscoped rules for generic
  * names, and styled-jsx does not shield a page from those.
  */
@@ -97,7 +97,7 @@ const VayuLokPage: React.FC = () => {
   // warm pair (Solar -> Heatmap); the obvious logical order stacked the warm hues
   // consecutively and the pill stopped feeling like it was changing.
   //
-  // The first four tint/dot pairs are reused verbatim from the Dispatch hero. The
+  // The first four tint/dot pairs are reused verbatim from the Relay OS hero. The
   // last two are new, and follow that system's construction rule rather than being
   // picked freely: a pale tint with a saturated dot of the SAME hue, at roughly the
   // 100/600 relationship the existing four use. Reusing one of the four for Heatmap
@@ -107,7 +107,7 @@ const VayuLokPage: React.FC = () => {
   // heat but honours the owner constraint that #dc2626 - a true red - is forbidden
   // across this page (see .agents/tasks/vayulok-home-aligned-mock/design-tokens.md
   // and owner-constraints.md "NO RED anywhere"). Yellow for Pollen for the obvious
-  // reason. Neither touches the brand palette - like the Dispatch channel tints,
+  // reason. Neither touches the brand palette - like the Relay OS channel tints,
   // these are a per-subject system that sits outside it by design.
   // Every rotating word names a capability Nano Climate actually ships today. 'Pollen' and 'Solar'
   // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is

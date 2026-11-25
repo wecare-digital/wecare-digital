@@ -78,7 +78,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Products',
         links: [
-          { label: 'Dispatch', href: '/dispatch/', match: '/dispatch', searchTerms: [ 'messaging', 'customer engagement', 'WhatsApp', 'SMS', 'RCS', 'email', 'voice' ] },
+          { label: 'Relay OS', href: '/relay-os/', match: '/relay-os', searchTerms: [ 'messaging', 'customer engagement', 'WhatsApp', 'SMS', 'RCS', 'email', 'voice' ] },
           {
             label: 'Atmos',
             searchTerms: [ 'environment', 'climate', 'sustainability' ],
@@ -258,7 +258,7 @@ const menuSearchKey = ( link: Pick<NavLink, 'label' | 'href'> ) => `${link.href 
 const NAV_ICON_PATHS: Record<string, string> = {
   Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
-  Dispatch: 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
+  'Relay OS': 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
   Atmos: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c-5 5-5 13 0 18m0-18c5 5 5 13 0 18',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',

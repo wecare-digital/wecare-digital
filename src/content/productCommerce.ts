@@ -43,11 +43,11 @@ const PHYSICAL_PRODUCT_SLUGS = new Set<string>( [
 ] );
 
 const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
-  // Dispatch is the copy benchmark for the rest of the site.
+  // Relay OS is the copy benchmark for the rest of the site.
   'grahak-os': {
     shipping: 'Delivered digitally; no physical shipping applies. Separate physical items follow their own delivery terms.',
     returns: 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.',
-    disclaimer: 'Your purchase covers one Dispatch consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
+    disclaimer: 'Your purchase covers one Relay OS consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
   },
   'sehat': {
     shipping: 'Arogya Yatra is fulfilled as an appointment-booking service; no physical delivery applies.',

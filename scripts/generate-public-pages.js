@@ -124,12 +124,12 @@ const STRUCTURAL = [
   { path: '/shop', group: 'start', name: 'Shop',
     description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   { path: '/orders', group: 'start' },
-  // Grahak OS and VayuLok are the two platform products: they are what a business buys, as
+  // Relay OS and Atmos contain the platform products: they are what a business buys, as
   // against the consumer services in products.ts. Both have bespoke page files rather than
   // coming through ProductPage.tsx, which is the closest thing to a structural signal - but
   // it is not one this script should infer from, because a future platform product might
   // well be built on the shared component.
-  { path: '/dispatch', group: 'platform' },
+  { path: '/relay-os', group: 'platform' },
   { path: '/atmos/nano-climate', group: 'platform' },
   { path: '/atmos/green-ledger', group: 'platform' },
   // Sehat is a service with its own page file rather than a products.ts entry, so it has
