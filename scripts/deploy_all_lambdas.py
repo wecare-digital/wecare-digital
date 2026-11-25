@@ -82,7 +82,10 @@ import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
+if __package__:
+    from .require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
+else:
+    from require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
 
 try:
     import boto3

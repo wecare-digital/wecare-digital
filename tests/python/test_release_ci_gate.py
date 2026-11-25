@@ -96,3 +96,17 @@ def test_rate_limit_error_is_explicit_and_redacted(monkeypatch):
     monkeypatch.setattr(gate, "build_opener", lambda *_: Opener())
     with pytest.raises(gate.ReleaseGateError, match="rate limited the gate"):
         gate._json("/runs/8")
+
+
+def test_canonical_promotion_refuses_without_a_verified_rollback_hash(monkeypatch, tmp_path):
+    from scripts import snapstart_publish as publisher
+
+    current = publisher.State("12", None, "alias-revision", "new-code-hash", "function-revision")
+    monkeypatch.setattr(publisher, "current_state", lambda *_: current)
+    receipt = tmp_path / "release.jsonl"
+    receipt.write_text("")
+    # The stub has no mutation methods; an attempted publish would fail the test.
+    assert publisher.publish_and_move(
+        object(), "test-function", False, True, "new-code-hash", receipt,
+    ) == "failed"
+    assert not receipt.read_text()

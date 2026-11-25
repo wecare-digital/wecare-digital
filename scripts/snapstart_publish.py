@@ -176,6 +176,10 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
         print(f"    no {ALIAS} alias; invokes $LATEST directly, nothing to move")
         return "skipped"
 
+    if release_receipt is not None and not alias_sha:
+        print(f"  {name}: cannot verify the current {ALIAS} version's rollback hash; not promoting")
+        return "failed"
+
     try:
         already_current = (alias_sha is not None and alias_sha == latest_sha
                            and environment_matches(lam, name, alias_version))

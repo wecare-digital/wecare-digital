@@ -59,3 +59,7 @@ jobs:
 
       - name: Offline release contracts
         run: python scripts/check_release_contracts.py
+
+
+      - name: Stage checkout artifacts offline
+        run: python scripts/stage_shop_checkout_packages.py --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/shop-release"
