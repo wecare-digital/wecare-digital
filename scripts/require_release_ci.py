@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import time
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 REPO = "wecare-digital/wecare-digital"
@@ -23,13 +25,29 @@ class ReleaseGateError(RuntimeError):
     pass
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    # Never forward the optional Actions-read credential to another origin.
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
 def _json(path: str) -> dict:
-    request = Request(API + path, headers={
+    headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "wecare-release-gate",
-    })
-    with urlopen(request, timeout=10) as response:
-        result = json.load(response)
+    }
+    token = os.environ.get("WECARE_GITHUB_ACTIONS_READ_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = Request(API + path, headers=headers)
+    try:
+        with build_opener(_NoRedirect()).open(request, timeout=10) as response:
+            result = json.load(response)
+    except HTTPError as exc:
+        if exc.code == 429 or exc.headers.get("X-RateLimit-Remaining") == "0":
+            raise ReleaseGateError("GitHub Actions API rate limited the gate; retry after it resets "
+                                   "or configure the scoped Actions-read token") from None
+        raise ReleaseGateError(f"GitHub Actions API could not verify release (HTTP {exc.code})") from None
     if not isinstance(result, dict):
         raise ReleaseGateError("Unexpected response from GitHub Actions")
     return result
@@ -75,7 +93,7 @@ def wait_for_release(commit: str, wait_seconds: int) -> dict:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ReleaseGateError(f"Verified production CI is not available for {commit}")
-        time.sleep(min(15, remaining))
+        time.sleep(min(30, remaining))
 
 
 def clean_checkout_commit(root: Path) -> str:

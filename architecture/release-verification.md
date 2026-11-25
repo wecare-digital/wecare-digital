@@ -11,6 +11,10 @@
    waits for the final CI job up to five minutes and blocks if it cannot obtain
    authoritative success. Retry the build after a temporary API or quota issue
    is resolved; do not disable the gate to ship around a failing Verify run.
+   The public read works without credentials. If shared egress quota is a
+   problem, configure `WECARE_GITHUB_ACTIONS_READ_TOKEN` as a private environment
+   value with Actions read permission for this repo only; never use a
+   `NEXT_PUBLIC_*` variable or place the token in the repository.
 3. Both GitHub and Amplify run `python scripts/check_release_contracts.py`.
    Amplify still owns the static-export, credential and other environment-specific
    checks. Independently confirming the active Amplify revision and backend aliases

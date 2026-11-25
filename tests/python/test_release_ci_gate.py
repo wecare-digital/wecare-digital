@@ -63,3 +63,36 @@ def test_short_sha_never_queries_github():
     with pytest.raises(gate.ReleaseGateError, match="full lowercase"):
         gate.check_release(SHA[:8], read=read)
     assert not requests
+
+
+def test_authenticated_read_uses_fixed_host_and_does_not_follow_redirect(monkeypatch):
+    import io
+    monkeypatch.setenv("WECARE_GITHUB_ACTIONS_READ_TOKEN", "synthetic-test-only")
+
+    class Opener:
+        def open(self, request, *, timeout):
+            assert request.full_url == gate.API + "/runs/8"
+            assert request.get_header("Authorization") == "Bearer synthetic-test-only"
+            assert timeout <= 10
+            return io.BytesIO(b'{"id":8}')
+
+    def opener(handler):
+        assert handler.redirect_request() is None
+        return Opener()
+
+    monkeypatch.setattr(gate, "build_opener", opener)
+    assert gate._json("/runs/8") == {"id": 8}
+
+
+def test_rate_limit_error_is_explicit_and_redacted(monkeypatch):
+    from email.message import Message
+    headers = Message()
+    headers["X-RateLimit-Remaining"] = "0"
+
+    class Opener:
+        def open(self, request, *, timeout):
+            raise gate.HTTPError(request.full_url, 403, "provider details", headers, None)
+
+    monkeypatch.setattr(gate, "build_opener", lambda *_: Opener())
+    with pytest.raises(gate.ReleaseGateError, match="rate limited the gate"):
+        gate._json("/runs/8")
