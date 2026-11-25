@@ -4,12 +4,10 @@
  * Built ground-up for /ws; it does NOT copy the 138KB legacy inbox
  * (src/pages/workspace/engage/inbox/index.tsx). From that file it borrows only the DATA MODEL,
  * not the layout (retention policy does not itself filter the inbox):
- *   - read every channel's messages once with api.listMessages(undefined, 'ALL', limit),
- *   - group them into conversations by contactId (falling back to senderPhone / receivingPhone),
- *   - resolve participant names with api.listContacts,
- *   - tell an empty table apart from a failed read with api.collectApiFailures (listMessages /
- *     listContacts both return [] on failure, so a bare catch would render "No conversations"
- *     over an outage).
+ *   - page recent channel activity and load the selected saved-contact thread separately,
+ *   - group previews by contactId (falling back to senderPhone / receivingPhone),
+ *   - resolve participant names without reloading the directory every poll,
+ *   - surface partial channel failures without hiding successfully loaded conversations.
  *
  * LAYOUT is phone-first and a clean rebuild:
  *   - Mobile (<768px): master/detail that swaps full-screen — the conversation LIST, or an opened
@@ -26,10 +24,12 @@
  * composer. React 19: icon helpers typed React.JSX.Element.
  */
 import React from 'react';
-import type { Message, Contact, ConversationMeta, ApiFailure } from '../../../api/client';
+import type { Message, ConversationMeta } from '../../../api/client';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import { useInboxContactDirectory, useInboxMessageFeed } from '../../../hooks/useInboxData';
+import { inboxConversationKey, mergeInboxMessages } from '../../../lib/inbox-feed';
 
 interface Conversation {
   key: string;
@@ -60,10 +60,6 @@ const SendGlyph = (): React.JSX.Element => (
     <path d="M4 12 20 4l-6 16-3-7-7-1Z" />
   </svg>
 );
-
-function convKeyOf ( m: Message ): string {
-  return m.contactId || m.senderPhone || m.receivingPhone || 'unknown';
-}
 
 function initialsOf ( label: string ): string {
   const source = ( label || '?' ).trim();
@@ -100,55 +96,35 @@ const InboxView: React.FC = () => {
   const toast = useToastContext();
   const confirm = useConfirm();
 
-  const [ messages, setMessages ] = React.useState<Message[]>( [] );
-  const [ names, setNames ] = React.useState<Record<string, string>>( {} );
-  const [ loading, setLoading ] = React.useState( true );
-  const [ failure, setFailure ] = React.useState<ApiFailure | null>( null );
   const [ query, setQuery ] = React.useState( '' );
-  const [ selected, setSelected ] = React.useState<string | null>( null );
+  const [ chosen, setChosen ] = React.useState<Conversation | null>( null );
+  const selected = chosen?.key ?? null;
   const [ meta, setMeta ] = React.useState<ConversationMeta | null>( null );
 
   const [ draft, setDraft ] = React.useState( '' );
   const [ sending, setSending ] = React.useState( false );
   const [ deletingMessageId, setDeletingMessageId ] = React.useState<string | null>( null );
 
-  const load = React.useCallback( async () => {
-    setFailure( null );
-    try {
-      // Both calls return [] on failure as well as on an empty table, so a bare catch would
-      // render "No conversations" over an outage. collectApiFailures recovers the reason.
-      // An unavailable retention tag registry must never turn the inbox blank,
-      // nor allow a filtered view to hide a potentially held conversation.
-      const recordsResult = await api.collectApiFailures( () => Promise.all( [
-        api.listMessages( undefined, 'ALL', 2000 ),
-        api.listContacts(),
-      ] ) );
-      const [ msgs, contacts ] = recordsResult.data;
-      setFailure( recordsResult.failures[ 0 ] ?? null );
-      const dir: Record<string, string> = {};
-      ( contacts as Contact[] ).forEach( c => { dir[ c.contactId ] = c.name || c.email || c.phone || ''; } );
-      setNames( dir );
-      setMessages( msgs as Message[] );
-    } catch {
-      setFailure( {
-        kind: 'network',
-        status: null,
-        message: 'The inbox could not be loaded.',
-        url: '',
-        retryable: true,
-        at: Date.now(),
-      } );
-    } finally {
-      setLoading( false );
-    }
-  }, [] );
+  const overview = useInboxMessageFeed();
+  const history = useInboxMessageFeed( { contactId: chosen?.contactId, active: !!chosen?.contactId } );
+  const { contacts, contactFailure, refreshContacts } = useInboxContactDirectory();
+  const { messages, loading, failure } = overview;
+  const names = React.useMemo( () => Object.fromEntries(
+    contacts.map( c => [ c.contactId, c.name || c.email || c.phone || '' ] ),
+  ), [ contacts ] );
 
-  React.useEffect( () => { void load(); }, [ load ] );
+  const load = async () => {
+    await Promise.all( [ overview.refresh(), history.refresh(), refreshContacts() ] );
+  };
 
   // Read-only team-inbox meta for the selected thread (status badge only here).
   React.useEffect( () => {
+    let relevant = true;
     setMeta( null );
-    if ( selected ) api.getConversationMeta( selected ).then( setMeta ).catch( () => {} );
+    if ( selected ) void api.getConversationMeta( selected ).then( value => {
+      if ( relevant ) setMeta( value );
+    } ).catch( () => {} );
+    return () => { relevant = false; };
   }, [ selected ] );
 
   // Reset the composer when switching threads.
@@ -157,7 +133,7 @@ const InboxView: React.FC = () => {
   const conversations = React.useMemo<Conversation[]>( () => {
     const map = new Map<string, Conversation>();
     for ( const m of messages ) {
-      const key = convKeyOf( m );
+      const key = inboxConversationKey( m );
       const title = names[ m.contactId ] || m.senderName || m.senderPhone || m.receivingPhone || m.contactId || 'Unknown';
       const existing = map.get( key );
       if ( !existing ) {
@@ -194,17 +170,17 @@ const InboxView: React.FC = () => {
   }, [ conversations, query ] );
 
   const selectedConv = React.useMemo(
-    () => conversations.find( c => c.key === selected ) || null,
-    [ conversations, selected ]
+    () => conversations.find( c => c.key === selected ) || chosen,
+    [ chosen, conversations, selected ]
   );
 
   const thread = React.useMemo<Message[]>( () => {
     if ( !selected ) return [];
-    return messages
-      .filter( m => convKeyOf( m ) === selected )
-      .slice()
-      .sort( ( a, b ) => new Date( a.timestamp ).getTime() - new Date( b.timestamp ).getTime() );
-  }, [ messages, selected ] );
+    return mergeInboxMessages(
+      chosen?.contactId && !history.legacy ? [] : messages.filter( m => inboxConversationKey( m ) === selected ),
+      history.messages,
+    ).reverse();
+  }, [ chosen?.contactId, history.legacy, history.messages, messages, selected ] );
 
   // Send is only wired for a WhatsApp thread with a saved contactId (the one clean existing
   // export, api.sendWhatsAppMessage). Everything else stays read-only.
@@ -244,6 +220,8 @@ const InboxView: React.FC = () => {
       const result = await api.deleteInboxMessage( message.id );
       if ( result.ok && result.data.rowDeleted ) {
         toast.success( 'Local message removed. Provider copies may remain.' );
+        overview.removeMessage( message.id );
+        history.removeMessage( message.id );
         await load();
       } else {
         toast.error( result.ok ? 'Delete was not confirmed.' : result.failure.message );
@@ -283,9 +261,16 @@ const InboxView: React.FC = () => {
           </label>
                   </header>
 
+        { overview.unavailableChannels.length > 0 && (
+          <p className="ib-note" role="status">Some channels could not be loaded: { overview.unavailableChannels.join( ', ' ) }.</p>
+        ) }
+        { overview.legacy && <p className="ib-note">Showing recent messages. Older history requires the updated inbox API.</p> }
+        { ( contactFailure || ( failure && messages.length > 0 ) ) && (
+          <p className="ib-note" role="status">{ failure?.message || 'Some contact names could not be loaded.' } <button type="button" className="ib-ghost" onClick={ () => void load() }>Retry</button></p>
+        ) }
         { loading ? (
           <p className="ib-note">Loading conversations…</p>
-        ) : failure ? (
+        ) : failure && messages.length === 0 ? (
           <div className="ib-error" role="alert">
             <p>{ failure.message || 'The inbox could not be loaded.' }</p>
             <button type="button" className="ib-ghost" onClick={ () => void load() }>Retry</button>
@@ -299,7 +284,7 @@ const InboxView: React.FC = () => {
                 <button
                   type="button"
                   className={ `ib-row ${ c.key === selected ? 'active' : '' }` }
-                  onClick={ () => setSelected( c.key ) }
+                  onClick={ () => setChosen( c ) }
                   aria-current={ c.key === selected ? 'true' : undefined }
                 >
                   <span className="ib-avatar" aria-hidden="true">{ initialsOf( c.title ) }</span>
@@ -318,6 +303,11 @@ const InboxView: React.FC = () => {
             ) ) }
           </ul>
         ) }
+        { overview.hasOlder && (
+          <button type="button" className="ib-ghost" disabled={ overview.loadingOlder || overview.refreshing } onClick={ () => void overview.refresh( true ) }>
+            { overview.loadingOlder ? 'Loading…' : 'Load more conversations' }
+          </button>
+        ) }
       </div>
 
       {/* ---- THREAD PANE ---- */}
@@ -329,7 +319,7 @@ const InboxView: React.FC = () => {
         ) : (
           <>
             <header className="ib-thead">
-              <button type="button" className="ib-back" onClick={ () => setSelected( null ) } aria-label="Back to conversations">
+              <button type="button" className="ib-back" onClick={ () => setChosen( null ) } aria-label="Back to conversations">
                 <BackGlyph />
               </button>
               <span className="ib-thead-avatar" aria-hidden="true">{ initialsOf( selectedConv.title ) }</span>
@@ -343,6 +333,14 @@ const InboxView: React.FC = () => {
             </header>
 
             <div className="ib-bubbles" data-wc-no-translate="true">
+              { history.loading && <p className="ib-note">Loading conversation…</p> }
+              { history.failure && <p className="ib-note" role="status">{ history.failure.message } <button type="button" className="ib-ghost" onClick={ () => void history.refresh() }>Retry</button></p> }
+              { history.hasOlder && (
+                <button type="button" className="ib-ghost" disabled={ history.loadingOlder || history.refreshing } onClick={ () => void history.refresh( true ) }>
+                  { history.loadingOlder ? 'Loading…' : 'Load older messages' }
+                </button>
+              ) }
+              { !selectedConv.contactId && <p className="ib-note">This conversation has no saved contact. Only loaded inbox messages are shown.</p> }
               { thread.map( m => {
                 const outbound = m.direction === 'OUTBOUND';
                 return (

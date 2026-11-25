@@ -1,8 +1,8 @@
 /**
  * Unified Inbox — conversation-grouped view across ALL channels.
  *
- * Reads the single canonical MessagesTable (via api.listMessages channel=ALL), groups
- * by contact, and shows a threaded conversation with per-message channel badges.
+ * Pages recent activity from the canonical MessagesTable and loads each saved
+ * contact's thread separately, with per-message channel badges.
  * Sending is channel-specific, so replies deep-link to the channel's own tool.
  *
  * WhatsApp's dedicated inbox ([retired public path]/whatsapp) stays as-is for full WhatsApp send features.
@@ -20,6 +20,8 @@ import TemplateSender from '../../../../components/TemplateSender';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
+import { useInboxContactDirectory, useInboxMessageFeed } from '../../../../hooks/useInboxData';
+import { inboxConversationKey, mergeInboxMessages } from '../../../../lib/inbox-feed';
 import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
@@ -320,20 +322,17 @@ const fmtTime = ( ts: string | number ) => {
 const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const toast = useToastContext();
     const confirm = useConfirm();
-    const [ messages, setMessages ] = useState<api.Message[]>( [] );
-    const [ contactNames, setContactNames ] = useState<Record<string, string>>( {} );
-    const [ contactDir, setContactDir ] = useState<Record<string, api.Contact>>( {} );
     const [ selected, setSelected ] = useState<string | null>( null );
     // Seeded from the `channel` prop, else `?channel=`. Lowercased because the
     // comparisons below lowercase each message's own channel, and 'ALL' is the
     // only value that is not a channel name.
     const router = useRouter();
+    const openedDeepLink = useRef( '' );
     const presetChannel = ( channel || '' ).toLowerCase();
     const [ channelFilter, setChannelFilter ] = useState<string>(
         presetChannel && presetChannel in CHANNEL ? presetChannel : 'ALL' );
     const [ wabaFilter, setWabaFilter ] = useState<string>( 'ALL' );
     const [ search, setSearch ] = useState( '' );
-    const [ loading, setLoading ] = useState( true );
     const [ replyText, setReplyText ] = useState( '' );
     const [ sending, setSending ] = useState( false );
     const [ deletingMessageId, setDeletingMessageId ] = useState<string | null>( null );
@@ -389,38 +388,18 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     const prevThreadLen = useRef( 0 );
     const lastTypingRef = useRef<{ id: string; at: number }>( { id: '', at: 0 } );
     const [ loadingOlder, setLoadingOlder ] = useState( false );
-    // Why the last load returned nothing, when it returned nothing for a reason.
-    const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
+    const overview = useInboxMessageFeed();
+    const { messages, loading, failure: loadFailure, refresh: refreshOverview, removeMessage: removeOverviewMessage, removeConversation } = overview;
+    const { contacts, contactFailure, refreshContacts, removeContact } = useInboxContactDirectory();
+    const contactDir = useMemo( () => Object.fromEntries( contacts.map( c => [ c.contactId, c ] ) ), [ contacts ] );
+    const contactNames = useMemo( () => Object.fromEntries( contacts.map( c => [ c.contactId, c.name || c.email || '' ] ) ), [ contacts ] );
+    const exactContactId = selected && ( contactDir[ selected ]?.contactId === selected
+        || messages.some( message => message.contactId === selected ) ) ? selected : undefined;
+    const history = useInboxMessageFeed( { contactId: exactContactId, channel: channelFilter, active: !!exactContactId } );
+    const { refresh: refreshHistory, removeMessage: removeHistoryMessage } = history;
     const loadData = useCallback( async () => {
-        try
-        {
-            // `listMessages`/`listContacts` return [] for BOTH "table is empty" and
-            // "the request failed", so the catch below never fires on an API error
-            // and the page would render "No conversations" over an outage.
-            // collectApiFailures recovers the reason without changing 300 wrappers.
-            const recordsResult = await api.collectApiFailures( () => Promise.all( [
-                api.listMessages( undefined, 'ALL', 2000 ),
-                api.listContacts(),
-            ] ) );
-            const [ msgs, contacts ] = recordsResult.data;
-            setLoadFailure( recordsResult.failures[ 0 ] ?? null );
-            const names: Record<string, string> = {};
-            const dir: Record<string, api.Contact> = {};
-            contacts.forEach( c => {
-                names[ c.contactId ] = c.name || c.email || '';
-                dir[ c.contactId ] = c;
-            } );
-            setContactNames( names );
-            setContactDir( dir );
-            setMessages( msgs );
-        } catch
-        {
-            toast.error( 'Failed to load inbox' );
-        } finally
-        {
-            setLoading( false );
-        }
-    }, [ toast ] );
+        await Promise.all( [ refreshOverview(), refreshHistory(), refreshContacts() ] );
+    }, [ refreshOverview, refreshHistory, refreshContacts ] );
 
     const deleteStoredMessage = useCallback( async ( message: api.Message ) => {
         if ( !message.id || deletingMessageId ) return;
@@ -437,6 +416,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             if ( result.ok && result.data.rowDeleted ) {
                 toast.success( 'Local message removed. Provider copies may remain.' );
                 setReplyingTo( current => current?.id === message.id ? null : current );
+                removeOverviewMessage( message.id );
+                removeHistoryMessage( message.id );
                 await loadData();
             } else {
                 toast.error( result.ok ? 'Delete was not confirmed.' : result.failure.message );
@@ -446,7 +427,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         } finally {
             setDeletingMessageId( null );
         }
-    }, [ confirm, deletingMessageId, loadData, toast ] );
+    }, [ confirm, deletingMessageId, loadData, removeHistoryMessage, removeOverviewMessage, toast ] );
 
     const CONTACT_DELETE_REFUSALS: Record<string, string> = {
         CONTACT_DELETE_VERIFIED_CUSTOMER: 'This is a verified customer. Verified customers cannot be deleted from the inbox.',
@@ -474,8 +455,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                 toast.success( `Deleted ${result.data.messagesDeleted} message(s) and the contact. Provider copies may remain.` );
                 setSelected( null );
                 setReplyingTo( null );
-                setMessages( prev => prev.filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) !== contactId ) );
-                setContactDir( prev => { const next = { ...prev }; delete next[ contactId ]; return next; } );
+                removeConversation( contactId );
+                removeContact( contactId );
                 await loadData();
             } else if ( !result.ok ) {
                 toast.error( CONTACT_DELETE_REFUSALS[ result.failure.code || '' ] || result.failure.message );
@@ -488,7 +469,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         } finally {
             setDeletingContact( false );
         }
-    }, [ selected, deletingContact, confirm, loadData, toast ] );
+    }, [ selected, deletingContact, confirm, loadData, removeContact, removeConversation, toast ] );
 
     // `?channel=` applied after hydration. On a statically exported page
     // router.query is EMPTY on first render, so the state initializer above cannot
@@ -512,12 +493,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
         setChannelFilter( q && q in CHANNEL ? q : 'ALL' );
         setWabaFilter( 'ALL' );
     }, [ router.isReady, router.query.channel, presetChannel ] );
-
-    useEffect( () => {
-        loadData();
-        const t = setInterval( loadData, 15000 );
-        return () => clearInterval( t );
-    }, [ loadData ] );
 
     // Load approved WhatsApp templates once (for the template send button).
     useEffect( () => {
@@ -593,7 +568,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     // exist in the live account, so the control it backed always failed. A transcription
     // already stored on a message is still rendered below.
 
-    // Full message history is visible. No automatic date or retention filter.
+    // History pages use no automatic date or retention filter.
 
     // Group messages into conversations by contact.
     const conversations = useMemo<Conversation[]>( () => {
@@ -604,7 +579,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
             if ( channelFilter !== 'ALL' && ch !== channelFilter ) continue;
             const waba = messageWabaId( m );
             if ( wabaFilter !== 'ALL' && waba !== wabaFilter ) continue;
-            const cid = m.contactId || m.senderPhone || m.receivingPhone || 'unknown';
+            const cid = inboxConversationKey( m );
             const ts = new Date( m.timestamp ).getTime() || 0;
             const existing = map.get( cid );
             if ( !existing )
@@ -652,19 +627,25 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
     useEffect( () => {
         if ( !router.isReady ) return;
         const contactId = String( router.query.contactId || '' ).trim();
-        if ( contactId && conversations.some( c => c.contactId === contactId ) )
+        if ( !contactId ) { openedDeepLink.current = ''; return; }
+        if ( openedDeepLink.current !== contactId
+            && ( contactDir[ contactId ]?.contactId === contactId || messages.some( m => m.contactId === contactId ) ) ) {
+            openedDeepLink.current = contactId;
             setSelected( contactId );
-    }, [ router.isReady, router.query.contactId, conversations ] );
+        }
+    }, [ router.isReady, router.query.contactId, contactDir, messages ] );
 
     // Thread for the selected conversation (chronological).
     const thread = useMemo( () => {
         if ( !selected ) return [];
-        return messages
-            .filter( m => ( m.contactId || m.senderPhone || m.receivingPhone || 'unknown' ) === selected )
+        return mergeInboxMessages(
+            exactContactId && !history.legacy ? [] : messages.filter( m => inboxConversationKey( m ) === selected ),
+            history.messages,
+        )
             .filter( m => channelFilter === 'ALL' || ( m.channel || 'whatsapp' ).toLowerCase() === channelFilter )
             .filter( m => wabaFilter === 'ALL' || messageWabaId( m ) === wabaFilter )
             .sort( ( a, b ) => ( new Date( a.timestamp ).getTime() || 0 ) - ( new Date( b.timestamp ).getTime() || 0 ) );
-    }, [ messages, selected, channelFilter, wabaFilter ] );
+    }, [ exactContactId, history.legacy, history.messages, messages, selected, channelFilter, wabaFilter ] );
 
     const selectedConv = conversations.find( c => c.contactId === selected );
     const selectedContact = selected ? contactDir[ selected ] : undefined;
@@ -1138,6 +1119,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
 
                 <div className={ `ui-panes ${selected ? 'has-selection' : ''}` }>
                     <div className="ui-list">
+                        { overview.unavailableChannels.length > 0 && <p className="ui-empty" role="status">Some channels could not be loaded: { overview.unavailableChannels.join( ', ' ) }.</p> }
+                        { overview.legacy && <p className="ui-empty">Showing recent messages. Older history requires the updated inbox API.</p> }
+                        { contactFailure && <p className="ui-empty" role="status">Some contact names could not be loaded.</p> }
+                        { loadFailure && messages.length > 0 && <p className="ui-empty" role="status">{ loadFailure.message } <button type="button" className="ui-link-btn" onClick={ () => void refreshOverview() }>Retry</button></p> }
                         { loading ? (
                             <div className="ui-empty">Loading…</div>
                         ) : loadFailure && messages.length === 0 ? (
@@ -1149,9 +1134,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                              * remedy was the wrong one. Say which it is, and offer the
                              * remedy that matches.
                              *
-                             * A failure with messages still on screen is deliberately
-                             * NOT surfaced here - a failed 15s poll should not blank a
-                             * working thread list.
+                             * An error on a populated list is surfaced above without
+                             * blanking the successfully loaded rows.
                              */
                             <div className="ui-empty">
                                 { loadFailure.kind === 'unauthenticated' ? 'Your session has expired.' : 'Could not load the inbox.' }
@@ -1169,7 +1153,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                         Reload to sign in
                                     </button>
                                 ) : (
-                                    <button type="button" className="ui-link-btn" onClick={ () => { setLoading( true ); loadData(); } }>
+                                    <button type="button" className="ui-link-btn" onClick={ () => { void loadData(); } }>
                                         { loadFailure.retryable ? 'Retry' : 'Try again' }
                                     </button>
                                 ) }
@@ -1221,6 +1205,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 </button>
                             );
                         } ) }
+                        { overview.hasOlder && (
+                            <button type="button" className="ui-load-more" disabled={ overview.loadingOlder || overview.refreshing } onClick={ () => void refreshOverview( true ) }>
+                                { overview.loadingOlder ? 'Loading…' : 'Load more conversations' }
+                            </button>
+                        ) }
                     </div>
 
                     <div className="ui-thread">
@@ -1230,9 +1219,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                             <>
                                 <div className="ui-thread-head">
                                     <button className="ui-back" onClick={ () => setSelected( null ) } title="Back to conversations">←</button>
-                                    <span className="ui-avatar">{ ( selectedConv?.name || '?' ).trim().slice( 0, 2 ).toUpperCase() }</span>
+                                    <span className="ui-avatar">{ ( selectedConv?.name || contactNames[ selected ] || '?' ).trim().slice( 0, 2 ).toUpperCase() }</span>
                                     <div className="ui-thread-id">
-                                        <span className="ui-thread-name">{ selectedConv?.name }</span>
+                                        <span className="ui-thread-name">{ selectedConv?.name || contactNames[ selected ] || selected }</span>
                                         <span className="ui-thread-sub">
                                             { [
                                                 // Prefer the WhatsApp username in the profile; fall back to the phone number only when no username exists.
@@ -1288,8 +1277,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     </details>
                                 ) }
                                 <div className="ui-thread-body" ref={ threadBodyRef }>
-                                    { thread.length > visibleCount && (
-                                        <button className="ui-load-more" onClick={ () => setVisibleCount( v => v + 50 ) }>{ loadingOlder ? 'Loading…' : `↑ Load older (${thread.length - visibleCount})` }</button>
+                                    { history.loading && <p className="ui-empty">Loading conversation…</p> }
+                                    { history.failure && <p className="ui-empty" role="status">{ history.failure.message } <button type="button" className="ui-link-btn" onClick={ () => void refreshHistory() }>Retry</button></p> }
+                                    { !exactContactId && <p className="ui-empty">This conversation has no saved contact. Only loaded inbox messages are shown.</p> }
+                                    { ( thread.length > visibleCount || history.hasOlder ) && (
+                                        <button type="button" className="ui-load-more" disabled={ loadingOlder || history.loadingOlder || history.refreshing } onClick={ async () => {
+                                            if ( thread.length <= visibleCount && !await refreshHistory( true ) ) return;
+                                            setVisibleCount( v => v + 100 );
+                                        } }>{ loadingOlder || history.loadingOlder ? 'Loading…' : 'Load older messages' }</button>
                                     ) }
                                     { thread.slice( -visibleCount ).map( m => {
                                         const ch = ( m.channel || 'whatsapp' ).toLowerCase();

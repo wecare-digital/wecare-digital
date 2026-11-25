@@ -13,9 +13,7 @@ DynamoDB Tables (actual names):
 
 import os
 import json
-import logging
 import re
-import time
 import boto3
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
@@ -89,9 +87,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         params = event.get('queryStringParameters', {}) or {}
 
-        # GET /messages?stats=count — lightweight count-only (no full scan)
+        # GET /messages?stats=count — bounded, warm-cached aggregate counts
         if params.get('stats') == 'count':
             return _count_messages(request_id, origin)
+
+        if params.get('view') == 'inbox':
+            return _read_inbox_page(params, origin)
 
         contact_id = params.get('contactId')
         channel = params.get('channel', '').upper()
@@ -147,6 +148,61 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return cors_response(500, {'error': 'Internal server error'}, origin)
 
 
+def _read_inbox_page(params: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    from botocore.exceptions import BotoCoreError, ClientError
+    from lambda_utils.inbox_message_page import read_page
+
+    try:
+        rows, cursor, failed_channels, attempted = read_page(
+            dynamodb.Table(MESSAGES_TABLE),
+            contact_id=params.get('contactId') or '',
+            channel=(params.get('channel') or 'ALL').lower(),
+            direction=(params.get('direction') or '').lower(),
+            limit=int(params.get('limit', 100)),
+            cursor=params.get('cursor'),
+            logger=logger,
+        )
+    except (ValueError, TypeError):
+        return cors_response(400, {'error': 'Invalid inbox filters or cursor.'}, origin)
+    except (BotoCoreError, ClientError):
+        logger.warning('inbox_page_unavailable', exc_info=False)
+        return cors_response(503, {'error': 'The inbox index is unavailable. Try again.'}, origin)
+
+    if attempted == len(failed_channels):
+        return cors_response(503, {'error': 'The inbox index is unavailable. Try again.'}, origin)
+
+    return cors_response(200, {
+        'inboxVersion': 1,
+        'messages': [
+            _convert_from_dynamodb(m) if params.get('contactId') or not m.get('contactId')
+            else _inbox_preview(m)
+            for m in rows
+        ],
+        'count': len(rows),
+        'nextCursor': cursor,
+        'unavailableChannels': failed_channels,
+    }, origin)
+
+
+def _inbox_preview(item: Dict[str, Any]) -> Dict[str, Any]:
+    # A saved contact has its own detail page. Overview polls should never do
+    # S3 media resolution or include full flow details for unopened threads.
+    fields = (
+        'id', 'messageId', 'contactId', 'channel', 'direction', 'timestamp',
+        'createdAt', 'messageType', 'senderName', 'senderPhone', 'senderBsuid',
+        'senderUsername', 'receivingPhone', 'awsPhoneNumberId', 'isRevoked',
+        'revokesMessageId',
+    )
+    preview = {key: item[key] for key in fields if key in item}
+    content = str(item.get('content') or item.get('text') or '')
+    if item.get('isRevoked'):
+        content = 'Message deleted'
+    elif content.startswith('[Flow Response:'):
+        content = 'Flow response'
+    preview['content'] = content[:240]
+    return _convert_from_dynamodb(preview)
+
+
 def _read_one_message(message_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
     result = dynamodb.Table(MESSAGES_TABLE).get_item(Key={'id': message_id})
     item = result.get('Item')
@@ -192,64 +248,33 @@ def _update_payment_message(message_id: str, event: Dict[str, Any], request_id: 
     return cors_response(200, {'success': True, 'messageId': message_id, 'updated': sorted(updates)}, origin)
 
 
+def _make_message_stats_table():
+    # Keep aggregate refresh timeouts isolated from the other Messages routes.
+    from botocore.config import Config
+    return boto3.resource(
+        'dynamodb',
+        region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+        config=Config(connect_timeout=1, read_timeout=2, retries={'total_max_attempts': 1}),
+    ).Table(MESSAGES_TABLE)
+
+
+_message_stats_reader = None
+
+
 def _count_messages(request_id: str, origin: str = '') -> Dict[str, Any]:
-    """Return message counts using Select='COUNT' — no full data scan.
-    Counts inbound and outbound separately, also counts today/week via timestamp filter."""
-    import time
-    from decimal import Decimal as D
-    now = int(time.time())
-    today_start = now - (now % 86400)  # midnight UTC
-    week_start = today_start - 7 * 86400
-
-    totals = {'inbound': 0, 'outbound': 0, 'today': 0, 'week': 0,
-              'delivered': 0, 'outboundTotal': 0}
-
-    # Count the single canonical MessagesTable (all channels). Select='COUNT' (no data).
-    table = dynamodb.Table(MESSAGES_TABLE)
-
-    def _count(filter_expr=None, names=None, values=None):
-        kw: Dict[str, Any] = {'Select': 'COUNT'}
-        if filter_expr:
-            kw['FilterExpression'] = filter_expr
-            if names:
-                kw['ExpressionAttributeNames'] = names
-            if values:
-                kw['ExpressionAttributeValues'] = values
-        n = 0
-        while True:
-            resp = table.scan(**kw)
-            n += resp.get('Count', 0)
-            if 'LastEvaluatedKey' not in resp:
-                break
-            kw['ExclusiveStartKey'] = resp['LastEvaluatedKey']
-        return n
-
-    try:
-        totals['inbound'] = _count('direction = :din', None, {':din': 'inbound'})
-        totals['outbound'] = _count('direction = :dout', None, {':dout': 'outbound'})
-        totals['today'] = _count('#ts >= :today', {'#ts': 'timestamp'}, {':today': D(str(today_start))})
-        totals['week'] = _count('#ts >= :week', {'#ts': 'timestamp'}, {':week': D(str(week_start))})
-        totals['outboundTotal'] = totals['outbound']
-        totals['delivered'] = _count(
-            '#st IN (:dl, :rd, :st) AND direction = :dout',
-            {'#st': 'status'},
-            {':dl': 'delivered', ':rd': 'read', ':st': 'sent', ':dout': 'outbound'},
-        )
-    except Exception as e:
-        logger.warning(f"Count error on MessagesTable: {e}")
-
-    delivery_rate = (
-        round((totals['delivered'] / totals['outboundTotal']) * 100)
-        if totals['outboundTotal'] > 0 else 100
-    )
-
-    log_event(logger, 'messages_count', **totals, requestId=request_id)
-    return cors_response(200, {
-        'messagesToday': totals['today'],
-        'messagesWeek': totals['week'],
-        'totalMessages': totals['inbound'] + totals['outbound'],
-        'deliveryRate': delivery_rate,
-    }, origin)
+    """Return honest, bounded statistics without fetching message contents."""
+    global _message_stats_reader
+    if _message_stats_reader is None:
+        from lambda_utils.message_stats import CachedMessageStats
+        _message_stats_reader = CachedMessageStats(_make_message_stats_table)
+    status, payload = _message_stats_reader.read()
+    log_event(logger, 'messages_stats_read', status=payload['status'], requestId=request_id)
+    response = cors_response(status, payload, origin)
+    response['headers']['Cache-Control'] = 'private, no-store'
+    if status == 503:
+        from lambda_utils.message_stats import RETRY_SECONDS
+        response['headers']['Retry-After'] = str(RETRY_SECONDS)
+    return response
 
 
 def _read_from_messages_table(contact_id: str, channel: str, direction: str, limit: int) -> List[Dict]:
