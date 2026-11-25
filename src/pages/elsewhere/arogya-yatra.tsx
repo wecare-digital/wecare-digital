@@ -1,23 +1,23 @@
 import React from 'react';
-import PageMeta from '../components/PageMeta';
-import Breadcrumbs from '../components/Breadcrumbs';
-import RotatingHero, { type CycleWord } from '../components/RotatingHero';
-import ProductBuyBox from '../components/ProductBuyBox';
-import PolicyDetails from '../components/public/PolicyDetails';
-import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
+import PageMeta from '../../components/PageMeta';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import RotatingHero, { type CycleWord } from '../../components/RotatingHero';
+import ProductBuyBox from '../../components/ProductBuyBox';
+import PolicyDetails from '../../components/public/PolicyDetails';
+import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
 /**
- * /sehat — the Sehat product page.
+ * /elsewhere/arogya-yatra — the Arogya Yatra product page.
  *
- * WHY THIS EXISTS: Sehat was moved into the Products column of the mega menu but had
+ * WHY THIS EXISTS: Arogya Yatra was moved into the Products column of the mega menu but had
  * no page, so the row pointed at the generic Customer service landing page. A product listed
- * beside Grahak OS and VayuLok and then landing somewhere unrelated is worse than not
+ * beside Dispatch and Nano Climate and then landing somewhere unrelated is worse than not
  * listing it.
  *
- * ROUTING: '/sehat' must be in the EXACT-MATCH allowlist in _app.tsx or this renders
- * an empty body with HTTP 200. trailingSlash means the URL is /sehat/.
+ * ROUTING: '/elsewhere/arogya-yatra' must be in the EXACT-MATCH allowlist in _app.tsx or this renders
+ * an empty body with HTTP 200. trailingSlash means the URL is /elsewhere/arogya-yatra/.
  *
- * NO MEDICINE RETAIL. Confirmed by the owner: Sehat does not sell or deliver medicines.
+ * NO MEDICINE RETAIL. Confirmed by the owner: Arogya Yatra does not sell or deliver medicines.
  * I had briefly added an "Order medicines" track - prescription upload, stock and pricing,
  * doorstep delivery, refill reminders - after misreading the note that this page was "only
  * about appointments, not about ordering medicine" as a gap to fill rather than a statement
@@ -26,64 +26,65 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommer
  *
  * WHAT IT DOES INSTEAD IS STILL PARTLY OPEN. The page describes the shape of the service -
  * a request, a qualified professional, a tracked record - which Terms sections 8 and 17
- * already support. The owner began to say what Sehat will have and the message ended
+ * already support. The owner began to say what Arogya Yatra will have and the message ended
  * mid-sentence, so the specific proposition is still outstanding and is NOT invented here.
  *
  * COPY IS NON-COMMITTAL ABOUT CLINICAL CLAIMS, deliberately. Nothing states what Rx
  * diagnoses, prescribes or advises, because a health-adjacent page is the wrong place to
  * guess and the wrong place to be wrong.
  *
- * NO PRODUCT SCHEMA, ON PURPOSE. Grahak OS carries SoftwareApplication because it is a
+ * NO PRODUCT SCHEMA, ON PURPOSE. Dispatch carries SoftwareApplication because it is a
  * real, describable product with a feature list. Marking this up the same way while the
  * copy is provisional would put claims into structured data that the page does not make -
  * and Google's guidelines require structured data to represent the page's actual content.
  * _app.tsx gives it a WebPage plus a breadcrumb, which is accurate.
  */
 
-// NO "medicines". The owner has confirmed Sehat does not do medicine retail, so a
+// NO "medicines". The owner has confirmed Arogya Yatra does not do medicine retail, so a
 // rotating headline that leads with the word would promise a product that does not exist -
 // which is the most expensive kind of copy error, because it is the first thing read.
-// Tints and dots are reused verbatim from the Grahak OS hero - no new colours.
+// Tints and dots are reused verbatim from the Dispatch hero - no new colours.
 const CYCLE_WORDS: CycleWord[] = [
   { word: 'appointments', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'bookings', tint: '#dbeafe', dot: '#2563eb' },
   { word: 'schedules', tint: '#fef3c7', dot: '#f0a818' },
 ];
 
-const SEHAT_POLICY = productPolicyCopy( 'sehat', 'Sehat' );
+const SEHAT_POLICY = productPolicyCopy( 'sehat', 'Arogya Yatra' );
 
 const SehatPage: React.FC = () => (
   <>
     {/* The title and description restate only what the page itself says - the hero sub and
         the three booking steps below - in the "Name — what it is" shape the other product
-        pages use. They were "Sehat" and a 42-character sentence, which tools/browser/seocheck.js
+        pages use. They were "Arogya Yatra" and a 42-character sentence, which tools/browser/seocheck.js
         fails as too thin to describe the page in a result. No clinical claims, by design. */}
     <PageMeta
-      title="Sehat — appointments with qualified professionals"
-      description="Sehat by WECARE.DIGITAL — book an appointment with a qualified professional, choose a preferred date and time, and get your booking confirmed before the visit."
-      path="/sehat/"
+      title="Arogya Yatra — medical travel and appointments"
+      description="Arogya Yatra by Elsewhere — plan appointment-related medical travel and request an appointment with a qualified professional. Travel arrangements and clinical decisions remain subject to provider confirmation."
+      path="/elsewhere/arogya-yatra/"
     />
     <RotatingHero
-      ariaLabel="Sehat"
-      badgeLabel="Sehat by WECARE.DIGITAL"
-      frame="Sehat"
+      mobileFoundation
+      ariaLabel="Arogya Yatra"
+      badgeLabel="Arogya Yatra · Elsewhere by WECARE.DIGITAL"
+      frame="Arogya Yatra"
       words={ CYCLE_WORDS }
-      sub="Appointments with qualified professionals"
+      sub="Medical travel planning and appointments with qualified professionals"
     >
       {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for this route:
-          Home -> 'Sehat' (the exact PUBLIC_PAGE_META name). No page-level JSON-LD -
+          Home -> 'Arogya Yatra' (the exact PUBLIC_PAGE_META name). No page-level JSON-LD -
           _app.tsx owns the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
-      <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Sehat' } ] } />
-      <section className="brx" aria-label="About Sehat">
+      <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Arogya Yatra' } ] } />
+      <section className="brx" aria-label="About Arogya Yatra">
         {/* ONE FLOW, and deliberately not a retail one. This briefly had a second "Order
             medicines" track with prescriptions, stock, pricing and doorstep delivery. That
             was my misreading of the owner's note that the page was "only about appointments,
             not about ordering medicine" - I took it as a gap to fill when it was a statement
-            of scope. Sehat does not do medicine retail, so the whole track came out
+            of scope. Arogya Yatra does not do medicine retail, so the whole track came out
             along with the licensed-pharmacy line it needed. */}
-        <h2 className="sht-h2">Book an appointment</h2>
+        <h2 className="sht-h2">Plan an appointment-related journey</h2>
         {/* THE THREE STEP TITLES ARE h3, NOT strong. Same defect and same fix as the six
-            capability cards on /grahak-os/ and the three points in ProductPage.tsx: measured
+            capability cards on /dispatch/ and the three points in ProductPage.tsx: measured
             before this change, this page's outline was exactly H1 + H2 and the three steps had
             no heading semantics, so a screen-reader user skimming by heading could not reach
             them. h3 is the right rung - they sit under the .sht-h2 above, so no level is
@@ -94,7 +95,7 @@ const SehatPage: React.FC = () => (
             <span className="sht-step-n">1</span>
             <div>
               <h3 className="sht-step-t">Choose an appointment</h3>
-              <p className="sht-p">Choose the appointment you need and a preferred date and time.</p>
+              <p className="sht-p">Choose the appointment you need, the destination and your preferred date and time.</p>
             </div>
           </li>
           <li className="sht-step">
@@ -108,7 +109,7 @@ const SehatPage: React.FC = () => (
             <span className="sht-step-n">3</span>
             <div>
               <h3 className="sht-step-t">Get your booking confirmation</h3>
-              <p className="sht-p">Your appointment details and booking status are confirmed before the visit.</p>
+              <p className="sht-p">Confirm the appointment details with the provider before making travel arrangements.</p>
             </div>
           </li>
         </ol>

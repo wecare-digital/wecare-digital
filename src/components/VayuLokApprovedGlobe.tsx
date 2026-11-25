@@ -91,7 +91,7 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
         ref={ frameRef }
         className="vag-frame"
         src={ src }
-        title="VayuLok interactive air and weather globe"
+        title="Nano Climate interactive air and weather globe"
         loading="eager"
         allow="fullscreen"
         onLoad={ () => {

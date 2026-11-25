@@ -10,8 +10,8 @@ export interface PublicPolicyCopy {
  * The shared public tail must not add a second copy on those pages.
  */
 export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
-  '/grahak-os',
-  '/sehat',
+  '/dispatch',
+  '/elsewhere/arogya-yatra',
   '/elsewhere/visa',
   '/elsewhere/trip',
   '/expo-week',
@@ -47,6 +47,9 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
+  '/atmos/green-ledger': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Product scope and availability must be confirmed before any order.' },
+  '/elsewhere/rail': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Rail availability, fares, timetables and terms remain with the relevant operator.' },
+  '/elsewhere/cruise': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Cruise availability, fares, itineraries and terms remain with the relevant operator.' },
   // Customer sign-in is a no-payment account access step; do not imply that an
   // OTP verification itself creates an order or any return/refund entitlement.
   '/vault': {
@@ -67,13 +70,13 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'No payment is taken on this page, so nothing is refundable here.',
     disclaimer: 'Submitting a request does not confirm acceptance, price, timing or scope; the later confirmed request or order controls.',
   },
-  // VayuLok Standard is listed at ₹99.00 in the catalog (owner-approved in #1449), so this copy
-  // must not call VayuLok itself free. What stays true is page-scoped: the live data here is free
+  // Nano Climate Standard is listed at ₹99.00 in the catalog (owner-approved in #1449), so this copy
+  // must not call Nano Climate itself free. What stays true is page-scoped: the live data here is free
   // to use and the page takes no payment; a catalog order is governed by that order.
-  '/vayulok': {
+  '/atmos/nano-climate': {
     shipping: 'No fulfilment starts by using the live air and weather information on this page.',
     returns: 'Nothing on this page is returnable.',
-    refunds: 'No payment is taken on this page; a paid VayuLok catalog order follows its confirmed order terms.',
+    refunds: 'No payment is taken on this page; a paid Nano Climate catalog order follows its confirmed order terms.',
     disclaimer: 'Air-quality and weather data may be delayed, estimated or third-party supplied. Use official sources for safety-critical decisions.',
   },
   '/elsewhere/activities': {

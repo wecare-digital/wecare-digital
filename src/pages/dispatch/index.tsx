@@ -1,10 +1,11 @@
 /**
- * Grahak OS public product page
+ * Dispatch public product page
  * Customer engagement platform by WECARE.DIGITAL
  */
 
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 import PageMeta from '../../components/PageMeta';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import ProductBuyBox from '../../components/ProductBuyBox';
@@ -13,7 +14,7 @@ import RotatingHero from '../../components/RotatingHero';
 import { productPolicyCopy } from '../../content/productCommerce';
 import { productCheckoutLine } from '../../config/productCheckout';
 
-const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Dispatch' );
 const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' );
 const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\.00$/, '' ) ?? null;
 const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null;
@@ -66,15 +67,17 @@ const GrahakOsPage: React.FC = () => {
     if (typeof IntersectionObserver === 'undefined') return;
 
     const sections = Array.from(document.querySelectorAll<HTMLElement>('.anim'));
-    const onScreenNow = sections
-      .filter((el) => {
-        const r = el.getBoundingClientRect();
-        return r.top < window.innerHeight && r.bottom > 0;
-      })
-      .map((el) => el.id);
-
-    setVisible((p) => new Set([...p, ...onScreenNow]));
-    setArmed(true);
+    const armFrame = window.requestAnimationFrame(() => {
+      const onScreenNow = sections
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top < window.innerHeight && r.bottom > 0;
+        })
+        .map((el) => el.id);
+      // Batch visibility and arming in the browser callback, not in the effect body.
+      setVisible((p) => new Set([...p, ...onScreenNow]));
+      setArmed(true);
+    });
 
     const obs = new IntersectionObserver(
       (entries) => entries.forEach((e) => {
@@ -98,7 +101,7 @@ const GrahakOsPage: React.FC = () => {
       setVisible((p) => new Set([...p, ...sections.map((el) => el.id)]));
     }, 1200);
 
-    return () => { obs.disconnect(); window.clearTimeout(failsafe); };
+    return () => { window.cancelAnimationFrame(armFrame); obs.disconnect(); window.clearTimeout(failsafe); };
   }, []);
 
   const show = (id: string) => visible.has(id);
@@ -172,10 +175,10 @@ response = requests.post(
       {/* TITLE, DESCRIPTION, CANONICAL AND THE SHARE PREVIEW ALL COME FROM ONE PAIR OF
           STRINGS NOW. Measured on the built export, this page previously carried THREE
           different titles and THREE different descriptions simultaneously:
-            title                "Grahak OS by WECARE.DIGITAL - Customer Engagement Platform"
-            og:title             "Grahak OS - Customer Engagement Platform | WECARE.DIGITAL"
-            twitter:title        "Grahak OS - Customer Engagement Platform"
-            description          "Grahak OS is the customer engagement product in ..."
+            title                "Dispatch by WECARE.DIGITAL - Customer Engagement Platform"
+            og:title             "Dispatch - End-user messaging | WECARE.DIGITAL"
+            twitter:title        "Dispatch - End-user messaging"
+            description          "Dispatch is the customer engagement product in ..."
             og:description       "Enterprise WhatsApp Business API platform. Send bulk ..."
             twitter:description  "Enterprise WhatsApp Business API platform. Multi-channel ..."
           Nothing chose between them - whichever a crawler or unfurler read first won, so
@@ -191,9 +194,9 @@ response = requests.post(
           og:locale / twitter:card / twitter:image tags that used to be duplicated here come
           from _app.tsx with identical values. */}
       <PageMeta
-        title="Grahak OS - Customer Engagement Platform"
-        description="Grahak OS is the customer engagement product in WECARE.DIGITAL, unifying WhatsApp, SMS, Email, Voice, automation and customer data in one experience."
-        path="/grahak-os/"
+        title="Dispatch - End-user messaging"
+        description="Dispatch is the end-user messaging product in WECARE.DIGITAL, unifying WhatsApp, SMS, Email, Voice, automation and customer data in one experience."
+        path="/dispatch/"
       />
       <Head>
         {/* No meta keywords: Google Search does not use the tag, and the steering file says not
@@ -210,8 +213,8 @@ response = requests.post(
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Grahak OS" />
-        <meta name="application-name" content="Grahak OS" />
+        <meta name="apple-mobile-web-app-title" content="Dispatch" />
+        <meta name="application-name" content="Dispatch" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         
@@ -244,13 +247,13 @@ response = requests.post(
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "SoftwareApplication",
-          "@id": "https://wecare.digital/grahak-os/#software",
-          "name": "Grahak OS by WECARE.DIGITAL",
+          "@id": "https://wecare.digital/dispatch/#software",
+          "name": "Dispatch by WECARE.DIGITAL",
           "applicationCategory": "BusinessApplication",
           "operatingSystem": "Web Browser",
-          "url": "https://wecare.digital/grahak-os/",
+          "url": "https://wecare.digital/dispatch/",
           "publisher": { "@id": "https://wecare.digital/#organization" },
-          // offers REMOVED - it declared price "0" INR, i.e. that Grahak OS is free. The
+          // offers REMOVED - it declared price "0" INR, i.e. that Dispatch is free. The
           // platform-level node in _app.tsx carried the identical claim on 22 other routes and
           // was removed for the same reason; this was the last copy of it in the export.
           // Not replaced with a number: no price for this product exists anywhere in the
@@ -275,8 +278,8 @@ response = requests.post(
         <RotatingHero
           insideMain
           mobileFoundation
-          ariaLabel="Grahak OS"
-          badgeLabel="Grahak OS by WECARE.DIGITAL"
+          ariaLabel="Dispatch"
+          badgeLabel="Dispatch by WECARE.DIGITAL"
           frame="Run customer conversations"
           pillPrefix="across"
           words={ cycleWords }
@@ -306,7 +309,7 @@ response = requests.post(
                         sits on a white disc with a little padding so the mark reads as a
                         real profile photo in the thread. Decorative: alt="" + aria-hidden,
                         because .contact-name beside it already announces the business. */}
-                    <div className="avatar"><img className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width="80" height="80" decoding="async" /></div>
+                    <div className="avatar"><Image unoptimized className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width={80} height={80} decoding="async" /></div>
                     <div className="contact-info">
                       {/* A company name, not copy. Without this the translation
                           widget rewrote it, so the mock WhatsApp thread showed a
@@ -393,15 +396,15 @@ response = requests.post(
           </div>
           ) }
         >
-          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /grahak-os/:
-              Home -> 'Grahak OS' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
+          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /dispatch/:
+              Home -> 'Dispatch' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
               child, directly under the hero copy (RotatingHero owns the single h1), so it
               sits above the .anim sections without being one - it carries no .anim class and
               is outside the reveal observer, so the entrance machinery is untouched. No
               page-level BreadcrumbList is emitted: _app.tsx owns the single one for this
               PUBLIC_PAGE_META route, and the page's own SoftwareApplication JSON-LD is left
               as-is. */}
-          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Grahak OS' } ] } />
+          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Dispatch' } ] } />
         </RotatingHero>
 
         {/*
@@ -452,7 +455,7 @@ response = requests.post(
                 {/* Owner-approved heading theme (consulting positioning). Reuses the
                     .api-info h2 type rung. */}
                 <h2>Deploy AI agents to drive enterprise outcomes</h2>
-                <ol className="api-steps-list" aria-label="How Grahak OS works">
+                <ol className="api-steps-list" aria-label="How Dispatch works">
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">1</span>
                   <div className="api-step-body">
@@ -645,7 +648,7 @@ response = requests.post(
              ~60-70 characters per line and wraps to more lines, which also closes
              part of the height difference against the mockup column. */
           .hero-left p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0 0 18px;max-width:400px}
-          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}          /* Paid checkout styling is owned by ProductBuyBox -> CheckoutAction. Grahak OS
+          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}          /* Paid checkout styling is owned by ProductBuyBox -> CheckoutAction. Dispatch
              keeps no route-local payment CTA style, so it cannot grow a second rail. */
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
           .code-stack{position:absolute;inset-inline-end:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
@@ -708,7 +711,7 @@ response = requests.post(
           .gos-sku-value{color:var(--public-muted)}
           .gos-commerce p{margin:0}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
-             instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
+             instruction (the "Transform customer engagement with Dispatch" h2 is gone). */
 
           /* Hero Right - Mockup */
           .hero-right{display:flex;justify-content:center}

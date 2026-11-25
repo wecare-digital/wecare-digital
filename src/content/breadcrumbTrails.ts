@@ -11,6 +11,9 @@ const SHOP: Crumb = { label: 'Shop', href: '/shop/' };
 const here = ( label: string ): Crumb => ( { label } );
 
 export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
+  '/atmos/green-ledger': [ HOME, here( 'Green Ledger' ) ],
+  '/elsewhere/rail': [ HOME, here( 'Rail' ) ],
+  '/elsewhere/cruise': [ HOME, here( 'Cruise' ) ],
   // Product pages: Home / Shop / <Product>, matching what /shop/<slug>/ renders, so the trail
   // from the listing into a product is unbroken.
   '/expo-week': [ HOME, SHOP, here( 'Expo Week' ) ],

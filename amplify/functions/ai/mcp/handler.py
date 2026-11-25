@@ -184,7 +184,7 @@ _DYNAMIC_SITEMAP_PREFIXES = (
 )
 
 _START_PATHS = {"/", "/contact", "/blog", "/shop", "/orders"}
-_PLATFORM_PATHS = {"/grahak-os", "/vayulok"}
+_PLATFORM_PATHS = {"/dispatch", "/atmos/nano-climate", "/atmos/green-ledger"}
 _CUSTOMER_SERVICE_PATHS = {
     "/submit-request", "/request-amendment", "/drop-docs", "/vault",
     "/request-pickup",
@@ -776,7 +776,7 @@ def _handle_initialize(request_id: Any, params: Dict[str, Any]) -> Dict[str, Any
             "a payment, or read any customer record. Direct a person who wants to do one of those "
             f"to the relevant customer-service page at {SITE_URL}/contact/ .\n\n"
             "Do not state prices, turnaround times, or medical, legal or financial advice that a "
-            "page does not state. Sehat is for booking appointments with qualified professionals and does not retail medicines."
+            "page does not state. Arogya Yatra is for booking appointments with qualified professionals and does not retail medicines."
         ),
     })
 

@@ -981,10 +981,10 @@ const WorkflowTerminal: React.FC = () => {
            Measured: #f2efe9 on #3b271a is 9.41:1, and on the lime hover fill 8.87:1, both well
            clear of 4.5:1 for 12px text. */
         .wt-play{
-          position:absolute;top:0;right:0;z-index:3;height:47px;
-          display:inline-flex;align-items:center;gap:7px;
-          padding:0 15px;margin:0;border:0;background:transparent;
-          font:inherit;font-size:15px;letter-spacing:.02em;color:#f2efe9;
+          position:absolute;top:0;right:0;z-index:3;height:47px;width:86px;box-sizing:border-box;
+          display:inline-flex;align-items:center;justify-content:center;gap:6px;
+          padding:0 9px;margin:0;border:0;background:transparent;
+          font:inherit;font-size:16px;font-weight:500;line-height:1;letter-spacing:.02em;color:#f2efe9;
           cursor:pointer;
           border-top-right-radius:14px;
           box-shadow:inset 0 -2px 0 transparent;
@@ -1360,7 +1360,7 @@ const WorkflowTerminal: React.FC = () => {
              box, no permanent lime rail. */
           .wt-play{
             top:0;left:auto;right:0;
-            width:76px;height:44px;
+            width:76px;height:47px;
             justify-content:center;
             padding:0 9px;
             border-radius:0 12px 0 0;
@@ -1418,7 +1418,7 @@ const WorkflowTerminal: React.FC = () => {
              are aligned. Zero width preserves the row without consuming narrow-screen space. */
           .wt-bar-state{visibility:hidden;flex:0 0 0;width:0;min-width:0;margin-left:0;overflow:hidden}
           .wt-bar-title{font-size:14px}
-          .wt-play{width:70px;padding-inline:6px;font-size:14px}
+          .wt-play{width:70px;padding-inline:6px;font-size:16px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this

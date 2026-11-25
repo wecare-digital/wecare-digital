@@ -35,16 +35,16 @@ export interface CatalogSnapshot {
 
 const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   {
-    id:'2d5dff1a-2542-5839-9c6e-e65d10fcc643', name:'Grahak OS', slug:'grahak-os',
+    id:'2d5dff1a-2542-5839-9c6e-e65d10fcc643', name:'Dispatch', slug:'grahak-os',
     formattedPrice:'₹899.00', price:'899.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/grahak-os/',
-    descriptionHtml:'<p>Grahak OS from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/dispatch/',
+    descriptionHtml:'<p>Dispatch from WECARE.DIGITAL.</p>',
     variants:[{ id:'GOS7K4M2', label:'Standard', inStock:true }],
   },
   {
-    id:'032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', name:'Sehat', slug:'sehat',
+    id:'032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', name:'Arogya Yatra', slug:'sehat',
     formattedPrice:'₹850.00', price:'850.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/sehat/',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/elsewhere/arogya-yatra/',
     descriptionHtml:'<p>Appointments with qualified professionals.</p>',
     variants:[{ id:'BRX5N8Q3', label:'Standard', inStock:true }],
   },

@@ -37,14 +37,15 @@ const OUTPUT_FILE = path.join( OUT_DIR, 'sitemap.xml' );
 // published documents now and are indexable, so they belong here.
 const PUBLIC_EXACT = new Set( [
   '/',
-  '/sehat',
+  '/elsewhere/arogya-yatra',
   '/blog',
   '/contact',
-  '/grahak-os',
+  '/dispatch',
   '/orders',
   '/privacy',
   '/terms',
-  '/vayulok',
+  '/atmos/nano-climate',
+  '/atmos/green-ledger',
   // Product CHILD pages. Family labels such as Dastavez, Ritual Guru, Hunar and
   // Shipments deliberately have no public parent page. These concrete destinations must
   // stay in step with PUBLIC_PAGE_META in _app.tsx: a route missing there renders an
@@ -56,6 +57,8 @@ const PUBLIC_EXACT = new Set( [
   '/elsewhere/visa',
   '/elsewhere/trip',
   '/elsewhere/activities',
+  '/elsewhere/rail',
+  '/elsewhere/cruise',
   '/expo-week',
   // Renamed '[retired public path]' -> '[retired public path]' -> '/anew'. Alphabetical, so it moved to the
   // top of this group.
@@ -109,6 +112,7 @@ const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
  * stale export from silently advertising a deleted parent again.
  */
 const RETIRED_FAMILY_PARENTS = new Set( [
+  '/atmos',
   '/clear-closure',
   '/dastavez',
   '/elsewhere',

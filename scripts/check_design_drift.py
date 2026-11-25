@@ -21,7 +21,7 @@ What it found on 2026-09-23, before it existed
 
 Comments are stripped before matching
 -------------------------------------
-`src/pages/grahak-os/index.tsx` names all five retired colours in comments that explain
+`src/pages/dispatch/index.tsx` names all five retired colours in comments that explain
 why each was retired — that is the documentation working, not a violation. Reporting it
 would be reporting the record of the fix as the defect, which is a mistake this
 repository's tests have had to correct three times now.
@@ -166,12 +166,12 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
     # Grahak OS delegates its paid checkout action to ProductBuyBox -> CheckoutAction,
     # so route-local mobile CTA typography is no longer part of this page's contract.
-    SRC / "pages/grahak-os/index.tsx": (
+    SRC / "pages/dispatch/index.tsx": (
         "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max",
         "--public-mobile-section-size", "--public-mobile-card-size",
         "--public-mobile-page-gutter", "--public-mobile-section-gap",
     ),
-    SRC / "pages/sehat.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
+    SRC / "pages/elsewhere/arogya-yatra.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
     SRC / "pages/post/[slug].tsx": ("--public-hero-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "components/ContactLocation.tsx": ("--public-section-size", "--public-cta-height"),
     SRC / "components/get/GetPage.tsx": ("--public-section-size", "--public-body-size"),

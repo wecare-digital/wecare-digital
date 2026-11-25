@@ -6002,7 +6002,7 @@ FLOW_LINKS = {
     'track_request': 'https://wecare.digital/shipments/track/',
     'amend_request': 'https://wecare.digital/request-amendment/',
     'schedule_appointment': 'https://wecare.digital/contact/',
-    'rx_slot': 'https://wecare.digital/sehat/',
+    'rx_slot': 'https://wecare.digital/elsewhere/arogya-yatra/',
     'drop_docs': 'https://wecare.digital/drop-docs/',
     'enterprise_assist': 'https://wecare.digital/contact/',
     # Both review doors share one Meta Flow, so they share the owner's verified review link.

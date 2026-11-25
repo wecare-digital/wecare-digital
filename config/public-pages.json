@@ -100,22 +100,22 @@
       "description": "Check the status of an order, delivery, request or booking."
     },
     {
-      "path": "/grahak-os",
+      "path": "/dispatch",
       "group": "platform",
-      "name": "Grahak OS",
-      "description": "Customer engagement across WhatsApp, SMS, Email and Voice."
+      "name": "Dispatch",
+      "description": "End-user messaging across WhatsApp, SMS, Email and Voice."
     },
     {
-      "path": "/vayulok",
+      "path": "/atmos/nano-climate",
       "group": "platform",
-      "name": "VayuLok",
+      "name": "Nano Climate",
       "description": "Bharat air and weather insights."
     },
     {
-      "path": "/sehat",
-      "group": "services",
-      "name": "Sehat",
-      "description": "Appointments with qualified professionals."
+      "path": "/atmos/green-ledger",
+      "group": "platform",
+      "name": "Green Ledger",
+      "description": "Environmental records and sustainability tracking — product information and enquiries."
     },
     {
       "path": "/elsewhere/visa",
@@ -134,6 +134,24 @@
       "group": "services",
       "name": "Activities",
       "description": "Travel activities selected around place, timing and itinerary."
+    },
+    {
+      "path": "/elsewhere/rail",
+      "group": "services",
+      "name": "Rail",
+      "description": "Rail journey planning enquiries; bookings and availability subject to provider confirmation."
+    },
+    {
+      "path": "/elsewhere/cruise",
+      "group": "services",
+      "name": "Cruise",
+      "description": "Cruise journey planning enquiries; bookings and availability subject to provider confirmation."
+    },
+    {
+      "path": "/elsewhere/arogya-yatra",
+      "group": "services",
+      "name": "Arogya Yatra",
+      "description": "Medical travel planning and appointments with qualified professionals."
     },
     {
       "path": "/dastavez/drafting",
@@ -296,7 +314,7 @@
     "The public pages and published blog posts on this site may be read, quoted with attribution, and cited by AI assistants and answer engines.",
     "Attribute to WECARE.DIGITAL and link the page you drew from.",
     "Do not present generated text as a statement by WECARE.DIGITAL, and do not infer prices, turnaround times, medical, legal or financial advice that a page does not state.",
-    "Sehat is for booking appointments with qualified professionals. Do not describe it as a pharmacy or medicine retailer.",
+    "Arogya Yatra is for booking appointments with qualified professionals. Do not describe it as a pharmacy or medicine retailer.",
     "Anything under /workspace/ or /api/ is operational surface, not content. It is disallowed in robots.txt and is not covered by this permission."
   ]
 }

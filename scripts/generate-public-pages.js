@@ -129,17 +129,20 @@ const STRUCTURAL = [
   // coming through ProductPage.tsx, which is the closest thing to a structural signal - but
   // it is not one this script should infer from, because a future platform product might
   // well be built on the shared component.
-  { path: '/grahak-os', group: 'platform' },
-  { path: '/vayulok', group: 'platform' },
+  { path: '/dispatch', group: 'platform' },
+  { path: '/atmos/nano-climate', group: 'platform' },
+  { path: '/atmos/green-ledger', group: 'platform' },
   // Sehat is a service with its own page file rather than a products.ts entry, so it has
   // to be named. Its description is in PUBLIC_PAGE_META and is load-bearing: the owner
   // corrected it once because it read as a pharmacy, which Sehat is not.
-  { path: '/sehat', group: 'services' },
   // Nested family children are public service pages but are intentionally not entries in
   // PRODUCTS: putting them there would turn each child into a top-level Shop catalogue card.
   { path: '/elsewhere/visa', group: 'services' },
   { path: '/elsewhere/trip', group: 'services' },
   { path: '/elsewhere/activities', group: 'services' },
+  { path: '/elsewhere/rail', group: 'services' },
+  { path: '/elsewhere/cruise', group: 'services' },
+  { path: '/elsewhere/arogya-yatra', group: 'services' },
   { path: '/dastavez/drafting', group: 'services' },
   { path: '/dastavez/registration', group: 'services' },
   { path: '/dastavez/legal-reference', group: 'services' },

@@ -18,16 +18,16 @@
   "products": [
     {
       "slug": "grahak-os",
-      "title": "Grahak OS by WECARE.DIGITAL",
-      "canonicalPath": "/grahak-os/",
+      "title": "Dispatch by WECARE.DIGITAL",
+      "canonicalPath": "/dispatch/",
       "priceMinor": 89900,
       "catalogImageKey": "",
       "variantLabel": "Standard"
     },
     {
       "slug": "sehat",
-      "title": "Sehat",
-      "canonicalPath": "/sehat/",
+      "title": "Arogya Yatra",
+      "canonicalPath": "/elsewhere/arogya-yatra/",
       "priceMinor": null,
       "catalogImageKey": "",
       "variantLabel": "Standard"
@@ -86,8 +86,8 @@
     },
     {
       "slug": "vayulok",
-      "title": "VayuLok",
-      "canonicalPath": "/vayulok/",
+      "title": "Nano Climate",
+      "canonicalPath": "/atmos/nano-climate/",
       "priceMinor": 9900,
       "sku": "e458f22c-bf73-42fe-8b00-9415e3561f59",
       "catalogImageKey": "secure/d/public/catalog-deploy/catalog/products/vayulok-4096.png",

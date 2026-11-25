@@ -1,7 +1,7 @@
 [
   {
     "id": "fixed-01",
-    "name": "Grahak OS",
+    "name": "Dispatch",
     "basePaise": 89900,
     "supplyGstPaise": 16182,
     "delightPaise": 530,
@@ -13,7 +13,7 @@
   },
   {
     "id": "fixed-02",
-    "name": "VayuLok",
+    "name": "Nano Climate",
     "basePaise": 9900,
     "supplyGstPaise": 1782,
     "delightPaise": 58,
@@ -25,7 +25,7 @@
   },
   {
     "id": "fixed-03",
-    "name": "Sehat",
+    "name": "Arogya Yatra",
     "basePaise": 85000,
     "supplyGstPaise": 15300,
     "delightPaise": 501,

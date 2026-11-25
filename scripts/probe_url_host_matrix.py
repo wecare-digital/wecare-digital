@@ -60,7 +60,7 @@ MAX_HOPS = 5
 # `/shop/file-assist/` keeps its row asserting a product page still resolves at itself.
 PUBLIC_PAGES = (
     "/", "/checkout/", "/orders/", "/blog/", "/contact/", "/checkout/status/",
-    "/grahak-os/", "/vayulok/", "/terms/", "/anew/", "/shop/guided-resolution/", "/shop/",
+    "/dispatch/", "/atmos/nano-climate/", "/atmos/green-ledger/", "/elsewhere/rail/", "/elsewhere/cruise/", "/elsewhere/arogya-yatra/", "/terms/", "/anew/", "/shop/guided-resolution/", "/shop/",
 )
 
 

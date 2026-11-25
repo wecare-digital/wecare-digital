@@ -48,15 +48,15 @@
       "sortOrder": 3
     },
     {
-      "question": "How do I book or reschedule a Sehat appointment?",
-      "answer": "You can book or reschedule a Sehat appointment with a qualified professional. Choose your preferred appointment time and provide the details needed to confirm the booking.",
+      "question": "How do I book or reschedule a Arogya Yatra appointment?",
+      "answer": "You can book or reschedule a Arogya Yatra appointment with a qualified professional. Choose your preferred appointment time and provide the details needed to confirm the booking.",
       "requirements": [
         "Name",
         "Contact details",
         "Short summary of your requirement"
       ],
       "ctaLabel": "Start here",
-      "ctaPath": "/sehat/",
+      "ctaPath": "/elsewhere/arogya-yatra/",
       "sortOrder": 4
     },
     {
@@ -118,12 +118,12 @@
       "answer": "Yes. WECARE.DIGITAL offers an app for iOS and Android so users can track requests, book services, upload documents, make payments, and get support in one place.",
       "requirements": [],
       "ctaLabel": "Learn more",
-      "ctaPath": "/grahak-os/",
+      "ctaPath": "/dispatch/",
       "sortOrder": 11
     },
     {
       "question": "What is WECARE.DIGITAL?",
-      "answer": "WECARE.DIGITAL is a network of microservice brands serving everyday Bharat across travel, paperwork, disputes, rituals, and reflection. It focuses on simple access, transparent pricing, and reliable service through Elsewhere, Expo Week, Dastavez, Clear Closure, Ritual Guru, Anew, and Grahak OS.",
+      "answer": "WECARE.DIGITAL is a network of microservice brands serving everyday Bharat across travel, paperwork, disputes, rituals, and reflection. It focuses on simple access, transparent pricing, and reliable service through Elsewhere, Expo Week, Dastavez, Clear Closure, Ritual Guru, Anew, and Dispatch.",
       "requirements": [],
       "sortOrder": 12
     },

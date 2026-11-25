@@ -17,6 +17,39 @@ export interface ProductChildPage {
  */
 export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
+    path: '/atmos/green-ledger/',
+    parent: 'Atmos',
+    product: {
+      "slug": "atmos-green-ledger",
+      "name": "Green Ledger",
+      "blurb": "Environmental records and sustainability tracking.",
+      "title": "Green Ledger — environmental records | WECARE.DIGITAL",
+      "description": "Green Ledger by Atmos — environmental records and sustainability tracking. Contact us for product scope and availability.",
+      "frame": "Green Ledger",
+      "sub": "A proposed space for environmental records and sustainability tracking.",
+      "sectionHeading": "Environmental records",
+      "lead": "Green Ledger is part of Atmos. Its detailed scope and availability are being defined; this page introduces its focus.",
+      "points": [
+        {
+          "heading": "Environmental information",
+          "body": "Tell us what environmental information you need to organise."
+        },
+        {
+          "heading": "Tracking requirements",
+          "body": "Share the records and reporting context that matter to you."
+        },
+        {
+          "heading": "Scope before commitment",
+          "body": "Contact us to confirm whether your requirements can be supported."
+        }
+      ],
+      "note": "No carbon accounting, credits, certification or regulated reporting capability is offered or guaranteed on this page.",
+      "words": cycle( 'records', 'resources', 'impact', 'progress' ),
+      "ctaLabel": "Contact us",
+      "ctaHref": "/contact/"
+    },
+  },
+  {
     path: '/elsewhere/visa/',
     parent: 'Elsewhere',
     product: {
@@ -89,6 +122,72 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       ctaLabel: 'Plan activities',
       ctaHref: whatsappKeywordLink( 'Elsewhere Activities' ),
       ctaNote: 'Checkout on WhatsApp →',
+    },
+  },
+  {
+    path: '/elsewhere/rail/',
+    parent: 'Elsewhere',
+    product: {
+      "slug": "elsewhere-rail",
+      "name": "Rail",
+      "blurb": "Enquiries about rail journeys.",
+      "title": "Rail — rail journey enquiries | WECARE.DIGITAL",
+      "description": "Rail by Elsewhere — enquire about rail journey planning, routes and timing. Availability and booking depend on the provider.",
+      "frame": "Explore rail",
+      "sub": "Rail journey enquiries around where and when you want to travel.",
+      "sectionHeading": "Plan a rail journey",
+      "lead": "Rail is part of Elsewhere. Share your intended journey and contact us to confirm what planning assistance is available.",
+      "points": [
+        {
+          "heading": "Route and destination",
+          "body": "Identify where you want to begin and end the journey."
+        },
+        {
+          "heading": "Travel dates",
+          "body": "Consider preferred dates, traveller needs and connection time."
+        },
+        {
+          "heading": "Confirm before booking",
+          "body": "Check the applicable operator timetable, fare, availability and booking terms."
+        }
+      ],
+      "note": "This page does not issue tickets or confirm reservations. Fares, schedules, availability and travel conditions remain with the relevant rail operator.",
+      "words": cycle( 'routes', 'stations', 'journeys', 'timings' ),
+      "ctaLabel": "Contact us",
+      "ctaHref": "/contact/"
+    },
+  },
+  {
+    path: '/elsewhere/cruise/',
+    parent: 'Elsewhere',
+    product: {
+      "slug": "elsewhere-cruise",
+      "name": "Cruise",
+      "blurb": "Enquiries about cruise journeys.",
+      "title": "Cruise — cruise journey enquiries | WECARE.DIGITAL",
+      "description": "Cruise by Elsewhere — enquire about cruise itineraries, sailing dates and travel requirements. Availability and booking depend on the provider.",
+      "frame": "Explore cruise",
+      "sub": "Cruise journey enquiries around your destination, dates and preferences.",
+      "sectionHeading": "Plan a cruise journey",
+      "lead": "Cruise is part of Elsewhere. Share your proposed trip and contact us to confirm what planning assistance is available.",
+      "points": [
+        {
+          "heading": "Choose the journey",
+          "body": "Consider the destination, departure port and itinerary."
+        },
+        {
+          "heading": "Travel requirements",
+          "body": "Review traveller details, documentation and preferred sailing dates."
+        },
+        {
+          "heading": "Confirm with the operator",
+          "body": "Check availability, fares, inclusion and cancellation conditions before committing."
+        }
+      ],
+      "note": "This page does not issue cruise tickets or confirm reservations. Itineraries, entry requirements and availability are subject to provider and authority decisions.",
+      "words": cycle( 'voyages', 'routes', 'ports', 'journeys' ),
+      "ctaLabel": "Contact us",
+      "ctaHref": "/contact/"
     },
   },
   {

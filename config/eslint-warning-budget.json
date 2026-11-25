@@ -93,7 +93,6 @@
   "src/pages/_app.tsx": {"react-hooks/exhaustive-deps":1},
   "src/pages/auth.tsx": {"@next/next/no-img-element":1},
   "src/pages/checkout/status.tsx": {"react-hooks/set-state-in-effect":2},
-  "src/pages/grahak-os/index.tsx": {"@next/next/no-img-element":1,"react-hooks/set-state-in-effect":1},
   "src/pages/vault.tsx": {"react-hooks/set-state-in-effect":1},
   "src/pages/workspace/customers/index.tsx": {"react-hooks/set-state-in-effect":5},
   "src/pages/workspace/engage/broadcast/index.tsx": {"react-hooks/set-state-in-effect":1},

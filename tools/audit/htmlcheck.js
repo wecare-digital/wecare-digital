@@ -38,8 +38,8 @@ const OUT = path.join( __dirname, '..', '..', 'out' );
 if ( !fs.existsSync( OUT ) ) { console.error( 'out/ not found - run npm run build' ); process.exit( 2 ); }
 
 const ROUTES = [
-  '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
-  '/orders/', '/sehat/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
+  '/', '/dispatch/', '/atmos/nano-climate/', '/contact/', '/terms/', '/privacy/',
+  '/orders/', '/elsewhere/arogya-yatra/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/', '/elsewhere/rail/', '/elsewhere/cruise/', '/atmos/green-ledger/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/blog/',

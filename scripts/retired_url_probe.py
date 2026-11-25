@@ -28,7 +28,11 @@ import urllib.request
 
 SITE = "https://wecare.digital"
 
+NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/"}
 RETIRED: dict[str, str] = {
+    "/grahak-os/": "Dispatch replaced this page; HTTP 404/410 only",
+    "/vayulok/": "Nano Climate replaced this page; HTTP 404/410 only",
+    "/sehat/": "Arogya Yatra replaced this page; HTTP 404/410 only",
     '/release-check-missing-page/': 'shared missing-page response must remain HTTP 404',
 }
 
@@ -74,7 +78,7 @@ def main() -> int:
     with cf.ThreadPoolExecutor(max_workers=8) as ex:
         for url, code, loc in ex.map(probe, list(jobs)):
             rows.append({"url": url, "status": code, "location": loc,
-                         "verdict": verdict(code), "why": jobs[url]})
+                         "verdict": ("UNKNOWN" if url.removeprefix(SITE) in NO_REDIRECT and code not in (404, 410) else verdict(code)), "why": jobs[url]})
 
     rows.sort(key=lambda r: (r["verdict"] != "STILL-LIVE", r["url"]))
     print(json.dumps(rows, indent=2))

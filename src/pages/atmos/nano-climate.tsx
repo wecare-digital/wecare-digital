@@ -1,11 +1,11 @@
 /**
- * VayuLok public product page
+ * Nano Climate public product page
  * Bharat Air + Weather Insights, by WECARE.DIGITAL
  *
  * DELIBERATELY CLEAR. The page is the hero - the tag, the rotating line beneath it and
- * the approved globe beside them - followed by the live VayuLok section. That is the
+ * the approved globe beside them - followed by the live Nano Climate section. That is the
  * owner's call, and it is still the honest one: no MARKETING copy is invented here.
- * Nothing in this repository describes what VayuLok does beyond the capabilities the
+ * Nothing in this repository describes what Nano Climate does beyond the capabilities the
  * rotating words name, so the section below the hero adds no new claims of its own -
  * it shows real fetched air and weather data, or nothing at all when it has none.
  *
@@ -13,24 +13,24 @@
  * Conditions, History and Heatmap. The page keeps the lighter hero presentation while Weather
  * remains a first-class live section below.
  *
- * The hero is the shared RotatingHero, as on Grahak OS, so the two pages animate identically:
+ * The hero is the shared RotatingHero, as on Dispatch, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
  * saturated dot of the same hue swapping with the word, and the same easing and
  * 2400ms interval. The four tint/dot pairs are reused verbatim from that page - no
  * new colours were introduced for this page, and the hues map cleanly onto the
  * subjects (green air, blue weather, purple forecast, amber solar).
  *
- * ROUTING: _app.tsx keeps an EXACT-MATCH public route allowlist. '/vayulok' is
+ * ROUTING: _app.tsx keeps an EXACT-MATCH public route allowlist. '/atmos/nano-climate' is
  * registered there. Without that entry this page would render an empty body with
  * HTTP 200 - a 404 that does not look like one. next.config.js also sets
- * trailingSlash, so the URL is /vayulok/ with the slash.
+ * trailingSlash, so the URL is /atmos/nano-climate/ with the slash.
  *
  * The globe markup passed as RotatingHero's `visual` MUST stay inline in this return
  * tree. styled-jsx only attaches its scoping class to elements it can statically see
  * there, which is what lets .vl-hero-visual below style it; lifting it into a variable
  * or a child component silently drops those rules.
  *
- * Every class is vl- prefixed, following pp- on the Grahak OS page and ft- in the
+ * Every class is vl- prefixed, following pp- on the Dispatch page and ft- in the
  * Footer. The globally imported src/styles/*.css declares unscoped rules for generic
  * names, and styled-jsx does not shield a page from those.
  */
@@ -45,19 +45,19 @@ import MetaCatalogView from '../../components/MetaCatalogView';
 
 /*
  * SOCIAL CARD. This page uses the sitewide square brand card from _app.tsx
- * (o/stream/media/m/wecare-digital.png, 1080x1080, twitter:card 'summary'). A VayuLok-specific
+ * (o/stream/media/m/wecare-digital.png, 1080x1080, twitter:card 'summary'). A Nano Climate-specific
  * 1200x630 card at o/stream/media/m/vayulok-social.png was wired here but never uploaded, so
- * every share of /vayulok/ advertised an og:image that redirected to the home page (checked
+ * every share of /atmos/nano-climate/ advertised an og:image that redirected to the home page (checked
  * 2026-10-25). Pass PageMeta an `image` again once that object exists in the bucket.
  */
 
 /*
- * STRUCTURED DATA. Only a WebApplication node that accurately describes the live VayuLok app.
- * There is deliberately NO FAQPage here: the visible "About VayuLok" FAQ was removed from the
+ * STRUCTURED DATA. Only a WebApplication node that accurately describes the live Nano Climate app.
+ * There is deliberately NO FAQPage here: the visible "About Nano Climate" FAQ was removed from the
  * page, and FAQ structured data must only mark up content that is actually present (the sitewide
  * FAQ schema was removed earlier for exactly that reason).
  *
- * The Offer stays at price 0 although the catalog lists VayuLok Standard at ₹99.00 (#1449): it
+ * The Offer stays at price 0 although the catalog lists Nano Climate Standard at ₹99.00 (#1449): it
  * describes the web app on this page, which is free to use and takes no payment. Putting ₹99
  * here would mark up a price this page neither shows nor charges.
  */
@@ -66,10 +66,10 @@ function vayulokJsonLd(): Record<string, unknown>[] {
     {
       '@context': 'https://schema.org',
       '@type': 'WebApplication',
-      '@id': 'https://wecare.digital/vayulok/#webapp',
-      name: 'VayuLok',
-      alternateName: 'VayuLok by WECARE.DIGITAL',
-      url: 'https://wecare.digital/vayulok/',
+      '@id': 'https://wecare.digital/atmos/nano-climate/#webapp',
+      name: 'Nano Climate',
+      alternateName: 'Nano Climate by WECARE.DIGITAL',
+      url: 'https://wecare.digital/atmos/nano-climate/',
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web Browser',
       description: 'Air and weather insights for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen location.',
@@ -97,7 +97,7 @@ const VayuLokPage: React.FC = () => {
   // warm pair (Solar -> Heatmap); the obvious logical order stacked the warm hues
   // consecutively and the pill stopped feeling like it was changing.
   //
-  // The first four tint/dot pairs are reused verbatim from the Grahak OS hero. The
+  // The first four tint/dot pairs are reused verbatim from the Dispatch hero. The
   // last two are new, and follow that system's construction rule rather than being
   // picked freely: a pale tint with a saturated dot of the SAME hue, at roughly the
   // 100/600 relationship the existing four use. Reusing one of the four for Heatmap
@@ -107,9 +107,9 @@ const VayuLokPage: React.FC = () => {
   // heat but honours the owner constraint that #dc2626 - a true red - is forbidden
   // across this page (see .agents/tasks/vayulok-home-aligned-mock/design-tokens.md
   // and owner-constraints.md "NO RED anywhere"). Yellow for Pollen for the obvious
-  // reason. Neither touches the brand palette - like the Grahak OS channel tints,
+  // reason. Neither touches the brand palette - like the Dispatch channel tints,
   // these are a per-subject system that sits outside it by design.
-  // Every rotating word names a capability VayuLok actually ships today. 'Pollen' and 'Solar'
+  // Every rotating word names a capability Nano Climate actually ships today. 'Pollen' and 'Solar'
   // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is
   // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
   // real, prominent features. "Conditions" replaces the unsupported Pollen promise while
@@ -133,8 +133,8 @@ const VayuLokPage: React.FC = () => {
   return (
     <>
       {/* THIS PAGE'S TITLE AND DESCRIPTION WERE THE THINNEST ON THE SITE, measured against
-          the other fourteen public routes. The title was "VayuLok by WECARE.DIGITAL" - 25
-          characters, where the product pages run 52-68 - and the description was "VayuLok -
+          the other fourteen public routes. The title was "Nano Climate by WECARE.DIGITAL" - 25
+          characters, where the product pages run 52-68 - and the description was "Nano Climate -
           Bharat Air Insights, by WECARE.DIGITAL." at 53 characters, which restates the
           brand name twice and tells a reader nothing. Every other page follows one house
           pattern: "<Name> by WECARE.DIGITAL - <what it does>".
@@ -148,13 +148,13 @@ const VayuLokPage: React.FC = () => {
       <MetaCatalogView
         productId="native:vayulok"
         variantId="e458f22c-bf73-42fe-8b00-9415e3561f59"
-        name="VayuLok"
+        name="Nano Climate"
         value={ 99 }
       />
       <PageMeta
-        title="VayuLok — Bharat air and weather insights | WECARE.DIGITAL"
-        description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
-        path="/vayulok/"
+        title="Nano Climate — Bharat air and weather insights | WECARE.DIGITAL"
+        description="Nano Climate by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
+        path="/atmos/nano-climate/"
         jsonLd={ vayulokJsonLd() }
       />
 
@@ -162,8 +162,8 @@ const VayuLokPage: React.FC = () => {
         <RotatingHero
           insideMain
           mobileFoundation
-          ariaLabel="VayuLok"
-          badgeLabel="VayuLok by WECARE.DIGITAL"
+          ariaLabel="Nano Climate"
+          badgeLabel="Nano Climate by WECARE.DIGITAL"
           frame="Explore"
           words={ cycleWords }
           pillKey={ mode }
@@ -186,12 +186,12 @@ const VayuLokPage: React.FC = () => {
           </div>
           ) }
         >
-          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /vayulok/:
-              Home -> 'VayuLok' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
+          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /atmos/nano-climate/:
+              Home -> 'Nano Climate' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
               child, directly under the hero copy (RotatingHero owns the single h1). No
               page-level BreadcrumbList is emitted here: _app.tsx owns the single one for this
               PUBLIC_PAGE_META route, and this page's own WebApplication JSON-LD is unchanged. */}
-          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'VayuLok' } ] } />
+          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Nano Climate' } ] } />
         </RotatingHero>
 
         {/* The live air/weather application stays directly below the shared product hero.
@@ -236,7 +236,7 @@ const VayuLokPage: React.FC = () => {
           .vl-page :global(.rh-sub){max-width:34ch}
           .vl-hero-visual{width:100%;max-width:100%;overflow:hidden;transform:none}
           .vl-hero-visual :global(.vag-shell){width:100%;max-width:560px}
-          /* VayuLok's longest live capability word is "Conditions" and the frame sits on its
+          /* Nano Climate's longest live capability word is "Conditions" and the frame sits on its
              own line, so it does not need Grahak/contact's narrow 32/28px safety rungs.
              Keep the canonical 40px app hero through the phone/foldable range; devicecheck
              owns the proof and should force a measured exception if this ever stops fitting. */
