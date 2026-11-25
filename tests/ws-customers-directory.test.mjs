@@ -290,18 +290,13 @@ test('website registration and transactions still require a phone verified by OT
   assert.ok(directory.includes('Website OTP and checkout require a phone'));
 });
 
-test('inbound WhatsApp dedup leases complete only after successful message processing', () => {
-  const inbound = readSource('amplify/functions/messaging/inbound-whatsapp-handler/handler.py');
-  const workLoop = inbound.indexOf('leased_message_ids = []');
-  const call = inbound.indexOf('                        _process_message(', workLoop);
-  const complete = inbound.indexOf('                        if leased_message_ids:', call);
-  const catchFailure = inbound.indexOf('                    except Exception as e:', complete);
-  assert.ok(workLoop !== -1 && call > workLoop && complete > call && catchFailure > complete,
-    'a successful message must finish before its dedup lease is closed');
-  assert.ok(inbound.includes('claim_event_with_lease('),
-    'inbound message dedup must be recoverable after a processing failure');
-  assert.ok(inbound.includes('dedup_tracker.append(whatsapp_message_id)'));
-  assert.ok(inbound.includes('complete_event(leased_id)'));
+test('inbound WhatsApp delegates dedup lease ownership to the tracked message boundary', () => {
+  const base = 'amplify/functions/messaging/inbound-whatsapp-handler/';
+  const inbound = readSource(base + 'handler.py');
+  const dedup = readSource(base + 'modules/message_dedup.py');
+  assert.match(inbound, /message_dedup\.process_tracked_message\(\s*_process_message,/);
+  assert.match(inbound, /message_dedup\.should_skip_duplicate\(\s*whatsapp_message_id,/);
+  assert.match(dedup, /claim_event_with_lease\(message_id, source="whatsapp_inbound"\)/);
   assert.ok(!inbound.includes("claim_event(whatsapp_message_id, source='whatsapp_inbound')"),
     'permanent pre-processing claim would swallow retry of a failed identity transition');
 });
