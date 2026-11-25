@@ -47,9 +47,9 @@ Many sessions share this checkout, and other deployers (CodeBuild, MCP clients) 
 same functions. Packaging reads whatever is on disk, and nothing serialises deploys, so:
 
 * A real deploy refuses when a file it would package differs from HEAD (modified, staged or
-  untracked): it would ship another session's unfinished edit. Commit first, or deploy a
-  pinned commit from an export (``git archive <ref> amplify/functions scripts | tar -x -C
-  <dir>``, then run ``<dir>/scripts/deploy_all_lambdas.py``). A dry run only warns.
+  untracked): it would ship another session's unfinished edit. Release from a clean,
+  detached worktree of the production-verified commit. Archive trees are for dry
+  runs only. Verified CI and artifact/alias evidence goes into a local receipt.
 * The upload carries the ``RevisionId`` this run read, and the publish step gets
   ``--expect <function>=<CodeSha256>``, so a function another deploy touched in between fails
   instead of being overwritten or published with the other run's code.
@@ -72,12 +72,17 @@ import ast
 import base64
 import hashlib
 import io
+import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+from require_release_ci import ReleaseGateError, clean_checkout_commit, wait_for_release
 
 try:
     import boto3
@@ -1227,11 +1232,26 @@ def main() -> int:
             for path in unclean:
                 print(f"  {path}")
             if not args.dry_run:
-                print("Commit them first, or deploy a pinned commit from an export:\n"
-                      "  git archive <ref> amplify/functions scripts | tar -x -C <dir>\n"
-                      "  python <dir>/scripts/deploy_all_lambdas.py <functions>")
+                print("Commit them first, or use a clean detached Git worktree at the verified commit.")
                 return 1
             print("A real deploy refuses this tree.\n")
+
+    receipt = None
+    if not args.dry_run:
+        try:
+            commit = clean_checkout_commit(ROOT)
+            evidence = wait_for_release(commit, 0)
+            # Exclusive file creation prevents one release from overwriting another's receipt.
+            receipts_dir = ROOT / ".scratch" / "release-receipts"
+            receipts_dir.mkdir(parents=True, exist_ok=True)
+            fd, name = tempfile.mkstemp(prefix=f"{commit[:12]}-", suffix=".jsonl", dir=receipts_dir)
+            with os.fdopen(fd, "w", encoding="utf-8") as output:
+                output.write(json.dumps({"event": "ci-verified", **evidence}, sort_keys=True) + "\n")
+            receipt = Path(name)
+        except (OSError, ValueError, KeyError, TypeError, ReleaseGateError) as exc:
+            print(f"Release blocked: {exc}")
+            return 1
+        print(f"Release receipt: {receipt}")
 
     lam = boto3.client("lambda", region_name=REGION)
     print(f"region={REGION} targets={len(selected)} dry_run={args.dry_run}")
@@ -1358,6 +1378,11 @@ def main() -> int:
         else:
             deployed.append(spec.name)
             uploaded[spec.name] = base64.b64encode(hashlib.sha256(zip_bytes).digest()).decode()
+            if receipt is not None:
+                with receipt.open("a", encoding="utf-8") as output:
+                    output.write(json.dumps({"event": "latest-verified", "function": spec.name,
+                                             "codeSha256": uploaded[spec.name], "outcome": outcome},
+                                            sort_keys=True) + "\n")
 
     print()
     summary = (f"updated={tally['updated']} unchanged={tally['unchanged']} "
@@ -1385,12 +1410,13 @@ def main() -> int:
     publish_rc = 0
     if args.no_publish:
         print("\n--no-publish: `live` aliases still point at the previous code.")
-        print("Run `python scripts/snapstart_publish.py` to actually ship.")
+        print("Rerun this deploy command without --no-publish to promote the verified revision.")
     elif deployed and not failures:
         print("\nPublishing versions + moving the `live` alias "
               "(the API invokes :live, not $LATEST)...\n")
         publish_rc = subprocess.call(
             [sys.executable, str(ROOT / "scripts" / "snapstart_publish.py"), "--only-stale",
+             "--release-receipt", str(receipt),
              *(f"--expect={name}={sha}" for name, sha in uploaded.items()), *deployed]
         )
 

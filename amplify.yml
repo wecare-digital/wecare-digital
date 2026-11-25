@@ -34,16 +34,6 @@ frontend:
         # Derive a private diagnostic location before any early gates can fail.
         # Otherwise failed Python compilation/npm installs leave no account-readable evidence.
         - export AWS_REGION="${AWS_REGION:-us-east-1}"; export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"; test -n "$AWS_ACCOUNT_ID"; export CUSTOMER_COMMERCE_RUNTIME_BUCKET="${CUSTOMER_COMMERCE_RUNTIME_BUCKET:-cdk-hnb659fds-assets-${AWS_ACCOUNT_ID}-${AWS_REGION}}"; export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-wecare.digital}"
-        # Backend Python is not deployed by Amplify, but a green website build
-        # must not conceal invalid source in the customer-facing WhatsApp,
-        # Referral or Vault handlers. #2146 shipped with a broken module
-        # docstring/import boundary; Amplify #467 passed while its backend tests
-        # failed. Standard-library syntax compilation is safe and runs offline:
-        # no messages, payments, AWS mutation or runtime import side effects.
-        - python3 -m compileall -f -q amplify/functions/auth/customer-profile amplify/functions/messaging/whatsapp-business-api amplify/functions/messaging/inbound-whatsapp-handler amplify/functions/messaging/outbound-whatsapp amplify/functions/messaging/whatsapp-calling amplify/functions/messaging/plivo-answer amplify/functions/core/secure-files amplify/functions/shared/lambda_utils > /tmp/wecare-python-compile.log 2>&1 || { aws s3 cp /tmp/wecare-python-compile.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/python-compile-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-python-compile.log; exit 1; }; tail -n 20 /tmp/wecare-python-compile.log
-        # Owner retired tests/ and GitHub workflows. Enforce the small no-send
-        # Pay & Flow / WhatsApp sender / SMS readiness source contract in Amplify
-        # itself, beside existing source, TypeScript and credential gates.
         # Derive the content-addressed staging bucket from the credentials actually
         # running this build. No production account id or live key ARN is stored in
         # source. The stack deployment still requires an explicit KMS parameter or
@@ -70,21 +60,8 @@ frontend:
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
         - npm ci --cache .npm --prefer-offline --no-audit --no-fund > /tmp/wecare-npm-ci.log 2>&1 || { aws s3 cp /tmp/wecare-npm-ci.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/npm-ci-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-npm-ci.log; exit 1; }; tail -n 20 /tmp/wecare-npm-ci.log
-        # Guard VayuLok 2D map layout, automatic history, Google API cost deferral,
-        # and Cloud Run BigQuery per-query limits. The Cloud Run service itself
-        # is deployed independently through its Google Cloud Build pipeline.
-        - node scripts/check_vayulok_cost_and_map.cjs
-        # Fail the build if .gitignore starts ignoring a protected tracked dir
-        # (.github/, .kiro/). On 2026-11-02 an edit added both and would have
-        # masked dependabot.yml and the steering/hook/agent config from git.
-        - node scripts/check_gitignore_safety.cjs
-        # Catch deleted active Workspace imports and Orders/notification drift before tsc.
-        - node scripts/check_action_ui_contracts.cjs > /tmp/wecare-action-ui-contracts.log 2>&1 || { aws s3 cp /tmp/wecare-action-ui-contracts.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/action-ui-contracts-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-action-ui-contracts.log; exit 1; }; tail -n 20 /tmp/wecare-action-ui-contracts.log
-        # Reject fictional provider offers, fabricated analytics and test-template sends in every production build.
-        - node scripts/check_production_data_safety.cjs > /tmp/wecare-production-data-safety.log 2>&1 || { aws s3 cp /tmp/wecare-production-data-safety.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/production-data-safety-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-production-data-safety.log; exit 1; }; tail -n 20 /tmp/wecare-production-data-safety.log
-        # No external provider calls or customer data; this validates the source
-        # of Pay & Flow and the fail-closed SMS/approved-template sender contracts.
-        - node scripts/check_payflow_release_safety.cjs > /tmp/wecare-payflow-safety.log 2>&1 || { aws s3 cp /tmp/wecare-payflow-safety.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/payflow-safety-failure.log" --only-show-errors || true; tail -n 80 /tmp/wecare-payflow-safety.log; exit 1; }; tail -n 12 /tmp/wecare-payflow-safety.log
+        # Keep offline release contracts identical to GitHub Verify.
+        - python3 scripts/check_release_contracts.py > /tmp/wecare-release-contracts.log 2>&1 || { aws s3 cp /tmp/wecare-release-contracts.log "$CUSTOMER_COMMERCE_DIAGNOSTICS/release-contracts-failure.log" --only-show-errors || true; tail -n 100 /tmp/wecare-release-contracts.log; exit 1; }; tail -n 30 /tmp/wecare-release-contracts.log
         # DEPLOY GATE. Store private diagnostics before failing so release blockers are inspectable
         # without relying on Amplify's service-owned log bucket.
         - export CUSTOMER_COMMERCE_DIAGNOSTICS="s3://${CUSTOMER_COMMERCE_RUNTIME_BUCKET}/customer-commerce/validation/${AWS_BRANCH:-unknown}"
@@ -119,6 +96,9 @@ frontend:
         # browser key passes; that one fails the build before anything deploys.
         # Compares fingerprints only, so no secret is read or printed.
         - python3 scripts/verify_public_bundle_secrets.py > /tmp/wecare-public-bundle-check.log 2>&1 || { aws s3 cp /tmp/wecare-public-bundle-check.log "$WEB_BUILD_DIAGNOSTICS/public-bundle-failure.log" --only-show-errors || true; cat /tmp/wecare-public-bundle-check.log; exit 1; }; cat /tmp/wecare-public-bundle-check.log
+        # An Amplify build may start before GitHub Verify. Fail closed before production
+        # publish if the exact production push has no successful Verify check.
+        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then python3 scripts/require_release_ci.py --commit "$AWS_COMMIT_ID" --wait-seconds 300; fi
         # Stage only reviewed, content-addressed Lambda packages AFTER all site
         # compilation and public-credential checks pass. Staging DOES NOT publish.
         # Amplify provides AWS_COMMIT_ID even when no .git checkout is mounted.

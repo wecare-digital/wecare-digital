@@ -8,13 +8,19 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verify (typecheck, lint, test)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -28,7 +34,11 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm_version="$(node -p "require('./package.json').packageManager.split('@').at(-1)")"
+          npm install --global "npm@$npm_version"
+          test "$(npm --version)" = "$npm_version"
+          npm ci
 
       - name: Install Python test deps
         run: python -m pip install boto3 pytest
@@ -37,7 +47,7 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: node scripts/check_lint_warning_ratchet.mjs
 
       - name: Test
         run: npm test
@@ -47,5 +57,5 @@ jobs:
         env:
           PYTHONPATH: amplify/functions/shared
 
-      - name: Production data safety guard
-        run: node scripts/check_production_data_safety.cjs
+      - name: Offline release contracts
+        run: python scripts/check_release_contracts.py
