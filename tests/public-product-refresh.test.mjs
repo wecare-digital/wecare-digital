@@ -74,11 +74,13 @@ test('every submenu child uses the shared bent arrow, not a product-specific gly
 });
 
 
-test('Atmos uses the official outlined grass symbol at its native viewBox', () => {
+test('Atmos and Relay OS retain their official outlined Material Symbols in optically centered viewBoxes', () => {
   const header = read('src/components/Header.tsx');
   assert.ok(header.includes("Atmos: 'M80-160v-80h230"));
   assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
-  assert.ok(header.includes("'0 -960 960 960'"));
+  assert.ok(header.includes("Atmos: '40 -880 880 880'"));
+  assert.ok(header.includes("'Relay OS': 'M560-32v-80"));
+  assert.ok(header.includes("'Relay OS': '-40 -980 1000 1000'"));
   assert.ok(header.includes("label: 'Relay OS', href: '/relay-os/'"));
 });
 
@@ -90,4 +92,16 @@ test('Niji Setu is a non-clickable family and both destinations use shared subme
   assert.ok(header.includes('{ link.nested ? ('));
   const notFound = read('src/pages/404.tsx');
   assert.ok(notFound.includes("'/dispatch', '/niji-setu', '/shop/niji-setu'"));
+});
+
+test('menu icons share a 24px viewport and stay visible at narrow widths', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes('.nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}'));
+  assert.ok(header.includes('vector-effect:non-scaling-stroke'));
+  assert.ok(header.includes('viewBox={ SUBNAV_ICON_VIEW_BOX }'));
+  assert.ok(header.includes('viewBox={ sectionIconViewBox( section.heading ) }'));
+  assert.ok(header.includes('navIconViewBox( link.label )'));
+  assert.ok(header.includes('white-space:normal;overflow-wrap:anywhere'));
+  assert.ok(!/\.nav-(?:row-icon|sub-icon)[^{]*\{[^}]*display:none/.test(header));
+  assert.ok(!header.includes('NAV_MATERIAL_SYMBOLS'));
 });
