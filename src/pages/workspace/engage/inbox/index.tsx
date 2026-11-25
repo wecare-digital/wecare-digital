@@ -1205,6 +1205,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 </button>
                             );
                         } ) }
+                        { overview.historyNeedsReload && (
+                            <p className="ui-empty" role="status">New activity may have left a gap in loaded conversations. <button type="button" className="ui-link-btn" disabled={ overview.refreshing } onClick={ overview.reloadHistory }>Reload from latest</button></p>
+                        ) }
                         { overview.hasOlder && (
                             <button type="button" className="ui-load-more" disabled={ overview.loadingOlder || overview.refreshing } onClick={ () => void refreshOverview( true ) }>
                                 { overview.loadingOlder ? 'Loading…' : 'Load more conversations' }
@@ -1280,6 +1283,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                     { history.loading && <p className="ui-empty">Loading conversation…</p> }
                                     { history.failure && <p className="ui-empty" role="status">{ history.failure.message } <button type="button" className="ui-link-btn" onClick={ () => void refreshHistory() }>Retry</button></p> }
                                     { !exactContactId && <p className="ui-empty">This conversation has no saved contact. Only loaded inbox messages are shown.</p> }
+                                    { history.historyNeedsReload && (
+                                        <p className="ui-empty" role="status">New messages may have left a gap in loaded history. <button type="button" className="ui-link-btn" disabled={ history.refreshing } onClick={ () => { history.reloadHistory(); setVisibleCount( 50 ); } }>Reload from latest</button></p>
+                                    ) }
                                     { ( thread.length > visibleCount || history.hasOlder ) && (
                                         <button type="button" className="ui-load-more" disabled={ loadingOlder || history.loadingOlder || history.refreshing } onClick={ async () => {
                                             if ( thread.length <= visibleCount && !await refreshHistory( true ) ) return;

@@ -303,6 +303,9 @@ const InboxView: React.FC = () => {
             ) ) }
           </ul>
         ) }
+        { overview.historyNeedsReload && (
+          <p className="ib-note" role="status">New activity may have left a gap in loaded conversations. <button type="button" className="ib-ghost" disabled={ overview.refreshing } onClick={ overview.reloadHistory }>Reload from latest</button></p>
+        ) }
         { overview.hasOlder && (
           <button type="button" className="ib-ghost" disabled={ overview.loadingOlder || overview.refreshing } onClick={ () => void overview.refresh( true ) }>
             { overview.loadingOlder ? 'Loading…' : 'Load more conversations' }
@@ -335,6 +338,9 @@ const InboxView: React.FC = () => {
             <div className="ib-bubbles" data-wc-no-translate="true">
               { history.loading && <p className="ib-note">Loading conversation…</p> }
               { history.failure && <p className="ib-note" role="status">{ history.failure.message } <button type="button" className="ib-ghost" onClick={ () => void history.refresh() }>Retry</button></p> }
+              { history.historyNeedsReload && (
+                <p className="ib-note" role="status">New messages may have left a gap in loaded history. <button type="button" className="ib-ghost" disabled={ history.refreshing } onClick={ history.reloadHistory }>Reload from latest</button></p>
+              ) }
               { history.hasOlder && (
                 <button type="button" className="ib-ghost" disabled={ history.loadingOlder || history.refreshing } onClick={ () => void history.refresh( true ) }>
                   { history.loadingOlder ? 'Loading…' : 'Load older messages' }

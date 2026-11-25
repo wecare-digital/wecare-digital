@@ -9,6 +9,8 @@ fall back to an explicitly limited recent preview until the new backend is activ
   threads use the contact index and independent cursors; phone-only history is
   limited to the Activity pages that have been loaded. Keep any failed channel
   visible as unavailable instead of presenting the partial result as complete.
+  If new traffic overtakes older pages already loaded, both clients flag a
+  possible gap and offer to restart the history cursor from the latest page.
 - After deploying in staging, confirm real index/key types match cursor encoding
   and both Inbox routes can open and page a saved thread. Test the current
   backend and older-client compatibility, partial channel outages, and history

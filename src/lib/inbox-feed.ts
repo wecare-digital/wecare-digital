@@ -31,3 +31,28 @@ export function displacedInboxRows ( previous: Message[], recent: Message[] ): M
   }
   return previous.filter( row => Date.parse( row.timestamp ) < ( cutoff.get( row.channel ) ?? -Infinity ) );
 }
+
+/** A refreshed head without shared IDs may have overtaken a previously paged cursor. */
+export function inboxHeadMayHaveGap ( previous: Message[], recent: Message[], partitionedByChannel: boolean ): boolean {
+  const groupKey = ( row: Message ) => partitionedByChannel ? row.channel : '*';
+  const oldGroups = new Map<string, { ids: Set<string>; newest: number }>();
+  for ( const row of previous ) {
+    const group = groupKey( row );
+    const old = oldGroups.get( group ) ?? { ids: new Set<string>(), newest: -Infinity };
+    old.ids.add( row.id );
+    old.newest = Math.max( old.newest, Date.parse( row.timestamp ) || 0 );
+    oldGroups.set( group, old );
+  }
+  const freshGroups = new Map<string, { overlaps: boolean; newest: number }>();
+  for ( const row of recent ) {
+    const group = groupKey( row );
+    const fresh = freshGroups.get( group ) ?? { overlaps: false, newest: -Infinity };
+    fresh.overlaps ||= oldGroups.get( group )?.ids.has( row.id ) ?? false;
+    fresh.newest = Math.max( fresh.newest, Date.parse( row.timestamp ) || 0 );
+    freshGroups.set( group, fresh );
+  }
+  return Array.from( freshGroups ).some( ( [ group, fresh ] ) => {
+    const old = oldGroups.get( group );
+    return old && !fresh.overlaps && fresh.newest >= old.newest;
+  } );
+}

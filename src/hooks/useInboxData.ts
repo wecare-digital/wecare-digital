@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listInboxMessagePage, type InboxMessagePage, type Message } from '../api/domains/messaging';
 import { listContactsResult, type Contact } from '../api/domains/contacts';
 import type { ApiFailure } from '../api/core';
-import { displacedInboxRows, inboxConversationKey, mergeInboxMessages, refreshInboxHead } from '../lib/inbox-feed';
+import { displacedInboxRows, inboxConversationKey, inboxHeadMayHaveGap, mergeInboxMessages, refreshInboxHead } from '../lib/inbox-feed';
 
 const REFRESH_MS = 30_000;
 
@@ -11,6 +11,8 @@ interface RequestState {
   head: Message[];
   archive: Message[];
   next: string | null;
+  headNext: string | null;
+  historyNeedsReload: boolean;
   paged: boolean;
   legacy: boolean;
   headFailure: ApiFailure | null;
@@ -24,7 +26,7 @@ interface RequestState {
 
 function initial ( key: string ): RequestState {
   return {
-    key, head: [], archive: [], next: null, paged: false, legacy: false,
+    key, head: [], archive: [], next: null, headNext: null, historyNeedsReload: false, paged: false, legacy: false,
     headFailure: null, olderFailure: null, headUnavailable: [], olderUnavailable: [],
     ready: false, refreshing: false, loadingOlder: false,
   };
@@ -42,7 +44,7 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
   const read = useCallback( async ( older = false ) => {
     const run = current.current;
     if ( !active || !run || run.key !== scope || run.refreshing || run.loadingOlder ) return false;
-    if ( older && !run.next ) return false;
+    if ( older && ( !run.next || run.historyNeedsReload ) ) return false;
     const commit = ( patch: Partial<RequestState> ) => {
       Object.assign( run, patch );
       setState( { ...run } );
@@ -67,8 +69,11 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
       const archive = run.paged
         ? mergeInboxMessages( run.archive, displacedInboxRows( run.head, rows ) )
         : run.archive;
+      const historyNeedsReload = run.historyNeedsReload
+        || ( run.paged && !!data.nextCursor && inboxHeadMayHaveGap( run.head, rows, !contactId ) );
       commit( {
         head: refreshInboxHead( run.head, rows, data.unavailableChannels ), archive,
+        historyNeedsReload, headNext: data.nextCursor,
         headUnavailable: data.unavailableChannels, ready: true, refreshing: false,
         legacy: data.legacy, next: data.legacy ? null : run.paged ? run.next : data.nextCursor,
       } );
@@ -111,6 +116,16 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     setState( { ...run } );
   }, [] );
 
+  const reloadHistory = useCallback( () => {
+    const run = current.current;
+    if ( !run || run.refreshing || run.loadingOlder ) return;
+    Object.assign( run, {
+      archive: [], next: run.headNext, paged: false,
+      historyNeedsReload: false, olderFailure: null, olderUnavailable: [],
+    } );
+    setState( { ...run } );
+  }, [] );
+
   const view = useMemo( () => state.key === scope ? state : initial( scope ), [ scope, state ] );
   const messages = useMemo( () => mergeInboxMessages( view.archive, view.head ), [ view.archive, view.head ] );
   return {
@@ -121,7 +136,9 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     failure: view.headFailure || view.olderFailure,
     unavailableChannels: [ ...new Set( [ ...view.headUnavailable, ...view.olderUnavailable ] ) ],
     legacy: view.legacy,
-    hasOlder: !!view.next,
+    hasOlder: !!view.next && !view.historyNeedsReload,
+    historyNeedsReload: view.historyNeedsReload,
+    reloadHistory,
     refresh: read,
     removeMessage,
     removeConversation,

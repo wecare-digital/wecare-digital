@@ -52,3 +52,13 @@ test( 'refresh keeps a failed channel visible, reconciles successful heads and d
   assert.equal( feed.displacedInboxRows( history, recent ).map( m => m.id ).join(), 'b' );
   assert.equal( feed.mergeInboxMessages( [ row( 'a', 99, 'SMS' ), ...history ], head ).map( m => m.id ).join(), 'a,d,c,b' );
 } );
+
+test( 'high-volume head turnover in one channel flags a possibly stale cursor', () => {
+  const previous = [ row( 's1', 80, 'SMS' ), row( 's2', 70, 'SMS' ), row( 'w1', 90, 'WHATSAPP' ) ];
+  const newRecent = [ row( 'w1', 90, 'WHATSAPP' ), row( 's4', 120, 'SMS' ), row( 's3', 110, 'SMS' ) ];
+  assert.equal( feed.inboxHeadMayHaveGap( previous, newRecent, true ), true );
+  assert.equal( feed.inboxHeadMayHaveGap( previous, newRecent, false ), false );
+  assert.equal( feed.inboxHeadMayHaveGap( previous, newRecent.slice( 1 ), false ), true );
+  assert.equal( feed.inboxHeadMayHaveGap( previous, [ row( 's0', 50, 'SMS' ) ], true ), false );
+  assert.equal( feed.inboxHeadMayHaveGap( previous, [ row( 's4', 120, 'SMS' ), previous[ 0 ] ], true ), false );
+} );
