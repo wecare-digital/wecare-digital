@@ -11,7 +11,7 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCom
  *
  * WHY THIS EXISTS: Arogya Yatra was moved into the Products column of the mega menu but had
  * no page, so the row pointed at the generic Customer service landing page. A product listed
- * beside Dispatch and Nano Climate and then landing somewhere unrelated is worse than not
+ * beside Relay OS and Nano Climate and then landing somewhere unrelated is worse than not
  * listing it.
  *
  * ROUTING: '/elsewhere/arogya-yatra' must be in the EXACT-MATCH allowlist in _app.tsx or this renders
@@ -33,7 +33,7 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCom
  * diagnoses, prescribes or advises, because a health-adjacent page is the wrong place to
  * guess and the wrong place to be wrong.
  *
- * NO PRODUCT SCHEMA, ON PURPOSE. Dispatch carries SoftwareApplication because it is a
+ * NO PRODUCT SCHEMA, ON PURPOSE. Relay OS carries SoftwareApplication because it is a
  * real, describable product with a feature list. Marking this up the same way while the
  * copy is provisional would put claims into structured data that the page does not make -
  * and Google's guidelines require structured data to represent the page's actual content.
@@ -43,7 +43,7 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCom
 // NO "medicines". The owner has confirmed Arogya Yatra does not do medicine retail, so a
 // rotating headline that leads with the word would promise a product that does not exist -
 // which is the most expensive kind of copy error, because it is the first thing read.
-// Tints and dots are reused verbatim from the Dispatch hero - no new colours.
+// Tints and dots are reused verbatim from the Relay OS hero - no new colours.
 const CYCLE_WORDS: CycleWord[] = [
   { word: 'appointments', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'bookings', tint: '#dbeafe', dot: '#2563eb' },
@@ -84,7 +84,7 @@ const SehatPage: React.FC = () => (
             along with the licensed-pharmacy line it needed. */}
         <h2 className="sht-h2">Plan an appointment-related journey</h2>
         {/* THE THREE STEP TITLES ARE h3, NOT strong. Same defect and same fix as the six
-            capability cards on /dispatch/ and the three points in ProductPage.tsx: measured
+            capability cards on /relay-os/ and the three points in ProductPage.tsx: measured
             before this change, this page's outline was exactly H1 + H2 and the three steps had
             no heading semantics, so a screen-reader user skimming by heading could not reach
             them. h3 is the right rung - they sit under the .sht-h2 above, so no level is

@@ -40,7 +40,7 @@ const PUBLIC_EXACT = new Set( [
   '/elsewhere/arogya-yatra',
   '/blog',
   '/contact',
-  '/dispatch',
+  '/relay-os',
   '/orders',
   '/privacy',
   '/terms',

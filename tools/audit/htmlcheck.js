@@ -38,7 +38,7 @@ const OUT = path.join( __dirname, '..', '..', 'out' );
 if ( !fs.existsSync( OUT ) ) { console.error( 'out/ not found - run npm run build' ); process.exit( 2 ); }
 
 const ROUTES = [
-  '/', '/dispatch/', '/atmos/nano-climate/', '/contact/', '/terms/', '/privacy/',
+  '/', '/relay-os/', '/atmos/nano-climate/', '/contact/', '/terms/', '/privacy/',
   '/orders/', '/elsewhere/arogya-yatra/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/', '/elsewhere/rail/', '/elsewhere/cruise/', '/atmos/green-ledger/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',

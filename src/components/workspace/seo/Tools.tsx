@@ -13,7 +13,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const SITE_BASE = 'https://wecare.digital';
 const BLOG_PUBLIC_API = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/seo-tools/blog-public`;
 const ALL_PAGES = [
-  '/', '/dispatch', '/atmos/nano-climate', '/atmos/green-ledger',
+  '/', '/relay-os', '/atmos/nano-climate', '/atmos/green-ledger',
   '/elsewhere/rail', '/elsewhere/cruise', '/elsewhere/arogya-yatra', '/contact', '/shop', '/blog',
 ];
 
