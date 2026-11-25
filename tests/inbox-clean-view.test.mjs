@@ -1,5 +1,5 @@
-// The workspace inbox always displays full stored history. Message deletion is
-// a separate, confirmed Admin/MFA backend action; no view filter can hide rows.
+// The workspace inbox lets staff page stored history without an automatic
+// date filter. Message deletion remains a separate, confirmed Admin/MFA action.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readSource } from './helpers/loadTsx.mjs';
@@ -10,9 +10,11 @@ const backend = readSource('amplify/functions/core/messages-delete/handler.py');
 const checker = readSource('amplify/functions/shared/lambda_utils/erasure/inbox_delete.py');
 const api = readSource('src/api/domains/messaging.ts');
 
-test('both inbox screens show all messages without an old-message filter', () => {
+test('both inbox screens page stored messages without an old-message filter', () => {
   for (const inbox of [ fresh, legacy ]) {
-    assert.ok(inbox.includes('api.listMessages( undefined, \'ALL\', 2000 )'));
+    assert.ok(inbox.includes('useInboxMessageFeed('));
+    assert.ok(inbox.includes('Load older messages'));
+    assert.ok(inbox.includes('Some channels could not be loaded'));
     for (const old of [
       'Hide old messages', 'Show all old messages', 'todayOnly',
       'toggleTodayOnly', 'filterInboxCleanView', 'wc-inbox-today-view',

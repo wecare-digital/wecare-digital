@@ -1,7 +1,7 @@
 import { API_BASE } from '../../config/constants';
 import '../../lib/amplifyConfig';
 import { validateWaMediaSize } from '../../lib/wa-media';
-import { apiCall, apiCallResult, authFetch, normalizeTimestamp } from '../core';
+import { apiCall, apiCallResult, authFetch, normalizeTimestamp, type ApiResult } from '../core';
 
 // ============================================================================
 // MESSAGES API
@@ -92,6 +92,45 @@ export async function listMessages ( contactId?: string, channel?: string, limit
     return messages.map( normalizeMessage );
   }
   return [];
+}
+
+export interface InboxMessagePage {
+  messages: Message[];
+  nextCursor: string | null;
+  unavailableChannels: string[];
+  legacy: boolean;
+  sampled: boolean;
+}
+
+/** Scope-specific list/thread page. An older backend may return a bounded snapshot instead. */
+export async function listInboxMessagePage ( options: {
+  contactId?: string; channel?: string; cursor?: string; limit?: number;
+} = {} ): Promise<ApiResult<InboxMessagePage>> {
+  const params = new URLSearchParams( {
+    view: 'inbox', channel: options.channel || 'ALL',
+    limit: String( Math.max( 1, Math.min( 100, options.limit ?? 100 ) ) ),
+  } );
+  if ( options.contactId ) params.set( 'contactId', options.contactId );
+  if ( options.cursor ) params.set( 'cursor', options.cursor );
+  const result = await apiCallResult<any>( `${API_BASE}/messages?${params}`, undefined, 0, 8000, false );
+  if ( !result.ok ) return result;
+  const data = result.data;
+  const messages = Array.isArray( data ) ? data : data?.messages;
+  if ( !Array.isArray( messages ) ) {
+    return { ok: false, failure: {
+      kind: 'server', status: null, message: 'The inbox response could not be read.',
+      url: '', retryable: true, at: Date.now(),
+    } };
+  }
+  const legacy = data?.inboxVersion !== 1;
+  const sampled = !legacy && data?.historyMode === 'sampled';
+  return { ok: true, data: {
+    messages: messages.filter( ( row: unknown ) => row !== null && typeof row === 'object' ).map( normalizeMessage ),
+    nextCursor: !legacy && !sampled && typeof data.nextCursor === 'string' ? data.nextCursor : null,
+    unavailableChannels: !legacy && Array.isArray( data.unavailableChannels )
+      ? data.unavailableChannels.filter( ( value: unknown ) => typeof value === 'string' ) : [],
+    legacy, sampled,
+  } };
 }
 
 export async function getMessage ( messageId: string ): Promise<Message | null> {
