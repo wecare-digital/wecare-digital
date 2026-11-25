@@ -23,13 +23,21 @@ export function refreshInboxHead ( previous: Message[], recent: Message[], unava
 }
 
 /** Keep rows that slid out of a refreshed head if the user already opened older pages. */
-export function displacedInboxRows ( previous: Message[], recent: Message[] ): Message[] {
+export function displacedInboxRows ( previous: Message[], recent: Message[], partitionedByChannel = true, preserveBoundary = false ): Message[] {
+  const partition = ( row: Message ) => partitionedByChannel ? row.channel : '*';
   const cutoff = new Map<string, number>();
   for ( const row of recent ) {
     const ts = Date.parse( row.timestamp );
-    if ( Number.isFinite( ts ) ) cutoff.set( row.channel, Math.min( cutoff.get( row.channel ) ?? ts, ts ) );
+    if ( Number.isFinite( ts ) ) cutoff.set( partition( row ), Math.min( cutoff.get( partition( row ) ) ?? ts, ts ) );
   }
-  return previous.filter( row => Date.parse( row.timestamp ) < ( cutoff.get( row.channel ) ?? -Infinity ) );
+  const visible = new Set( recent.map( row => row.id ) );
+  return previous.filter( row => {
+    const boundary = cutoff.get( partition( row ) ) ?? -Infinity;
+    const time = Date.parse( row.timestamp );
+    // DynamoDB can cut a page through records written in the same second.
+    // Keep unseen ties only when the new head can continue into older pages.
+    return !visible.has( row.id ) && ( time < boundary || ( preserveBoundary && time === boundary ) );
+  } );
 }
 
 /** A refreshed head without shared IDs may have overtaken a previously paged cursor. */

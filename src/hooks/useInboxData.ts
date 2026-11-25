@@ -5,16 +5,18 @@ import type { ApiFailure } from '../api/core';
 import { displacedInboxRows, inboxConversationKey, inboxHeadMayHaveGap, mergeInboxMessages, refreshInboxHead } from '../lib/inbox-feed';
 
 const REFRESH_MS = 30_000;
+const SAMPLE_REFRESH_MS = 120_000;
 
 interface RequestState {
   key: string;
   head: Message[];
   archive: Message[];
   next: string | null;
-  headNext: string | null;
   historyNeedsReload: boolean;
   paged: boolean;
   legacy: boolean;
+  sampled: boolean;
+  lastHeadRead: number;
   headFailure: ApiFailure | null;
   olderFailure: ApiFailure | null;
   headUnavailable: string[];
@@ -26,7 +28,7 @@ interface RequestState {
 
 function initial ( key: string ): RequestState {
   return {
-    key, head: [], archive: [], next: null, headNext: null, historyNeedsReload: false, paged: false, legacy: false,
+    key, head: [], archive: [], next: null, historyNeedsReload: false, paged: false, legacy: false, sampled: false, lastHeadRead: 0,
     headFailure: null, olderFailure: null, headUnavailable: [], olderUnavailable: [],
     ready: false, refreshing: false, loadingOlder: false,
   };
@@ -53,7 +55,9 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     const result = await listInboxMessagePage( { contactId, channel, cursor: older ? run.next ?? undefined : undefined } );
     if ( current.current !== run ) return false;
     if ( !result.ok ) {
-      commit( older ? { loadingOlder: false, olderFailure: result.failure }
+      const cursorRetired = older && ( result.failure.status === 400 || result.failure.status === 409 );
+      commit( older ? { loadingOlder: false, olderFailure: result.failure,
+        historyNeedsReload: run.historyNeedsReload || cursorRetired }
         : { refreshing: false, headFailure: result.failure, ready: true } );
       return false;
     }
@@ -66,16 +70,19 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
         olderUnavailable: data.unavailableChannels, loadingOlder: false,
       } );
     } else {
-      const archive = run.paged
-        ? mergeInboxMessages( run.archive, displacedInboxRows( run.head, rows ) )
+      const limited = data.legacy || data.sampled;
+      const archive = limited ? [] : run.paged
+        ? mergeInboxMessages( run.archive, displacedInboxRows( run.head, rows, !contactId, !!data.nextCursor ) )
         : run.archive;
-      const historyNeedsReload = run.historyNeedsReload
-        || ( run.paged && !!data.nextCursor && inboxHeadMayHaveGap( run.head, rows, !contactId ) );
+      const historyNeedsReload = !limited && ( run.historyNeedsReload
+        || ( run.paged && !!data.nextCursor && inboxHeadMayHaveGap( run.head, rows, !contactId ) ) );
       commit( {
         head: refreshInboxHead( run.head, rows, data.unavailableChannels ), archive,
-        historyNeedsReload, headNext: data.nextCursor,
+        historyNeedsReload, paged: !limited && run.paged, lastHeadRead: Date.now(),
         headUnavailable: data.unavailableChannels, ready: true, refreshing: false,
-        legacy: data.legacy, next: data.legacy ? null : run.paged ? run.next : data.nextCursor,
+        legacy: data.legacy, sampled: data.sampled,
+        next: limited ? null : run.paged ? run.next : data.nextCursor,
+        ...( limited ? { olderFailure: null, olderUnavailable: [] } : {} ),
       } );
     }
     return true;
@@ -85,7 +92,10 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     const run = initial( scope );
     current.current = run;
     void read();
-    const poll = () => { if ( !document.hidden ) void read(); };
+    const poll = () => {
+      if ( document.hidden || ( run.sampled && Date.now() - run.lastHeadRead < SAMPLE_REFRESH_MS ) ) return;
+      void read();
+    };
     if ( !active ) return () => { if ( current.current === run ) current.current = null; };
     const timer = setInterval( poll, REFRESH_MS );
     return () => {
@@ -120,11 +130,12 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     const run = current.current;
     if ( !run || run.refreshing || run.loadingOlder ) return;
     Object.assign( run, {
-      archive: [], next: run.headNext, paged: false,
+      archive: [], next: null, paged: false,
       historyNeedsReload: false, olderFailure: null, olderUnavailable: [],
     } );
     setState( { ...run } );
-  }, [] );
+    void read();
+  }, [ read ] );
 
   const view = useMemo( () => state.key === scope ? state : initial( scope ), [ scope, state ] );
   const messages = useMemo( () => mergeInboxMessages( view.archive, view.head ), [ view.archive, view.head ] );
@@ -136,6 +147,7 @@ export function useInboxMessageFeed ( { contactId, channel, active = true }: {
     failure: view.headFailure || view.olderFailure,
     unavailableChannels: [ ...new Set( [ ...view.headUnavailable, ...view.olderUnavailable ] ) ],
     legacy: view.legacy,
+    sampled: view.sampled,
     hasOlder: !!view.next && !view.historyNeedsReload,
     historyNeedsReload: view.historyNeedsReload,
     reloadHistory,

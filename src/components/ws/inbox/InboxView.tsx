@@ -265,6 +265,7 @@ const InboxView: React.FC = () => {
           <p className="ib-note" role="status">Some channels could not be loaded: { overview.unavailableChannels.join( ', ' ) }.</p>
         ) }
         { overview.legacy && <p className="ib-note">Showing recent messages. Older history requires the updated inbox API.</p> }
+        { overview.sampled && <p className="ib-note" role="status">Showing a limited sample while ordered Inbox indexes are unavailable. Some messages may be missing.</p> }
         { ( contactFailure || ( failure && messages.length > 0 ) ) && (
           <p className="ib-note" role="status">{ failure?.message || 'Some contact names could not be loaded.' } <button type="button" className="ib-ghost" onClick={ () => void load() }>Retry</button></p>
         ) }
@@ -337,6 +338,7 @@ const InboxView: React.FC = () => {
 
             <div className="ib-bubbles" data-wc-no-translate="true">
               { history.loading && <p className="ib-note">Loading conversation…</p> }
+              { history.sampled && <p className="ib-note" role="status">Showing a limited sample of this thread. Older history is unavailable until ordered indexes are ready.</p> }
               { history.failure && <p className="ib-note" role="status">{ history.failure.message } <button type="button" className="ib-ghost" onClick={ () => void history.refresh() }>Retry</button></p> }
               { history.historyNeedsReload && (
                 <p className="ib-note" role="status">New messages may have left a gap in loaded history. <button type="button" className="ib-ghost" disabled={ history.refreshing } onClick={ history.reloadHistory }>Reload from latest</button></p>

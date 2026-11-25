@@ -1121,6 +1121,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                     <div className="ui-list">
                         { overview.unavailableChannels.length > 0 && <p className="ui-empty" role="status">Some channels could not be loaded: { overview.unavailableChannels.join( ', ' ) }.</p> }
                         { overview.legacy && <p className="ui-empty">Showing recent messages. Older history requires the updated inbox API.</p> }
+                        { overview.sampled && <p className="ui-empty" role="status">Showing a limited sample while ordered Inbox indexes are unavailable. Some messages may be missing.</p> }
                         { contactFailure && <p className="ui-empty" role="status">Some contact names could not be loaded.</p> }
                         { loadFailure && messages.length > 0 && <p className="ui-empty" role="status">{ loadFailure.message } <button type="button" className="ui-link-btn" onClick={ () => void refreshOverview() }>Retry</button></p> }
                         { loading ? (
@@ -1281,6 +1282,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { user, channel } ) => {
                                 ) }
                                 <div className="ui-thread-body" ref={ threadBodyRef }>
                                     { history.loading && <p className="ui-empty">Loading conversation…</p> }
+                                    { history.sampled && <p className="ui-empty" role="status">Showing a limited sample of this thread. Older history is unavailable until ordered indexes are ready.</p> }
                                     { history.failure && <p className="ui-empty" role="status">{ history.failure.message } <button type="button" className="ui-link-btn" onClick={ () => void refreshHistory() }>Retry</button></p> }
                                     { !exactContactId && <p className="ui-empty">This conversation has no saved contact. Only loaded inbox messages are shown.</p> }
                                     { history.historyNeedsReload && (

@@ -14,6 +14,7 @@ DynamoDB Tables (actual names):
 import os
 import json
 import re
+import time
 import boto3
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
@@ -148,31 +149,72 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return cors_response(500, {'error': 'Internal server error'}, origin)
 
 
+_TIMELINE_STATUS = {}
+
+
+def _timeline_ready(table) -> bool:
+    """Opt in per Lambda environment; briefly cache only checked readiness."""
+    if os.environ.get('INBOX_TIMELINE_INDEXES_ENABLED', '').strip().lower() != 'true':
+        return False
+    from botocore.exceptions import BotoCoreError, ClientError
+    from lambda_utils.inbox_timeline_indexes import all_active
+
+    now = time.monotonic()
+    previous = _TIMELINE_STATUS.get(table.name)
+    if previous and now - previous[0] < 60:
+        return previous[1]
+    try:
+        ready = all_active(table.meta.client.describe_table(TableName=table.name)['Table'])
+    except (BotoCoreError, ClientError) as exc:
+        # Metadata readiness is advisory. Bounded compatibility reads may still
+        # be permitted; failures of those reads or any real Query remain errors.
+        code = exc.response.get('Error', {}).get('Code') if isinstance(exc, ClientError) else type(exc).__name__
+        logger.warning('inbox_timeline_metadata_unavailable code=%s', code)
+        ready = False
+    except ValueError as exc:
+        logger.error('inbox_timeline_schema_mismatch: %s', exc)
+        ready = False
+    _TIMELINE_STATUS[table.name] = (now, ready)
+    return ready
+
+
 def _read_inbox_page(params: Dict[str, Any], origin: str) -> Dict[str, Any]:
     from botocore.exceptions import BotoCoreError, ClientError
-    from lambda_utils.inbox_message_page import read_page
+    from lambda_utils.inbox_message_page import read_page, read_sample
 
     try:
-        rows, cursor, failed_channels, attempted = read_page(
-            dynamodb.Table(MESSAGES_TABLE),
-            contact_id=params.get('contactId') or '',
-            channel=(params.get('channel') or 'ALL').lower(),
-            direction=(params.get('direction') or '').lower(),
-            limit=int(params.get('limit', 100)),
-            cursor=params.get('cursor'),
-            logger=logger,
-        )
+        table = dynamodb.Table(MESSAGES_TABLE)
+        options = {
+            'contact_id': params.get('contactId') or '',
+            'channel': (params.get('channel') or 'ALL').lower(),
+            'direction': (params.get('direction') or '').lower(),
+            'limit': int(params.get('limit', 100)),
+        }
+        cursor = params.get('cursor')
+        paged = _timeline_ready(table)
+        if paged:
+            rows, cursor, failed_channels, attempted = read_page(
+                table, cursor=cursor, logger=logger, **options,
+            )
+            if attempted == len(failed_channels):
+                return cors_response(503, {'error': 'The inbox index is unavailable. Try again.'}, origin)
+        else:
+            if cursor is not None:
+                return cors_response(409, {
+                    'error': 'Ordered history is unavailable. Reload the current inbox.',
+                    'errorCode': 'INBOX_TIMELINE_RELOAD_REQUIRED',
+                }, origin)
+            rows = read_sample(table, **options)
+            failed_channels = []
     except (ValueError, TypeError):
         return cors_response(400, {'error': 'Invalid inbox filters or cursor.'}, origin)
     except (BotoCoreError, ClientError):
         logger.warning('inbox_page_unavailable', exc_info=False)
         return cors_response(503, {'error': 'The inbox index is unavailable. Try again.'}, origin)
 
-    if attempted == len(failed_channels):
-        return cors_response(503, {'error': 'The inbox index is unavailable. Try again.'}, origin)
-
     return cors_response(200, {
         'inboxVersion': 1,
+        'historyMode': 'paged' if paged else 'sampled',
         'messages': [
             _convert_from_dynamodb(m) if params.get('contactId') or not m.get('contactId')
             else _inbox_preview(m)

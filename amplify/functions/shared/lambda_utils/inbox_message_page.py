@@ -1,7 +1,8 @@
-"""Bounded, cursor-based reads from the existing canonical Inbox indexes."""
+"""Bounded, cursor-based reads from the canonical Inbox timeline indexes."""
 from __future__ import annotations
 
 from base64 import b64decode, urlsafe_b64encode
+from datetime import datetime
 import json
 import re
 
@@ -9,8 +10,11 @@ from boto3.dynamodb.conditions import Attr, Key
 from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
 from botocore.exceptions import BotoCoreError, ClientError
 
+from lambda_utils.inbox_timeline_indexes import INDEXES, TIME_KEY
+
 CHANNELS = ("whatsapp", "sms", "rcs", "email", "voice")
 MAX_PAGE = 100
+SAMPLE_LIMIT = 300
 _CURSOR_LIMIT = 8192
 _SERIALIZER = TypeSerializer()
 _DESERIALIZER = TypeDeserializer()
@@ -23,7 +27,7 @@ def _encode(scope, positions):
         stream: ({name: _SERIALIZER.serialize(value) for name, value in key.items()} if key else None)
         for stream, key in positions.items()
     }
-    doc = json.dumps([1, scope, values], separators=(",", ":")).encode()
+    doc = json.dumps([2, scope, values], separators=(",", ":")).encode()
     return urlsafe_b64encode(doc).decode().rstrip("=")
 
 
@@ -35,7 +39,7 @@ def _decode(cursor, scope, partition, streams):
             raise ValueError
         raw = b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
         version, claimed_scope, values = json.loads(raw)
-        if version != 1 or scope != claimed_scope or not isinstance(values, dict):
+        if version != 2 or scope != claimed_scope or not isinstance(values, dict):
             raise ValueError
         if not values or not set(values).issubset(streams):
             raise ValueError
@@ -44,15 +48,15 @@ def _decode(cursor, scope, partition, streams):
             if key is None:
                 positions[stream] = None
                 continue
-            if not isinstance(key, dict) or not 1 <= len(key) <= 4:
+            expected_types = {partition: "S", "id": "S", TIME_KEY: "N"}
+            if not isinstance(key, dict) or set(key) != set(expected_types):
                 raise ValueError
-            for name, value in key.items():
-                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name):
+            for name, tag in expected_types.items():
+                value = key[name]
+                if not isinstance(value, dict) or set(value) != {tag}:
                     raise ValueError
-                if not isinstance(value, dict) or len(value) != 1:
-                    raise ValueError
-                tag, data = next(iter(value.items()))
-                if tag not in ("N", "S") or not isinstance(data, str) or not 1 <= len(data) <= 1024:
+                data = value[tag]
+                if not isinstance(data, str) or not 1 <= len(data) <= 1024:
                     raise ValueError
                 if tag == "N" and not re.fullmatch(r"-?[0-9]{1,38}(?:\.[0-9]{1,38})?(?:[eE][+-]?[0-9]{1,3})?", data):
                     raise ValueError
@@ -64,6 +68,64 @@ def _decode(cursor, scope, partition, streams):
         raise ValueError("Invalid or mismatched inbox cursor.") from exc
 
 
+def _validate_scope(contact_id, channel, direction):
+    if channel not in (*CHANNELS, "all") or direction not in ("", "inbound", "outbound"):
+        raise ValueError("Invalid inbox filter.")
+    if contact_id and len(contact_id) > 250:
+        raise ValueError("Invalid contact ID.")
+
+
+def _timestamp(row):
+    value = row.get("timestamp") or row.get("createdAt") or 0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+
+def _ordered(rows):
+    return sorted(rows, key=lambda row: (_timestamp(row), str(row.get("id") or "")), reverse=True)
+
+
+def read_sample(table, *, contact_id, channel, direction, limit):
+    """Bounded compatibility sample; never imply full chronological server paging."""
+    _validate_scope(contact_id, channel, direction)
+    limit = max(1, min(MAX_PAGE, limit))
+    filters = [Attr(key).eq(value) for key, value in (
+        ("channel", channel if channel != "all" else ""), ("direction", direction)
+    ) if value]
+
+    def options(terms):
+        if not terms:
+            return {}
+        expression = terms[0]
+        for term in terms[1:]:
+            expression &= term
+        return {"FilterExpression": expression}
+
+    if contact_id:
+        try:
+            result = table.query(
+                IndexName="contactId-index",
+                KeyConditionExpression=Key("contactId").eq(contact_id),
+                Limit=SAMPLE_LIMIT,
+                **options(filters),
+            )
+            return _ordered(result["Items"])[:limit]
+        except ClientError as exc:
+            details = exc.response.get("Error", {})
+            code, message = details.get("Code"), details.get("Message", "").lower()
+            missing_index = code == "ValidationException" and ("index" in message or "backfill" in message)
+            if not missing_index:
+                raise
+        filters.append(Attr("contactId").eq(contact_id))
+    result = table.scan(Limit=SAMPLE_LIMIT, **options(filters))
+    return _ordered(result["Items"])[:limit]
+
+
 def read_page(table, *, contact_id, channel, direction, limit, cursor, logger):
     """Read one page per relevant index partition, without falling back to a scan.
 
@@ -71,10 +133,7 @@ def read_page(table, *, contact_id, channel, direction, limit, cursor, logger):
     every fetched row so advancing a partition never drops results. A thread uses
     only the contact index; the caller can continue through an empty filtered page.
     """
-    if channel not in (*CHANNELS, "all") or direction not in ("", "inbound", "outbound"):
-        raise ValueError("Invalid inbox filter.")
-    if contact_id and len(contact_id) > 250:
-        raise ValueError("Invalid contact ID.")
+    _validate_scope(contact_id, channel, direction)
     partition = "contactId" if contact_id else "channel"
     streams = (contact_id,) if contact_id else (CHANNELS if channel == "all" else (channel,))
     scope = [contact_id, channel, direction]
@@ -89,7 +148,7 @@ def read_page(table, *, contact_id, channel, direction, limit, cursor, logger):
 
     for stream, previous in positions.items():
         query = {
-            "IndexName": f"{partition}-index",
+            "IndexName": INDEXES[partition],
             "KeyConditionExpression": Key(partition).eq(stream),
             "ScanIndexForward": False,
             "Limit": per_partition,
@@ -111,7 +170,4 @@ def read_page(table, *, contact_id, channel, direction, limit, cursor, logger):
         if result.get("LastEvaluatedKey"):
             next_positions[stream] = result["LastEvaluatedKey"]
 
-    messages.sort(key=lambda row: (
-        float(row.get("timestamp") or 0), str(row.get("id") or "")
-    ), reverse=True)
-    return messages, _encode(scope, next_positions), failed_channels, len(positions)
+    return _ordered(messages), _encode(scope, next_positions), failed_channels, len(positions)

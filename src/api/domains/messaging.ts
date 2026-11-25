@@ -99,6 +99,7 @@ export interface InboxMessagePage {
   nextCursor: string | null;
   unavailableChannels: string[];
   legacy: boolean;
+  sampled: boolean;
 }
 
 /** Scope-specific list/thread page. An older backend may return a bounded snapshot instead. */
@@ -122,12 +123,13 @@ export async function listInboxMessagePage ( options: {
     } };
   }
   const legacy = data?.inboxVersion !== 1;
+  const sampled = !legacy && data?.historyMode === 'sampled';
   return { ok: true, data: {
     messages: messages.filter( ( row: unknown ) => row !== null && typeof row === 'object' ).map( normalizeMessage ),
-    nextCursor: !legacy && typeof data.nextCursor === 'string' ? data.nextCursor : null,
+    nextCursor: !legacy && !sampled && typeof data.nextCursor === 'string' ? data.nextCursor : null,
     unavailableChannels: !legacy && Array.isArray( data.unavailableChannels )
       ? data.unavailableChannels.filter( ( value: unknown ) => typeof value === 'string' ) : [],
-    legacy,
+    legacy, sampled,
   } };
 }
 

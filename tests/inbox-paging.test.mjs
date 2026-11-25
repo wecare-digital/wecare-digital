@@ -62,3 +62,32 @@ test( 'high-volume head turnover in one channel flags a possibly stale cursor', 
   assert.equal( feed.inboxHeadMayHaveGap( previous, [ row( 's0', 50, 'SMS' ) ], true ), false );
   assert.equal( feed.inboxHeadMayHaveGap( previous, [ row( 's4', 120, 'SMS' ), previous[ 0 ] ], true ), false );
 } );
+
+test( 'new backend sample mode is distinct from old backend and never follows a stale cursor', async () => {
+  response = { ok: true, data: {
+    inboxVersion: 1, historyMode: 'sampled', messages: [ row( 'a', 100, 'sms' ) ],
+    nextCursor: 'must-not-resume',
+  } };
+  const result = await messaging.listInboxMessagePage();
+  assert.ok( result.ok );
+  assert.equal( result.data.sampled, true );
+  assert.equal( result.data.legacy, false );
+  assert.equal( result.data.nextCursor, null );
+  assert.equal( result.data.messages[ 0 ].id, 'a' );
+} );
+
+test( 'cross-channel rows displaced from a saved thread remain in loaded history', () => {
+  const previous = [ row( 's3', 83, 'SMS' ), row( 'w2', 82, 'WHATSAPP' ), row( 'r1', 81, 'RCS' ) ];
+  const fresh = [ row( 's5', 85, 'SMS' ), row( 's4', 84, 'SMS' ), previous[ 0 ] ];
+  const archive = [ row( 's0', 80, 'SMS' ) ];
+  const displaced = feed.displacedInboxRows( previous, fresh, false );
+  assert.equal( displaced.map( m => m.id ).join(), 'w2,r1' );
+  assert.equal( feed.mergeInboxMessages( archive, displaced, fresh ).map( m => m.id ).join(), 's5,s4,s3,w2,r1,s0' );
+} );
+
+test( 'a displaced row tied with the new head boundary survives if older pages remain', () => {
+  const previous = [ row( 'same-and-visible', 100, 'SMS' ), row( 'same-but-displaced', 100, 'RCS' ) ];
+  const fresh = [ row( 'new', 101, 'SMS' ), previous[ 0 ] ];
+  assert.equal( feed.displacedInboxRows( previous, fresh, false, true ).map( m => m.id ).join(), 'same-but-displaced' );
+  assert.equal( feed.displacedInboxRows( previous, fresh, false, false ).length, 0 );
+} );
