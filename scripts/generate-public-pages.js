@@ -129,7 +129,7 @@ const STRUCTURAL = [
   // coming through ProductPage.tsx, which is the closest thing to a structural signal - but
   // it is not one this script should infer from, because a future platform product might
   // well be built on the shared component.
-  { path: '/dispatch', group: 'platform' },
+  { path: '/relay-os', group: 'platform' },
   { path: '/atmos/nano-climate', group: 'platform' },
   { path: '/atmos/green-ledger', group: 'platform' },
   // Sehat is a service with its own page file rather than a products.ts entry, so it has

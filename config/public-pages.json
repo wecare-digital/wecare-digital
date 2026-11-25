@@ -100,9 +100,9 @@
       "description": "Check the status of an order, delivery, request or booking."
     },
     {
-      "path": "/dispatch",
+      "path": "/relay-os",
       "group": "platform",
-      "name": "Dispatch",
+      "name": "Relay OS",
       "description": "End-user messaging across WhatsApp, SMS, Email and Voice."
     },
     {

@@ -5,7 +5,9 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
-  ['/dispatch', 'src/pages/dispatch/index.tsx'],
+  ['/niji-setu/parichay', 'src/pages/niji-setu/parichay.tsx'],
+  ['/niji-setu/khata', 'src/pages/niji-setu/khata.tsx'],
+  ['/relay-os', 'src/pages/relay-os/index.tsx'],
   ['/atmos/nano-climate', 'src/pages/atmos/nano-climate.tsx'],
   ['/atmos/green-ledger', 'src/pages/atmos/green-ledger.tsx'],
   ['/elsewhere/rail', 'src/pages/elsewhere/rail.tsx'],
@@ -13,6 +15,8 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/niji-setu', 'src/pages/niji-setu.tsx'],
+  ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
   ['/vayulok', 'src/pages/vayulok/index.tsx'],
   ['/sehat', 'src/pages/sehat.tsx'],
@@ -65,4 +69,23 @@ test('every submenu child uses the shared bent arrow, not a product-specific gly
   const header = read('src/components/Header.tsx');
   assert.ok(header.includes('<path d={ SUBNAV_ICON_PATH } />'));
   assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
+});
+
+
+test('Atmos uses the official outlined grass symbol at its native viewBox', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("Atmos: 'M80-160v-80h230"));
+  assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
+  assert.ok(header.includes("'0 -960 960 960'"));
+  assert.ok(header.includes("label: 'Relay OS', href: '/relay-os/'"));
+});
+
+test('Niji Setu is a non-clickable family and both destinations use shared submenu icons', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("label: 'Parichay', href: '/niji-setu/parichay/'"));
+  assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
+  assert.ok(!header.includes("href: '/niji-setu/'"));
+  assert.ok(header.includes('{ link.nested ? ('));
+  const notFound = read('src/pages/404.tsx');
+  assert.ok(notFound.includes("'/dispatch', '/niji-setu', '/shop/niji-setu'"));
 });

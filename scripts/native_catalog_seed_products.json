@@ -18,8 +18,8 @@
   "products": [
     {
       "slug": "grahak-os",
-      "title": "Dispatch by WECARE.DIGITAL",
-      "canonicalPath": "/dispatch/",
+      "title": "Relay OS by WECARE.DIGITAL",
+      "canonicalPath": "/relay-os/",
       "priceMinor": 89900,
       "catalogImageKey": "",
       "variantLabel": "Standard"

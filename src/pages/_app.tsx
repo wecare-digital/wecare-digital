@@ -270,12 +270,12 @@ const COMPANY_DESCRIPTION =
 const organizationSchema = ORGANIZATION;
 
 // THE SITEWIDE SoftwareApplication IS DELETED, 2026-10-25. It was emitted on every public route
-// except /dispatch/ and described "WECARE.DIGITAL" as an "Enterprise multi-channel messaging CRM
-// platform" - Dispatch's positioning - on /terms, /privacy, the puja kit, the home page and every
+// except /relay-os/ and described "WECARE.DIGITAL" as an "Enterprise multi-channel messaging CRM
+// platform" - Relay OS's positioning - on /terms, /privacy, the puja kit, the home page and every
 // other route whose visible content is not that software. It also asserted a `softwareVersion`
 // of "1.0.0" and the logo as its `screenshot`, neither of which is true. Structured data must
 // describe the page it is on (.kiro/steering/00-common.md), and the one page this software IS
-// about already declares its own, accurate SoftwareApplication (src/pages/dispatch/index.tsx).
+// about already declares its own, accurate SoftwareApplication (src/pages/relay-os/index.tsx).
 // Its earlier removals - an invented aggregateRating and a price-0 Offer - are in git history.
 
 // Structured data for the website
@@ -394,7 +394,7 @@ const serviceSchema = {
 const PUBLIC_PAGE_META: Record<string, {
   name: string; type: string; description: string; serviceType?: string;
 }> = {
-  '/dispatch': { name: 'Dispatch', type: 'WebPage', description: 'End-user messaging across WhatsApp, SMS, Email and Voice.', serviceType: 'End-user messaging' },
+  '/relay-os': { name: 'Relay OS', type: 'WebPage', description: 'End-user messaging across WhatsApp, SMS, Email and Voice.', serviceType: 'End-user messaging' },
   '/atmos/nano-climate': { name: 'Nano Climate', type: 'WebPage', description: 'Bharat air and weather insights.', serviceType: 'Air quality and weather insights' },
   '/atmos/green-ledger': { name: 'Green Ledger', type: 'WebPage', description: 'Environmental records and sustainability tracking — product information and enquiries.' },
   '/contact': { name: 'Contact', type: 'ContactPage', description: 'Submit, amend or track a request, drop documents, or leave a review.' },
@@ -756,7 +756,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
   //
   // This used to be `if ( !mounted ) return null;`, which ran BEFORE the branches below
   // and therefore before their <Head>. The cost was total: every statically exported page
-  // shipped an empty body AND an empty head - /dispatch/index.html was 3,299 bytes with
+  // shipped an empty body AND an empty head - /relay-os/index.html was 3,299 bytes with
   // no title, no description, no og tags, no canonical and no JSON-LD. Crawlers that do
   // not execute JS saw an untitled blank page, link previews had nothing to read, and any
   // webview where the bundle failed showed white.
@@ -827,7 +827,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               notched/cutout phones and foldables; the value is the one the steering file fixes.
               NO key ON THESE METAS, on purpose: next/head skips its name-based de-duplication
               for a keyed name-meta, so a key here would sit BESIDE the unkeyed viewport and
-              theme-color /dispatch/ declares instead of yielding to them. Unkeyed, the page's
+              theme-color /relay-os/ declares instead of yielding to them. Unkeyed, the page's
               copy wins and Next's own default viewport is dropped by name. */}
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
           <meta name="theme-color" content="#ffffff" />
@@ -849,7 +849,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               and _document.tsx renders on every route, so the built head carried the Inter
               stylesheet TWICE - two render-blocking requests for one font - plus duplicate
               preconnects to fonts.googleapis.com and fonts.gstatic.com. Counted in
-              out/dispatch/index.html before this change: rel=stylesheet x2, preconnect
+              out/relay-os/index.html before this change: rel=stylesheet x2, preconnect
               googleapis x2, preconnect gstatic x2.
               next/head de-duplicates by `key`, not by href, and these had no key, so
               nothing was going to collapse them. _document.tsx is the right owner because
@@ -862,19 +862,19 @@ export default function App ( { Component, pageProps }: AppProps ) {
               whatever it says becomes the identity of 15 pages. It used to read "Enterprise
               WhatsApp Business API platform for India..." with 22 WhatsApp keywords - copy
               written for ONE product - so the company home page was indexed as a WhatsApp
-              product page and competed with /dispatch/ for the same terms.
-              /dispatch/ is unaffected by this change: it already declares its own title,
+              product page and competed with /relay-os/ for the same terms.
+              /relay-os/ is unaffected by this change: it already declares its own title,
               description and OG tags, so its WhatsApp positioning is stated where it belongs
               rather than leaking sitewide.
               NO meta keywords, anywhere on the public site. Google Search does not use the tag
-              and the steering file says not to add it; it was deleted here and on /dispatch/
+              and the steering file says not to add it; it was deleted here and on /relay-os/
               on 2026-10-25 rather than kept as a harmless leftover. */}
           <meta name="description" content={ COMPANY_DESCRIPTION } />
           {/* THE ICON PAIR, THE VIEWPORT, THE THEME COLOUR AND THE MANIFEST THAT USED TO BE HERE
               ARE NOW ABOVE, OUTSIDE THE GATE - see the notes at the top of this branch. */}
           {/* CANONICAL AND og:url ARE COMPUTED, and carry a key.
               Both were hardcoded to the site root, on every page. The result was that
-              /contact/, /terms/, /privacy/, /dispatch/ and /atmos/nano-climate/ each shipped TWO
+              /contact/, /terms/, /privacy/, /relay-os/ and /atmos/nano-climate/ each shipped TWO
               canonical tags - this root one first, then the page's own correct one -
               which is ambiguous, and the most likely reading is that every page is a
               duplicate of the homepage. That alone would keep those URLs from ranking,
@@ -904,18 +904,18 @@ export default function App ( { Component, pageProps }: AppProps ) {
               next/head only de-duplicates meta by `name`, `httpEquiv`, `charSet` and
               `itemProp`. `property` is NOT in that list, so two og:title tags coexist
               happily where two twitter:title tags collapse to one. Measured on the built
-              export, /dispatch/index.html shipped TWO of every single og tag - type, url,
+              export, /relay-os/index.html shipped TWO of every single og tag - type, url,
               title, description, image, site_name, locale - because that page declares its
               own set and nothing merged them. A link preview then reads whichever it meets
               first, which was this sitewide block, so the product page previewed with the
               sitewide copy.
               An explicit key is the documented escape hatch, but it only works when BOTH
               sides use the SAME key: og:url already had key="og:url" here and still
-              duplicated, because /dispatch/ declared its og:url without one. The keys
-              below are therefore mirrored in src/pages/dispatch/index.tsx, and any future
+              duplicated, because /relay-os/ declared its og:url without one. The keys
+              below are therefore mirrored in src/pages/relay-os/index.tsx, and any future
               page that declares og tags must use these same keys or it will double them
               again. Verify with:
-                grep -o '"og:title"' out/dispatch/index.html | wc -l   # must be 1 */}
+                grep -o '"og:title"' out/relay-os/index.html | wc -l   # must be 1 */}
           <meta property="og:type" key="og:type" content="website" />
           <meta property="og:url" key="og:url" content={ canonicalUrl } />
           {/* PRODUCT-NEUTRAL, for the same reason the description above is.
@@ -927,7 +927,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               page. It also printed the brand name TWICE in a single og:title.
               The wording now mirrors the neutral description already agreed above, so the
               title, description, og and twitter tags finally describe the same company.
-              /dispatch/ keeps its WhatsApp positioning in its own Head, which is where a
+              /relay-os/ keeps its WhatsApp positioning in its own Head, which is where a
               product claim belongs. */}
           <meta property="og:title" key="og:title" content="Everyday AI, built for Bharat | WECARE.DIGITAL" />
           <meta property="og:description" key="og:description" content={ COMPANY_DESCRIPTION } />
@@ -990,7 +990,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               that the reader cannot see is exactly what the steering file forbids. */}
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
           {/* No SoftwareApplication here any more - see the note where softwareSchema was
-              declared. /dispatch/ declares its own, which is the one page it describes. */}
+              declared. /relay-os/ declares its own, which is the one page it describes. */}
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( websiteSchema ) } } />
           {/* serviceSchema IS SCOPED TO /grahak-os, as the deleted sitewide
               SoftwareApplication should have been. It declares serviceType "WhatsApp Business
@@ -1002,9 +1002,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
               og block, and here it is also a guidelines problem rather than just wasted
               markup: Google requires structured data to represent the page's actual
               content, which a messaging offer catalog does not do on a privacy policy.
-              On /dispatch the entity is accurate, so the value needs no rewording - only
+              On /relay-os the entity is accurate, so the value needs no rewording - only
               the scope was wrong. */}
-          { router.pathname === '/dispatch' && (
+          { router.pathname === '/relay-os' && (
             <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
           ) }
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />

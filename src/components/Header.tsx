@@ -79,7 +79,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Products',
         links: [
-          { label: 'Dispatch', href: '/dispatch/', match: '/dispatch', searchTerms: [ 'messaging', 'customer engagement', 'WhatsApp', 'SMS', 'RCS', 'email', 'voice' ] },
+          { label: 'Relay OS', href: '/relay-os/', match: '/relay-os', searchTerms: [ 'messaging', 'customer engagement', 'WhatsApp', 'SMS', 'RCS', 'email', 'voice' ] },
           {
             label: 'Atmos',
             searchTerms: [ 'environment', 'climate', 'sustainability' ],
@@ -267,8 +267,9 @@ const menuSearchKey = ( link: Pick<NavLink, 'label' | 'href'> ) => `${link.href 
 const NAV_ICON_PATHS: Record<string, string> = {
   Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
-  Dispatch: 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
-  Atmos: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c-5 5-5 13 0 18m0-18c5 5 5 13 0 18',
+  'Relay OS': 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
+  // Google Material Symbols Outlined grass, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+  Atmos: 'M80-160v-80h230q-22-85-83.5-146.5T80-470q20-5 39.5-7.5T160-480q134 0 227 93t93 227H80Zm480 0q0-42-9-83.5T525-323q42-71 114.5-114T800-480q21 0 40.5 2.5T880-470q-85 22-146 83.5T650-240h230v80H560Zm-80-239q0-65 24-122t66-100.5q42-43.5 98.5-69.5T789-719q-56 35-98 86t-65 114q-44 21-80.5 51.5T480-399Zm-73-75q-12-9-24-17t-25-16q0-6 1-12.5t1-12.5q0-76-24-144t-68-124q66 27 114.5 77.5T457-606q-18 30-31 63.5T407-474Z',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
@@ -315,6 +316,7 @@ const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
 };
 
 const MATERIAL_NAV_ICON_LABELS = new Set( [
+  'Atmos',
   'Hunar',
   'Niji Setu',
   'Submit Request',
