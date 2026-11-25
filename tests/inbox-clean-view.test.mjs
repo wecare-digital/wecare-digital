@@ -34,7 +34,8 @@ test('each message has an explicit confirmed delete control', () => {
 });
 
 test('the actual server deletes canonical and exact matching source, not an arbitrary table', () => {
-  assert.ok(backend.includes('delete_visible_message('));
+  // The handler's scope dispatch is exercised in test_inbox_message_delete_rollout.py.
+  assert.match(backend, /operation = \(redact_visible_message_content if scope == 'content-only'\s+else delete_visible_message\)\s+outcome = operation\(/);
   assert.ok(backend.includes("staff.get('mfaEnrolled') is not True"));
   assert.ok(checker.includes('canonical_table.delete_item('));
   assert.ok(checker.includes('source_table.delete_item('));
