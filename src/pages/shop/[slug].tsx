@@ -95,6 +95,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
     <>
       <ShopProductHead product={ product } />
       <RotatingHero
+        badgeLabel={ `Shop · ${product.name}` }
         frame="Explore"
         words={ [ { word: product.name, tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub={ product.tagline }

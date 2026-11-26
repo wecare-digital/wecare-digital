@@ -153,6 +153,7 @@ const AuthPage: React.FC = () => {
       </Head>
 
       <RotatingHero
+        badgeLabel="Account access"
         ariaLabel="WECARE.DIGITAL sign in"
         frame="One account."
         words={ WORDS }

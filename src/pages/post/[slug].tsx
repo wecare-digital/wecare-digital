@@ -329,6 +329,7 @@ export default function BlogPostPage ( {
           dynamic template, so every post - today's and any added tomorrow - gets it automatically.
           The shared action dock is outside this template and owned once by _app. */}
       <RotatingHero
+        badgeLabel="Blog article"
         mobileFoundation
         frame="Read and"
         words={ [

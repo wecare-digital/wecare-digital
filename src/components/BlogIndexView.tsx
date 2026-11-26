@@ -250,6 +250,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
 
   return (
     <RotatingHero
+      badgeLabel={ activeCategory && activeCategory !== defaultCategory ? `Blog · ${activeCategory}` : 'Blog' }
       mobileFoundation
       frame="Notes on"
       words={ HERO_WORDS }

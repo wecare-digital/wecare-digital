@@ -641,11 +641,10 @@ function VaultFileContent ( { targetFileId }: FilesPageProps ) {
                 document-access heading is an <h2> inside the panel, while the file name
                 is its subordinate <h3>. No duplicate page landmark is introduced.
 
-                NO badgeLabel, matching the home page and /blog/: the label here would just be the
-                company name again, 109px under the header's own lockup, which is exactly what the
-                home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
-                the same reason. */}
+                The contextual Vault eyebrow identifies this file-access journey without
+                repeating the header's company name. */}
             <RotatingHero
+              badgeLabel="Vault"
                 frame="Your secure"
                 words={ GET_WORDS }
                 sub="Check the status and choose your next step."

@@ -175,6 +175,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
 
   return (
     <RotatingHero
+      badgeLabel="Shop"
       frame="A shop for"
       words={ SHOP_HERO_WORDS }
       sub="Explore WECARE.DIGITAL products and services, each with its own page to open."

@@ -698,6 +698,7 @@ export default function OrdersPage (): React.ReactElement {
       { /* Orders has one canonical URL. Historical incoming order selectors are
            consumed and removed before they can become new outgoing links. */ }
       <RotatingHero
+        badgeLabel="Orders"
         compact
         frame="Your"
         words={ [ { word: 'orders', tint: 'var(--public-brand-lime)', dot: 'var(--public-brand-green)' } ] }
