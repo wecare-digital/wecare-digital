@@ -57,10 +57,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    number: '3.4', heading: 'Your messages to us', id: 's3-4',
+    number: '3.4', heading: 'Communications and service correspondence', id: 's3-4',
     paragraphs: [
-      'We process what you send by email, phone, messaging apps, platform chat, web forms, support requests and social media.',
-      'Where we record a call, consultation or interaction, we give notice or obtain authorisation before doing so where the law requires it.',
+      'We process correspondence and information submitted by email, telephone, messaging services, on-platform messaging, web forms, support requests and social media.',
+      'Notice or authorisation is obtained before recording calls, consultations or other interactions where required by law.',
     ],
   },
   {
@@ -130,8 +130,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     inShort: 'Consultation information is protected personal data and is disclosed only on an applicable lawful basis.',
     paragraphs: [
       'Some services involve professionals, experts, practitioners or institutions.',
-      'Information you give in connection with those services is personal data like any other. Access to it is limited to what the service requires, subject to the professional\'s own obligations and the law.',
-      'We do not treat consultation information as falling outside privacy protection merely because it was given during a professional interaction.',
+      'Personal data provided in connection with professional services is accessible only as necessary for the relevant service, subject to applicable confidentiality and legal requirements.',
+      'Consultation information remains subject to applicable privacy protections.',
       'We will disclose it only where the law requires it, where it is necessary to address a serious and legally recognised safety risk, where you authorise it, where sharing is necessary to provide the service you asked for, or where another lawful basis applies.',
       'Individual professionals may owe you additional duties of confidentiality beyond this policy.',
     ],
@@ -141,9 +141,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     inShort: 'Sponsoring organisations may receive information necessary for eligibility and billing. Sponsorship alone does not authorise access to consultation content.',
     paragraphs: [
       'An employer, school, or other organisation may arrange or fund a service for you.',
-      'In that case the organisation gives us what is needed to confirm you are eligible and to administer your access.',
-      'What we report back to them depends on the arrangement, the service-specific terms and the law. Where we can report in aggregate or de-identified form, we do.',
-      'Your personal consultation content is not disclosed to that organisation merely because it funded your access. We disclose it only if you authorise it, if it is necessary to provide the service and we have told you so, or if the law requires it.',
+      'The sponsoring organisation provides information necessary to establish eligibility and administer access.',
+      'Disclosures to sponsoring organisations are governed by the arrangement, applicable service terms and law. Aggregate or de-identified reporting is used where possible.',
+      'Sponsorship alone does not authorise disclosure of personal consultation content. Disclosure requires your authorisation, disclosed necessity for service provision, or a legal requirement.',
     ],
   },
   {
@@ -216,11 +216,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    number: '13', heading: 'AI and automated processing', id: 's13',
-    inShort: 'Some services use automated tools. You may request review or exercise applicable rights.',
+    number: '13', heading: 'Artificial Intelligence (AI) and Super Intelligence (SI)', id: 's13',
+    inShort: 'Personal data processing through intelligence-enabled features is subject to applicable privacy safeguards and review procedures.',
     paragraphs: [
-      'We may use automated tools, including AI where applicable, to provide communications, document and content assistance, organise requests, protect accounts, prevent fraud and improve services.',
-      'Where processing materially affects you, we provide any disclosure, consent, review or other safeguard required by law. You may contact one@wecare.digital with questions or to request review.',
+      'Where applicable, Artificial Intelligence (AI), Super Intelligence (SI) and other automated technologies may process personal data for communications, documentation and content assistance, service requests, account protection, fraud prevention and service improvement.',
+      'Personal data submitted to or generated through these features is handled under the purposes, lawful grounds, disclosure, retention and safeguards described in this policy. Where processing materially affects an individual, applicable disclosure, consent, review and other safeguards are provided. Enquiries or review requests may be submitted to one@wecare.digital.',
     ],
   },
   {
@@ -261,9 +261,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '18', heading: 'Your rights', id: 's18',
-    inShort: 'You can ask what we hold, correct it, complete it, have it deleted, withdraw consent, or complain. Email one@wecare.digital.',
+    inShort: 'Requests for access, correction, completion, erasure, withdrawal of consent and privacy grievances may be submitted to one@wecare.digital.',
     paragraphs: [
-      'Subject to the law and any lawful exception, you can ask us to tell you what personal data we process about you; correct anything inaccurate; complete or update anything incomplete; delete data where the law allows; stop processing that relies on consent you have withdrawn; and consider a privacy grievance. Where the law gives you the right to nominate someone to exercise your rights, you can do that too.',
+      'Subject to the law and any lawful exception, you can ask us to tell you what personal data we process about you; correct anything inaccurate; complete or update anything incomplete; delete data where the law allows; stop processing that relies on consent you have withdrawn; and consider a privacy grievance. A representative may be nominated to exercise applicable rights where provided by law.',
       'Send requests to one@wecare.digital. We may ask you for enough information to confirm who you are, or that you are authorised to act for someone else, before we act.',
       'A deletion request does not cover data we are legally required to keep, or that remains genuinely necessary for another lawful purpose. Where deletion is not possible, we explain the reason.',
     ],
@@ -298,7 +298,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'We may update this policy to reflect changes in our services, data-handling practices or applicable law.',
       'Where a change materially affects how we handle your data, or where the law requires notice, we give notice.',
-      'We do not treat silence, inactivity or continued use as fresh consent where the law requires a separate affirmative consent.',
+      'Silence, inactivity and continued use do not constitute fresh consent where separate affirmative consent is required.',
     ],
   },
   {
