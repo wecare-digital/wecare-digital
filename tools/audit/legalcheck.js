@@ -17,7 +17,7 @@
  *      renumbered the labels but left the blocks where they were.
  *   5. The contact clause is the LAST top-level section, in both documents, on owner
  *      instruction. privacy.ts already ended that way; terms.ts now does too.
- *   6. Every section has a non-empty heading, inShort and at least one paragraph.
+ *   6. Every section has a non-empty heading and substantive paragraphs, without editorial summaries.
  *
  * Reads the compiled content so it checks the real exported arrays rather than a regex over
  * the source. The TypeScript is compiled with esbuild, which the app already depends on; this
@@ -96,16 +96,14 @@ function checkDoc( name, sections ) {
       `ends on ${last.number} "${last.heading}"` );
   }
 
-  // 6. content present. `inShort` is a TOP-LEVEL-ONLY field by design - the rewrite added
-  //    summaries per section, not per sub-clause - so requiring it on 14.2 and friends
-  //    fails 27 perfectly good sub-sections. Asserted where it is actually promised.
-  const noText = sections.filter( s => !s.heading?.trim() || !( s.paragraphs?.length > 0 ) );
-  if ( noText.length === 0 ) ok( `all ${sections.length} sections have a heading and a paragraph` );
+  // 6. Content present, with numbered provisions as the single source of text.
+  const noText = sections.filter( s => !s.heading?.trim() || !( s.paragraphs?.length > 0 ) || s.paragraphs.some( p => !p.trim() ) );
+  if ( noText.length === 0 ) ok( `all ${sections.length} sections have a heading and non-empty paragraphs` );
   else bad( 'sections missing heading/paragraphs', noText.map( s => s.number ).join( ', ' ) );
 
-  const noSummary = top.filter( s => !s.inShort?.trim() );
-  if ( noSummary.length === 0 ) ok( `all ${top.length} top-level sections have an inShort` );
-  else bad( 'top-level sections missing inShort', noSummary.map( s => s.number ).join( ', ' ) );
+  const summaries = sections.filter( s => Object.hasOwn( s, 'inShort' ) );
+  if ( summaries.length === 0 ) ok( 'no duplicate editorial summaries' );
+  else bad( 'sections with editorial summaries', summaries.map( s => s.number ).join( ', ' ) );
 }
 
 /**

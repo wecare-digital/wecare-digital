@@ -32,9 +32,8 @@ const TermsPage: React.FC = () => (
         sections={ TERMS_SECTIONS }
         intro={ TERMS_INTRO }
         notice={ <>
-          These Terms are the agreement between you and WECARE.DIGITAL, and they apply
-          when you use our services. They are not legal advice about your particular
-          situation. If you want to know how a clause applies to you, ask us at{ ' ' }
+          These Terms do not constitute legal advice for your individual circumstances.
+          For questions about your transaction or these Terms, contact{ ' ' }
           <a href="mailto:one@wecare.digital">one@wecare.digital</a>.
         </> }
       />
