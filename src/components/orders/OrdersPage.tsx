@@ -759,7 +759,13 @@ export default function OrdersPage (): React.ReactElement {
                   <p>{ selectedRequest?.description || 'Choose the action you need. Service eligibility, any price and the next steps are confirmed through the existing customer journey.' }</p>
                   { selectedRequest && requestLink && <>
                     <p>Continue in WhatsApp using the registered customer account. Nothing is submitted, purchased or sent automatically by opening this page.</p>
-                    <PillButton as="a" href={ requestLink } action="Continue on WhatsApp" />
+                    <PillButton as="a" href={ requestLink } action="Continue on WhatsApp" onClick={ event => {
+                      const capacitor = ( window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } } ).Capacitor;
+                      if ( !capacitor?.isNativePlatform?.() ) return;
+                      event.preventDefault();
+                      void import( '@capacitor/browser' ).then( ( { Browser } ) => Browser.open( { url: requestLink } ) )
+                        .catch( () => { window.location.href = requestLink; } );
+                    } } />
                   </> }
                   <div className="ord-request-choices">
                     { ORDER_REQUESTS.map( item => <button type="button" key={ item.id } aria-pressed={ requestSelection === item.id } onClick={ () => setRequestSelection( item.id ) }>{ item.label }</button> ) }

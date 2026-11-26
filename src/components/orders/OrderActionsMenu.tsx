@@ -324,7 +324,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           color:var(--public-brand-green);cursor:pointer;
           transition:background-color .18s ease;
         }
-        .orm-more svg{width:24px;height:24px;fill:currentColor}
+        .orm-more svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}
         .orm-more:hover,.orm-more[aria-expanded='true']{
           background:var(--lime-hover);border:0;box-shadow:none;outline:none;
         }
@@ -362,7 +362,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         .orm-section svg{
           width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
-          stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+          stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
         .orm-entries{padding:0 10px 6px}
         .orm-item,.orm-family-title{
@@ -381,7 +381,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         }
         .orm-icon{
           inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
-          stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+          stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
         .orm-icon-fill{fill:currentColor;stroke:none}
         .orm-icon path,.orm-section path,.orm-next path{vector-effect:non-scaling-stroke}
@@ -392,7 +392,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-sub{font-size:12px;line-height:1.35;font-weight:400;color:var(--public-muted)}
         .orm-next{
           inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:none;
-          stroke:currentColor;stroke-width:1.9;
+          stroke:currentColor;stroke-width:var(--public-nav-stroke);
           stroke-linecap:round;stroke-linejoin:round;opacity:.65;
         }
         .orm-family-title{font-size:18px;font-weight:700;cursor:default}
@@ -405,7 +405,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         @media(max-width:480px){
           .orm-menu{border-radius:18px}
           .orm-title{font-size:16px}
-          .orm-item,.orm-family-title{min-block-size:52px}
+          .orm-item,.orm-family-title{min-block-size:var(--public-nav-row-mobile)}
         }
       `}</style>
     </>

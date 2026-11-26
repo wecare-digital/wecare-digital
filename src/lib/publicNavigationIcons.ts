@@ -125,3 +125,9 @@ export const SUBNAV_ICON_VIEW_BOX = '1.375 0.875 23 23';
 export const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
 export const ROW_CHEVRON_VIEW_BOX = '4.8 4.8 14.4 14.4';
 
+
+// Exact Google Material Symbols Outlined paths, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+// menu_open (the selected symbol), keyboard_arrow_right and keyboard_arrow_down.
+export const CONTENTS_ICON = 'M120-240v-80h520v80H120Zm664-40L584-480l200-200 56 56-144 144 144 144-56 56ZM120-440v-80h400v80H120Zm0-200v-80h520v80H120Z';
+export const GROUP_CHEVRON = 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z';
+export const CONTENTS_CHEVRON = 'M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z';

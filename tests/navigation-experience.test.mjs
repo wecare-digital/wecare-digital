@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ORDER_REQUESTS, orderRequestById, orderRequestForLabel } from '../src/lib/orderRequestSelection.ts';
+import { ORDER_REQUESTS, orderRequestById, orderRequestForLabel, stashOrderRequest, takeOrderRequest } from '../src/lib/orderRequestSelection.ts';
 import { rankNavigation, NAV_DISCOVERY, normalizeNavigationText } from '../src/lib/navigationSearch.ts';
 
 const items = ['Khata','Visa','Panchang','Orders','Trip','Drop Docs','Track','Parichay'].map( label => ( { label, searchText: [label, ...(NAV_DISCOVERY[label] || [])].join(' ') } ) );
@@ -31,7 +31,8 @@ test('every request selection is allowlisted and independent of WhatsApp send in
   const actions = readFileSync(new URL('../src/components/orders/OrderActionsMenu.tsx', import.meta.url), 'utf8');
   const requestEntries = readFileSync(new URL('../src/config/whatsappServiceEntries.ts', import.meta.url), 'utf8');
   for (const request of ORDER_REQUESTS) assert.ok(requestEntries.includes("slug: '" + request.id + "'"));
-  assert.ok(header.includes('if ( request && isPrimaryMenuActivation( event ) ) stashOrderRequest( request.id )'));
+  assert.ok(header.includes('stashOrderRequest( request.id )'));
+  assert.ok(header.includes('void takeCustomerMenuAction()'));
   assert.ok(header.includes('aria-expanded={ familyOpen } aria-controls={ familyId }'));
   assert.ok(header.includes('hidden={ !familyOpen }'));
   assert.ok(orders.includes('const selection = takeOrderRequest()'));
@@ -46,4 +47,24 @@ test('legal scroll tracking and search retain native fragment navigation and ful
   assert.ok(legal.includes('aria-label="Find a legal clause"'));
   assert.ok(legal.includes('className="lgd-return-to-contents"'));
   assert.ok(legal.includes('section.paragraphs.map'));
+});
+
+test('request selection survives one auth handoff and rejects expired or tampered selections', () => {
+  const store = new Map();
+  const fakeWindow = { sessionStorage: { setItem: (key,value) => store.set(key,value), getItem: key => store.get(key) ?? null, removeItem: key => store.delete(key) } };
+  const prior = globalThis.window;
+  try {
+    globalThis.window = fakeWindow;
+    stashOrderRequest('drop-docs');
+    assert.equal(takeOrderRequest(), 'drop-docs');
+    assert.equal(takeOrderRequest(), null);
+    const key = 'wecare.orders.requestSelection.v1';
+    store.set(key, JSON.stringify({id:'vault', at:Date.now()-11*60*1000}));
+    assert.equal(takeOrderRequest(), null);
+    store.set(key, JSON.stringify({id:'arbitrary', at:Date.now()}));
+    assert.equal(takeOrderRequest(), null);
+  } finally {
+    if (prior === undefined) delete globalThis.window;
+    else globalThis.window = prior;
+  }
 });

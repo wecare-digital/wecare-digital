@@ -79,7 +79,7 @@ test('Home pause/play uses official Material Symbols, a stable accessible icon-o
 });
 
 test('Terms and Privacy share responsive collapsible contents with subsection deep links, not collapsed legal prose', () => {
-  const legal = read('src/components/LegalDocument.tsx');
+  const legal = read('src/components/LegalDocument.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   for (const page of ['terms', 'privacy']) {
     assert.ok(read('src/pages/' + page + '.tsx').includes('<LegalDocument'));
   }

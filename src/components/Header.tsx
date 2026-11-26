@@ -3,11 +3,11 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
-import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../lib/customerMenuActions';
+import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction, takeCustomerMenuAction } from '../lib/customerMenuActions';
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
 import { rankNavigation, NAV_DISCOVERY } from '../lib/navigationSearch';
-import { orderRequestForLabel, stashOrderRequest } from '../lib/orderRequestSelection';
+import { orderRequestForLabel, stashOrderRequest, takeOrderRequest } from '../lib/orderRequestSelection';
 import {
   NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS,
   navIconViewBox, sectionIconViewBox, FALLBACK_NAV_ICON_PATH,
@@ -335,7 +335,7 @@ const Header: React.FC = () => {
 
   const applySearchQuery = useCallback( ( value: string ) => {
     syncLocalizedSearchText();
-    setQuery( value );
+    setQuery( value.slice( 0, 120 ) );
   }, [ syncLocalizedSearchText ] );
 
   const close = useCallback( () => {
@@ -519,7 +519,14 @@ const Header: React.FC = () => {
   // destination is handed to the native browser instead of being trapped inside the WebView.
   const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
     const request = orderRequestForLabel( link.label );
-    if ( request && isPrimaryMenuActivation( event ) ) stashOrderRequest( request.id );
+    if ( isPrimaryMenuActivation( event ) && link.href === '/orders/' ) {
+      // Explicit new navigation supersedes an interrupted selection. Selecting
+      // a request is not permission to dispatch any earlier unsent invitation.
+      if ( request ) {
+        void takeCustomerMenuAction();
+        stashOrderRequest( request.id );
+      } else void takeOrderRequest();
+    }
     const sendAction = menuActionForLabel( link.label );
     if ( sendAction && isPrimaryMenuActivation( event ) ) {
       // For an existing customer session, issue this explicit invitation HERE:
@@ -1220,7 +1227,7 @@ const Header: React.FC = () => {
            and 46px still clears the 44px minimum touch target. */
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
-        .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:var(--public-nav-radius)}
+        .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:var(--public-nav-row-desktop);padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:var(--public-nav-radius)}
         .nav-row-chevron{margin-inline-start:auto}
         .nav-item-label{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.25;padding-block:5px}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
@@ -1233,8 +1240,8 @@ const Header: React.FC = () => {
         /* Split, same reason. .38 is a stronger tint than the .22 above but still only
            reaches rgb(238,251,201) over white - darker than nothing, nowhere near 3:1, and
            outline:none removed the fallback. Tint on hover, opaque ring on focus. */
-        .nav-item:not(.active):hover{background:rgba(209,244,112,.38)}
-        .nav-item:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:1px}.nav-item:not(.active):focus-visible{background:rgba(209,244,112,.38)}
+        .nav-item:not(.active):hover{background:var(--public-nav-hover)}
+        .nav-item:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:1px}.nav-item:not(.active):focus-visible{background:var(--public-nav-hover)}
         .nav-item.active{font-weight:800;background:var(--public-brand-lime);color:#0f2a1d}
         /* DIVIDER LINE AFTER EACH ROW + a lime SWEEP on hover.
            ::after is the faint resting hairline (#f1f3ec - deliberately very light, so it
@@ -1259,14 +1266,14 @@ const Header: React.FC = () => {
         /* Family children use the exact same 19px/600 navigation typography as their
            parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
         .nav-tree-item.has-children + .nav-tree-item{margin-top:6px}
-        .nav-family-label{width:100%;border:0;background:none;font-family:inherit;text-align:start;cursor:pointer}
+         .nav-family-label{box-sizing:border-box;width:100%;border:0;background:none;font-family:inherit;text-align:start;cursor:pointer}
         .nav-family-label[aria-expanded='true'] .nav-row-chevron{transform:rotate(90deg)}
         :global([dir='rtl']) .nav-family-label:not([aria-expanded='true']) .nav-row-chevron{transform:scaleX(-1)}
         .nav-family-children[hidden]{display:none}
         .nav-result-description{display:block;font-size:var(--public-meta-size);font-weight:400;color:var(--public-muted);line-height:1.35;margin-top:3px}
         .nav-empty{grid-column:1/-1}.nav-empty p{margin:0 0 8px}
         .nav-suggestions{display:flex;flex-wrap:wrap;gap:8px}.nav-suggestions button{min-height:var(--tap-min);border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);background:var(--public-bg);padding:6px 12px;color:var(--public-brand-green);font:inherit;cursor:pointer}.nav-suggestions button:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:2px}
-        .nav-child{font-size:19px;font-weight:600;min-height:46px;padding-inline-start:24px;gap:8px}
+        .nav-child{font-size:19px;font-weight:600;min-height:var(--public-nav-row-desktop);padding-inline-start:24px;gap:8px}
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
@@ -1283,7 +1290,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:var(--public-nav-row-mobile)}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
