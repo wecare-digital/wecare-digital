@@ -12,7 +12,6 @@ export const PRIVACY_INTRO: string[] = [
 export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '1', heading: 'What this policy covers', id: 's1',
-    inShort: 'This policy covers our handling of personal data. Independent providers have their own privacy terms where they determine how to use your data.',
     paragraphs: [
       'This policy covers our websites and apps, your account, orders and deliveries, appointments and bookings, professional and expert services, documentation and processing work, travel and experience services, digital products, subscriptions and memberships, partner and referral programmes, gift cards and promotions, customer support and grievances, and enterprise or institutional services.',
       'Independent sellers, service providers and payment companies may provide services through our platform. Where they independently determine the purposes and means of processing your data, their own privacy terms and responsibilities apply.',
@@ -20,7 +19,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '2', heading: 'Definition of personal data', id: 's2',
-    inShort: 'Any information that identifies you, or that can be linked back to you.',
     paragraphs: [
       'Personal data means information relating to an identified or identifiable person, including information identifiable in combination with other data. Any broader definition under applicable law also applies.',
       'It includes what you give us directly, what we observe as you use the platform, and what we receive from third parties who are allowed to share it.',
@@ -28,7 +26,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '3', heading: 'Categories of personal data', id: 's3',
-    inShort: 'The information we collect depends on the services you use.',
     paragraphs: [
       'The categories below describe the kinds of data a service may involve. Which of them apply to you depends on which services you use.',
     ],
@@ -91,7 +88,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '4', heading: 'Sources of personal data', id: 's4',
-    inShort: 'We collect data directly from you, through your use of the platform and from authorised third parties where necessary and lawful.',
     paragraphs: [
       'We collect information when you create an account, browse, make an order or booking, submit documents or forms, contact us, join an offer or event, use payment or delivery services, leave a review or use cookies.',
       'We also receive data from authorised third parties where it is genuinely needed for a service you asked for, or for security, fraud prevention or verification.',
@@ -99,7 +95,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '5', heading: 'Purposes of processing', id: 's5',
-    inShort: 'Personal data supports account administration, service fulfilment, payments, customer support, security, legal compliance and service improvement.',
     paragraphs: [
       'We use personal data to manage accounts, fulfil orders and service requests, coordinate providers and deliveries, process payments, refunds, contributions, gift cards and credits, handle documents and bookings, manage subscriptions, offers and referrals, personalise services, communicate with you, provide support, verify identity or eligibility, protect accounts, prevent fraud, improve services, resolve disputes and comply with law.',
       'Materially unrelated processing requires an appropriate lawful basis, including fresh consent where required.',
@@ -107,7 +102,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '6', heading: 'Consent and other lawful grounds', id: 's6',
-    inShort: 'Where we rely on consent we ask clearly and you can withdraw it. Withdrawing may mean we can no longer provide the service.',
     paragraphs: [
       'Where processing relies on consent, we describe its purpose and seek affirmative consent.',
       'You can withdraw consent at any time, using the mechanism shown for that service or by contacting us. Withdrawal ends future processing that relies on that consent; it does not affect the lawfulness of processing before withdrawal.',
@@ -117,7 +111,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '7', heading: 'Children', id: 's7',
-    inShort: 'We apply parental authorisation requirements and legal safeguards for children, including restrictions on tracking, profiling and advertising.',
     paragraphs: [
       'Services that involve buying or entering into a contract are intended for people legally able to do so.',
       'Where a service is available to a child and the law requires parental or guardian authorisation, we take steps to obtain and verify it.',
@@ -127,7 +120,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '8', heading: 'Professional and consultation information', id: 's8',
-    inShort: 'Consultation information is protected personal data and is disclosed only on an applicable lawful basis.',
     paragraphs: [
       'Some services involve professionals, experts, practitioners or institutions.',
       'Personal data provided in connection with professional services is accessible only as necessary for the relevant service, subject to applicable confidentiality and legal requirements.',
@@ -138,7 +130,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '9', heading: 'Organisation-sponsored services', id: 's9',
-    inShort: 'Sponsoring organisations may receive information necessary for eligibility and billing. Sponsorship alone does not authorise access to consultation content.',
     paragraphs: [
       'An employer, school, or other organisation may arrange or fund a service for you.',
       'The sponsoring organisation provides information necessary to establish eligibility and administer access.',
@@ -148,7 +139,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '10', heading: 'Disclosure of personal data', id: 's10',
-    inShort: 'Personal data is disclosed for service fulfilment, platform operations, security and other applicable lawful purposes described below.',
     paragraphs: [
       'We share personal data as needed to provide and support services, complete transactions, protect users and comply with law.',
     ],
@@ -198,7 +188,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '11', heading: 'Publicly shared content', id: 's11',
-    inShort: 'Public reviews and profile content are visible to others. Advertising use is subject to applicable consent requirements.',
     paragraphs: [
       'Reviews, ratings, comments and profile content submitted for public display are visible to others. Publish only information you intend to make public.',
       'Our rights over content you submit are set out in the Terms of Service at /terms/.',
@@ -207,7 +196,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '12', heading: 'Analytics, advertising and marketing', id: 's12',
-    inShort: 'Marketing communications can be opted out of. Essential transaction, account and security communications continue where necessary.',
     paragraphs: [
       'We use aggregated or de-identified information to understand how the platform performs and what people need.',
       'Marketing messages carry the consent, unsubscribe or opt-out mechanism the law requires.',
@@ -217,7 +205,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '13', heading: 'Artificial Intelligence (AI) and Super Intelligence (SI)', id: 's13',
-    inShort: 'Personal data processing through intelligence-enabled features is subject to applicable privacy safeguards and review procedures.',
     paragraphs: [
       'Where applicable, Artificial Intelligence (AI), Super Intelligence (SI) and other automated technologies may process personal data for communications, documentation and content assistance, service requests, account protection, fraud prevention and service improvement.',
       'Personal data submitted to or generated through these features is handled under the purposes, lawful grounds, disclosure, retention and safeguards described in this policy. Where processing materially affects an individual, applicable disclosure, consent, review and other safeguards are provided. Enquiries or review requests may be submitted to one@wecare.digital.',
@@ -225,7 +212,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '14', heading: 'International data transfers', id: 's14',
-    inShort: 'Personal data may be processed internationally by service providers, subject to applicable transfer safeguards.',
     paragraphs: [
       'Some service providers may process personal data outside your country.',
       'Where data crosses a border we do so subject to the restrictions, requirements and safeguards that apply to that transfer.',
@@ -234,7 +220,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '15', heading: 'Data retention', id: 's15',
-    inShort: 'Personal data is retained as necessary for its purpose and applicable legal obligations. Certain records may be retained after account closure.',
     paragraphs: [
       'We keep personal data for as long as the purpose it was collected for requires, or as long as a legal obligation requires. Different categories therefore have different retention periods.',
       'Data may be retained for an active transaction or ongoing service; account administration; financial, tax and accounting records; statutory record-keeping; transaction security; fraud prevention; a complaint or dispute; backups; legal claims; and enforcing our agreements.',
@@ -245,7 +230,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '16', heading: 'Protecting your information', id: 's16',
-    inShort: 'We use appropriate safeguards. Please keep account and verification details private.',
     paragraphs: [
       'We use reasonable safeguards appropriate to the personal data we handle, including access controls, authentication, encryption or masking, and security monitoring, as applicable.',
       'No method of electronic processing is completely secure. Please keep your sign-in and verification details private and contact us if you suspect unauthorised access.',
@@ -253,7 +237,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '17', heading: 'Personal data incidents', id: 's17',
-    inShort: 'We respond to personal data incidents and provide notifications as required by law.',
     paragraphs: [
       'If we become aware of a personal data breach, we take appropriate steps to assess and respond to it.',
       'We notify affected people and competent authorities when required by law. Notifications include the information required by applicable law, including relevant protective steps.',
@@ -261,7 +244,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '18', heading: 'Your rights', id: 's18',
-    inShort: 'Requests for access, correction, completion, erasure, withdrawal of consent and privacy grievances may be submitted to one@wecare.digital.',
     paragraphs: [
       'Subject to the law and any lawful exception, you can ask us to tell you what personal data we process about you; correct anything inaccurate; complete or update anything incomplete; delete data where the law allows; stop processing that relies on consent you have withdrawn; and consider a privacy grievance. A representative may be nominated to exercise applicable rights where provided by law.',
       'Send requests to one@wecare.digital. We may ask you for enough information to confirm who you are, or that you are authorised to act for someone else, before we act.',
@@ -270,7 +252,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '19', heading: 'Account closure', id: 's19',
-    inShort: 'Account closure may be requested; certain records are retained for applicable lawful purposes.',
     paragraphs: [
       'Where account closure is available you can request it through the platform or through customer support.',
       'Closing an account does not delete every record immediately. Data may be kept for completed transactions, legal obligations, fraud prevention, security, an unresolved dispute, or backups. Section 15 describes the retention criteria.',
@@ -278,7 +259,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '20', heading: 'Your contact preferences', id: 's20',
-    inShort: 'Communication preferences can be managed through the platform, unsubscribe links, device settings or customer support.',
     paragraphs: [
       'You can manage communication preferences through the platform, an unsubscribe link, your device settings, or by contacting us.',
       'Opting out of marketing does not stop messages needed for your account, order, booking, payment, security or complaint.',
@@ -286,7 +266,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '21', heading: 'Other websites and services', id: 's21',
-    inShort: 'We do not control third-party sites we link to. Read their terms.',
     paragraphs: [
       'The platform links to independent websites, apps and services. We do not control how they handle your data.',
       'When you leave our platform, or deal directly with an independent provider, their privacy information and terms apply.',
@@ -294,7 +273,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '22', heading: 'Changes to this policy', id: 's22',
-    inShort: 'Material changes are notified as applicable. Fresh affirmative consent is obtained where required.',
     paragraphs: [
       'We may update this policy to reflect changes in our services, data-handling practices or applicable law.',
       'Where a change materially affects how we handle your data, or where the law requires notice, we give notice.',
@@ -303,7 +281,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '23', heading: 'Questions and complaints', id: 's23',
-    inShort: 'Email one@wecare.digital or call +91 9330994400 for privacy requests and grievances.',
     paragraphs: [
       'For any question, request or complaint about your personal data, contact our Privacy and Grievance Desk: email one@wecare.digital, or call +91 9330994400. Our postal address is in section 24.',
       'We may ask for enough information to verify your identity or authority before acting on a request.',
@@ -323,7 +300,6 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '24', heading: 'Who we are and how to reach us', id: 's24',
-    inShort: 'WECARE.DIGITAL BHARATWORKS, Kolkata. one@wecare.digital, +91 9330994400.',
     paragraphs: [
       'Brand: WECARE.DIGITAL, operated under the business name WECARE.DIGITAL BHARATWORKS.',
       'Address: The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',

@@ -13,7 +13,6 @@ export const TERMS_INTRO: string[] = [
 export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '1', heading: 'Definitions', id: 's1',
-    inShort: 'Key terms used throughout this agreement.',
     paragraphs: [
       'WECARE.DIGITAL is the brand the Services are offered under. WECARE.DIGITAL BHARATWORKS is the business that operates it.',
       'The Platform means any website, app, portal, interface, software or tool we operate under the WECARE.DIGITAL name.',
@@ -26,7 +25,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '2', heading: 'Scope and application', id: 's2',
-    inShort: 'These Terms cover current and future Services. Service-Specific Terms take precedence for the relevant service.',
     paragraphs: [
       'These Terms apply to all Services we currently offer and, unless we say otherwise, to Services we introduce later.',
       'We may add, change, expand, reorganise, replace or withdraw Services from time to time.',
@@ -37,7 +35,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '3', heading: 'Who can use the Services', id: 's3',
-    inShort: 'You must have legal capacity to enter the transaction. Eligible services may be used with lawful parental or guardian authorisation.',
     paragraphs: [
       'Unless a particular service says otherwise, you must be legally capable of entering into the transaction you are making.',
       'Someone who cannot independently enter a binding transaction may use an eligible service only where the law permits it, and with the involvement, authorisation or consent of a parent, legal guardian or other authorised person.',
@@ -47,7 +44,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '4', heading: 'Using the Services for an organisation', id: 's4',
-    inShort: 'You must be authorised to act for your organisation. A separate signed agreement takes precedence on the matters it covers.',
     paragraphs: [
       'If you use the Services on behalf of a company, institution, school, employer, association or other organisation, you confirm that you are authorised to act for it.',
       'Organisational and enterprise services may be covered by a separate proposal, memorandum of understanding, order form, engagement letter, service agreement or master services agreement.',
@@ -56,7 +52,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '5', heading: 'Our role in each transaction', id: 's5',
-    inShort: 'We may supply directly or facilitate a transaction with an independent provider. Our role is identified in the applicable transaction information.',
     paragraphs: [
       'WECARE.DIGITAL runs a multi-service platform, and our role is not the same in every transaction.',
       'Depending on the transaction, we may sell or supply directly, act as a marketplace or reseller, or help you arrange bookings, payments, communications, documentation or fulfilment.',
@@ -68,7 +63,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '6', heading: 'Independent sellers and providers', id: 's6',
-    inShort: 'Independent sellers and providers are responsible for their offerings. Verification does not establish a guarantee of their performance.',
     paragraphs: [
       'Third-Party Providers are responsible for what they tell you about their products, services, qualifications, licences, registrations, availability, prices and specifications.',
       'They must follow the law and the terms of their relationship with us.',
@@ -80,7 +74,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '7', heading: 'Pre-purchase information', id: 's7',
-    inShort: 'Pre-purchase information includes the provider, product or service, total price and applicable cancellation and complaint procedures.',
     paragraphs: [
       'Where we act as a marketplace or facilitator, we display or make available the information you need to make an informed decision, as appropriate to the transaction and as the law requires.',
       'Depending on the transaction that can include who the Seller or Service Provider is and how to contact them; the material characteristics of the product or service; the price and any compulsory charges; accepted payment methods; delivery and fulfilment information; the cancellation, return, replacement and refund conditions; warranty or guarantee information; and how to raise a grievance.',
@@ -90,7 +83,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '8', heading: 'Your account', id: 's8',
-    inShort: 'Keep account details accurate and credentials confidential. Report suspected unauthorised access.',
     paragraphs: [
       'Certain Services require an account.',
       'When you have one, please give us accurate, current and complete information; keep it reasonably up to date; look after your login credentials; keep your password and authentication details confidential; use the account lawfully; and tell us if you have reason to believe someone has accessed it without your authorisation.',
@@ -100,7 +92,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '9', heading: 'Orders, bookings and service requests', id: 's9',
-    inShort: 'Acknowledgement does not constitute acceptance. Orders and bookings are confirmed under the conditions below.',
     paragraphs: [
       'Everything is subject to availability and to the conditions shown for it.',
       'When you place an order, make a booking or submit a paid service request, you are generally offering to buy.',
@@ -112,7 +103,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '10', heading: 'Purchase authorisation', id: 's10',
-    inShort: 'Purchases and optional charges require affirmative authorisation; inactivity and pre-selected options do not establish consent.',
     paragraphs: [
       'Inactivity, pre-selected paid options and pre-ticked checkboxes do not constitute authorisation for a purchase, subscription or optional charge.',
       'A purchase, booking or subscription requires your affirmative authorisation.',
@@ -121,7 +111,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '11', heading: 'Prices, taxes and charges', id: 's11',
-    inShort: 'The total may include taxes, delivery and service charges. Mandatory charges are disclosed before confirmation; accepted prices are subject to the conditions below.',
     paragraphs: [
       'Prices vary between Services.',
       'Depending on the transaction, the total may include the product price, a service fee, applicable taxes, delivery charges, booking charges, platform or facilitation charges, customisation charges, processing charges, or another charge we disclose.',
@@ -132,7 +121,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '12', heading: 'Payment methods and processing', id: 's12',
-    inShort: 'Use an authorised payment method. Independent payment providers process payments under their applicable terms. WECARE.DIGITAL is not a financial institution.',
     paragraphs: [
       'Where available, you can pay by UPI, credit card, debit card, internet banking, payment gateway, an approved wallet, bank transfer, or another authorised method.',
       'Payments are processed by independent banks, gateways and payment service providers, and their terms may apply to that processing as well as ours.',
@@ -143,7 +131,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '13', heading: 'Subscriptions, memberships and recurring payments', id: 's13',
-    inShort: 'Pricing, billing intervals and cancellation conditions are disclosed before enrolment. Cancellation stops future renewals and does not ordinarily refund the current period.',
     paragraphs: [
       'Some Services are provided on a subscription, membership or recurring-payment basis.',
       'Before you enrol we disclose the price, the billing interval, the material features, how renewal works, how the recurring payment is authorised, and how to cancel.',
@@ -154,7 +141,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '14', heading: 'Cancellations, changes and refunds', id: 's14',
-    inShort: 'For voluntary cancellations or discretionary adjustments, we do not give cash refunds or refund the original payment method; where eligible, we issue store credit valid for 30 calendar days.',
     paragraphs: [
       'Whether you can cancel, return, replace, reschedule or change a service depends on the type of product or service, the reason for the request, the stage of fulfilment, the costs already incurred, and the conditions disclosed for that transaction. For voluntary cancellations or discretionary adjustments, our standard refund outcome is store credit rather than cash or a return to the original payment method.',
       'Different conditions apply to physical products, customised products, professional services, consultations, appointments, documentation and processing work, bookings, events, travel and experiences, subscriptions, digital products and other specialised services.',
@@ -252,7 +238,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '15', heading: 'Shipping, delivery and fulfilment', id: 's15',
-    inShort: 'Delivery options, charges and estimated dates depend on your order. Please provide accurate delivery details.',
     paragraphs: [
       'For physical products, delivery availability, charges and estimated timelines vary with the product, the Seller, any manufacturing or customisation needed, the destination, stock, and the logistics provider.',
       'We display or send you the delivery information for your transaction.',
@@ -275,7 +260,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '16', heading: 'Appointments, consultations and scheduled services', id: 's16',
-    inShort: 'Please attend as agreed. Any cancellation, replacement, rescheduling or refund follows the applicable booking terms and law.',
     paragraphs: [
       'Some Services involve appointments, consultations, sessions, events or other scheduled engagements.',
       'Availability can change until your booking is confirmed.',
@@ -287,7 +271,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '17', heading: 'Professional and regulated services', id: 's17',
-    inShort: 'Independent professionals reachable through us remain responsible for their own professional judgment and licences. General information on the Platform is not personal professional advice, and we are not an emergency service.',
     paragraphs: [
       'Some Services give you access to independent professionals, experts, consultants, practitioners, institutions and other specialists.',
       'Unless we expressly say otherwise for a particular service, making an independent provider reachable through the Platform does not mean we perform that provider\'s regulated professional duties.',
@@ -300,7 +283,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '18', heading: 'Third-party travel and experiences', id: 's18',
-    inShort: 'The provider sets the rules for travel and experiences. We cannot guarantee visas, admission, schedules or the weather. Read the provider\'s conditions before booking.',
     paragraphs: [
       'Some Services involve travel, accommodation, transport, experiences, attractions or other activities fulfilled partly or entirely by Third-Party Providers.',
       'The provider may set availability, cancellation requirements, identification requirements, timing, eligibility, entry conditions and other restrictions.',
@@ -310,7 +292,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '19', heading: 'Documentation, processing and assistance', id: 's19',
-    inShort: 'Documentation and submission assistance does not guarantee third-party approval. We do not knowingly submit false information.',
     paragraphs: [
       'Some Services help you with documentation, applications, submissions, administrative processes, research or coordination.',
       'Unless we expressly say otherwise, these services are assistance. They do not guarantee approval, issuance, acceptance, adjudication, or any decision by a government body, regulator or other third party.',
@@ -320,7 +301,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '20', heading: 'Digital products and digital services', id: 's20',
-    inShort: 'Purchasing digital access does not transfer intellectual-property rights. Redistribution and resale are restricted; refund eligibility depends on activation and use.',
     paragraphs: [
       'Some Services include downloadable or online content, virtual services, digital materials, software-enabled features and online programmes.',
       'Buying access does not transfer ownership of the underlying intellectual property unless we expressly say it does.',
@@ -330,7 +310,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '21', heading: 'Gift cards, credits and promotional balances', id: 's21',
-    inShort: 'Gift cards and credits may be purchased, issued for promotions or provided following eligible cancellations. Applicable gift card conditions govern their use and redemption.',
     paragraphs: [
       'We may offer or issue gift cards, vouchers, account credits, promotional balances and refund credits.',
       'These may be purchased or issued for promotions, eligible cancellations, agreed refund alternatives, service adjustments or applicable programmes.',
@@ -355,7 +334,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '22', heading: 'Partner, referral and affiliate programmes', id: 's22',
-    inShort: 'Participation is governed by programme-specific terms and does not create an employment, partnership, franchise or agency relationship.',
     paragraphs: [
       'We may run partner, referral, affiliate and commission-based programmes, including Partner Up.',
       'Taking part may require you to accept separate programme terms.',
@@ -365,7 +343,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '23', heading: 'Promotions, coupons and offers', id: 's23',
-    inShort: 'Offers are subject to applicable conditions and validity periods, have no cash value, and may be withdrawn for misuse.',
     paragraphs: [
       'We may offer discounts, coupons, promotional codes, referral benefits, credits and limited-time offers.',
       'A promotion may have eligibility requirements, a validity period, a minimum transaction amount, usage limits, product restrictions and other terms.',
@@ -393,7 +370,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '24', heading: 'Reviews, ratings and user content', id: 's24',
-    inShort: 'You retain ownership of your content and grant a limited licence for its use. Reviews must be genuine; advertising use requires separate permission.',
     paragraphs: [
       'You retain ownership of User Content in which you hold rights.',
       'By submitting User Content, you give WECARE.DIGITAL BHARATWORKS a non-exclusive, worldwide, royalty-free licence to host, store, reproduce, format, display and communicate it - to the extent reasonably necessary to provide the service, operate the Platform, display content you intentionally submitted for publication, process your transactions or requests, keep the Platform secure, investigate disputes or complaints, and comply with the law.',
@@ -407,7 +383,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '25', heading: 'Intellectual property', id: 's25',
-    inShort: 'The Platform and its content belong to us or our licensors. Using the site gives you a limited right to use it, not ownership of anything.',
     paragraphs: [
       'The Platform and its software, workflows, design, text, graphics, logos, interfaces, photographs, videos and databases belong to WECARE.DIGITAL BHARATWORKS or the relevant rights holder, or are licensed to us, and are protected by intellectual-property law.',
       'The WECARE.DIGITAL name, brand identity, logos and marks may not be copied, imitated or used without our authorisation.',
@@ -418,7 +393,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '26', heading: 'Acceptable use', id: 's26',
-    inShort: 'Use the Platform lawfully. No fraud, impersonation, harassment, malware, scraping personal data, review manipulation or breaking our security.',
     paragraphs: [
       'Use WECARE.DIGITAL only for lawful purposes.',
       'Prohibited conduct includes fraud or facilitation of fraud, impersonation, misrepresentation of affiliations, threats, harassment, abuse, infringement of intellectual-property or privacy rights, introduction of malicious code, interference with service security, unauthorised access, circumvention of access restrictions, unauthorised collection of personal information, unlawful unsolicited communications, manipulation of reviews or ratings, promotional abuse, material disruption of Services, misuse of automated tools, unlawful listings or requests, and other unlawful conduct.',
@@ -427,7 +401,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '27', heading: 'Third-party services and websites', id: 's27',
-    inShort: 'Independent third-party services are governed by their own terms and availability.',
     paragraphs: [
       'The Services may use or link to independent payment, delivery, sign-in, communication and other service providers.',
       'Those services have their own terms and privacy policies.',
@@ -436,7 +409,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '28', heading: 'Privacy and personal data', id: 's28',
-    inShort: 'Our Privacy Policy governs personal data. Specific consent or authorisation is obtained where required.',
     paragraphs: [
       'We handle personal data in line with our Privacy Policy at /privacy/ and with data-protection law.',
       'The Privacy Policy is a separate document and should be read together with these Terms.',
@@ -447,7 +419,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '29', heading: 'Service and marketing communications', id: 's29',
-    inShort: 'Messages about your account, order, payment or security come electronically and are part of the service. Marketing is handled separately and you can opt out of it.',
     paragraphs: [
       'We may send electronic messages necessary for your account, order, booking, payment or service, as permitted by law.',
       'These include account notices, order and payment confirmations, booking confirmations, appointment reminders, delivery updates, security alerts, grievance correspondence and policy notices.',
@@ -457,7 +428,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '30', heading: 'Availability and changes to the Services', id: 's30',
-    inShort: 'Services may change, be interrupted or be withdrawn. Remedies for discontinued paid services are governed by applicable law and Service-Specific Terms.',
     paragraphs: [
       'We maintain, update, improve, modify, replace, suspend and sometimes discontinue functionality.',
       'Services may be interrupted by maintenance, technical issues, provider availability or events outside our reasonable control.',
@@ -466,7 +436,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '31', heading: 'Service conditions', id: 's31',
-    inShort: 'Services are subject to availability and the terms applicable to them.',
     paragraphs: [
       'To the extent permitted by law, the Services are provided as available and without warranties other than those expressly stated in these Terms, the confirmed transaction or required by law.',
       'We do not guarantee uninterrupted access, error-free operation, suitability for a particular purpose or any particular outcome.',
@@ -497,7 +466,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '32', heading: 'Responsibility and legal limits', id: 's32',
-    inShort: 'Our responsibility is limited to the extent permitted by law.',
     paragraphs: [
       'To the fullest extent permitted by applicable law, WECARE.DIGITAL excludes liability for claims arising from or connected with the Services.',
       'For non-consumer and commercial-purpose transactions, our aggregate contractual and non-contractual liability is INR 0 where lawful exclusion is permitted. Where exclusion is not permitted but limitation is permitted, the lowest lawful limit applies.',
@@ -508,7 +476,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '33', heading: 'Your responsibilities', id: 's33',
-    inShort: 'You are responsible for unlawful use, material breaches and infringement of others\' rights, subject to applicable law.',
     paragraphs: [
       'To the extent permitted by law, you are responsible for losses, claims and reasonable costs directly resulting from your unlawful use of the Services, material breach of these Terms, infringement of others\' rights or unlawful content you submit.',
       'You are not responsible under this clause for our own unlawful conduct.',
@@ -516,7 +483,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '34', heading: 'Fraud prevention and Platform security', id: 's34',
-    inShort: 'We may verify accounts and transactions and cooperate with competent authorities as permitted or required by law.',
     paragraphs: [
       'We take reasonable steps to help prevent unauthorised activity, fraud, account misuse and abuse of offers.',
       'Where reasonably necessary, we may temporarily restrict a transaction or an account while verification is completed.',
@@ -525,7 +491,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '35', heading: 'Account suspension and termination', id: 's35',
-    inShort: 'You may discontinue use of the Services. Access may be restricted for fraud, security or material breach. Accrued rights and obligations survive termination.',
     paragraphs: [
       'You can stop using the Services at any time.',
       'Where account closure is available, you can request it through your account or through customer support.',
@@ -536,7 +501,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '36', heading: 'Events beyond reasonable control', id: 's36',
-    inShort: 'Events outside either party\'s reasonable control may affect performance.',
     paragraphs: [
       'Neither of us is responsible for a failure or delay caused by circumstances beyond our reasonable control, to the extent those circumstances actually prevent performance.',
       'That can include natural disasters, severe weather, epidemics and public-health restrictions, war, civil disturbance, government action, widespread utility or telecommunications failures, labour disruption, transport interruption, and large-scale cyber incidents.',
@@ -544,7 +508,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '37', heading: 'Customer care and complaints', id: 's37',
-    inShort: 'Email one@wecare.digital or call +91 9330994400. We provide a complaint reference where applicable.',
     paragraphs: [
       'Contact us about products, orders, bookings, payments, refunds, Sellers, Service Providers, your account, the Platform, privacy, or any other complaint.',
       'WECARE.DIGITAL Customer Grievance Desk, WECARE.DIGITAL BHARATWORKS. Email one@wecare.digital or call +91 9330994400. Our address is The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
@@ -555,7 +518,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '38', heading: 'Changes to these Terms', id: 's38',
-    inShort: 'These Terms may be updated to reflect changes to Services or applicable law. Material changes are notified as applicable and normally take effect prospectively.',
     paragraphs: [
       'We may update these Terms to reflect changes to our Services or applicable law.',
       'Where the law requires it, or where a change materially affects your rights, we give you appropriate notice.',
@@ -567,7 +529,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '39', heading: 'Governing law and disputes', id: 's39',
-    inShort: 'Indian law applies. Applicable statutory forums and competent courts in Kolkata handle disputes.',
     paragraphs: [
       'These Terms are governed by the laws of India.',
       'Please contact customer care or the Customer Grievance Desk to seek resolution.',
@@ -577,7 +538,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '40', heading: 'Severability', id: 's40',
-    inShort: 'Invalid or unenforceable provisions are limited as necessary; the remaining provisions continue to apply.',
     paragraphs: [
       'If a provision of these Terms is held invalid, unlawful or unenforceable, it is read down or limited to the minimum extent necessary.',
       'The rest of these Terms continue to apply.',
@@ -585,7 +545,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '41', heading: 'Waiver', id: 's41',
-    inShort: 'A delay or failure to enforce a provision does not constitute waiver.',
     paragraphs: [
       'If we fail or delay in enforcing a provision or exercising a right, that is not a waiver of it.',
       'A waiver applies only to the circumstances for which it is granted.',
@@ -593,7 +552,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '42', heading: 'Assignment', id: 's42',
-    inShort: 'You need our consent to transfer your account or rights. We may transfer ours in a genuine restructuring, subject to applicable law.',
     paragraphs: [
       'Do not transfer your account or your rights under these Terms in a way that materially affects the Services without our prior consent.',
       'WECARE.DIGITAL BHARATWORKS may transfer its rights or obligations as part of a genuine business restructuring, merger, acquisition, sale or reorganisation, subject to applicable law, including mandatory user and consumer protections.',
@@ -601,7 +559,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '43', heading: 'Relationship of the parties', id: 's43',
-    inShort: 'Use of the Services creates no employment, partnership or joint venture relationship. Listing a third-party provider does not establish employment.',
     paragraphs: [
       'These Terms create no employment, partnership, franchise, fiduciary or joint venture relationship between you and WECARE.DIGITAL BHARATWORKS.',
       'A Third-Party Provider does not become our employee because its products or services are reachable through the Platform.',
@@ -610,7 +567,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '44', heading: 'Entire agreement', id: 's44',
-    inShort: 'The agreement comprises these Terms, the Privacy Policy, applicable Service-Specific Terms and transaction conditions. A separate signed agreement prevails on the matters it covers.',
     paragraphs: [
       'Your agreement with us is made up of these Terms, the Privacy Policy at /privacy/, any Service-Specific Terms, your order or booking information, the applicable cancellation, refund and delivery conditions, and any other policy expressly built into a particular transaction.',
       'Where a separately signed agreement, memorandum of understanding, engagement agreement, enterprise agreement or order form covers the same subject matter, that agreement prevails on the matters it specifically addresses.',
@@ -619,7 +575,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   
   {
     number: '45', heading: 'Translations', id: 's45',
-    inShort: 'The official text is in English. Automatic translations are provided for convenience and may be inaccurate or incomplete.',
     paragraphs: [
       'Translations may be provided automatically for convenience.',
       'The English version of any page, these Terms, our Privacy Policy and every Service-Specific Term is the official text. Where a translated version differs from the English one - by error, omission, ambiguity or change of meaning - the English version prevails and is the version that governs.',
@@ -630,7 +585,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '46', heading: 'Artificial Intelligence (AI) and Super Intelligence (SI)', id: 's46',
-    inShort: 'Intelligence-enabled features are subject to the conditions of the relevant service and the limitations described below.',
     paragraphs: [
       'Where applicable, Services may incorporate Artificial Intelligence (AI), Super Intelligence (SI) or other automated technologies for communications, documentation, content, translation and service delivery. Such descriptions do not constitute a representation of any particular level of capability or performance.',
       'Information generated or assisted by these technologies may be incomplete, inaccurate or outdated. It does not constitute professional advice or guarantee any outcome. Material information should be verified against authoritative sources. Independent verification by a suitably qualified person is required before relying on such information for legal, medical, financial or safety decisions.',
@@ -642,7 +596,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '47', heading: 'How to contact us', id: 's47',
-    inShort: 'WECARE.DIGITAL BHARATWORKS, Kolkata. one@wecare.digital, +91 9330994400.',
     paragraphs: [
       'WECARE.DIGITAL is operated under the business name WECARE.DIGITAL BHARATWORKS.',
       'Our address is The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',

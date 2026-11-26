@@ -31,7 +31,7 @@ import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VI
 interface LegalDocumentProps {
   sections: LegalSection[];
   intro: string[];
-  /** Rendered above the contents, for the "not legal advice" style note. */
+  /** Optional customer-facing guidance above the contents. */
   notice?: React.ReactNode;
 }
 
@@ -50,7 +50,6 @@ const withLinks = ( text: string, keyBase: string ): React.ReactNode => {
 
 const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice } ) => {
   const topLevel = sections.filter( s => !s.number.includes( '.' ) );
-  const hasSummaries = sections.some( s => s.inShort );
   const tocRef = useRef<HTMLDetailsElement>( null );
   const navRef = useRef<HTMLElement>( null );
   const searchId = useId();
@@ -64,7 +63,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
   const searchTerm = normalizeNavigationText( sectionQuery );
   const sectionIndex = useMemo( () => sections.map( section => ( {
     section, label: section.heading,
-    searchText: contentSearchText( [ section.number, section.heading, section.inShort || '', ...section.paragraphs ] ),
+    searchText: contentSearchText( [ section.number, section.heading, ...section.paragraphs ] ),
   } ) ), [ sections ] );
   const matches = useMemo( () => {
     if ( !searchTerm ) return [];
@@ -171,8 +170,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
    * vertical distance between two children.
    *
    * Counted rather than given a large magic span so it stays exact if the document grows:
-   * one row per intro paragraph, the notice, the summaries disclaimer, and one row per
-   * section.
+   * one row per intro paragraph, the optional notice, and one row per section.
    *
    * THE LEADING +1 WAS THE "LAST UPDATED" LINE and went when that line did. Leaving it
    * would have spanned the rail one row further than the flow actually occupies, which is
@@ -182,7 +180,6 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
   const columnOneRows =
     intro.length
     + ( notice ? 1 : 0 )
-    + ( hasSummaries ? 1 : 0 )
     + sections.length;
 
   return (
@@ -200,19 +197,6 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
       ) ) }
 
       { notice && <div className="lgd-notice">{ notice }</div> }
-
-      {/* THE COMPONENT OWNS THIS DISCLAIMER, not the page, so it cannot be forgotten on a
-          document that has summaries. Rendered only when there are summaries to
-          disclaim. A plain-language summary above a binding clause is a real
-          improvement, but only if the reader is told which of the two governs - without
-          that line the summaries quietly become representations about the contract. */}
-      { hasSummaries && (
-        <p className="lgd-disclaimer">
-          The &ldquo;In short&rdquo; lines summarise the numbered provisions for convenience.
-          If a summary differs from the numbered text, the numbered text applies,
-          subject to applicable law.
-        </p>
-      ) }
 
       { /* gridRow is inline because it depends on the document's length, which CSS cannot
            count. Harmless below 1100px, where .lgd is not a grid and the property is
@@ -308,12 +292,6 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
             { sub
               ? <h3 className="lgd-h3"><span className="lgd-num">{ section.number }</span>{ ' ' }<span className="lgd-heading-text">{ section.heading }</span></h3>
               : <h2 className="lgd-h2"><span className="lgd-num">{ section.number }</span>{ ' ' }<span className="lgd-heading-text">{ section.heading }</span></h2> }
-            { section.inShort && (
-              <p className="lgd-short">
-                <span className="lgd-short-tag">In short</span>
-                { section.inShort }
-              </p>
-            ) }
             { section.paragraphs.map( ( paragraph, i ) => (
               <p key={ `${section.id}-${i}` } className="lgd-p">{ withLinks( paragraph, `${section.id}-${i}` ) }</p>
             ) ) }
@@ -391,31 +369,6 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           background:var(--public-lime-tint);border-inline-start:4px solid var(--public-brand-lime);border-radius:8px;
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);
         }
-
-        /* Deliberately quiet - it sits directly under the lime notice and must not
-           compete with it for the same glance. Muted body colour at the intro size. */
-        .lgd-disclaimer{margin:0 0 36px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
-
-        /* SUMMARIES USE NEUTRALS ONLY. Lime is already spoken for on this page: the
-           notice block owns it, and it means "read this before the clauses". Repeating
-           that treatment 45 times would spend the accent on every section and leave the
-           notice indistinguishable from ordinary body copy.
-           A 2px hairline rule plus muted text is enough separation because the summary
-           is doing the opposite job to the notice - it wants to be skimmed past once the
-           reader has found their section, not fixated on. Every value here is already
-           in the palette. */
-        .lgd-short{margin:0 0 14px;padding-block:0;padding-inline:14px 0;border-inline-start:2px solid var(--public-hairline);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
-        /* display:block puts the tag on its own line so the summary text stays a clean
-           rectangle - inline, the first line was indented by the tag width and the
-           result read as a hanging indent rather than a label. */
-        /* rgba(0,0,0,.54), not .42. All three of these carry real content - a clause number
-           and a section tag - and .42 composites to rgb(148,148,148) over white, measuring
-           3.04:1 where 4.5:1 is required for normal text. .54 measures 4.59:1 and is the
-           value the design contract already names as the palette's muted level, so this is
-           a correction onto an existing token rather than a new one. Lighthouse's axe pass
-           flagged four instances on /terms/; the focus-ring sweep never looked at these
-           because they are neither indicators nor named labels. */
-        .lgd-short-tag{display:block;margin-bottom:3px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--public-muted)}
 
         /* One search-led toolbar: view_list at the start, the same underline-only
            search treatment as Header, and a native double_arrow disclosure at the end.
@@ -546,7 +499,6 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           .lgd-section{scroll-margin-top:112px}
           .lgd-h2{font-size:var(--public-mobile-section-size)}
           .lgd-h3{font-size:var(--public-mobile-card-size)}
-          .lgd-short{padding-inline-start:12px}
           .lgd-h2,.lgd-h3{grid-template-columns:3rem minmax(0,1fr);column-gap:8px}
         }
       `}</style>

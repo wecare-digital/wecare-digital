@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { transformSync } from 'esbuild';
 
 test('Terms and Privacy retain complete numbered clauses and valid anchors', () => {
   const audit = fileURLToPath(new URL('../tools/audit/legalcheck.js', import.meta.url));
@@ -10,10 +11,35 @@ test('Terms and Privacy retain complete numbered clauses and valid anchors', () 
   assert.match(output, /\d+\/\d+ passed/);
 });
 
-test('shared legal summary notice applies to Terms and Privacy without calling both an agreement', () => {
+test('legal pages render numbered provisions without editorial summaries or drafting notices', () => {
   const source = readFileSync(new URL('../src/components/LegalDocument.tsx', import.meta.url), 'utf8');
-  assert.ok(source.includes('If a summary differs from the numbered text, the numbered text applies,'));
-  assert.ok(!source.includes('They are not part of the agreement and do not change it.'));
+  assert.doesNotMatch(source, /inShort|lgd-short|lgd-disclaimer|numbered text applies|In short/);
+  assert.ok(source.includes('...section.paragraphs'));
+  for (const document of ['terms', 'privacy']) {
+    const content = readFileSync(new URL('../src/content/legal/' + document + '.ts', import.meta.url), 'utf8');
+    assert.doesNotMatch(content, /\binShort\s*:/);
+  }
+});
+
+test('legal page policy details describe actual transaction terms and privacy practices', async () => {
+  const source = readFileSync(new URL('../src/content/publicPolicyDetails.ts', import.meta.url), 'utf8');
+  const { code } = transformSync(source, { loader: 'ts', format: 'esm' });
+  const { publicPolicyDetailsForRoute } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+  const terms = publicPolicyDetailsForRoute('/terms');
+  const privacy = publicPolicyDetailsForRoute('/privacy');
+  for (const policy of [terms, privacy]) {
+    assert.deepEqual(Object.keys(policy).sort(), ['disclaimer', 'refunds', 'returns', 'shipping']);
+    for (const value of Object.values(policy)) {
+      assert.ok(value.trim());
+      assert.doesNotMatch(value, /above controls|no fulfilment applies to this page|nothing on this page is returnable|no payment is taken here/i);
+    }
+  }
+  assert.match(terms.refunds, /store credit valid for 30 calendar days/);
+  assert.match(terms.refunds, /Monetary refunds are provided where required by law/);
+  assert.match(terms.returns, /Statutory remedies/);
+  assert.match(privacy.shipping, /delivery details/);
+  assert.match(privacy.refunds, /Payment providers/);
+  assert.match(privacy.disclaimer, /one@wecare\.digital/);
 });
 
 test('legal heading numbers have a real separator and aligned upright title columns', () => {

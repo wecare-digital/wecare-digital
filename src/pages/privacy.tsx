@@ -32,9 +32,10 @@ const PrivacyPage: React.FC = () => (
         sections={ PRIVACY_SECTIONS }
         intro={ PRIVACY_INTRO }
         notice={ <>
-          To ask what data we hold, to correct it, or to have it deleted, write to
-          {' '}<a href="mailto:one@wecare.digital">one@wecare.digital</a>. We may ask for
-          information to verify who you are before acting on a request.
+          For access, correction or erasure of your personal data, withdrawal of consent
+          or a privacy grievance, contact{ ' ' }
+          <a href="mailto:one@wecare.digital">one@wecare.digital</a>.
+          We may verify your identity or authority before acting on a request.
         </> }
       />
     </RotatingHero>
