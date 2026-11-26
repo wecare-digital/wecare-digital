@@ -5,6 +5,8 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
+  ['/niji-setu/parichay', 'src/pages/niji-setu/parichay.tsx'],
+  ['/niji-setu/khata', 'src/pages/niji-setu/khata.tsx'],
   ['/relay-os', 'src/pages/relay-os/index.tsx'],
   ['/atmos/nano-climate', 'src/pages/atmos/nano-climate.tsx'],
   ['/atmos/green-ledger', 'src/pages/atmos/green-ledger.tsx'],
@@ -13,6 +15,7 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/niji-setu', 'src/pages/niji-setu.tsx'],
   ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
   ['/vayulok', 'src/pages/vayulok/index.tsx'],
@@ -22,19 +25,21 @@ const retired = [
 test('new product pages and public registries agree; retired pages are absent', () => {
   const header = read('src/components/Header.tsx');
   const sitemap = read('scripts/generate-sitemap.js');
+  // The retired-family denylist may name an old URL; only PUBLIC_EXACT advertises it.
+  const publicExact = sitemap.split('const PUBLIC_EXACT = new Set( [')[1].split('] );')[0];
   const meta = read('src/pages/_app.tsx');
   const catalog = JSON.parse(read('config/public-pages.json')).pages;
   for (const [route, file] of added) {
     assert.ok(existsSync(file), file);
     assert.ok(header.includes("href: '" + route + "/'"), route);
-    assert.ok(sitemap.includes("'" + route + "'"), route);
+    assert.ok(publicExact.includes("'" + route + "'"), route);
     assert.ok(meta.includes("'" + route + "':"), route);
     assert.ok(catalog.some(page => page.path === route), route);
   }
   for (const [route, file] of retired) {
     assert.ok(!existsSync(file), file);
     assert.ok(!header.includes("href: '" + route + "/'"), route);
-    assert.ok(!sitemap.includes("'" + route + "'"), route);
+    assert.ok(!publicExact.includes("'" + route + "'"), route);
     assert.ok(!meta.includes("'" + route + "':"), route);
     assert.ok(!catalog.some(page => page.path === route), route);
   }
@@ -68,6 +73,38 @@ test('every submenu child uses the shared bent arrow, not a product-specific gly
   assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
 });
 
+
+test('Atmos and Relay OS retain their official outlined Material Symbols in optically centered viewBoxes', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("Atmos: 'M80-160v-80h230"));
+  assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
+  assert.ok(header.includes("Atmos: '40 -880 880 880'"));
+  assert.ok(header.includes("'Relay OS': 'M560-32v-80"));
+  assert.ok(header.includes("'Relay OS': '-40 -980 1000 1000'"));
+  assert.ok(header.includes("label: 'Relay OS', href: '/relay-os/'"));
+});
+
+test('Niji Setu is a non-clickable family and both destinations use shared submenu icons', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("label: 'Parichay', href: '/niji-setu/parichay/'"));
+  assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
+  assert.ok(!header.includes("href: '/niji-setu/'"));
+  assert.ok(header.includes('{ link.nested ? ('));
+  const notFound = read('src/pages/404.tsx');
+  assert.ok(notFound.includes("'/dispatch', '/niji-setu', '/shop/niji-setu'"));
+});
+
+test('menu icons share a 24px viewport and stay visible at narrow widths', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes('.nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}'));
+  assert.ok(header.includes('vector-effect:non-scaling-stroke'));
+  assert.ok(header.includes('viewBox={ SUBNAV_ICON_VIEW_BOX }'));
+  assert.ok(header.includes('viewBox={ sectionIconViewBox( section.heading ) }'));
+  assert.ok(header.includes('navIconViewBox( link.label )'));
+  assert.ok(header.includes('white-space:normal;overflow-wrap:anywhere'));
+  assert.ok(!/\.nav-(?:row-icon|sub-icon)[^{]*\{[^}]*display:none/.test(header));
+  assert.ok(!header.includes('NAV_MATERIAL_SYMBOLS'));
+});
 
 test('Relay OS keeps the existing checkout identity and public label', () => {
   const page = read('src/pages/relay-os/index.tsx');

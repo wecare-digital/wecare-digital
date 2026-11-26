@@ -427,7 +427,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // CV/profile/pitch presentation. Hunar is a non-clickable family label.
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
-  '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
+  '/niji-setu/parichay': { name: 'Parichay', type: 'WebPage', description: 'A planned digital bio and personal profile tool for sharing your identity and links.' },
+  '/niji-setu/khata': { name: 'Khata', type: 'WebPage', description: 'A planned invoice creation tool for preparing and sharing professional invoices.' },
   // Request and tracking actions live inside /orders/; their retired public
   // landing pages remain absent. /vault/?file= remains an owner-checked handoff.
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,

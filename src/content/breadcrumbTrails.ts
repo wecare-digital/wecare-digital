@@ -20,7 +20,8 @@ export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/anew': [ HOME, SHOP, here( 'Anew' ) ],
   '/hunar/kaushal': [ HOME, SHOP, here( 'Kaushal' ) ],
   '/hunar/prastuti': [ HOME, SHOP, here( 'Prastuti' ) ],
-  '/niji-setu': [ HOME, SHOP, here( 'Niji Setu' ) ],
+  '/niji-setu/parichay': [ HOME, here( 'Parichay' ) ],
+  '/niji-setu/khata': [ HOME, here( 'Khata' ) ],
   // Product families have no page of their own (Header renders each as a label), so their
   // children sit directly under Shop. A parent crumb would have to link a URL that 404s.
   '/elsewhere/visa': [ HOME, SHOP, here( 'Visa' ) ],

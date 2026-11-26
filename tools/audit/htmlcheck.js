@@ -42,7 +42,7 @@ const ROUTES = [
   '/orders/', '/elsewhere/arogya-yatra/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/', '/elsewhere/rail/', '/elsewhere/cruise/', '/atmos/green-ledger/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
-  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/blog/',
+  '/anew/', '/niji-setu/parichay/', '/niji-setu/khata/', '/hunar/kaushal/', '/hunar/prastuti/', '/blog/',
   // Request, amendment, document, Vault and shipment actions now open /orders/.
   // Their retired marketing pages must not be audited as standalone content.
   // Staff-only commerce pages are intentionally outside this public-page markup harness.

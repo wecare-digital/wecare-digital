@@ -23,7 +23,6 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
   '/anew',
   '/hunar/kaushal',
   '/hunar/prastuti',
-  '/niji-setu',
   '/submit-request',
   '/request-amendment',
   '/drop-docs',
@@ -47,6 +46,8 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
+  '/niji-setu/parichay': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Profile creation and sharing are not available on this page yet.' },
+  '/niji-setu/khata': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Invoice creation is not available on this page yet. Verify applicable invoicing and tax requirements before issuing invoices.' },
   '/atmos/green-ledger': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Product scope and availability must be confirmed before any order.' },
   '/elsewhere/rail': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Rail availability, fares, timetables and terms remain with the relevant operator.' },
   '/elsewhere/cruise': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Cruise availability, fares, itineraries and terms remain with the relevant operator.' },

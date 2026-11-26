@@ -6,7 +6,6 @@ import VoiceSearchMic from './VoiceSearchMic';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction } from '../lib/customerMenuActions';
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
-import type { MaterialSymbol } from '../config/materialSymbols';
 
 /**
  * No props.
@@ -55,6 +54,7 @@ interface NavColumn {
 interface SearchableNavLink extends NavLink {
   href: string;
   searchText: string;
+  nested?: boolean;
 }
 
 /**
@@ -133,7 +133,14 @@ const COLUMNS: NavColumn[] = [
               { label: 'Prastuti', href: '/hunar/prastuti/', match: '/hunar/prastuti', searchTerms: [ 'hunar', 'cv', 'resume', 'profile', 'pitch', 'deck' ] },
             ],
           },
-          { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
+          {
+            label: 'Niji Setu',
+            searchTerms: [ 'identity', 'bio', 'invoicing' ],
+            children: [
+              { label: 'Parichay', href: '/niji-setu/parichay/', match: '/niji-setu/parichay', searchTerms: [ 'bio', 'digital identity', 'profile', 'links' ] },
+              { label: 'Khata', href: '/niji-setu/khata/', match: '/niji-setu/khata', searchTerms: [ 'invoice', 'billing', 'invoice creation' ] },
+            ],
+          },
         ],
       },
     ],
@@ -215,16 +222,17 @@ const COLUMNS: NavColumn[] = [
 
 const flattenMenuLinks = (): SearchableNavLink[] => {
   const result: SearchableNavLink[] = [];
-  const push = ( link: NavLink, inheritedTerms: string[] ) => {
+  const push = ( link: NavLink, inheritedTerms: string[], nested = false ) => {
     const terms = [ ...inheritedTerms, ...( link.searchTerms || [] ) ];
     if ( link.href ) {
       result.push( {
         ...link,
         href: link.href,
+        nested,
         searchText: [ link.label, ...terms ].join( ' ' ).toLocaleLowerCase(),
       } );
     }
-    for ( const child of link.children || [] ) push( child, [ ...terms, link.label ] );
+    for ( const child of link.children || [] ) push( child, [ ...terms, link.label ], true );
   };
 
   for ( const column of COLUMNS ) {
@@ -237,7 +245,7 @@ const flattenMenuLinks = (): SearchableNavLink[] => {
           searchText: section.heading.toLocaleLowerCase(),
         } );
       }
-      for ( const link of section.links ) push( link, section.heading ? [ section.heading ] : [] );
+      for ( const link of section.links ) push( link, section.heading ? [ section.heading ] : [], section.nestedLinks === true );
     }
   }
 
@@ -258,8 +266,10 @@ const menuSearchKey = ( link: Pick<NavLink, 'label' | 'href'> ) => `${link.href 
 const NAV_ICON_PATHS: Record<string, string> = {
   Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
-  'Relay OS': 'M3 5l18 7-18 7 3-7-3-7Zm3 7h15',
-  Atmos: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c-5 5-5 13 0 18m0-18c5 5 5 13 0 18',
+  // Google Material Symbols Outlined satellite_alt, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+  'Relay OS': 'M560-32v-80q117 0 198.5-81.5T840-392h80q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T560-32Zm0-160v-80q50 0 85-35t35-85h80q0 83-58.5 141.5T560-192ZM222-57q-15 0-30-6t-27-17L23-222q-11-12-17-27t-6-30q0-16 6-30.5T23-335l127-127q23-23 57-23.5t57 22.5l50 50 28-28-50-50q-23-23-23-56t23-56l57-57q23-23 56.5-23t56.5 23l50 50 28-28-50-50q-23-23-23-56.5t23-56.5l127-127q12-12 27-18t30-6q15 0 29.5 6t26.5 18l142 142q12 11 17.5 25.5T895-730q0 15-5.5 30T872-673L745-546q-23 23-56.5 23T632-546l-50-50-28 28 50 50q23 23 22.5 56.5T603-405l-56 56q-23 23-56.5 23T434-349l-50-50-28 28 50 50q23 23 22.5 57T405-207L278-80q-11 11-25.5 17T222-57Zm0-79 42-42-142-142-42 42 142 142Zm85-85 42-42-142-142-42 42 142 142Zm184-184 56-56-142-142-56 56 142 142Zm198-198 42-42-142-142-42 42 142 142Zm85-85 42-42-142-142-42 42 142 142ZM448-504Z',
+  // Google Material Symbols Outlined grass, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+  Atmos: 'M80-160v-80h230q-22-85-83.5-146.5T80-470q20-5 39.5-7.5T160-480q134 0 227 93t93 227H80Zm480 0q0-42-9-83.5T525-323q42-71 114.5-114T800-480q21 0 40.5 2.5T880-470q-85 22-146 83.5T650-240h230v80H560Zm-80-239q0-65 24-122t66-100.5q42-43.5 98.5-69.5T789-719q-56 35-98 86t-65 114q-44 21-80.5 51.5T480-399Zm-73-75q-12-9-24-17t-25-16q0-6 1-12.5t1-12.5q0-76-24-144t-68-124q66 27 114.5 77.5T457-606q-18 30-31 63.5T407-474Z',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
@@ -281,6 +291,8 @@ const NAV_ICON_PATHS: Record<string, string> = {
   'Google Play': 'M40-240q10-105 64-191t139-140l-77-129q-9-14-4.5-30t18.5-24q14-9 30-5t24 18l80 133q38-16 79.5-24t86.5-8q45 0 86.5 8t79.5 24l80-133q8-14 24-18t30 5q14 8 18 24t-4 30l-77 129q85 54 139 140t64 191H40Zm680.5-151.5Q722-409 711-426t-27-22q-16-5-29 4t-15 26q-2 17 9 34t27.5 22.5Q693-356 706-365t14.5-26.5ZM284-362q16-5 27-22t9.5-34.5Q319-436 306-445t-29.5-3.5Q260-443 249-426t-9 34q2 17 15 26t29 4Z',
   ChatGPT: 'm394-80-70-123H189l-87-154 69-123-69-123 87-154h135l70-123h172l70 123h135l87 154-69 123 69 123-87 154H636L566-80H394Zm243-429h100l54-94-54-94H637l-54 94 54 94ZM430-388h100l54-92-54-92H430l-54 92 54 92Zm0-244h100l54-94-54-94H430l-54 94 54 94ZM224-509h100l54-94-54-94H224l-54 94 54 94Zm0 246h100l54-94-55-94H223l-54 94 55 94Zm206 123h100l54-94-54-94H430l-54 94 54 94Zm207-123h100l54-94-54-94H637l-51 94 51 94Z',
   Claude: 'M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4',
+  // Same rounded diamond used by the former font ligature, now an inline SVG.
+  Gemini: 'M480-165q-17 0-33-7.5T419-194L113-560q-9-11-13.5-24T95-611q0-9 1.5-18.5T103-647l75-149q11-20 29.5-32t41.5-12h462q23 0 41.5 12t29.5 32l75 149q5 8 6.5 17.5T865-611q0 14-4.5 27T847-560L541-194q-12 14-28 21.5t-33 7.5Zm-95-475h190l-60-120h-70l-60 120Zm55 347v-267H218l222 267Zm80 0 222-267H520v267Zm144-347h106l-60-120H604l60 120Zm-474 0h106l60-120H250l-60 120Z',
   'App Store': 'M160-615v-60h60v60h-60Zm0 335v-275h60v275h-60Zm292 0H347q-24.75 0-42.37-17.63Q287-315.25 287-340v-280q0-24.75 17.63-42.38Q322.25-680 347-680h105q24.75 0 42.38 17.62Q512-644.75 512-620v280q0 24.75-17.62 42.37Q476.75-280 452-280Zm-105-60h105v-280H347v280Zm228 60v-60h165v-114H635q-24.75 0-42.37-17.63Q575-489.25 575-514v-106q0-24.75 17.63-42.38Q610.25-680 635-680h165v60H635v106h105q24.75 0 42.38 17.62Q800-478.75 800-454v114q0 24.75-17.62 42.37Q764.75-280 740-280H575Z',
   // Material Symbols Outlined "location_on", FILL 0 / wght 400 / GRAD 0 / opsz 48.
   // Exact path from the supplied 48px SVG; menu states still control its color.
@@ -293,19 +305,14 @@ const SECTION_ICON_PATHS: Record<string, string> = {
   Request: 'M6 3h12v18H6ZM9 7h6M9 11h6M9 15h4',
   'Refer & Earn': 'M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-672L356-508q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Zm0-640q17 0 28.5-11.5T760-760q0-17-11.5-28.5T720-800q-17 0-28.5 11.5T680-760q0 17 11.5 28.5T720-720ZM240-440q17 0 28.5-11.5T280-480q0-17-11.5-28.5T240-520q-17 0-28.5 11.5T200-480q0 17 11.5 28.5T240-440Zm480 280q17 0 28.5-11.5T760-200q0-17-11.5-28.5T720-240q-17 0-28.5 11.5T680-200q0 17 11.5 28.5T720-160Zm0-600ZM240-480Zm480 280Z',
   Extras: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z',
+  // Same rounded neurology used by the former font ligature, now an inline SVG.
+  'With AI': 'M390-120q-51 0-88-35.5T260-241q-60-8-100-53t-40-106q0-21 5.5-41.5T142-480q-11-18-16.5-38t-5.5-42q0-61 40-105.5t99-52.5q3-51 41-86.5t90-35.5q26 0 48.5 10t41.5 27q18-17 41-27t49-10q52 0 89.5 35t40.5 86q59 8 99.5 53T840-560q0 22-5.5 42T818-480q11 18 16.5 38.5T840-400q0 62-40.5 106.5T699-241q-5 50-41.5 85.5T570-120q-25 0-48.5-9.5T480-156q-19 17-42 26.5t-48 9.5Zm130-590v460q0 21 14.5 35.5T570-200q20 0 34.5-16t15.5-36q-21-8-38.5-21.5T550-306q-10-14-7.5-30t16.5-26q14-10 30-7.5t26 16.5q11 16 28 24.5t37 8.5q33 0 56.5-23.5T760-400q0-5-.5-10t-2.5-10q-17 10-36.5 15t-40.5 5q-17 0-28.5-11.5T640-440q0-17 11.5-28.5T680-480q33 0 56.5-23.5T760-560q0-33-23.5-56T680-640q-11 18-28.5 31.5T613-587q-16 6-31-1t-20-23q-5-16 1.5-31t22.5-20q15-5 24.5-18t9.5-30q0-21-14.5-35.5T570-760q-21 0-35.5 14.5T520-710Zm-80 460v-460q0-21-14.5-35.5T390-760q-21 0-35.5 14.5T340-710q0 16 9 29.5t24 18.5q16 5 23 20t2 31q-6 16-21 23t-31 1q-21-8-38.5-21.5T279-640q-32 1-55.5 24.5T200-560q0 33 23.5 56.5T280-480q17 0 28.5 11.5T320-440q0 17-11.5 28.5T280-400q-21 0-40.5-5T203-420q-2 5-2.5 10t-.5 10q0 33 23.5 56.5T280-320q20 0 37-8.5t28-24.5q10-14 26-16.5t30 7.5q14 10 16.5 26t-7.5 30q-14 19-32 33t-39 22q1 20 16 35.5t35 15.5q21 0 35.5-14.5T440-250Zm40-230Z',
   Contact: 'M3 6h18v12H3Zm0 1 9 6 9-6',
   'Legal Stuff': 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
-// Typed as MaterialSymbol so `tsc` refuses a ligature the subset font in config/materialSymbols.ts
-// does not ship; an unlisted name would render as its literal text instead of an icon.
-const NAV_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
-  Gemini: 'diamond',
-};
-const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
-  'With AI': 'neurology',
-};
-
 const MATERIAL_NAV_ICON_LABELS = new Set( [
+  'Atmos',
+  'Relay OS',
   'Hunar',
   'Niji Setu',
   'Submit Request',
@@ -313,18 +320,63 @@ const MATERIAL_NAV_ICON_LABELS = new Set( [
   'Partner',
   'Google Play',
   'ChatGPT',
+  'Gemini',
   'App Store',
 ] );
-// The Contact us SVG uses the source artwork's 48px coordinates (not the 960px material paths).
-// Both source types are filled silhouettes; all other row icons stay stroked.
+// Preserve the original path geometry, but center each glyph inside a square,
+// tightly padded viewBox. The common 24px viewport gives the artwork comparable
+// optical size without distorting aspect ratios or clipping stroke caps.
 const FILLED_NAV_ICON_LABELS = new Set( [ ...MATERIAL_NAV_ICON_LABELS, 'Contact us' ] );
-const navIconViewBox = ( label: string ) => label === 'Contact us'
-  ? '0 0 48 48'
-  : MATERIAL_NAV_ICON_LABELS.has( label ) ? '0 -960 960 960' : '0 0 24 24';
-const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn' ] );
+const NAV_ICON_VIEW_BOXES: Record<string, string> = {
+  Home: '1 1.5 22 22',
+  Shop: '1 1 22 22',
+  'Relay OS': '-40 -980 1000 1000',
+  Atmos: '40 -880 880 880',
+  Elsewhere: '1 3 22 22',
+  'Expo Week': '1 1 22 22',
+  Dastavez: '2 1 22 22',
+  'Clear Closure': '1 1 22 22',
+  'Ritual Guru': '2.5 1 22 22',
+  Anew: '2 2 20 20',
+  Hunar: '20 -920 920 920',
+  'Niji Setu': '40 -920 880 880',
+  Orders: '1 1 22 22',
+  'Submit Request': '80 -880 800 800',
+  'Request Amendment': '3 3 18 18',
+  'Drop Docs': '2 1 22 22',
+  Vault: '120 -840 720 720',
+  Shipments: '1 2.5 22 22',
+  'Leave Review': '2 2 20 20',
+  Subscribe: '2 2.75 20 20',
+  Partner: '40 -920 880 880',
+  Perks: '2 3 20 20',
+  'Google Play': '0 -978 960 960',
+  ChatGPT: '40 -920 880 880',
+  Claude: '1 1 22 22',
+  Gemini: '50 -932 860 860',
+  'App Store': '120 -840 720 720',
+  'Contact us': '2 2 44 44',
+  Terms: '1 1 22 22',
+  Privacy: '1 1 22 22',
+};
+const SECTION_ICON_VIEW_BOXES: Record<string, string> = {
+  Products: '1 1 22 22',
+  Request: '1 1 22 22',
+  'Refer & Earn': '40 -920 880 880',
+  Extras: '1 1 22 22',
+  'With AI': '80 -880 800 800',
+  Contact: '1 1 22 22',
+  'Legal Stuff': '1 1 22 22',
+};
+const navIconViewBox = ( label: string ) => NAV_ICON_VIEW_BOXES[ label ]
+  || ( MATERIAL_NAV_ICON_LABELS.has( label ) ? '0 -960 960 960' : '3 3 18 18' );
+const sectionIconViewBox = ( label: string ) => SECTION_ICON_VIEW_BOXES[ label ] || '1 1 22 22';
+const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn', 'With AI' ] );
 const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
 const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
+const SUBNAV_ICON_VIEW_BOX = '3.5 5 17 17';
 const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
+const ROW_CHEVRON_VIEW_BOX = '4 4 16 16';
 
 const PUBLIC_NAV_ID = 'public-navigation-menu';
 
@@ -650,7 +702,7 @@ const Header: React.FC = () => {
                 }
               } }
             >
-              <svg className="nav-trigger-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <svg className="nav-trigger-icon" viewBox="4 4 16 16" aria-hidden="true" focusable="false">
                 <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
               </svg>
             </button>
@@ -691,13 +743,10 @@ const Header: React.FC = () => {
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
-                      { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                        <span
-                          className="nav-row-material-symbol"
-                          aria-hidden="true"
-                        >
-                          { NAV_MATERIAL_SYMBOLS[ link.label ] }
-                        </span>
+                      { link.nested ? (
+                        <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
+                          <path d={ SUBNAV_ICON_PATH } />
+                        </svg>
                       ) : (
                         <svg
                           className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
@@ -726,7 +775,6 @@ const Header: React.FC = () => {
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
                         const sectionIconPath = SECTION_ICON_PATHS[ section.heading ];
-                        const sectionMaterialSymbol = SECTION_MATERIAL_SYMBOLS[ section.heading ];
                         const label = section.heading && ( section.headingHref
                           ? (
                             <a
@@ -736,14 +784,10 @@ const Header: React.FC = () => {
                               aria-current={ headingActive ? 'page' : undefined }
                               onClick={ close }
                             >
-                              { sectionMaterialSymbol ? (
-                                <span className="nav-section-material-symbol" aria-hidden="true">
-                                  { sectionMaterialSymbol }
-                                </span>
-                              ) : sectionIconPath ? (
+                              { sectionIconPath ? (
                                 <svg
                                   className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
-                                  viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  viewBox={ sectionIconViewBox( section.heading ) }
                                   aria-hidden="true"
                                   focusable="false"
                                 >
@@ -755,14 +799,10 @@ const Header: React.FC = () => {
                           )
                           : (
                             <span className="nav-group-label">
-                              { sectionMaterialSymbol ? (
-                                <span className="nav-section-material-symbol" aria-hidden="true">
-                                  { sectionMaterialSymbol }
-                                </span>
-                              ) : sectionIconPath ? (
+                              { sectionIconPath ? (
                                 <svg
                                   className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
-                                  viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  viewBox={ sectionIconViewBox( section.heading ) }
                                   aria-hidden="true"
                                   focusable="false"
                                 >
@@ -789,39 +829,10 @@ const Header: React.FC = () => {
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
-                                { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                                  <span
-                          className="nav-row-material-symbol"
-                          aria-hidden="true"
-                        >
-                                    { NAV_MATERIAL_SYMBOLS[ link.label ] }
-                                  </span>
-                                ) : (
-                                  <svg
-                                    className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                                    viewBox={ navIconViewBox( link.label ) }
-                                    aria-hidden="true"
-                                    focusable="false"
-                                  >
-                                    <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                { section.nestedLinks ? (
+                                  <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
+                                    <path d={ SUBNAV_ICON_PATH } />
                                   </svg>
-                                ) }
-                                <span className="nav-item-label">{ link.label }</span>
-                                { ( section.nestedLinks || link.children?.length ) ? (
-                                  <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d={ ROW_CHEVRON_PATH } />
-                                  </svg>
-                                ) : null }
-                              </a>
-                            ) : (
-                              <span className="nav-item nav-family-label">
-                                { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
-                                  <span
-                          className="nav-row-material-symbol"
-                          aria-hidden="true"
-                        >
-                                    { NAV_MATERIAL_SYMBOLS[ link.label ] }
-                                  </span>
                                 ) : (
                                   <svg
                                     className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
@@ -834,7 +845,26 @@ const Header: React.FC = () => {
                                 ) }
                                 <span className="nav-item-label">{ link.label }</span>
                                 { link.children?.length ? (
-                                  <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <svg className="nav-row-chevron" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true" focusable="false">
+                                    <path d={ ROW_CHEVRON_PATH } />
+                                  </svg>
+                                ) : null }
+                              </a>
+                            ) : (
+                              <span className="nav-item nav-family-label">
+                                { (
+                                  <svg
+                                    className={ `nav-row-icon ${FILLED_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                    viewBox={ navIconViewBox( link.label ) }
+                                    aria-hidden="true"
+                                    focusable="false"
+                                  >
+                                    <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                  </svg>
+                                ) }
+                                <span className="nav-item-label">{ link.label }</span>
+                                { link.children?.length ? (
+                                  <svg className="nav-row-chevron" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true" focusable="false">
                                     <path d={ ROW_CHEVRON_PATH } />
                                   </svg>
                                 ) : null }
@@ -850,7 +880,7 @@ const Header: React.FC = () => {
                                 aria-current={ isActive( child ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, child ) }
                               >
-                                <svg className="nav-sub-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
                                   <path d={ SUBNAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ child.label }</span>
@@ -878,7 +908,7 @@ const Header: React.FC = () => {
                                       >
                                         <svg
                                           className="nav-products-more-icon"
-                                          viewBox="0 -960 960 960"
+                                          viewBox="200 -726 560 560"
                                           aria-hidden="true"
                                           focusable="false"
                                         >
@@ -1094,7 +1124,7 @@ const Header: React.FC = () => {
 
            NO LINES HERE, deliberately: a three-line burger was mocked in round one
            (docs/menu-mock/a4-three-lines.png) and the owner kept the chevron. */
-        .nav-trigger-icon{display:block;width:27px;height:27px;margin:0;fill:#1a3a2a;transform:rotate(0deg);transition:transform .2s}
+        .nav-trigger-icon{margin:0;fill:#1a3a2a;transform:rotate(0deg);transition:transform .2s}
         .nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}
 
         /* MEGA PANEL.
@@ -1193,18 +1223,12 @@ const Header: React.FC = () => {
            bright green clashed with the palette), weight 700, UPPERCASE, with a
            touch more tracking so the caps stay legible. */
         .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
-        /* One optical heading-icon rung. Custom SVGs fill their viewBox more tightly than
-           Material Symbols, so both reserve 18px while the symbol itself renders at 20px.
-           This makes neurology read at the same visual weight as Products, Request, Extras,
-           Contact and Legal Stuff instead of looking undersized beside the label. */
-        .nav-section-icon{width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-        .nav-section-icon-material{fill:currentColor;stroke:none}
-        .nav-section-material-symbol{
-          width:18px;height:18px;flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center;
-          font-family:'Material Symbols Rounded';font-size:20px;font-weight:400;line-height:1;
-          letter-spacing:normal;text-transform:none;white-space:nowrap;
-          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
-        }
+        /* Shared menu icon footprint, from section headings to child and search rows.
+           Cropped viewBoxes center the art; non-scaling strokes stay crisp at 24px. */
+        .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}
+        .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .nav-section-icon path,.nav-row-icon path,.nav-sub-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
+        .nav-section-icon-material,.nav-row-icon-material{fill:currentColor;stroke:none}
 
         /* PRODUCTS SCROLL. The catalogue is meant to reach 100+ entries, so Products
            keeps its own capped rail on desktop AND mobile. Desktop shows seven 46px rows;
@@ -1258,7 +1282,7 @@ const Header: React.FC = () => {
         .nav-products-more{display:flex;align-items:center;justify-content:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
         .nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{display:block;width:31px;height:31px;fill:currentColor;transform:scaleX(1.08);transform-origin:center}
+        .nav-products-more-icon{fill:currentColor}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:var(--public-brand-green);text-decoration:none;border-radius:8px}
@@ -1287,21 +1311,8 @@ const Header: React.FC = () => {
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
         .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:8px}
-        .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
-        .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
-        .nav-row-icon-material{fill:currentColor;stroke:none}
-        /* The location_on pin fills most of its 48px viewBox. A slight optical scale
-           balances it with other 20px menu icons without moving the row label. */
-        .nav-item[href="/contact/"] .nav-row-icon-material{transform:scale(1.15);transform-origin:center}
-        .nav-row-material-symbol{
-          width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;
-          font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
-          letter-spacing:normal;text-transform:none;white-space:nowrap;
-          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
-        }
-        .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
-        .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
-        .nav-item-label{min-width:0;white-space:nowrap}
+        .nav-row-chevron{margin-inline-start:auto}
+        .nav-item-label{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.25;padding-block:5px}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
            rgba(209,244,112,.22) pale tint, so the current page ("you are here") looked
            identical to whatever row the mouse was over - you could not tell which page
@@ -1375,12 +1386,10 @@ const Header: React.FC = () => {
         @media(max-width:340px){
           .hdr-in{padding-inline:10px}
           .logo-nav{gap:6px}
-          /* Keep every destination on one line at the narrow Fold width. The row icon is
-             decorative; dropping it here returns the width to the label instead of wrapping
-             a navigation destination into two lines. 17px preserves the hierarchy while
-             fitting the longest current label. */
-          .nav-row-icon,.nav-row-material-symbol,.nav-sub-icon{display:none}
-          .nav-item,.nav-child{font-size:18px;padding-inline:10px}
+          /* Keep the 24px icon visible on Fold-width screens. Give long labels
+             room to wrap instead of hiding their icons or shrinking tap targets. */
+          .nav-item,.nav-child{font-size:18px;padding-inline:10px;gap:7px}
+          .nav-child{padding-inline-start:18px}
         }
 
         @media(prefers-reduced-motion:reduce){

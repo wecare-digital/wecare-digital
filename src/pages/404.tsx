@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 // Owner-requested retirement: these former product paths must not redirect.
-const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat', '/dispatch' ] );
+const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat', '/dispatch', '/niji-setu', '/shop/niji-setu' ] );
 
 const NotFound: React.FC = () => {
   const router = useRouter();

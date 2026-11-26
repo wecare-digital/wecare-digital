@@ -392,6 +392,52 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
     },
   },
 
+  {
+    path: '/niji-setu/parichay/',
+    parent: 'Niji Setu',
+    product: {
+      slug: 'niji-setu-parichay',
+      name: 'Parichay',
+      blurb: 'A digital bio and personal profile page.',
+      title: 'Parichay — digital bio and profile | WECARE.DIGITAL',
+      description: 'A planned digital bio and personal profile tool for sharing your identity and links.',
+      frame: 'Introduce your',
+      words: cycle( 'identity', 'work', 'story', 'links' ),
+      sub: 'A planned digital bio page that brings your introduction and important links together.',
+      sectionHeading: 'Your digital introduction',
+      lead: 'Parichay is part of Niji Setu. This page introduces the planned digital bio and profile creation experience. The creation and sharing tools are not available here yet.',
+      points: [
+        { heading: 'Introduce yourself', body: 'Organise your name, bio and personal or professional introduction in one place.' },
+        { heading: 'Bring your links together', body: 'Plan which links and contact information you want to include in your profile.' },
+        { heading: 'Choose what to share', body: 'Decide which information you want other people to see.' },
+      ],
+      ctaLabel: 'Contact us',
+      ctaHref: '/contact/',
+    },
+  },
+  {
+    path: '/niji-setu/khata/',
+    parent: 'Niji Setu',
+    product: {
+      slug: 'niji-setu-khata',
+      name: 'Khata',
+      blurb: 'Professional invoice creation.',
+      title: 'Khata — invoice creation | WECARE.DIGITAL',
+      description: 'A planned invoice creation tool for preparing and sharing professional invoices.',
+      frame: 'Prepare your',
+      words: cycle( 'invoices', 'details', 'totals', 'records' ),
+      sub: 'A planned tool for creating and sharing professional invoices.',
+      sectionHeading: 'Invoicing made straightforward',
+      lead: 'Khata is part of Niji Setu. This page introduces the planned invoice creation experience. Invoice generation and download are not available here yet.',
+      points: [
+        { heading: 'Business and customer details', body: 'Prepare the information that identifies the supplier and customer on an invoice.' },
+        { heading: 'Line items and amounts', body: 'Organise the goods or services, quantities and prices that the invoice needs to show.' },
+        { heading: 'Review before sharing', body: 'Check invoice numbers, dates, totals and applicable tax requirements before issuing an invoice.' },
+      ],
+      ctaLabel: 'Contact us',
+      ctaHref: '/contact/',
+    },
+  },
 ];
 
 export const productChildByPath = ( path: string ): ProductChildPage => {
