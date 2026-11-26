@@ -2,7 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
 import { normalizeNavigationText } from '../lib/navigationSearch';
 import VoiceSearchMic from './VoiceSearchMic';
-import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, LEGAL_DOUBLE_ARROW, LEGAL_DOUBLE_ARROW_VIEW_BOX } from '../lib/publicNavigationIcons';
+import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX } from '../lib/publicNavigationIcons';
 
 /**
  * Renders a long legal document on the site's own type system.
@@ -223,11 +223,18 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         </div>
         <details className="lgd-contents" ref={ tocRef } open>
           <summary className="lgd-toc-summary" aria-label="Toggle legal section list" title="Toggle legal section list">
-            <svg className="lgd-contents-chevron" viewBox={ LEGAL_DOUBLE_ARROW_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ LEGAL_DOUBLE_ARROW } /></svg>
+            <svg className="lgd-contents-chevron" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ ROW_CHEVRON_PATH } /></svg>
           </summary>
           { searchTerm && <p className="lgd-toc-status" role="status">{ matches.length } { matches.length === 1 ? 'clause' : 'clauses' } found</p> }
           { searchTerm ? <ol className="lgd-toc-list" aria-label="Matching clauses">
-            { matches.map( section => <li key={ section.id }><a className="lgd-toc-link" href={ `#${section.id}` } aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }><span className="lgd-toc-num">{ section.number }</span><span className="lgd-toc-label">{ section.heading }</span></a></li> ) }
+            { matches.map( section => <li key={ section.id }><a className="lgd-toc-link" href={ `#${section.id}` } aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>
+              { section.number.includes( '.' ) ? <>
+                <svg className="lgd-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ SUBNAV_ICON_PATH } /><path className="lgd-sub-dots" d={ SUBNAV_DOT_PATH } /></svg>
+                <span className="lgd-toc-label"><span className="lgd-toc-num">{ section.number }</span>{ ' ' }{ section.heading }</span>
+              </> : <>
+                <span className="lgd-toc-num">{ section.number }</span><span className="lgd-toc-label">{ section.heading }</span>
+              </> }
+            </a></li> ) }
             { !matches.length && <li className="lgd-toc-empty">No matching clauses. Try a different word or clause number.</li> }
           </ol> : <ol className="lgd-toc-list">
             { topLevel.map( section => {
@@ -239,15 +246,18 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                       <summary className={ `lgd-toc-group-summary ${activeGroup === section.number ? 'is-current' : ''}`.trim() }>
                         <span className="lgd-toc-num">{ section.number }</span>
                         <span className="lgd-toc-label">{ section.heading }</span>
-                        <svg className="lgd-group-chevron" viewBox={ LEGAL_DOUBLE_ARROW_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ LEGAL_DOUBLE_ARROW } /></svg>
+                        <svg className="lgd-group-chevron" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ ROW_CHEVRON_PATH } /></svg>
                       </summary>
                       <ol className="lgd-toc-children" aria-label={ `Section ${section.number} subsections` }>
-                        <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>Section { section.number } overview</a></li>
+                        <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>
+                          <svg className="lgd-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ SUBNAV_ICON_PATH } /><path className="lgd-sub-dots" d={ SUBNAV_DOT_PATH } /></svg>
+                          <span className="lgd-toc-label">Section { section.number } overview</span>
+                        </a></li>
                         { children.map( child => (
                           <li key={ child.id }>
                             <a href={ `#${child.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === child.id ? 'location' : undefined } onClick={ event => selectSection( event, child.id ) }>
-                              <span className="lgd-toc-num">{ child.number }</span>
-                              <span className="lgd-toc-label">{ child.heading }</span>
+                              <svg className="lgd-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ SUBNAV_ICON_PATH } /><path className="lgd-sub-dots" d={ SUBNAV_DOT_PATH } /></svg>
+                              <span className="lgd-toc-label"><span className="lgd-toc-num">{ child.number }</span>{ ' ' }{ child.heading }</span>
                             </a>
                           </li>
                         ) ) }
@@ -448,6 +458,10 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor;
         }
         .lgd-contents-chevron,.lgd-group-chevron{color:var(--public-brand-green);transition:transform .18s ease}
+        .lgd-sub-icon{display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);margin-top:2px;fill:none;stroke:var(--public-brand-green);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--public-brand-green)}
+        .lgd-sub-icon path{vector-effect:non-scaling-stroke}
+        .lgd-sub-icon .lgd-sub-dots{fill:currentColor;stroke:none}
+        :global([dir='rtl']) .lgd-sub-icon{transform:scaleX(-1)}
         .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron,
         .lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron{transform:rotate(90deg)}
         :global([dir='rtl']) .lgd-contents:not([open])>.lgd-toc-summary .lgd-contents-chevron,
