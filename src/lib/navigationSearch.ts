@@ -77,7 +77,7 @@ export const NAV_DISCOVERY: Readonly<Record<string, readonly [string, string]>> 
   Merchandise: [ 'Partner merchandise', 'सामान পণ্য' ],
   Kiosk: [ 'Partner kiosk', 'कियोस्क কিয়স্ক' ],
   Android: [ 'Android apps on Google Play', 'ऐप एंड्रॉइड অ্যাপ অ্যান্ড্রয়েড' ],
-  iOS: [ 'Temporarily opens Google Play; iOS listing not yet available', 'आईओएस ऐप আইওএস অ্যাপ' ],
+  iOS: [ '', 'आईओएस ऐप আইওএস অ্যাপ' ],
   ChatGPT: [ 'Open ChatGPT', 'एआई এআই' ],
   Claude: [ 'Open Claude', 'एआई এআই' ],
   Gemini: [ 'Open Gemini', 'एआई এআই' ],

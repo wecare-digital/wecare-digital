@@ -109,8 +109,10 @@ export const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
 export const SUBNAV_ICON_PATH = 'M5 12v1a5 5 0 0 0 5 5h11m-4-4 4 4-4 4';
 export const SUBNAV_DOT_PATH = 'M5 1.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5ZM5 6.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5Z';
 export const SUBNAV_ICON_VIEW_BOX = '1.375 0.875 23 23';
-export const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
-export const ROW_CHEVRON_VIEW_BOX = '4.8 4.8 14.4 14.4';
+// Google Material Symbols Outlined keyboard_double_arrow_right (FILL 0, wght 400, GRAD 0, opsz 24).
+// 560-unit maximum artwork extent, optically centered in a 24px slot.
+export const ROW_CHEVRON_PATH = 'M383-480 200-664l56-56 240 240-240 240-56-56 183-184Zm264 0L464-664l56-56 240 240-240 240-56-56 183-184Z';
+export const ROW_CHEVRON_VIEW_BOX = '174.55 -785.45 610.9 610.9';
 
 
 // Legal navigation: exact Google Material Symbols Outlined (FILL 0, wght 400,

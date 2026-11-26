@@ -392,10 +392,10 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         .orm-title{font-size:17px;line-height:1.25;font-weight:700;overflow-wrap:anywhere}
         .orm-sub{font-size:12px;line-height:1.35;font-weight:400;color:var(--public-muted)}
         .orm-next{
-          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:none;
-          stroke:currentColor;stroke-width:var(--public-nav-stroke);
-          stroke-linecap:round;stroke-linejoin:round;opacity:.65;
+          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:currentColor;
+          stroke:none;opacity:.65;
         }
+        :global([dir='rtl']) .orm-next{transform:scaleX(-1)}
         .orm-family-title{font-size:18px;font-weight:700;cursor:default}
         .orm-family-title span{flex:1}
         .orm-child{padding-inline-start:26px}

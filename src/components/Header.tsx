@@ -40,8 +40,6 @@ interface NavLink {
   children?: NavLink[];
   /** True for absolute URLs off this app. Same tab either way. */
   external?: boolean;
-  /** Visible destination disclosure for temporary external links. */
-  note?: string;
 }
 
 interface NavSection {
@@ -52,6 +50,8 @@ interface NavSection {
   headingMatch?: string;
   /** Render this section's destinations with the standard nested-row treatment. */
   nestedLinks?: boolean;
+  /** Non-link heading that can disclose its own destination list. */
+  collapsible?: boolean;
   links: NavLink[];
 }
 
@@ -209,7 +209,7 @@ const COLUMNS: NavColumn[] = [
               { label: 'Android', href: PLAY_STORE.developerUrl, external: true, searchTerms: [ 'android', 'play store', 'google play store' ] },
               // Temporary destination explicitly requested by the owner. This is
               // not an App Store listing or a claim that an iOS app is available.
-              { label: 'iOS', href: PLAY_STORE.developerUrl, external: true, note: 'Temporarily opens Google Play', searchTerms: [ 'ios', 'iphone', 'ipad', 'apple', 'app store' ] },
+              { label: 'iOS', href: PLAY_STORE.developerUrl, external: true, searchTerms: [ 'ios', 'iphone', 'ipad', 'apple', 'app store' ] },
             ],
           },
           {
@@ -233,6 +233,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Legal Stuff',
         nestedLinks: true,
+        collapsible: true,
         links: [
           { label: 'Terms', href: '/terms/', match: '/terms' },
           { label: 'Privacy', href: '/privacy/', match: '/privacy' },
@@ -692,6 +693,8 @@ const Header: React.FC = () => {
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
                         const sectionIconPath = SECTION_ICON_PATHS[ section.heading ];
+                        const sectionId = `nav-section-${columnIndex}-${sectionIndex}`;
+                        const sectionOpen = familyOverrides[ sectionId ] ?? section.links.some( isActive );
                         const label = section.heading && ( section.headingHref
                           ? (
                             <a
@@ -714,7 +717,26 @@ const Header: React.FC = () => {
                               <span>{ section.heading }</span>
                             </a>
                           )
-                          : (
+                          : section.collapsible ? (
+                            <button type="button" className="nav-group-label nav-section-toggle"
+                              aria-expanded={ sectionOpen } aria-controls={ sectionId }
+                              onClick={ () => setFamilyOverrides( previous => ( { ...previous, [ sectionId ]: !sectionOpen } ) ) }>
+                              { sectionIconPath ? (
+                                <svg
+                                  className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
+                                  viewBox={ sectionIconViewBox( section.heading ) }
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
+                                  <path d={ sectionIconPath } />
+                                </svg>
+                              ) : null }
+                              <span>{ section.heading }</span>
+                              <svg className="nav-row-chevron" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true" focusable="false">
+                                <path d={ ROW_CHEVRON_PATH } />
+                              </svg>
+                            </button>
+                          ) : (
                             <span className="nav-group-label">
                               { sectionIconPath ? (
                                 <svg
@@ -808,7 +830,7 @@ const Header: React.FC = () => {
                                   <path d={ SUBNAV_ICON_PATH } />
                                   <path className="nav-sub-dots" d={ SUBNAV_DOT_PATH } />
                                 </svg>
-                                <span className="nav-item-label">{ child.label }{ child.note && <span className="nav-result-description">{ child.note }</span> }</span>
+                                <span className="nav-item-label">{ child.label }</span>
                               </a>
                             ) ) }
                             </div> : null }
@@ -846,7 +868,7 @@ const Header: React.FC = () => {
                                   ) }
                                 </>
                               )
-                              : items }
+                              : section.collapsible ? <div className="nav-section-children" id={ sectionId } hidden={ !sectionOpen }>{ items }</div> : items }
                           </div>
                         );
                       } ) }
@@ -1241,7 +1263,7 @@ const Header: React.FC = () => {
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
         .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:var(--public-nav-row-desktop);padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:var(--public-nav-radius)}
-        .nav-row-chevron{margin-inline-start:auto}
+        .nav-row-chevron{margin-inline-start:auto;fill:currentColor;stroke:none}
         .nav-item-label{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.25;padding-block:5px}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
            rgba(209,244,112,.22) pale tint, so the current page ("you are here") looked
@@ -1280,9 +1302,13 @@ const Header: React.FC = () => {
            parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
         .nav-tree-item.has-children + .nav-tree-item{margin-top:6px}
          .nav-family-label{box-sizing:border-box;width:100%;border:0;background:none;font-family:inherit;text-align:start;cursor:pointer}
-        .nav-family-label[aria-expanded='true'] .nav-row-chevron{transform:rotate(90deg)}
-        :global([dir='rtl']) .nav-family-label:not([aria-expanded='true']) .nav-row-chevron{transform:scaleX(-1)}
-        .nav-family-children[hidden]{display:none}
+        .nav-family-label[aria-expanded='true'] .nav-row-chevron,.nav-section-toggle[aria-expanded='true'] .nav-row-chevron{transform:rotate(90deg)}
+        :global([dir='rtl']) .nav-family-label:not([aria-expanded='true']) .nav-row-chevron,:global([dir='rtl']) .nav-section-toggle:not([aria-expanded='true']) .nav-row-chevron{transform:scaleX(-1)}
+        .nav-family-children[hidden],.nav-section-children[hidden]{display:none}
+        .nav-section-toggle{width:100%;box-sizing:border-box;min-height:var(--tap-min);background:none;border:0;border-radius:var(--public-nav-radius);font-family:inherit;text-align:start;cursor:pointer}
+        .nav-section-toggle span{flex:1;min-width:0;overflow-wrap:anywhere}
+        .nav-section-toggle:hover{background:var(--public-nav-hover)}
+        .nav-section-toggle:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:1px}
         .nav-result-description{display:block;font-size:var(--public-meta-size);font-weight:400;color:var(--public-muted);line-height:1.35;margin-top:3px}
         .nav-empty{grid-column:1/-1}.nav-empty p{margin:0 0 8px}
         .nav-suggestions{display:flex;flex-wrap:wrap;gap:8px}.nav-suggestions button{min-height:var(--tap-min);border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);background:var(--public-bg);padding:6px 12px;color:var(--public-brand-green);font:inherit;cursor:pointer}.nav-suggestions button:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:2px}

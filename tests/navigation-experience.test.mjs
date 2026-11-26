@@ -76,7 +76,7 @@ test('request selection survives one auth handoff and rejects expired or tampere
   }
 });
 
-test('Extras contains two expandable families, with transparent temporary iOS destination and no Perks', () => {
+test('Extras contains two expandable families, with clean iOS label and no Perks', () => {
   const header = readFileSync(new URL('../src/components/Header.tsx', import.meta.url), 'utf8');
   const aliases = readFileSync(new URL('../src/lib/navigationSearch.ts', import.meta.url), 'utf8');
   const extras = header.slice(header.indexOf("heading: 'Extras'"), header.indexOf("heading: 'Contact'"));
@@ -86,14 +86,15 @@ test('Extras contains two expandable families, with transparent temporary iOS de
   for (const [label, href] of [['ChatGPT','https://chatgpt.com/'], ['Claude','https://claude.ai/'], ['Gemini','https://gemini.google.com/']]) {
     assert.ok(extras.includes("label: '" + label + "', href: '" + href + "', external: true"));
   }
-  assert.ok(extras.includes("note: 'Temporarily opens Google Play'"));
-  assert.ok(header.includes('child.note && <span className="nav-result-description">'));
+  assert.ok(!extras.includes("note: 'Temporarily opens Google Play'"));
+  assert.ok(!header.includes('child.note'));
   assert.ok(!header.includes("label: 'Perks'"));
   assert.ok(!header.includes('377GALDW4E26F1'));
   assert.ok(!header.includes("heading: 'With AI'"));
   assert.ok(!header.includes("label: 'Google Play'"));
   assert.ok(!aliases.includes('  Perks:'));
-  assert.ok(aliases.includes("  iOS: [ 'Temporarily opens Google Play; iOS listing not yet available'"));
+  assert.ok(aliases.includes("  iOS: [ '',"));
+  assert.ok(!aliases.includes('Temporarily opens Google Play'));
   assert.ok(header.includes('for ( const child of link.children || [] ) push( child, [ ...terms, link.label ], true )'));
   assert.ok(header.includes('hidden={ !familyOpen }'));
 });
@@ -102,6 +103,11 @@ test('Contact and Legal Stuff use the same dotted submenu arrow in the menu and 
   const header = readFileSync(new URL('../src/components/Header.tsx', import.meta.url), 'utf8');
   const icons = readFileSync(new URL('../src/lib/publicNavigationIcons.ts', import.meta.url), 'utf8');
   for (const heading of ['Contact', 'Legal Stuff']) assert.ok(header.includes("heading: '" + heading + "',\n        nestedLinks: true,"));
+  assert.ok(header.includes("heading: 'Legal Stuff',\n        nestedLinks: true,\n        collapsible: true,"));
+  assert.ok(header.includes('aria-expanded={ sectionOpen } aria-controls={ sectionId }'));
+  assert.ok(header.includes('id={ sectionId } hidden={ !sectionOpen }'));
+  assert.ok(header.includes('familyOverrides[ sectionId ] ?? section.links.some( isActive )'));
+  assert.ok(header.includes('.nav-section-toggle[aria-expanded=\'true\'] .nav-row-chevron{transform:rotate(90deg)}'));
   for (const [label, href] of [['Contact us','/contact/'], ['Terms','/terms/'], ['Privacy','/privacy/']]) {
     assert.ok(header.includes("label: '" + label + "', href: '" + href + "'"));
   }
