@@ -121,6 +121,9 @@ if (!block) {
 const ALLOWED_NONINDEXABLE_PAGES = new Set([
   '/_app', '/_document', '/404', '/auth', '/vault',
   '/checkout', '/checkout/status', '/checkout/success',
+  // Public pre-launch holding pages use UpcomingProductPage's explicit noindex.
+  // They are navigable, but not advertised in the marketing catalogue or sitemap.
+  '/udyam-bids', '/get-kosh',
   '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]',
   '/post/[slug]', '/shop/[slug]', '/shop/page/[page]',
   // The /ws workspace is an authenticated, non-indexable staff surface (its own
