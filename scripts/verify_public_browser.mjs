@@ -53,6 +53,32 @@ try {
             scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth,
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
+
+          if (route.name === 'terms' || route.name === 'privacy') {
+            const headings = await page.locator('.lgd-h2, .lgd-h3').evaluateAll(elements => elements.map(heading => {
+              const number = heading.querySelector('.lgd-num');
+              const title = heading.querySelector('.lgd-heading-text');
+              if (!number || !title) return {ok: false, text: heading.textContent};
+              const n = number.getBoundingClientRect();
+              const t = title.getBoundingClientRect();
+              const style = getComputedStyle(heading);
+              return {
+                text: heading.textContent,
+                ok: t.left - n.right >= 7 && style.fontStyle === 'normal'
+                  && getComputedStyle(title).fontStyle === 'normal'
+                  && style.transform === 'none'
+                  && heading.textContent.startsWith(number.textContent + ' ')
+                  && number.scrollWidth <= number.clientWidth + 1,
+                titleOffset: t.left - heading.getBoundingClientRect().left,
+              };
+            }));
+            assert.equal(headings.length, route.name === 'terms' ? 65 : 40, name + ': missing legal headings');
+            for (const heading of headings) {
+              assert.ok(heading.ok, name + ': number spacing or heading style ' + JSON.stringify(heading));
+              assert.ok(Math.abs(heading.titleOffset - headings[0].titleOffset) <= 1,
+                name + ': inconsistent title column ' + JSON.stringify(heading));
+            }
+          }
           await page.screenshot({path: join(output, name + '.png')});
           if (route.input) {
             const field = page.locator(route.input);

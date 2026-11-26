@@ -306,8 +306,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         return (
           <section key={ section.id } id={ section.id } className={ `lgd-section ${sub ? 'is-sub' : ''}`.trim() }>
             { sub
-              ? <h3 className="lgd-h3"><span className="lgd-num">{ section.number }</span>{ section.heading }</h3>
-              : <h2 className="lgd-h2"><span className="lgd-num">{ section.number }</span>{ section.heading }</h2> }
+              ? <h3 className="lgd-h3"><span className="lgd-num">{ section.number }</span>{ ' ' }<span className="lgd-heading-text">{ section.heading }</span></h3>
+              : <h2 className="lgd-h2"><span className="lgd-num">{ section.number }</span>{ ' ' }<span className="lgd-heading-text">{ section.heading }</span></h2> }
             { section.inShort && (
               <p className="lgd-short">
                 <span className="lgd-short-tag">In short</span>
@@ -521,9 +521,18 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         /* A word longer than the column breaks instead of pushing the page sideways at 280px. */
         .lgd-h2{margin:0 0 12px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading);overflow-wrap:anywhere}
         .lgd-h3{margin:0 0 10px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
-        /* The clause number sits in the left margin on a wide screen so headings align
-           on their text rather than stepping right as numbers get wider. */
-        .lgd-num{display:inline-block;min-width:44px;color:var(--public-muted);font-weight:600}
+        /* Separate the number and title into aligned columns; a real gap remains
+           even for longer clause numbers, and wrapped titles keep their alignment. */
+        .lgd-h2,.lgd-h3{
+          display:grid;grid-template-columns:3.5rem minmax(0,1fr);
+          column-gap:12px;align-items:baseline;text-align:start;font-style:normal;
+          transform:none;
+        }
+        .lgd-num{
+          display:block;white-space:nowrap;letter-spacing:normal;font-variant-numeric:tabular-nums;
+          color:var(--public-muted);font-weight:600;font-style:normal;
+        }
+        .lgd-heading-text{min-width:0;overflow-wrap:anywhere;font-style:normal}
 
         .lgd-p{margin:0 0 12px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
         .lgd-p:last-child{margin-bottom:0}
@@ -538,8 +547,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           .lgd-h2{font-size:var(--public-mobile-section-size)}
           .lgd-h3{font-size:var(--public-mobile-card-size)}
           .lgd-short{padding-inline-start:12px}
-          /* Numbers move inline: a 44px gutter on a 320px screen costs 14% of the width. */
-          .lgd-num{min-width:0;margin-inline-end:8px}
+          .lgd-h2,.lgd-h3{grid-template-columns:3rem minmax(0,1fr);column-gap:8px}
         }
       `}</style>
     </div>
