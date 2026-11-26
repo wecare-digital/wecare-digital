@@ -59,3 +59,17 @@ first determine whether the same message already reached the canonical Inbox.
 An OK alarm is **not** positive provider-routing evidence; absence of events
 is expected and missing data is non-breaching. Keep the per-account checks
 even when the alarm is green.
+
+### Dead-letter replay acknowledgment
+
+The WhatsApp replay Lambda must not acknowledge a receipt based on a Lambda
+invoke or application HTTP success code alone. For message-only webhook items,
+confirm every WhatsApp message ID against an inbound WhatsApp row in the
+canonical Inbox table, including a strongly consistent read from the base
+table. If all rows already exist, acknowledge the copy without reinvoking the
+worker. Otherwise require a complete worker outcome with no errors as well as
+the durable rows. An unavailable or lagging index, unknown or mixed payload,
+or exhausted retry budget retains the inbound receipt for investigation.
+The original SQS retention window still applies. Remove the tracking record
+only after SQS acknowledges deletion. This confirms Inbox delivery, not the
+completion of downstream automations or outbound messages.
