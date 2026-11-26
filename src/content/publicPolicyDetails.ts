@@ -34,10 +34,10 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
 /** Orders renders its disclosure beneath the history inside the page. Keep the
  * same four canonical policy statements without a second global tail. */
 export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
-  shipping: 'Delivery or service fulfilment follows your confirmed order and any applicable courier or provider terms.',
-  returns: 'Return or replacement eligibility depends on the purchased item or service, its confirmed terms and applicable law.',
-  refunds: 'Cancellation and refund eligibility depends on the confirmed transaction and applicable terms.',
-  disclaimer: 'The latest confirmed order record controls the status shown here. If a paid order is missing or looks incorrect, contact us.',
+  shipping: 'Delivery, collection or service fulfilment follows your confirmed order, booking or request.',
+  returns: 'Request a return or replacement under the conditions disclosed for your purchase. Statutory remedies remain available for faulty, misdescribed or deficient goods and services.',
+  refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+  disclaimer: 'Keep your order reference for enquiries. If an order, payment or delivery status appears incorrect, contact customer care.',
 };
 
 /**
@@ -46,51 +46,77 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
-  '/niji-setu/parichay': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Profile creation and sharing are not available on this page yet.' },
-  '/niji-setu/khata': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Invoice creation is not available on this page yet. Verify applicable invoicing and tax requirements before issuing invoices.' },
-  '/atmos/green-ledger': { shipping: 'No fulfilment starts by visiting this information page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Product scope and availability must be confirmed before any order.' },
-  '/elsewhere/rail': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Rail availability, fares, timetables and terms remain with the relevant operator.' },
-  '/elsewhere/cruise': { shipping: 'No ticket is issued on this page.', returns: 'Nothing is sold on this page.', refunds: 'No payment is taken here.', disclaimer: 'Cruise availability, fares, itineraries and terms remain with the relevant operator.' },
-  // Customer sign-in is a no-payment account access step; do not imply that an
-  // OTP verification itself creates an order or any return/refund entitlement.
+  '/': {
+    shipping: 'Physical products are delivered according to the confirmed order; digital services and appointments follow their agreed scope and schedule.',
+    returns: 'Return and replacement conditions depend on the product or service and the terms disclosed before purchase. Statutory consumer remedies remain available.',
+    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Services are subject to availability and applicable service-specific terms. General information is not personalised professional advice.',
+  },
+  '/niji-setu/parichay': {
+    shipping: 'Any profile service, when available, will be supplied digitally under the terms disclosed before purchase.',
+    returns: 'Digital profile deliverables may have change-of-mind return restrictions; remedies for deficient services remain available under applicable law.',
+    refunds: 'If a paid profile service is offered, its disclosed cancellation conditions and applicable refund rights will apply.',
+    disclaimer: 'Parichay is a planned digital profile tool. Availability must be confirmed; share personal information only with intended recipients.',
+  },
+  '/niji-setu/khata': {
+    shipping: 'Any invoice creation service, when available, will be supplied digitally under the terms disclosed before purchase.',
+    returns: 'Digital invoice services may have change-of-mind return restrictions; remedies for deficient services remain available under applicable law.',
+    refunds: 'If a paid invoice service is offered, its disclosed cancellation conditions and applicable refund rights will apply.',
+    disclaimer: 'Khata is a planned invoice creation tool, not tax or accounting advice. Verify invoice particulars and applicable tax requirements.',
+  },
+  '/atmos/green-ledger': {
+    shipping: 'Environmental record and sustainability tracking services, if offered, follow the agreed scope and delivery schedule.',
+    returns: 'Return and correction conditions depend on the agreed service. Statutory remedies for deficient or misdescribed work remain available.',
+    refunds: 'Cancellation and refund eligibility depends on the confirmed service and disclosed terms; monetary refunds are provided where required by law.',
+    disclaimer: 'Green Ledger availability and scope must be confirmed before purchase. Environmental records alone do not establish regulatory compliance or independent certification.',
+  },
+  '/elsewhere/rail': {
+    shipping: 'Rail planning and any confirmed ticket or booking arrangements follow the relevant operator\'s delivery and travel conditions.',
+    returns: 'Ticket changes and cancellations depend on the operator\'s fare rules and applicable passenger rights.',
+    refunds: 'Any booking refund is subject to the disclosed fare conditions, recoverable charges and applicable law. Our service charges follow the agreed terms.',
+    disclaimer: 'Rail enquiries do not guarantee tickets, fares, seats or schedules. Confirm travel details with the operator before departure.',
+  },
+  '/elsewhere/cruise': {
+    shipping: 'Cruise planning and any confirmed booking documents follow the agreed arrangements and relevant operator conditions.',
+    returns: 'Booking changes or cancellations depend on the operator\'s fare conditions and applicable passenger rights.',
+    refunds: 'Refund eligibility depends on the confirmed booking, disclosed cancellation charges and applicable law. Our service charges follow the agreed terms.',
+    disclaimer: 'Cruise itineraries, availability, prices, entry requirements and sailing schedules are subject to operator confirmation.',
+  },
   '/vault': {
-    shipping: 'Vault files are delivered digitally after owner verification; no physical shipment is included.',
-    returns: 'A downloaded digital file cannot be returned as a physical item. Contact support if the shared file is incorrect.',
-    refunds: 'Refund and cancellation eligibility follows the confirmed Vault purchase, its terms and applicable law.',
-    disclaimer: 'A file link alone grants no download access. The server verifies the exact owner, payment and access window.',
+    shipping: 'Authorised Vault files are supplied digitally, subject to the applicable access conditions.',
+    returns: 'If a file is incorrect or incomplete, contact customer care. Change-of-mind restrictions do not affect statutory remedies for deficient services.',
+    refunds: 'Any paid Vault service follows its disclosed cancellation conditions. Monetary refunds are provided where required by law.',
+    disclaimer: 'Access requires the applicable identity and access verification. Protect file links and verification codes; retention is governed by our Privacy Policy.',
   },
   '/auth': {
-    shipping: 'Signing in or verifying your number does not start a delivery. Fulfilment follows only a separately confirmed order.',
-    returns: 'Signing in does not provide a returnable item or service. Any purchased item follows its confirmed return or replacement terms.',
-    refunds: 'No payment is taken by signing in. Cancellation and refund eligibility applies to a separately confirmed purchase.',
-    disclaimer: 'Keep verification codes private. Signing in alone does not confirm an order, booking or payment.',
+    shipping: 'Delivery and service arrangements apply to your confirmed orders and bookings.',
+    returns: 'Purchased items and services follow their disclosed return or replacement conditions and applicable law.',
+    refunds: 'Cancellation and refund rights apply to the relevant confirmed transaction; eligible discretionary credits follow our Terms of Service.',
+    disclaimer: 'Keep your sign-in credentials and verification codes private. Sign-in does not confirm a purchase or payment.',
   },
   '/contact': {
-    shipping: 'No fulfilment starts by visiting or contacting us on this page.',
-    returns: 'Nothing submitted on this page is a returnable product.',
-    refunds: 'No payment is taken on this page, so nothing is refundable here.',
-    disclaimer: 'Submitting a request does not confirm acceptance, price, timing or scope; the later confirmed request or order controls.',
+    shipping: 'Delivery, collection or service fulfilment follows the arrangements confirmed for your request or order.',
+    returns: 'Contact customer care about damaged, incorrect or deficient goods or services and any available return or replacement remedy.',
+    refunds: 'Contact us to request a cancellation or refund. Eligibility follows the confirmed transaction and applicable law.',
+    disclaimer: 'A general enquiry does not confirm acceptance, price, scope or timing. For a complaint, contact one@wecare.digital.',
   },
-  // Nano Climate Standard is listed at ₹99.00 in the catalog (owner-approved in #1449), so this copy
-  // must not call Nano Climate itself free. What stays true is page-scoped: the live data here is free
-  // to use and the page takes no payment; a catalog order is governed by that order.
   '/atmos/nano-climate': {
-    shipping: 'No fulfilment starts by using the live air and weather information on this page.',
-    returns: 'Nothing on this page is returnable.',
-    refunds: 'No payment is taken on this page; a paid Nano Climate catalog order follows its confirmed order terms.',
-    disclaimer: 'Air-quality and weather data may be delayed, estimated or third-party supplied. Use official sources for safety-critical decisions.',
+    shipping: 'Air-quality and weather information is provided digitally; any purchased service follows its confirmed scope and fulfilment terms.',
+    returns: 'Digital information and service deliverables may have change-of-mind return restrictions; statutory remedies for deficient services remain available.',
+    refunds: 'Any paid Nano Climate service follows its disclosed cancellation conditions and applicable refund rights.',
+    disclaimer: 'Air-quality and weather data may be delayed, estimated or supplied by third parties. Refer to official advisories for safety-critical decisions.',
   },
   '/elsewhere/activities': {
-    shipping: 'Planning is delivered digitally; separate tickets or items follow their own delivery terms.',
-    returns: 'Completed planning work is not returnable; third-party items follow provider terms.',
-    refunds: 'Refunds and cancellations depend on work started and third-party terms.',
-    disclaimer: 'Availability, weather, operating rules and prices remain with the relevant provider.',
+    shipping: 'Activity planning is supplied digitally. Tickets, bookings and other items follow their confirmed delivery arrangements.',
+    returns: 'Changes or cancellations to third-party activities follow the disclosed operator terms and applicable passenger or consumer rights.',
+    refunds: 'Refund eligibility depends on work performed, recoverable provider charges, disclosed conditions and applicable law.',
+    disclaimer: 'Activity availability, local rules, weather, prices and safety conditions are subject to operator confirmation.',
   },
   '/aastha/panchang': {
-    shipping: 'Guidance is delivered digitally unless a physical item is included.',
-    returns: 'Delivered guidance is not returnable; physical items follow their disclosed terms.',
-    refunds: 'Refunds and cancellations depend on whether preparation has started.',
-    disclaimer: 'Panchang is traditional spiritual and calendar guidance, not medical, legal, financial or other regulated professional advice.',
+    shipping: 'Panchang and traditional guidance are supplied digitally unless physical delivery is separately agreed.',
+    returns: 'Change-of-mind returns may be limited after personalised guidance is prepared. Statutory remedies for deficient services remain available.',
+    refunds: 'Cancellation and adjustment eligibility depends on preparation already performed and disclosed terms. Monetary refunds are provided where required by law.',
+    disclaimer: 'Panchang, astrology and Vastu are traditional interpretive practices, not guaranteed predictions or medical, legal, financial or other regulated advice.',
   },
   '/privacy': {
     shipping: 'We share delivery details, including your name, address and phone number, with couriers, sellers and fulfilment partners as needed to complete delivery.',
@@ -105,60 +131,60 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     disclaimer: 'Services are subject to availability and applicable service-specific terms. General information does not constitute personalised professional advice. Your mandatory consumer and other statutory rights and remedies remain unaffected.',
   },
   '/shop': {
-    shipping: 'Fulfilment depends on the selected item or service.',
-    returns: 'Returns or replacements are item-specific and follow disclosed terms and applicable law.',
-    refunds: 'Browsing creates nothing to cancel; confirmed orders follow their terms.',
-    disclaimer: 'Price, availability and fulfilment can change before checkout; the confirmed order controls.',
+    shipping: 'Delivery or digital fulfilment depends on the selected product, confirmed destination and disclosed delivery charges or service arrangements.',
+    returns: 'Return and replacement eligibility depends on the item, its condition, customisation and disclosed terms. Statutory remedies for defective, misdescribed or late goods and deficient services remain available.',
+    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Prices, availability and service scope are confirmed before purchase. Independent providers may have separate terms. Your statutory rights remain unaffected.',
   },
   '/checkout': {
-    shipping: 'Fulfilment starts after the payment and order are confirmed; delivery or service timing follows the confirmed item.',
-    returns: 'Return and replacement eligibility depends on the selected item or service, its confirmed terms and applicable law.',
-    refunds: 'Cancellation and refund eligibility follows the confirmed transaction, disclosed terms and applicable law.',
-    disclaimer: 'Check your items, amount and details before paying. If payment status is unclear, check the order record instead of paying again.',
+    shipping: 'Delivery or service fulfilment follows the confirmed order, payment requirements and disclosed charges or schedule.',
+    returns: 'Return and replacement eligibility depends on the purchased product or service and disclosed conditions. Statutory remedies remain available.',
+    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Review the items, charges, delivery details and payment amount before confirming. If payment status is unclear, check your order or contact customer care before trying again.',
   },
   '/checkout/status': {
-    shipping: 'Fulfilment starts after the order is confirmed.',
-    returns: 'Returns or replacements follow the purchased item or service terms.',
-    refunds: 'A pending status is not a refund; the confirmed transaction controls.',
-    disclaimer: 'If status is unclear, check the order record before paying again.',
+    shipping: 'Delivery or service arrangements follow your confirmed order and its applicable payment conditions.',
+    returns: 'Return and replacement requests are handled against the relevant purchase, subject to its disclosed conditions and applicable law.',
+    refunds: 'Cancellation and refund eligibility follows the confirmed transaction. Contact customer care for help with a delayed or disputed payment.',
+    disclaimer: 'If payment status is unclear, check your order reference or contact customer care before paying again.',
   },
   '/checkout/success': {
-    shipping: 'Fulfilment follows the confirmed order.',
-    returns: 'Returns or replacements follow the confirmed item or service terms.',
-    refunds: 'Later refunds or cancellations are handled against the confirmed order.',
-    disclaimer: 'Keep the order reference; the confirmed order record controls.',
+    shipping: 'Your confirmed order sets out the applicable delivery or service arrangements.',
+    returns: 'Return and replacement eligibility depends on the purchased item or service and disclosed conditions. Statutory remedies remain available.',
+    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Keep your order and payment reference for enquiries. Contact customer care if the confirmation differs from your purchase.',
   },
   '/get': {
-    shipping: 'This page creates no physical shipping.',
-    returns: 'A released digital copy is not a physical return.',
-    refunds: 'No payment is taken on this page.',
-    disclaimer: 'Access can require verification and may expire or be withdrawn when no longer authorised.',
+    shipping: 'Authorised files are supplied digitally under the applicable access conditions.',
+    returns: 'Contact customer care if a supplied digital file is incorrect or incomplete. Statutory remedies remain available.',
+    refunds: 'Refund and cancellation eligibility for a paid file or service follows its disclosed terms and applicable law.',
+    disclaimer: 'Access may require verification and may expire or be withdrawn when no longer authorised. Protect shared file links.',
   },
 };
 
 const BLOG_INDEX_POLICY: PublicPolicyCopy = {
-  shipping: 'No fulfilment applies to browsing the Blog.',
-  returns: 'Nothing on a blog listing is returnable.',
-  refunds: 'Browsing is free, so nothing is refundable.',
-  disclaimer: 'Articles are general information, not professional advice.',
+  shipping: 'Articles are available online. Any separately purchased products or services follow their confirmed delivery terms.',
+  returns: 'Return and replacement eligibility for a related purchase follows its disclosed conditions and applicable law.',
+  refunds: 'Reading articles is free. Voluntary contributions support editorial work and are generally non-refundable; erroneous, duplicate, unauthorised or fraudulent payments may be reviewed for reversal.',
+  disclaimer: 'Articles provide general information, not personalised professional advice. Check current information with authoritative sources.',
 };
 
 const BLOG_POST_POLICY: PublicPolicyCopy = {
-  shipping: 'No fulfilment applies to reading or sharing this article.',
-  returns: 'Nothing in the article itself is returnable.',
-  refunds: 'Reading is free, so nothing is refundable.',
-  disclaimer: 'Articles are general information as published; verify time-sensitive facts and seek qualified advice where needed.',
+  shipping: 'Articles are published digitally; any separate purchase or service follows its confirmed delivery arrangements.',
+  returns: 'Return and replacement rights apply to separately purchased goods or services under their disclosed terms and applicable law.',
+  refunds: 'Voluntary contributions support editorial work and do not purchase goods or services. Contributions are generally non-refundable; contact us about erroneous, duplicate, unauthorised or fraudulent payments.',
+  disclaimer: 'Published information may become outdated. Verify material facts with authoritative sources and seek qualified advice where necessary. Contributions do not confer editorial influence or a financial return.',
 };
 
 const SHOP_PAGE_POLICY: PublicPolicyCopy = {
-  shipping: 'Fulfilment depends on the selected item or service.',
-  returns: 'Returns or replacements are item-specific and follow disclosed terms and applicable law.',
-  refunds: 'Browsing creates nothing to cancel; confirmed orders follow their terms.',
-  disclaimer: 'Price, availability and fulfilment can change before checkout; the confirmed order controls.',
+  shipping: 'Delivery or digital fulfilment depends on the selected product, confirmed destination and disclosed delivery charges or service arrangements.',
+  returns: 'Return and replacement eligibility depends on the item, its condition, customisation and disclosed terms. Statutory remedies for defective, misdescribed or late goods and deficient services remain available.',
+  refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+  disclaimer: 'Prices, availability and service scope are confirmed before purchase. Independent providers may have separate terms. Your statutory rights remain unaffected.',
 };
 
 export function publicPolicyDetailsForRoute( pathname: string ): PublicPolicyCopy | null {
-  if ( pathname === '/' || pathname === '/404' ) return null;
+  if ( pathname === '/404' ) return null;
   if ( pathname === '/shop/[slug]' || EMBEDDED_POLICY_ROUTES.has( pathname ) ) return null;
 
   if (

@@ -28,7 +28,7 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
 };
 
 export const PRODUCT_REFUNDS =
-  'Cancellation may not be available once work starts. Approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. No cash or original-payment-method refund is provided unless required by law.';
+  'Cancellation eligibility depends on work performed and the disclosed terms. Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.';
 
 export interface ProductPolicyCopy {
   shipping: string;
@@ -40,95 +40,149 @@ export interface ProductPolicyCopy {
 const PHYSICAL_PRODUCT_SLUGS = new Set<string>( [
   'ritual-guru-diy-puja-kit',
   'merchandise',
+  'kiosk',
 ] );
 
 const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
-  // Relay OS is the copy benchmark for the rest of the site.
   'grahak-os': {
-    shipping: 'Delivered digitally; no physical shipping applies. Separate physical items follow their own delivery terms.',
-    returns: 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.',
-    disclaimer: 'Your purchase covers one Relay OS consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
+    shipping: 'The consultation is delivered digitally. Any separately agreed implementation or physical items follow their own fulfilment arrangements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'The purchase covers one Relay OS consultation. Deployment, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals depend on the relevant providers.',
   },
   'sehat': {
-    shipping: 'Arogya Yatra is fulfilled as an appointment-booking service; no physical delivery applies.',
-    returns: 'Service work and digital records are not returnable; physical items follow their disclosed terms.',
-    disclaimer: 'Arogya Yatra books appointments with qualified professionals. It does not provide medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
+    shipping: 'Arogya Yatra arranges appointments with qualified professionals under the confirmed booking conditions. Any separate travel or physical items follow their own terms.',
+    returns: 'Appointment changes and cancellations follow the disclosed booking conditions. Statutory remedies for deficient services remain available.',
+    refunds: 'Appointment cancellation eligibility depends on the disclosed booking terms. Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Arogya Yatra is an appointment-booking service, not medical advice, diagnosis or treatment. For emergencies, contact the appropriate emergency service.',
   },
   'elsewhere-visa': {
-    disclaimer: 'We can prepare and track the application; approval and timing remain with the relevant authority.',
+    shipping: 'Application preparation, documentation and tracking are delivered according to the confirmed service scope. Physical document handling, if included, follows the agreed arrangements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    refunds: 'Cancellation may depend on work performed and disclosed non-recoverable government or filing charges. Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Visa decisions, entry permissions and processing times are controlled by the relevant authority. Application support does not guarantee approval.',
   },
   'elsewhere-trip': {
-    disclaimer: 'Providers and authorities control availability, prices, conditions and entry decisions.',
+    shipping: 'Travel planning is supplied digitally. Tickets, accommodation and transport are supplied according to the confirmed provider arrangements.',
+    returns: 'Booking changes and returns depend on the provider\'s disclosed conditions and applicable passenger or consumer rights.',
+    refunds: 'Cancellation may depend on recoverable booking costs and disclosed provider charges. Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Travel availability, prices, entry conditions and schedules depend on providers and public authorities.',
   },
   'expo-week': {
-    disclaimer: 'Expo Week is virtual planning; destination availability, supplier offers and travel conditions can change.',
+    shipping: 'Virtual expo access and planning are delivered digitally under the agreed service conditions.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Supplier offers, destination availability and travel conditions may change. Any separately purchased travel service follows its own terms.',
   },
   'dastavez-drafting': {
-    disclaimer: 'Drafting is document-preparation support, not legal advice or representation.',
+    shipping: 'Drafts and supporting documents are delivered in the agreed format. Physical documents, if included, follow the agreed delivery arrangements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Drafting is document-preparation support, not legal advice or representation. Have a qualified advocate review documents where legal advice is needed.',
   },
   'dastavez-registration': {
-    disclaimer: 'The relevant authority controls acceptance and timing; filing support cannot guarantee its decision.',
+    shipping: 'Paperwork and filing support follow the agreed scope. Physical documents and official certificates depend on the agreed arrangements and relevant authority.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    refunds: 'Cancellation may depend on work performed and disclosed non-recoverable filing charges. Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
+    disclaimer: 'Registration acceptance and processing times are controlled by the relevant authority. Filing support does not guarantee a decision.',
   },
   'dastavez-legal-reference': {
-    disclaimer: 'Legal Reference is research support, not legal advice, representation or an outcome prediction.',
+    shipping: 'Research and reference material are supplied digitally in the agreed format.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Legal Reference provides research support, not legal advice, representation or predictions about a legal outcome.',
   },
   'guided-resolution': {
-    disclaimer: 'Guided Resolution supports preparation and coordination; outcomes are not guaranteed.',
+    shipping: 'Preparation and coordination follow the agreed service scope and schedule.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Guided Resolution provides preparation and coordination support. A settlement or other outcome is not guaranteed.',
   },
   'file-assist': {
-    disclaimer: 'Case Submission helps organise and submit materials; acceptance and outcomes remain with the recipient.',
+    shipping: 'Case materials are prepared and submitted according to the agreed service scope and recipient requirements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Case Submission helps organise and submit materials. Acceptance and decisions remain with the recipient.',
   },
   'paperwork': {
+    shipping: 'Prepared documents are supplied in the agreed format; any physical delivery is arranged separately.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
     disclaimer: 'Paperwork is document-preparation support, not legal advice or representation.',
   },
   'ritual-guru-puja-guidance': {
-    disclaimer: 'Ritual practice varies by family, region and tradition; this guidance is not the only valid sequence.',
+    shipping: 'Puja guidance is supplied digitally unless a physical item is separately included.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Ritual practices vary by family, region and tradition. Vidhi provides guidance for self-led worship without claiming that one sequence is universally correct.',
   },
   'ritual-guru-diy-puja-kit': {
-    disclaimer: 'Kit contents can vary by puja, tradition and availability; the confirmed item list controls.',
+    shipping: 'Puja kits are shipped to the confirmed delivery address. Delivery coverage, charges and estimated dates are disclosed for the order.',
+    returns: 'Returns or replacements depend on item condition, disclosed conditions and applicable law. Statutory remedies for defective, damaged or misdescribed goods remain available.',
+    disclaimer: 'Kit contents may vary by puja, tradition and availability. Check the confirmed item list against your requirements before purchasing.',
+  },
+  'ritual-guru-ritva': {
+    shipping: 'Panchang and traditional guidance are supplied digitally unless physical delivery is separately agreed.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Panchang, astrology and Vastu are traditional interpretive practices, not guaranteed predictions or regulated professional advice.',
   },
   'anew': {
-    disclaimer: 'Anew is written reflection, not therapy or professional medical, legal, financial or tax advice.',
+    shipping: 'Reflection sessions or written materials are supplied according to the confirmed service arrangements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Anew offers reflection-led support, not therapy or personalised medical, legal, financial or tax advice.',
   },
   'hunar-kaushal': {
-    disclaimer: 'Kaushal supports learning and evidence of progress; it does not issue accredited qualifications or guarantee employment.',
+    shipping: 'Learning plans and supporting material are supplied digitally according to the agreed scope.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Kaushal supports learning and evidence of progress. It does not issue accredited qualifications or guarantee employment.',
   },
   'hunar-prastuti': {
-    disclaimer: 'Prastuti presents real experience; it does not invent achievements or guarantee interviews, jobs or funding.',
+    shipping: 'CVs, profiles and presentation materials are supplied in the agreed digital format.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Prastuti presents your genuine experience. It does not fabricate achievements or guarantee interviews, employment or funding.',
   },
   'niji-setu': {
-    disclaimer: 'Niji Setu masks personal numbers in supported call flows; availability depends on calling and telecom services.',
+    shipping: 'Digital communication services follow the confirmed service scope and availability.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Niji Setu masks personal numbers in supported calling arrangements. Availability depends on calling and telecom services.',
   },
   'submit-request': {
-    disclaimer: 'Submitting a request does not guarantee acceptance, timing or outcome; scope is confirmed before work starts.',
+    shipping: 'Fulfilment follows the service scope, price and schedule agreed for the request.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Submitting a request does not guarantee acceptance, timing or outcome. Confirm the scope before work begins.',
   },
   'request-amendment': {
-    disclaimer: 'Acceptance and timing can depend on a third party or authority and are not guaranteed.',
+    shipping: 'Amendment services follow the confirmed request and relevant recipient conditions.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Acceptance and processing times may depend on the relevant provider or authority.',
   },
   'drop-docs': {
-    disclaimer: 'Do not send passwords, one-time codes, card numbers or unrequested originals.',
+    shipping: 'Document handling follows the confirmed submission and any agreed physical collection or delivery arrangements.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Submit only documents required for the service. Do not share passwords, one-time codes, card credentials or unrequested originals.',
   },
   'vault': {
-    disclaimer: 'Vault access and retention follow the Privacy Policy; storage is not indefinite.',
+    shipping: 'Authorised files are supplied digitally, subject to the applicable access conditions.',
+    returns: 'Change-of-mind returns may be limited once service work begins or a digital deliverable is supplied. Statutory remedies for deficient or misdescribed services remain available.',
+    disclaimer: 'Protect file links and verification codes. Access and retention are governed by the applicable service conditions and Privacy Policy.',
   },
   'shipments-track': {
-    shipping: 'Tracking follows the underlying order and courier or partner.',
-    returns: 'Return rights come from the underlying order, not tracking.',
-    disclaimer: 'Tracking shows the latest confirmed status; courier timing is not guaranteed.',
+    shipping: 'Tracking information follows the confirmed shipment and information provided by the courier or fulfilment partner.',
+    returns: 'Returns and replacement requests are handled under the original order terms and applicable law.',
+    disclaimer: 'Tracking information may change as the courier updates shipment status. Estimated dates do not affect statutory remedies.',
   },
   'request-pickup': {
-    shipping: 'Pickup follows the confirmed collection arrangement and courier or partner.',
-    returns: 'A pickup request is not a return; remedies follow the underlying order.',
-    disclaimer: 'Pickup depends on courier availability; do not hand over unrequested original certificates.',
+    shipping: 'Collection follows the confirmed pickup address, schedule and courier arrangements.',
+    returns: 'Returns or replacement eligibility follows the relevant purchase and disclosed return conditions.',
+    disclaimer: 'Pickup depends on courier availability. Hand over only the items or documents agreed for collection.',
   },
   'merchandise': {
-    disclaimer: 'Availability, variant details and fulfilment are those confirmed for the order.',
+    shipping: 'Physical merchandise is delivered according to the confirmed variant, address, charges and estimated delivery schedule.',
+    returns: 'Returns or replacements depend on item condition, customisation and disclosed conditions. Statutory remedies for defective, damaged or misdescribed goods remain available.',
+    disclaimer: 'Check the confirmed variant and availability before purchase.',
   },
   'kiosk': {
-    disclaimer: 'Hardware availability, installation requirements and connectivity are confirmed for the order.',
+    shipping: 'Hardware delivery and any installation follow the confirmed order and agreed site requirements.',
+    returns: 'Return and replacement eligibility depends on equipment condition and disclosed terms. Statutory remedies for defective goods or deficient installation remain available.',
+    disclaimer: 'Hardware availability, installation and connectivity requirements are confirmed for the order.',
   },
   'contribute': {
-    disclaimer: 'Contribute is processed for the amount shown at checkout; it does not promise a financial return.',
+    shipping: 'Voluntary contributions support published editorial work and do not create a delivery obligation.',
+    returns: 'A voluntary contribution does not purchase goods or services.',
+    refunds: 'Voluntary contributions are generally non-refundable. Erroneous, duplicate, unauthorised or fraudulent payments may be reviewed for refund or reversal.',
+    disclaimer: 'Contributions do not confer editorial influence, ownership or a financial return.',
   },
 };
 
@@ -140,16 +194,16 @@ export function productPolicyCopy(
   const physical = PHYSICAL_PRODUCT_SLUGS.has( slug );
   const base: ProductPolicyCopy = physical
     ? {
-        shipping: `${name} requires physical fulfilment; delivery coverage, timing and any charge are confirmed before fulfilment.`,
-        returns: 'Returns or replacements depend on item condition, customisation, disclosed terms and applicable law.',
+        shipping: `Delivery coverage, charges and estimated dates for ${name} follow the confirmed order.`,
+        returns: 'Return and replacement eligibility depends on item condition, customisation and disclosed terms. Statutory remedies remain available.',
         refunds: PRODUCT_REFUNDS,
-        disclaimer: `The confirmed order details and availability for ${name} control fulfilment.`,
+        disclaimer: `Check the confirmed specifications and availability for ${name} before purchasing.`,
       }
     : {
-        shipping: `Fulfilment follows the confirmed scope for ${name}; physical delivery, if included, is confirmed separately.`,
-        returns: 'Completed service work and digital deliverables are not returnable; physical items follow their disclosed terms.',
+        shipping: `Delivery or service fulfilment for ${name} follows the confirmed scope, schedule and applicable charges.`,
+        returns: 'Return, replacement or service-correction eligibility follows the disclosed conditions. Statutory remedies for faulty or misdescribed goods and deficient services remain available.',
         refunds: PRODUCT_REFUNDS,
-        disclaimer: `The confirmed scope and third-party dependencies for ${name} control the transaction.`,
+        disclaimer: `Availability and service-specific conditions for ${name} are confirmed before purchase. Statutory rights remain unaffected.`,
       };
 
   const override = POLICY_OVERRIDES[ slug ] || {};
