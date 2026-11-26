@@ -1113,24 +1113,10 @@ const SupportWidget: React.FC = () => {
       `}</style>
 
       <div className="wc-pill">
-        {/* A real anchor, not a button with an onClick: this leaves the site, so it must be
-            middle-clickable, long-pressable and copyable like any other link.
-            THE HREF IS NOW THE SHORT LINK, NOT THE wa.me URL, and it is the same destination
-            either way: wecare.digital/r/wa answers 302 to
-            https://wa.me/message/APDM5HUWH26SG1, which is the URL that was hardcoded here -
-            read originally out of the retired wecare-wa-widget.js rather than guessed. So this
-            is an indirection swap with no change to where anyone lands, verified by request
-            rather than assumed.
-            What it buys: the destination becomes editable without a deploy, and the hop is
-            counted. It also makes this button agree with what the voice handlers already read
-            out to callers - the current voice path says
-            "send us a message / voice note on WhatsApp: https://wecare.digital/r/wa" - so a
-            caller who hears the link and a visitor who clicks the button now follow one URL
-            instead of two that happen to coincide.
-            The canonical base is wecare.digital/r as of 2026-09-26, see amplify/functions/core/url-shortener/handler.py. */}
+        {/* Direct WhatsApp contact link. Keep native anchor navigation and accessibility. */}
         <a
           className="wc-wa"
-          href="https://wecare.digital/r/wa"
+          href="https://wa.me/message/APDM5HUWH26SG1"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Chat with us on WhatsApp"
