@@ -98,8 +98,19 @@ try {
               const label = el.querySelector('.brand-badge-label');
               const mark = el.querySelector('svg');
               const parent = el.parentElement.getBoundingClientRect();
+              const labelBox = label?.getBoundingClientRect();
+              const markBox = mark?.getBoundingClientRect();
+              const labelStyle = label && getComputedStyle(label);
               return {
                 background: style.backgroundColor, ink: style.color,
+                fontSize: labelStyle?.fontSize, lineHeight: labelStyle?.lineHeight,
+                weight: labelStyle?.fontWeight,
+                markHeight: markBox?.height,
+                centerOffset: labelBox && markBox ? Math.abs((labelBox.top + labelBox.bottom - markBox.top - markBox.bottom) / 2) : Infinity,
+                leftInset: markBox && labelBox ? Math.min(markBox.left, labelBox.left) - box.left : Infinity,
+                rightInset: markBox && labelBox ? box.right - Math.max(markBox.right, labelBox.right) : Infinity,
+                topInset: markBox && labelBox ? Math.min(markBox.top, labelBox.top) - box.top : Infinity,
+                bottomInset: markBox && labelBox ? box.bottom - Math.max(markBox.bottom, labelBox.bottom) : Infinity,
                 fits: box.left >= -1 && box.right <= document.documentElement.clientWidth + 1
                   && box.width <= parent.width + 1 && !!label && label.scrollWidth <= label.clientWidth + 1,
                 mark: !!mark && mark.getBoundingClientRect().width > 0,
@@ -108,6 +119,13 @@ try {
             assert.equal(layout.background, 'rgb(209, 244, 112)', name + ': eyebrow fill');
             assert.equal(layout.ink, 'rgb(26, 58, 42)', name + ': eyebrow ink');
             assert.ok(layout.fits && layout.mark, name + ': eyebrow reflow ' + JSON.stringify(layout));
+            assert.equal(layout.fontSize, width >= 768 ? '18px' : '17px', name + ': eyebrow text too small');
+            assert.equal(layout.weight, '650', name + ': eyebrow font weight');
+            assert.ok(Math.abs(layout.markHeight - parseFloat(layout.lineHeight)) <= 1, name + ': logo must track text line height');
+            assert.ok(layout.centerOffset <= 1, name + ': logo/text vertical alignment ' + JSON.stringify(layout));
+            assert.ok(Math.abs(layout.leftInset - 10) <= 1 && Math.abs(layout.rightInset - 10) <= 1
+              && Math.abs(layout.topInset - 5) <= 1 && Math.abs(layout.bottomInset - 5) <= 1,
+              name + ': unequal or excessive eyebrow padding ' + JSON.stringify(layout));
             const wrapper = eyebrow.locator('..');
             if (reducedMotion === 'no-preference') {
               await page.locator('.rh-layout.is-armed.show').first().waitFor({state: 'attached'});

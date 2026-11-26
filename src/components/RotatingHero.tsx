@@ -296,7 +296,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         @media(max-width:1024px){
           .rh-split{grid-template-columns:minmax(0,1fr);gap:40px}
         }
-        .rh-eyebrow{margin:0 0 16px;min-width:0;max-width:100%}
+        .rh-eyebrow{display:flex;align-items:center;justify-content:flex-start;align-self:flex-start;margin:0 0 12px;min-width:0;max-width:100%}
 
         /* A quiet, one-shot entrance in the same phase as the rotating headline.
            The eyebrow is visible by default, including before hydration and

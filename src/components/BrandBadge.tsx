@@ -22,14 +22,19 @@ const BrandBadge: React.FC<BrandBadgeProps> = ( { label } ) => (
     <span className="brand-badge-label">{ label }</span>
     <style jsx>{ `
       .brand-badge{
-        display:inline-flex;align-items:center;gap:8px;
-        box-sizing:border-box;min-width:0;max-width:100%;
-        padding:7px 12px;border-radius:9999px;
+        --brand-mark-height:1.2em;
+        display:inline-flex;align-items:center;justify-content:center;gap:6px;
+        vertical-align:middle;box-sizing:border-box;width:fit-content;min-width:0;max-width:100%;
+        padding:5px 10px;border-radius:9999px;
         background:var(--public-brand-lime,#d1f470);color:var(--public-brand-green,#1a3a2a);
-        font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.35;
-        white-space:normal;
+        font-size:17px;font-weight:650;letter-spacing:-.125px;line-height:1.2;
+        text-align:center;white-space:normal;
       }
-      .brand-badge-label{min-width:0;overflow-wrap:anywhere}
+      .brand-badge-label{
+        display:block;min-width:0;margin:0;padding:0;font:inherit;
+        letter-spacing:inherit;text-align:center;overflow-wrap:anywhere;
+      }
+      @media(min-width:768px){.brand-badge{font-size:18px}}
     ` }</style>
   </span>
 );

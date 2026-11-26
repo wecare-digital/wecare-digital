@@ -72,6 +72,19 @@ test('eyebrow motion is a single progressive enhancement of the hero entrance', 
   const hero = source('components/RotatingHero.tsx');
   assert.match(hero, /@media\(prefers-reduced-motion:no-preference\)\s*\{\s*\.rh-layout\.is-armed\.show \.rh-eyebrow\s*\{\s*animation:rh-eyebrow-enter \.32s cubic-bezier\(\.16,1,\.3,1\) both;/);
   assert.match(hero, /@keyframes rh-eyebrow-enter\s*\{\s*from\{opacity:\.85;transform:translateY\(4px\)\}\s*to\{opacity:1;transform:translateY\(0\)\}/);
-  assert.match(hero, /\.rh-eyebrow\{margin:0 0 16px;min-width:0;max-width:100%\}/);
+  assert.match(hero, /\.rh-eyebrow\{display:flex;align-items:center;justify-content:flex-start;align-self:flex-start;margin:0 0 12px;min-width:0;max-width:100%\}/);
   assert.doesNotMatch(hero, /animation:rh-eyebrow-enter[^;]*infinite/);
+});
+
+test('eyebrow type, mark and compact spacing stay centred at both responsive sizes', () => {
+  const badge = source('components/BrandBadge.tsx');
+  const mark = source('components/BrandMark.tsx');
+  assert.match(badge, /--brand-mark-height:1\.2em/);
+  assert.match(badge, /display:inline-flex;align-items:center;justify-content:center;gap:6px/);
+  assert.match(badge, /width:fit-content;min-width:0;max-width:100%/);
+  assert.match(badge, /padding:5px 10px/);
+  assert.match(badge, /font-size:17px;font-weight:650;letter-spacing:-\.125px;line-height:1\.2/);
+  assert.match(badge, /@media\(min-width:768px\)\{\.brand-badge\{font-size:18px\}\}/);
+  assert.match(badge, /display:block;min-width:0;margin:0;padding:0;font:inherit/);
+  assert.match(mark, /height:var\(--brand-mark-height,18px\);width:auto;aspect-ratio:1451\/1718/);
 });
