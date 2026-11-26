@@ -18,6 +18,11 @@ const retired = [
   '/sehat',
   '/atmos',
   '/niji-setu',
+  '/ritual-guru',
+  '/aastha',
+  '/ritual-guru/ritva',
+  '/ritual-guru/puja-guidance',
+  '/ritual-guru/diy-puja-kit',
   '/bharat-rx',
   '/submit-request',
   '/request-amendment',
@@ -191,7 +196,7 @@ for (const file of listFiles('public').filter(file => /\.html?$/i.test(file))) {
   }
 }
 
-// The dynamic /shop/[slug] route emits one public page per SHOP_PRODUCTS row.
+// The dynamic /shop/[slug] route emits one public page per SHOP_DETAIL_PRODUCTS row.
 // A catalog payment SKU is not authorization to recreate a former public page.
 // Guard the filtered projection, every retired slug and the generated shelf URLs.
 const RETIRED_SHOP_SLUGS = new Set([
@@ -219,8 +224,16 @@ if (!shopSource.includes('.filter( raw => !isServicesRow( raw ) )')) {
   failures.push('SHOP_PRODUCTS must exclude Orders/service payment vehicles');
 }
 const shopDetails = fs.readFileSync(path.join(root, 'src/pages/shop/[slug].tsx'), 'utf8');
-if (!shopDetails.includes('paths: SHOP_PRODUCTS.map(')) {
-  failures.push('Dynamic Shop page generation must use the filtered SHOP_PRODUCTS');
+if (!shopDetails.includes('paths: SHOP_DETAIL_PRODUCTS.map(')
+    || !shopSource.includes('SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter(')
+    || !shopSource.includes('!RETIRED_SHOP_DETAIL_SLUGS.has( product.slug )')
+    || !shopDetails.includes('SHOP_DETAIL_PRODUCTS.find(')) {
+  failures.push('Dynamic Shop page generation must use the filtered SHOP_DETAIL_PRODUCTS');
+}
+const detailExcluded = shopSource.match(/const RETIRED_SHOP_DETAIL_SLUGS\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+const blockedDetails = new Set([...(detailExcluded?.[1] || '').matchAll(/'([a-z0-9-]+)'/g)].map(match => match[1]));
+for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
+  if (!blockedDetails.has(slug)) failures.push('Dynamic Shop may republish retired Aastha alias: ' + slug);
 }
 const listingGenerator = fs.readFileSync(path.join(root, 'scripts/generate_shop_listings.py'), 'utf8');
 if (!listingGenerator.includes('"/orders/" if slug in ORDER_HUB_SERVICE_SLUGS')) {

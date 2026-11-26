@@ -146,9 +146,9 @@ const STRUCTURAL = [
   { path: '/dastavez/drafting', group: 'services' },
   { path: '/dastavez/registration', group: 'services' },
   { path: '/dastavez/legal-reference', group: 'services' },
-  { path: '/ritual-guru/ritva', group: 'services' },
-  { path: '/ritual-guru/puja-guidance', group: 'services' },
-  { path: '/ritual-guru/diy-puja-kit', group: 'services' },
+  { path: '/aastha/panchang', group: 'services' },
+  { path: '/aastha/vidhi', group: 'services' },
+  { path: '/aastha/samagri', group: 'services' },
   // Hunar's two nested service children (added with PR #769). Grouped 'services' like the other
   // nested family children above; their name/description come from PUBLIC_PAGE_META in _app.tsx
   // (lines ~518-519). Without these two lines the public-pages gate refuses the build because

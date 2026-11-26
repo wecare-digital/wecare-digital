@@ -18,8 +18,8 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
   '/dastavez/drafting',
   '/dastavez/registration',
   '/dastavez/legal-reference',
-  '/ritual-guru/puja-guidance',
-  '/ritual-guru/diy-puja-kit',
+  '/aastha/vidhi',
+  '/aastha/samagri',
   '/anew',
   '/hunar/kaushal',
   '/hunar/prastuti',
@@ -86,11 +86,11 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'Refunds and cancellations depend on work started and third-party terms.',
     disclaimer: 'Availability, weather, operating rules and prices remain with the relevant provider.',
   },
-  '/ritual-guru/ritva': {
+  '/aastha/panchang': {
     shipping: 'Guidance is delivered digitally unless a physical item is included.',
     returns: 'Delivered guidance is not returnable; physical items follow their disclosed terms.',
     refunds: 'Refunds and cancellations depend on whether preparation has started.',
-    disclaimer: 'Ritva is spiritual guidance, not medical, legal, financial or other regulated professional advice.',
+    disclaimer: 'Panchang is traditional spiritual and calendar guidance, not medical, legal, financial or other regulated professional advice.',
   },
   '/privacy': {
     shipping: 'No fulfilment applies to this page.',

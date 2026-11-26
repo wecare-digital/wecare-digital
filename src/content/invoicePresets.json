@@ -157,7 +157,7 @@
   },
   {
     "id": "fixed-14",
-    "name": "Ritual Guru · Puja Guidance",
+    "name": "Aastha · Vidhi",
     "basePaise": 39900,
     "supplyGstPaise": 7182,
     "delightPaise": 235,
@@ -169,7 +169,7 @@
   },
   {
     "id": "fixed-15",
-    "name": "Ritual Guru · DIY Puja Kit",
+    "name": "Aastha · Samagri",
     "basePaise": 89900,
     "supplyGstPaise": 16182,
     "delightPaise": 530,
@@ -181,7 +181,7 @@
   },
   {
     "id": "fixed-16",
-    "name": "Ritva",
+    "name": "Panchang",
     "basePaise": 9900,
     "supplyGstPaise": 1782,
     "delightPaise": 58,

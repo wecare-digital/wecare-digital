@@ -705,7 +705,7 @@ BRANDS:
 - Travel/Hotels/Visa → BNB Club (wecare.digital/elsewhere/visa/)
 - Documents/Registration/GST → Legal Champ (wecare.digital/dastavez/registration/)
 - Disputes/Complaints → No Fault (wecare.digital/shop/guided-resolution/)
-- Puja/Rituals → Ritual Guru (wecare.digital/ritual-guru/puja-guidance/)
+- Puja/Rituals → Aastha (wecare.digital/aastha/vidhi/)
 - Self-inquiry/Reflection → Swdhya (wecare.digital/anew/)
 
 CONTACT: +91 9330994400 | one@wecare.digital"""

@@ -5,6 +5,9 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
+  ['/aastha/panchang', 'src/pages/aastha/panchang.tsx'],
+  ['/aastha/vidhi', 'src/pages/aastha/vidhi.tsx'],
+  ['/aastha/samagri', 'src/pages/aastha/samagri.tsx'],
   ['/niji-setu/parichay', 'src/pages/niji-setu/parichay.tsx'],
   ['/niji-setu/khata', 'src/pages/niji-setu/khata.tsx'],
   ['/relay-os', 'src/pages/relay-os/index.tsx'],
@@ -15,6 +18,9 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/ritual-guru/ritva', 'src/pages/ritual-guru/ritva.tsx'],
+  ['/ritual-guru/puja-guidance', 'src/pages/ritual-guru/puja-guidance.tsx'],
+  ['/ritual-guru/diy-puja-kit', 'src/pages/ritual-guru/diy-puja-kit.tsx'],
   ['/niji-setu', 'src/pages/niji-setu.tsx'],
   ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
@@ -114,4 +120,45 @@ test('Relay OS keeps the existing checkout identity and public label', () => {
   assert.ok(page.includes('title="Relay OS - End-user messaging"'));
   assert.ok(checkout.includes("'grahak-os', 'GOS7K4M2', 'Relay OS'"));
   assert.ok(!page.includes('/dispatch/'));
+});
+
+test('Aastha is a non-clickable family, with all three approved destinations and the expanded Panchang scope', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("label: 'Aastha',"));
+  assert.ok(!header.includes("href: '/aastha/'"));
+  assert.ok(header.includes("label: 'Vidhi', href: '/aastha/vidhi/'"));
+  assert.ok(header.includes("label: 'Samagri', href: '/aastha/samagri/'"));
+  assert.ok(header.includes("label: 'Panchang', href: '/aastha/panchang/'"));
+  const products = read('src/content/productChildren.ts');
+  for (const name of ['Astrology', 'Vastu', 'Panchang', 'Ritual calendar']) {
+    assert.ok(products.includes("heading: '" + name + "'"));
+  }
+  assert.ok(products.includes("slug: 'ritual-guru-ritva'"));
+  assert.ok(!existsSync('src/pages/aastha/index.tsx'));
+});
+
+test('Aastha uses the official outlined Hindu temple artwork with the shared 24px menu icon footprint', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("Aastha: 'M80-80v-440h80v80h80"));
+  assert.ok(header.includes("'Atmos',\n  'Aastha',\n  'Relay OS',"));
+  assert.ok(header.includes("Aastha: '20 -960 920 920'"));
+  assert.ok(header.includes('width:24px;height:24px;flex:0 0 24px'));
+});
+
+test('Panchang keeps the approved native product and variant in the cart fallback without restoring legacy Shop URLs', () => {
+  const snapshot = read('src/content/catalogSnapshot.ts');
+  assert.ok(snapshot.includes("id:'native:ritual-guru-ritva', name:'Panchang', slug:'ritual-guru-ritva'"));
+  const row = snapshot.split("id:'native:ritual-guru-ritva'")[1].split("  },")[0];
+  assert.ok(row.includes("formattedPrice:'₹99.00', price:'99.00'"));
+  assert.ok(row.includes("canonicalPath:'/aastha/panchang/'"));
+  assert.ok(row.includes("id:'2b1655cf-198a-438d-93b6-c57612b819b6'"));
+  const shop = read('src/content/shop.ts');
+  const detail = read('src/pages/shop/[slug].tsx');
+  assert.ok(shop.includes('SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter('));
+  assert.ok(shop.includes('!RETIRED_SHOP_DETAIL_SLUGS.has( product.slug )'));
+  assert.ok(detail.includes('paths: SHOP_DETAIL_PRODUCTS.map('));
+  const notFound = read('src/pages/404.tsx');
+  for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
+    assert.ok(notFound.includes("'/shop/" + slug + "'"));
+  }
 });

@@ -46,7 +46,7 @@ const PUBLIC_EXACT = new Set( [
   '/terms',
   '/atmos/nano-climate',
   '/atmos/green-ledger',
-  // Product CHILD pages. Family labels such as Dastavez, Ritual Guru, Hunar and
+  // Product CHILD pages. Family labels such as Dastavez, Aastha, Hunar and
   // Shipments deliberately have no public parent page. These concrete destinations must
   // stay in step with PUBLIC_PAGE_META in _app.tsx: a route missing there renders an
   // empty body with HTTP 200, so advertising it here would put a blank page in front
@@ -67,9 +67,9 @@ const PUBLIC_EXACT = new Set( [
   '/hunar/prastuti',
   '/niji-setu/parichay',
   '/niji-setu/khata',
-  '/ritual-guru/ritva',
-  '/ritual-guru/puja-guidance',
-  '/ritual-guru/diy-puja-kit',
+  '/aastha/panchang',
+  '/aastha/vidhi',
+  '/aastha/samagri',
   // Paid request-service and Track routes are customer-session/deep-link surfaces. They are
   // intentionally absent from this crawl allowlist; _app keeps them renderable and noindex.
   // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
@@ -121,6 +121,10 @@ const RETIRED_FAMILY_PARENTS = new Set( [
   '/niji-setu',
   '/partner',
   '/ritual-guru',
+  '/aastha',
+  '/shop/ritual-guru-puja-guidance',
+  '/shop/ritual-guru-diy-puja-kit',
+  '/shop/ritual-guru-ritva',
   '/shipments',
 ] );
 

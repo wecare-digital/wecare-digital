@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 // Owner-requested retirement: these former product paths must not redirect.
-const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat', '/dispatch', '/niji-setu', '/shop/niji-setu' ] );
+const RETIRED_PRODUCT_PATHS = new Set( [ '/grahak-os', '/vayulok', '/sehat', '/dispatch', '/niji-setu', '/shop/niji-setu', '/ritual-guru', '/aastha', '/ritual-guru/ritva', '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/shop/ritual-guru-puja-guidance', '/shop/ritual-guru-diy-puja-kit', '/shop/ritual-guru-ritva' ] );
 
 const NotFound: React.FC = () => {
   const router = useRouter();

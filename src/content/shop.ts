@@ -213,6 +213,15 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 
+// The Aastha product IDs/slugs still resolve carts, but the old branded
+// /shop/<slug>/ aliases must not produce a second public detail page.
+const RETIRED_SHOP_DETAIL_SLUGS = new Set( [
+  'ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva',
+] );
+export const SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter(
+  product => !RETIRED_SHOP_DETAIL_SLUGS.has( product.slug ),
+);
+
 /**
  * EVERY product id this deployed snapshot knows about, lowercased. Not just `SHOP_PRODUCTS`.
  *
