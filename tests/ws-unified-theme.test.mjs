@@ -160,8 +160,8 @@ test('login reuses the public transparent SVG BrandBadge with homepage typograph
   assert.ok(auth.includes('<BrandBadge label="WECARE.DIGITAL" />'),
     'render official mark LEFT and WECARE.DIGITAL text RIGHT in one shared component');
   assert.ok(badge.includes('<BrandMark />'), 'use the validated inline vector');
-  assert.match(badge, /<BrandMark\s*\/>\s*\{\s*label\s*\}/,
-    'the rendered vector must immediately precede the rendered text, ignoring component props');
+  assert.match(badge, /<BrandMark\s*\/>\s*<span className="brand-badge-label">\s*\{\s*label\s*\}\s*<\/span>/,
+    'the original inline vector must immediately precede the shrinkable text span');
   assert.ok(mark.includes('viewBox="1816 1604 1451 1718"'),
     'SVG is cropped in its own vector coordinate system, not by CSS magnification');
   assert.ok(mark.includes('fill="currentColor"'),
@@ -173,10 +173,15 @@ test('login reuses the public transparent SVG BrandBadge with homepage typograph
     'position the common badge within the login only');
   assert.ok(!theme.includes('wsauth-eyebrow-icon'),
     'do not duplicate the BrandBadge icon geometry in Auth CSS');
-  assert.ok(badge.includes('background:#d1f470'),
-    'the branded pill uses the public design system lime');
-  assert.ok(badge.includes('font-size:14px;font-weight:600;letter-spacing:-.125px'),
-    'badge typography must exactly match the public site');
+  assert.ok(badge.includes('background:var(--public-brand-lime,#d1f470);color:var(--public-brand-green,#1a3a2a)'),
+    'the branded pill uses public lime and forest green tokens');
+  assert.ok(badge.includes('font-size:17px;font-weight:650;letter-spacing:-.125px;line-height:1.2'),
+    'login inherits the shared 17px mobile typography');
+  assert.ok(badge.includes('@media(min-width:768px){.brand-badge{font-size:18px}}'),
+    'login inherits the shared 18px desktop typography');
+  assert.ok(badge.includes('align-items:center;justify-content:center;gap:6px'),
+    'the logo and text remain centred together');
+  assert.ok(badge.includes('overflow-wrap:anywhere'), 'the responsive label can wrap');
   assert.ok(theme.includes('background:#fff;'), 'the login main page remains white');
 });
 

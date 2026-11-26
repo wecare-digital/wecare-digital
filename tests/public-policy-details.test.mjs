@@ -21,8 +21,8 @@ function check(copy) {
 test('all registered public routes receive a policy or own an embedded disclosure', async () => {
   const { publicPolicyDetailsForRoute: resolve, EMBEDDED_POLICY_ROUTES: embedded, ORDERS_POLICY_DETAILS: orders } = await load('src/content/publicPolicyDetails.ts');
   const { pages } = JSON.parse(read('config/public-pages.json'));
-  for (const path of [...pages.map(page => page.path), '/auth', '/vault', '/checkout', '/checkout/status', '/checkout/success', '/get', '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]', '/post/[slug]', '/shop/page/[page]']) {
-    if (embedded.has(path)) assert.equal(resolve(path), null, path);
+  for (const path of [...pages.map(page => page.path), '/get-kosh', '/udyam-bids', '/auth', '/vault', '/checkout', '/checkout/status', '/checkout/success', '/get', '/blog/page/[page]', '/blog/topic/[topic]', '/blog/topic/[topic]/page/[page]', '/post/[slug]', '/shop/page/[page]']) {
+    if (path === '/' || embedded.has(path)) assert.equal(resolve(path), null, path);
     else check(resolve(path));
   }
   check(orders);
@@ -31,7 +31,12 @@ test('all registered public routes receive a policy or own an embedded disclosur
   assert.equal(resolve('/shop/[slug]'), null);
   assert.match(resolve('/post/[slug]').refunds, /contributions/i);
   assert.match(resolve('/niji-setu/parichay').disclaimer, /planned/);
-  assert.match(resolve('/').refunds, /30 calendar days/);
+  assert.equal(resolve('/'), null, 'Home must never render Policy details');
+  for (const path of ['/get-kosh', '/udyam-bids']) {
+    assert.match(resolve(path).shipping, /not yet available/);
+    assert.match(resolve(path).disclaimer, /pre-launch/);
+  }
+  assert.doesNotMatch(read('src/pages/index.tsx'), /<PolicyDetails\b|<PublicPolicyDetails\b/);
 });
 test('catalogue policies cover every SKU and provide a safe fallback for a new item', async () => {
   const { PRODUCT_SKU_BY_SLUG, productPolicyCopy, PRODUCT_REFUNDS } = await load('src/content/productCommerce.ts');
