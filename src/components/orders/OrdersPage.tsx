@@ -520,6 +520,10 @@ export default function OrdersPage (): React.ReactElement {
     setOrders( rows );
     setCursor( String( data.cursor || '' ) );
     dismissAlertFor( 'orders' );
+    // Consume only after a successful authenticated history read (also covers
+    // retry after a load error). No effect-driven cascading render or send.
+    const selection = takeOrderRequest();
+    if ( selection ) setRequestSelection( selection );
     setView( rows.length === 0 ? 'empty' : 'ready' );
   };
 
@@ -677,11 +681,6 @@ export default function OrdersPage (): React.ReactElement {
   };
 
   const signedIn = view === 'ready' || view === 'empty';
-  useEffect( () => {
-    if ( !signedIn ) return;
-    const selection = takeOrderRequest();
-    if ( selection ) setRequestSelection( selection );
-  }, [ signedIn ] );
   useEffect( () => {
     if ( signedIn && requestSelection && requestPanel.current ) {
       requestPanel.current.focus( { preventScroll: true } );

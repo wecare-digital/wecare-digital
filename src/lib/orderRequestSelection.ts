@@ -26,7 +26,8 @@ export function takeOrderRequest (): OrderRequestId | null {
     window.sessionStorage.removeItem( KEY );
     if ( !raw ) return null;
     const value = JSON.parse( raw ) as { id?: unknown; at?: number };
-    if ( typeof value.at !== 'number' || !Number.isFinite( value.at ) || value.at > Date.now() || Date.now() - value.at > 10 * 60 * 1000 ) return null;
+    const now = Date.now();
+    if ( typeof value.at !== 'number' || !Number.isFinite( value.at ) || value.at > now || now - value.at > 10 * 60 * 1000 ) return null;
     return orderRequestById( value.id )?.id ?? null;
   } catch { return null; }
 }
