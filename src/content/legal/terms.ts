@@ -7,7 +7,7 @@ export const TERMS_INTRO: string[] = [
   'WECARE.DIGITAL is a brand of WECARE.DIGITAL BHARATWORKS. In these Terms, "we", "us" and "our" mean that business, and "you" means anyone using the Services.',
   'By using the Services you agree to these Terms. If you do not agree, please do not use them.',
   'Read these Terms alongside our Privacy Policy at /privacy/, which explains what we do with personal data. Individual services sometimes add their own terms; where they do, those apply on top of these.',
-  'Nothing in these Terms takes away a right the law gives you and does not let you sign away. Where something here conflicts with such a right, the law wins.',
+  'These Terms are subject to applicable law.',
 ];
 
 export const TERMS_SECTIONS: LegalSection[] = [
@@ -32,7 +32,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'We may add, change, expand, reorganise, replace or withdraw Services from time to time.',
       'Some Services carry additional Service-Specific Terms - for example professional or regulated services, Partner Up and other partner programmes, referral and affiliate programmes, gift cards, subscriptions, travel and experiences, digital products, events, enterprise services, customised products, and documentation or processing work.',
       'Where Service-Specific Terms apply, they form part of your agreement for that service.',
-      'If Service-Specific Terms contradict these Terms, the Service-Specific Terms govern that service, to the extent of the contradiction. That is subject to the law: neither document can remove a right you hold under applicable law and cannot waive.',
+      'Service-Specific Terms take precedence for the relevant service to the extent of any inconsistency, subject to applicable law.',
     ],
   },
   {
@@ -154,19 +154,19 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '14', heading: 'Cancelling, changing and getting money back', id: 's14',
-    inShort: 'For voluntary cancellations or discretionary adjustments, we do not give cash refunds or refund the original payment method; where eligible, we issue store credit valid for 30 calendar days. Nothing in this section removes a refund or other remedy the law requires.',
+    inShort: 'For voluntary cancellations or discretionary adjustments, we do not give cash refunds or refund the original payment method; where eligible, we issue store credit valid for 30 calendar days.',
     paragraphs: [
       'Whether you can cancel, return, replace, reschedule or change a service depends on the type of product or service, the reason for the request, how far fulfilment has got, the costs already incurred, and the conditions disclosed for that transaction. For voluntary cancellations or discretionary adjustments, our standard refund outcome is store credit rather than cash or a return to the original payment method.',
       'Different conditions apply to physical products, customised products, professional services, consultations, appointments, documentation and processing work, bookings, events, travel and experiences, subscriptions, digital products and other specialised services.',
       'The conditions that apply to you may be shown on the service page, the order or booking form, the checkout page, the confirmation, the invoice, or the Service-Specific Terms.',
-      'Nothing in this section or its sub-sections limits a refund, replacement, cancellation or other remedy the law requires us to provide.',
+      'Statutory refunds, replacements, cancellations and other remedies are handled in accordance with applicable law.',
     ],
   },
   {
     number: '14.1', heading: 'How an eligible problem can be resolved', id: 's14-1',
     paragraphs: [
       'Depending on the transaction, and where the law permits, an eligible voluntary cancellation or discretionary adjustment may be resolved by WECARE.DIGITAL store credit, a replacement product, rescheduling, a change to another available service, a replacement booking, an adjustment against another WECARE.DIGITAL service, or another non-cash resolution we agree with you. Store credit may be issued as account credit or a WECARE.DIGITAL gift-card credit.',
-      'Where the law requires us to refund money, the store-credit-only rule does not override that right. We will provide the monetary refund or other remedy the law requires, unless you choose a lawful alternative.',
+      'Required monetary refunds are handled under section 14.10.',
     ],
   },
   {
@@ -176,7 +176,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Store credit issued under this refund policy is valid for 30 calendar days from the date of issue. Any unused balance expires at the end of that period and cannot be redeemed after expiry, except where applicable law requires otherwise. We will show or communicate the issue date and expiry date when the credit is issued.',
       'Store credit can be used towards eligible WECARE.DIGITAL products and services. It may be issued as account credit or a WECARE.DIGITAL gift-card credit, may carry restrictions we disclose when we issue it, may be non-transferable where we say so, and may be adjusted if the original transaction is later reversed, disputed, or found to involve fraud.',
       'Store credit is not redeemable for cash and is not returned to the original payment method, unless the law requires a monetary refund.',
-      'This store-credit-only rule applies to voluntary cancellations and discretionary adjustments only as far as the law permits. It does not remove any refund, replacement, cancellation or other remedy the law requires.',
     ],
   },
   {
@@ -193,7 +192,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'Some amounts may be non-refundable, where the law permits and where we disclosed that condition before or with the transaction.',
       'Depending on the transaction those can include professional time already worked; a consultation already given or started; documentation, research, drafting or processing already done; customisation already begun; government, statutory or filing fees already paid; non-recoverable third-party charges already incurred; confirmed booking or reservation charges we cannot recover from the provider; payment-processing charges actually incurred, where they are lawfully non-refundable; delivery or logistics charges already incurred; priority-processing charges once the priority work has started; digital products or services already activated, downloaded or consumed; event, travel or experience costs already committed to a provider; and any other charge we identified as non-refundable before the transaction.',
-      'Calling a fee non-refundable does not make it so. Where the law requires an amount to be refunded, it is refunded.',
     ],
   },
   {
@@ -206,28 +204,27 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '14.6', heading: 'Customised and made-to-order products', id: 's14-6',
     paragraphs: [
       'Customised, personalised and made-to-order goods may stop being cancellable or returnable for change-of-mind reasons once production, procurement or customisation has started - where we disclosed that before you bought.',
-      'This does not affect your rights if the product turns out to be defective, damaged, spurious, materially misdescribed or otherwise not what was agreed.',
+      'Defective, damaged or misdescribed products are covered by section 14.8.',
     ],
   },
   {
     number: '14.7', heading: 'Services already started', id: 's14-7',
     paragraphs: [
       'Where a service involves professional time, research, documentation, filing, processing, administration, procurement, booking or customisation that has already started, what you can recover may depend on how far it has got, the work already done, the third-party costs already incurred, and the Service-Specific Terms.',
-      'The value available for any approved store-credit adjustment may be reduced by what was reasonably and lawfully spent on work already performed, third-party costs we cannot recover, statutory or government fees already paid, and other disclosed costs attributable to your request. Any monetary refund required by law is handled as the law requires.',
-      'Any such reduction is still subject to the law.',
+      'The value available for any approved store-credit adjustment may be reduced by what was reasonably and lawfully spent on work already performed, third-party costs we cannot recover, statutory or government fees already paid, and other disclosed costs attributable to your request.',
     ],
   },
   {
     number: '14.8', heading: 'Faulty, deficient, damaged or misdescribed goods and services', id: 's14-8',
     paragraphs: [
-      'Nothing in these Terms restricts the rights the law gives you where goods are defective, damaged or spurious; a service is deficient; what you received differs materially from its description; agreed specifications were not met; what you bought cannot be supplied as agreed; or any other legally recognised ground for a refund, replacement, return or other remedy applies.',
+      'Refunds, replacements, returns and other applicable remedies are available in accordance with law for defective, damaged or spurious goods, deficient services, material misdescription, unmet agreed specifications, inability to supply as agreed and other recognised grounds.',
     ],
   },
   {
     number: '14.9', heading: 'When we or a provider cancel', id: 's14-9',
     paragraphs: [
       'If an accepted transaction cannot be fulfilled and we or the provider cancel it, we may - depending on the circumstances and the law - reschedule the service, provide a replacement, offer an alternative or issue WECARE.DIGITAL store credit. If the law requires a monetary refund instead, we provide it as required.',
-      'Where the law entitles you to your money back, an alternative service, gift card or credit does not replace that entitlement unless you choose to accept it or the law allows it.',
+      'Any alternative to a required monetary refund must be lawfully accepted or permitted.',
       'Where we charge users for cancelling a confirmed transaction, we will meet the corresponding obligations that apply when the cancellation comes from us.',
     ],
   },
@@ -235,7 +232,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '14.10', heading: 'How store credit and required refunds reach you', id: 's14-10',
     paragraphs: [
       'For voluntary cancellations or discretionary adjustments, approved value is issued as WECARE.DIGITAL store credit and does not go back to the payment method you used.',
-      'Where the law requires a monetary refund, we normally return it to the payment method you used, unless you agree to another lawful method or the law requires or permits another method. Store credit does not replace a mandatory monetary refund.',
+      'Required monetary refunds normally return to the original payment method, unless an alternative method is lawfully agreed or permitted.',
     ],
   },
   {
@@ -272,9 +269,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Where a service supports it, you can track an order or delivery at /shipments/track/, arrange collection at /request-pickup/, ask us to amend an open request at /request-amendment/, send documents at /drop-docs/, use your vault at /vault/, and leave a review through the Leave Review WhatsApp action in the site menu.',
       'Any delivery date, dispatch window or turnaround time we show is an estimate unless we expressly say it is guaranteed, and it can be affected by stock, customisation, the destination, a third-party carrier, or circumstances beyond our reasonable control. Section 36 applies to events outside anyone\'s control.',
       'Where a delivery, dispatch or appointment can be rescheduled or cancelled, the conditions for doing so - including any cut-off, any missed-slot consequence and any charge - are the ones disclosed for that service and in section 16 for scheduled services. Please give us a complete and accurate address, contact number and any access or delivery instructions; a failed or missed delivery caused by details that are wrong, incomplete or out of date may lead to a re-delivery attempt, a charge, or a return, as disclosed for that service.',
-      'If a delivery fails, is missed, is materially delayed, or arrives lost or damaged, tell us and we will handle it under the policy for that service and under the law. Where an independent carrier or fulfilment partner is involved, their handling conditions may also apply, but that does not reduce any right the law gives you against us.',
+      'Report failed, missed or materially delayed deliveries, loss or damage. The relevant service and carrier conditions apply, with refunds and remedies handled under section 14 and applicable law.',
       'Only pickup, visit and shipment options expressly offered and confirmed for your service can be booked. An unavailable option does not create a commitment to collect, visit or ship.',
-      'Nothing in this section limits a cancellation, refund, replacement or other remedy the law requires us to provide.',
     ],
   },
   {
@@ -310,7 +306,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'The provider may set availability, cancellation requirements, identification requirements, timing, eligibility, entry conditions and other restrictions.',
       'Please review the service-specific information before you book.',
       'We cannot guarantee government approvals, visas, admission, transport schedules, weather, or anything else controlled by an independent third party or a public authority.',
-      'This section does not limit the rights the law gives you.',
     ],
   },
   {
@@ -342,7 +337,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Store credit issued under section 14 as the outcome of a voluntary cancellation or discretionary adjustment is valid for 30 calendar days from its issue date. Purchased gift cards, promotional balances and other credits may have separate validity terms disclosed when they are issued.',
       'Separate gift card or credit terms may govern purchase, activation, which services they work on, redemption, restrictions, transferability, refunds and cancellation.',
       'Gift cards, credits and promotional balances are not normally redeemable for cash, unless we say so or the law requires it.',
-      'Issuing a gift card or credit instead of a money refund does not remove a mandatory consumer right that cannot lawfully be waived.',
+      'Required monetary refunds are governed by section 14.10.',
     ],
   },
   {
@@ -352,7 +347,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'A WECARE.DIGITAL gift card may be bought by you, given to you by someone else, or issued by us as part of a promotion or as an agreed alternative to a money refund. When a gift card is bought or issued, it is activated and a balance is loaded onto it in Indian rupees, as disclosed at the time.',
       'Redeem a gift card at checkout for eligible WECARE.DIGITAL products and services. It covers up to the available confirmed balance; any remainder is payable using another accepted method.',
       'Partial redemption is supported where the card balance is less than the amount owed: the card covers what it can and the rest is payable separately. Where a redemption is less than the full balance, the remaining balance stays on the card for a later eligible purchase, subject to any validity condition below.',
-      'Gift cards may have disclosed validity, expiry, minimum-order, product or other restrictions. Store credit issued under section 14 is valid for 30 calendar days as described in section 14.2. Restrictions apply only to the extent permitted by law.',
+      'Gift cards may have disclosed validity, expiry, minimum-order, product or other restrictions. Store credit issued under section 14 is valid for 30 calendar days as described in section 14.2.',
       'Keep a gift-card code secure and treat it like cash: anyone with the code may be able to redeem it. Tell us promptly if you believe a code has been lost, stolen, exposed or used without your authorisation, and we will take reasonable steps - which may include suspending the code while we investigate - but we cannot always recover a balance already spent by someone who had the code. We may void, suspend or reverse a gift card obtained or used through fraud, error, duplicate issuance, automated abuse or another material breach of these Terms.',
       'A promotional balance we give away may carry different conditions from a balance you paid for - for example a shorter validity, a narrower set of eligible products, or no cash-out - and those conditions are disclosed when it is issued. A purchased balance is treated as your money to the extent the law requires.',
       'Gift cards and balances are not normally redeemable for cash. A gift card is not a deposit or banking service. Refunds for orders paid by gift card may return to the card or to account credit where disclosed and lawful, without affecting mandatory monetary refunds. Gift cards are available only when expressly offered.',
@@ -437,7 +432,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'The Services may use or link to independent payment, delivery, sign-in, communication and other service providers.',
       'Those services have their own terms and privacy policies.',
       'Independent services are subject to their own availability and terms.',
-      'This section does not exclude liability the law requires us to carry.',
     ],
   },
   {
@@ -472,11 +466,10 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '31', heading: 'Service conditions', id: 's31',
-    inShort: 'Services are subject to availability and the terms applicable to them. Mandatory warranties and consumer rights remain in force.',
+    inShort: 'Services are subject to availability and the terms applicable to them.',
     paragraphs: [
       'To the extent permitted by law, the Services are provided as available and without warranties other than those expressly stated in these Terms, the confirmed transaction or required by law.',
       'We do not guarantee uninterrupted access, error-free operation, suitability for a particular purpose or any particular outcome.',
-      'Nothing in these Terms excludes or limits any warranty, condition, obligation or remedy that cannot lawfully be excluded or limited.',
     ],
   },
   {
@@ -489,7 +482,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Before relying on published information, check the current official source or ask us in writing about your circumstances. Applicable law and the confirmed Service-Specific Terms govern your transaction. If published information differs from a specific written confirmation, contact us for clarification.',
       'Some published material may be AI-assisted. Section 46 applies.',
       'Articles may mention or link to other websites, organisations and tools. Section 27 applies: a mention is not an endorsement, and we do not control what is on the other side of a link.',
-      'Nothing in this section excludes a statutory warranty, obligation, consumer right or remedy that cannot lawfully be excluded.',
     ],
   },
   {
@@ -500,17 +492,17 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'A contribution is not an investment, equity, a loan, a security, a deposit, a subscription or a donation to a registered charity, and it is not necessarily tax-deductible - do not treat it as any of those. It does not make you an employee, partner, shareholder or agent of ours, and it does not give you any ownership, revenue share, control or other interest in WECARE.DIGITAL BHARATWORKS or its work.',
       'Contributing does not buy influence over what we publish. It does not entitle you to commission, edit, approve, remove or shape any article, and it creates no editorial, advisory or professional relationship. What we publish stays our own editorial decision, and section 31.1 continues to apply to that content.',
       'Where contributions are enabled, the amount is the one you choose and we confirm in Indian rupees. It is processed by our payment provider (Razorpay) under section 12, and we do not add a fee on top of a contribution. A contribution does not create an order, a product or a shipment, and there is nothing to deliver.',
-      'If a payment does not complete, is declined, or fails verification, no contribution is taken. Because a contribution is voluntary and buys nothing, it is generally not refundable once successfully processed; even so, we will review and, where appropriate, refund or reverse a contribution that was taken in error, duplicated, taken without authorisation, or taken through fraud, and we may reverse or decline a contribution we reasonably believe to be fraudulent. If you raise a chargeback or payment dispute, section 14.12 applies. Nothing in this clause removes a refund or remedy the law requires.',
+      'If a payment does not complete, is declined, or fails verification, no contribution is taken. Because a contribution is voluntary and buys nothing, it is generally not refundable once successfully processed; even so, we will review and, where appropriate, refund or reverse a contribution that was taken in error, duplicated, taken without authorisation, or taken through fraud, and we may reverse or decline a contribution we reasonably believe to be fraudulent. If you raise a chargeback or payment dispute, section 14.12 applies.',
     ],
   },
   {
     number: '32', heading: 'Responsibility and legal limits', id: 's32',
-    inShort: 'Our responsibility is limited to the extent permitted by law. Mandatory rights and remedies are unaffected.',
+    inShort: 'Our responsibility is limited to the extent permitted by law.',
     paragraphs: [
       'To the fullest extent permitted by applicable law, WECARE.DIGITAL excludes responsibility for claims arising from or connected with the Services wherever exclusion is lawful.',
       'For non-consumer and commercial-purpose transactions, our aggregate contractual and non-contractual liability is INR 0 where lawful exclusion is permitted. Where exclusion is not permitted but limitation is permitted, the lowest lawful limit applies.',
       'To the extent permitted by law, we exclude indirect, incidental, special, exemplary, punitive and consequential loss, including lost profits, revenue, opportunities, goodwill, savings or data, and losses caused by independent third parties or events outside our reasonable control; we also exclude loss that is not a direct and reasonably foreseeable consequence of our breach.',
-      'Nothing in these Terms excludes or limits any non-waivable consumer, product, data-protection or other statutory right, remedy or responsibility, including for fraud or fraudulent misrepresentation, wilful misconduct, death or personal injury where exclusion is prohibited by law.',
+      'These exclusions and limitations do not apply to mandatory consumer, product, data-protection or other statutory rights, remedies or responsibilities, including fraud, fraudulent misrepresentation, wilful misconduct, death or personal injury where exclusion is prohibited.',
       'If any exclusion or limitation is found unenforceable, it applies only to the extent permitted by law and the remaining provisions continue to apply.',
     ],
   },
@@ -519,7 +511,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     inShort: 'You are responsible for unlawful use, material breaches and infringement of others\' rights, subject to applicable law.',
     paragraphs: [
       'To the extent permitted by law, you are responsible for losses, claims and reasonable costs directly resulting from your unlawful use of the Services, material breach of these Terms, infringement of others\' rights or unlawful content you submit.',
-      'This does not transfer responsibility for our own unlawful conduct to you or remove any mandatory consumer right.',
+      'You are not responsible under this clause for our own unlawful conduct.',
     ],
   },
   {
@@ -544,22 +536,21 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '36', heading: 'Events outside anyone\'s control', id: 's36',
-    inShort: 'Events outside either party\'s reasonable control may affect performance. Mandatory rights remain available.',
+    inShort: 'Events outside either party\'s reasonable control may affect performance.',
     paragraphs: [
       'Neither of us is responsible for a failure or delay caused by circumstances beyond our reasonable control, to the extent those circumstances actually prevent performance.',
       'That can include natural disasters, severe weather, epidemics and public-health restrictions, war, civil disturbance, government action, widespread utility or telecommunications failures, labour disruption, transport interruption, and large-scale cyber incidents.',
-      'This section does not remove a cancellation, refund or other right the law requires to stay available.',
     ],
   },
   {
     number: '37', heading: 'Customer care and complaints', id: 's37',
-    inShort: 'Email one@wecare.digital or call +91 9330994400. We provide a complaint reference where applicable. Your statutory complaint and escalation rights remain available.',
+    inShort: 'Email one@wecare.digital or call +91 9330994400. We provide a complaint reference where applicable.',
     paragraphs: [
       'Contact us about products, orders, bookings, payments, refunds, Sellers, Service Providers, your account, the Platform, privacy, or any other complaint.',
       'WECARE.DIGITAL Customer Grievance Desk, WECARE.DIGITAL BHARATWORKS. Email one@wecare.digital or call +91 9330994400. Our address is The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
       'We record formal complaints submitted through that channel and, where it applies, give you a ticket or reference number so you can track it.',
       'Where the law sets a particular grievance process, acknowledgement period, resolution period or escalation route, we follow it.',
-      'Using our complaints process does not stop you exercising any right you have before a Consumer Commission, regulator, statutory authority, court or other lawful forum.',
+      'Dispute and escalation procedures are set out in section 39.',
     ],
   },
   {
@@ -576,11 +567,11 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '39', heading: 'Governing law and disputes', id: 's39',
-    inShort: 'Indian law applies. Please talk to us first. Nothing stops you going to a consumer commission or regulator; other disputes go to the courts in Kolkata.',
+    inShort: 'Indian law applies. Applicable statutory forums and competent courts in Kolkata handle disputes.',
     paragraphs: [
       'These Terms are governed by the laws of India.',
       'Please contact our customer care team or the Customer Grievance Desk first, so we have a chance to look at the problem and, if we can, fix it.',
-      'Nothing in these Terms stops a consumer approaching a Consumer Commission, regulator, statutory authority, court or other forum available under the law.',
+      'Consumers may approach the competent Consumer Commission, regulator, statutory authority, court or other forum provided by law.',
       'For disputes that are not covered by a mandatory statutory or consumer forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
     ],
   },
@@ -602,10 +593,10 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '42', heading: 'Transferring this agreement', id: 's42',
-    inShort: 'You need our consent to transfer your account or rights. We may transfer ours in a genuine restructuring, without reducing your mandatory rights.',
+    inShort: 'You need our consent to transfer your account or rights. We may transfer ours in a genuine restructuring, subject to applicable law.',
     paragraphs: [
       'Do not transfer your account or your rights under these Terms in a way that materially affects the Services without our prior consent.',
-      'WECARE.DIGITAL BHARATWORKS may transfer its rights or obligations as part of a genuine business restructuring, merger, acquisition, sale or reorganisation, subject to the law and without reducing your mandatory user or consumer rights.',
+      'WECARE.DIGITAL BHARATWORKS may transfer its rights or obligations as part of a genuine business restructuring, merger, acquisition, sale or reorganisation, subject to applicable law, including mandatory user and consumer protections.',
     ],
   },
   {
@@ -635,7 +626,6 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Translations are provided as a convenience and on an "as is" basis. We give no warranty, express or implied, as to their accuracy, reliability or completeness, and a discrepancy introduced by translation creates no obligation on us and has no legal effect.',
       'Some content may remain in English. The official English text applies subject to applicable language and disclosure requirements.',
       'Check the English text for commercial terms and contact one@wecare.digital if clarification is needed.',
-      'Nothing in this section limits any right you have under applicable law to receive information in a language you understand, or any obligation we have to provide it.',
     ],
   },
   {
@@ -647,7 +637,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Where a qualified professional provides a Service, that professional\'s advice and applicable service terms govern.',
       'Decisions about acceptance of orders, bookings, applications, requests or pricing are not made solely by automated means without human review being available. You may request a review of a decision that materially affects you at one@wecare.digital.',
       'Personal data processed through AI-assisted features is handled as described in our Privacy Policy. Any applicable consent, disclosure or review rights remain available.',
-      'AI-assisted features may change or be withdrawn. Where a human alternative is offered, you may request it. Mandatory rights and remedies remain unaffected.',
+      'AI-assisted features may change or be withdrawn. Where a human alternative is offered, you may request it.',
     ],
   },
   {

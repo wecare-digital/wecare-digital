@@ -6,7 +6,7 @@ export const PRIVACY_INTRO: string[] = [
   'This policy explains what personal data WECARE.DIGITAL collects, why we collect it, who we share it with, how long we keep it, and what you can ask us to do about it.',
   'WECARE.DIGITAL is a brand of WECARE.DIGITAL BHARATWORKS. In this policy, "we" and "us" mean that business, and "you" means anyone whose personal data we handle.',
   'Read it alongside our Terms of Service at /terms/. Some services show additional privacy information of their own; where they do, that information applies on top of this policy.',
-  'Using our services is not blanket consent to every possible use of your data. Where the law requires your consent for something, we ask for it separately and specifically.',
+  'We request separate, specific consent where required for a particular use of personal data.',
 ];
 
 export const PRIVACY_SECTIONS: LegalSection[] = [
@@ -303,11 +303,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '23', heading: 'Questions and complaints', id: 's23',
-    inShort: 'Email one@wecare.digital or call +91 9330994400. Use our grievance process first where the law requires it; statutory escalation rights remain available.',
+    inShort: 'Email one@wecare.digital or call +91 9330994400 for privacy requests and grievances.',
     paragraphs: [
       'For any question, request or complaint about your personal data, contact our Privacy and Grievance Desk: email one@wecare.digital, or call +91 9330994400. Our postal address is in section 24.',
       'We may ask for enough information to verify your identity or authority before acting on a request.',
-      'If you are not satisfied with our response, you keep any right you have to approach the Data Protection Board of India, another competent authority, regulator, court or other lawful forum. Where applicable data-protection law requires you to exhaust our grievance process before approaching the Board, that requirement applies.',
+      'If our response does not resolve your grievance, you may approach the competent Data Protection Board of India, authority, regulator, court or other forum, following any required grievance procedure.',
     ],
   },
   {
@@ -315,10 +315,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '23.1', heading: 'Governing law and where disputes are heard', id: 's23-1',
     paragraphs: [
       'This policy is governed by the laws of India.',
-      'This policy describes our data-handling practices and commitments. It does not create a separate warranty or indemnity beyond applicable law and expressly agreed terms. Section 32 of our Terms applies only to the extent permitted by law and does not restrict non-waivable privacy rights or remedies.',
-      'Nothing in this policy removes any right to approach the Data Protection Board of India, another data-protection authority, a regulator, a Consumer Commission, a court or any other forum available to you under the law. Where the law requires our grievance process to be exhausted before a particular escalation, that procedural requirement applies.',
+      'This policy describes our data-handling practices and commitments. Section 32 of our Terms applies subject to applicable data-protection law. This policy creates no separate warranty or indemnity beyond applicable law and expressly agreed terms.',
+      'Privacy and statutory grievance procedures are described in section 23; competent Consumer Commissions and other applicable statutory forums retain jurisdiction.',
       'For a dispute about this policy that is not within the jurisdiction of a mandatory statutory, consumer or data-protection forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
-      'See section 39 of our Terms of Service for the general dispute provisions. Mandatory statutory forums and any required grievance procedure take precedence.',
+      'See section 39 of our Terms of Service for general dispute provisions.',
     ],
   },
   {
