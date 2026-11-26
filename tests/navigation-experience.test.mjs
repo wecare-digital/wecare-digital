@@ -169,3 +169,10 @@ test('public content surfaces share search ranking without broadening source or 
   const orders = read('src/components/orders/OrderActionsMenu.tsx');
   for (const source of [header, orders]) assert.ok(source.includes('font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading)'));
 });
+
+
+test('floating WhatsApp widget links directly to the approved contact URL', () => {
+  const widget = readFileSync(new URL('../src/components/SupportWidget.tsx', import.meta.url), 'utf8');
+  assert.match(widget, /className="wc-wa"\s+href="https:\/\/wa\.me\/message\/APDM5HUWH26SG1"\s+target="_blank"\s+rel="noopener noreferrer"/);
+  assert.doesNotMatch(widget, /href="https:\/\/wecare\.digital\/r\/wa"/);
+});

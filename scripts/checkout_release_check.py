@@ -63,7 +63,7 @@ def check_html(path, html):
         failures.append(f'{path}: legacy cart destination linked')
     if any(urlsplit(href).path.rstrip('/') == '/checkout/whatsapp' for href in page.links):
         failures.append(f'{path}: removed WhatsApp checkout page linked')
-    if not any(urlsplit(href).path == '/r/wa' for href in page.links):
+    if 'https://wa.me/message/APDM5HUWH26SG1' not in page.links:
         failures.append(f'{path}: default WhatsApp widget missing')
     return failures
 
