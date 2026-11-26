@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { LegalSection } from '../content/legal/types';
 
 /**
@@ -12,8 +12,8 @@ import type { LegalSection } from '../content/legal/types';
  *
  * The TABLE OF CONTENTS is not decoration. Terms is 57 sections and Privacy is 39; a
  * flat wall of numbered prose is unusable on a phone, which is where a privacy policy
- * actually gets opened. Top-level sections only - listing 14.1 through 14.12 as well
- * would make the contents as long as the document.
+ * actually gets opened. Native disclosure groups make nested sections reachable
+ * without flattening every sub-clause into a long menu. The operative text stays visible.
  *
  * TYPE COMES OFF THE DESIGN CONTRACT, with one deliberate exception. The contract pins
  * exactly one body level at 20px/400 for marketing pages. That is too large for 42,000
@@ -42,9 +42,42 @@ const withLinks = ( text: string, keyBase: string ): React.ReactNode => {
   ) );
 };
 
+// Exact Google Material Symbols Outlined paths, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+const CONTENTS_ICON = 'M320-280q17 0 28.5-11.5T360-320q0-17-11.5-28.5T320-360q-17 0-28.5 11.5T280-320q0 17 11.5 28.5T320-280Zm0-160q17 0 28.5-11.5T360-480q0-17-11.5-28.5T320-520q-17 0-28.5 11.5T280-480q0 17 11.5 28.5T320-440Zm0-160q17 0 28.5-11.5T360-640q0-17-11.5-28.5T320-680q-17 0-28.5 11.5T280-640q0 17 11.5 28.5T320-600Zm120 320h240v-80H440v80Zm0-160h240v-80H440v80Zm0-160h240v-80H440v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z';
+const GROUP_CHEVRON = 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z';
+const CONTENTS_CHEVRON = 'M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z';
+
 const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice } ) => {
   const topLevel = sections.filter( s => !s.number.includes( '.' ) );
   const hasSummaries = sections.some( s => s.inShort );
+  const tocRef = useRef<HTMLDetailsElement>( null );
+
+  // Desktop starts open; mobile starts compact after hydration. Native details
+  // controls remain keyboard-operable even without JS. Never collapse the prose.
+  useEffect( () => {
+    const wide = window.matchMedia( '(min-width: 1100px)' );
+    const syncLayout = () => {
+      if ( tocRef.current ) tocRef.current.open = wide.matches;
+    };
+    const revealDeepLink = () => {
+      const id = window.location.hash.slice( 1 );
+      const section = sections.find( item => item.id === id );
+      if ( !section ) return;
+      const parentNumber = section.number.split( '.' )[ 0 ];
+      const parent = sections.find( item => item.number === parentNumber );
+      if ( !parent ) return;
+      const group = document.getElementById( `lgd-toc-group-${parent.id}` );
+      if ( group instanceof HTMLDetailsElement ) group.open = true;
+    };
+    syncLayout();
+    revealDeepLink();
+    wide.addEventListener( 'change', syncLayout );
+    window.addEventListener( 'hashchange', revealDeepLink );
+    return () => {
+      wide.removeEventListener( 'change', syncLayout );
+      window.removeEventListener( 'hashchange', revealDeepLink );
+    };
+  }, [ sections ] );
 
   /**
    * HOW MANY ROWS THE CONTENTS RAIL HAS TO SPAN, counted from the children that actually
@@ -107,17 +140,47 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            count. Harmless below 1100px, where .lgd is not a grid and the property is
            ignored. */ }
       <nav className="lgd-toc" aria-label="Contents" style={ { gridRow: `1 / span ${columnOneRows}` } }>
-        <h2 className="lgd-toc-title">Contents</h2>
-        <ol className="lgd-toc-list">
-          { topLevel.map( s => (
-            <li key={ s.id }>
-              <a href={ `#${s.id}` } className="lgd-toc-link">
-                <span className="lgd-toc-num">{ s.number }</span>
-                <span>{ s.heading }</span>
-              </a>
-            </li>
-          ) ) }
-        </ol>
+        <details className="lgd-contents" ref={ tocRef } open>
+          <summary className="lgd-toc-summary">
+            <svg className="lgd-contents-icon" viewBox="80 -880 800 800" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
+            <span>Contents</span>
+            <svg className="lgd-contents-chevron" viewBox="160 -800 640 640" aria-hidden="true" focusable="false"><path d={ CONTENTS_CHEVRON } /></svg>
+          </summary>
+          <ol className="lgd-toc-list">
+            { topLevel.map( section => {
+              const children = sections.filter( child => child.number.startsWith( `${section.number}.` ) );
+              return (
+                <li key={ section.id }>
+                  { children.length ? (
+                    <details id={ `lgd-toc-group-${section.id}` } className="lgd-toc-group">
+                      <summary className="lgd-toc-group-summary">
+                        <span className="lgd-toc-num">{ section.number }</span>
+                        <span className="lgd-toc-label">{ section.heading }</span>
+                        <svg className="lgd-group-chevron" viewBox="120 -840 720 720" aria-hidden="true" focusable="false"><path d={ GROUP_CHEVRON } /></svg>
+                      </summary>
+                      <ol className="lgd-toc-children" aria-label={ `Section ${section.number} subsections` }>
+                        <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link">Section { section.number } overview</a></li>
+                        { children.map( child => (
+                          <li key={ child.id }>
+                            <a href={ `#${child.id}` } className="lgd-toc-link lgd-child-link">
+                              <span className="lgd-toc-num">{ child.number }</span>
+                              <span className="lgd-toc-label">{ child.heading }</span>
+                            </a>
+                          </li>
+                        ) ) }
+                      </ol>
+                    </details>
+                  ) : (
+                    <a href={ `#${section.id}` } className="lgd-toc-link">
+                      <span className="lgd-toc-num">{ section.number }</span>
+                      <span className="lgd-toc-label">{ section.heading }</span>
+                    </a>
+                  ) }
+                </li>
+              );
+            } ) }
+          </ol>
+        </details>
       </nav>
 
       { sections.map( section => {
@@ -153,7 +216,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            stays aligned with the hero headline directly above it. Moving it left would
            indent the prose away from the h1 and break that vertical line.
            Below 1100px it collapses to one column and the contents return inline above
-           the document, which is where they have to be on a phone. */
+           the document as a compact native disclosure on phones and tablets. */
         .lgd{font-family:var(--font-sans)}
         /* Single column below the grid breakpoint. */
         @media(max-width:1099px){
@@ -162,7 +225,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         @media(min-width:1100px){
           .lgd{
             display:grid;
-            grid-template-columns:720px minmax(0,1fr);
+            grid-template-columns:minmax(0,720px) minmax(260px,1fr);
             column-gap:56px;
             align-items:start;
           }
@@ -232,41 +295,44 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            because they are neither indicators nor named labels. */
         .lgd-short-tag{display:block;margin-bottom:3px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--public-muted)}
 
-        .lgd-toc{margin:0 0 48px;padding:22px 24px;border:1px solid var(--public-hairline);border-radius:14px}
-        .lgd-toc-title{margin:0 0 14px;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--public-muted)}
-        /* ONE column is the base, and two columns are opted into only for the inline
-           layout between 768 and 1099px, where the contents sit above the document at
-           full width and 45 entries in a single column would be a very long scroll.
-           Declared this way round on purpose: the base rule used to be columns:2 with a
-           columns:1 override inside the min-width:1100px block, and because that block
-           appears EARLIER in this stylesheet the later base rule won and the rail
-           rendered two ~19-character columns. Media queries beating base rules depends
-           on source order, which the design contract already records as a trap - so the
-           narrower case is the exception here, not the default.
-           list-style is off because the number is rendered explicitly: the document's
-           own numbering is authoritative and must not be renumbered by the browser if a
-           section is ever added or removed. */
-        .lgd-toc-list{margin:0;padding:0;list-style:none;columns:1;column-gap:32px}
-        @media(min-width:768px) and (max-width:1099px){
-          .lgd-toc-list{columns:2}
+        /* Responsive contents: sticky desktop rail, compact mobile disclosure,
+           native summary controls and nested anchors, all in the site's own palette. */
+        .lgd-toc{margin:0 0 48px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:14px;min-width:0}
+        .lgd-contents{min-width:0}
+        .lgd-toc-summary,.lgd-toc-group-summary{
+          display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;
+          cursor:pointer;list-style:none;color:var(--public-brand-green);border-radius:7px;
+          padding:6px 8px;font-weight:600;line-height:1.45;
         }
-        .lgd-toc-list li{break-inside:avoid;margin:0 0 2px}
-        .lgd-toc-link{display:flex;align-items:center;gap:10px;min-height:var(--tap-min);box-sizing:border-box;padding:6px 8px;margin:0 -8px;border-radius:7px;font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none}
-        /* HOVER AND FOCUS ARE SPLIT, because one rule cannot serve both here.
-           This was a single declaration: hover and focus-visible shared the lime tint AND
-           outline:none. So a keyboard user's only focus indicator was that tint, which
-           composites to rgb(245,253,224) over white - the design contract's own words for
-           this value are "a wash that reads as barely-not-white". Measured across the two
-           legal pages: 71 contents links (47 on /terms/, 24 on /privacy/) with NO detectable
-           focus indicator, because outline:none had removed the browser default too.
-           The tint stays on hover, where it is a pointer affordance and does not need to
-           carry 3:1. Focus gets an opaque #1a3a2a ring at 12.48:1 on white. Keeping the tint
-           on focus as well is deliberate - the two states then look related rather than
-           unrelated - but the ring is what makes focus perceivable.
-           Do not re-merge these selectors. */
-        .lgd-toc-link:hover{background:var(--public-lime-tint)}
-        .lgd-toc-link:focus-visible{background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);outline-offset:1px}
+        .lgd-toc-summary::-webkit-details-marker,.lgd-toc-group-summary::-webkit-details-marker{display:none}
+        .lgd-toc-summary::marker,.lgd-toc-group-summary::marker{content:''}
+        .lgd-toc-summary{font-size:17px}
+        .lgd-toc-summary>span,.lgd-toc-label{flex:1;min-width:0;overflow-wrap:anywhere}
+        .lgd-contents-icon,.lgd-contents-chevron,.lgd-group-chevron{
+          display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor;
+        }
+        .lgd-contents-chevron,.lgd-group-chevron{transition:transform .18s ease}
+        .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron{transform:rotate(180deg)}
+        .lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron{transform:rotate(90deg)}
+        .lgd-toc-list,.lgd-toc-children{margin:0;padding:0;list-style:none}
+        .lgd-toc-list{margin-top:8px}
+        .lgd-toc-list li{margin:0 0 2px;min-width:0}
+        .lgd-toc-link,.lgd-toc-group-summary{
+          display:flex;align-items:center;gap:10px;min-height:var(--tap-min);min-height:max(44px,var(--tap-min));
+          box-sizing:border-box;padding:6px 8px;border-radius:7px;
+          font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none;
+        }
+        .lgd-toc-group-summary{font-weight:500}
+        .lgd-toc-children{margin:2px 0 8px 18px;padding-inline-start:8px;border-inline-start:1px solid var(--public-hairline)}
+        .lgd-child-link{font-size:14px;align-items:flex-start;padding-block:10px}
+        .lgd-toc-link:hover,.lgd-toc-summary:hover,.lgd-toc-group-summary:hover{background:var(--public-lime-tint)}
+        .lgd-toc-link:focus-visible,.lgd-toc-summary:focus-visible,.lgd-toc-group-summary:focus-visible{
+          background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);outline-offset:1px;
+        }
         .lgd-toc-num{flex:0 0 auto;min-width:22px;font-weight:600;color:var(--public-muted)}
+        @media(prefers-reduced-motion:reduce){
+          .lgd-contents-chevron,.lgd-group-chevron{transition:none}
+        }
 
         /* scroll-margin-top clears the fixed 108px header. Without it, following a
            contents link puts the heading underneath the header and the reader lands
@@ -291,9 +357,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-inline-link:hover{background:var(--public-lime-tint)}
 
         @media(max-width:767px){
-          /* One column: two columns of contents on a phone gives ~20 characters a line. */
-          .lgd-toc-list{columns:1}
-          .lgd-toc{padding:18px 16px;margin-bottom:36px}
+          .lgd-toc{padding:8px 10px;margin-bottom:36px}
+          .lgd-toc-children{margin-inline-start:10px;padding-inline-start:6px}
           .lgd-section{scroll-margin-top:112px}
           .lgd-h2{font-size:var(--public-mobile-section-size)}
           .lgd-h3{font-size:var(--public-mobile-card-size)}

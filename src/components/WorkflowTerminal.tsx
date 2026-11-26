@@ -385,7 +385,7 @@ const WorkflowTerminal: React.FC = () => {
    * a pass AND is what makes the continuous animation WCAG 2.2.2 conformant; `cycle` bumping is
    * what re-enters the stepping effect for another pass. The loop runs CONTINUOUSLY until a
    * reader pauses it - there is no cap and no natural stop, so there is no `stopped` state and
-   * no "Replay": the control reads Pause <-> Play only. */
+   * no "Replay": the control switches between the pause and play icons. */
   const [ paused, setPaused ] = useState( false );
   const [ cycle, setCycle ] = useState( 0 );
   const [ run, setRun ] = useState( false );
@@ -773,32 +773,27 @@ const WorkflowTerminal: React.FC = () => {
           one cycle here runs well over ten seconds. This is the pause. It is the reason the
           panel is allowed to animate continuously at all, not a convenience bolted on afterwards.
 
-          The label is real text rather than an icon glyph, and that is deliberate after the
-          tick: this sandbox has 82 fonts and none with symbol coverage, so a play triangle or
-          pause bars written as U+25B6 / U+23F8 would render as tofu somewhere. Two CSS-drawn
-          bars and a CSS-drawn triangle cannot fall back to a missing glyph. */}
+          The visible control uses official Material Symbols SVG paths, not a remote
+          font or Unicode glyph. Its accessible action name remains available to screen readers. */}
       {/* RENDERED ONLY ONCE THERE IS SOMETHING TO CONTROL. `run` is false during the static
           export and on the first client render, and becomes true one tick later - so the HTML
           ships without this button and a reader with JavaScript disabled is not offered a Pause
           control for an animation that cannot start. It used to ship unconditionally, which left
           a no-JS visitor a button labelled "Pause" sitting over a panel that was never going to
           move. Hydration-safe because the condition is identical on both sides of the boundary,
-          and no layout shifts when it arrives: .wt-bar already reserves 108px of right padding
+          and no layout shifts when it arrives: .wt-bar already reserves 64px of right padding
           for its footprint. */}
       { run && (
         <button
           type="button"
-          /* TWO LABELS, ONE CONTROL. Pause while playing, Play while paused - there is no
-             "Replay" because the loop runs continuously and never stops on its own, so the
-             control is only ever a toggle. The triangle mark is shown while paused (it starts
-             motion); the running state shows the two pause bars. aria-pressed tracks `paused`. */
           className={ `wt-play ${paused ? 'is-paused' : ''}`.trim() }
           onClick={ togglePlay }
-          aria-pressed={ paused }
+          aria-label={ paused ? 'Play the illustration of a customer request' : 'Pause the illustration of a customer request' }
         >
-          <span className="wt-play-mark" aria-hidden="true" />
-          { paused ? 'Play' : 'Pause' }
-          <span className="wt-sr-only"> the illustration of a customer request</span>
+          {/* Google Material Symbols Outlined play_arrow and pause, FILL 0 / wght 400 / GRAD 0 / opsz 24. */}
+          <svg className="wt-play-icon" viewBox={ paused ? '200 -820 680 680' : '140 -820 680 680' } aria-hidden="true" focusable="false">
+            <path d={ paused ? 'M320-200v-560l440 280-440 280Zm80-280Zm0 134 210-134-210-134v268Z' : 'M520-200v-560h240v560H520Zm-320 0v-560h240v560H200Zm400-80h80v-400h-80v400Zm-320 0h80v-400h-80v400Zm0-400v400-400Zm320 0v400-400Z' } />
+          </svg>
         </button>
       ) }
 
@@ -981,10 +976,10 @@ const WorkflowTerminal: React.FC = () => {
            Measured: #f2efe9 on #3b271a is 9.41:1, and on the lime hover fill 8.87:1, both well
            clear of 4.5:1 for 12px text. */
         .wt-play{
-          position:absolute;top:0;right:0;z-index:3;height:47px;width:86px;box-sizing:border-box;
-          display:inline-flex;align-items:center;justify-content:center;gap:6px;
-          padding:0 9px;margin:0;border:0;background:transparent;
-          font:inherit;font-size:16px;font-weight:500;line-height:1;letter-spacing:.02em;color:#f2efe9;
+          position:absolute;top:0;right:0;z-index:3;height:47px;width:52px;box-sizing:border-box;
+          display:inline-flex;align-items:center;justify-content:center;
+          padding:0;margin:0;border:0;background:transparent;
+          color:#f2efe9;
           cursor:pointer;
           border-top-right-radius:14px;
           box-shadow:inset 0 -2px 0 transparent;
@@ -1003,31 +998,15 @@ const WorkflowTerminal: React.FC = () => {
         /* A real focus ring. The bar is dark, so the lime the rest of the site uses for focus
            reads clearly against it. */
         .wt-play:focus-visible{outline:2px solid #d1f470;outline-offset:-2px}
-        /* CSS-DRAWN MARKS, NOT GLYPHS. U+23F8 and U+25B6 have no coverage in several of the
-           fonts this site ships and would render as tofu - the same trap the tick hit in the
-           review mock. Two bars for pause; a triangle, via borders, for play. */
-        .wt-play-mark{display:inline-block;width:9px;height:10px;flex:0 0 auto;position:relative}
-        .wt-play-mark::before,.wt-play-mark::after{
-          content:'';position:absolute;top:0;width:3px;height:10px;background:currentColor
-        }
-        .wt-play-mark::before{left:0}
-        .wt-play-mark::after{right:0}
-        .wt-play.is-paused .wt-play-mark::after{display:none}
-        .wt-play.is-paused .wt-play-mark::before{
-          left:1px;width:0;height:0;background:transparent;
-          border-top:5px solid transparent;border-bottom:5px solid transparent;
-          border-left:8px solid currentColor
-        }
+        /* Equal 24px visible footprints with optical whitespace cropped. */
+        .wt-play-icon{display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor}
         /* PAUSE MUST STOP THE MOTION, not just the timers. The stepping effect stops scheduling
            when paused, but .wt-pulse is a CSS animation with infinite iteration on whichever row
            is running - motion that would carry on indefinitely after a reader pressed pause,
            which is exactly what 2.2.2 forbids. Halting it here is what makes the control honest. */
         .wt-wrap.is-paused .wt-step.is-running .wt-dot{animation:none}
         .wt-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-        /* Same clip as .wt-sr, but for text INSIDE a visible control: the button needs to read
-           as "Pause the illustration of a customer request" to a screen reader while showing
-           only "Pause", because "Pause" alone does not say what stops. */
-        .wt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
 
         /* #000 with the 1.5px white stroke: the documented editor-pane treatment the
            two existing code panels already use, rather than the mock's #17191c and a
@@ -1053,9 +1032,9 @@ const WorkflowTerminal: React.FC = () => {
            body instead of a separate light object sitting on top of it, and it is the one
            warm value on the page so it cannot be confused with the lime accent.
            RIGHT PADDING RESERVES THE PAUSE BUTTON'S FOOTPRINT. .wt-play is absolutely
-           positioned, so it is out of flow and would sit on top of .wt-bar-state - 108px is the
+           positioned, so it is out of flow and would sit on top of .wt-bar-state - 64px is the
            button's own width plus a gap, so the state text ends before the control begins. */
-        .wt-bar{height:47px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 108px 0 15px;background:#3b271a;border-bottom:1px solid rgba(209,244,112,.30)}
+        .wt-bar{height:47px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 64px 0 15px;background:#3b271a;border-bottom:1px solid rgba(209,244,112,.30)}
         .wt-light{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
         /* THREE COLOURS, measured on this bar (#3b271a): amber 6.92:1, purple 2.99:1,
            green 4.42:1. Purple is below 3:1 and that is accepted here deliberately - this whole
@@ -1332,7 +1311,7 @@ const WorkflowTerminal: React.FC = () => {
           .wt-bar{
             box-sizing:border-box;
             height:47px;
-            padding:0 82px 0 12px;
+            padding:0 58px 0 12px;
             gap:8px;
             overflow:hidden;
             white-space:nowrap;
@@ -1360,12 +1339,10 @@ const WorkflowTerminal: React.FC = () => {
              box, no permanent lime rail. */
           .wt-play{
             top:0;left:auto;right:0;
-            width:76px;height:47px;
+            width:52px;height:47px;
             justify-content:center;
-            padding:0 9px;
+            padding:0;
             border-radius:0 12px 0 0;
-            font-size:16px;
-            gap:6px;
             background:transparent;
             border-left:0;
             box-shadow:inset 0 -2px 0 transparent;
@@ -1411,14 +1388,14 @@ const WorkflowTerminal: React.FC = () => {
           /* 280px Fold is the only real compromise: drop the status dot before sacrificing
              the title or the 44px control. The title gets one small step down, but machine
              output keeps the same readable sizes because it can swipe horizontally. */
-          .wt-bar{padding-left:10px;padding-right:76px}
+          .wt-bar{padding-left:10px;padding-right:56px}
           /* Keep the status box in the flex row for geometric alignment while making it
              visually absent. display:none collapses its rect to 0, which makes Firefox report
              the chrome controls on different rows even though the visible title/play control
              are aligned. Zero width preserves the row without consuming narrow-screen space. */
           .wt-bar-state{visibility:hidden;flex:0 0 0;width:0;min-width:0;margin-left:0;overflow:hidden}
           .wt-bar-title{font-size:14px}
-          .wt-play{width:70px;padding-inline:6px;font-size:16px}
+          .wt-play{width:52px;padding-inline:0}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
