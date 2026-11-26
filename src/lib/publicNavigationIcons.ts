@@ -126,8 +126,9 @@ export const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
 export const ROW_CHEVRON_VIEW_BOX = '4.8 4.8 14.4 14.4';
 
 
-// Exact Google Material Symbols Outlined paths, FILL 0 / wght 400 / GRAD 0 / opsz 24.
-// menu_open (the selected symbol), keyboard_arrow_right and keyboard_arrow_down.
-export const CONTENTS_ICON = 'M120-240v-80h520v80H120Zm664-40L584-480l200-200 56 56-144 144 144 144-56 56ZM120-440v-80h400v80H120Zm0-200v-80h520v80H120Z';
-export const GROUP_CHEVRON = 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z';
-export const CONTENTS_CHEVRON = 'M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z';
+// Legal navigation: exact Google Material Symbols Outlined (FILL 0, wght 400,
+// GRAD 0, opsz 24). Both square crops preserve the complete glyph at 24px.
+export const CONTENTS_ICON = 'M360-240h440v-107H360v107ZM160-613h120v-107H160v107Zm0 187h120v-107H160v107Zm0 186h120v-107H160v107Zm200-186h440v-107H360v107Zm0-187h440v-107H360v107ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Z';
+export const CONTENTS_ICON_VIEW_BOX = '40 -920 880 880';
+export const LEGAL_DOUBLE_ARROW = 'm242-200 200-280-200-280h98l200 280-200 280h-98Zm238 0 200-280-200-280h98l200 280-200 280h-98Z';
+export const LEGAL_DOUBLE_ARROW_VIEW_BOX = '190 -800 640 640';
