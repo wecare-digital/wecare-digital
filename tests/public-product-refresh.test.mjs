@@ -279,3 +279,16 @@ test('Request, Shop, Orders, App and AI use exact outlined Material glyphs and o
   const materialLabels = icons.match(/const MATERIAL_NAV_ICON_LABELS = new Set\( \[([\s\S]*?)\] \);/)?.[1];
   for (const label of ['Shop', 'Orders', 'App', 'AI']) assert.ok(materialLabels?.includes("'" + label + "'"), label);
 });
+
+test('menu disclosure arrows use the selected outlined double chevron and preserve dotted child arrows', () => {
+  const icons = read('src/lib/publicNavigationIcons.ts');
+  const header = read('src/components/Header.tsx');
+  const orders = read('src/components/orders/OrderActionsMenu.tsx');
+  assert.ok(icons.includes("ROW_CHEVRON_PATH = 'M383-480 200-664l56-56 240 240-240 240-56-56 183-184Zm264 0L464-664l56-56 240 240-240 240-56-56 183-184Z'"));
+  assert.ok(icons.includes("ROW_CHEVRON_VIEW_BOX = '174.55 -785.45 610.9 610.9'"));
+  assert.ok(header.includes('.nav-row-chevron{margin-inline-start:auto;fill:currentColor;stroke:none}'));
+  assert.ok(header.includes('SUBNAV_DOT_PATH'));
+  assert.ok(orders.includes('const CHEVRON_PATH = ROW_CHEVRON_PATH'));
+  assert.ok(orders.includes('flex:none;fill:currentColor;\n          stroke:none;opacity:.65;'));
+  assert.ok(Math.abs(560 * 24 / 610.9 - 22) < 0.03);
+});
