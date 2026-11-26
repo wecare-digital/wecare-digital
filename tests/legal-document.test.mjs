@@ -50,3 +50,22 @@ test('legal heading numbers have a real separator and aligned upright title colu
   assert.match(source, /\.lgd-h2,\.lgd-h3\{\s*display:grid;grid-template-columns:3\.5rem minmax\(0,1fr\);\s*column-gap:12px;align-items:baseline;text-align:start;font-style:normal;/);
   assert.ok(source.includes('grid-template-columns:3rem minmax(0,1fr);column-gap:8px'));
 });
+
+test('legal provisions retain statutory safeguards and clear automated processing disclosure', () => {
+  const terms = readFileSync(new URL('../src/content/legal/terms.ts', import.meta.url), 'utf8');
+  const privacy = readFileSync(new URL('../src/content/legal/privacy.ts', import.meta.url), 'utf8');
+  for (const source of [terms, privacy]) {
+    assert.doesNotMatch(source, /Super Intelligence|intelligence-enabled|intelligence-assisted|INR 0|numbered text applies/i);
+    assert.match(source, /including artificial intelligence/);
+    assert.match(source, /one@wecare\.digital/);
+  }
+  assert.match(terms, /within 48 hours of receipt/);
+  assert.match(terms, /within one month of receipt/);
+  assert.match(terms, /within a reasonable period/);
+  assert.match(terms, /delivery after the stated schedule/);
+  assert.match(terms, /mandatory consumer and product liability/);
+  assert.match(privacy, /within one month of receipt/);
+  assert.match(privacy, /under 18 years of age/);
+  assert.match(privacy, /death or incapacity/);
+  assert.match(privacy, /withdraw consent/);
+});

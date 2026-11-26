@@ -99,10 +99,10 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     disclaimer: 'Independent providers may handle personal data under their own privacy policies. For access, correction, erasure, withdrawal of consent or a privacy grievance, contact one@wecare.digital. Your statutory rights remain unaffected.',
   },
   '/terms': {
-    shipping: 'Delivery availability, charges and estimated timelines depend on the product or service, destination and applicable provider. Delivery dates are estimates unless expressly guaranteed.',
-    returns: 'Eligibility depends on the item or service, the reason for the request, fulfilment progress and disclosed conditions. Statutory remedies for faulty, damaged, misdescribed or deficient goods and services remain available.',
-    refunds: 'Eligible voluntary cancellations and discretionary adjustments are resolved through WECARE.DIGITAL store credit valid for 30 calendar days, rather than a monetary refund. Monetary refunds are provided where required by law.',
-    disclaimer: 'Services are subject to availability and applicable service-specific terms. General information does not constitute personalised professional advice. Nothing in these Terms limits rights or remedies that cannot lawfully be excluded.',
+    shipping: 'Delivery availability, charges and timelines depend on the product or service, destination and provider. Estimated dates do not affect your statutory rights for late or failed delivery.',
+    returns: 'Eligibility depends on the product or service, reason for the request, fulfilment progress and disclosed conditions. Statutory remedies for defective or misdescribed goods, deficient services or late deliveries remain available in accordance with law.',
+    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days, subject to applicable law. Monetary refunds are provided where required by law.',
+    disclaimer: 'Services are subject to availability and applicable service-specific terms. General information does not constitute personalised professional advice. Your mandatory consumer and other statutory rights and remedies remain unaffected.',
   },
   '/shop': {
     shipping: 'Fulfilment depends on the selected item or service.',
