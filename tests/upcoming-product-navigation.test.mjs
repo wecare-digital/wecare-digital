@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
@@ -20,6 +22,13 @@ test('UdyamBids and GetKosh end the public Products menu as ordinary links', () 
     assert.ok(read('src/pages/_app.tsx').includes("router.pathname === '/" + route + "'"));
     assert.ok(read('src/pages/' + route + '.tsx').includes('name="' + name + '"'));
     assert.ok(!read('scripts/generate-sitemap.js').includes("'/" + route + "'"));
+    assert.ok(!JSON.parse(read('config/public-pages.json')).pages.some(page => page.path === '/' + route));
   }
   assert.match(read('src/components/public/UpcomingProductPage.tsx'), /name="robots" content="noindex, follow"/);
+});
+
+// Run the real production prebuild guard in CI, not just string assertions.
+test('production public-route guard accepts registered holding pages', () => {
+  const guard = fileURLToPath(new URL('../scripts/check-retired-public-pages.cjs', import.meta.url));
+  assert.match(execFileSync(process.execPath, [guard], { encoding: 'utf8' }), /Retired public page guard passed/);
 });
