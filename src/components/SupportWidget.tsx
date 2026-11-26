@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { publicActionText } from '../lib/publicActionNotices';
 import { rankNavigation } from '../lib/navigationSearch';
+import SearchClearButton from './SearchClearButton';
 
 /**
  * The single floating widget on every page: WhatsApp contact, and page translation.
@@ -969,14 +970,14 @@ const SupportWidget: React.FC = () => {
            screen reader reads - the trigger should come before the thing it opens. */
         .wc-panel{order:-1;display:flex;flex-direction:column;width:232px;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
 
-        .wc-search{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
+         .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
            defect this palette has already been burned by once. One lime hairline under the
            field says where the typing goes, and nothing shouts. */
         .wc-search:focus-within{border-bottom-color:#d1f470}
-        .wc-search svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
+        .wc-search>svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
 
         /* THIS RULE IS MOSTLY UNDOING OTHER RULES, and each reset is here because the global
            stylesheet was measurably reaching into the panel:
@@ -1219,15 +1220,17 @@ const SupportWidget: React.FC = () => {
                   if ( pick ) { closePanel( true ); void applyLanguage( pick.code ); }
                 } else if ( event.key === 'Escape' ) {
                   event.preventDefault();
-                  closePanel( true );
+                  if ( query ) { setQuery( '' ); setActive( 0 ); }
+                  else closePanel( true );
                 } else if ( event.key === 'Tab' ) {
                   // Tab closes rather than trapping. A three-element popover does not need a
                   // focus trap, and trapping would strand a keyboard user who opened it by
                   // accident.
-                  closePanel( false );
+                  if ( !query || event.shiftKey ) closePanel( false );
                 }
               } }
             />
+            <SearchClearButton query={ query } placement="inline" onClear={ () => { setQuery( '' ); setActive( 0 ); } } />
           </div>
 
           <div className="wc-rows" id="wc-lang-list" role="listbox" aria-label="Languages" ref={ listRef }>

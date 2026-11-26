@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
+import { rankNavigation } from '../lib/navigationSearch';
 import VayuLokWeatherInsights from './VayuLokWeatherInsights';
 import {
   VayuLokCompactPill,
@@ -1933,9 +1935,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const onUtilityKeyDown = ( slot: UtilityPlaceSlot, e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
-      ++utilitySearchSeqRef.current;
-      setUtilityOpenSlot( null );
-      setUtilitySearchStatus( 'idle' );
+      e.preventDefault();
+      onUtilityQueryChange( slot, '' );
       return;
     }
     if ( utilityOpenSlot !== slot || !utilityResults.length ) return;
@@ -2032,9 +2033,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     const committed = currencyOpenSide === 'base' ? fxBase : fxQuote;
     const other = currencyOpenSide === 'base' ? fxQuote : fxBase;
     const query = input === committed ? '' : input;
-    const matches = currencyCodes.filter( code =>
-      code !== other && ( !query || code.startsWith( query ) || code.includes( query ) ),
-    );
+    const available = currencyCodes.filter( code => code !== other );
+    const names = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames( ['en'], { type: 'currency' } ) : null;
+    const matches = !query ? available : rankNavigation( available.map( code => ( { code, label: code, searchText: [ code, names?.of( code ) || '' ].join( ' ' ) } ) ), query ).map( hit => hit.code );
     if ( !query && matches.includes( committed ) ) {
       return [ committed, ...matches.filter( code => code !== committed ) ].slice( 0, 8 );
     }
@@ -2056,7 +2057,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   const onCurrencyInputChange = ( side: CurrencySide, value: string ) => {
-    const normalized = value.toUpperCase().replace( /[^A-Z]/g, '' ).slice( 0, 3 );
+    const normalized = value.toUpperCase().replace( /[^A-Z\s-]/g, '' ).slice( 0, 64 );
     if ( side === 'base' ) setFxBaseInput( normalized );
     else setFxQuoteInput( normalized );
     setCurrencyOpenSide( side );
@@ -2160,8 +2161,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ ensurePlacesLibrary ] );
 
 
-  const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
-    const v = e.target.value;
+  const applyPlaceQuery = ( v: string ) => {
     ++searchRequestSeqRef.current;
     setQuery( v );
     if ( searchTimer.current ) clearTimeout( searchTimer.current );
@@ -2253,8 +2253,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const onKeyDown = ( e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
-      setOpen( false );
-      setSearchStatus( 'idle' );
+      e.preventDefault();
+      applyPlaceQuery( '' );
       return;
     }
     if ( !open || !results.length ) return;
@@ -2397,7 +2397,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               spellCheck={ false }
               placeholder="Search a city or pincode"
               value={ query }
-              onChange={ onQueryChange }
+              onChange={ e => applyPlaceQuery( e.target.value ) }
               onFocus={ () => {
                 if ( query.trim() ) {
                   if ( results.length ) setOpen( true );
@@ -2406,6 +2406,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               } }
               onKeyDown={ onKeyDown }
             />
+            <SearchClearButton query={ query } onClear={ () => applyPlaceQuery( '' ) } />
             <VoiceSearchMic
               onTranscript={ transcript => {
                 if ( searchTimer.current ) clearTimeout( searchTimer.current );
@@ -3555,6 +3556,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           autoCorrect="off"
                           spellCheck={ false }
                         />
+                        <SearchClearButton query={ utilityQueries[ 'world-from' ] } onClear={ () => onUtilityQueryChange( 'world-from', '' ) } />
                         <VoiceSearchMic ariaLabel="Search world time from place by voice" onTranscript={ transcript => onUtilityVoice( 'world-from', transcript ) } />
                         { utilityOpenSlot === 'world-from' && utilityResults.length > 0 && (
                           <ul className="vl-live-utility-results" id="vl-live-world-from-results" role="listbox" aria-label="World time from places">
@@ -3602,6 +3604,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           autoCorrect="off"
                           spellCheck={ false }
                         />
+                        <SearchClearButton query={ utilityQueries[ 'world-to' ] } onClear={ () => onUtilityQueryChange( 'world-to', '' ) } />
                         <VoiceSearchMic ariaLabel="Search world time to place by voice" onTranscript={ transcript => onUtilityVoice( 'world-to', transcript ) } />
                         { utilityOpenSlot === 'world-to' && utilityResults.length > 0 && (
                           <ul className="vl-live-utility-results" id="vl-live-world-to-results" role="listbox" aria-label="World time to places">
@@ -3652,6 +3655,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         autoCorrect="off"
                         spellCheck={ false }
                       />
+                      <SearchClearButton query={ fxBaseInput } placement="end" onClear={ () => onCurrencyInputChange( 'base', '' ) } />
                       { currencyOpenSide === 'base' && currencySuggestions.length > 0 && (
                         <ul className="vl-live-utility-results" id="vl-live-fx-base-results" role="listbox" aria-label="Available base currencies">
                           { currencySuggestions.map( ( code, idx ) => (
@@ -3699,6 +3703,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         autoCorrect="off"
                         spellCheck={ false }
                       />
+                      <SearchClearButton query={ fxQuoteInput } placement="end" onClear={ () => onCurrencyInputChange( 'quote', '' ) } />
                       { currencyOpenSide === 'quote' && currencySuggestions.length > 0 && (
                         <ul className="vl-live-utility-results" id="vl-live-fx-quote-results" role="listbox" aria-label="Available quote currencies">
                           { currencySuggestions.map( ( code, idx ) => (
@@ -3781,6 +3786,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               autoCorrect="off"
                               spellCheck={ false }
                             />
+                            <SearchClearButton query={ utilityQueries[ slot ] } onClear={ () => onUtilityQueryChange( slot, '' ) } />
                             <VoiceSearchMic ariaLabel={ `Search ${label.toLowerCase()} by voice` } onTranscript={ transcript => onUtilityVoice( slot, transcript ) } />
                             { utilityOpenSlot === slot && utilityResults.length > 0 && (
                               <ul className="vl-live-utility-results" id={ resultId } role="listbox" aria-label={ `${label} suggestions` }>
@@ -3956,6 +3962,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-world-place>span{color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-utility-search{position:relative;min-width:0;height:52px;margin-top:2px}
         .vl-live-utility-search>input{width:100%;height:52px;min-width:0;padding-block:0;padding-inline:2px 44px;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;color:#1a1a1a;font-size:var(--vl-data-size);font-weight:400;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-utility-search>input:not(:placeholder-shown){padding-inline-end:90px}
         .vl-live-utility-search>input::placeholder{color:var(--public-muted);font-weight:400}
         .vl-live-utility-search>input::-webkit-search-cancel-button,.vl-live-utility-search>input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-utility-search>input::-ms-clear{display:none;width:0;height:0}
@@ -3974,7 +3981,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tool-swap.is-horizontal{margin-top:8px;font-size:var(--vl-data-size)}
 
         .vl-live-fx-pair{align-items:center}
-        .vl-live-fx-search>input{padding-inline-end:2px;text-transform:uppercase}
+        .vl-live-fx-search>input{padding-inline-end:44px;text-transform:uppercase}
+        .vl-live-fx-search>input:not(:placeholder-shown){padding-inline-end:44px}
         .vl-live-fx-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-fx-result>strong{color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-fx-result>small{color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.4}
@@ -4332,6 +4340,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            inside the right edge. The mic does not change the hairline/search-box geometry. */
         .vl-live-search-field{position:relative;display:block;height:52px;padding:0;background:transparent;border-radius:0}
         .vl-live-search-field input{width:100%;height:52px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding-block:0;padding-inline:2px 44px;font-size:var(--vl-data-size);font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input:not(:placeholder-shown){padding-inline-end:90px}
         .vl-live-search-field input::placeholder{color:var(--public-muted)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
