@@ -6,6 +6,7 @@ import { rankBlogContent } from '../lib/navigationSearch';
 import BlogTags from './BlogTags';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
 import { publicActionText } from '../lib/publicActionNotices';
 
 /**
@@ -201,10 +202,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           placeholder="Search posts"
           value={ query }
           onChange={ e => { setQuery( e.target.value.slice( 0, 120 ) ); resetToFirstPage(); } }
+          onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); setQuery( '' ); resetToFirstPage(); } } }
         />
+        <SearchClearButton query={ query } onClear={ () => { setQuery( '' ); resetToFirstPage(); } } />
         <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript.slice( 0, 120 ) ); resetToFirstPage(); } } />
       </div>
 
+      { query.trim() && filtered.length > 0 && <p className="pbp-sr" role="status">{ filtered.length } { filtered.length === 1 ? 'result' : 'results' } found{ !allCards && initialCategories ? ' in the currently loaded posts' : '' }</p> }
       { initialCategories && !allCards && (
         <div className={ failed ? 'pbp-load is-error' : 'pbp-load pbp-sr' } role="status">
           { failed
@@ -360,7 +364,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .pbp-search input::placeholder{color:rgba(0,0,0,.44)}
+        .pbp-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .pbp-search input::-webkit-search-cancel-button,.pbp-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .pbp-search input::-ms-clear{display:none}
+        .pbp-search input::placeholder{color:var(--public-muted)}
         .pbp-search input:focus-visible{
           border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
