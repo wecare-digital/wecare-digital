@@ -2,7 +2,7 @@ import { type PageCrumb } from '../../lib/breadcrumbs';
 import { buildPageTitle } from '../../lib/page-title';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import type { ReactNode } from 'react';
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import RotatingHero from '../../components/RotatingHero';
@@ -16,6 +16,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import BlogTags from '../../components/BlogTags';
 import RssIcon from '../../components/RssIcon';
 import VoiceSearchMic from '../../components/VoiceSearchMic';
+import SearchClearButton from '../../components/SearchClearButton';
 
 /**
  * EVERY FIELD BELOW `post` IS OPTIONAL, and that is not defensiveness - it is what keeps
@@ -153,6 +154,11 @@ export default function BlogPostPage ( {
   const tailRef = useRef<HTMLElement | null>( null );
   const postSearchFormRef = useRef<HTMLFormElement | null>( null );
   const postSearchInputRef = useRef<HTMLInputElement | null>( null );
+  const [ postSearchQuery, setPostSearchQuery ] = useState( '' );
+  const clearPostSearch = () => {
+    if ( postSearchInputRef.current ) postSearchInputRef.current.value = '';
+    setPostSearchQuery( '' );
+  };
   useEffect( () => {
     const el = tailRef.current;
     const article = el?.closest( 'article' );
@@ -348,7 +354,10 @@ export default function BlogPostPage ( {
               Enter, and the sr-only label gives it an accessible name. */}
           <form ref={ postSearchFormRef } className="post-search" role="search" action="/blog/" method="get">
             <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
-            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" maxLength={ 120 } autoComplete="off" placeholder="Search posts" />
+            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" maxLength={ 120 } autoComplete="off" placeholder="Search posts"
+              onChange={ e => setPostSearchQuery( e.target.value ) }
+              onKeyDown={ e => { if ( e.key === 'Escape' && postSearchQuery ) { e.preventDefault(); clearPostSearch(); } } } />
+            <SearchClearButton query={ postSearchQuery } onClear={ clearPostSearch } />
             <VoiceSearchMic
               onTranscript={ transcript => {
                 if ( !postSearchInputRef.current ) return;
@@ -518,7 +527,10 @@ export default function BlogPostPage ( {
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .post-search input::placeholder{color:rgba(0,0,0,.44)}
+        .post-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .post-search input::-webkit-search-cancel-button,.post-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .post-search input::-ms-clear{display:none}
+        .post-search input::placeholder{color:var(--public-muted)}
         .post-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 #d1f470}
         @media(prefers-reduced-motion:reduce){.post-search input{transition:none}}
         /* The RSS icon's row at the foot of the post, END-aligned (to the side, not centered)
