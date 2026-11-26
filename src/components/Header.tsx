@@ -153,6 +153,8 @@ const COLUMNS: NavColumn[] = [
               { label: 'Khata', href: '/niji-setu/khata/', match: '/niji-setu/khata', searchTerms: [ 'invoice', 'billing', 'invoice creation' ] },
             ],
           },
+          { label: 'UdyamBids', href: '/udyam-bids/', match: '/udyam-bids', searchTerms: [ 'tenders', 'bids', 'procurement', 'tender information' ] },
+          { label: 'GetKosh', href: '/get-kosh/', match: '/get-kosh', searchTerms: [ 'prepaid cards', 'payment cards', 'stored value' ] },
         ],
       },
     ],
