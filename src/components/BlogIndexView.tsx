@@ -1,5 +1,6 @@
 import { blogCrumbs } from '../lib/breadcrumbs';
 import { loadBlogCardIndex } from '../lib/blog-card-index';
+import { rankBlogContent } from '../lib/navigationSearch';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
@@ -181,7 +182,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   const [ query, setQuery ] = useState<string>( () => {
     if ( typeof window === 'undefined' ) return '';
     const q = new URLSearchParams( window.location.search ).get( 'q' ) || '';
-    try { return decodeURIComponent( q ); } catch { return q; }
+    return q.slice( 0, 120 );
   } );
 
   /**
@@ -197,13 +198,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
     requested.current = true;
     loadBlogCardIndex()
       .then( cards => {
+        if ( !cards.length && posts.length ) throw new Error( 'Blog index unavailable' );
         setAllCards( cards );
         setIndexState( 'ready' );
       } )
       .catch( () => {
         setIndexState( 'failed' );
       } );
-  }, [] );
+  }, [ posts.length ] );
 
   /**
    * (The `expanded` flag was retired on 2026-10-13: the blog stays PAGINATED and no longer grows
@@ -214,39 +216,25 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
    * WHAT THE READER SEES, IN TWO CASES.
    *
    *   A query is typed - filter the WHOLE corpus (scoped to this category) across
-   *     title + excerpt + category + tags, and show every match. This needs allCards, so it only
-   *     narrows once the fetch has landed; before that there is nothing to search and the normal
-   *     list shows. All matches, no slice: the point of the box is to find a post, not to page to it.
+   *     title + excerpt + category + tags, ranking exact words, prefixes and typos.
+   *     Until the full index arrives, search the static slice and report that limitation.
+   *     All matches, no slice: the point of the box is to find a post, not to page to it.
    *   No query - the prerendered paged slice, which is the first paint, the no-JS path, AND the
    *     steady state now that the list no longer expands. The pager turns the pages.
    *
    * The category scope is the same in both: /blog/ is the default category, each topic
    * stream is its own, so a search on Conversations never surfaces a Gastronomy post.
    */
-  const trimmedQuery = query.trim().toLowerCase();
-  const searching = trimmedQuery.length > 0 && allCards !== null;
+  const trimmedQuery = query.trim();
+  const searching = trimmedQuery.length > 0;
 
   const visiblePosts = useMemo( () => {
-    if ( searching ) {
-      const scoped = activeCategory
-        ? allCards!.filter( post => post.category === activeCategory )
-        : allCards!;
-      return scoped.filter( post => {
-        const hay = [
-          post.title,
-          post.excerpt || '',
-          post.category || '',
-          ...( post.tags || [] ),
-        ].join( '\n' ).toLowerCase();
-        return hay.includes( trimmedQuery );
-      } );
-    }
-    // ALWAYS the prerendered paged slice when not searching (owner 2026-10-13): the blog stays
-    // PAGINATED rather than expanding to the whole category once the full index loads. The
-    // `expanded` behaviour (grow the list to every post and drop the pager) is retired - the
-    // full index (allCards) is still fetched, but only to power search; the listing itself is the
-    // page's own paginated slice at every moment, so the pager never disappears.
-    return posts;
+    if ( !searching ) return posts;
+    // Search the full scoped index once available, otherwise the current static
+    // slice; a loading or failed index must not pretend there are no articles.
+    const available = allCards ?? posts;
+    const scoped = activeCategory ? available.filter( post => post.category === activeCategory ) : available;
+    return rankBlogContent( scoped, trimmedQuery );
   }, [ searching, trimmedQuery, allCards, posts, activeCategory ] );
 
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
@@ -281,13 +269,16 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           <input
             id="blog-q"
             type="search"
+            maxLength={ 120 }
             autoComplete="off"
             placeholder="Search posts"
             value={ query }
-            onChange={ e => setQuery( e.target.value ) }
+            onChange={ e => setQuery( e.target.value.slice( 0, 120 ) ) }
           />
-          <VoiceSearchMic onTranscript={ setQuery } />
+          <VoiceSearchMic onTranscript={ value => setQuery( value.slice( 0, 120 ) ) } />
         </div>
+
+        { searching && indexState !== 'ready' && <p className="blog-search-status" role="status">{ indexState === 'loading' ? 'Searching the current page while all posts load…' : 'Full search index unavailable. Showing matches from this page.' }</p> }
 
         { totalPosts > 0 ? (
           <>
@@ -352,7 +343,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               </section>
             ) : (
               <div className="empty">
-                { indexState === 'loading' ? 'Loading all posts…' : 'No posts have been published yet.' }
+                { searching ? ( indexState === 'loading' ? 'Loading all posts…' : 'No matching posts. Try a related word or topic.' ) : 'No posts have been published yet.' }
               </div>
             ) }
 
@@ -528,6 +519,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            quiet bottom hairline, the shared lime mic, no submit button. The hairline darkens and a lime underline
            grows on focus. 52px is the site's field height (BlogSearch's own), 17px the base body
            size that keeps iOS from zooming the field on focus. */
+        .blog-search-status{font-size:var(--public-meta-size);color:var(--public-muted);margin:0 0 12px}
         .blog-search{position:relative;margin:0 0 32px;max-width:520px}
         /* The site's sr-only pattern, same declaration as .home-sr-only. */
         .blog-search-sr{

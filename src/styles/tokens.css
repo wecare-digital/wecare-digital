@@ -173,6 +173,9 @@
 
   /* Shared public navigation controls. */
   --public-nav-icon-size: 24px;
+  --public-nav-heading-size: 15px;
+  --public-nav-heading-weight: 700;
+  --public-nav-heading-leading: 1.25;
   --public-nav-radius: 8px;
   --public-nav-stroke: 2;
   --public-nav-row-desktop: 46px;

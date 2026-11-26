@@ -348,11 +348,11 @@ export default function BlogPostPage ( {
               Enter, and the sr-only label gives it an accessible name. */}
           <form ref={ postSearchFormRef } className="post-search" role="search" action="/blog/" method="get">
             <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
-            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" maxLength={ 120 } autoComplete="off" placeholder="Search posts" />
             <VoiceSearchMic
               onTranscript={ transcript => {
                 if ( !postSearchInputRef.current ) return;
-                postSearchInputRef.current.value = transcript;
+                postSearchInputRef.current.value = transcript.slice( 0, 120 );
                 if ( postSearchFormRef.current?.requestSubmit ) postSearchFormRef.current.requestSubmit();
                 else postSearchFormRef.current?.submit();
               } }

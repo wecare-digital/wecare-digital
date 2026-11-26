@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { publicActionText } from '../lib/publicActionNotices';
+import { rankNavigation } from '../lib/navigationSearch';
 
 /**
  * The single floating widget on every page: WhatsApp contact, and page translation.
@@ -122,8 +123,11 @@ function searchLanguages ( all: Lang[], query: string ): Lang[] {
     else if ( q.length >= 3 && name.includes( q ) ) rank = 4;
     if ( rank >= 0 ) scored.push( { lang, rank } );
   }
-  // Stable within a rank, so the alphabetical order of the catalogue survives.
-  return scored.sort( ( a, b ) => a.rank - b.rank ).map( row => row.lang );
+  // Exact codes, prefixes and native names keep their established priority.
+  if ( scored.length ) return scored.sort( ( a, b ) => a.rank - b.rank ).map( row => row.lang );
+  // Fall back to spelling tolerance for names, never guess a language code.
+  if ( q.length < 4 ) return [];
+  return rankNavigation( all.map( lang => ( { lang, label: lang.name, searchText: [ lang.name, lang.native || '' ].join( ' ' ) } ) ), q ).map( item => item.lang );
 }
 
 /**
