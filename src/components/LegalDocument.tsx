@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
 import { normalizeNavigationText } from '../lib/navigationSearch';
-import { CONTENTS_ICON, GROUP_CHEVRON, CONTENTS_CHEVRON } from '../lib/publicNavigationIcons';
+import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, LEGAL_DOUBLE_ARROW, LEGAL_DOUBLE_ARROW_VIEW_BOX } from '../lib/publicNavigationIcons';
 
 /**
  * Renders a long legal document on the site's own type system.
@@ -50,6 +50,8 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
   const topLevel = sections.filter( s => !s.number.includes( '.' ) );
   const hasSummaries = sections.some( s => s.inShort );
   const tocRef = useRef<HTMLDetailsElement>( null );
+  const navRef = useRef<HTMLElement>( null );
+  const searchId = useId();
   const [ activeId, setActiveId ] = useState( '' );
   const [ sectionQuery, setSectionQuery ] = useState( '' );
   const [ showContentsShortcut, setShowContentsShortcut ] = useState( false );
@@ -106,7 +108,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
       }
       const last = sections[ sections.length - 1 ];
       const articleEnd = last ? document.getElementById( last.id )?.getBoundingClientRect().bottom : undefined;
-      setShowContentsShortcut( !!tocRef.current && tocRef.current.getBoundingClientRect().bottom < 128 && ( articleEnd ?? 0 ) > readingLine );
+      setShowContentsShortcut( !!navRef.current && navRef.current.getBoundingClientRect().bottom < 128 && ( articleEnd ?? 0 ) > readingLine );
       if ( !current ) { setActiveId( '' ); return; }
       setActiveId( current.id );
       const groupNumber = current.number.split( '.' )[0];
@@ -199,17 +201,25 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
       { /* gridRow is inline because it depends on the document's length, which CSS cannot
            count. Harmless below 1100px, where .lgd is not a grid and the property is
            ignored. */ }
-      <nav className="lgd-toc" aria-label="Contents" style={ { gridRow: `1 / span ${columnOneRows}` } }>
+      <nav ref={ navRef } className="lgd-toc" aria-label="Legal sections" style={ { gridRow: `1 / span ${columnOneRows}` } }>
+        {/* Search is a sibling of the native disclosure, never nested inside its
+            interactive summary. It remains available while the clause list is closed. */}
+        <div className="lgd-toc-search">
+          <label className="lgd-search-icon" htmlFor={ searchId }>
+            <svg className="lgd-contents-icon" viewBox={ CONTENTS_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
+          </label>
+          <input id={ searchId } type="search" value={ sectionQuery } maxLength={ 120 } placeholder="Search" aria-label="Find a legal clause"
+            onFocus={ () => { if ( tocRef.current ) tocRef.current.open = true; } }
+            onChange={ event => {
+              if ( tocRef.current ) tocRef.current.open = true;
+              setSectionQuery( event.target.value );
+            } } />
+        </div>
         <details className="lgd-contents" ref={ tocRef } open>
-          <summary className="lgd-toc-summary">
-            <svg className="lgd-contents-icon" viewBox="60 -900 840 840" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
-            <span>Contents</span>
-            <svg className="lgd-contents-chevron" viewBox="180 -780 600 600" aria-hidden="true" focusable="false"><path d={ CONTENTS_CHEVRON } /></svg>
+          <summary className="lgd-toc-summary" aria-label="Toggle legal section list" title="Toggle legal section list">
+            <svg className="lgd-contents-chevron" viewBox={ LEGAL_DOUBLE_ARROW_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ LEGAL_DOUBLE_ARROW } /></svg>
           </summary>
-          <div className="lgd-toc-search">
-            <input type="search" value={ sectionQuery } maxLength={ 120 } placeholder="Find a clause" aria-label="Find a legal clause" onChange={ event => setSectionQuery( event.target.value ) } />
-            { searchTerm && <p role="status">{ matches.length } { matches.length === 1 ? 'clause' : 'clauses' } found</p> }
-          </div>
+          { searchTerm && <p className="lgd-toc-status" role="status">{ matches.length } { matches.length === 1 ? 'clause' : 'clauses' } found</p> }
           { searchTerm ? <ol className="lgd-toc-list" aria-label="Matching clauses">
             { matches.map( section => <li key={ section.id }><a className="lgd-toc-link" href={ `#${section.id}` } aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }><span className="lgd-toc-num">{ section.number }</span><span className="lgd-toc-label">{ section.heading }</span></a></li> ) }
             { !matches.length && <li className="lgd-toc-empty">No matching clauses. Try a different word or clause number.</li> }
@@ -223,7 +233,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                       <summary className={ `lgd-toc-group-summary ${activeGroup === section.number ? 'is-current' : ''}`.trim() }>
                         <span className="lgd-toc-num">{ section.number }</span>
                         <span className="lgd-toc-label">{ section.heading }</span>
-                        <svg className="lgd-group-chevron" viewBox="180 -780 600 600" aria-hidden="true" focusable="false"><path d={ GROUP_CHEVRON } /></svg>
+                        <svg className="lgd-group-chevron" viewBox={ LEGAL_DOUBLE_ARROW_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ LEGAL_DOUBLE_ARROW } /></svg>
                       </summary>
                       <ol className="lgd-toc-children" aria-label={ `Section ${section.number} subsections` }>
                         <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>Section { section.number } overview</a></li>
@@ -250,18 +260,17 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         </details>
       </nav>
 
-      { showContentsShortcut && <button type="button" className="lgd-return-to-contents" onClick={ () => {
+      { showContentsShortcut && <button type="button" className="lgd-return-to-contents" aria-label="Open legal section search" title="Open legal section search" onClick={ () => {
         if ( tocRef.current ) {
           tocRef.current.open = true;
           const parent = sections.find( section => section.number === activeGroup );
           const group = parent && document.getElementById( `lgd-toc-group-${parent.id}` );
           if ( group instanceof HTMLDetailsElement ) group.open = true;
           tocRef.current.querySelector<HTMLElement>( 'summary' )?.focus( { preventScroll: true } );
-          tocRef.current.scrollIntoView( { block: 'start', behavior: 'auto' } );
+          navRef.current?.scrollIntoView( { block: 'start', behavior: 'auto' } );
         }
       } }>
-        <svg viewBox="60 -900 840 840" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
-        <span>Contents</span>
+        <svg viewBox={ CONTENTS_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
       </button> }
 
       { sections.map( section => {
@@ -333,8 +342,12 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
             grid-column:2;
             position:sticky;top:128px;
             margin:0;
-            max-height:calc(100vh - 160px);
-            overflow-y:auto;
+            /* Only the clause list scrolls. Search and its toggle stay visible. */
+          }
+          .lgd-toc-list{
+            max-height:max(80px,calc(100vh - 270px));
+            max-height:max(80px,calc(100dvh - 270px));
+            overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
           }
         }
 
@@ -376,53 +389,87 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            because they are neither indicators nor named labels. */
         .lgd-short-tag{display:block;margin-bottom:3px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--public-muted)}
 
-        /* Responsive contents: sticky desktop rail, compact mobile disclosure,
-           native summary controls and nested anchors, all in the site's own palette. */
-        .lgd-toc{margin:0 0 48px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:14px;min-width:0}
-        .lgd-contents{min-width:0;scroll-margin-top:128px}
-        .lgd-toc-search{margin:8px 0}.lgd-toc-search input{width:100%;box-sizing:border-box;min-height:var(--tap-min);padding:8px;border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);font:inherit;font-size:16px;background:var(--public-bg);color:var(--public-body)}
-        .lgd-toc-search input:focus-visible,.lgd-return-to-contents:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:2px}
-        .lgd-toc-search p,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:8px 0}
+        /* One search-led toolbar: view_list at the start, the same underline-only
+           search treatment as Header, and a native double_arrow disclosure at the end.
+           The search field is never hidden or trapped inside an interactive summary. */
+        .lgd-toc{
+          --lgd-toc-pad-block:12px;--lgd-toc-pad-inline:16px;
+          position:relative;margin:0 0 48px;padding:var(--lgd-toc-pad-block) var(--lgd-toc-pad-inline);
+          border:1px solid var(--public-hairline);border-radius:14px;min-width:0;scroll-margin-top:128px;
+        }
+        .lgd-contents{min-width:0}
+        .lgd-toc-search{
+          display:flex;align-items:center;gap:8px;min-height:var(--tap-min);
+          padding-inline-end:calc(var(--tap-min) + 8px);margin:0;
+        }
+        .lgd-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 var(--tap-min);min-height:var(--tap-min);color:var(--public-brand-green);cursor:text}
+        .lgd-toc-search input{
+          flex:1;min-width:0;width:100%;margin:0;min-height:var(--tap-min);box-sizing:border-box;
+          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;
+          padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
+          font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;
+        }
+        .lgd-toc-search input::placeholder{color:var(--public-muted)}
+        .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
+        .lgd-toc-status,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:10px 0}
         .lgd-return-to-contents{display:none}
-        @media(max-width:1099px){.lgd-return-to-contents{display:flex;align-items:center;gap:6px;position:fixed;inset-inline-start:max(12px,var(--safe-left));bottom:calc(16px + var(--safe-bottom));z-index:20;min-height:var(--tap-min);padding:8px 12px;border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);box-shadow:var(--public-lift-shadow);background:var(--public-bg);color:var(--public-brand-green);font:inherit;font-size:14px;font-weight:600;cursor:pointer}.lgd-return-to-contents svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}}
+        @media(max-width:1099px){
+          .lgd-return-to-contents{
+            display:flex;align-items:center;justify-content:center;position:fixed;
+            inset-inline-start:max(12px,var(--safe-left));bottom:calc(16px + var(--safe-bottom));z-index:20;
+            min-width:var(--tap-min);min-height:var(--tap-min);padding:8px;
+            border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);
+            box-shadow:var(--public-lift-shadow);background:var(--public-bg);color:var(--public-brand-green);cursor:pointer;
+          }
+          .lgd-return-to-contents svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}
+        }
         .lgd-toc-summary,.lgd-toc-group-summary{
-          display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;
+          display:flex;align-items:center;gap:10px;min-height:var(--tap-min);box-sizing:border-box;
           cursor:pointer;list-style:none;color:var(--public-brand-green);border-radius:var(--public-nav-radius);
-          padding:6px 8px;font-weight:600;line-height:1.45;
         }
         .lgd-toc-summary::-webkit-details-marker,.lgd-toc-group-summary::-webkit-details-marker{display:none}
         .lgd-toc-summary::marker,.lgd-toc-group-summary::marker{content:''}
-        .lgd-toc-summary{font-size:17px;min-height:48px}
-        .lgd-toc-summary>span,.lgd-toc-label{flex:1;min-width:0;overflow-wrap:anywhere}
+        .lgd-toc-summary{
+          position:absolute;inset-block-start:var(--lgd-toc-pad-block);inset-inline-end:var(--lgd-toc-pad-inline);
+          width:var(--tap-min);height:var(--tap-min);justify-content:center;padding:0;
+        }
+        .lgd-toc-label{flex:1;min-width:0;overflow-wrap:anywhere}
         .lgd-contents-icon,.lgd-contents-chevron,.lgd-group-chevron{
           display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor;
         }
-        .lgd-contents-chevron,.lgd-group-chevron{transition:transform .18s ease}
-        .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron{transform:rotate(180deg)}
+        .lgd-contents-chevron,.lgd-group-chevron{color:var(--public-brand-green);transition:transform .18s ease}
+        .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron,
         .lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron{transform:rotate(90deg)}
+        :global([dir='rtl']) .lgd-contents:not([open])>.lgd-toc-summary .lgd-contents-chevron,
+        :global([dir='rtl']) .lgd-toc-group:not([open])>.lgd-toc-group-summary .lgd-group-chevron{transform:scaleX(-1)}
         .lgd-toc-list,.lgd-toc-children{margin:0;padding:0;list-style:none}
-        .lgd-toc-list{margin-top:8px;padding-top:8px;border-top:1px solid var(--public-hairline)}
+        .lgd-toc-list{margin-top:8px;padding-top:4px}
         .lgd-toc-list li{margin:0 0 2px;min-width:0}
+        /* Match the document's actual Inter body type, including mobile. Clause
+           numbers remain muted; the blue from both legal heroes marks reading
+           position, while the established lime tint is reserved for hover/focus. */
         .lgd-toc-link,.lgd-toc-group-summary{
-          display:flex;align-items:center;gap:10px;min-height:var(--tap-min);min-height:max(44px,var(--tap-min));
-          box-sizing:border-box;padding:6px 8px;border-radius:var(--public-nav-radius);
-          font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none;
+          display:flex;align-items:flex-start;gap:8px;min-height:max(44px,var(--tap-min));
+          box-sizing:border-box;padding:8px;border-radius:var(--public-nav-radius);
+          font-family:inherit;font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);text-decoration:none;
         }
-        .lgd-toc-group-summary{font-weight:500}
-        .lgd-toc-group-summary.is-current{font-weight:600;background:var(--public-lime-tint)}
+        .lgd-toc-group-summary{font-weight:600}
+        .lgd-toc-group-summary.is-current{background:var(--public-accent-blue-tint)}
         .lgd-toc-link[aria-current="location"]{
-          background:var(--public-lime-tint);font-weight:600;
-          box-shadow:inset 3px 0 0 var(--public-brand-green);
+          background:var(--public-accent-blue-tint);font-weight:600;
+          border-inline-start:3px solid var(--public-accent-blue);padding-inline-start:5px;
         }
-        .lgd-toc-children{margin:2px 0 8px 18px;padding-inline-start:8px;border-inline-start:2px solid var(--public-hairline)}
-        .lgd-child-link{font-size:14px;align-items:flex-start;padding-block:10px}
-        .lgd-toc-link:hover,.lgd-toc-summary:hover,.lgd-toc-group-summary:hover{background:var(--public-lime-tint)}
-        .lgd-toc-link:focus-visible,.lgd-toc-summary:focus-visible,.lgd-toc-group-summary:focus-visible{
-          background:var(--public-lime-tint);outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:1px;
+        .lgd-toc-children{margin:2px 0 8px 12px;padding-inline-start:8px;border-inline-start:2px solid var(--public-hairline)}
+        .lgd-child-link{padding-block:8px}
+        .lgd-toc-link:not([aria-current="location"]):hover,.lgd-toc-summary:hover,.lgd-toc-group-summary:not(.is-current):hover{background:var(--public-nav-hover)}
+        .lgd-toc-link:focus-visible,.lgd-toc-summary:focus-visible,.lgd-toc-group-summary:focus-visible,.lgd-return-to-contents:focus-visible{
+          outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:-2px;
         }
         .lgd-toc-num{flex:0 0 auto;min-width:22px;font-weight:600;color:var(--public-muted)}
         @media(prefers-reduced-motion:reduce){
-          .lgd-contents-chevron,.lgd-group-chevron{transition:none}
+          .lgd-contents-chevron,.lgd-group-chevron,.lgd-toc-search input{transition:none}
         }
 
         /* scroll-margin-top clears the fixed 108px header. Without it, following a
@@ -448,7 +495,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-inline-link:hover{background:var(--public-lime-tint)}
 
         @media(max-width:767px){
-          .lgd-toc{padding:8px 10px;margin-bottom:36px}
+          .lgd-toc{--lgd-toc-pad-block:8px;--lgd-toc-pad-inline:10px;margin-bottom:36px}
           .lgd-toc-children{margin-inline-start:10px;padding-inline-start:6px}
           .lgd-section{scroll-margin-top:112px}
           .lgd-h2{font-size:var(--public-mobile-section-size)}

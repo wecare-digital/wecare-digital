@@ -84,7 +84,7 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
     assert.ok(read('src/pages/' + page + '.tsx').includes('<LegalDocument'));
   }
   assert.ok(legal.includes('<details className="lgd-contents" ref={ tocRef } open>'));
-  assert.ok(legal.includes('<summary className="lgd-toc-summary">'));
+  assert.ok(legal.includes('<summary className="lgd-toc-summary" aria-label="Toggle legal section list"'));
   assert.ok(legal.includes('className="lgd-toc-group"'));
   assert.ok(legal.includes('child.number.startsWith('));
   assert.ok(legal.includes('href={ `#${child.id}` }'));
@@ -94,8 +94,13 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
   assert.ok(legal.includes('group instanceof HTMLDetailsElement'));
   assert.ok(legal.includes('id={ section.id }'));
   assert.ok(legal.includes('section.paragraphs.map'));
-  assert.ok(legal.includes("const CONTENTS_ICON = 'M120-240v-80h520v80H120Z"));
-  assert.ok(legal.includes('viewBox="60 -900 840 840"'));
+  assert.ok(legal.includes("const CONTENTS_ICON = 'M360-240h440v-107H360v107ZM160-613h120v-107H160v107Zm0 187h120v-107H160v107Zm0 186h120v-107H160v107Zm200-186h440v-107H360v107Zm0-187h440v-107H360v107ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Z'"));
+  assert.ok(legal.includes("const CONTENTS_ICON_VIEW_BOX = '40 -920 880 880'"));
+  assert.ok(legal.includes("const LEGAL_DOUBLE_ARROW = 'm242-200 200-280-200-280h98l200 280-200 280h-98Zm238 0 200-280-200-280h98l200 280-200 280h-98Z'"));
+  assert.ok(legal.includes("const LEGAL_DOUBLE_ARROW_VIEW_BOX = '190 -800 640 640'"));
+  assert.ok(legal.includes('viewBox={ CONTENTS_ICON_VIEW_BOX }'));
+  assert.equal((legal.match(/viewBox=\{ LEGAL_DOUBLE_ARROW_VIEW_BOX \}/g) || []).length, 2);
+  assert.ok(!legal.includes('<span>Contents</span>'));
   assert.ok(legal.includes('width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor'));
   assert.ok(legal.includes("return () => wide.removeEventListener( 'change', syncLayout );\n  }, [] );"));
   assert.ok(legal.includes("aria-current={ activeId === child.id ? 'location' : undefined }"));
