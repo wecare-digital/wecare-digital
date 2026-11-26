@@ -15,9 +15,15 @@ const origin = new URL(base);
 if (!['http:', 'https:'].includes(origin.protocol)) throw new Error('HTTP(S) base required');
 const output = process.env.PUBLIC_QA_OUTPUT || join(tmpdir(), 'wecare-public-qa-' + Date.now());
 await mkdir(output, {recursive: true});
-const { chromium } = await import('playwright').catch(() => {
-  throw new Error('Install Playwright and Chromium in the QA environment; no production dependency is required.');
+const playwright = await import('playwright').catch(() => {
+  throw new Error('Install Playwright and the requested browser engines in the QA environment; no production dependency is required.');
 });
+const engineNames = (process.env.PUBLIC_QA_ENGINES || 'chromium').split(',').map(name => name.trim()).filter(Boolean);
+for (const engine of engineNames) assert.ok(['chromium', 'firefox', 'webkit'].includes(engine), 'Unknown browser engine: ' + engine);
+assert.ok(engineNames.length, 'Select at least one browser engine');
+const requestedRoute = process.env.PUBLIC_QA_ROUTE;
+const normalizedRoute = requestedRoute ? new URL(requestedRoute, origin).pathname.replace(/\/+$/, '') || '/' : null;
+if (requestedRoute) assert.equal(new URL(requestedRoute, origin).origin, origin.origin, 'QA route must use the approved origin');
 const devices = [
   ['desktop', 1440, 900, false],
   ['tablet-portrait', 768, 1024, true],
@@ -64,15 +70,27 @@ for (const [path, eyebrow] of expected) {
   if (existing) existing.eyebrow = eyebrow;
   else routes.push({path: url, name: path.slice(1).replaceAll('/', '-'), eyebrow});
 }
-const browser = await chromium.launch({headless: true});
+const selectedRoutes = normalizedRoute ? routes.filter(route => (route.path.replace(/\/+$/, '') || '/') === normalizedRoute) : routes;
+assert.ok(selectedRoutes.length, 'No registered QA route matches ' + normalizedRoute);
+const focusedDevices = [
+  ['desktop-2560', 2560, 1440, false], ['desktop-1920', 1920, 1080, false],
+  ['laptop-1280', 1280, 800, false], ['desktop-short', 1280, 600, false],
+  ['tablet-large', 834, 1194, true], ['phone-360', 360, 800, true],
+  ['phone-375', 375, 812, true], ['phone-412', 412, 915, true],
+  ['phone-430', 430, 932, true], ['phone-landscape', 844, 390, true],
+  ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
+];
+const matrix = normalizedRoute ? [...devices, ...focusedDevices] : devices;
 const results = [];
+for (const engine of engineNames) {
+const browser = await playwright[engine].launch({headless: true});
 try {
-  for (const [device, width, height, touch, reducedMotion = 'no-preference'] of devices) {
+  for (const [device, width, height, touch, reducedMotion = 'no-preference'] of matrix) {
     const context = await browser.newContext({viewport: {width, height}, hasTouch: touch, deviceScaleFactor: 1, reducedMotion});
     try {
-      for (const route of routes) {
+      for (const route of selectedRoutes) {
         const page = await context.newPage();
-        const name = device + '-' + route.name;
+        const name = engine + '-' + device + '-' + route.name;
         try {
           const response = await page.goto(new URL(route.path, origin).href, {waitUntil: 'domcontentloaded', timeout: 30000});
           assert.ok(response && response.ok(), name + ': non-success response');
@@ -82,6 +100,82 @@ try {
             scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth,
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
+
+          // Home is the reference. Check actual text bounds, not just document
+          // scrollWidth, since overflow clipping can hide otherwise unreadable text.
+          if (route.path === '/') {
+            assert.equal(await page.locator('main.home-shell').count(), 1, name + ': Home landmark');
+            assert.equal(await page.locator('h1').count(), 1, name + ': Home h1 count');
+            const frame = page.locator('.home-head-line');
+            assert.match(await frame.innerText(), /Everyday\s+AI,\s+built\s+for/, name + ': hero copy');
+            const textFits = async locator => locator.evaluate(el => {
+              const container = el.closest('.home-hero, .cb-panel') || el;
+              const bounds = container.getBoundingClientRect();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              return [...range.getClientRects()].filter(rect => rect.width > 0).every(rect =>
+                rect.left >= bounds.left - 2 && rect.right <= bounds.right + 2
+                && rect.left >= -2 && rect.right <= document.documentElement.clientWidth + 2);
+            });
+            assert.ok(await textFits(frame), name + ': clipped hero frame');
+            const active = page.locator('.home-head .rp-cyc-word.on');
+            await active.waitFor({state: 'visible'});
+            const assertActiveFits = async () => {
+              await active.evaluate(async el => {
+                const cycle = el.closest('.rp-cycle');
+                if (cycle) await Promise.all(cycle.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+              });
+              assert.ok(await textFits(active), name + ': clipped rotating word');
+            };
+            await assertActiveFits();
+            if (normalizedRoute && reducedMotion !== 'reduce') {
+              // Observe a full word cycle on focused Home runs; the regular
+              // multi-page smoke remains short. Do not simulate the clock or
+              // mistake viewport emulation for a physical device.
+              const seen = new Set();
+              const initialHeight = await page.locator('.home-head').evaluate(el => el.getBoundingClientRect().height);
+              for (let i = 0; i < 4; i++) {
+                const word = (await active.innerText()).trim();
+                seen.add(word);
+                await assertActiveFits();
+                const height = await page.locator('.home-head').evaluate(el => el.getBoundingClientRect().height);
+                if (width >= 280) assert.ok(Math.abs(height - initialHeight) <= 2, name + ': rotating headline changes height');
+                if (i < 3) await page.waitForFunction(previous => document.querySelector('.home-head .rp-cyc-word.on')?.textContent?.trim() !== previous, word, {timeout: 5000});
+              }
+              assert.equal(seen.size, 4, name + ': incomplete headline cycle');
+            }
+            const cta = page.locator('.home-close-cta');
+            await cta.scrollIntoViewIfNeeded();
+            assert.equal(await cta.getAttribute('href'), '/contact/', name + ': closing destination');
+            assert.ok(await textFits(cta), name + ': clipped closing action');
+            const ctaBox = await cta.boundingBox();
+            assert.ok(ctaBox && ctaBox.height >= 44 && ctaBox.width >= 44, name + ': closing touch target');
+            // Read-only navigation and illustration interactions, no account,
+            // checkout, contribution or WhatsApp submissions.
+            if (width >= 280) {
+              const trigger = page.getByRole('button', {name: 'Open navigation', exact: true});
+              await trigger.click();
+              const nav = page.getByRole('navigation', {name: 'Public navigation'});
+              await nav.waitFor({state: 'visible'});
+              const navBox = await nav.boundingBox();
+              assert.ok(navBox && navBox.x >= -2 && navBox.x + navBox.width <= width + 2, name + ': menu leaves viewport');
+              const field = nav.getByRole('searchbox', {name: 'Search navigation'});
+              await field.fill('Drafting');
+              await nav.getByRole('link', {name: /Drafting/i}).first().waitFor({state: 'visible'});
+              await field.press('Escape');
+              assert.equal(await field.inputValue(), '', name + ': navigation search clear');
+              await field.press('Escape');
+              await nav.waitFor({state: 'hidden'});
+              assert.ok(await trigger.evaluate(el => el === document.activeElement), name + ': navigation focus recovery');
+              const playback = page.locator('.wt-play');
+              await playback.waitFor({state: 'visible'});
+              const before = await playback.getAttribute('aria-label');
+              await playback.click();
+              await page.waitForFunction(previous => document.querySelector('.wt-play')?.getAttribute('aria-label') !== previous, before);
+              if (reducedMotion === 'reduce') await playback.click(); // restore paused preference
+            }
+            await page.evaluate(() => window.scrollTo(0, 0));
+          }
 
           // Verify the actual rendered eyebrow, not only source prop text.
           const eyebrow = page.locator('.rh-eyebrow .brand-badge');
@@ -217,9 +311,9 @@ try {
             assert.equal(await field.inputValue(), '');
             await clear.waitFor({state: 'hidden'});
           }
-          results.push({device, path: route.path, status: 'pass'});
+          results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'pass'});
         } catch (error) {
-          results.push({device, path: route.path, status: 'fail', error: String(error)});
+          results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'fail', error: String(error)});
           await page.screenshot({path: join(output, name + '-failure.png')}).catch(() => {});
         } finally {
           await page.close();
@@ -232,5 +326,6 @@ try {
 } finally {
   await browser.close();
 }
-console.log(JSON.stringify({output, results}, null, 2));
+}
+console.log(JSON.stringify({origin: origin.origin, route: normalizedRoute, engines: engineNames, output, results}, null, 2));
 if (results.some(result => result.status !== 'pass')) process.exitCode = 1;
