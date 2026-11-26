@@ -1,53 +1,6 @@
-/**
- * Privacy Policy — rewritten in plain English.
- *
- * THIS REPO IS THE SOURCE OF TRUTH. There is no upstream to sync with and no extractor to
- * re-run. Edit this file.
- *
- * WHAT THE REWRITE CHANGED, on owner instruction:
- *   - Active voice and short sentences. The original averaged 34 words a sentence and
- *     was almost entirely passive ("Personal Data may be processed to..."), which reads
- *     as evasive even where the underlying commitment is fine.
- *   - Removed circular hedging. "We will use an appropriate mechanism where applicable
- *     law requires an appropriate mechanism" says nothing; where a commitment is
- *     unconditional it is now stated as one.
- *   - Cut repetition. The contact block appeared three times and the
- *     verify-identity-before-acting caveat four; each now appears once.
- *   - Added `inShort` to every section. Legal prose is read by people deciding whether
- *     to trust you, and 24 sections of clauses with no summary is not readable on a
- *     phone.
- *
- * WHAT IT DID NOT CHANGE: any obligation, right, retention basis, lawful basis, or
- * limitation. Every section keeps its original NUMBER and scope, so cross-references
- * from elsewhere on the site still resolve. Nothing was added that makes a factual claim
- * about data handling that the original did not already make - in particular the
- * original's deliberate vagueness about WHICH data each service collects is preserved,
- * because that varies by service and inventing specifics would be a false statement.
- *
- * STILL NEEDS COUNSEL REVIEW for service-specific consent notices and any future designation
- * as a Significant Data Fiduciary. The DPDP Act requires publication of business contact
- * information for a Data Protection Officer where one is applicable, or otherwise a person
- * able to answer data-processing questions. This policy publishes the Privacy and Grievance
- * Desk contact; do not describe a statutory DPO as appointed unless the business has actually
- * made that appointment or is legally required to do so.
- *
- * THAT NOTE BELONGS HERE AND NOWHERE ELSE. It was briefly written into section 23 as a
- * rendered paragraph beginning "PENDING LEGAL REVIEW", which published an internal
- * engineering to-do inside the policy itself - telling every reader, and any regulator who
- * opened the page, that the document was known to be incomplete. Open questions about a
- * legal document go in this comment, which ships in the repo and not on the page.
- */
-
 import type { LegalSection } from './types';
 
-/**
- * Bumped from 2026-09-23 when section 23.1 was added, and again on 2026-10-01 when sections 3.2,
- * 5 and 15 were extended to cover voluntary blog contributions and gift-card/redemption data for
- * the customer-experience upgrade. Same rule, and the same caveat, as TERMS_UPDATED: this is an
- * engineering revision marker, not a line the reader sees - nothing outside src/content/legal/
- * reads it.
- */
-export const PRIVACY_UPDATED = '2026-10-18';
+export const PRIVACY_UPDATED = '2026-11-26';
 
 export const PRIVACY_INTRO: string[] = [
   'This policy explains what personal data WECARE.DIGITAL collects, why we collect it, who we share it with, how long we keep it, and what you can ask us to do about it.',
@@ -75,7 +28,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '3', heading: 'What we collect', id: 's3',
-    inShort: 'What we collect depends on the service. We ask for what that service needs and not more.',
+    inShort: 'The information we collect depends on the services you use.',
     paragraphs: [
       'The categories below describe the kinds of data a service may involve. Which of them apply to you depends on which services you use.',
     ],
@@ -92,8 +45,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
       'When you buy, book or request something we handle the order or booking details, what was requested, billing and delivery information, the amount, payment status, any refund or cancellation, invoices, gift card or account credit, and your transaction history.',
       'Payments are processed by independent banks and payment gateways. Depending on the method, we receive a transaction reference, a status, and limited payment details from the processor.',
       'Where a payment provider collects your card or bank credentials directly, those credentials are held under that provider\'s privacy and security practices, not ours.',
-      'Where you make a voluntary contribution to our published work, we keep the records needed to identify, process and reconcile it: the contribution reference, the article it relates to, the amount and currency, payment references, payment status and timing, and any refund or reversal. The payment itself is processed by our payment provider as described in section 10.3. A contribution is voluntary and is not a priced supply in the way a product or booking is; this treatment matches section 31.2 of our Terms of Service, which also records that a contribution is not necessarily tax-deductible.',
-      'Where you buy, hold or redeem a gift card, or use a coupon or credit, we hold the gift-card code, its balance and status, the coupon or credit applied, and the redemption records that link it to a transaction. We treat gift-card and redemption records as personal and transaction data. Where applicable, some of this is held in and governed by the commerce platform that issues and settles it.',
+      'If you make a voluntary contribution, we may collect the contribution and article references, amount, currency, payment details and status, date, and any refund or reversal, to process and account for it.',
+      'If you buy or use a gift card, coupon or credit, we may collect its code, balance, status and redemption history linked to your transaction. Relevant payment or commerce providers may also handle those details.',
     ],
   },
   {
@@ -113,7 +66,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '3.5', heading: 'Device and usage data', id: 's3-5',
     paragraphs: [
-      'This is collected automatically and includes your IP address, browser and device type, operating system, device or session identifiers, the pages and features you use, referring and exit pages, timestamps, diagnostic data and security logs.',
+      'We may automatically collect IP addresses, browser and device information, device and session identifiers, usage and timestamps, referral information, diagnostic and security information.',
     ],
   },
   {
@@ -126,7 +79,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '3.7', heading: 'Cookies and similar technologies', id: 's3-7',
     paragraphs: [
-      'We use cookies, pixels, local storage and similar technologies to keep the platform working, hold your session, remember preferences, protect accounts, measure performance, understand how services are used, prevent fraud, and support analytics, communications or advertising.',
+      'We use cookies and similar technologies for sign-in, preferences, security, performance, analytics, communications and advertising, as applicable.',
       'Where consent is legally required for a category of these technologies, we ask before setting them. Turning some of them off will stop parts of the platform working.',
     ],
   },
@@ -140,7 +93,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '4', heading: 'How we collect it', id: 's4',
     inShort: 'Mostly from you, as you use the platform. Sometimes from partners, where that is necessary and lawful.',
     paragraphs: [
-      'We collect data when you create or use an account, browse the platform, buy or book something, submit documents or forms, contact us, enter a promotion or event, deal with a seller through us, use a payment or delivery flow, leave a review, or interact with cookies.',
+      'We collect information when you create an account, browse, make an order or booking, submit documents or forms, contact us, join an offer or event, use payment or delivery services, leave a review or use cookies.',
       'We also receive data from authorised third parties where it is genuinely needed for a service you asked for, or for security, fraud prevention or verification.',
     ],
   },
@@ -148,7 +101,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '5', heading: 'Why we use it', id: 's5',
     inShort: 'To run your account, deliver what you asked for, take payment, support you, keep the platform safe, meet legal duties, and improve the service.',
     paragraphs: [
-      'We use personal data to set up and run accounts; provide the services you request; process orders and bookings; coordinate sellers and providers; take and verify payments; process voluntary contributions to our published work; issue, hold, redeem and reconcile gift cards, coupons and credits; deliver goods; manage appointments; handle documents and requests; personalise relevant features; message you about your transactions; provide support; run subscriptions and memberships; operate partner and referral programmes; manage promotions, credits and gift cards; verify identity, authority or eligibility; protect users and the platform; prevent fraud and abuse; detect and investigate security incidents; maintain service quality; analyse and improve what we offer; handle complaints and disputes; bring or defend legal claims; and comply with the law.',
+      'We use personal data to manage accounts, fulfil orders and service requests, coordinate providers and deliveries, process payments, refunds, contributions, gift cards and credits, handle documents and bookings, manage subscriptions, offers and referrals, personalise services, communicate with you, provide support, verify identity or eligibility, protect accounts, prevent fraud, improve services, resolve disputes and comply with law.',
       'If we ever want to use your data for something materially unrelated to the above, we will seek a fresh lawful basis first, including your consent where that is what the law requires.',
     ],
   },
@@ -197,7 +150,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '10', heading: 'Who we share it with', id: 's10',
     inShort: 'Only those who need it to deliver what you asked for, run the platform, or meet a legal obligation.',
     paragraphs: [
-      'We share personal data only as far as necessary for a legitimate service, operational, security, transactional or legal purpose, and only as the law allows.',
+      'We share personal data as needed to provide and support services, complete transactions, protect users and comply with law.',
     ],
   },
   {
@@ -209,8 +162,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '10.2', heading: 'Suppliers who process data for us', id: 's10-2',
     paragraphs: [
-      'We use third parties for cloud hosting, communications, authentication, support, analytics, security, payments, logistics, document processing, appointment systems and other infrastructure.',
-      'They receive only what their function requires, and are bound by contract, confidentiality and security obligations.',
+      'We use service providers for hosting, communications, sign-in, customer support, analytics, security, payments, delivery, document processing and appointments.',
+      'Service providers process data for the relevant service, subject to applicable confidentiality, contractual and data-protection requirements.',
     ],
   },
   {
@@ -263,18 +216,18 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    number: '13', heading: 'Automated systems', id: 's13',
-    inShort: 'We use software to route, secure and improve services. Where an automated decision materially affects you and the law requires review, you get it.',
+    number: '13', heading: 'AI and automated processing', id: 's13',
+    inShort: 'Some services use automated tools. You may request review or exercise applicable rights.',
     paragraphs: [
-      'We use software and automated workflows to operate, secure, organise, route and improve our services, and for fraud detection, security monitoring, spam prevention and analytics.',
-      'Where an automated process materially affects you and the law requires additional disclosure, consent, human review or another safeguard, we provide it.',
+      'We may use automated tools, including AI where applicable, to provide communications, document and content assistance, organise requests, protect accounts, prevent fraud and improve services.',
+      'Where processing materially affects you, we provide any disclosure, consent, review or other safeguard required by law. You may contact one@wecare.digital with questions or to request review.',
     ],
   },
   {
     number: '14', heading: 'Processing outside your country', id: 's14',
     inShort: 'Some of our suppliers operate abroad, so data may be processed outside the country you use us from. Transfers are subject to legal safeguards.',
     paragraphs: [
-      'Some technology, cloud, communications, payment and analytics providers process data outside the country you are using our services from.',
+      'Some service providers may process personal data outside your country.',
       'Where data crosses a border we do so subject to the restrictions, requirements and safeguards that apply to that transfer.',
       'We will change, restrict or stop a transfer arrangement where the law or a government direction requires it.',
     ],
@@ -285,26 +238,25 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'We keep personal data for as long as the purpose it was collected for requires, or as long as a legal obligation requires. Different categories therefore have different retention periods.',
       'Data may be retained for an active transaction or ongoing service; account administration; financial, tax and accounting records; statutory record-keeping; transaction security; fraud prevention; a complaint or dispute; backups; legal claims; and enforcing our agreements.',
-      'Contribution records and gift-card, coupon and redemption records are transaction records of this kind. We keep them for as long as we need them for accounting, tax, refund, fraud-prevention and legal purposes, which can be after the related activity ends. Where applicable, gift-card expiry or restrictions follow the terms recorded for that card.',
+      'Contribution, gift-card, coupon and redemption records may be retained for accounting, tax, refunds, fraud prevention and legal requirements, including after the transaction ends.',
       'Some transaction, security and financial records must be kept after you close your account or ask for deletion, because the law requires it. Section 18 explains how that interacts with a deletion request.',
       'When data is no longer needed we delete, anonymise or de-identify it.',
     ],
   },
   {
-    number: '16', heading: 'Security', id: 's16',
-    inShort: 'We use access controls, encryption, monitoring, backups and vendor controls. No system is perfectly secure, so protect your own credentials too.',
+    number: '16', heading: 'Protecting your information', id: 's16',
+    inShort: 'We use appropriate safeguards. Please keep account and verification details private.',
     paragraphs: [
-      'We use technical and organisational measures appropriate to the data and the risk. These include access controls, authentication, encryption or masking, monitoring and logging, backups, security testing, vendor controls, incident-response procedures and internal confidentiality rules.',
-      'No electronic system can be guaranteed completely secure. Please take reasonable care of your account credentials and devices.',
+      'We use reasonable safeguards appropriate to the personal data we handle, including access controls, authentication, encryption or masking, and security monitoring, as applicable.',
+      'No method of electronic processing is completely secure. Please keep your sign-in and verification details private and contact us if you suspect unauthorised access.',
     ],
   },
   {
-    number: '17', heading: 'If there is a data breach', id: 's17',
-    inShort: 'We contain it, investigate it, and tell you and the regulator where the law requires.',
+    number: '17', heading: 'Personal data incidents', id: 's17',
+    inShort: 'We respond to personal data incidents and provide notifications as required by law.',
     paragraphs: [
-      'If we become aware of a personal data breach we assess it and take steps to contain, investigate and remedy it.',
-      'We notify affected people and the competent authorities where, and in the manner, the law requires.',
-      'A notification will describe what happened, the risks, what we have done, and what you can do to protect yourself.',
+      'If we become aware of a personal data breach, we take appropriate steps to assess and respond to it.',
+      'We notify affected people and competent authorities when required by law. Notifications include the information required by applicable law, including relevant protective steps.',
     ],
   },
   {
@@ -329,7 +281,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     inShort: 'Manage them in the platform, by unsubscribe link, in device settings, or by asking us.',
     paragraphs: [
       'You can manage communication preferences through the platform, an unsubscribe link, your device settings, or by contacting us.',
-      'Marketing preferences do not affect operational messages about your account, a transaction, a booking, a security matter or a grievance.',
+      'Opting out of marketing does not stop messages needed for your account, order, booking, payment, security or complaint.',
     ],
   },
   {
@@ -344,7 +296,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '22', heading: 'Changes to this policy', id: 's22',
     inShort: 'We will tell you about material changes. Silence is never treated as consent where the law needs an explicit yes.',
     paragraphs: [
-      'We update this policy when our services, technology, practices, security requirements or the law change.',
+      'We may update this policy to reflect changes in our services, data-handling practices or applicable law.',
       'Where a change materially affects how we handle your data, or where the law requires notice, we give notice.',
       'We do not treat silence, inactivity or continued use as fresh consent where the law requires a separate affirmative consent.',
     ],
@@ -359,37 +311,14 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    /*
-     * ADDED 2026-09-30 on owner instruction ("add jurisdiction as Kolkata").
-     *
-     * THE TERMS ALREADY SAID KOLKATA; THIS POLICY SAID NOTHING. Terms section 39 has named the
-     * courts of Kolkata, West Bengal for some time. In this document "Kolkata" appeared exactly
-     * once, in section 24, as the postal address - there was no governing-law or forum clause at
-     * all. So the instruction was already satisfied in one of the two documents and completely
-     * unmet in the other, which is the opposite of how it looked.
-     *
-     * A SUB-CLAUSE OF 23, not a new section 25. Section 24 is the contact clause and belongs
-     * last; governing law sits naturally under "Questions and complaints" because the question a
-     * reader has at that point is where a complaint goes. Additive, so no number moves.
-     *
-     * THE CARVE-OUT IS THE IMPORTANT PART and it is worded to match Terms section 39 rather than
-     * paraphrased. A privacy policy cannot contract a person out of a statutory data-protection
-     * forum, and under the DPDP Act 2023 that forum is the Data Protection Board of India. If
-     * this clause and a statutory route ever point in different directions, the statutory route
-     * wins - stated explicitly rather than left to inference, because a reader who has got this
-     * far is looking for permission to escalate.
-     *
-     * The saver in 23 above already says this. It is repeated here deliberately: this document's
-     * rewrite note records that savers are kept "in the specific places where a reader is most
-     * likely to be talked out of a remedy", and a jurisdiction clause is exactly such a place.
-     */
+    
     number: '23.1', heading: 'Governing law and where disputes are heard', id: 's23-1',
     paragraphs: [
       'This policy is governed by the laws of India.',
-      'This policy describes our data-handling commitments and statutory obligations. It does not create a separate warranty, indemnity or assumption of liability beyond what applicable law requires. Any contractual limitation of liability in our Terms applies only to the extent it can lawfully apply to a privacy-related claim and never overrides a non-waivable data-protection right, remedy, direction or penalty.',
+      'This policy describes how we handle personal data. It does not create warranties or obligations beyond the applicable law and expressly agreed terms. Section 32 of our Terms applies only to the extent permitted by law and does not restrict non-waivable privacy rights or remedies.',
       'Nothing in this policy removes any right to approach the Data Protection Board of India, another data-protection authority, a regulator, a Consumer Commission, a court or any other forum available to you under the law. Where the law requires our grievance process to be exhausted before a particular escalation, that procedural requirement applies.',
       'For a dispute about this policy that is not within the jurisdiction of a mandatory statutory, consumer or data-protection forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
-      'This matches section 39 of our Terms of Service, so one dispute is not directed to two different places. Where a statutory forum is available to you, that route prevails over this one, subject to any required grievance step before escalation.',
+      'See section 39 of our Terms of Service for the general dispute provisions. Mandatory statutory forums and any required grievance procedure take precedence.',
     ],
   },
   {

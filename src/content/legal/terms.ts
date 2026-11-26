@@ -1,62 +1,6 @@
-/**
- * Terms of Service — rewritten in plain English.
- *
- * THIS REPO IS THE SOURCE OF TRUTH. There is no upstream to sync with and no extractor to
- * re-run. Edit this file.
- *
- * WHAT THE REWRITE CHANGED, on owner instruction:
- *   - Active voice, short sentences, "we" and "you". The original was written almost
- *     entirely in the third person about itself ("WECARE.DIGITAL may request...") and
- *     averaged well over 30 words a sentence.
- *   - Cut the hedging that carried no meaning. "Where applicable law requires an
- *     appropriate mechanism, an appropriate mechanism will be used" is a sentence that
- *     says nothing; where a commitment is unconditional it now reads as one.
- *   - Cut repetition. The "nothing in this section limits your rights under applicable
- *     law" saver appeared fourteen times. It is a genuine and important protection, so
- *     it is stated once up front in section 2 AND kept in the specific places where a
- *     reader is most likely to be talked out of a remedy - sections 14, 14.2, 14.4,
- *     14.6, 14.8, 14.9, 14.10, 31, 32 and 33 - rather than sprinkled everywhere.
- *   - Added `inShort` to every top-level section. A 57-section contract with no summaries
- *     is not readable on a phone, which is where it gets opened.
- *   - REMOVED SCRAPED PAGE FURNITURE FROM THE CONTACT SECTION, which was 45 at the time of
- *     the rewrite and is now 47. The extractor had swept up the old
- *     site's footer and navigation into the contact section, so the signed-off Contact
- *     Information clause ended with "BUY GIFT CARD", "DECARBONIZING", "INVITE", "APP",
- *     the retired brand name, and the literal string "bottom of page". That was live.
- *
- * WHAT IT DID NOT CHANGE: any obligation, right, remedy, limitation, disclaimer or
- * liability cap. The rewrite kept every section's original NUMBER, id and scope, so
- * citations still resolve - including src/pages/orders.tsx to section 14. The ONLY numbers
- * that have moved since are the last three, when the contact clause was sent to the end of
- * the document; see the note above section 45 for exactly what changed. Nothing was
- * added that makes a commitment the original did not already make; in particular the
- * original's deliberate vagueness about which conditions attach to which service is
- * preserved, because that genuinely varies per service and inventing specifics here
- * would create terms the business has not agreed to.
- *
- * STILL NEEDS A LAWYER. Rewriting for clarity is not legal review. Two things I could
- * see but cannot fix by editing: section 32's liability cap at "the amount paid for the
- * product or Service giving rise to the claim" is untested against the Consumer
- * Protection Act 2019 for the regulated-professional services in section 17, and
- * section 39 names Kolkata courts while section 37 and section 39 both preserve consumer
- * forum rights - the interaction should be confirmed rather than assumed.
- */
-
 import type { LegalSection } from './types';
 
-/**
- * Bumped from 2026-09-23 when section 31.1 was added.
- *
- * NOT READER-FACING, and it is worth saying so here because the obvious assumption is wrong:
- * `grep -rn TERMS_UPDATED src/` outside this directory returns nothing. The "Last updated" line
- * was removed from the rendered document on instruction, and LegalDocument.tsx records that the
- * dates stay "for engineering". So this is the revision marker for whoever maintains the text,
- * not a notice to a returning visitor.
- *
- * Move it for any change to a clause; do not move it for a comment. If a reader-facing revision
- * notice is ever wanted back, this is the value it should read from rather than a second date.
- */
-export const TERMS_UPDATED = '2026-10-18';
+export const TERMS_UPDATED = '2026-11-26';
 
 export const TERMS_INTRO: string[] = [
   'These Terms of Service govern your use of the websites, apps, products and services offered under the WECARE.DIGITAL name. We call all of it "the Services".',
@@ -69,7 +13,7 @@ export const TERMS_INTRO: string[] = [
 export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '1', heading: 'The words we use', id: 's1',
-    inShort: 'Defined once here so the rest of the document can stay short.',
+    inShort: 'Key terms used throughout this agreement.',
     paragraphs: [
       'WECARE.DIGITAL is the brand the Services are offered under. WECARE.DIGITAL BHARATWORKS is the business that operates it.',
       'The Platform means any website, app, portal, interface, software or tool we operate under the WECARE.DIGITAL name.',
@@ -115,7 +59,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     inShort: 'Sometimes we sell to you directly. Sometimes we are the marketplace and an independent business supplies what you bought. The listing, checkout or confirmation tells you which.',
     paragraphs: [
       'WECARE.DIGITAL runs a multi-service platform, and our role is not the same in every transaction.',
-      'Depending on what you are buying, we may act as the direct seller of goods; the direct provider of a service; a marketplace; a technology platform; an intermediary or facilitator; a booking or appointment facilitator; a payment or transaction facilitator; a workflow or communication facilitator; a reseller or distributor; a fulfilment or administrative coordinator; or in another role we identify for that service.',
+      'Depending on the transaction, we may sell or supply directly, act as a marketplace or reseller, or help you arrange bookings, payments, communications, documentation or fulfilment.',
       'Where we are identified as the direct seller or provider, the product or service is supplied by us or on our behalf.',
       'Where an independent Third-Party Provider is identified as the Seller or Service Provider, the underlying goods or services may be supplied by that provider rather than by us.',
       'The listing, checkout, booking flow, confirmation or Service-Specific Terms may identify who is supplying what you are buying and what our role is.',
@@ -124,14 +68,14 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '6', heading: 'Independent sellers and providers', id: 's6',
-    inShort: 'They are responsible for what they claim and what they supply. We verify what we can and can remove them, but our checks are not a guarantee of their work.',
+    inShort: 'Independent sellers and providers are responsible for their offerings. Verification does not establish a guarantee of their performance.',
     paragraphs: [
       'Third-Party Providers are responsible for what they tell you about their products, services, qualifications, licences, registrations, availability, prices and specifications.',
       'They must follow the law and the terms of their relationship with us.',
       'They must not give materially false or misleading information, misrepresent their qualifications or affiliations, offer unlawful or counterfeit goods, provide prohibited services, manipulate ratings or reviews, infringe intellectual-property rights, act fraudulently, or engage in unfair trade practices.',
       'We may ask a Third-Party Provider to verify its identity, qualifications, registrations, licences or business details.',
       'We may restrict, suspend or remove a provider or a listing where that is reasonably necessary for legal compliance, fraud prevention, the integrity of the Platform, user safety, consumer protection, or to enforce the terms that apply to them.',
-      'Any verification we carry out is a check, not a guarantee. It does not warrant a provider\'s future conduct, the quality of their work, their suitability for your purpose, or any particular outcome.',
+      'Any verification is limited to the information checked and does not guarantee a provider\'s suitability, performance or outcome.',
     ],
   },
   {
@@ -156,11 +100,11 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '9', heading: 'Orders, bookings and service requests', id: 's9',
-    inShort: 'Your order is an offer. It becomes a deal when we accept it, confirm it, take payment or start the work - not when the automatic acknowledgement email arrives.',
+    inShort: 'An acknowledgement is not acceptance. Orders and bookings become confirmed as described below.',
     paragraphs: [
       'Everything is subject to availability and to the conditions shown for it.',
       'When you place an order, make a booking or submit a paid service request, you are generally offering to buy.',
-      'An automated message telling you we have received your request is not necessarily our acceptance of it.',
+      'An acknowledgement of your request does not by itself confirm your order or booking.',
       'Depending on the transaction, it becomes confirmed when we or the relevant provider accept it, when a confirmation is issued, when payment is confirmed, or when work on the service begins.',
       'We may decline, suspend or cancel a transaction where that is reasonably necessary: the item is unavailable, payment failed, we suspect fraud, the information given is incomplete or materially wrong, there is a material pricing or listing error, there is a legal or regulatory restriction, there is a safety concern, or there is another legitimate reason.',
       'If we cancel a transaction you have paid for and a refund is due to you by law or under these Terms, we will process it.',
@@ -311,7 +255,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '15', heading: 'Shipping, delivery and fulfilment', id: 's15',
-    inShort: 'Delivery options, charges and timelines vary. Dates are estimates unless we guarantee them. Give us a complete, accurate address.',
+    inShort: 'Delivery options, charges and estimated dates depend on your order. Please provide accurate delivery details.',
     paragraphs: [
       'For physical products, delivery availability, charges and estimated timelines vary with the product, the Seller, any manufacturing or customisation needed, the destination, stock, and the logistics provider.',
       'We display or send you the delivery information for your transaction.',
@@ -322,40 +266,20 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    /*
-     * ADDED for the customer-experience upgrade. WHY A SUB-CLAUSE OF 15, not a new numbered
-     * section: numbers here are load-bearing (see types.ts) and "How to contact us" is the last
-     * top-level section by owner instruction, so a new top-level section would either renumber
-     * citations or push contact out of last place. Delivery and fulfilment live under 15, so the
-     * tracking / rescheduling / failed-delivery detail belongs beneath it. Appointment-style pickups
-     * cross-reference 16 rather than restate it.
-     *
-     * RENAMED, NOT REWRITTEN (2026-10-02). The page was called "Zip" and the owner retired the
-     * name. The retired parent route is not referenced; current capabilities are linked individually. The
-     * SUBSTANCE is deliberately unchanged - no obligation added, removed, softened or strengthened,
-     * and the clause number (15.1) and id (s15-1) are untouched so existing citations still hold.
-     *
-     * HONESTY CONSTRAINT: the Shipments page aggregates only capabilities that actually exist today -
-     * tracking an order or request, amending a request, sending documents, the vault and leaving a
-     * review - all of which are links to existing routes. General courier PICKUP and shipment
-     * booking have NO integrated provider yet; the Shipments controls for them are inert "coming soon".
-     * So this clause must NOT promise a general pickup or shipment-booking service. It frames those
-     * as not currently offered and conditional on a future provider, and covers tracking, timing,
-     * rescheduling, missed pickup and failed delivery only to the extent they apply to what exists.
-     */
+    
     number: '15.1', heading: 'Tracking, rescheduling and the Shipments page', id: 's15-1',
     paragraphs: [
       'Where a service supports it, you can track an order or delivery at /shipments/track/, arrange collection at /request-pickup/, ask us to amend an open request at /request-amendment/, send documents at /drop-docs/, use your vault at /vault/, and leave a review through the Leave Review WhatsApp action in the site menu.',
       'Any delivery date, dispatch window or turnaround time we show is an estimate unless we expressly say it is guaranteed, and it can be affected by stock, customisation, the destination, a third-party carrier, or circumstances beyond our reasonable control. Section 36 applies to events outside anyone\'s control.',
       'Where a delivery, dispatch or appointment can be rescheduled or cancelled, the conditions for doing so - including any cut-off, any missed-slot consequence and any charge - are the ones disclosed for that service and in section 16 for scheduled services. Please give us a complete and accurate address, contact number and any access or delivery instructions; a failed or missed delivery caused by details that are wrong, incomplete or out of date may lead to a re-delivery attempt, a charge, or a return, as disclosed for that service.',
       'If a delivery fails, is missed, is materially delayed, or arrives lost or damaged, tell us and we will handle it under the policy for that service and under the law. Where an independent carrier or fulfilment partner is involved, their handling conditions may also apply, but that does not reduce any right the law gives you against us.',
-      'We do not currently offer a general courier-pickup or shipment-booking service. Where the Shipments page shows a pickup, visit or shipment option marked as not yet available, that option is not live and cannot be booked. If and when we integrate a provider for it, it will be offered on its own disclosed conditions, and until then nothing on that page is a promise that we will collect from, visit or ship for you.',
+      'Only pickup, visit and shipment options expressly offered and confirmed for your service can be booked. An unavailable option does not create a commitment to collect, visit or ship.',
       'Nothing in this section limits a cancellation, refund, replacement or other remedy the law requires us to provide.',
     ],
   },
   {
     number: '16', heading: 'Appointments, consultations and scheduled services', id: 's16',
-    inShort: 'Turn up at the agreed time and bring what is needed. If a provider cancels, you get a reschedule, an alternative, or a refund. A named professional is not swapped without telling you.',
+    inShort: 'Please attend as agreed. Any cancellation, replacement, rescheduling or refund follows the applicable booking terms and law.',
     paragraphs: [
       'Some Services involve appointments, consultations, sessions, events or other scheduled engagements.',
       'Availability can change until your booking is confirmed.',
@@ -422,29 +346,16 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    /*
-     * ADDED for the customer-experience upgrade (Perks / gift cards). A SUB-CLAUSE OF 21, which
-     * already covers gift cards, credits and promotional balances - the detail on purchase,
-     * redemption and balances belongs beneath it rather than as a renumbering new section.
-     *
-     * HONESTY / CONFIG CONSTRAINT: gift cards are built but gated off and not on sale online yet,
-     * and the live gift-card configuration (issuer, validity, any expiry, product restrictions) is
-     * held in our commerce backend and cannot be asserted as fixed values from here. So specifics
-     * are framed as "where applicable" / "as configured" / "as disclosed when the card is issued"
-     * rather than stated as guarantees. NO third-party gift-card provider is named - the clause
-     * refers only to WECARE.DIGITAL gift cards and "our commerce backend", because the provider is
-     * an abstract seam in the code and naming a vendor here would be both wrong-if-it-changes and
-     * outside what the business has agreed.
-     */
+    
     number: '21.1', heading: 'How WECARE.DIGITAL gift cards work', id: 's21-1',
     paragraphs: [
       'A WECARE.DIGITAL gift card may be bought by you, given to you by someone else, or issued by us as part of a promotion or as an agreed alternative to a money refund. When a gift card is bought or issued, it is activated and a balance is loaded onto it in Indian rupees, as disclosed at the time.',
-      'You redeem a gift card at checkout against eligible WECARE.DIGITAL products and services. We apply it against the confirmed amount due; the card pays part or all of what is owed, and any remaining amount is payable by your other chosen payment method. The balance recorded in our systems determines what remains available on the card.',
+      'Redeem a gift card at checkout for eligible WECARE.DIGITAL products and services. It covers up to the available confirmed balance; any remainder is payable using another accepted method.',
       'Partial redemption is supported where the card balance is less than the amount owed: the card covers what it can and the rest is payable separately. Where a redemption is less than the full balance, the remaining balance stays on the card for a later eligible purchase, subject to any validity condition below.',
-      'A gift card may carry validity, expiry, minimum-order, eligible-product or other restrictions where applicable. Any such condition is the one disclosed when the card is bought or issued and as recorded in our own systems. Store-credit balances issued under section 14 are subject to the 30-calendar-day validity stated in section 14.2. Where an expiry or restriction would reduce a right the law does not allow us to reduce, the law prevails and that condition does not apply to that extent.',
+      'Gift cards may have disclosed validity, expiry, minimum-order, product or other restrictions. Store credit issued under section 14 is valid for 30 calendar days as described in section 14.2. Restrictions apply only to the extent permitted by law.',
       'Keep a gift-card code secure and treat it like cash: anyone with the code may be able to redeem it. Tell us promptly if you believe a code has been lost, stolen, exposed or used without your authorisation, and we will take reasonable steps - which may include suspending the code while we investigate - but we cannot always recover a balance already spent by someone who had the code. We may void, suspend or reverse a gift card obtained or used through fraud, error, duplicate issuance, automated abuse or another material breach of these Terms.',
       'A promotional balance we give away may carry different conditions from a balance you paid for - for example a shorter validity, a narrower set of eligible products, or no cash-out - and those conditions are disclosed when it is issued. A purchased balance is treated as your money to the extent the law requires.',
-      'Gift cards and balances are not normally redeemable for cash, and buying one is a purchase of a gift card rather than a deposit or a banking service. If an order paid for with a gift card is cancelled or refunded, the refund may be returned to the gift card or as account credit rather than as cash, where that is lawful and was disclosed; this does not remove a money refund the law requires. Gift cards are not on sale online at the time of writing, and this clause describes how they work when they are offered.',
+      'Gift cards and balances are not normally redeemable for cash. A gift card is not a deposit or banking service. Refunds for orders paid by gift card may return to the card or to account credit where disclosed and lawful, without affecting mandatory monetary refunds. Gift cards are available only when expressly offered.',
     ],
   },
   {
@@ -468,37 +379,17 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    /*
-     * ADDED for the customer-experience upgrade (Perks / coupons). A SUB-CLAUSE OF 23, which
-     * already covers promotions, coupons and offers; this adds the eligibility / validity /
-     * stacking / refund-impact detail the new coupon field at checkout needs.
-     *
-     * CONFIG CONSTRAINT: coupons and offers are native to our commerce backend and validated
-     * server-side, and the live configuration (which codes exist, their validity, minimum order,
-     * eligible products, usage limits, stacking rules) lives in that backend and cannot be
-     * asserted as fixed values from here. The /perks page is now a plain landing page and no longer lists offers; any
-     * eligible coupon is applied server-side at checkout. So this clause is written in terms
-     * of "as configured in our commerce backend" / "where applicable" rather than listing specific
-     * values, and does not claim any particular offer is currently available.
-     */
+    
     number: '23.1', heading: 'How coupons and offers apply at checkout', id: 's23-1',
     paragraphs: [
-      'Where a coupon or offer is available, whether it applies to your order is determined by its conditions and the records we hold for that offer. A code shown on screen is not applied until we validate it, and the discount we confirm is the one that applies.',
+      'Coupon eligibility and the applicable discount follow the offer conditions and the confirmed checkout amount.',
       'A coupon or offer may be subject to eligibility conditions, a validity period and expiry, a minimum order value, a limited set of eligible products or services, per-customer or overall usage limits, and rules on whether it can be combined with other offers. Unless the offer expressly says codes can be stacked, assume only one applies to an order; where codes conflict, the applicable offer rules decide which code is used.',
       'We may decline, withdraw or reverse a coupon or offer that has expired, that does not meet its conditions, or that was obtained or used through fraud, manipulation, automated abuse, duplicate accounts or another material breach of its terms. A coupon or offer has no cash value and cannot be exchanged for cash unless we say so or the law requires it.',
       'If an order that used a coupon or offer is later cancelled, returned or partially refunded, the refund reflects what you actually paid after the discount rather than the pre-discount price, and a discount tied to a condition you no longer meet after a change may be adjusted accordingly - subject always to any refund or remedy the law requires.',
     ],
   },
   {
-    /*
-     * ADDED for the customer-experience upgrade (Perks / rewards). HONESTY CONSTRAINT, and the
-     * reason this clause is short: there is NO rewards backend. There is no rewards programme and
-     * no /perks rewards section any more, and nothing offers points, balances, history, earning or
-     * redemption. So this clause must NOT invent eligibility, earning, redemption or expiry mechanics for a
-     * programme that does not exist. It states the truthful position - no rewards programme is
-     * currently operating - and defers any future programme to its own published terms, which is
-     * exactly as much as can be said truthfully today.
-     */
+    
     number: '23.2', heading: 'Rewards', id: 's23-2',
     paragraphs: [
       'We do not currently operate a rewards or loyalty programme. There are no reward points, balances, tiers or history to earn, hold or redeem, and anything shown as "coming soon" is a statement of intent, not a programme you are enrolled in or entitled to.',
@@ -543,9 +434,9 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '27', heading: 'Other websites, tools and integrations', id: 's27',
     inShort: 'We rely on third-party services we do not control, and their terms apply to them. We cannot promise they will always be up.',
     paragraphs: [
-      'The Services link to, or rely on, independent third-party websites, payment processors, logistics providers, authentication systems, maps, communication platforms, cloud infrastructure and software.',
+      'The Services may use or link to independent payment, delivery, sign-in, communication and other service providers.',
       'Those services have their own terms and privacy policies.',
-      'We do not control independent third-party systems and cannot guarantee they will be continuously available.',
+      'Independent services are subject to their own availability and terms.',
       'This section does not exclude liability the law requires us to carry.',
     ],
   },
@@ -564,7 +455,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '29', heading: 'Messages we send you', id: 's29',
     inShort: 'Messages about your account, order, payment or security come electronically and are part of the service. Marketing is handled separately and you can opt out of it.',
     paragraphs: [
-      'By using the Services you accept that we may send you transactional and operational messages electronically, where the law permits.',
+      'We may send electronic messages necessary for your account, order, booking, payment or service, as permitted by law.',
       'These include account notices, order and payment confirmations, booking confirmations, appointment reminders, delivery updates, security alerts, grievance correspondence and policy notices.',
       'We may send them by email, SMS, phone, messaging service, or as notifications on the Platform, using the contact details you gave us.',
       'Marketing is handled separately, and carries the consent or opt-out mechanism the law requires.',
@@ -575,66 +466,34 @@ export const TERMS_SECTIONS: LegalSection[] = [
     inShort: 'We update and occasionally withdraw features, and outages happen. If we discontinue something you paid for before supplying it, you get whatever remedy applies.',
     paragraphs: [
       'We maintain, update, improve, modify, replace, suspend and sometimes discontinue functionality.',
-      'Temporary interruptions can happen because of maintenance, technical failures, network problems, third-party infrastructure, cybersecurity incidents, regulatory requirements, logistics failures, or circumstances beyond our reasonable control.',
+      'Services may be interrupted by maintenance, technical issues, provider availability or events outside our reasonable control.',
       'If we materially discontinue a paid service before it has been supplied, we provide whatever remedy the law or the Service-Specific Terms require.',
     ],
   },
   {
-    number: '31', heading: 'What we do not promise', id: 's31',
-    inShort: 'We do not promise the Platform is flawless or always up, or that you will get a particular outcome. Statutory warranties and consumer rights still stand.',
+    number: '31', heading: 'Service conditions', id: 's31',
+    inShort: 'Services are subject to availability and the terms applicable to them. Mandatory warranties and consumer rights remain in force.',
     paragraphs: [
-      'To the maximum extent permitted by applicable law, the Platform and the Services are provided on an "as is" and "as available" basis, and we do not give any warranty, condition or representation that is not expressly set out in these Terms or required by law.',
-      'We do not promise that every feature will be uninterrupted, always available, timely, secure, completely free of errors or defects, or suited to your particular purpose, or that any defect will be corrected.',
-      'We do not promise a particular business, professional, legal, medical, personal, travel or financial outcome because a product, service or provider is reachable through WECARE.DIGITAL.',
-      'This section does not exclude or limit any warranty, condition, obligation, consumer right or remedy that cannot lawfully be excluded or limited, including the statutory guarantees under India\'s consumer protection law. Where such a right applies, it continues in full and this section is read subject to it.',
+      'To the extent permitted by law, the Services are provided as available and without warranties other than those expressly stated in these Terms, the confirmed transaction or required by law.',
+      'We do not guarantee uninterrupted access, error-free operation, suitability for a particular purpose or any particular outcome.',
+      'Nothing in these Terms excludes or limits any warranty, condition, obligation or remedy that cannot lawfully be excluded or limited.',
     ],
   },
   {
-    /*
-     * ADDED 2026-09-30 on owner instruction ("terms page: add blog risk disclaimer").
-     *
-     * WHY IT IS 31.1 AND NOT A NEW NUMBERED SECTION. Numbers here are load-bearing - see the
-     * note in types.ts - and the contact clause was deliberately moved to the end of the
-     * document, so appending a 48 after "How to contact us" would both read oddly and push the
-     * contact section out of last place. A sub-clause of 31 is additive, breaks no citation,
-     * and lands where a reader already looks for what we do not promise.
-     *
-     * NO inShort: types.ts restricts summaries to top-level sections, because a sub-clause is
-     * short enough that a summary of it would just be a worse copy.
-     *
-     * The blog was the largest piece of published text on the site with no clause covering it
-     * at all: 1279 posts, and "blog" and "article" appeared ZERO times in this document.
-     * It CROSS-REFERENCES rather than restates - 17 for professional services, 27 for outbound
-     * links, 46 for AI-assisted preparation - because this document's own rewrite note records
-     * that the same saver repeated fourteen times is what made the original unreadable.
-     */
+    
     number: '31.1', heading: 'Published articles and other editorial content', id: 's31-1',
     paragraphs: [
       'We publish articles, guides and explainers on WECARE.DIGITAL. All of it is general information about a subject, written for a general reader. None of it is advice about your situation.',
       'Nothing we publish is legal, medical, financial, tax, immigration, regulatory, investment or other professional advice, and reading it does not create a professional or advisory relationship between us. Where a Service involves a qualified professional, that professional is the source of advice for you - see section 17.',
-      'An article is correct as far as we know on the day it is published, and it is not maintained after that. Rules, fees, eligibility criteria, timelines, government procedures, prices and third-party policies change, sometimes without notice. An older article may describe a position that no longer holds.',
+      'Published information reflects the position at publication and may become outdated. Verify current rules, prices and eligibility with the relevant official source.',
       'Please do not act on anything we publish without checking it against the current official source, or asking us in writing about your own case. If an article disagrees with a Service-Specific Term, an official rule or something we have told you directly, the article is the one that is wrong.',
-      'Some published material is prepared with the help of automated systems. Section 46 applies to it.',
+      'Some published material may be AI-assisted. Section 46 applies.',
       'Articles may mention or link to other websites, organisations and tools. Section 27 applies: a mention is not an endorsement, and we do not control what is on the other side of a link.',
       'Nothing in this section excludes a statutory warranty, obligation, consumer right or remedy that cannot lawfully be excluded.',
     ],
   },
   {
-    /*
-     * ADDED for the customer-experience upgrade (blog "Contribute" section). A SUB-CLAUSE OF 31,
-     * beside 31.1 on editorial content, because a voluntary contribution attaches to the published
-     * articles rather than to a purchase - there is no cart, no product order and no product. It
-     * cross-references 12 for payments and 14 for refunds rather than restating them.
-     *
-     * FACTUAL BASIS (verified against amplify/.../ecommerce/blog_contribution.py and
-     * src/config/contribution.ts): a BLOG_CONTRIBUTION is a voluntary payment the reader chooses,
-     * in integer paise, processed through Razorpay on the same server-side verify / webhook /
-     * idempotency path as the rest of checkout; it creates NO product order and adds no fee on top.
-     * It is BUILT BUT GATED OFF (CHECKOUT_INITIATION_ENABLED default OFF) and not live. So the clause
-     * describes it truthfully as voluntary and not currently charging, names Razorpay only as the
-     * processor (consistent with 12), and makes none of the equity/investment/employment claims the
-     * brief rules out.
-     */
+    
     number: '31.2', heading: 'Voluntary contributions to our published work', id: 's31-2',
     paragraphs: [
       'Some articles invite a voluntary contribution to support the work ("Contribute"). A contribution is a gift you choose to make. It is optional, it buys you nothing, and declining to contribute does not change your access to anything we publish or offer.',
@@ -645,30 +504,29 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    number: '32', heading: 'Limits on liability', id: 's32',
-    inShort: 'We exclude liability to the fullest extent the law allows. For non-consumer and commercial-use transactions, our contractual liability is nil wherever the law permits. Mandatory consumer, product-liability, fraud, personal-injury and other non-waivable liabilities remain as the law provides.',
+    number: '32', heading: 'Responsibility and legal limits', id: 's32',
+    inShort: 'Our responsibility is limited to the extent permitted by law. Mandatory rights and remedies are unaffected.',
     paragraphs: [
-      'This section applies to the maximum extent permitted by applicable law and is intended to exclude, not merely reduce, liability wherever exclusion is lawful.',
-      'For a User who is not a consumer under applicable consumer law, and for any transaction or use that is for a commercial purpose, our total aggregate contractual and non-contractual liability arising from or connected with the Services is INR 0 wherever the law permits that liability to be excluded.',
-      'If applicable law does not permit a category of liability to be excluded completely but does permit it to be limited, that liability is limited to the lowest amount that the law validly permits in the circumstances.',
-      'To the fullest extent permitted by law, we are not liable for indirect, incidental, special, exemplary, punitive or consequential loss; loss of profit, revenue, business opportunity, goodwill, anticipated savings or data; interruption, delay, third-party failure or loss caused by a provider, network, platform, payment service, carrier, government system or other dependency outside our reasonable control; or a loss that was not a direct and reasonably foreseeable consequence of our breach.',
-      'Nothing in these Terms excludes or limits liability that cannot lawfully be excluded or limited. That includes any mandatory remedy or liability under consumer-protection law, product-liability law, data-protection law or other mandatory law, and liability for fraud or fraudulent misrepresentation, wilful misconduct, or death or personal injury to the extent the law makes it non-excludable.',
-      'If a court, Consumer Commission, regulator or other competent authority finds any exclusion or cap in this section invalid or unfair for a particular claim, that provision is reduced only to the minimum extent necessary and the rest of this section continues to apply.',
+      'To the fullest extent permitted by applicable law, WECARE.DIGITAL excludes responsibility for claims arising from or connected with the Services wherever exclusion is lawful.',
+      'For non-consumer and commercial-purpose transactions, our aggregate contractual and non-contractual liability is INR 0 where lawful exclusion is permitted. Where exclusion is not permitted but limitation is permitted, the lowest lawful limit applies.',
+      'To the extent permitted by law, we exclude indirect, incidental, special, exemplary, punitive and consequential loss, including lost profits, revenue, opportunities, goodwill, savings or data, and losses caused by independent third parties or events outside our reasonable control; we also exclude loss that is not a direct and reasonably foreseeable consequence of our breach.',
+      'Nothing in these Terms excludes or limits any non-waivable consumer, product, data-protection or other statutory right, remedy or responsibility, including for fraud or fraudulent misrepresentation, wilful misconduct, death or personal injury where exclusion is prohibited by law.',
+      'If any exclusion or limitation is found unenforceable, it applies only to the extent permitted by law and the remaining provisions continue to apply.',
     ],
   },
   {
-    number: '33', heading: 'When you are responsible to us', id: 's33',
-    inShort: 'You cover losses that come from your unlawful use, your material breach, or unlawful content you posted. You never cover losses we caused ourselves.',
+    number: '33', heading: 'Your responsibilities', id: 's33',
+    inShort: 'You are responsible for unlawful use, material breaches and infringement of others\' rights, subject to applicable law.',
     paragraphs: [
-      'As far as the law allows, you are responsible for losses, claims and reasonable costs arising directly from your unlawful use of the Services, your material breach of these Terms, your infringement of someone else\'s rights, or unlawful User Content you submitted.',
-      'This does not ask a consumer to cover losses caused by our own unlawful conduct, or liability that cannot lawfully be transferred.',
+      'To the extent permitted by law, you are responsible for losses, claims and reasonable costs directly resulting from your unlawful use of the Services, material breach of these Terms, infringement of others\' rights or unlawful content you submit.',
+      'This does not transfer responsibility for our own unlawful conduct to you or remove any mandatory consumer right.',
     ],
   },
   {
     number: '34', heading: 'Fraud prevention and Platform security', id: 's34',
-    inShort: 'We screen for fraud and account takeover, may briefly hold a transaction while we verify it, and cooperate with banks and authorities where the law allows.',
+    inShort: 'We may verify accounts and transactions and cooperate with competent authorities as permitted or required by law.',
     paragraphs: [
-      'We use reasonable technical, operational and manual measures to detect and prevent unauthorised transactions, account takeover, fraudulent payments, promotion abuse, identity misuse and other security risks.',
+      'We take reasonable steps to help prevent unauthorised activity, fraud, account misuse and abuse of offers.',
       'Where reasonably necessary, we may temporarily restrict a transaction or an account while verification is completed.',
       'We may cooperate with banks, payment providers, regulators, law enforcement and other competent authorities where the law permits or requires it.',
     ],
@@ -686,7 +544,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '36', heading: 'Events outside anyone\'s control', id: 's36',
-    inShort: 'Neither of us is liable for delays caused by things like disasters, war, government action or large-scale outages. Refund rights the law protects still stand.',
+    inShort: 'Events outside either party\'s reasonable control may affect performance. Mandatory rights remain available.',
     paragraphs: [
       'Neither of us is responsible for a failure or delay caused by circumstances beyond our reasonable control, to the extent those circumstances actually prevent performance.',
       'That can include natural disasters, severe weather, epidemics and public-health restrictions, war, civil disturbance, government action, widespread utility or telecommunications failures, labour disruption, transport interruption, and large-scale cyber incidents.',
@@ -708,7 +566,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '38', heading: 'Changes to these Terms', id: 's38',
     inShort: 'We update these Terms when the Services or the law change, and give notice where a change materially affects you. Changes normally apply going forward, not backwards.',
     paragraphs: [
-      'We update these Terms where that is reasonably necessary to reflect changes in our Services, operations, technology, Platform functionality, security practices, or the law.',
+      'We may update these Terms to reflect changes to our Services or applicable law.',
       'Where the law requires it, or where a change materially affects your rights, we give you appropriate notice.',
       'Changes normally operate going forward.',
       'Continuing to use an affected service after revised Terms take effect counts as acceptance only as far as the law allows.',
@@ -767,56 +625,29 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Where a separately signed agreement, memorandum of understanding, engagement agreement, enterprise agreement or order form covers the same subject matter, that agreement prevails on the matters it specifically addresses.',
     ],
   },
-  /**
-   * "HOW TO CONTACT US" IS LAST, on owner instruction, and the two clauses that used to sit
-   * behind it were renumbered to make room. It is now 47, at the foot of this file.
-   *
-   * This file previously appended Machine translation and AI as 46 and 47 AFTER the contact
-   * clause, specifically to avoid renumbering anything. That left the document ending on a
-   * disclaimer, and it contradicted src/content/legal/privacy.ts, which ends on 24 "Who we
-   * are and how to reach us". Contact-last is now the convention in both documents.
-   *
-   * WHAT THE RENUMBER MOVED: Machine translation 46 -> 45, AI 47 -> 46, How to contact us
-   * 45 -> 47. Every section's `id` is its in-page anchor and tracks its number, so
-   * /terms/#s45 now resolves to Machine translation, #s46 to AI, and #s47 to contact.
-   * Nothing in this repo links to any of the three: the remaining in-code Terms citation is
-   * src/pages/orders.tsx to section 14, untouched. 46 and 47 have never been published under
-   * any other number, so the
-   * only real exposure is an external document citing "Terms section 45" for contact
-   * details - which is the one thing this repo cannot check.
-   *
-   * NO WORDING CHANGED. Only the order and those three numbers.
-   *
-   * NOT LEGAL ADVICE AND NOT COUNSEL-REVIEWED, for 45 and 46 below. These are drafted to
-   * the pattern used by public bodies and software vendors for the same two risks - see the
-   * note in each `inShort` - and they should be read by whoever signs off this document
-   * before being relied on. The engineering facts they describe are measured and accurate;
-   * the legal effect of the wording is not something this repo can assert.
-   */
+  
   {
     number: '45', heading: 'Machine translation', id: 's45',
     inShort: 'The English version is the official one. Translations are automatic, offered as a convenience, and may be wrong or incomplete.',
     paragraphs: [
-      'The Platform offers on-page translation into other languages. Those translations are produced automatically by machine translation, without human review.',
+      'Translations may be provided automatically for convenience.',
       'The English version of any page, these Terms, our Privacy Policy and every Service-Specific Term is the official text. Where a translated version differs from the English one - by error, omission, ambiguity or change of meaning - the English version prevails and is the version that governs.',
       'Translations are provided as a convenience and on an "as is" basis. We give no warranty, express or implied, as to their accuracy, reliability or completeness, and a discrepancy introduced by translation creates no obligation on us and has no legal effect.',
-      'Parts of a page may not translate at all. Text that sits inside images, inside interface labels read by assistive technology, or inside decorative and duplicated elements may remain in English even when the rest of the page has changed language. A partly translated page is not a representation that the untranslated parts do not apply to you.',
-      'Prices, fees, timelines, eligibility conditions, cancellation rules and any other commercial term should be confirmed against the English text before you rely on them. If a translated term matters to your decision, ask us in writing at one@wecare.digital and we will confirm it in English.',
+      'Some content may remain in English. The official English text applies subject to applicable language and disclosure requirements.',
+      'Check the English text for commercial terms and contact one@wecare.digital if clarification is needed.',
       'Nothing in this section limits any right you have under applicable law to receive information in a language you understand, or any obligation we have to provide it.',
     ],
   },
   {
-    number: '46', heading: 'Artificial intelligence and automated processing', id: 's46',
-    inShort: 'Some parts of the Services use AI. Its output can be wrong, it is not professional advice, and a human decides anything that matters.',
+    number: '46', heading: 'AI-assisted services', id: 's46',
+    inShort: 'Some services use AI. Check important information and seek qualified advice when needed.',
     paragraphs: [
-      'Some features of the Services use artificial intelligence, machine learning, large language models or other automated processing. That can include drafting and summarising messages, suggesting replies, classifying or routing a request, extracting information from a document you send us, generating descriptions or images, transcribing or translating speech and text, and prioritising work in a queue.',
-      'AI output is generated by statistical prediction. It can be inaccurate, incomplete, out of date, internally inconsistent or entirely fabricated while appearing confident and well-formed. It may also reflect biases present in the data it was trained on. We do not warrant that any AI-generated output is accurate, complete, current or fit for a particular purpose.',
-      'AI-generated output is not professional advice. It is not medical, legal, financial, tax, immigration, regulatory or other professional advice, and it does not create a professional relationship of any kind. Where a Service involves a qualified professional, that professional - not the automated system - is the source of the advice, and the Third-Party Provider terms for that Service apply.',
-      'You must not rely on AI-generated output for any decision with legal, medical, financial or safety consequences without independent verification by a suitably qualified person. Verify anything material against the underlying document, the applicable rules, or us in writing.',
-      'A human being remains responsible for decisions that materially affect you. We do not use solely automated processing to decide whether to accept or reject your order, booking, application or request, or to determine what you pay, without a person able to review that decision. If you believe an automated process has produced a wrong outcome, tell us at one@wecare.digital and a person will look at it.',
-      'What you submit may be processed by automated systems, including systems operated by the third-party providers named in our Privacy Policy, in order to deliver the Service you asked for. How we handle that data, how long we keep it, and the choices you have are set out in the Privacy Policy, including the section on automated systems.',
-      'We may add, change, limit or withdraw an AI-assisted feature at any time. Where an AI-assisted feature is offered alongside a human alternative, you may ask for the human route instead.',
-      'Nothing in this section reduces any liability we cannot lawfully exclude, or any statutory right you have in relation to automated decision-making.',
+      'Some Services use AI or automated processing to assist with communications, documents, content, translation and service delivery.',
+      'AI-assisted information may be incomplete, inaccurate or out of date. It is not professional advice or a guarantee of any result. Verify important information with the relevant source. For legal, medical, financial or safety decisions, obtain independent verification from a suitably qualified person before relying on AI-assisted information.',
+      'Where a qualified professional provides a Service, that professional\'s advice and applicable service terms govern.',
+      'Decisions about acceptance of orders, bookings, applications, requests or pricing are not made solely by automated means without human review being available. You may request a review of a decision that materially affects you at one@wecare.digital.',
+      'Personal data processed through AI-assisted features is handled as described in our Privacy Policy. Any applicable consent, disclosure or review rights remain available.',
+      'AI-assisted features may change or be withdrawn. Where a human alternative is offered, you may request it. Mandatory rights and remedies remain unaffected.',
     ],
   },
   {
