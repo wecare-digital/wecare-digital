@@ -5,7 +5,7 @@
  * Does not submit checkout, payment, login or WhatsApp forms.
  */
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,6 +35,34 @@ const routes = [
   {path: '/anew/', name: 'anew', input: '#pbp-q', query: 'integrity'},
   {path: '/orders/', name: 'orders'},
 ];
+// The generated public catalogue is the route inventory; every registered page
+// is checked, not just the initial sample. Home deliberately avoids a brand-only
+// duplicate of its header. Upcoming pages are not indexed, but are real routes.
+const { pages: publicPages } = JSON.parse(await readFile(new URL('../config/public-pages.json', import.meta.url), 'utf8'));
+const specialEyebrows = {
+  '/': null,
+  '/contact': 'Requests by WECARE.DIGITAL',
+  '/blog': 'Blog',
+  '/shop': 'Shop',
+  '/orders': 'Orders',
+  '/terms': 'Terms of Service — WECARE.DIGITAL',
+  '/privacy': 'Privacy Policy — WECARE.DIGITAL',
+};
+const expected = new Map(publicPages.map(({ path, name }) => [
+  path, Object.hasOwn(specialEyebrows, path) ? specialEyebrows[path] : name + ' by WECARE.DIGITAL',
+]));
+for (const [path, eyebrow] of [
+  ['/get-kosh', 'GetKosh by WECARE.DIGITAL'],
+  ['/udyam-bids', 'UdyamBids by WECARE.DIGITAL'],
+  ['/auth', 'Account access'],
+  ['/checkout', 'Checkout'],
+]) expected.set(path, eyebrow);
+for (const [path, eyebrow] of expected) {
+  const url = path === '/' ? '/' : path + '/';
+  const existing = routes.find(route => route.path === url);
+  if (existing) existing.eyebrow = eyebrow;
+  else routes.push({path: url, name: path.slice(1).replaceAll('/', '-'), eyebrow});
+}
 const browser = await chromium.launch({headless: true});
 const results = [];
 try {
@@ -53,6 +81,33 @@ try {
             scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth,
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
+
+          // Verify the actual rendered eyebrow, not only source prop text.
+          const eyebrow = page.locator('.rh-eyebrow .brand-badge');
+          if (route.eyebrow === null) {
+            assert.equal(await page.locator('.brand-badge').count(), 0, name + ': duplicate home brand badge');
+          } else {
+            await eyebrow.waitFor({state: 'visible'});
+            assert.equal(await eyebrow.count(), 1, name + ': expected one hero eyebrow');
+            assert.equal((await eyebrow.innerText()).replace(/\s+/g, ' ').trim(), route.eyebrow,
+              name + ': incorrect eyebrow identity');
+            const layout = await eyebrow.evaluate(el => {
+              const style = getComputedStyle(el);
+              const box = el.getBoundingClientRect();
+              const label = el.querySelector('.brand-badge-label');
+              const mark = el.querySelector('svg');
+              const parent = el.parentElement.getBoundingClientRect();
+              return {
+                background: style.backgroundColor, ink: style.color,
+                fits: box.left >= -1 && box.right <= document.documentElement.clientWidth + 1
+                  && box.width <= parent.width + 1 && !!label && label.scrollWidth <= label.clientWidth + 1,
+                mark: !!mark && mark.getBoundingClientRect().width > 0,
+              };
+            });
+            assert.equal(layout.background, 'rgb(209, 244, 112)', name + ': eyebrow fill');
+            assert.equal(layout.ink, 'rgb(26, 58, 42)', name + ': eyebrow ink');
+            assert.ok(layout.fits && layout.mark, name + ': eyebrow reflow ' + JSON.stringify(layout));
+          }
 
           if (route.name === 'terms' || route.name === 'privacy') {
             const headings = await page.locator('.lgd-h2, .lgd-h3').evaluateAll(elements => elements.map(heading => {

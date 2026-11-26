@@ -59,15 +59,11 @@ export interface CycleWord {
 
 interface RotatingHeroProps {
   /**
-   * Lime brand pill above the headline. OPTIONAL, and omitting it is a real choice.
-   *
-   * The home page deliberately REMOVED its own copy of this badge: it rendered the bag mark
-   * plus WECARE.DIGITAL only 109px below the header's own lockup, so the brand was stated
-   * twice inside 109px and was the first thing anyone read. src/test/BlogDesign.test.tsx pins
-   * the same decision for /blog/ - "does not repeat the brand eyebrow".
-   * The product and Customer service pages still pass it, because on those the badge names the
-   * PRODUCT rather than repeating the company. Where the label would just be the site again,
-   * leave it out.
+   * Contextual eyebrow above the headline. Supply the page's actual identity:
+   * product name + maker for first-party products, and a functional label for
+   * editorial, catalogue and customer task pages. Never substitute a product's
+   * rotating word or invent manufacturer attribution for a catalogue item.
+   * The home page intentionally has no repeated brand-only eyebrow.
    */
   badgeLabel?: string;
   /** Fixed text on the first headline line. */
@@ -300,7 +296,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         @media(max-width:1024px){
           .rh-split{grid-template-columns:minmax(0,1fr);gap:40px}
         }
-        .rh-eyebrow{margin:0 0 20px}
+        .rh-eyebrow{margin:0 0 16px;min-width:0;max-width:100%}
 
         /* Hero h1 rung: 600, LIGHTER than the 700 section level. That inversion is
            notion's and is intentional - the same guard sits on Home's .home-head, and

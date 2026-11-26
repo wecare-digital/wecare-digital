@@ -153,6 +153,7 @@ export default function CheckoutStatus (): React.ReactElement {
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero
+        badgeLabel="Payment status"
         ariaLabel="WECARE.DIGITAL customer"
         frame="One account."
         words={ [

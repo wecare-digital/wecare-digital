@@ -66,7 +66,7 @@ const SehatPage: React.FC = () => (
     <RotatingHero
       mobileFoundation
       ariaLabel="Arogya Yatra"
-      badgeLabel="Arogya Yatra · Elsewhere by WECARE.DIGITAL"
+      badgeLabel="Arogya Yatra by WECARE.DIGITAL"
       frame="Arogya Yatra"
       words={ CYCLE_WORDS }
       sub="Medical travel planning and appointments with qualified professionals"

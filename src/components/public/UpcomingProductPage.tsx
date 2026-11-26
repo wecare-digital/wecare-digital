@@ -17,6 +17,7 @@ export default function UpcomingProductPage( { name, path, description }: Upcomi
       <PageShell title={ name } canonical={ path } description={ description } />
       <Head><meta name="robots" content="noindex, follow" /></Head>
       <RotatingHero
+        badgeLabel={ `${name} by WECARE.DIGITAL` }
         ariaLabel={ name }
         frame={ name }
         words={ [ { word: 'Coming soon', tint: '#dbeafe', dot: '#2563eb' } ] }
