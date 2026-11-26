@@ -509,8 +509,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'To the fullest extent permitted by applicable law, WECARE.DIGITAL excludes responsibility for claims arising from or connected with the Services wherever exclusion is lawful.',
       'For non-consumer and commercial-purpose transactions, our aggregate contractual and non-contractual liability is INR 0 where lawful exclusion is permitted. Where exclusion is not permitted but limitation is permitted, the lowest lawful limit applies.',
-      'To the extent permitted by law, we exclude indirect, incidental, special, exemplary, punitive and consequential loss, including lost profits, revenue, opportunities, goodwill, savings or data, and losses arising from independent third parties or events outside our reasonable control that are not a direct and reasonably foreseeable consequence of our breach.',
-      'Nothing in these Terms excludes or limits any non-waivable consumer, product, data-protection or other statutory right, remedy or responsibility, including for fraud, wilful misconduct, death or personal injury where exclusion is prohibited by law.',
+      'To the extent permitted by law, we exclude indirect, incidental, special, exemplary, punitive and consequential loss, including lost profits, revenue, opportunities, goodwill, savings or data, and losses caused by independent third parties or events outside our reasonable control; we also exclude loss that is not a direct and reasonably foreseeable consequence of our breach.',
+      'Nothing in these Terms excludes or limits any non-waivable consumer, product, data-protection or other statutory right, remedy or responsibility, including for fraud or fraudulent misrepresentation, wilful misconduct, death or personal injury where exclusion is prohibited by law.',
       'If any exclusion or limitation is found unenforceable, it applies only to the extent permitted by law and the remaining provisions continue to apply.',
     ],
   },
@@ -643,9 +643,9 @@ export const TERMS_SECTIONS: LegalSection[] = [
     inShort: 'Some services use AI. Check important information and seek qualified advice when needed.',
     paragraphs: [
       'Some Services use AI or automated processing to assist with communications, documents, content, translation and service delivery.',
-      'AI-assisted information may be incomplete, inaccurate or out of date. It is not professional advice or a guarantee of any result. Verify important information with the relevant source or a qualified professional before relying on it.',
+      'AI-assisted information may be incomplete, inaccurate or out of date. It is not professional advice or a guarantee of any result. Verify important information with the relevant source. For legal, medical, financial or safety decisions, obtain independent verification from a suitably qualified person before relying on AI-assisted information.',
       'Where a qualified professional provides a Service, that professional\'s advice and applicable service terms govern.',
-      'You may request human review of decisions about acceptance of orders, bookings, applications, requests or pricing that materially affect you by contacting one@wecare.digital.',
+      'Decisions about acceptance of orders, bookings, applications, requests or pricing are not made solely by automated means without human review being available. You may request a review of a decision that materially affects you at one@wecare.digital.',
       'Personal data processed through AI-assisted features is handled as described in our Privacy Policy. Any applicable consent, disclosure or review rights remain available.',
       'AI-assisted features may change or be withdrawn. Where a human alternative is offered, you may request it. Mandatory rights and remedies remain unaffected.',
     ],
