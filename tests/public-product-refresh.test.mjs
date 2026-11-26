@@ -69,7 +69,10 @@ test('Home pause/play uses official Material Symbols, a stable accessible icon-o
   const terminal = read('src/components/WorkflowTerminal.tsx');
   assert.ok(terminal.includes('height:47px;width:52px;box-sizing:border-box'));
   assert.ok(terminal.includes('width:52px;height:47px'));
-  assert.ok(terminal.includes('.wt-play-icon{display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor}'));
+  assert.ok(terminal.includes('.wt-play-icon{display:block;width:1.2em;height:1.2em;flex:0 0 1.2em;fill:currentColor}'));
+  assert.ok(terminal.includes('color:#f0a818;font-size:15px'));
+  assert.ok(terminal.includes('.wt-play.is-paused{color:#3da35a;'));
+  assert.ok(terminal.includes('.wt-play.is-paused:hover,.wt-play.is-paused:focus-visible{color:#d1f470}'));
   assert.ok(terminal.includes("aria-label={ paused ? 'Play the illustration of a customer request' : 'Pause the illustration of a customer request' }"));
   assert.ok(terminal.includes('onClick={ togglePlay }'));
   assert.ok(terminal.includes('M320-200v-560l440 280-440 280Z'));
