@@ -144,3 +144,21 @@ test('Aastha uses the official outlined Hindu temple artwork with the shared 24p
   assert.ok(header.includes("Aastha: '20 -960 920 920'"));
   assert.ok(header.includes('width:24px;height:24px;flex:0 0 24px'));
 });
+
+test('Panchang keeps the approved native product and variant in the cart fallback without restoring legacy Shop URLs', () => {
+  const snapshot = read('src/content/catalogSnapshot.ts');
+  assert.ok(snapshot.includes("id:'native:ritual-guru-ritva', name:'Panchang', slug:'ritual-guru-ritva'"));
+  const row = snapshot.split("id:'native:ritual-guru-ritva'")[1].split("  },")[0];
+  assert.ok(row.includes("formattedPrice:'₹99.00', price:'99.00'"));
+  assert.ok(row.includes("canonicalPath:'/aastha/panchang/'"));
+  assert.ok(row.includes("id:'2b1655cf-198a-438d-93b6-c57612b819b6'"));
+  const shop = read('src/content/shop.ts');
+  const detail = read('src/pages/shop/[slug].tsx');
+  assert.ok(shop.includes('SHOP_DETAIL_PRODUCTS = SHOP_PRODUCTS.filter('));
+  assert.ok(shop.includes('!RETIRED_SHOP_DETAIL_SLUGS.has( product.slug )'));
+  assert.ok(detail.includes('paths: SHOP_DETAIL_PRODUCTS.map('));
+  const notFound = read('src/pages/404.tsx');
+  for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
+    assert.ok(notFound.includes("'/shop/" + slug + "'"));
+  }
+});

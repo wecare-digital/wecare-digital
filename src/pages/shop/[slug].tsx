@@ -6,7 +6,7 @@ import type { GetStaticPaths, GetStaticProps } from 'next';
 import ShopProductHead from '../../components/ShopProductHead';
 import RotatingHero from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
+import { SHOP_DETAIL_PRODUCTS } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
 import { addItem, setContribution } from '../../lib/cart';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
@@ -20,7 +20,7 @@ import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } fr
 /**
  * /shop/<slug>/ - one page per catalogue item.
  *
- * getStaticPaths enumerates the snapshot, so the set of pages is the set of visible products.
+ * getStaticPaths enumerates the approved public detail subset of the snapshot; renamed product aliases are excluded.
  * `fallback: false` because next.config.js sets `output: 'export'`: there is no server to render an
  * eighth slug on demand, and a request for one gets the export's 404.
  *
@@ -272,13 +272,13 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 };
 
 export const getStaticPaths: GetStaticPaths = async () => ( {
-  paths: SHOP_PRODUCTS.map( product => ( { params: { slug: product.slug } } ) ),
+  paths: SHOP_DETAIL_PRODUCTS.map( product => ( { params: { slug: product.slug } } ) ),
   // output: 'export' - there is no server, so an unknown slug cannot be rendered on demand.
   fallback: false,
 } );
 
 export const getStaticProps: GetStaticProps<ShopProductPageProps> = async ( { params } ) => {
-  const product = shopProductBySlug( String( params?.slug || '' ) );
+  const product = SHOP_DETAIL_PRODUCTS.find( item => item.slug === String( params?.slug || '' ) );
   // notFound rather than a thrown error: getStaticPaths only produces slugs that resolve, so this
   // branch is unreachable in a normal build - but returning notFound means a snapshot edited to
   // remove a product while a stale path list is cached produces a 404 rather than a build crash.

@@ -122,6 +122,9 @@ const RETIRED_FAMILY_PARENTS = new Set( [
   '/partner',
   '/ritual-guru',
   '/aastha',
+  '/shop/ritual-guru-puja-guidance',
+  '/shop/ritual-guru-diy-puja-kit',
+  '/shop/ritual-guru-ritva',
   '/shipments',
 ] );
 

@@ -28,8 +28,11 @@ import urllib.request
 
 SITE = "https://wecare.digital"
 
-NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/", "/niji-setu/", "/shop/niji-setu/", "/ritual-guru/", "/aastha/", "/ritual-guru/ritva/", "/ritual-guru/puja-guidance/", "/ritual-guru/diy-puja-kit/"}
+NO_REDIRECT = {"/grahak-os/", "/vayulok/", "/sehat/", "/dispatch/", "/niji-setu/", "/shop/niji-setu/", "/ritual-guru/", "/aastha/", "/ritual-guru/ritva/", "/ritual-guru/puja-guidance/", "/ritual-guru/diy-puja-kit/", "/shop/ritual-guru-puja-guidance/", "/shop/ritual-guru-diy-puja-kit/", "/shop/ritual-guru-ritva/"}
 RETIRED: dict[str, str] = {
+    "/shop/ritual-guru-puja-guidance/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
+    "/shop/ritual-guru-diy-puja-kit/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
+    "/shop/ritual-guru-ritva/": "Retired legacy Aastha Shop detail; HTTP 404/410 only",
     "/ritual-guru/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
     "/aastha/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
     "/ritual-guru/ritva/": "Retired Aastha family or previous Ritual Guru route; HTTP 404/410 only",
