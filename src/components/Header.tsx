@@ -380,10 +380,12 @@ const navIconViewBox = ( label: string ) => NAV_ICON_VIEW_BOXES[ label ]
 const sectionIconViewBox = ( label: string ) => SECTION_ICON_VIEW_BOXES[ label ] || '1 1 22 22';
 const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn', 'With AI' ] );
 const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
-// Google Material Symbols Outlined arrow_warm_up, FILL 0 / wght 400 / GRAD 0 / opsz 24.
-// Rotate the original upward arrow toward the submenu destination, keeping its dashed tail.
-const SUBNAV_ICON_PATH = 'M440-727 256-544l-56-56 280-280 280 280-56 57-184-184v287h-80v-287Zm0 487v-120h80v120h-80Zm0 160v-80h80v80h-80Z';
-const SUBNAV_ICON_VIEW_BOX = '43.63 -916.37 872.73 872.73';
+// Custom curved submenu arrow: preserve the earlier rounded elbow and
+// the dotted-tail treatment requested from arrow_warm_up. Two actual round
+// dots remain separate from the arrow; the glyph points into the child row.
+const SUBNAV_ICON_PATH = 'M5 12v1a5 5 0 0 0 5 5h11m-4-4 4 4-4 4';
+const SUBNAV_DOT_PATH = 'M5 1.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5ZM5 6.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5Z';
+const SUBNAV_ICON_VIEW_BOX = '1.375 0.875 23 23';
 const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
 const ROW_CHEVRON_VIEW_BOX = '4.8 4.8 14.4 14.4';
 
@@ -755,6 +757,7 @@ const Header: React.FC = () => {
                       { link.nested ? (
                         <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
                           <path d={ SUBNAV_ICON_PATH } />
+                          <path className="nav-sub-dots" d={ SUBNAV_DOT_PATH } />
                         </svg>
                       ) : (
                         <svg
@@ -841,6 +844,7 @@ const Header: React.FC = () => {
                                 { section.nestedLinks ? (
                                   <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
                                     <path d={ SUBNAV_ICON_PATH } />
+                                    <path className="nav-sub-dots" d={ SUBNAV_DOT_PATH } />
                                   </svg>
                                 ) : (
                                   <svg
@@ -891,6 +895,7 @@ const Header: React.FC = () => {
                               >
                                 <svg className="nav-sub-icon" viewBox={ SUBNAV_ICON_VIEW_BOX } aria-hidden="true" focusable="false">
                                   <path d={ SUBNAV_ICON_PATH } />
+                                  <path className="nav-sub-dots" d={ SUBNAV_DOT_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ child.label }</span>
                               </a>
@@ -1236,11 +1241,11 @@ const Header: React.FC = () => {
            The measured crops give each glyph approximately 22px of visible extent
            within its 24px slot, regardless of original SVG padding or units. */
         .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}
-        .nav-section-icon,.nav-row-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-        .nav-section-icon path,.nav-row-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
-        .nav-section-icon-material,.nav-row-icon-material,.nav-sub-icon{fill:currentColor;stroke:none}
-        .nav-sub-icon{transform:rotate(90deg)}
-        :global([dir='rtl']) .nav-sub-icon{transform:rotate(-90deg)}
+        .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .nav-section-icon path,.nav-row-icon path,.nav-sub-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
+        .nav-section-icon-material,.nav-row-icon-material{fill:currentColor;stroke:none}
+        .nav-sub-icon .nav-sub-dots{fill:currentColor;stroke:none}
+        :global([dir='rtl']) .nav-sub-icon{transform:scaleX(-1)}
 
         /* PRODUCTS SCROLL. The catalogue is meant to reach 100+ entries, so Products
            keeps its own capped rail on desktop AND mobile. Desktop shows seven 46px rows;

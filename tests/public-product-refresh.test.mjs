@@ -107,13 +107,17 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
 });
 
 
-test('every submenu child uses the selected dotted Material Symbols arrow, including search results', () => {
+test('every submenu child uses the curved arrow with two round dots, including search results', () => {
   const header = read('src/components/Header.tsx');
   assert.equal((header.match(/<path d=\{ SUBNAV_ICON_PATH \} \/>/g) || []).length, 3);
-  assert.ok(header.includes("const SUBNAV_ICON_PATH = 'M440-727 256-544l-56-56 280-280 280 280-56 57-184-184v287h-80v-287Zm0 487v-120h80v120h-80Zm0 160v-80h80v80h-80Z';"));
-  assert.ok(header.includes("const SUBNAV_ICON_VIEW_BOX = '43.63 -916.37 872.73 872.73'"));
-  assert.ok(header.includes('.nav-sub-icon{transform:rotate(90deg)}'));
-  assert.ok(header.includes(".nav-section-icon-material,.nav-row-icon-material,.nav-sub-icon{fill:currentColor;stroke:none}"));
+  assert.equal((header.match(/<path className="nav-sub-dots" d=\{ SUBNAV_DOT_PATH \} \/>/g) || []).length, 3);
+  assert.ok(header.includes("const SUBNAV_ICON_PATH = 'M5 12v1a5 5 0 0 0 5 5h11m-4-4 4 4-4 4';"));
+  assert.ok(header.includes("const SUBNAV_DOT_PATH = 'M5 1.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5ZM5 6.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 1 1 0-2.5Z';"));
+  assert.ok(header.includes("const SUBNAV_ICON_VIEW_BOX = '1.375 0.875 23 23'"));
+  assert.ok(header.includes('.nav-sub-icon .nav-sub-dots{fill:currentColor;stroke:none}'));
+  assert.ok(header.includes('.nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}'));
+  assert.ok(header.includes(".nav-sub-icon{transform:scaleX(-1)}"));
+  assert.ok(!header.includes('.nav-sub-icon{transform:rotate('));
   assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
 });
 
