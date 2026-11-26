@@ -40,6 +40,8 @@ interface NavLink {
   children?: NavLink[];
   /** True for absolute URLs off this app. Same tab either way. */
   external?: boolean;
+  /** Visible destination disclosure for temporary external links. */
+  note?: string;
 }
 
 interface NavSection {
@@ -200,26 +202,37 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Extras',
         links: [
-          { label: 'Perks', href: 'https://wa.me/message/377GALDW4E26F1', external: true },
-          { label: 'Google Play', href: PLAY_STORE.developerUrl, external: true, searchTerms: [ 'android', 'play store', 'google play store' ] },
-        ],
-      },
-      {
-        heading: 'With AI',
-        links: [
-          { label: 'ChatGPT', href: 'https://chatgpt.com/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'openai' ] },
-          { label: 'Claude', href: 'https://claude.ai/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'anthropic' ] },
-          { label: 'Gemini', href: 'https://gemini.google.com/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'google' ] },
+          {
+            label: 'App',
+            searchTerms: [ 'mobile apps', 'app download' ],
+            children: [
+              { label: 'Android', href: PLAY_STORE.developerUrl, external: true, searchTerms: [ 'android', 'play store', 'google play store' ] },
+              // Temporary destination explicitly requested by the owner. This is
+              // not an App Store listing or a claim that an iOS app is available.
+              { label: 'iOS', href: PLAY_STORE.developerUrl, external: true, note: 'Temporarily opens Google Play', searchTerms: [ 'ios', 'iphone', 'ipad', 'apple', 'app store' ] },
+            ],
+          },
+          {
+            label: 'AI',
+            searchTerms: [ 'with ai', 'artificial intelligence', 'assistant' ],
+            children: [
+              { label: 'ChatGPT', href: 'https://chatgpt.com/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'openai' ] },
+              { label: 'Claude', href: 'https://claude.ai/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'anthropic' ] },
+              { label: 'Gemini', href: 'https://gemini.google.com/', external: true, searchTerms: [ 'ai', 'assistant', 'plugin', 'connect', 'google' ] },
+            ],
+          },
         ],
       },
       {
         heading: 'Contact',
+        nestedLinks: true,
         links: [
           { label: 'Contact us', href: '/contact/', match: '/contact' },
         ],
       },
       {
         heading: 'Legal Stuff',
+        nestedLinks: true,
         links: [
           { label: 'Terms', href: '/terms/', match: '/terms' },
           { label: 'Privacy', href: '/privacy/', match: '/privacy' },
@@ -795,7 +808,7 @@ const Header: React.FC = () => {
                                   <path d={ SUBNAV_ICON_PATH } />
                                   <path className="nav-sub-dots" d={ SUBNAV_DOT_PATH } />
                                 </svg>
-                                <span className="nav-item-label">{ child.label }</span>
+                                <span className="nav-item-label">{ child.label }{ child.note && <span className="nav-result-description">{ child.note }</span> }</span>
                               </a>
                             ) ) }
                             </div> : null }
