@@ -5,8 +5,8 @@ import { publicPolicyDetailsForRoute } from '../../content/publicPolicyDetails';
 
 /**
  * One shared tail disclosure for public pages that do not already render PolicyDetails
- * inside their own commerce block. The resolver deliberately returns null for home,
- * the redirect-only 404 document, and product routes that already own the component.
+ * inside their own commerce block. The resolver returns null for the redirect-only
+ * 404 document and product routes that already own the component.
  */
 const PublicPolicyDetails: React.FC = () => {
   const router = useRouter();

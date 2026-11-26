@@ -18,7 +18,6 @@ const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Relay OS' );
 const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' );
 const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\.00$/, '' ) ?? null;
 const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null;
-const GRAHAK_REFUNDS = 'Cancellation may not be available once work starts. Approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. No cash or original-payment-method refund is provided unless required by law.';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -497,7 +496,7 @@ response = requests.post(
                     shipping={ GRAHAK_POLICY.shipping }
                     returns={ GRAHAK_POLICY.returns }
                     disclaimer={ GRAHAK_POLICY.disclaimer }
-                    refunds={ GRAHAK_REFUNDS }
+                    refunds={ GRAHAK_POLICY.refunds }
                   />
                 </div>
               </div>

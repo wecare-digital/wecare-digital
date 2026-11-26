@@ -989,16 +989,14 @@ export default function OrdersPage (): React.ReactElement {
           { /* Policy belongs directly under the Orders history. Use the same
                unboxed, lime-button disclosure as the other public pages. The
                global policy tail excludes /orders to avoid a duplicate. */ }
-          { signedIn && (
-            <section className="ord-policy-section" aria-label="Order policies">
-              <PolicyDetails
-                shipping={ ORDERS_POLICY_DETAILS.shipping }
-                returns={ ORDERS_POLICY_DETAILS.returns }
-                refunds={ ORDERS_POLICY_DETAILS.refunds }
-                disclaimer={ ORDERS_POLICY_DETAILS.disclaimer }
-              />
-            </section>
-          ) }
+          <section className="ord-policy-section" aria-label="Order policies">
+            <PolicyDetails
+              shipping={ ORDERS_POLICY_DETAILS.shipping }
+              returns={ ORDERS_POLICY_DETAILS.returns }
+              refunds={ ORDERS_POLICY_DETAILS.refunds }
+              disclaimer={ ORDERS_POLICY_DETAILS.disclaimer }
+            />
+          </section>
 
           {/* The global Contribute + Subscribe + Share dock is mounted once by _app after policy. */}
         </div>

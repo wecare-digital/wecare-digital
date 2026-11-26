@@ -49,7 +49,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   const [ variantId, setVariantId ] = useState<string>( '' );
   const [ busy, setBusy ] = useState( false );
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
-  const policy = sku ? productPolicyCopy( product.slug, product.name ) : null;
+  const policy = productPolicyCopy( product.slug, product.name );
   const checkoutLine = productCheckoutLine( product.slug );
   const analyticsVariant = checkoutLine?.variantId
     || ( product.variants?.length === 1 ? product.variants[ 0 ]?.id : undefined );
@@ -167,17 +167,17 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice } <span>base price</span></p>
             <p className="shopd-offer-note">One-time purchase</p>
 
-            { sku && policy && (
-              <div className="shopd-policy-wrap">
+            <div className="shopd-policy-wrap">
+              { sku && (
                 <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="shopd-sku-value">{ sku }</span></p>
-                <PolicyDetails
-                      shipping={ policy.shipping }
-                  returns={ policy.returns }
-                  refunds={ policy.refunds }
-                  disclaimer={ policy.disclaimer }
-                />
-              </div>
-            ) }
+              ) }
+              <PolicyDetails
+                shipping={ policy.shipping }
+                returns={ policy.returns }
+                refunds={ policy.refunds }
+                disclaimer={ policy.disclaimer }
+              />
+            </div>
             {/* The way back to the full catalogue. Restored 2026-10-10 with the /shop index: it
                 was removed on 2026-10-04 because /shop/ 301'd to home, and now points at a real
                 listing again. */}
