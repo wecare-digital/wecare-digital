@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import VoiceSearchMic from '../VoiceSearchMic';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
+import { orderRequestForLabel, type OrderRequestId } from '../../lib/orderRequestSelection';
+import { rankNavigation, NAV_DISCOVERY } from '../../lib/navigationSearch';
+import { NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, navIconViewBox, sectionIconViewBox, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX } from '../../lib/publicNavigationIcons';
 
 /**
  * The Orders history's per-row service navigation. Actions open the
@@ -10,56 +13,26 @@ import type { CustomerMenuAction } from '../../lib/customerMenuActions';
  * Subscribe, Review and Referral use a one-time explicit-click intent; no order ID or
  * phone is sent from the browser. Payment and ownership decisions remain server-owned.
  *
- * Icon paths match the public Header's Request menu (including its indented
- * shipment arrow); the filled Material paths retain their original 960px viewBox.
- * Keep these exact paths in sync with Header.tsx when the homepage icons change.
+ * Reuse the public Header icon paths, optical crops and design tokens.
  */
+const sharedIcon = ( label: string ) => ( {
+  path: NAV_ICON_PATHS[ label ], viewBox: navIconViewBox( label ), filled: FILLED_NAV_ICON_LABELS.has( label ),
+} );
 const ICONS = {
-  submit: {
-    path: 'M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h360v80H200v560h560v-360h80v360q0 33-23.5 56.5T760-120H200Zm120-160v-80h320v80H320Zm0-120v-80h320v80H320Zm0-120v-80h320v80H320Zm360-80v-80h-80v-80h80v-80h80v80h80v80h-80v80h-80Z',
-    viewBox: '0 -960 960 960', filled: true,
-  },
-  amend: {
-    path: 'M5 19h4l10-10-4-4L5 15Zm8-12 4 4',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  docs: {
-    path: 'M7 3h8l4 4v14H7ZM15 3v5h4M12 17V11m-3 3 3-3 3 3',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  vault: {
-    path: 'M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z',
-    viewBox: '0 -960 960 960', filled: true,
-  },
-  shipments: {
-    path: 'M3 7h11v10H3Zm11 4h4l3 3v3h-7ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  subnav: {
-    path: 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  review: {
-    path: 'M4 4h16v12H9l-5 4Zm4 5h8m-8 4h5',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  subscribe: {
-    path: 'M12 21a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21Zm6-5H6l1.5-2V9a4.5 4.5 0 0 1 9 0v5Z',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  referral: {
-    path: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8.7 10.6l6.6-3.3M8.7 13.4l6.6 3.3',
-    viewBox: '0 0 24 24', filled: false,
-  },
-  rupee: {
-    // The Indian rupee glyph, drawn as a vector to match the existing 20px menu icons.
-    path: 'M6 3h12M6 8h12m-12 5 8.5 8M6 13h3M9 13c6.667 0 6.667-10 0-10',
-    viewBox: '0 0 24 24', filled: false,
-  },
+  submit: sharedIcon( 'Submit Request' ),
+  amend: sharedIcon( 'Request Amendment' ),
+  docs: sharedIcon( 'Drop Docs' ),
+  vault: sharedIcon( 'Vault' ),
+  shipments: sharedIcon( 'Shipments' ),
+  subnav: { path: SUBNAV_ICON_PATH, viewBox: SUBNAV_ICON_VIEW_BOX, filled: false },
+  review: sharedIcon( 'Leave Review' ),
+  subscribe: sharedIcon( 'Subscribe' ),
+  referral: { path: SECTION_ICON_PATHS['Refer & Earn'], viewBox: sectionIconViewBox( 'Refer & Earn' ), filled: true },
+  rupee: { path: 'M6 3h12M6 8h12m-12 5 8.5 8M6 13h3M9 13c6.667 0 6.667-10 0-10', viewBox: '2 1 22 22', filled: false },
 } as const;
 
-const REQUEST_SECTION_PATH = 'M6 3h12v18H6ZM9 7h6M9 11h6M9 15h4';
-const CHEVRON_PATH = 'm9 6 6 6-6 6';
+const REQUEST_SECTION_PATH = SECTION_ICON_PATHS.Request;
+const CHEVRON_PATH = ROW_CHEVRON_PATH;
 
 type IconName = keyof typeof ICONS;
 type Action = {
@@ -104,9 +77,10 @@ type Props = {
   orderNumber: string;
   onInvite: ( action: CustomerMenuAction ) => void;
   inviteBusy: boolean;
+  onRequest: ( id: OrderRequestId ) => void;
 };
 
-export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }: Props ): React.ReactElement {
+export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, onRequest }: Props ): React.ReactElement {
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>( null );
   const panelRef = useRef<HTMLDivElement>( null );
@@ -179,12 +153,10 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
   }, [ open, reposition ] );
 
   const term = search.trim().toLocaleLowerCase();
-  const matches = ( item: Action ) => !term || (
-    item.label + ' ' + item.subtitle + ' ' + item.keywords
-  ).toLocaleLowerCase().includes( term );
-  const requests = REQUEST_ACTIONS.filter( matches );
-  const shipments = SHIPMENT_ACTIONS.filter( matches );
-  const other = OTHER_ACTIONS.filter( matches );
+  const matching = ( items: readonly Action[] ) => !term ? items : rankNavigation( items.map( item => ( { ...item, searchText: [ item.label, item.subtitle, item.keywords, ...( NAV_DISCOVERY[ item.label ] || [] ) ].join( ' ' ) } ) ), term );
+  const requests = matching( REQUEST_ACTIONS );
+  const shipments = matching( SHIPMENT_ACTIONS );
+  const other = matching( OTHER_ACTIONS );
   const count = requests.length + shipments.length + other.length;
 
   const onNavigate = ( event: React.MouseEvent<HTMLAnchorElement>, action: Action ) => {
@@ -192,6 +164,14 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
     // invitation on the deliberate click, not by reloading /orders/ and hoping
     // a sessionStorage handoff survives. All other actions retain their links.
     if ( !action.external && action.href === '/orders/' && isPrimaryMenuActivation( event ) ) {
+      const request = orderRequestForLabel( action.label );
+      if ( request ) {
+        event.preventDefault();
+        onRequest( request.id );
+        setOpen( false );
+        setSearch( '' );
+        return;
+      }
       const sendAction = menuActionForLabel( action.label );
       if ( sendAction ) {
         event.preventDefault();
@@ -248,12 +228,12 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
           <div className="orm-search-field">
             <input ref={ searchRef } className="orm-search" type="search" value={ search }
               onChange={ event => setSearch( event.target.value ) }
-              placeholder="Search" aria-label="Search order actions"
+              placeholder="Search actions" maxLength={ 120 } aria-label="Search order actions"
               autoComplete="off" />
             <VoiceSearchMic onTranscript={ setSearch } ariaLabel="Search order actions by voice" />
           </div>
           <div className="orm-section">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <svg viewBox={ sectionIconViewBox( 'Request' ) } aria-hidden="true" focusable="false">
               <path d={ REQUEST_SECTION_PATH } />
             </svg>
             <span>Request</span>
@@ -270,7 +250,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                   <span className="orm-title">{ action.label }</span>
                   <span className="orm-sub">{ action.subtitle }</span>
                 </span>
-                <svg className="orm-next" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="orm-next" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true">
                   <path d={ CHEVRON_PATH } />
                 </svg>
               </a>
@@ -282,7 +262,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                     <path d={ ICONS.shipments.path } />
                   </svg>
                   <span>Shipments</span>
-                  <svg className="orm-next" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg className="orm-next" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true">
                     <path d={ CHEVRON_PATH } />
                   </svg>
                 </div>
@@ -292,12 +272,13 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                     <svg className="orm-icon orm-sub-icon" viewBox={ ICONS.subnav.viewBox }
                       aria-hidden="true" focusable="false">
                       <path d={ ICONS.subnav.path } />
+                      <path className="orm-sub-dots" d={ SUBNAV_DOT_PATH } />
                     </svg>
                     <span className="orm-copy">
                       <span className="orm-title">{ action.label }</span>
                       <span className="orm-sub">{ action.subtitle }</span>
                     </span>
-                    <svg className="orm-next" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg className="orm-next" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true">
                       <path d={ CHEVRON_PATH } />
                     </svg>
                   </a>
@@ -307,7 +288,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
             { other.map( action => (
               <a key={ action.label } href={ action.href } className="orm-item"
                 onClick={ event => onNavigate( event, action ) }>
-                <svg className="orm-icon" viewBox={ ICONS[ action.icon ].viewBox }
+                <svg className={ ICONS[ action.icon ].filled ? 'orm-icon orm-icon-fill' : 'orm-icon' } viewBox={ ICONS[ action.icon ].viewBox }
                   aria-hidden="true" focusable="false">
                   <path d={ ICONS[ action.icon ].path } />
                 </svg>
@@ -315,7 +296,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
                   <span className="orm-title">{ action.label }</span>
                   <span className="orm-sub">{ action.subtitle }</span>
                 </span>
-                <svg className="orm-next" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="orm-next" viewBox={ ROW_CHEVRON_VIEW_BOX } aria-hidden="true">
                   <path d={ CHEVRON_PATH } />
                 </svg>
               </a>
@@ -343,7 +324,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
           color:var(--public-brand-green);cursor:pointer;
           transition:background-color .18s ease;
         }
-        .orm-more svg{width:24px;height:24px;fill:currentColor}
+        .orm-more svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}
         .orm-more:hover,.orm-more[aria-expanded='true']{
           background:var(--lime-hover);border:0;box-shadow:none;outline:none;
         }
@@ -380,18 +361,18 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
         .orm-section{display:flex;align-items:center;gap:7px;padding:5px 18px;
           font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         .orm-section svg{
-          width:16px;height:16px;fill:none;stroke:currentColor;
-          stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+          width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
+          stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
         .orm-entries{padding:0 10px 6px}
         .orm-item,.orm-family-title{
           position:relative;display:flex;align-items:center;gap:10px;
-          min-block-size:50px;padding:7px 12px;border-radius:8px;
+          min-block-size:50px;padding:7px 12px;border-radius:var(--public-nav-radius);
           color:var(--public-brand-green);text-decoration:none;
         }
         .orm-item:hover{background:var(--public-lime-tint)}
         .orm-item:focus-visible{
-          background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);
+          background:var(--public-lime-tint);outline:var(--public-focus-ring) solid var(--public-brand-green);
           outline-offset:0;
         }
         .orm-item::after,.orm-family-title::after{
@@ -399,17 +380,19 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
           height:1px;background:linear-gradient(90deg,transparent,#e5eadc 12%,#e5eadc 88%,transparent);
         }
         .orm-icon{
-          inline-size:20px;block-size:20px;flex:none;fill:none;stroke:currentColor;
-          stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
+          stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
         .orm-icon-fill{fill:currentColor;stroke:none}
-        .orm-sub-icon{inline-size:17px;block-size:17px;opacity:.82}
+        .orm-icon path,.orm-section path,.orm-next path{vector-effect:non-scaling-stroke}
+        .orm-sub-dots{fill:currentColor;stroke:none}
+        :global([dir='rtl']) .orm-sub-icon{transform:scaleX(-1)}
         .orm-copy{min-inline-size:0;display:flex;flex:1;flex-direction:column;gap:1px}
         .orm-title{font-size:17px;line-height:1.25;font-weight:700;overflow-wrap:anywhere}
         .orm-sub{font-size:12px;line-height:1.35;font-weight:400;color:var(--public-muted)}
         .orm-next{
-          inline-size:17px;block-size:17px;flex:none;fill:none;
-          stroke:currentColor;stroke-width:1.9;
+          inline-size:var(--public-nav-icon-size);block-size:var(--public-nav-icon-size);flex:none;fill:none;
+          stroke:currentColor;stroke-width:var(--public-nav-stroke);
           stroke-linecap:round;stroke-linejoin:round;opacity:.65;
         }
         .orm-family-title{font-size:18px;font-weight:700;cursor:default}
@@ -422,7 +405,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy }
         @media(max-width:480px){
           .orm-menu{border-radius:18px}
           .orm-title{font-size:16px}
-          .orm-item,.orm-family-title{min-block-size:52px}
+          .orm-item,.orm-family-title{min-block-size:var(--public-nav-row-mobile)}
         }
       `}</style>
     </>
