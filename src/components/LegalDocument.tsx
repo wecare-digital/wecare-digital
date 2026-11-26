@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
 import { normalizeNavigationText, rankNavigation, contentSearchText } from '../lib/navigationSearch';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
 import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX } from '../lib/publicNavigationIcons';
 
 /**
@@ -228,6 +229,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
               onFocus={ () => { if ( tocRef.current ) tocRef.current.open = true; } }
               onChange={ event => applySectionQuery( event.target.value ) }
               onKeyDown={ event => { if ( event.key === 'Escape' && sectionQuery ) { event.preventDefault(); applySectionQuery( '' ); } } } />
+            <SearchClearButton query={ sectionQuery } onClear={ () => applySectionQuery( '' ) } />
             <VoiceSearchMic onTranscript={ applySectionQuery } />
           </div>
         </div>
@@ -439,6 +441,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         }
         .lgd-toc-search input::-webkit-search-cancel-button,.lgd-toc-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .lgd-toc-search input::-ms-clear{display:none}
+        .lgd-toc-search input:not(:placeholder-shown){padding-inline-end:90px}
         .lgd-toc-search input::placeholder{color:var(--public-muted)}
         .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .lgd-toc-status,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:10px 0}

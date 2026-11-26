@@ -10,6 +10,7 @@ import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
 
 /**
  * The blog index, one page of it.
@@ -170,42 +171,45 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   const [ indexState, setIndexState ] = useState<'loading' | 'ready' | 'failed'>( 'loading' );
   const requested = useRef( false );
 
-  /**
-   * THE LIVE SEARCH QUERY, SEEDED FROM ?q= ON FIRST RENDER.
-   *
-   * A lazy initializer so it runs once, and window-guarded so SSR and the no-JavaScript render
-   * seed an empty string - the full list - rather than touching an undefined `window`. The seed
-   * is what makes the global tag links work: the post page and the /anew/ panel render tags as
-   * /blog/?q=<tag>, so arriving here with that parameter filters the list to the tag immediately.
-   * decodeURIComponent because the tag links encode the value; a bad escape falls back to raw.
-   */
-  const [ query, setQuery ] = useState<string>( () => {
-    if ( typeof window === 'undefined' ) return '';
-    const q = new URLSearchParams( window.location.search ).get( 'q' ) || '';
-    return q.slice( 0, 120 );
-  } );
-
-  /**
-   * FETCH THE FULL LIST ONCE, ON MOUNT. The search box used to defer this to the first
-   * keystroke; "show every post" is the default now, so there is nothing to defer to - the
-   * reader wants the whole list the moment the page loads. Guarded by a ref so React 18's
-   * double-invoke in development (and any re-render before the request settles) cannot fire a
-   * second fetch. On failure requested.current stays true: the prerendered slice is a correct
-   * fallback, so there is no value in hammering an endpoint that just failed.
-   */
+  // Hydrate the static HTML with the same initial value as the server. Read the
+  // query parameter after mount, including tag links and browser back/forward.
+  const [ query, setQuery ] = useState<string>( '' );
+  const [ searchActivated, setSearchActivated ] = useState( false );
+  const [ attempt, setAttempt ] = useState( 0 );
   useEffect( () => {
-    if ( requested.current ) return;
+    const syncQuery = () => setQuery( ( new URLSearchParams( window.location.search ).get( 'q' ) || '' ).slice( 0, 120 ) );
+    syncQuery();
+    window.addEventListener( 'popstate', syncQuery );
+    return () => window.removeEventListener( 'popstate', syncQuery );
+  }, [] );
+  const applySearchQuery = ( value: string ) => {
+    setQuery( value.slice( 0, 120 ) );
+    if ( !value && typeof window !== 'undefined' ) {
+      const url = new URL( window.location.href );
+      if ( url.searchParams.has( 'q' ) ) {
+        url.searchParams.delete( 'q' );
+        window.history.replaceState( window.history.state, '', url );
+      }
+    }
+  };
+
+  // A paginated listing is already rendered. Load the full index only when
+  // search is requested (focus, typing, voice or a ?q= link); don't download
+  // it for a browse-only visit. Retain the page slice while loading and retry
+  // only on an explicit request.
+  const needsIndex = searchActivated || Boolean( query.trim() );
+  useEffect( () => {
+    if ( !needsIndex || requested.current ) return;
     requested.current = true;
+    setIndexState( 'loading' );
     loadBlogCardIndex()
       .then( cards => {
         if ( !cards.length && posts.length ) throw new Error( 'Blog index unavailable' );
         setAllCards( cards );
         setIndexState( 'ready' );
       } )
-      .catch( () => {
-        setIndexState( 'failed' );
-      } );
-  }, [ posts.length ] );
+      .catch( () => setIndexState( 'failed' ) );
+  }, [ needsIndex, attempt, posts.length ] );
 
   /**
    * (The `expanded` flag was retired on 2026-10-13: the blog stays PAGINATED and no longer grows
@@ -273,12 +277,16 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             autoComplete="off"
             placeholder="Search posts"
             value={ query }
-            onChange={ e => setQuery( e.target.value.slice( 0, 120 ) ) }
+            onFocus={ () => setSearchActivated( true ) }
+            onChange={ e => applySearchQuery( e.target.value ) }
+            onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); applySearchQuery( '' ); } } }
           />
-          <VoiceSearchMic onTranscript={ value => setQuery( value.slice( 0, 120 ) ) } />
+          <SearchClearButton query={ query } onClear={ () => applySearchQuery( '' ) } />
+          <VoiceSearchMic onTranscript={ applySearchQuery } />
         </div>
 
-        { searching && indexState !== 'ready' && <p className="blog-search-status" role="status">{ indexState === 'loading' ? 'Searching the current page while all posts load…' : 'Full search index unavailable. Showing matches from this page.' }</p> }
+        { searching && indexState !== 'ready' && <p className="blog-search-status" role="status">{ indexState === 'loading' ? 'Searching the current page while all posts load…' : 'Full search index unavailable. Showing matches from this page.' }{ indexState === 'failed' && <button type="button" onClick={ () => { requested.current = false; setAttempt( n => n + 1 ); } }>Try again</button> }</p> }
+        { searching && indexState === 'ready' && <p className="blog-search-sr" role="status">{ visiblePosts.length } { visiblePosts.length === 1 ? 'result' : 'results' } found</p> }
 
         { totalPosts > 0 ? (
           <>
@@ -532,7 +540,10 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .blog-search input::placeholder{color:rgba(0,0,0,.44)}
+        .blog-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .blog-search input::-webkit-search-cancel-button,.blog-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .blog-search input::-ms-clear{display:none}
+        .blog-search input::placeholder{color:var(--public-muted)}
         .blog-search input:focus-visible{
           border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
         }

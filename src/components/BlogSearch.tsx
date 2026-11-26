@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
 
 interface BlogSearchProps {
   /**
@@ -84,6 +85,15 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
   const announce = live && value && typeof resultCount === 'number';
   const formRef = useRef<HTMLFormElement | null>( null );
   const inputRef = useRef<HTMLInputElement | null>( null );
+  const [ localQuery, setLocalQuery ] = useState( '' );
+  const query = live ? value! : localQuery;
+  const clearSearch = () => {
+    if ( live ) onChange!( '' );
+    else {
+      if ( inputRef.current ) inputRef.current.value = '';
+      setLocalQuery( '' );
+    }
+  };
   const onVoiceTranscript = ( transcript: string ) => {
     if ( live ) {
       onChange!( transcript.slice( 0, 120 ) );
@@ -110,10 +120,12 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
             name="q"
             placeholder={ placeholder }
             autoComplete="off"
+            onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); clearSearch(); } } }
             { ...( live
-              ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value ) }
-              : {} ) }
+              ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value.slice( 0, 120 ) ) }
+              : { onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => setLocalQuery( e.target.value ) } ) }
           />
+          <SearchClearButton query={ query } onClear={ clearSearch } />
           <VoiceSearchMic onTranscript={ onVoiceTranscript } />
         </div>
       </form>
@@ -158,7 +170,10 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .bs-form input::placeholder{color:rgba(0,0,0,.44)}
+        .bs-form input:not(:placeholder-shown){padding-inline-end:90px}
+        .bs-form input::-webkit-search-cancel-button,.bs-form input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .bs-form input::-ms-clear{display:none}
+        .bs-form input::placeholder{color:var(--public-muted,#4b5563)}
         /* The focus treatment is a lime ring OUTSIDE a darkened border, not a removed outline:
            the border alone moving from .22 to solid is too quiet to serve as a focus
            indicator, and WCAG 1.4.11 wants 3:1 for one. #1a3a2a on white is 11.85:1. */

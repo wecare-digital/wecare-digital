@@ -74,6 +74,12 @@ const CONTENT_TOPICS: readonly { triggers: readonly string[]; aliases: string }[
   { triggers: ['career', 'resume', 'cv'], aliases: 'career resume cv रिज्यूमे करियर জীবনবৃত্তান্ত সিভি' },
   { triggers: ['documents', 'document', 'paperwork'], aliases: 'documents paperwork दस्तावेज़ कागजात নথি কাগজপত্র' },
   { triggers: ['contact', 'support', 'help'], aliases: 'contact support help संपर्क सहायता যোগাযোগ সহায়তা' },
+  { triggers: ['decision', 'decisions', 'choice', 'choices'], aliases: 'decision choice deciding choices निर्णय फैसला निर्णय लेना সিদ্ধান্ত পছন্দ' },
+  { triggers: ['commitment', 'commitments', 'promise', 'promises'], aliases: 'commitment commitments promise promises वादा प्रतिबद्धता প্রতিশ্রুতি অঙ্গীকার' },
+  { triggers: ['integrity', 'honesty'], aliases: 'integrity honesty ईमानदारी सत्यनिष्ठा সততা' },
+  { triggers: ['communication', 'conversation', 'conversations'], aliases: 'communication conversation संवाद बातचीत যোগাযোগ কথোপকথন' },
+  { triggers: ['leadership', 'leader', 'leaders'], aliases: 'leadership leader नेतृत्व নেতা নেতৃত্ব প্রদান' },
+  { triggers: ['gastronomy', 'cooking', 'cuisine', 'recipe', 'recipes'], aliases: 'gastronomy cooking cuisine recipe पाक कला व्यंजन खाना पकाना রান্না রেসিপি' },
 ];
 export function contentSearchText ( fields: readonly string[] ): string {
   const text = normalizeNavigationText( fields.join( ' ' ) );
