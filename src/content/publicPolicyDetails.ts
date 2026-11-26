@@ -46,11 +46,17 @@ export const ORDERS_POLICY_DETAILS: PublicPolicyCopy = {
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
-  '/': {
-    shipping: 'Physical products are delivered according to the confirmed order; digital services and appointments follow their agreed scope and schedule.',
-    returns: 'Return and replacement conditions depend on the product or service and the terms disclosed before purchase. Statutory consumer remedies remain available.',
-    refunds: 'Eligible voluntary cancellations and discretionary adjustments may be resolved through WECARE.DIGITAL store credit valid for 30 calendar days. Monetary refunds are provided where required by law.',
-    disclaimer: 'Services are subject to availability and applicable service-specific terms. General information is not personalised professional advice.',
+  '/get-kosh': {
+    shipping: 'Prepaid card services are not yet available. Any future fulfilment arrangements will be disclosed before purchase.',
+    returns: 'If a service is offered, its disclosed return and replacement conditions and applicable consumer remedies will apply.',
+    refunds: 'If a paid service is offered, its disclosed cancellation conditions and applicable refund rights will apply.',
+    disclaimer: 'GetKosh is a pre-launch information page. Card issuance, activation and payment services are not offered here.',
+  },
+  '/udyam-bids': {
+    shipping: 'Tender discovery and tracking services are not yet available. Any future service delivery arrangements will be disclosed before purchase.',
+    returns: 'If a service is offered, its disclosed return or correction conditions and applicable consumer remedies will apply.',
+    refunds: 'If a paid service is offered, its disclosed cancellation conditions and applicable refund rights will apply.',
+    disclaimer: 'UdyamBids is a pre-launch information page. Tender discovery and tracking are not yet available; no tender outcome is promised.',
   },
   '/niji-setu/parichay': {
     shipping: 'Any profile service, when available, will be supplied digitally under the terms disclosed before purchase.',
@@ -184,7 +190,8 @@ const SHOP_PAGE_POLICY: PublicPolicyCopy = {
 };
 
 export function publicPolicyDetailsForRoute( pathname: string ): PublicPolicyCopy | null {
-  if ( pathname === '/404' ) return null;
+  // Home is the sole public content-page exception. A redirect-only 404 is not a content page.
+  if ( pathname === '/' || pathname === '/404' ) return null;
   if ( pathname === '/shop/[slug]' || EMBEDDED_POLICY_ROUTES.has( pathname ) ) return null;
 
   if (

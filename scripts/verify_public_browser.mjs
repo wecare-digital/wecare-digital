@@ -145,6 +145,29 @@ try {
             }
           }
 
+          // Policy is present once on each content page, except Home.
+          const policies = page.locator('details.wc-policy');
+          assert.equal(await policies.count(), route.path === '/' ? 0 : 1,
+            name + ': missing or duplicate Policy details');
+          if (route.path !== '/') {
+            assert.equal((await policies.locator('summary').innerText()).trim(), 'Policy details',
+              name + ': incorrect policy summary');
+          }
+
+          const tagline = page.locator('.ft-tagline');
+          assert.equal(await tagline.count(), 1, name + ': missing or duplicated footer tagline');
+          const footerType = await tagline.evaluate(el => {
+            const style = getComputedStyle(el);
+            const box = el.getBoundingClientRect();
+            return {
+              fontSize: style.fontSize,
+              fits: box.left >= -1 && box.right <= document.documentElement.clientWidth + 1
+                && el.scrollWidth <= el.clientWidth + 1,
+            };
+          });
+          assert.equal(footerType.fontSize, width < 768 ? '18px' : '16px', name + ': footer tagline size');
+          assert.ok(footerType.fits, name + ': footer tagline overflow');
+
           if (route.name === 'terms' || route.name === 'privacy') {
             const headings = await page.locator('.lgd-h2, .lgd-h3').evaluateAll(elements => elements.map(heading => {
               const number = heading.querySelector('.lgd-num');
