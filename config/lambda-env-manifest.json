@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 72,
-  "_variables": 496,
+  "_variables": 497,
   "_aliases": 0,
   "_alias_variables": 0,
   "_fingerprinted": 22,
@@ -333,6 +333,7 @@
     "wecare-messages-read": {
       "ADMIN_MFA_REQUIRED": "true",
       "AWS_ACCOUNT_ID": "775261844268",
+      "INBOX_TIMELINE_INDEXES_ENABLED": "true",
       "MEDIA_BUCKET": "wecare-digital-get",
       "MEDIA_CDN_DOMAIN": "wecare.digital/get",
       "REGION": "us-east-1",
