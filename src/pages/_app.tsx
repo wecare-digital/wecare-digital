@@ -416,9 +416,9 @@ const PUBLIC_PAGE_META: Record<string, {
   '/dastavez/drafting': { name: 'Drafting', type: 'WebPage', description: 'Structured business document preparation from the facts you provide.', serviceType: 'Business document drafting' },
   '/dastavez/registration': { name: 'Registration', type: 'WebPage', description: 'Registration paperwork and filing steps organised end to end.', serviceType: 'Business registration support' },
   '/dastavez/legal-reference': { name: 'Legal Reference', type: 'WebPage', description: 'Laws, judgments, rules and public source material organised around a question.', serviceType: 'Legal reference research' },
-  '/ritual-guru/ritva': { name: 'Ritva', type: 'WebPage', description: 'Personal astrology and Vastu guidance built around your questions, timing and space.', serviceType: 'Personal astrology and Vastu guidance' },
-  '/ritual-guru/puja-guidance': { name: 'Puja Guidance', type: 'WebPage', description: 'Step-by-step practical guidance for a puja you are performing yourself.', serviceType: 'Self-led puja guidance' },
-  '/ritual-guru/diy-puja-kit': { name: 'DIY Puja Kit', type: 'WebPage', description: 'Clearly labelled puja essentials with a preparation checklist.', serviceType: 'DIY puja kit supply' },
+  '/aastha/panchang': { name: 'Panchang', type: 'WebPage', description: 'Astrology, Vastu, Panchang and ritual-calendar guidance for timing, space and traditional observances.', serviceType: 'Traditional astrology, Vastu and ritual-calendar guidance' },
+  '/aastha/vidhi': { name: 'Vidhi', type: 'WebPage', description: 'Step-by-step practical guidance for a puja you are performing yourself.', serviceType: 'Self-led puja guidance' },
+  '/aastha/samagri': { name: 'Samagri', type: 'WebPage', description: 'Clearly labelled puja essentials with a preparation checklist.', serviceType: 'DIY puja kit supply' },
   // Renamed twice: '[retired public path]' -> '[retired public path]' -> '/anew'. The route moved with the
   // brand name each time; neither earlier address was ever published, so there is nothing
   // to redirect from.

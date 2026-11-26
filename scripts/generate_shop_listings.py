@@ -67,6 +67,14 @@ SHELF_ORDER: tuple[str, ...] = (
     "contribute",
 )
 
+# Public rename retains all existing commerce identities. A future catalogue
+# refresh must use the approved public paths/names instead of recreating retired links.
+AASTHA_PUBLIC_ROUTES: dict[str, tuple[str, str]] = {
+    "ritual-guru-puja-guidance": ("/aastha/vidhi/", "Aastha · Vidhi"),
+    "ritual-guru-diy-puja-kit": ("/aastha/samagri/", "Aastha · Samagri"),
+    "ritual-guru-ritva": ("/aastha/panchang/", "Panchang"),
+}
+
 #: Live, purchasable rows kept off the horizontal image rail (owner rule: Contribute).
 OFF_SHELF_SLUGS: frozenset[str] = frozenset({"contribute"})
 
@@ -234,6 +242,13 @@ def listing_for(row: dict[str, Any], projection: ModuleType) -> dict[str, Any]:
     url = str(item.get("url") or "")
     if not url.startswith(ORIGIN + "/"):
         raise ProjectionError(f"{slug}: canonical link {url!r} is not on {ORIGIN}")
+
+    expected_public = AASTHA_PUBLIC_ROUTES.get(slug)
+    if expected_public and (url != ORIGIN + expected_public[0] or item["name"] != expected_public[1]):
+        raise ProjectionError(
+            f"{slug}: catalogue display name/path must be migrated to {expected_public!r} "
+            "before regenerating Shop publication; preserve product and variant IDs"
+        )
 
     listing: dict[str, Any] = {
         "slug": slug,

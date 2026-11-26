@@ -172,21 +172,21 @@
       "description": "Laws, judgments, rules and public source material organised around a question."
     },
     {
-      "path": "/ritual-guru/ritva",
+      "path": "/aastha/panchang",
       "group": "services",
-      "name": "Ritva",
-      "description": "Personal astrology and Vastu guidance built around your questions, timing and space."
+      "name": "Panchang",
+      "description": "Astrology, Vastu, Panchang and ritual-calendar guidance for timing, space and traditional observances."
     },
     {
-      "path": "/ritual-guru/puja-guidance",
+      "path": "/aastha/vidhi",
       "group": "services",
-      "name": "Puja Guidance",
+      "name": "Vidhi",
       "description": "Step-by-step practical guidance for a puja you are performing yourself."
     },
     {
-      "path": "/ritual-guru/diy-puja-kit",
+      "path": "/aastha/samagri",
       "group": "services",
-      "name": "DIY Puja Kit",
+      "name": "Samagri",
       "description": "Clearly labelled puja essentials with a preparation checklist."
     },
     {

@@ -4,16 +4,16 @@ import ProductPage from '../../components/ProductPage';
 import { breadcrumbTrail } from '../../content/breadcrumbTrails';
 import { productChildByPath } from '../../content/productChildren';
 
-const child = productChildByPath( '/ritual-guru/diy-puja-kit/' );
+const child = productChildByPath( '/aastha/vidhi/' );
 
-const DIYPujaKitPage: React.FC = () => (
+const VidhiPage: React.FC = () => (
   <ProductPage
       mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug={ child.product.slug } /> }
-    crumbs={ breadcrumbTrail( '/ritual-guru/diy-puja-kit' ) }
+    crumbs={ breadcrumbTrail( '/aastha/vidhi' ) }
   />
 );
 
-export default DIYPujaKitPage;
+export default VidhiPage;

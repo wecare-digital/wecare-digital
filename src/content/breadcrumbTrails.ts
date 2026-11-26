@@ -30,9 +30,9 @@ export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/dastavez/drafting': [ HOME, SHOP, here( 'Drafting' ) ],
   '/dastavez/registration': [ HOME, SHOP, here( 'Registration' ) ],
   '/dastavez/legal-reference': [ HOME, SHOP, here( 'Legal Reference' ) ],
-  '/ritual-guru/ritva': [ HOME, SHOP, here( 'Ritva' ) ],
-  '/ritual-guru/puja-guidance': [ HOME, SHOP, here( 'Puja Guidance' ) ],
-  '/ritual-guru/diy-puja-kit': [ HOME, SHOP, here( 'DIY Puja Kit' ) ],
+  '/aastha/panchang': [ HOME, SHOP, here( 'Panchang' ) ],
+  '/aastha/vidhi': [ HOME, SHOP, here( 'Vidhi' ) ],
+  '/aastha/samagri': [ HOME, SHOP, here( 'Samagri' ) ],
   '/shipments/track': [ HOME, SHOP, here( 'Track' ) ],
 };
 

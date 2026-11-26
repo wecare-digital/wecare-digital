@@ -5,6 +5,9 @@ import { execFileSync } from 'node:child_process';
 
 const read = path => readFileSync(path, 'utf8');
 const added = [
+  ['/aastha/panchang', 'src/pages/aastha/panchang.tsx'],
+  ['/aastha/vidhi', 'src/pages/aastha/vidhi.tsx'],
+  ['/aastha/samagri', 'src/pages/aastha/samagri.tsx'],
   ['/niji-setu/parichay', 'src/pages/niji-setu/parichay.tsx'],
   ['/niji-setu/khata', 'src/pages/niji-setu/khata.tsx'],
   ['/relay-os', 'src/pages/relay-os/index.tsx'],
@@ -15,6 +18,9 @@ const added = [
   ['/elsewhere/arogya-yatra', 'src/pages/elsewhere/arogya-yatra.tsx'],
 ];
 const retired = [
+  ['/ritual-guru/ritva', 'src/pages/ritual-guru/ritva.tsx'],
+  ['/ritual-guru/puja-guidance', 'src/pages/ritual-guru/puja-guidance.tsx'],
+  ['/ritual-guru/diy-puja-kit', 'src/pages/ritual-guru/diy-puja-kit.tsx'],
   ['/niji-setu', 'src/pages/niji-setu.tsx'],
   ['/dispatch', 'src/pages/dispatch/index.tsx'],
   ['/grahak-os', 'src/pages/grahak-os/index.tsx'],
@@ -114,4 +120,19 @@ test('Relay OS keeps the existing checkout identity and public label', () => {
   assert.ok(page.includes('title="Relay OS - End-user messaging"'));
   assert.ok(checkout.includes("'grahak-os', 'GOS7K4M2', 'Relay OS'"));
   assert.ok(!page.includes('/dispatch/'));
+});
+
+test('Aastha is a non-clickable family, with all three approved destinations and the expanded Panchang scope', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("label: 'Aastha',"));
+  assert.ok(!header.includes("href: '/aastha/'"));
+  assert.ok(header.includes("label: 'Vidhi', href: '/aastha/vidhi/'"));
+  assert.ok(header.includes("label: 'Samagri', href: '/aastha/samagri/'"));
+  assert.ok(header.includes("label: 'Panchang', href: '/aastha/panchang/'"));
+  const products = read('src/content/productChildren.ts');
+  for (const name of ['Astrology', 'Vastu', 'Panchang', 'Ritual calendar']) {
+    assert.ok(products.includes("heading: '" + name + "'"));
+  }
+  assert.ok(products.includes("slug: 'ritual-guru-ritva'"));
+  assert.ok(!existsSync('src/pages/aastha/index.tsx'));
 });

@@ -6,7 +6,7 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
  * The WECARE.DIGITAL product pages, as data.
  *
  * Expo Week and Anew remain direct product pages. Elsewhere, Dastavez, Clear Closure,
- * Ritual Guru, Hunar and Niji Setu are non-clickable families; their destinations live
+ * Aastha, Hunar and Niji Setu are non-clickable families; their destinations live
  * in child routes instead. Copy-pasted page files would let the same layout drift apart,
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.

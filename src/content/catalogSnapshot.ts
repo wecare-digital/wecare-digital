@@ -112,17 +112,17 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
     variants:[{ id:'CPW5M9Q2', label:'Standard', inStock:true }],
   },
   {
-    id:'0e0cc8ea-036c-5b57-aec2-8f98e3c2df82', name:'Ritual Guru · Puja Guidance', slug:'ritual-guru-puja-guidance',
+    id:'0e0cc8ea-036c-5b57-aec2-8f98e3c2df82', name:'Aastha · Vidhi', slug:'ritual-guru-puja-guidance',
     formattedPrice:'₹399.00', price:'399.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/ritual-guru/puja-guidance/',
-    descriptionHtml:'<p>Ritual Guru · Puja Guidance from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/aastha/vidhi/',
+    descriptionHtml:'<p>Aastha · Vidhi from WECARE.DIGITAL.</p>',
     variants:[{ id:'RPG8N4K6', label:'Standard', inStock:true }],
   },
   {
-    id:'45af1dfb-fddb-53b0-950c-da703ade9264', name:'Ritual Guru · DIY Puja Kit', slug:'ritual-guru-diy-puja-kit',
+    id:'45af1dfb-fddb-53b0-950c-da703ade9264', name:'Aastha · Samagri', slug:'ritual-guru-diy-puja-kit',
     formattedPrice:'₹899.00', price:'899.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/ritual-guru/diy-puja-kit/',
-    descriptionHtml:'<p>Ritual Guru · DIY Puja Kit from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/aastha/samagri/',
+    descriptionHtml:'<p>Aastha · Samagri from WECARE.DIGITAL.</p>',
     variants:[{ id:'RDK6P3M9', label:'Standard', inStock:true }],
   },
   {
