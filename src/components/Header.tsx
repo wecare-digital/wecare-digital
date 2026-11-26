@@ -7,6 +7,7 @@ import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stash
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
 import { rankNavigation, NAV_DISCOVERY } from '../lib/navigationSearch';
+import { orderRequestForLabel, stashOrderRequest } from '../lib/orderRequestSelection';
 import {
   NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS,
   navIconViewBox, sectionIconViewBox, FALLBACK_NAV_ICON_PATH,
@@ -517,6 +518,8 @@ const Header: React.FC = () => {
   // Internal destinations stay inside the site/WebView. In a Capacitor shell an external
   // destination is handed to the native browser instead of being trapped inside the WebView.
   const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
+    const request = orderRequestForLabel( link.label );
+    if ( request && isPrimaryMenuActivation( event ) ) stashOrderRequest( request.id );
     const sendAction = menuActionForLabel( link.label );
     if ( sendAction && isPrimaryMenuActivation( event ) ) {
       // For an existing customer session, issue this explicit invitation HERE:

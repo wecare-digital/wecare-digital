@@ -22,6 +22,8 @@ import PolicyDetails from '../public/PolicyDetails';
 import { ORDERS_POLICY_DETAILS } from '../../content/publicPolicyDetails';
 import { publicActionText } from '../../lib/publicActionNotices';
 import { usePublicToast } from '../public/PublicToastProvider';
+import { ORDER_REQUESTS, orderRequestById, takeOrderRequest, type OrderRequestId } from '../../lib/orderRequestSelection';
+import { whatsappServiceLink } from '../../config/whatsappServiceEntries';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -341,6 +343,10 @@ async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
 export default function OrdersPage (): React.ReactElement {
   const [ view, setView ] = useState<View>( 'loading' );
   const [ token, setToken ] = useState( '' );
+  const [ requestSelection, setRequestSelection ] = useState<OrderRequestId | null>( null );
+  const requestPanel = useRef<HTMLElement>( null );
+  const selectedRequest = orderRequestById( requestSelection );
+  const requestLink = selectedRequest ? whatsappServiceLink( selectedRequest.id ) : undefined;
   const [ orders, setOrders ] = useState<OrderRow[]>( [] );
   const [ cursor, setCursor ] = useState( '' );
   const [ rechecked, setRechecked ] = useState( false );
@@ -671,6 +677,17 @@ export default function OrdersPage (): React.ReactElement {
   };
 
   const signedIn = view === 'ready' || view === 'empty';
+  useEffect( () => {
+    if ( !signedIn ) return;
+    const selection = takeOrderRequest();
+    if ( selection ) setRequestSelection( selection );
+  }, [ signedIn ] );
+  useEffect( () => {
+    if ( signedIn && requestSelection && requestPanel.current ) {
+      requestPanel.current.focus( { preventScroll: true } );
+      requestPanel.current.scrollIntoView( { block: 'start' } );
+    }
+  }, [ signedIn, requestSelection ] );
 
   return (
     <>
@@ -737,6 +754,18 @@ export default function OrdersPage (): React.ReactElement {
               { /* RIGHT: the order history. The list and the empty state are alternatives and
                    never render together. */ }
               <div className="ord-main">
+                <section ref={ requestPanel } tabIndex={ -1 } className="ord-request-panel" aria-labelledby="ord-request-title">
+                  <h2 id="ord-request-title" className="ord-h2">{ selectedRequest?.label || 'Request services' }</h2>
+                  <p>{ selectedRequest?.description || 'Choose the action you need. Service eligibility, any price and the next steps are confirmed through the existing customer journey.' }</p>
+                  { selectedRequest && requestLink && <>
+                    <p>Continue in WhatsApp using the registered customer account. Nothing is submitted, purchased or sent automatically by opening this page.</p>
+                    <PillButton as="a" href={ requestLink } action="Continue on WhatsApp" />
+                  </> }
+                  <div className="ord-request-choices">
+                    { ORDER_REQUESTS.map( item => <button type="button" key={ item.id } aria-pressed={ requestSelection === item.id } onClick={ () => setRequestSelection( item.id ) }>{ item.label }</button> ) }
+                    { selectedRequest && <button type="button" onClick={ () => setRequestSelection( null ) }>All request services</button> }
+                  </div>
+                </section>
           { orders.length > 0 && (
             <section className="ord-list" aria-labelledby="ord-history">
               <div className="ord-list-head">
@@ -889,7 +918,7 @@ export default function OrdersPage (): React.ReactElement {
                                     </button>
                                   </>
                                 ) }
-                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } />
+                              <OrderActionsMenu orderNumber={ order.orderNumber } onInvite={ dispatchInvite } inviteBusy={ inviteBusy } onRequest={ setRequestSelection } />
                               </span>
                             </td>
                           </tr>
@@ -993,6 +1022,8 @@ export default function OrdersPage (): React.ReactElement {
           /* One customer history column. No legacy account/receipt panel layout. */
           .ord-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
           .ord-main{display:flex;flex-direction:column;gap:24px;min-inline-size:0}
+          .ord-request-panel{scroll-margin-top:128px;padding:16px;border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);color:var(--public-body)}
+          .ord-request-panel p{margin:0 0 12px;font-size:var(--public-supporting-size);line-height:1.45}.ord-request-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.ord-request-choices button{min-height:var(--tap-min);border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);background:var(--public-bg);padding:8px 12px;color:var(--public-brand-green);font:inherit;font-size:14px;cursor:pointer}.ord-request-choices button[aria-pressed='true']{background:var(--public-brand-lime);font-weight:600}.ord-request-panel:focus-visible,.ord-request-choices button:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:2px}
           /* A separate card below the Orders history, inside the same page measure. */
           .ord-policy-section{inline-size:100%;min-inline-size:0}
           .ord-pager{width:100%;margin-top:4px}

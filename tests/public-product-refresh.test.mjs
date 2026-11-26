@@ -96,7 +96,7 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
   assert.ok(legal.includes('section.paragraphs.map'));
   assert.ok(legal.includes("const CONTENTS_ICON = 'M120-240v-80h520v80H120Z"));
   assert.ok(legal.includes('viewBox="60 -900 840 840"'));
-  assert.ok(legal.includes('width:24px;height:24px;flex:0 0 24px;fill:currentColor'));
+  assert.ok(legal.includes('width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor'));
   assert.ok(legal.includes("return () => wide.removeEventListener( 'change', syncLayout );\n  }, [] );"));
   assert.ok(legal.includes("aria-current={ activeId === child.id ? 'location' : undefined }"));
   assert.ok(legal.includes("onClick={ event => selectSection( event, child.id ) }"));

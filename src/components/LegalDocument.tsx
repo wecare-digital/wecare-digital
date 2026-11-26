@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
+import { normalizeNavigationText } from '../lib/navigationSearch';
 
 /**
  * Renders a long legal document on the site's own type system.
@@ -53,6 +54,11 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
   const hasSummaries = sections.some( s => s.inShort );
   const tocRef = useRef<HTMLDetailsElement>( null );
   const [ activeId, setActiveId ] = useState( '' );
+  const [ sectionQuery, setSectionQuery ] = useState( '' );
+  const [ showContentsShortcut, setShowContentsShortcut ] = useState( false );
+  const searchTerm = normalizeNavigationText( sectionQuery );
+  const matches = searchTerm ? sections.filter( section => normalizeNavigationText( [ section.number, section.heading, ...section.paragraphs ].join( ' ' ) ).includes( searchTerm ) ) : [];
+  const lastScrollGroup = useRef( '' );
 
   // Establish the default only on mount or at a breakpoint crossing; parent
   // rerenders and fragment changes must not undo the reader's disclosure choice.
@@ -83,6 +89,43 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
     window.addEventListener( 'hashchange', revealDeepLink );
     return () => window.removeEventListener( 'hashchange', revealDeepLink );
   }, [ sections ] );
+
+  // Track the visible reading line; never change the URL or scroll the article.
+  useEffect( () => {
+    let frame = 0;
+    lastScrollGroup.current = '';
+    const update = () => {
+      frame = 0;
+      const readingLine = 150;
+      let current: LegalSection | undefined;
+      for ( const section of sections ) {
+        const element = document.getElementById( section.id );
+        if ( element && element.getBoundingClientRect().top <= readingLine ) current = section;
+        else if ( element ) break;
+      }
+      const last = sections[ sections.length - 1 ];
+      const articleEnd = last ? document.getElementById( last.id )?.getBoundingClientRect().bottom : undefined;
+      setShowContentsShortcut( !!tocRef.current && tocRef.current.getBoundingClientRect().bottom < 128 && ( articleEnd ?? 0 ) > readingLine );
+      if ( !current ) { setActiveId( '' ); return; }
+      setActiveId( current.id );
+      const groupNumber = current.number.split( '.' )[0];
+      if ( groupNumber !== lastScrollGroup.current ) {
+        lastScrollGroup.current = groupNumber;
+        const parent = sections.find( section => section.number === groupNumber );
+        const group = parent && document.getElementById( `lgd-toc-group-${parent.id}` );
+        if ( group instanceof HTMLDetailsElement ) group.open = true;
+      }
+    };
+    const schedule = () => { if ( !frame ) frame = window.requestAnimationFrame( update ); };
+    window.addEventListener( 'scroll', schedule, { passive: true } );
+    window.addEventListener( 'resize', schedule );
+    schedule();
+    return () => {
+      window.cancelAnimationFrame( frame );
+      window.removeEventListener( 'scroll', schedule );
+      window.removeEventListener( 'resize', schedule );
+    };
+  }, [ sections, searchTerm ] );
 
   const selectSection = ( event: React.MouseEvent<HTMLAnchorElement>, id: string ) => {
     // Keep native fragment history and modifier-click semantics.
@@ -162,7 +205,14 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
             <span>Contents</span>
             <svg className="lgd-contents-chevron" viewBox="180 -780 600 600" aria-hidden="true" focusable="false"><path d={ CONTENTS_CHEVRON } /></svg>
           </summary>
-          <ol className="lgd-toc-list">
+          <div className="lgd-toc-search">
+            <input type="search" value={ sectionQuery } maxLength={ 120 } placeholder="Find a clause" aria-label="Find a legal clause" onChange={ event => setSectionQuery( event.target.value ) } />
+            { searchTerm && <p role="status">{ matches.length } { matches.length === 1 ? 'clause' : 'clauses' } found</p> }
+          </div>
+          { searchTerm ? <ol className="lgd-toc-list" aria-label="Matching clauses">
+            { matches.map( section => <li key={ section.id }><a className="lgd-toc-link" href={ `#${section.id}` } aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }><span className="lgd-toc-num">{ section.number }</span><span className="lgd-toc-label">{ section.heading }</span></a></li> ) }
+            { !matches.length && <li className="lgd-toc-empty">No matching clauses. Try a different word or clause number.</li> }
+          </ol> : <ol className="lgd-toc-list">
             { topLevel.map( section => {
               const children = sections.filter( child => child.number.startsWith( `${section.number}.` ) );
               return (
@@ -195,9 +245,20 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                 </li>
               );
             } ) }
-          </ol>
+          </ol> }
         </details>
       </nav>
+
+      { showContentsShortcut && <button type="button" className="lgd-return-to-contents" onClick={ () => {
+        if ( tocRef.current ) {
+          tocRef.current.open = true;
+          tocRef.current.querySelector<HTMLElement>( 'summary' )?.focus( { preventScroll: true } );
+          tocRef.current.scrollIntoView( { block: 'start', behavior: 'auto' } );
+        }
+      } }>
+        <svg viewBox="60 -900 840 840" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
+        <span>Contents</span>
+      </button> }
 
       { sections.map( section => {
         const sub = section.number.includes( '.' );
@@ -314,7 +375,12 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         /* Responsive contents: sticky desktop rail, compact mobile disclosure,
            native summary controls and nested anchors, all in the site's own palette. */
         .lgd-toc{margin:0 0 48px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:14px;min-width:0}
-        .lgd-contents{min-width:0}
+        .lgd-contents{min-width:0;scroll-margin-top:128px}
+        .lgd-toc-search{margin:8px 0}.lgd-toc-search input{width:100%;box-sizing:border-box;min-height:var(--tap-min);padding:8px;border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);font:inherit;font-size:16px;background:var(--public-bg);color:var(--public-body)}
+        .lgd-toc-search input:focus-visible,.lgd-return-to-contents:focus-visible{outline:var(--public-focus-ring) solid var(--public-brand-green);outline-offset:2px}
+        .lgd-toc-search p,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:8px 0}
+        .lgd-return-to-contents{display:none}
+        @media(max-width:1099px){.lgd-return-to-contents{display:flex;align-items:center;gap:6px;position:fixed;inset-inline-start:max(12px,var(--safe-left));bottom:calc(16px + var(--safe-bottom));z-index:20;min-height:var(--tap-min);padding:8px 12px;border:1px solid var(--public-hairline);border-radius:var(--public-nav-radius);box-shadow:var(--public-lift-shadow);background:var(--public-bg);color:var(--public-brand-green);font:inherit;font-size:14px;font-weight:600;cursor:pointer}.lgd-return-to-contents svg{width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);fill:currentColor}}
         .lgd-toc-summary,.lgd-toc-group-summary{
           display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;
           cursor:pointer;list-style:none;color:var(--public-brand-green);border-radius:7px;
@@ -325,7 +391,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-toc-summary{font-size:17px;min-height:48px}
         .lgd-toc-summary>span,.lgd-toc-label{flex:1;min-width:0;overflow-wrap:anywhere}
         .lgd-contents-icon,.lgd-contents-chevron,.lgd-group-chevron{
-          display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor;
+          display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size);fill:currentColor;
         }
         .lgd-contents-chevron,.lgd-group-chevron{transition:transform .18s ease}
         .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron{transform:rotate(180deg)}
