@@ -208,9 +208,9 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           that line the summaries quietly become representations about the contract. */}
       { hasSummaries && (
         <p className="lgd-disclaimer">
-          The &ldquo;In short&rdquo; lines are plain-language summaries to help you find
-          the part you need. They are not part of the agreement and do not change it. Where
-          a summary and the numbered text below it differ, the numbered text is what applies.
+          The &ldquo;In short&rdquo; lines summarise the numbered provisions for convenience.
+          If a summary differs from the numbered text, the numbered text applies,
+          subject to applicable law.
         </p>
       ) }
 

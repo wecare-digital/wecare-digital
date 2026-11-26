@@ -12,7 +12,7 @@ export const PRIVACY_INTRO: string[] = [
 export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '1', heading: 'What this policy covers', id: 's1',
-    inShort: 'Everything we offer under the WECARE.DIGITAL name, and nothing that independent sellers do with your data for their own purposes.',
+    inShort: 'This policy covers our handling of personal data. Independent providers have their own privacy terms where they determine how to use your data.',
     paragraphs: [
       'This policy covers our websites and apps, your account, orders and deliveries, appointments and bookings, professional and expert services, documentation and processing work, travel and experience services, digital products, subscriptions and memberships, partner and referral programmes, gift cards and promotions, customer support and grievances, and enterprise or institutional services.',
       'Some things on our platform are provided by independent sellers, service providers or payment companies. Where they decide for themselves how to use your data, they are responsible for it and their own privacy terms apply, not ours.',
@@ -117,7 +117,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '7', heading: 'Children', id: 's7',
-    inShort: 'Our services are built for adults. Where a child uses one and the law requires a guardian\'s consent, we obtain it. We do not target advertising at children.',
+    inShort: 'We apply parental authorisation requirements and legal safeguards for children, including restrictions on tracking, profiling and advertising.',
     paragraphs: [
       'Services that involve buying or entering into a contract are intended for people legally able to do so.',
       'Where a service is available to a child and the law requires parental or guardian authorisation, we take steps to obtain and verify it.',
@@ -315,7 +315,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '23.1', heading: 'Governing law and where disputes are heard', id: 's23-1',
     paragraphs: [
       'This policy is governed by the laws of India.',
-      'This policy describes how we handle personal data. It does not create warranties or obligations beyond the applicable law and expressly agreed terms. Section 32 of our Terms applies only to the extent permitted by law and does not restrict non-waivable privacy rights or remedies.',
+      'This policy describes our data-handling practices and commitments. It does not create a separate warranty or indemnity beyond applicable law and expressly agreed terms. Section 32 of our Terms applies only to the extent permitted by law and does not restrict non-waivable privacy rights or remedies.',
       'Nothing in this policy removes any right to approach the Data Protection Board of India, another data-protection authority, a regulator, a Consumer Commission, a court or any other forum available to you under the law. Where the law requires our grievance process to be exhausted before a particular escalation, that procedural requirement applies.',
       'For a dispute about this policy that is not within the jurisdiction of a mandatory statutory, consumer or data-protection forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
       'See section 39 of our Terms of Service for the general dispute provisions. Mandatory statutory forums and any required grievance procedure take precedence.',

@@ -392,7 +392,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     
     number: '23.2', heading: 'Rewards', id: 's23-2',
     paragraphs: [
-      'We do not currently operate a rewards or loyalty programme. There are no reward points, balances, tiers or history to earn, hold or redeem, and anything shown as "coming soon" is a statement of intent, not a programme you are enrolled in or entitled to.',
+      'We do not currently offer a rewards or loyalty programme. Announcements about future rewards do not create enrolment or a reward entitlement.',
       'If we launch a rewards programme in future, it will have its own published terms covering eligibility, how any benefit is earned and redeemed, any validity or expiry, misuse and fraud, and how we may change or end it. Those terms will govern that programme, and nothing here creates a reward entitlement before then.',
     ],
   },
@@ -486,7 +486,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'We publish articles, guides and explainers on WECARE.DIGITAL. All of it is general information about a subject, written for a general reader. None of it is advice about your situation.',
       'Nothing we publish is legal, medical, financial, tax, immigration, regulatory, investment or other professional advice, and reading it does not create a professional or advisory relationship between us. Where a Service involves a qualified professional, that professional is the source of advice for you - see section 17.',
       'Published information reflects the position at publication and may become outdated. Verify current rules, prices and eligibility with the relevant official source.',
-      'Please do not act on anything we publish without checking it against the current official source, or asking us in writing about your own case. If an article disagrees with a Service-Specific Term, an official rule or something we have told you directly, the article is the one that is wrong.',
+      'Before relying on published information, check the current official source or ask us in writing about your circumstances. Applicable law and the confirmed Service-Specific Terms govern your transaction. If published information differs from a specific written confirmation, contact us for clarification.',
       'Some published material may be AI-assisted. Section 46 applies.',
       'Articles may mention or link to other websites, organisations and tools. Section 27 applies: a mention is not an endorsement, and we do not control what is on the other side of a link.',
       'Nothing in this section excludes a statutory warranty, obligation, consumer right or remedy that cannot lawfully be excluded.',
@@ -553,7 +553,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '37', heading: 'Customer care and complaints', id: 's37',
-    inShort: 'Email one@wecare.digital or call +91 9330994400. Formal complaints get a reference number. You can always go to a consumer commission or regulator instead.',
+    inShort: 'Email one@wecare.digital or call +91 9330994400. We provide a complaint reference where applicable. Your statutory complaint and escalation rights remain available.',
     paragraphs: [
       'Contact us about products, orders, bookings, payments, refunds, Sellers, Service Providers, your account, the Platform, privacy, or any other complaint.',
       'WECARE.DIGITAL Customer Grievance Desk, WECARE.DIGITAL BHARATWORKS. Email one@wecare.digital or call +91 9330994400. Our address is The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
