@@ -29,7 +29,7 @@ const retired = [
 ];
 
 test('new product pages and public registries agree; retired pages are absent', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   const sitemap = read('scripts/generate-sitemap.js');
   // The retired-family denylist may name an old URL; only PUBLIC_EXACT advertises it.
   const publicExact = sitemap.split('const PUBLIC_EXACT = new Set( [')[1].split('] );')[0];
@@ -108,7 +108,7 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
 
 
 test('every submenu child uses the curved arrow with two round dots, including search results', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.equal((header.match(/<path d=\{ SUBNAV_ICON_PATH \} \/>/g) || []).length, 3);
   assert.equal((header.match(/<path className="nav-sub-dots" d=\{ SUBNAV_DOT_PATH \} \/>/g) || []).length, 3);
   assert.ok(header.includes("const SUBNAV_ICON_PATH = 'M5 12v1a5 5 0 0 0 5 5h11m-4-4 4 4-4 4';"));
@@ -123,7 +123,7 @@ test('every submenu child uses the curved arrow with two round dots, including s
 
 
 test('Atmos and Relay OS retain their official outlined Material Symbols in optically centered viewBoxes', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("Atmos: 'M80-160v-80h230"));
   assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
   assert.ok(header.includes("Atmos: '43.63 -916.37 872.73 872.73'"));
@@ -133,7 +133,7 @@ test('Atmos and Relay OS retain their official outlined Material Symbols in opti
 });
 
 test('Niji Setu is a non-clickable family and both destinations use shared submenu icons', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("label: 'Parichay', href: '/niji-setu/parichay/'"));
   assert.ok(header.includes("label: 'Khata', href: '/niji-setu/khata/'"));
   assert.ok(!header.includes("href: '/niji-setu/'"));
@@ -143,8 +143,8 @@ test('Niji Setu is a non-clickable family and both destinations use shared subme
 });
 
 test('menu icons share a 24px viewport and stay visible at narrow widths', () => {
-  const header = read('src/components/Header.tsx');
-  assert.ok(header.includes('.nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}'));
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
+  assert.ok(header.includes('.nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size)}'));
   assert.ok(header.includes('vector-effect:non-scaling-stroke'));
   assert.ok(header.includes('viewBox={ SUBNAV_ICON_VIEW_BOX }'));
   assert.ok(header.includes('viewBox={ sectionIconViewBox( section.heading ) }'));
@@ -165,7 +165,7 @@ test('Relay OS keeps the existing checkout identity and public label', () => {
 });
 
 test('Aastha is a non-clickable family, with all three approved destinations and the expanded Panchang scope', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("label: 'Aastha',"));
   assert.ok(!header.includes("href: '/aastha/'"));
   assert.ok(header.includes("label: 'Vidhi', href: '/aastha/vidhi/'"));
@@ -180,11 +180,11 @@ test('Aastha is a non-clickable family, with all three approved destinations and
 });
 
 test('Aastha uses the official outlined Hindu temple artwork with the shared 24px menu icon footprint', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("Aastha: 'M80-80v-440h80v80h80"));
   assert.ok(header.includes("'Atmos',\n  'Aastha',\n  'Relay OS',"));
   assert.ok(header.includes("Aastha: '21.81 -958.18 916.37 916.37'"));
-  assert.ok(header.includes('width:24px;height:24px;flex:0 0 24px'));
+  assert.ok(header.includes('width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:0 0 var(--public-nav-icon-size)'));
 });
 
 test('Panchang keeps the approved native product and variant in the cart fallback without restoring legacy Shop URLs', () => {
@@ -206,14 +206,14 @@ test('Panchang keeps the approved native product and variant in the cart fallbac
 });
 
 test('Elsewhere uses the selected official outlined pin_road symbol, with a measured centered crop', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   assert.ok(header.includes("Elsewhere: 'M320-120v-160h80v160h-80Zm0-280v-160h80v160h-80Zm0-280v-160h80v160h-80ZM80-120l100-720h80L160-120H80Zm598.5-3q-5.5-3-8.5-9l-4-9q-23-48-64-82.5T532-302q-17-26-25-55t-8-59q0-78 57-130.5T692-599q78 0 133 56t55 135q0 29-8 56t-24 50q-29 44-70.5 78.5T714-141l-4 9q-3 6-8.5 9t-11.5 3q-6 0-11.5-3Zm68-230.5Q770-377 770-410t-23.5-56.5Q723-490 690-490t-56.5 23.5Q610-443 610-410t23.5 56.5Q657-330 690-330t56.5-23.5ZM494-599l-34-241h80l26 187q-20 11-38 24t-34 30Z'"));
   assert.ok(header.includes("'Relay OS',\n  'Elsewhere',\n  'Hunar',"));
   assert.ok(header.includes("Elsewhere: '43.63 -916.37 872.73 872.73'"));
 });
 
 test('every named menu and section icon has an explicit square optical crop', () => {
-  const header = read('src/components/Header.tsx');
+  const header = read('src/components/Header.tsx') + '\n' + read('src/lib/publicNavigationIcons.ts');
   function map(name) {
     const body = header.match(new RegExp('const ' + name + ': Record<string, string> = \\{([\\s\\S]*?)\\n\\};'))?.[1];
     assert.ok(body, name);

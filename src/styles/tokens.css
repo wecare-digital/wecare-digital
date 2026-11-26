@@ -171,6 +171,10 @@
   --public-section-gap: 96px;
   --public-page-gutter: 24px;
 
+  /* Shared public navigation controls. */
+  --public-nav-icon-size: 24px;
+  --public-nav-radius: 8px;
+  --public-focus-ring: 3px;
   --public-cta-height: 52px;
   --public-cta-radius: 50px;
   --public-cta-border: 2px;
