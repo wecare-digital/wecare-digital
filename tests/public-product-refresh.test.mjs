@@ -136,3 +136,11 @@ test('Aastha is a non-clickable family, with all three approved destinations and
   assert.ok(products.includes("slug: 'ritual-guru-ritva'"));
   assert.ok(!existsSync('src/pages/aastha/index.tsx'));
 });
+
+test('Aastha uses the official outlined Hindu temple artwork with the shared 24px menu icon footprint', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("Aastha: 'M80-80v-440h80v80h80"));
+  assert.ok(header.includes("'Atmos',\n  'Aastha',\n  'Relay OS',"));
+  assert.ok(header.includes("Aastha: '20 -960 920 920'"));
+  assert.ok(header.includes('width:24px;height:24px;flex:0 0 24px'));
+});
