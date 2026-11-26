@@ -5,7 +5,7 @@ export const TERMS_UPDATED = '2026-11-26';
 export const TERMS_INTRO: string[] = [
   'These Terms of Service govern your use of the websites, apps, products and services offered under the WECARE.DIGITAL name (the "Services").',
   'WECARE.DIGITAL is a brand of WECARE.DIGITAL BHARATWORKS. In these Terms, "we", "us" and "our" mean that business, and "you" means anyone using the Services.',
-  'By using the Services you agree to these Terms. If you do not agree, please do not use them.',
+  'These Terms apply to your use of the Services. Where a transaction or the law requires affirmative acceptance, we obtain that acceptance before the transaction proceeds. If you do not agree, do not use the Services.',
   'Read these Terms together with our Privacy Policy at /privacy/. Additional Service-Specific Terms apply where disclosed.',
   'These Terms are subject to applicable law.',
 ];
@@ -27,7 +27,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '2', heading: 'Scope and application', id: 's2',
     paragraphs: [
       'These Terms apply to all Services we currently offer and, unless we say otherwise, to Services we introduce later.',
-      'We may add, change, expand, reorganise, replace or withdraw Services from time to time.',
+      'Services may change or be discontinued, subject to our existing commitments and applicable law.',
       'Some Services carry additional Service-Specific Terms - for example professional or regulated services, Partner Up and other partner programmes, referral and affiliate programmes, gift cards, subscriptions, travel and experiences, digital products, events, enterprise services, customised products, and documentation or processing work.',
       'Where Service-Specific Terms apply, they form part of your agreement for that service.',
       'Service-Specific Terms take precedence for the relevant service to the extent of any inconsistency, subject to applicable law.',
@@ -57,7 +57,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Depending on the transaction, we may sell or supply directly, act as a marketplace or reseller, or help you arrange bookings, payments, communications, documentation or fulfilment.',
       'Where we are identified as the direct seller or provider, the product or service is supplied by us or on our behalf.',
       'Where an independent Third-Party Provider is identified as the Seller or Service Provider, the underlying goods or services may be supplied by that provider rather than by us.',
-      'The listing, checkout, booking flow, confirmation or Service-Specific Terms may identify who is supplying what you are buying and what our role is.',
+      'The applicable listing or order information identifies the supplier and our role before purchase, as required by law.',
       'Our responsibilities are determined by our role in the transaction and applicable law.',
     ],
   },
@@ -75,7 +75,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '7', heading: 'Pre-purchase information', id: 's7',
     paragraphs: [
-      'Where we act as a marketplace or facilitator, we display or make available the information you need to make an informed decision, as appropriate to the transaction and as the law requires.',
+      'Before purchase, we make available the information required by law for an informed decision, whether we supply directly or facilitate supply by another provider.',
       'Depending on the transaction that can include who the Seller or Service Provider is and how to contact them; the material characteristics of the product or service; the price and any compulsory charges; accepted payment methods; delivery and fulfilment information; the cancellation, return, replacement and refund conditions; warranty or guarantee information; and how to raise a grievance.',
       'Where the law requires it, we will also give you a Seller or Service Provider\'s details after a transaction so that you can pursue a grievance or dispute effectively.',
       'Where imported goods or services require importer or country-of-origin disclosures, we provide that information as the law requires.',
@@ -116,7 +116,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Depending on the transaction, the total may include the product price, a service fee, applicable taxes, delivery charges, booking charges, platform or facilitation charges, customisation charges, processing charges, or another charge we disclose.',
       'We disclose the compulsory charges before you finally confirm the transaction.',
       'We may change prices and fees for future transactions.',
-      'A price change does not normally change the price of a transaction we have already accepted. The exceptions are where the law requires it, where you expressly agree, or where it is needed to correct an obvious material error before the work is done.',
+      'We do not increase an accepted price without your express agreement, except where required by law. If a material pricing error prevents fulfilment on the agreed terms, we contact you and provide any cancellation or refund remedy required by law.',
     ],
   },
   {
@@ -176,7 +176,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.4', heading: 'Non-refundable charges', id: 's14-4',
     paragraphs: [
-      'Some amounts may be non-refundable, where the law permits and where we disclosed that condition before or with the transaction.',
+      'Amounts may be non-refundable only where permitted by law and disclosed before you confirmed the transaction. Deductions must be reasonable, lawful and consistent with the applicable terms.',
       'Depending on the transaction those can include professional time already worked; a consultation already given or started; documentation, research, drafting or processing already done; customisation already begun; government, statutory or filing fees already paid; non-recoverable third-party charges already incurred; confirmed booking or reservation charges we cannot recover from the provider; payment-processing charges actually incurred, where they are lawfully non-refundable; delivery or logistics charges already incurred; priority-processing charges once the priority work has started; digital products or services already activated, downloaded or consumed; event, travel or experience costs already committed to a provider; and any other charge we identified as non-refundable before the transaction.',
     ],
   },
@@ -203,7 +203,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.8', heading: 'Faulty, deficient, damaged or misdescribed goods and services', id: 's14-8',
     paragraphs: [
-      'Refunds, replacements, returns and other applicable remedies are available in accordance with law for defective, damaged or spurious goods, deficient services, material misdescription, unmet agreed specifications, inability to supply as agreed and other recognised grounds.',
+      'We and the applicable seller or provider will honour the statutory right to return goods, discontinue services or obtain a refund or other remedy for defective, damaged, spurious or misdescribed goods, deficient services, or delivery after the stated schedule, subject to the lawful exception for delays caused by force majeure. Other remedies required by law remain available.',
     ],
   },
   {
@@ -211,7 +211,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'If an accepted transaction cannot be fulfilled and we or the provider cancel it, we may - depending on the circumstances and the law - reschedule the service, provide a replacement, offer an alternative or issue WECARE.DIGITAL store credit. If the law requires a monetary refund instead, we provide it as required.',
       'Any alternative to a required monetary refund must be lawfully accepted or permitted.',
-      'Where we charge users for cancelling a confirmed transaction, we will meet the corresponding obligations that apply when the cancellation comes from us.',
+      'We do not impose cancellation charges on consumers after confirmation unless comparable charges are borne by us when we unilaterally cancel the purchase, as required by applicable law.',
     ],
   },
   {
@@ -224,9 +224,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.11', heading: 'Monetary refund processing times', id: 's14-11',
     paragraphs: [
-      'Where a monetary refund is required by law and we have processed it, how long it takes to show up in your bank, card, wallet or other account is down to your bank, card issuer or payment provider.',
-      'Depending on the provider, that can take up to 30 days or one billing cycle after we process it, unless the law or the provider requires it to be faster.',
-      'That external delay does not change the date we initiated the refund.',
+      'When we accept a monetary refund request, we initiate and process it within a reasonable period and any shorter period prescribed by applicable law or the relevant payment authority.',
+      'After initiation, the time for the refund to appear in your account depends on the payment method and provider. Contact us if the refund is delayed; we will assist with tracing it. A payment provider\'s processing time does not extend any legal deadline applicable to us.',
     ],
   },
   {
@@ -251,7 +250,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     
     number: '15.1', heading: 'Tracking and rescheduling', id: 's15-1',
     paragraphs: [
-      'Where a service supports it, you can track an order or delivery at /shipments/track/, arrange collection at /request-pickup/, ask us to amend an open request at /request-amendment/, send documents at /drop-docs/, use your vault at /vault/, and leave a review through the Leave Review WhatsApp action in the site menu.',
+      'Where available, you can track orders and deliveries, request collection or amendments, submit documents, access shared files and leave reviews through the Platform or customer care.',
       'Any delivery date, dispatch window or turnaround time we show is an estimate unless we expressly say it is guaranteed, and it can be affected by stock, customisation, the destination, a third-party carrier, or circumstances beyond our reasonable control. Section 36 applies to events outside anyone\'s control.',
       'Where a delivery, dispatch or appointment can be rescheduled or cancelled, the conditions for doing so - including any cut-off, any missed-slot consequence and any charge - are the ones disclosed for that service and in section 16 for scheduled services. Please give us a complete and accurate address, contact number and any access or delivery instructions; a failed or missed delivery caused by details that are wrong, incomplete or out of date may lead to a re-delivery attempt, a charge, or a return, as disclosed for that service.',
       'Report failed, missed or materially delayed deliveries, loss or damage. The relevant service and carrier conditions apply, with refunds and remedies handled under section 14 and applicable law.',
@@ -325,11 +324,11 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'A WECARE.DIGITAL gift card may be bought by you, given to you by someone else, or issued by us as part of a promotion or as an agreed alternative to a money refund. When a gift card is bought or issued, it is activated and a balance is loaded onto it in Indian rupees, as disclosed at the time.',
       'Redeem a gift card at checkout for eligible WECARE.DIGITAL products and services. It covers up to the available confirmed balance; any remainder is payable using another accepted method.',
-      'Partial redemption is supported where the card balance is less than the amount owed: the card covers what it can and the rest is payable separately. Where a redemption is less than the full balance, the remaining balance stays on the card for a later eligible purchase, subject to any validity condition below.',
+      'If the gift-card balance is less than the amount due, pay the difference using another accepted method. Any unused balance remains available for later eligible purchases, subject to its disclosed validity.',
       'Gift cards may have disclosed validity, expiry, minimum-order, product or other restrictions. Store credit issued under section 14 is valid for 30 calendar days as described in section 14.2.',
       'Keep a gift-card code secure and treat it like cash: anyone with the code may be able to redeem it. Tell us promptly if you believe a code has been lost, stolen, exposed or used without your authorisation, and we will take reasonable steps - which may include suspending the code while we investigate - but we cannot always recover a balance already spent by someone who had the code. We may void, suspend or reverse a gift card obtained or used through fraud, error, duplicate issuance, automated abuse or another material breach of these Terms.',
-      'A promotional balance we give away may carry different conditions from a balance you paid for - for example a shorter validity, a narrower set of eligible products, or no cash-out - and those conditions are disclosed when it is issued. A purchased balance is treated as your money to the extent the law requires.',
-      'Gift cards and balances are not normally redeemable for cash. A gift card is not a deposit or banking service. Refunds for orders paid by gift card may return to the card or to account credit where disclosed and lawful, without affecting mandatory monetary refunds. Gift cards are available only when expressly offered.',
+      'Promotional balances may have different validity and redemption conditions from purchased balances. We disclose these conditions when the balance is issued. Purchased balances retain the protections required by law.',
+      'Gift cards and balances are not normally redeemable for cash. A gift card is not a deposit or banking service. Refunds for orders paid by gift card may return to the card or to account credit where disclosed and lawful, without affecting mandatory monetary refunds. Redemption, validity and expiry are subject to applicable payment-instrument requirements.',
     ],
   },
   {
@@ -364,8 +363,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     
     number: '23.2', heading: 'Rewards', id: 's23-2',
     paragraphs: [
-      'We do not currently offer a rewards or loyalty programme. Announcements about future rewards do not create enrolment or a reward entitlement.',
-      'If we launch a rewards programme in future, it will have its own published terms covering eligibility, how any benefit is earned and redeemed, any validity or expiry, misuse and fraud, and how we may change or end it. Those terms will govern that programme, and nothing here creates a reward entitlement before then.',
+      'No rewards or loyalty benefits are available unless expressly offered under published programme terms.',
     ],
   },
   {
@@ -384,7 +382,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '25', heading: 'Intellectual property', id: 's25',
     paragraphs: [
-      'The Platform and its software, workflows, design, text, graphics, logos, interfaces, photographs, videos and databases belong to WECARE.DIGITAL BHARATWORKS or the relevant rights holder, or are licensed to us, and are protected by intellectual-property law.',
+      'The Platform and its software, design, text, graphics, logos, interfaces, photographs, videos and databases are protected by intellectual-property law and belong to us or the applicable rights holders.',
       'The WECARE.DIGITAL name, brand identity, logos and marks may not be copied, imitated or used without our authorisation.',
       'Using the Platform gives you a limited, non-exclusive, non-transferable, revocable right to use it for its intended purpose.',
       'Buying or accessing a service does not transfer any intellectual property to you.',
@@ -429,7 +427,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '30', heading: 'Availability and changes to the Services', id: 's30',
     paragraphs: [
-      'We maintain, update, improve, modify, replace, suspend and sometimes discontinue functionality.',
+      'We may update, suspend or discontinue Services, subject to confirmed commitments and applicable law.',
       'Services may be interrupted by maintenance, technical issues, provider availability or events outside our reasonable control.',
       'If we materially discontinue a paid service before fulfilment, the remedies required by applicable law or Service-Specific Terms apply.',
     ],
@@ -449,7 +447,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'Nothing we publish is legal, medical, financial, tax, immigration, regulatory, investment or other professional advice, and reading it does not create a professional or advisory relationship between us. Where a Service involves a qualified professional, that professional is the source of advice for you - see section 17.',
       'Published information reflects the position at publication and may become outdated. Verify current rules, prices and eligibility with the relevant official source.',
       'Before relying on published information, check the current official source or ask us in writing about your circumstances. Applicable law and the confirmed Service-Specific Terms govern your transaction. If published information differs from a specific written confirmation, contact us for clarification.',
-      'Section 46 applies to intelligence-assisted editorial content.',
+      'Section 46 applies where published content is produced with automated assistance.',
       'Articles may mention or link to other websites, organisations and tools. Section 27 applies: a mention is not an endorsement, and we do not control third-party content.',
     ],
   },
@@ -465,13 +463,13 @@ export const TERMS_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    number: '32', heading: 'Responsibility and legal limits', id: 's32',
+    number: '32', heading: 'Liability and statutory rights', id: 's32',
     paragraphs: [
-      'To the fullest extent permitted by applicable law, WECARE.DIGITAL excludes liability for claims arising from or connected with the Services.',
-      'For non-consumer and commercial-purpose transactions, our aggregate contractual and non-contractual liability is INR 0 where lawful exclusion is permitted. Where exclusion is not permitted but limitation is permitted, the lowest lawful limit applies.',
-      'To the extent permitted by law, we exclude indirect, incidental, special, exemplary, punitive and consequential loss, including lost profits, revenue, opportunities, goodwill, savings or data, and losses caused by independent third parties or events outside our reasonable control; we also exclude loss that is not a direct and reasonably foreseeable consequence of our breach.',
-      'These exclusions and limitations do not apply to mandatory consumer, product, data-protection or other statutory rights, remedies or responsibilities, including fraud, fraudulent misrepresentation, wilful misconduct, death or personal injury where exclusion is prohibited.',
-      'If any exclusion or limitation is found unenforceable, it applies only to the extent permitted by law and the remaining provisions continue to apply.',
+      'Nothing in these Terms excludes or limits our liability, or your rights or remedies, where exclusion or limitation is prohibited by law. This includes mandatory consumer and product liability, applicable data-protection obligations, fraud, fraudulent misrepresentation, wilful misconduct, and death or personal injury to the extent required by law.',
+      'To the extent permitted by law, we are not liable for indirect or consequential losses, including loss of profits, revenue or opportunities, that are not a direct and reasonably foreseeable result of our breach.',
+      'We are responsible for our own acts and omissions in accordance with applicable law. We are not responsible for an independent provider\'s acts or omissions solely because the provider is listed on the Platform, except where the law or our agreement makes us responsible.',
+      'For commercial transactions, additional lawful limitations may be set out in a separately agreed written contract.',
+      'Any exclusion or limitation applies only to the extent enforceable under applicable law.',
     ],
   },
   {
@@ -495,14 +493,14 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'You can stop using the Services at any time.',
       'Where account closure is available, you can request it through your account or through customer support.',
       'We may restrict, suspend or terminate access where that is reasonably necessary because of suspected fraud, a security risk, unlawful activity, a material breach of these Terms, abuse of other users or providers, repeated payment failure, misuse of the Platform, or another legitimate reason.',
-      'Where it is appropriate and the law requires it, we will give you notice or a chance to put the problem right.',
+      'We give reasonable notice and an opportunity to remedy a breach where appropriate, except where immediate action is reasonably necessary for safety, security, fraud prevention or legal compliance. Any additional notice or remedy required by law remains available.',
       'Termination does not affect accrued rights and obligations, including refund rights, payment obligations, dispute rights, confidentiality, intellectual-property provisions and other provisions intended to survive termination.',
     ],
   },
   {
     number: '36', heading: 'Events beyond reasonable control', id: 's36',
     paragraphs: [
-      'Neither of us is responsible for a failure or delay caused by circumstances beyond our reasonable control, to the extent those circumstances actually prevent performance.',
+      'Neither party is responsible for delay or failure to the extent directly caused by circumstances beyond its reasonable control. This does not remove mandatory refund obligations or other rights and remedies under applicable law.',
       'That can include natural disasters, severe weather, epidemics and public-health restrictions, war, civil disturbance, government action, widespread utility or telecommunications failures, labour disruption, transport interruption, and large-scale cyber incidents.',
     ],
   },
@@ -511,8 +509,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'Contact us about products, orders, bookings, payments, refunds, Sellers, Service Providers, your account, the Platform, privacy, or any other complaint.',
       'WECARE.DIGITAL Customer Grievance Desk, WECARE.DIGITAL BHARATWORKS. Email one@wecare.digital or call +91 9330994400. Our address is The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
-      'We record formal complaints submitted through that channel and, where it applies, give you a ticket or reference number so you can track it.',
-      'Where the law sets a particular grievance process, acknowledgement period, resolution period or escalation route, we follow it.',
+      'We record consumer complaints and provide a ticket or reference number for tracking where required by law.',
+      'We acknowledge e-commerce consumer complaints within 48 hours of receipt and redress them within one month of receipt, or within any shorter period required by law.',
       'Dispute and escalation procedures are set out in section 39.',
     ],
   },
@@ -521,7 +519,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'We may update these Terms to reflect changes to our Services or applicable law.',
       'Where the law requires it, or where a change materially affects your rights, we give you appropriate notice.',
-      'Changes normally apply prospectively.',
+      'Changes apply prospectively and do not reduce accrued rights or alter confirmed transactions without lawful grounds or your required agreement.',
       'Continued use following the effective date of revised Terms constitutes acceptance only to the extent permitted by applicable law.',
       'Fresh affirmative acceptance is obtained where required by law.',
       'A new or materially different service may also carry its own Service-Specific Terms.',
@@ -554,7 +552,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '42', heading: 'Assignment', id: 's42',
     paragraphs: [
       'Do not transfer your account or your rights under these Terms in a way that materially affects the Services without our prior consent.',
-      'WECARE.DIGITAL BHARATWORKS may transfer its rights or obligations as part of a genuine business restructuring, merger, acquisition, sale or reorganisation, subject to applicable law, including mandatory user and consumer protections.',
+      'WECARE.DIGITAL BHARATWORKS may transfer rights or obligations in a business restructuring, merger, acquisition or sale, subject to applicable law. We will not assign a consumer contract to your detriment without your consent where required.',
     ],
   },
   {
@@ -568,30 +566,26 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '44', heading: 'Entire agreement', id: 's44',
     paragraphs: [
-      'Your agreement with us is made up of these Terms, the Privacy Policy at /privacy/, any Service-Specific Terms, your order or booking information, the applicable cancellation, refund and delivery conditions, and any other policy expressly built into a particular transaction.',
-      'Where a separately signed agreement, memorandum of understanding, engagement agreement, enterprise agreement or order form covers the same subject matter, that agreement prevails on the matters it specifically addresses.',
+      'These Terms, applicable Service-Specific Terms, confirmed transaction details and policies expressly incorporated into the transaction form your agreement with us. Our Privacy Policy at /privacy/ separately explains how we process personal data and does not replace any consent required by law.',
+      'A separately signed agreement prevails on matters it expressly addresses, subject to mandatory law.',
     ],
   },
   
   {
     number: '45', heading: 'Translations', id: 's45',
     paragraphs: [
-      'Translations may be provided automatically for convenience.',
-      'The English version of any page, these Terms, our Privacy Policy and every Service-Specific Term is the official text. Where a translated version differs from the English one - by error, omission, ambiguity or change of meaning - the English version prevails and is the version that governs.',
-      'Translations are provided as a convenience and on an "as is" basis. We give no warranty, express or implied, as to their accuracy, reliability or completeness, and a discrepancy introduced by translation creates no obligation on us and has no legal effect.',
-      'Some content may remain in English. The official English text applies subject to applicable language and disclosure requirements.',
-      'Check the English text for commercial terms and contact one@wecare.digital if clarification is needed.',
+      'The English text is the reference version of these Terms and related service information. Translations may be available to help you understand them.',
+      'If a translation is unclear or differs materially from the English text, contact one@wecare.digital for clarification. Applicable language and disclosure requirements, consumer rights and remedies for misleading information remain unaffected.',
     ],
   },
   {
-    number: '46', heading: 'Artificial Intelligence (AI) and Super Intelligence (SI)', id: 's46',
+    number: '46', heading: 'Automated tools and information', id: 's46',
     paragraphs: [
-      'Where applicable, Services may incorporate Artificial Intelligence (AI), Super Intelligence (SI) or other automated technologies for communications, documentation, content, translation and service delivery. Such descriptions do not constitute a representation of any particular level of capability or performance.',
-      'Information generated or assisted by these technologies may be incomplete, inaccurate or outdated. It does not constitute professional advice or guarantee any outcome. Material information should be verified against authoritative sources. Independent verification by a suitably qualified person is required before relying on such information for legal, medical, financial or safety decisions.',
-      'Where a qualified professional provides a Service, that professional\'s advice and applicable service terms govern.',
-      'Decisions about acceptance of orders, bookings, applications, requests or pricing are not made solely by automated means without human review being available. You may request a review of a decision that materially affects you at one@wecare.digital.',
-      'Use of intelligence-enabled features is subject to section 26. Processing of personal data is governed by section 13 of our Privacy Policy at /privacy/, including applicable consent, disclosure and review requirements.',
-      'Intelligence-enabled features may be modified or withdrawn. A human alternative may be requested where offered.',
+      'Certain Services use automated tools, including artificial intelligence, for communication, documentation, content, translation and service delivery.',
+      'Information produced with automated assistance may be inaccurate, incomplete or outdated. It is not a substitute for qualified professional advice. Verify material information with reliable sources or a suitably qualified professional before relying on it for legal, medical, financial or safety decisions.',
+      'Where a qualified professional provides a Service, the professional\'s advice and applicable service terms govern.',
+      'To request clarification or human review of an automated decision that materially affects you, contact one@wecare.digital. Rights to review or other remedies under applicable law remain unaffected.',
+      'Use of these tools is subject to section 26. Section 13 of our Privacy Policy at /privacy/ explains how personal data is handled when automated tools are used.',
     ],
   },
   {

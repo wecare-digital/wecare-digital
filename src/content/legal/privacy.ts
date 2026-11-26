@@ -27,7 +27,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '3', heading: 'Categories of personal data', id: 's3',
     paragraphs: [
-      'The categories below describe the kinds of data a service may involve. Which of them apply to you depends on which services you use.',
+      'The personal data we collect depends on the service and the information necessary to provide it.',
     ],
   },
   {
@@ -50,7 +50,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '3.3', heading: 'Information you submit for a service', id: 's3-3',
     paragraphs: [
       'Depending on the service this can include documents, photographs, forms, application details, appointment information, instructions, preferences, identity or eligibility evidence, professional-service information, travel details, and anything else needed to complete your request.',
-      'Some services necessarily involve sensitive information - health, financial, identity, legal or consultation details. We handle it only for the purpose it was given, under the law that applies to it and any additional privacy notice shown for that service.',
+      'Some services may require sensitive information, including health records, financial information, identity documents or confidential consultation details. We collect it only where necessary for a lawful purpose and obtain prior consent in the legally required form where applicable. Additional service-specific privacy notices may apply.',
     ],
   },
   {
@@ -103,19 +103,19 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '6', heading: 'Consent and other lawful grounds', id: 's6',
     paragraphs: [
-      'Where processing relies on consent, we describe its purpose and seek affirmative consent.',
-      'You can withdraw consent at any time, using the mechanism shown for that service or by contacting us. Withdrawal ends future processing that relies on that consent; it does not affect the lawfulness of processing before withdrawal.',
+      'Where processing relies on consent, we explain what data is collected, the specified purpose, relevant recipients and the means of exercising your rights, and obtain free, specific, informed and affirmative consent in the legally required form.',
+      'You may decline to provide personal data or withdraw consent at any time through the service\'s consent controls or by writing to one@wecare.digital. Withdrawal is as easy as giving consent where required by law. It does not affect processing lawfully carried out before withdrawal; we stop processing that relies on withdrawn consent, except where continued processing is permitted or required by law.',
       'If particular data is necessary for a requested service, withdrawal of consent or deletion may prevent its commencement or continuation. We will inform you where this applies.',
-      'Some processing does not rely on consent - for example meeting a legal obligation, or preventing fraud. Where the law permits or requires us to process data on another basis, we do.',
+      'We may process data without consent only where applicable law permits or requires it, including for compliance with a legal obligation or a legally recognised ground for processing.',
     ],
   },
   {
     number: '7', heading: 'Children', id: 's7',
     paragraphs: [
-      'Services that involve buying or entering into a contract are intended for people legally able to do so.',
-      'Where a service is available to a child and the law requires parental or guardian authorisation, we take steps to obtain and verify it.',
-      'We do not knowingly track, profile or target advertising at children where the law prohibits it.',
-      'If you believe we hold data about a child without the required authorisation, email one@wecare.digital and we will act on it.',
+      'For data-protection purposes in India, a child is a person under 18 years of age. Eligibility to contract is governed by applicable law.',
+      'When required by law, we obtain verifiable parental or lawful guardian consent before processing a child\'s personal data.',
+      'We do not process children\'s data in a manner prohibited by law, including prohibited tracking, behavioural monitoring, targeted advertising or processing likely to harm a child\'s well-being.',
+      'If you believe a child\'s data has been collected without required consent, contact one@wecare.digital.',
     ],
   },
   {
@@ -153,7 +153,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '10.2', heading: 'Data processing service providers', id: 's10-2',
     paragraphs: [
       'We use service providers for hosting, communications, sign-in, customer support, analytics, security, payments, delivery, document processing and appointments.',
-      'Service providers process data for the relevant service, subject to applicable confidentiality, contractual and data-protection requirements.',
+      'Service providers process data for the relevant service under applicable confidentiality, contractual and data-protection requirements. Where sensitive personal information is disclosed to a third party, we obtain prior permission unless the disclosure is otherwise permitted or required by law.',
     ],
   },
   {
@@ -197,34 +197,35 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '12', heading: 'Analytics, advertising and marketing', id: 's12',
     paragraphs: [
-      'We use aggregated or de-identified information to understand how the platform performs and what people need.',
+      'We use analytics to understand service usage and performance, subject to applicable consent and privacy requirements. Where practicable, we use aggregated or de-identified information.',
       'Marketing messages carry the consent, unsubscribe or opt-out mechanism the law requires.',
       'Messages necessary for your account, order, booking, payment, a security event, a grievance or a service you asked for continue even if you opt out of marketing. They are not marketing.',
       'Where personalised advertising uses your personal data and the law requires consent or a specific choice, we provide that choice.',
     ],
   },
   {
-    number: '13', heading: 'Artificial Intelligence (AI) and Super Intelligence (SI)', id: 's13',
+    number: '13', heading: 'Automated processing', id: 's13',
     paragraphs: [
-      'Where applicable, Artificial Intelligence (AI), Super Intelligence (SI) and other automated technologies may process personal data for communications, documentation and content assistance, service requests, account protection, fraud prevention and service improvement.',
-      'Personal data submitted to or generated through these features is handled under the purposes, lawful grounds, disclosure, retention and safeguards described in this policy. Where processing materially affects an individual, applicable disclosure, consent, review and other safeguards are provided. Enquiries or review requests may be submitted to one@wecare.digital.',
+      'Certain services use automated tools, including artificial intelligence, to assist with communication, documentation, content, service requests, account security, fraud prevention and service improvement.',
+      'Where these tools process personal data, the purposes, lawful grounds, recipients, retention and safeguards in this policy apply. Where required, we obtain consent and provide additional information about the processing.',
+      'For questions or a request to review an automated decision that materially affects you, contact one@wecare.digital.',
     ],
   },
   {
     number: '14', heading: 'International data transfers', id: 's14',
     paragraphs: [
       'Some service providers may process personal data outside your country.',
-      'Where data crosses a border we do so subject to the restrictions, requirements and safeguards that apply to that transfer.',
+      'International transfers are subject to applicable restrictions and safeguards. Where sensitive personal information is transferred under the applicable Indian rules, the recipient must maintain the required level of protection, and the transfer must be necessary for a lawful contract or have the required consent.',
       'We will change, restrict or stop a transfer arrangement where the law or a government direction requires it.',
     ],
   },
   {
     number: '15', heading: 'Data retention', id: 's15',
     paragraphs: [
-      'We keep personal data for as long as the purpose it was collected for requires, or as long as a legal obligation requires. Different categories therefore have different retention periods.',
+      'We retain personal data only for as long as necessary for the specified lawful purpose or as required by law. Retention depends on the data category, the service, statutory periods and any outstanding lawful dispute or obligation.',
       'Data may be retained for an active transaction or ongoing service; account administration; financial, tax and accounting records; statutory record-keeping; transaction security; fraud prevention; a complaint or dispute; backups; legal claims; and enforcing our agreements.',
       'Contribution, gift-card, coupon and redemption records may be retained for accounting, tax, refunds, fraud prevention and legal requirements, including after the transaction ends.',
-      'Some transaction, security and financial records must be kept after you close your account or ask for deletion, because the law requires it. Section 18 explains how that interacts with a deletion request.',
+      'Certain transaction, security and financial records may be retained after account closure or an erasure request where required or permitted by applicable law. Section 18 explains your rights.',
       'Personal data is deleted, anonymised or de-identified when no longer required.',
     ],
   },
@@ -245,9 +246,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     number: '18', heading: 'Your rights', id: 's18',
     paragraphs: [
-      'Subject to the law and any lawful exception, you can ask us to tell you what personal data we process about you; correct anything inaccurate; complete or update anything incomplete; delete data where the law allows; stop processing that relies on consent you have withdrawn; and consider a privacy grievance. A representative may be nominated to exercise applicable rights where provided by law.',
-      'Send requests to one@wecare.digital. We may ask you for enough information to confirm who you are, or that you are authorised to act for someone else, before we act.',
-      'A deletion request does not cover data we are legally required to keep, or that remains genuinely necessary for another lawful purpose. Where deletion is not possible, we explain the reason.',
+      'Subject to applicable law, you may request access to your personal data, a summary of processing and information about recipients of the data; correction, completion or updating; erasure; withdrawal of consent; and redress of a privacy grievance.',
+      'You may nominate an individual to exercise applicable rights in the event of your death or incapacity, where provided by law.',
+      'Send requests to one@wecare.digital, identifying the service or account concerned and your registered email address or phone number where applicable. We may request proportionate information to verify your identity or the authority of a representative. Do not send passwords or verification codes.',
+      'An erasure request does not require deletion of information that we must retain by law or are otherwise lawfully permitted to retain. If we cannot fulfil a request, we explain the reason as permitted by law.',
     ],
   },
   {
@@ -283,8 +285,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '23', heading: 'Questions and complaints', id: 's23',
     paragraphs: [
       'For any question, request or complaint about your personal data, contact our Privacy and Grievance Desk: email one@wecare.digital, or call +91 9330994400. Our postal address is in section 24.',
-      'We may ask for enough information to verify your identity or authority before acting on a request.',
-      'If our response does not resolve your grievance, you may approach the competent Data Protection Board of India, authority, regulator, court or other forum, following any required grievance procedure.',
+      'We may ask for information necessary to verify your identity or authority. We address privacy grievances promptly and within one month of receipt, or any shorter deadline required by law.',
+      'If our grievance process does not resolve your complaint, you may approach the competent authority, regulator, court or statutory forum, including the Data Protection Board of India when the relevant complaint procedure is applicable, after completing any procedure required by law.',
     ],
   },
   {
@@ -292,7 +294,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '23.1', heading: 'Governing law and disputes', id: 's23-1',
     paragraphs: [
       'This policy is governed by the laws of India.',
-      'This policy describes our data-handling practices and commitments. Section 32 of our Terms applies subject to applicable data-protection law. This policy creates no separate warranty or indemnity beyond applicable law and expressly agreed terms.',
+      'Nothing in this policy or our Terms of Service limits any data-protection or other statutory rights, duties or remedies that cannot lawfully be restricted.',
       'Privacy and statutory grievance procedures are described in section 23; competent Consumer Commissions and other applicable statutory forums retain jurisdiction.',
       'For a dispute about this policy that is not within the jurisdiction of a mandatory statutory, consumer or data-protection forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
       'See section 39 of our Terms of Service for general dispute provisions.',
@@ -303,7 +305,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'Brand: WECARE.DIGITAL, operated under the business name WECARE.DIGITAL BHARATWORKS.',
       'Address: The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
-      'Email one@wecare.digital or call +91 9330994400 with any question about this policy or about how we handle personal data. These are our published business contacts for privacy questions unless we separately identify another legally required contact.',
+      'For questions or complaints about personal data, email one@wecare.digital or call +91 9330994400.',
     ],
   },
 ];
