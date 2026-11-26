@@ -164,7 +164,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/Header.tsx": ("--public-content-max", "--public-brand-green"),
     SRC / "components/HeaderCart.tsx": ("--public-brand-green", "--public-brand-lime"),
     SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
-    # Grahak OS delegates its paid checkout action to ProductBuyBox -> CheckoutAction,
+    # Relay OS delegates its paid checkout action to ProductBuyBox -> CheckoutAction,
     # so route-local mobile CTA typography is no longer part of this page's contract.
     SRC / "pages/relay-os/index.tsx": (
         "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max",

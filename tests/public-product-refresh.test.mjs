@@ -105,3 +105,13 @@ test('menu icons share a 24px viewport and stay visible at narrow widths', () =>
   assert.ok(!/\.nav-(?:row-icon|sub-icon)[^{]*\{[^}]*display:none/.test(header));
   assert.ok(!header.includes('NAV_MATERIAL_SYMBOLS'));
 });
+
+test('Relay OS keeps the existing checkout identity and public label', () => {
+  const page = read('src/pages/relay-os/index.tsx');
+  const checkout = read('src/config/productCheckout.ts');
+  assert.ok(page.includes('slug="grahak-os"'));
+  assert.ok(page.includes('path="/relay-os/"'));
+  assert.ok(page.includes('title="Relay OS - End-user messaging"'));
+  assert.ok(checkout.includes("'grahak-os', 'GOS7K4M2', 'Relay OS'"));
+  assert.ok(!page.includes('/dispatch/'));
+});
