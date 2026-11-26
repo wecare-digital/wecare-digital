@@ -94,6 +94,14 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
   assert.ok(legal.includes('group instanceof HTMLDetailsElement'));
   assert.ok(legal.includes('id={ section.id }'));
   assert.ok(legal.includes('section.paragraphs.map'));
+  assert.ok(legal.includes("const CONTENTS_ICON = 'M120-240v-80h520v80H120Z"));
+  assert.ok(legal.includes('viewBox="60 -900 840 840"'));
+  assert.ok(legal.includes('width:24px;height:24px;flex:0 0 24px;fill:currentColor'));
+  assert.ok(legal.includes("return () => wide.removeEventListener( 'change', syncLayout );\n  }, [] );"));
+  assert.ok(legal.includes("aria-current={ activeId === child.id ? 'location' : undefined }"));
+  assert.ok(legal.includes("onClick={ event => selectSection( event, child.id ) }"));
+  assert.ok(legal.includes('tocRef.current.open = false;'));
+  assert.ok(legal.includes('lgd-toc-link[aria-current="location"]'));
   assert.ok(legal.includes('.lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron'));
   assert.ok(legal.includes('.lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron'));
 });
