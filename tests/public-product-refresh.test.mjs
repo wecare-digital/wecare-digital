@@ -107,9 +107,13 @@ test('Terms and Privacy share responsive collapsible contents with subsection de
 });
 
 
-test('every submenu child uses the shared bent arrow, not a product-specific glyph', () => {
+test('every submenu child uses the selected dotted Material Symbols arrow, including search results', () => {
   const header = read('src/components/Header.tsx');
-  assert.ok(header.includes('<path d={ SUBNAV_ICON_PATH } />'));
+  assert.equal((header.match(/<path d=\{ SUBNAV_ICON_PATH \} \/>/g) || []).length, 3);
+  assert.ok(header.includes("const SUBNAV_ICON_PATH = 'M440-727 256-544l-56-56 280-280 280 280-56 57-184-184v287h-80v-287Zm0 487v-120h80v120h-80Zm0 160v-80h80v80h-80Z';"));
+  assert.ok(header.includes("const SUBNAV_ICON_VIEW_BOX = '43.63 -916.37 872.73 872.73'"));
+  assert.ok(header.includes('.nav-sub-icon{transform:rotate(90deg)}'));
+  assert.ok(header.includes(".nav-section-icon-material,.nav-row-icon-material,.nav-sub-icon{fill:currentColor;stroke:none}"));
   assert.ok(!header.includes('NAV_ICON_PATHS[ child.label ]'));
 });
 
@@ -118,9 +122,9 @@ test('Atmos and Relay OS retain their official outlined Material Symbols in opti
   const header = read('src/components/Header.tsx');
   assert.ok(header.includes("Atmos: 'M80-160v-80h230"));
   assert.ok(header.includes("const MATERIAL_NAV_ICON_LABELS = new Set( [\n  'Atmos',"));
-  assert.ok(header.includes("Atmos: '40 -880 880 880'"));
+  assert.ok(header.includes("Atmos: '43.63 -916.37 872.73 872.73'"));
   assert.ok(header.includes("'Relay OS': 'M560-32v-80"));
-  assert.ok(header.includes("'Relay OS': '-40 -980 1000 1000'"));
+  assert.ok(header.includes("'Relay OS': '-41.82 -993.82 1003.64 1003.64'"));
   assert.ok(header.includes("label: 'Relay OS', href: '/relay-os/'"));
 });
 
@@ -175,7 +179,7 @@ test('Aastha uses the official outlined Hindu temple artwork with the shared 24p
   const header = read('src/components/Header.tsx');
   assert.ok(header.includes("Aastha: 'M80-80v-440h80v80h80"));
   assert.ok(header.includes("'Atmos',\n  'Aastha',\n  'Relay OS',"));
-  assert.ok(header.includes("Aastha: '20 -960 920 920'"));
+  assert.ok(header.includes("Aastha: '21.81 -958.18 916.37 916.37'"));
   assert.ok(header.includes('width:24px;height:24px;flex:0 0 24px'));
 });
 
@@ -194,5 +198,43 @@ test('Panchang keeps the approved native product and variant in the cart fallbac
   const notFound = read('src/pages/404.tsx');
   for (const slug of ['ritual-guru-puja-guidance', 'ritual-guru-diy-puja-kit', 'ritual-guru-ritva']) {
     assert.ok(notFound.includes("'/shop/" + slug + "'"));
+  }
+});
+
+test('Elsewhere uses the selected official outlined pin_road symbol, with a measured centered crop', () => {
+  const header = read('src/components/Header.tsx');
+  assert.ok(header.includes("Elsewhere: 'M320-120v-160h80v160h-80Zm0-280v-160h80v160h-80Zm0-280v-160h80v160h-80ZM80-120l100-720h80L160-120H80Zm598.5-3q-5.5-3-8.5-9l-4-9q-23-48-64-82.5T532-302q-17-26-25-55t-8-59q0-78 57-130.5T692-599q78 0 133 56t55 135q0 29-8 56t-24 50q-29 44-70.5 78.5T714-141l-4 9q-3 6-8.5 9t-11.5 3q-6 0-11.5-3Zm68-230.5Q770-377 770-410t-23.5-56.5Q723-490 690-490t-56.5 23.5Q610-443 610-410t23.5 56.5Q657-330 690-330t56.5-23.5ZM494-599l-34-241h80l26 187q-20 11-38 24t-34 30Z'"));
+  assert.ok(header.includes("'Relay OS',\n  'Elsewhere',\n  'Hunar',"));
+  assert.ok(header.includes("Elsewhere: '43.63 -916.37 872.73 872.73'"));
+});
+
+test('every named menu and section icon has an explicit square optical crop', () => {
+  const header = read('src/components/Header.tsx');
+  function map(name) {
+    const body = header.match(new RegExp('const ' + name + ': Record<string, string> = \\{([\\s\\S]*?)\\n\\};'))?.[1];
+    assert.ok(body, name);
+    return Object.fromEntries([...body.matchAll(/^\s*(?:'([^']+)'|([A-Za-z]+)): '([^']+)',/gm)].map(match => [match[1] || match[2], match[3]]));
+  }
+  for (const [paths, boxes] of [['NAV_ICON_PATHS', 'NAV_ICON_VIEW_BOXES'], ['SECTION_ICON_PATHS', 'SECTION_ICON_VIEW_BOXES']]) {
+    const icons = map(paths);
+    const crops = map(boxes);
+    assert.deepEqual(Object.keys(crops).sort(), Object.keys(icons).sort());
+    for (const [label, crop] of Object.entries(crops)) {
+      const v = crop.split(' ').map(Number);
+      assert.equal(v.length, 4, label);
+      assert.ok(v.every(Number.isFinite), label);
+      assert.ok(v[2] > 0 && v[2] === v[3], label);
+    }
+  }
+  // The original icon sets have different units and fill/stroke geometry. Check
+  // representative measured largest-axis bounds from every column and icon type.
+  for (const [label, span, stroke, box] of [
+    ['Home', 18, 2, 21.6], ['Atmos', 800, 0, 872.73], ['Elsewhere', 800, 0, 872.73],
+    ['Request Amendment', 14, 2, 16.8], ['Vault', 640, 0, 698.19],
+    ['Partner', 800, 0, 872.73], ['Google Play', 880, 0, 960], ['Contact us', 40, 0, 43.64],
+  ]) {
+    const [, , width] = map('NAV_ICON_VIEW_BOXES')[label].split(' ').map(Number);
+    assert.equal(width, box, label);
+    assert.ok(Math.abs(span * 24 / width + stroke - 22) < 0.03, label);
   }
 });

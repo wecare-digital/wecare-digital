@@ -271,7 +271,8 @@ const NAV_ICON_PATHS: Record<string, string> = {
   'Relay OS': 'M560-32v-80q117 0 198.5-81.5T840-392h80q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T560-32Zm0-160v-80q50 0 85-35t35-85h80q0 83-58.5 141.5T560-192ZM222-57q-15 0-30-6t-27-17L23-222q-11-12-17-27t-6-30q0-16 6-30.5T23-335l127-127q23-23 57-23.5t57 22.5l50 50 28-28-50-50q-23-23-23-56t23-56l57-57q23-23 56.5-23t56.5 23l50 50 28-28-50-50q-23-23-23-56.5t23-56.5l127-127q12-12 27-18t30-6q15 0 29.5 6t26.5 18l142 142q12 11 17.5 25.5T895-730q0 15-5.5 30T872-673L745-546q-23 23-56.5 23T632-546l-50-50-28 28 50 50q23 23 22.5 56.5T603-405l-56 56q-23 23-56.5 23T434-349l-50-50-28 28 50 50q23 23 22.5 57T405-207L278-80q-11 11-25.5 17T222-57Zm0-79 42-42-142-142-42 42 142 142Zm85-85 42-42-142-142-42 42 142 142Zm184-184 56-56-142-142-56 56 142 142Zm198-198 42-42-142-142-42 42 142 142Zm85-85 42-42-142-142-42 42 142 142ZM448-504Z',
   // Google Material Symbols Outlined grass, FILL 0 / wght 400 / GRAD 0 / opsz 24.
   Atmos: 'M80-160v-80h230q-22-85-83.5-146.5T80-470q20-5 39.5-7.5T160-480q134 0 227 93t93 227H80Zm480 0q0-42-9-83.5T525-323q42-71 114.5-114T800-480q21 0 40.5 2.5T880-470q-85 22-146 83.5T650-240h230v80H560Zm-80-239q0-65 24-122t66-100.5q42-43.5 98.5-69.5T789-719q-56 35-98 86t-65 114q-44 21-80.5 51.5T480-399Zm-73-75q-12-9-24-17t-25-16q0-6 1-12.5t1-12.5q0-76-24-144t-68-124q66 27 114.5 77.5T457-606q-18 30-31 63.5T407-474Z',
-  Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
+  // Google Material Symbols Outlined pin_road, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+  Elsewhere: 'M320-120v-160h80v160h-80Zm0-280v-160h80v160h-80Zm0-280v-160h80v160h-80ZM80-120l100-720h80L160-120H80Zm598.5-3q-5.5-3-8.5-9l-4-9q-23-48-64-82.5T532-302q-17-26-25-55t-8-59q0-78 57-130.5T692-599q78 0 133 56t55 135q0 29-8 56t-24 50q-29 44-70.5 78.5T714-141l-4 9q-3 6-8.5 9t-11.5 3q-6 0-11.5-3Zm68-230.5Q770-377 770-410t-23.5-56.5Q723-490 690-490t-56.5 23.5Q610-443 610-410t23.5 56.5Q657-330 690-330t56.5-23.5ZM494-599l-34-241h80l26 187q-20 11-38 24t-34 30Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
   'Clear Closure': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 2.5 2.5L16 9',
@@ -316,6 +317,7 @@ const MATERIAL_NAV_ICON_LABELS = new Set( [
   'Atmos',
   'Aastha',
   'Relay OS',
+  'Elsewhere',
   'Hunar',
   'Niji Setu',
   'Submit Request',
@@ -326,60 +328,64 @@ const MATERIAL_NAV_ICON_LABELS = new Set( [
   'Gemini',
   'App Store',
 ] );
-// Preserve the original path geometry, but center each glyph inside a square,
-// tightly padded viewBox. The common 24px viewport gives the artwork comparable
-// optical size without distorting aspect ratios or clipping stroke caps.
+// Preserve the approved path geometry and aspect ratios. Every square crop is
+// centered on its measured path bounds: 22px maximum ink extent inside a 24px
+// viewport (20px geometry plus 2px non-scaling stroke for stroked artwork).
+// This normalizes the actual visible artwork across all three columns, rather
+// than merely giving differently padded glyphs the same CSS box.
 const FILLED_NAV_ICON_LABELS = new Set( [ ...MATERIAL_NAV_ICON_LABELS, 'Contact us' ] );
 const NAV_ICON_VIEW_BOXES: Record<string, string> = {
-  Home: '1 1.5 22 22',
-  Shop: '1 1 22 22',
-  'Relay OS': '-40 -980 1000 1000',
-  Atmos: '40 -880 880 880',
-  Elsewhere: '1 3 22 22',
-  'Expo Week': '1 1 22 22',
-  Dastavez: '2 1 22 22',
-  'Clear Closure': '1 1 22 22',
-  Aastha: '20 -960 920 920',
-  Anew: '2 2 20 20',
-  Hunar: '20 -920 920 920',
-  'Niji Setu': '40 -920 880 880',
-  Orders: '1 1 22 22',
-  'Submit Request': '80 -880 800 800',
-  'Request Amendment': '3 3 18 18',
-  'Drop Docs': '2 1 22 22',
-  Vault: '120 -840 720 720',
-  Shipments: '1 2.5 22 22',
-  'Leave Review': '2 2 20 20',
-  Subscribe: '2 2.75 20 20',
-  Partner: '40 -920 880 880',
-  Perks: '2 3 20 20',
-  'Google Play': '0 -978 960 960',
-  ChatGPT: '40 -920 880 880',
-  Claude: '1 1 22 22',
-  Gemini: '50 -932 860 860',
-  'App Store': '120 -840 720 720',
-  'Contact us': '2 2 44 44',
-  Terms: '1 1 22 22',
-  Privacy: '1 1 22 22',
+  Home: '1.2 1.7 21.6 21.6',
+  Shop: '1.2 1.2 21.6 21.6',
+  'Relay OS': '-41.82 -993.82 1003.64 1003.64',
+  Atmos: '43.63 -916.37 872.73 872.73',
+  Elsewhere: '43.63 -916.37 872.73 872.73',
+  'Expo Week': '1.2 1.2 21.6 21.6',
+  Dastavez: '2.2 1.2 21.6 21.6',
+  'Clear Closure': '1.2 1.2 21.6 21.6',
+  Aastha: '21.81 -958.18 916.37 916.37',
+  Anew: '2.4 2.4 19.2 19.2',
+  Hunar: '21.81 -918.18 916.37 916.37',
+  'Niji Setu': '43.63 -916.37 872.73 872.73',
+  Orders: '1.2 1.2 21.6 21.6',
+  'Submit Request': '87.27 -872.73 785.46 785.46',
+  'Request Amendment': '3.6 3.6 16.8 16.8',
+  'Drop Docs': '2.2 1.2 21.6 21.6',
+  Vault: '130.9 -829.1 698.19 698.19',
+  Shipments: '1.2 2.7 21.6 21.6',
+  'Leave Review': '2.4 2.4 19.2 19.2',
+  Subscribe: '2.1 2.85 19.8 19.8',
+  Partner: '43.63 -916.37 872.73 872.73',
+  Perks: '2.4 3.85 19.2 19.2',
+  'Google Play': '0 -980.12 960 960',
+  ChatGPT: '43.63 -916.37 872.73 872.73',
+  Claude: '1.2 1.2 21.6 21.6',
+  Gemini: '60 -922.5 840 840',
+  'App Store': '130.9 -829.1 698.19 698.19',
+  'Contact us': '2.18 2.18 43.64 43.64',
+  Terms: '1.2 1.2 21.6 21.6',
+  Privacy: '1.2 1.2 21.6 21.6',
 };
 const SECTION_ICON_VIEW_BOXES: Record<string, string> = {
-  Products: '1 1 22 22',
-  Request: '1 1 22 22',
-  'Refer & Earn': '40 -920 880 880',
-  Extras: '1 1 22 22',
-  'With AI': '80 -880 800 800',
-  Contact: '1 1 22 22',
-  'Legal Stuff': '1 1 22 22',
+  Products: '1.2 1.2 21.6 21.6',
+  Request: '1.2 1.2 21.6 21.6',
+  'Refer & Earn': '43.63 -916.37 872.73 872.73',
+  Extras: '1.2 0.8 21.6 21.6',
+  'With AI': '87.27 -872.73 785.46 785.46',
+  Contact: '1.2 1.2 21.6 21.6',
+  'Legal Stuff': '1.2 1.2 21.6 21.6',
 };
 const navIconViewBox = ( label: string ) => NAV_ICON_VIEW_BOXES[ label ]
-  || ( MATERIAL_NAV_ICON_LABELS.has( label ) ? '0 -960 960 960' : '3 3 18 18' );
+  || ( MATERIAL_NAV_ICON_LABELS.has( label ) ? '0 -960 960 960' : '3.6 3.6 16.8 16.8' );
 const sectionIconViewBox = ( label: string ) => SECTION_ICON_VIEW_BOXES[ label ] || '1 1 22 22';
 const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn', 'With AI' ] );
 const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
-const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
-const SUBNAV_ICON_VIEW_BOX = '3.5 5 17 17';
+// Google Material Symbols Outlined arrow_warm_up, FILL 0 / wght 400 / GRAD 0 / opsz 24.
+// Rotate the original upward arrow toward the submenu destination, keeping its dashed tail.
+const SUBNAV_ICON_PATH = 'M440-727 256-544l-56-56 280-280 280 280-56 57-184-184v287h-80v-287Zm0 487v-120h80v120h-80Zm0 160v-80h80v80h-80Z';
+const SUBNAV_ICON_VIEW_BOX = '43.63 -916.37 872.73 872.73';
 const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
-const ROW_CHEVRON_VIEW_BOX = '4 4 16 16';
+const ROW_CHEVRON_VIEW_BOX = '4.8 4.8 14.4 14.4';
 
 const PUBLIC_NAV_ID = 'public-navigation-menu';
 
@@ -705,7 +711,7 @@ const Header: React.FC = () => {
                 }
               } }
             >
-              <svg className="nav-trigger-icon" viewBox="4 4 16 16" aria-hidden="true" focusable="false">
+              <svg className="nav-trigger-icon" viewBox="5.45 5.75 13.1 13.1" aria-hidden="true" focusable="false">
                 <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
               </svg>
             </button>
@@ -911,7 +917,7 @@ const Header: React.FC = () => {
                                       >
                                         <svg
                                           className="nav-products-more-icon"
-                                          viewBox="200 -726 560 560"
+                                          viewBox="188.18 -759.32 583.64 583.64"
                                           aria-hidden="true"
                                           focusable="false"
                                         >
@@ -1227,11 +1233,14 @@ const Header: React.FC = () => {
            touch more tracking so the caps stay legible. */
         .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
         /* Shared menu icon footprint, from section headings to child and search rows.
-           Cropped viewBoxes center the art; non-scaling strokes stay crisp at 24px. */
+           The measured crops give each glyph approximately 22px of visible extent
+           within its 24px slot, regardless of original SVG padding or units. */
         .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron,.nav-trigger-icon,.nav-products-more-icon{display:block;width:24px;height:24px;flex:0 0 24px}
-        .nav-section-icon,.nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-        .nav-section-icon path,.nav-row-icon path,.nav-sub-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
-        .nav-section-icon-material,.nav-row-icon-material{fill:currentColor;stroke:none}
+        .nav-section-icon,.nav-row-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .nav-section-icon path,.nav-row-icon path,.nav-row-chevron path{vector-effect:non-scaling-stroke}
+        .nav-section-icon-material,.nav-row-icon-material,.nav-sub-icon{fill:currentColor;stroke:none}
+        .nav-sub-icon{transform:rotate(90deg)}
+        :global([dir='rtl']) .nav-sub-icon{transform:rotate(-90deg)}
 
         /* PRODUCTS SCROLL. The catalogue is meant to reach 100+ entries, so Products
            keeps its own capped rail on desktop AND mobile. Desktop shows seven 46px rows;
