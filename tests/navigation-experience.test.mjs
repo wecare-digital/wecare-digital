@@ -75,3 +75,42 @@ test('request selection survives one auth handoff and rejects expired or tampere
     else globalThis.window = prior;
   }
 });
+
+test('Extras contains two expandable families, with transparent temporary iOS destination and no Perks', () => {
+  const header = readFileSync(new URL('../src/components/Header.tsx', import.meta.url), 'utf8');
+  const aliases = readFileSync(new URL('../src/lib/navigationSearch.ts', import.meta.url), 'utf8');
+  const extras = header.slice(header.indexOf("heading: 'Extras'"), header.indexOf("heading: 'Contact'"));
+  assert.ok(extras.includes("label: 'App',\n            searchTerms:"));
+  assert.ok(extras.includes("label: 'AI',\n            searchTerms:"));
+  for (const label of ['Android', 'iOS']) assert.ok(extras.includes("label: '" + label + "', href: PLAY_STORE.developerUrl, external: true"));
+  for (const [label, href] of [['ChatGPT','https://chatgpt.com/'], ['Claude','https://claude.ai/'], ['Gemini','https://gemini.google.com/']]) {
+    assert.ok(extras.includes("label: '" + label + "', href: '" + href + "', external: true"));
+  }
+  assert.ok(extras.includes("note: 'Temporarily opens Google Play'"));
+  assert.ok(header.includes('child.note && <span className="nav-result-description">'));
+  assert.ok(!header.includes("label: 'Perks'"));
+  assert.ok(!header.includes('377GALDW4E26F1'));
+  assert.ok(!header.includes("heading: 'With AI'"));
+  assert.ok(!header.includes("label: 'Google Play'"));
+  assert.ok(!aliases.includes('  Perks:'));
+  assert.ok(aliases.includes("  iOS: [ 'Temporarily opens Google Play; iOS listing not yet available'"));
+  assert.ok(header.includes('for ( const child of link.children || [] ) push( child, [ ...terms, link.label ], true )'));
+  assert.ok(header.includes('hidden={ !familyOpen }'));
+});
+
+test('Contact and Legal Stuff use the same dotted submenu arrow in the menu and search', () => {
+  const header = readFileSync(new URL('../src/components/Header.tsx', import.meta.url), 'utf8');
+  const icons = readFileSync(new URL('../src/lib/publicNavigationIcons.ts', import.meta.url), 'utf8');
+  for (const heading of ['Contact', 'Legal Stuff']) assert.ok(header.includes("heading: '" + heading + "',\n        nestedLinks: true,"));
+  for (const [label, href] of [['Contact us','/contact/'], ['Terms','/terms/'], ['Privacy','/privacy/']]) {
+    assert.ok(header.includes("label: '" + label + "', href: '" + href + "'"));
+  }
+  assert.ok(header.includes('section.nestedLinks === true'));
+  assert.ok(header.includes("{ section.nestedLinks ? ("));
+  assert.ok(header.includes("section.nestedLinks ? 'nav-child' : ''"));
+  assert.ok(header.includes('{ link.nested ? ('));
+  assert.ok(icons.includes('SUBNAV_DOT_PATH'));
+  assert.ok(!icons.includes("  'Contact us':"));
+  assert.ok(!icons.includes('  Terms:'));
+  assert.ok(!icons.includes('  Privacy:'));
+});

@@ -5,7 +5,7 @@ import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 import { orderRequestForLabel, type OrderRequestId } from '../../lib/orderRequestSelection';
 import { rankNavigation, NAV_DISCOVERY } from '../../lib/navigationSearch';
-import { NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, navIconViewBox, sectionIconViewBox, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX } from '../../lib/publicNavigationIcons';
+import { NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS, navIconViewBox, sectionIconViewBox, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX } from '../../lib/publicNavigationIcons';
 
 /**
  * The Orders history's per-row service navigation. Actions open the
@@ -233,7 +233,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
             <VoiceSearchMic onTranscript={ setSearch } ariaLabel="Search order actions by voice" />
           </div>
           <div className="orm-section">
-            <svg viewBox={ sectionIconViewBox( 'Request' ) } aria-hidden="true" focusable="false">
+            <svg className={ MATERIAL_SECTION_ICON_LABELS.has( 'Request' ) ? 'orm-section-icon-fill' : undefined } viewBox={ sectionIconViewBox( 'Request' ) } aria-hidden="true" focusable="false">
               <path d={ REQUEST_SECTION_PATH } />
             </svg>
             <span>Request</span>
@@ -364,6 +364,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
           stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;
         }
+        .orm-section .orm-section-icon-fill{fill:currentColor;stroke:none}
         .orm-entries{padding:0 10px 6px}
         .orm-item,.orm-family-title{
           position:relative;display:flex;align-items:center;gap:10px;

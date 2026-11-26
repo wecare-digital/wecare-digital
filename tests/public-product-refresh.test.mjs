@@ -240,7 +240,8 @@ test('every named menu and section icon has an explicit square optical crop', ()
   for (const [label, span, stroke, box] of [
     ['Home', 18, 2, 21.6], ['Atmos', 800, 0, 872.73], ['Elsewhere', 800, 0, 872.73],
     ['Request Amendment', 14, 2, 16.8], ['Vault', 640, 0, 698.19],
-    ['Partner', 800, 0, 872.73], ['Google Play', 880, 0, 960], ['Contact us', 40, 0, 43.64],
+    ['Partner', 800, 0, 872.73], ['Shop', 800, 0, 872.73], ['Orders', 800, 0, 872.73],
+    ['App', 880, 0, 960], ['AI', 880, 0, 960],
   ]) {
     const [, , width] = map('NAV_ICON_VIEW_BOXES')[label].split(' ').map(Number);
     assert.equal(width, box, label);
@@ -258,4 +259,23 @@ test('Anew uses the exact selected outlined social_leaderboard glyph and normali
   assert.ok(header.includes("label: 'Anew', href: '/anew/'"));
   const [, , width] = '43.63 -916.37 872.73 872.73'.split(' ').map(Number);
   assert.ok(Math.abs(800 * 24 / width - 22) < 0.03);
+});
+
+test('Request, Shop, Orders, App and AI use exact outlined Material glyphs and optical crops', () => {
+  const icons = read('src/lib/publicNavigationIcons.ts');
+  const menu = read('src/components/orders/OrderActionsMenu.tsx');
+  for (const [label, path, crop] of [
+    ['Request', 'M200-160v-80h64l79-263q8-26 29.5-41.5T420-560h120q26 0 47.5 15.5T617-503l79 263h64v80H200Zm148-80h264l-72-240H420l-72 240Zm92-400v-200h80v200h-80Zm238 99-57-57 142-141 56 56-141 142Zm42 181v-80h200v80H720ZM282-541 141-683l56-56 142 141-57 57ZM40-360v-80h200v80H40Zm440 120Z', '0 -980 960 960'],
+    ['Shop', 'M240-80q-33 0-56.5-23.5T160-160v-480q0-33 23.5-56.5T240-720h80q0-66 47-113t113-47q66 0 113 47t47 113h80q33 0 56.5 23.5T800-640v480q0 33-23.5 56.5T720-80H240Zm0-80h480v-480h-80v80q0 17-11.5 28.5T600-520q-17 0-28.5-11.5T560-560v-80H400v80q0 17-11.5 28.5T360-520q-17 0-28.5-11.5T320-560v-80h-80v480Zm160-560h160q0-33-23.5-56.5T480-800q-33 0-56.5 23.5T400-720ZM240-160v-480 480Z', '43.63 -916.37 872.73 872.73'],
+    ['Orders', 'M655-200 513-342l56-56 85 85 170-170 56 57-225 226Zm0-320L513-662l56-56 85 85 170-170 56 57-225 226ZM80-280v-80h360v80H80Zm0-320v-80h360v80H80Z', '43.63 -937.86 872.73 872.73'],
+    ['App', 'M280-40q-33 0-56.5-23.5T200-120v-720q0-33 23.5-56.5T280-920h400q33 0 56.5 23.5T760-840v124q18 7 29 22t11 34v80q0 19-11 34t-29 22v404q0 33-23.5 56.5T680-40H280Zm0-80h400v-720H280v720Zm0 0v-720 720Zm200-200 160-160-56-56-64 62v-166h-80v166l-64-62-56 56 160 160Z', '20 -960 960 960'],
+    ['AI', 'M160-360q-50 0-85-35t-35-85q0-50 35-85t85-35v-80q0-33 23.5-56.5T240-760h120q0-50 35-85t85-35q50 0 85 35t35 85h120q33 0 56.5 23.5T800-680v80q50 0 85 35t35 85q0 50-35 85t-85 35v160q0 33-23.5 56.5T720-120H240q-33 0-56.5-23.5T160-200v-160Zm200-80q25 0 42.5-17.5T420-500q0-25-17.5-42.5T360-560q-25 0-42.5 17.5T300-500q0 25 17.5 42.5T360-440Zm240 0q25 0 42.5-17.5T660-500q0-25-17.5-42.5T600-560q-25 0-42.5 17.5T540-500q0 25 17.5 42.5T600-440ZM320-280h320v-80H320v80Zm-80 80h480v-480H240v480Zm240-240Z', '0 -980 960 960'],
+  ]) {
+    assert.ok(icons.includes(label + ": '" + path + "'"), label);
+    assert.ok(icons.includes(label + ": '" + crop + "'"), label);
+  }
+  assert.ok(icons.includes("MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn', 'Request' ] )"));
+  assert.ok(menu.includes(".orm-section .orm-section-icon-fill{fill:currentColor;stroke:none}"));
+  const materialLabels = icons.match(/const MATERIAL_NAV_ICON_LABELS = new Set\( \[([\s\S]*?)\] \);/)?.[1];
+  for (const label of ['Shop', 'Orders', 'App', 'AI']) assert.ok(materialLabels?.includes("'" + label + "'"), label);
 });
