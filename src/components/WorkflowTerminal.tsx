@@ -970,16 +970,14 @@ const WorkflowTerminal: React.FC = () => {
            the aria-hidden window in the DOM - see the note on the button. */
         .wt-wrap{width:100%;position:relative}
 
-        /* THE PAUSE CONTROL. Sits on the title bar, which is #3b271a, so the resting state is
-           a translucent white chip on brown rather than a hue - the bar already carries three
-           coloured lights and a fourth colour there would read as a fifth status signal.
-           Measured: #f2efe9 on #3b271a is 9.41:1, and on the lime hover fill 8.87:1, both well
-           clear of 4.5:1 for 12px text. */
+        /* THE PLAYBACK CONTROL. Match the adjacent title text optically while keeping
+           the full 52x47px hit target. Amber and green are the existing title-bar hues;
+           lime remains the established hover/focus accent. */
         .wt-play{
           position:absolute;top:0;right:0;z-index:3;height:47px;width:52px;box-sizing:border-box;
           display:inline-flex;align-items:center;justify-content:center;
           padding:0;margin:0;border:0;background:transparent;
-          color:#f2efe9;
+          color:#f0a818;font-size:15px;
           cursor:pointer;
           border-top-right-radius:14px;
           box-shadow:inset 0 -2px 0 transparent;
@@ -991,15 +989,17 @@ const WorkflowTerminal: React.FC = () => {
            dedicated second row. */
         .wt-play:hover,.wt-play:focus-visible{
           background:rgba(209,244,112,.08);
-          color:#fff;
+          color:#d1f470;
           box-shadow:inset 0 -2px 0 #d1f470;
         }
-        .wt-play.is-paused{box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
+        .wt-play.is-paused{color:#3da35a;box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
+        .wt-play.is-paused:hover,.wt-play.is-paused:focus-visible{color:#d1f470}
         /* A real focus ring. The bar is dark, so the lime the rest of the site uses for focus
            reads clearly against it. */
         .wt-play:focus-visible{outline:2px solid #d1f470;outline-offset:-2px}
-        /* Equal 24px visible footprints with optical whitespace cropped. */
-        .wt-play-icon{display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor}
+        /* The cropped 680-unit viewBox contains 560 units of artwork in height.
+           At 1.2em the visible glyph is approximately the adjacent text size. */
+        .wt-play-icon{display:block;width:1.2em;height:1.2em;flex:0 0 1.2em;fill:currentColor}
         /* PAUSE MUST STOP THE MOTION, not just the timers. The stepping effect stops scheduling
            when paused, but .wt-pulse is a CSS animation with infinite iteration on whichever row
            is running - motion that would carry on indefinitely after a reader pressed pause,
@@ -1339,7 +1339,7 @@ const WorkflowTerminal: React.FC = () => {
              box, no permanent lime rail. */
           .wt-play{
             top:0;left:auto;right:0;
-            width:52px;height:47px;
+            width:52px;height:47px;font-size:clamp(15px,4.5vw,17px);
             justify-content:center;
             padding:0;
             border-radius:0 12px 0 0;
@@ -1349,12 +1349,12 @@ const WorkflowTerminal: React.FC = () => {
           }
           .wt-play:hover{
             background:rgba(209,244,112,.08);
-            color:#fff;
+            color:#d1f470;
             box-shadow:inset 0 -2px 0 #d1f470;
           }
           .wt-play:focus-visible{
             background:rgba(209,244,112,.08);
-            color:#fff;
+            color:#d1f470;
             outline:2px solid #d1f470;
             outline-offset:-2px;
             box-shadow:inset 0 -2px 0 #d1f470;
@@ -1395,7 +1395,7 @@ const WorkflowTerminal: React.FC = () => {
              are aligned. Zero width preserves the row without consuming narrow-screen space. */
           .wt-bar-state{visibility:hidden;flex:0 0 0;width:0;min-width:0;margin-left:0;overflow:hidden}
           .wt-bar-title{font-size:14px}
-          .wt-play{width:52px;padding-inline:0}
+          .wt-play{width:52px;padding-inline:0;font-size:14px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
