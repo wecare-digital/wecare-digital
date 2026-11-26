@@ -216,7 +216,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           is one viewport wide, so a touch swipe snaps page to page natively, and the arrow buttons
           / arrow keys drive the same scrollTo. */}
       { filtered.length === 0
-        ? <p className="pbp-empty" aria-live="polite">No matching posts. Try a related word or topic.</p>
+        ? <p className="pbp-empty" aria-live="polite">0 results</p>
         : (
             <div
               className="pbp-track"

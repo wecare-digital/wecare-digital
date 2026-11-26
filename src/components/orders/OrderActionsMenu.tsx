@@ -230,7 +230,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
               onChange={ event => setSearch( event.target.value ) }
               placeholder="Search actions" maxLength={ 120 } aria-label="Search order actions"
               autoComplete="off" />
-            <VoiceSearchMic onTranscript={ setSearch } ariaLabel="Search order actions by voice" />
+            <VoiceSearchMic onTranscript={ value => setSearch( value.slice( 0, 120 ) ) } ariaLabel="Search order actions by voice" />
           </div>
           <div className="orm-section">
             <svg className={ MATERIAL_SECTION_ICON_LABELS.has( 'Request' ) ? 'orm-section-icon-fill' : undefined } viewBox={ sectionIconViewBox( 'Request' ) } aria-hidden="true" focusable="false">
