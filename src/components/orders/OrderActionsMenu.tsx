@@ -230,7 +230,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
               onChange={ event => setSearch( event.target.value ) }
               placeholder="Search actions" maxLength={ 120 } aria-label="Search order actions"
               autoComplete="off" />
-            <VoiceSearchMic onTranscript={ setSearch } ariaLabel="Search order actions by voice" />
+            <VoiceSearchMic onTranscript={ value => setSearch( value.slice( 0, 120 ) ) } ariaLabel="Search order actions by voice" />
           </div>
           <div className="orm-section">
             <svg className={ MATERIAL_SECTION_ICON_LABELS.has( 'Request' ) ? 'orm-section-icon-fill' : undefined } viewBox={ sectionIconViewBox( 'Request' ) } aria-hidden="true" focusable="false">
@@ -358,8 +358,8 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           border-block-end-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
-        .orm-section{display:flex;align-items:center;gap:7px;padding:5px 18px;
-          font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+        .orm-section{display:flex;align-items:center;gap:9px;padding:6px 22px;min-height:var(--tap-min);box-sizing:border-box;
+          font-family:inherit;font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading);letter-spacing:.025em;color:var(--public-brand-green);text-transform:uppercase}
         .orm-section svg{
           width:var(--public-nav-icon-size);height:var(--public-nav-icon-size);flex:none;fill:none;stroke:currentColor;
           stroke-width:var(--public-nav-stroke);stroke-linecap:round;stroke-linejoin:round;

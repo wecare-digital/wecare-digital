@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORDER_REQUESTS, orderRequestById, orderRequestForLabel, stashOrderRequest, takeOrderRequest } from '../src/lib/orderRequestSelection.ts';
-import { rankNavigation, NAV_DISCOVERY, normalizeNavigationText } from '../src/lib/navigationSearch.ts';
+import { rankNavigation, NAV_DISCOVERY, normalizeNavigationText, contentSearchText, rankPublicContent, rankBlogContent } from '../src/lib/navigationSearch.ts';
 
 const items = ['Khata','Visa','Panchang','Orders','Trip','Drop Docs','Track','Parichay'].map( label => ( { label, searchText: [label, ...(NAV_DISCOVERY[label] || [])].join(' ') } ) );
 const first = query => rankNavigation(items, query)[0]?.label;
@@ -125,4 +125,47 @@ test('Contact and Legal Stuff use the same dotted submenu arrow in the menu and 
   assert.ok(!icons.includes("  'Contact us':"));
   assert.ok(!icons.includes('  Terms:'));
   assert.ok(!icons.includes('  Privacy:'));
+});
+
+test('shared content search ranks titles, matches multiword typos and curated Hindi/Bengali topics', () => {
+  const posts = [
+    { title: 'Travel planning', excerpt: 'Preparation and dates for a trip', category: 'Conversations', tags: ['visa'] },
+    { title: 'Refund policy', excerpt: 'How refunds and cancellation work', category: 'Conversations', tags: ['payment'] },
+    { title: 'Payment processing', excerpt: 'Invoice and billing records', category: 'Conversations', tags: [] },
+    { title: 'A billing guide', excerpt: 'Refund policy and invoice records', category: 'Conversations', tags: [] },
+  ];
+  assert.equal(rankBlogContent(posts, 'refnud policy')[0]?.title, 'Refund policy');
+  assert.equal(rankBlogContent(posts, 'visa travel')[0]?.title, 'Travel planning');
+  assert.ok(rankBlogContent(posts, 'invoice billing').some(post => post.title === 'Payment processing'));
+  assert.equal(rankBlogContent(posts, 'billing guide')[0]?.title, 'A billing guide');
+  assert.ok(rankBlogContent(posts, 'धन वापसी').some(post => post.title === 'Refund policy'));
+  assert.ok(rankBlogContent(posts, 'ভিসা').some(post => post.title === 'Travel planning'));
+  assert.equal(rankBlogContent(posts, 'zzzzzzzzz').length, 0);
+  assert.deepEqual(rankBlogContent(posts, ''), posts);
+  assert.ok(!contentSearchText(['Cooking rice']).includes('refund'));
+  const products = [{ name: 'Khata', blurb: 'Invoice creation' }, { name: 'Visa', blurb: 'Travel documents' }];
+  assert.equal(rankPublicContent(products, 'inovice', p => p.name, p => [p.blurb])[0]?.name, 'Khata');
+  assert.equal(rankPublicContent(products, 'ভিসা', p => p.name, p => [p.blurb])[0]?.name, 'Visa');
+});
+test('public content surfaces share search ranking without broadening source or category scope', () => {
+  const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+  const legal = read('src/components/LegalDocument.tsx');
+  const blog = read('src/components/BlogIndexView.tsx');
+  const anew = read('src/components/ProductBlogPanel.tsx');
+  const shop = read('src/components/ShopListingView.tsx');
+  assert.ok(legal.includes('rankNavigation( sectionIndex, sectionQuery )'));
+  assert.ok(legal.includes("item.section.number === exactNumber || item.section.number.startsWith( exactNumber + '.' )"));
+  assert.ok(blog.includes('rankBlogContent( scoped, trimmedQuery )'));
+  assert.ok(blog.includes('available.filter( post => post.category === activeCategory )'));
+  assert.ok(blog.includes('const available = allCards ?? posts'));
+  assert.ok(anew.includes('rankBlogContent( scoped, query )'));
+  assert.ok(anew.includes('cards.filter( card => card.category === category )'));
+  assert.ok(shop.includes('rankPublicContent( shelfListings, query'));
+  assert.ok(shop.includes('listing.showOnShopShelf !== false'));
+  assert.ok(read('src/pages/post/[slug].tsx').includes('action="/blog/" method="get"'));
+  assert.ok(read('src/components/SupportWidget.tsx').includes('rankNavigation( all.map( lang'));
+  assert.ok(read('src/pages/auth.tsx').includes('rankNavigation( DIAL_CODES.map'));
+  const header = read('src/components/Header.tsx');
+  const orders = read('src/components/orders/OrderActionsMenu.tsx');
+  for (const source of [header, orders]) assert.ok(source.includes('font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading)'));
 });

@@ -1171,7 +1171,8 @@ const Header: React.FC = () => {
            (the brand's deep green, NOT the grassy #3da35a a first pass used - that
            bright green clashed with the palette), weight 700, UPPERCASE, with a
            touch more tracking so the caps stay legible. */
-        .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
+        .nav-group-label{display:flex;align-items:center;gap:9px;min-height:var(--tap-min);box-sizing:border-box;padding:6px 12px;font-family:inherit;font-size:var(--public-nav-heading-size);font-weight:var(--public-nav-heading-weight);line-height:var(--public-nav-heading-leading);letter-spacing:.025em;color:var(--public-brand-green);text-transform:uppercase}
+        .nav-group-label span{min-width:0;overflow-wrap:anywhere}
         /* Shared menu icon footprint, from section headings to child and search rows.
            The measured crops give each glyph approximately 22px of visible extent
            within its 24px slot, regardless of original SVG padding or units. */
@@ -1351,6 +1352,7 @@ const Header: React.FC = () => {
           /* Keep the 24px icon visible on Fold-width screens. Give long labels
              room to wrap instead of hiding their icons or shrinking tap targets. */
           .nav-item,.nav-child{font-size:18px;padding-inline:10px;gap:7px}
+          .nav-group-label{padding-inline:10px;gap:7px}
           .nav-child{padding-inline-start:18px}
         }
 

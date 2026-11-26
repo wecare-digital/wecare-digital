@@ -1,4 +1,4 @@
-/** Local, bounded, multilingual public-navigation search. */
+/** Shared local, bounded, multilingual public website text search. */
 export const normalizeNavigationText = ( value: string ): string =>
   value.normalize( 'NFKC' ).toLocaleLowerCase().replace( /[^\p{L}\p{N}\p{M}]+/gu, ' ' ).trim();
 const words = ( value: string ) => normalizeNavigationText( value ).split( ' ' ).filter( Boolean );
@@ -20,22 +20,79 @@ export function rankNavigation<T extends { label: string; searchText: string }> 
 ): T[] {
   const term = normalizeNavigationText( query.slice( 0, 120 ) );
   if ( !term ) return [];
-  const tokens = words( term ).slice( 0, 12 );
+  const tokens = Array.from( new Set( words( term ) ) ).slice( 0, 12 );
+  // Large content indexes reuse many words. Cache each fuzzy comparison only
+  // for this query; no unbounded global cache or repeated distance matrices.
+  const fuzzy = new Map<string, boolean>();
+  const near = ( token: string, word: string ) => {
+    if ( !/^[a-z]{4,32}$/.test( token ) || !/^[a-z]{3,32}$/.test( word ) || Math.abs( token.length - word.length ) > ( token.length >= 7 ? 2 : 1 ) ) return false;
+    const key = token + ':' + word;
+    const cached = fuzzy.get( key );
+    if ( cached !== undefined ) return cached;
+    const match = closeWord( token, word );
+    // Cap the cache even for very large public indexes.
+    if ( fuzzy.size < 20000 ) fuzzy.set( key, match );
+    return match;
+  };
   const hits: { entry: T; score: number; index: number }[] = [];
   entries.forEach( ( entry, index ) => {
     const label = normalizeNavigationText( entry.label );
     const haystack = normalizeNavigationText( entry.searchText + ' ' + localized( entry ) );
-    const candidates = words( haystack );
+    const candidates = Array.from( new Set( words( haystack ) ) );
+    const exact = new Set( candidates );
+    const titleWords = new Set( words( label ) );
     let score = label === term ? 1000 : label.startsWith( term ) ? 600 : label.includes( term ) ? 400 : haystack.includes( term ) ? 200 : 0;
     for ( const token of tokens ) {
-      if ( candidates.includes( token ) ) score += 40;
+      if ( exact.has( token ) ) score += titleWords.has( token ) ? 80 : 40;
       else if ( candidates.some( word => word.startsWith( token ) ) ) score += 20;
-      else if ( candidates.some( word => closeWord( token, word ) ) ) score += 5;
+      else if ( candidates.some( word => near( token, word ) ) ) score += 5;
       else return;
     }
     hits.push( { entry, score, index } );
   } );
   return hits.sort( ( a, b ) => b.score - a.score || a.index - b.index ).map( hit => hit.entry );
+}
+/** Curated topical synonyms and Hindi/Bengali terms. Expand only documents
+ * that already contain the corresponding English topic, never invent content.
+ * This is local text discovery, not an AI answer generator or translation API. */
+const CONTENT_TOPICS: readonly { triggers: readonly string[]; aliases: string }[] = [
+  { triggers: ['refund', 'refunds', 'reimbursement'], aliases: 'refund money back reimbursement धन वापसी रिफंड টাকা ফেরত রিফান্ড' },
+  { triggers: ['privacy', 'personal data', 'personal information'], aliases: 'privacy personal data गोपनीयता निजी जानकारी গোপনীয়তা ব্যক্তিগত তথ্য' },
+  { triggers: ['payment', 'payments', 'billing'], aliases: 'payment billing भुगतान पेमेंट পেমেন্ট অর্থপ্রদান' },
+  { triggers: ['invoice', 'invoices', 'invoicing'], aliases: 'invoice bill billing चालान इनवॉइस बिल ইনভয়েস চালান বিল' },
+  { triggers: ['cancellation', 'cancel', 'cancellations'], aliases: 'cancellation cancel रद्द निरस्तीकरण বাতিল' },
+  { triggers: ['delivery', 'shipping', 'shipment', 'shipments'], aliases: 'delivery shipping shipment डिलीवरी शिपमेंट पार्सल ডেলিভারি শিপমেন্ট পার্সেল' },
+  { triggers: ['consent', 'permission', 'permissions'], aliases: 'consent permission सहमति अनुमति সম্মতি অনুমতি' },
+  { triggers: ['deletion', 'delete', 'erasure'], aliases: 'delete deletion erasure हटाना मिटाना মুছে ফেলা' },
+  { triggers: ['account', 'accounts'], aliases: 'account खाता अकाउंट অ্যাকাউন্ট হিসাব' },
+  { triggers: ['cookies', 'cookie'], aliases: 'cookie cookies कुकी কুকি' },
+  { triggers: ['liability', 'responsibility'], aliases: 'liability responsibility दायित्व जिम्मेदारी দায় দায়িত্ব' },
+  { triggers: ['visa', 'visas'], aliases: 'visa वीज़ा वीजा ভিসা' },
+  { triggers: ['travel', 'trip', 'journey'], aliases: 'travel trip journey यात्रा सफर ভ্রমণ যাত্রা' },
+  { triggers: ['weather', 'climate', 'air quality'], aliases: 'weather climate air quality मौसम जलवायु আবহাওয়া জলবায়ু' },
+  { triggers: ['astrology', 'panchang', 'panchanga'], aliases: 'astrology panchang पंचांग ज्योतिष পঞ্জিকা জ্যোতিষ' },
+  { triggers: ['career', 'resume', 'cv'], aliases: 'career resume cv रिज्यूमे करियर জীবনবৃত্তান্ত সিভি' },
+  { triggers: ['documents', 'document', 'paperwork'], aliases: 'documents paperwork दस्तावेज़ कागजात নথি কাগজপত্র' },
+  { triggers: ['contact', 'support', 'help'], aliases: 'contact support help संपर्क सहायता যোগাযোগ সহায়তা' },
+];
+export function contentSearchText ( fields: readonly string[] ): string {
+  const text = normalizeNavigationText( fields.join( ' ' ) );
+  const padded = ' ' + text + ' ';
+  const aliases = CONTENT_TOPICS.filter( topic => topic.triggers.some( trigger => padded.includes( ' ' + trigger + ' ' ) ) ).map( topic => topic.aliases );
+  return [ text, ...aliases ].join( ' ' );
+}
+export function rankPublicContent<T> (
+  entries: readonly T[], query: string, label: ( entry: T ) => string, fields: ( entry: T ) => readonly string[],
+): T[] {
+  if ( !query.trim() ) return [...entries];
+  return rankNavigation( entries.map( entry => ( {
+    entry, label: label( entry ), searchText: contentSearchText( [ label( entry ), ...fields( entry ) ] ),
+  } ) ), query ).map( item => item.entry );
+}
+export function rankBlogContent<T extends { title: string; excerpt?: string | null; category?: string | null; tags?: readonly string[] | null }> (
+  entries: readonly T[], query: string,
+): T[] {
+  return rankPublicContent( entries, query, post => post.title, post => [ post.excerpt || '', post.category || '', ...( post.tags || [] ) ] );
 }
 export const NAV_DISCOVERY: Readonly<Record<string, readonly [string, string]>> = {
   Home: [ 'WECARE.DIGITAL home', 'होम मुख्य पृष्ठ হোম প্রধান পাতা' ],

@@ -86,11 +86,11 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
   const inputRef = useRef<HTMLInputElement | null>( null );
   const onVoiceTranscript = ( transcript: string ) => {
     if ( live ) {
-      onChange!( transcript );
+      onChange!( transcript.slice( 0, 120 ) );
       return;
     }
     if ( !inputRef.current ) return;
-    inputRef.current.value = transcript;
+    inputRef.current.value = transcript.slice( 0, 120 );
     if ( formRef.current?.requestSubmit ) formRef.current.requestSubmit();
     else formRef.current?.submit();
   };
@@ -106,6 +106,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
             ref={ inputRef }
             id={ inputId }
             type="search"
+            maxLength={ 120 }
             name="q"
             placeholder={ placeholder }
             autoComplete="off"

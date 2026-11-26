@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
-import { normalizeNavigationText } from '../lib/navigationSearch';
+import { normalizeNavigationText, rankNavigation, contentSearchText } from '../lib/navigationSearch';
 import VoiceSearchMic from './VoiceSearchMic';
 import { CONTENTS_ICON, CONTENTS_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX } from '../lib/publicNavigationIcons';
 
@@ -62,9 +62,19 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
   };
   const searchTerm = normalizeNavigationText( sectionQuery );
   const sectionIndex = useMemo( () => sections.map( section => ( {
-    section, text: normalizeNavigationText( [ section.number, section.heading, section.inShort || '', ...section.paragraphs ].join( ' ' ) ),
+    section, label: section.heading,
+    searchText: contentSearchText( [ section.number, section.heading, section.inShort || '', ...section.paragraphs ] ),
   } ) ), [ sections ] );
-  const matches = useMemo( () => searchTerm ? sectionIndex.filter( item => item.text.includes( searchTerm ) ).map( item => item.section ) : [], [ searchTerm, sectionIndex ] );
+  const matches = useMemo( () => {
+    if ( !searchTerm ) return [];
+    // Clause numbers and fragment IDs are exact identifiers, not fuzzy words.
+    const raw = sectionQuery.trim();
+    const exactNumber = raw.match( /^(?:(?:section|clause)\s+)?(\d+(?:\.\d+)*)\.?$/i )?.[1];
+    if ( exactNumber ) return sectionIndex.filter( item => item.section.number === exactNumber || item.section.number.startsWith( exactNumber + '.' ) ).map( item => item.section );
+    const exactId = sectionIndex.find( item => item.section.id === raw.replace( /^#/, '' ) );
+    if ( exactId ) return [ exactId.section ];
+    return rankNavigation( sectionIndex, sectionQuery ).map( item => item.section );
+  }, [ searchTerm, sectionQuery, sectionIndex ] );
   const activeGroup = sections.find( section => section.id === activeId )?.number.split( '.' )[0];
   const lastScrollGroup = useRef( '' );
 
@@ -235,7 +245,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                 <span className="lgd-toc-num">{ section.number }</span><span className="lgd-toc-label">{ section.heading }</span>
               </> }
             </a></li> ) }
-            { !matches.length && <li className="lgd-toc-empty">No matching clauses. Try a different word or clause number.</li> }
+            { !matches.length && <li className="lgd-toc-empty">No matching clauses. Try a related word, such as payment or privacy, or a clause number.</li> }
           </ol> : <ol className="lgd-toc-list">
             { topLevel.map( section => {
               const children = sections.filter( child => child.number.startsWith( `${section.number}.` ) );

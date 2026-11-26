@@ -6,6 +6,7 @@ import PageShell from './public/PageShell';
 import BlogSearch from './BlogSearch';
 import { cycle } from '../content/products';
 import { type ShopListing } from '../content/shopProducts';
+import { rankPublicContent, NAV_DISCOVERY } from '../lib/navigationSearch';
 
 /**
  * The /shop/ listing, one page of it.
@@ -58,7 +59,7 @@ import { type ShopListing } from '../content/shopProducts';
 export const SHOP_HERO_WORDS: CycleWord[] = cycle( 'services', 'documents', 'products', 'journeys' );
 
 /** Bound on a String.prototype.includes over a 15-item list, not a security control. */
-const MAX_QUERY = 100;
+const MAX_QUERY = 120;
 
 interface ShopListingViewProps {
   /** This page's slice, in order. */
@@ -102,18 +103,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
    */
   const visible = useMemo( () => {
     if ( !filtering ) return shelfListings;
-    const q = query.trim().toLowerCase();
-    /*
-     * THE FIELDS ARE JOINED WITH A NEWLINE, NOT A SPACE, and that is copied deliberately from
-     * BlogIndexView rather than simplified. Joining with a space lets a query match a phrase made
-     * only of the end of one field and the start of the next - "Anew" plus "A considered..." gives
-     * "anew a considered", which contains "anew a", a phrase no product has. A newline cannot
-     * appear in a typed query, so it is a boundary a search term cannot cross, while spaces inside
-     * one field still match normally.
-     */
-    return shelfListings.filter( listing => (
-      [ listing.name, listing.blurb ].join( '\n' ).toLowerCase().includes( q )
-    ) );
+    return rankPublicContent( shelfListings, query, listing => listing.name, listing => {
+      const leaf = listing.name.split( '·' ).pop()?.trim() || listing.name;
+      return [ listing.blurb, ...( NAV_DISCOVERY[ leaf ] || [] ) ];
+    } );
   }, [ filtering, query, shelfListings ] );
 
   /**
@@ -198,7 +191,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             the blog's box. */}
         <BlogSearch
           value={ query }
-          onChange={ setQuery }
+          onChange={ value => setQuery( value.slice( 0, MAX_QUERY ) ) }
           resultCount={ visible.length }
           totalCount={ shelfListings.length }
           action="/shop/"

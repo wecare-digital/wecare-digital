@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
 import { loadBlogCardIndex } from '../lib/blog-card-index';
+import { rankBlogContent } from '../lib/navigationSearch';
 import BlogTags from './BlogTags';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
@@ -100,20 +101,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   const [ page, setPage ] = useState<number>( 0 );
   const trackRef = useRef<HTMLDivElement | null>( null );
 
-  // Filter by active category, then by the typed query across title + excerpt + category + tags.
+  // Preserve the selected category, then apply the shared relevance ranking.
   const filtered = useMemo<BlogCard[]>( () => {
-    const q = query.trim().toLowerCase();
-    return cards.filter( c => {
-      if ( category && c.category !== category ) return false;
-      if ( !q ) return true;
-      const hay = [
-        c.title,
-        c.excerpt || '',
-        c.category || '',
-        ...( c.tags || [] ),
-      ].join( ' ' ).toLowerCase();
-      return hay.includes( q );
-    } );
+    const scoped = category ? cards.filter( card => card.category === category ) : cards;
+    return rankBlogContent( scoped, query );
   }, [ cards, category, query ] );
 
   // Group the filtered cards into fixed-size pages. The pager scrolls between these horizontally;
@@ -205,12 +196,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         <input
           id="pbp-q"
           type="search"
+          maxLength={ 120 }
           autoComplete="off"
           placeholder="Search posts"
           value={ query }
-          onChange={ e => { setQuery( e.target.value ); resetToFirstPage(); } }
+          onChange={ e => { setQuery( e.target.value.slice( 0, 120 ) ); resetToFirstPage(); } }
         />
-        <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript ); resetToFirstPage(); } } />
+        <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript.slice( 0, 120 ) ); resetToFirstPage(); } } />
       </div>
 
       { initialCategories && !allCards && (

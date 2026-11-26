@@ -3,6 +3,7 @@ import Head from 'next/head';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import PublicNotice from '../components/public/PublicNotice';
 import { DEFAULT_DIAL_CODE, DIAL_CODES, isValidNationalLength } from '../lib/dialCodes';
+import { rankNavigation } from '../lib/navigationSearch';
 import { authStateQuery } from '../lib/authStateQuery';
 import { publicActionText, publicApiFailureText } from '../lib/publicActionNotices';
 
@@ -72,9 +73,12 @@ const AuthPage: React.FC = () => {
   const countries = useMemo( () => {
     const query = countryQuery.trim().toLocaleLowerCase();
     if ( !query ) return DIAL_CODES;
-    return DIAL_CODES.filter( item => (
+    const matches = DIAL_CODES.filter( item => (
       item.country.toLocaleLowerCase().includes( query ) || item.code.includes( query )
     ) );
+    if ( matches.length || !/^[a-z]{4,}(?: [a-z]+)*$/i.test( query ) ) return matches;
+    // Only fuzzy-match names when exact name/code matching has no result.
+    return rankNavigation( DIAL_CODES.map( item => ( { item, label: item.country, searchText: item.country } ) ), query ).map( hit => hit.item );
   }, [ countryQuery ] );
 
   const submitStep = async ( values: Record<string, string> ) => {
