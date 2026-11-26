@@ -30,6 +30,7 @@ sqs = boto3.client('sqs', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 # Environment variables
+MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 DLQ_MESSAGES_TABLE = os.environ.get('DLQ_MESSAGES_TABLE', 'stack-wecare-digital-DLQMessagesTable')
 # Live configuration names this queue `DLQ_URL`; reading only `INBOUND_DLQ_URL` left it ''.
 INBOUND_DLQ_URL = wa_internal_event.inbound_dlq_url()
@@ -201,7 +202,10 @@ def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, An
             original_message_id = message_body.get('originalMessageId', message_id)
             if original_message_id in processed_ids:
                 logger.info(f"Skipping duplicate message: {original_message_id}")
-                _delete_message(queue_url, receipt_handle)
+                # Never discard another inbound receipt based solely on the
+                # tracking ID. The first item may have failed or may differ.
+                if queue_name != 'inbound-dlq':
+                    _delete_message(queue_url, receipt_handle)
                 stats['skipped'] += 1
                 continue
             
@@ -219,7 +223,10 @@ def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, An
                     'retryCount': retry_count,
                     'requestId': request_id
                 }))
-                _delete_message(queue_url, receipt_handle)
+                # Never discard another inbound receipt based solely on the
+                # tracking ID. The first item may have failed or may differ.
+                if queue_name != 'inbound-dlq':
+                    _delete_message(queue_url, receipt_handle)
                 stats['skipped'] += 1
                 continue
             
@@ -228,9 +235,8 @@ def _replay_dlq_messages(event: Dict[str, Any], request_id: str) -> Dict[str, An
             # Requirement 9.4: Apply original processing logic
             success = _replay_message(queue_name, message_body, request_id)
             
-            if success:
+            if success and _delete_message(queue_url, receipt_handle):
                 # Requirement 9.5: Delete from DLQ on success
-                _delete_message(queue_url, receipt_handle)
                 _delete_dlq_record(original_message_id)
                 stats['succeeded'] += 1
                 
@@ -293,15 +299,17 @@ def _receive_messages(queue_url: str, batch_size: int) -> List[Dict]:
         return []
 
 
-def _delete_message(queue_url: str, receipt_handle: str) -> None:
+def _delete_message(queue_url: str, receipt_handle: str) -> bool:
     """Delete message from SQS."""
     try:
         sqs.delete_message(
             QueueUrl=queue_url,
             ReceiptHandle=receipt_handle
         )
+        return True
     except Exception as e:
-        logger.error(f"Delete message error: {str(e)}")
+        logger.error("Delete message error: %s", type(e).__name__)
+        return False
 
 
 def _get_or_create_dlq_record(message_id: str, queue_name: str, payload: Dict) -> Dict:
@@ -362,6 +370,55 @@ def _delete_dlq_record(message_id: str) -> None:
         logger.error(f"Delete DLQ record error: {str(e)}")
 
 
+def _inbound_replay_ids(event: Dict) -> List[str]:
+    """IDs proved by the canonical Inbox; retain mixed/unknown replay shapes."""
+    # The parser tolerates skipped records for normal delivery. A replay may
+    # acknowledge a receipt only if it understood the entire work item.
+    items = wa_internal_event.parse(event)
+    if len(items) != 1 or (event.get('Records') and len(event['Records']) != 1):
+        return []
+    ids = []
+    for change in items[0]['entry'].get('changes') or []:
+        value = change.get('value') or {}
+        if (change.get('field') != 'messages' or not value.get('messages')
+                or set(value) - {'messaging_product', 'metadata', 'contacts', 'messages'}):
+            return []
+        for message in value['messages']:
+            message_id = message.get('id')
+            if not isinstance(message_id, str) or not message_id.strip():
+                return []
+            ids.append(message_id)
+    return ids
+
+
+def _inbox_has_all(message_ids: List[str]) -> bool:
+    """Prove the exact messages exist now; an index hit alone can be stale."""
+    table = dynamodb.Table(MESSAGES_TABLE)
+    projection = 'id, whatsappMessageId, #channel, #direction'
+    names = {'#channel': 'channel', '#direction': 'direction'}
+    for message_id in dict.fromkeys(message_ids):
+        index = table.query(
+            IndexName='whatsappMessageId-index',
+            KeyConditionExpression='whatsappMessageId = :wmid',
+            ExpressionAttributeValues={':wmid': message_id},
+            ProjectionExpression='id',
+            Limit=2,
+        )
+        for match in index.get('Items', []):
+            row = (table.get_item(
+                Key={'id': match['id']},
+                ConsistentRead=True,
+                ProjectionExpression=projection,
+                ExpressionAttributeNames=names,
+            ).get('Item') or {})
+            if (row.get('whatsappMessageId') == message_id
+                    and row.get('channel') == 'whatsapp' and row.get('direction') == 'inbound'):
+                break
+        else:
+            return False
+    return bool(message_ids)
+
+
 def _replay_message(queue_name: str, message_body: Dict, request_id: str) -> bool:
     """Replay message using original handler."""
     try:
@@ -373,6 +430,15 @@ def _replay_message(queue_name: str, message_body: Dict, request_id: str) -> boo
         # Extract original record/payload
         original_record = message_body.get('originalRecord', message_body)
         
+        inbound_ids = []
+        if queue_name == 'inbound-dlq':
+            inbound_ids = _inbound_replay_ids(original_record)
+            if not inbound_ids:
+                logger.warning("Inbound replay requires manual reconciliation: %s", request_id)
+                return False
+            if _inbox_has_all(inbound_ids):
+                return True
+
         # Invoke original handler
         response = lambda_client.invoke(
             FunctionName=handler_function,
@@ -391,10 +457,21 @@ def _replay_message(queue_name: str, message_body: Dict, request_id: str) -> boo
                     and bool(result.get('status')))
         status_code = result.get('statusCode', 500)
         
-        return status_code in [200, 201]
+        if status_code not in (200, 201):
+            return False
+        if queue_name != 'inbound-dlq':
+            return True
+        # The inbound worker counts some duplicate/lease no-ops as processed.
+        # Require all work accounted for, no application failures, and a
+        # consistent read of each canonical message before acknowledging SQS.
+        outcome = json.loads(result['body'])
+        return (type(outcome.get('errors')) is int and outcome['errors'] == 0
+                and type(outcome.get('processed')) is int
+                and outcome['processed'] == len(inbound_ids)
+                and _inbox_has_all(inbound_ids))
         
     except Exception as e:
-        logger.error(f"Replay message error: {str(e)}")
+        logger.error("Replay message error: %s", type(e).__name__)
         return False
 
 
