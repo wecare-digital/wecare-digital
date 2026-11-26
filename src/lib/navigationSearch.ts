@@ -2,6 +2,8 @@
 export const normalizeNavigationText = ( value: string ): string =>
   value.normalize( 'NFKC' ).toLocaleLowerCase().replace( /[^\p{L}\p{N}\p{M}]+/gu, ' ' ).trim();
 const words = ( value: string ) => normalizeNavigationText( value ).split( ' ' ).filter( Boolean );
+// Ignore conversational scaffolding in longer queries, but never discard an entire query or an identifier.
+const QUERY_FILLERS = new Set( ['how','what','where','when','which','who','why','can','could','would','should','do','does','did','is','are','was','were','the','a','an','i','we','you','my','our','your','me','us','to','for','of','in','on','with','please','tell','show','find','get','about'] );
 function closeWord ( a: string, b: string ): boolean {
   if ( !/^[a-z]{4,32}$/.test( a ) || !/^[a-z]{3,32}$/.test( b ) ) return false;
   const limit = a.length >= 7 ? 2 : 1;
@@ -20,7 +22,10 @@ export function rankNavigation<T extends { label: string; searchText: string }> 
 ): T[] {
   const term = normalizeNavigationText( query.slice( 0, 120 ) );
   if ( !term ) return [];
-  const tokens = Array.from( new Set( words( term ) ) ).slice( 0, 12 );
+  const queryWords = words( term );
+  const focused = queryWords.length > 1 ? queryWords.filter( word => !QUERY_FILLERS.has( word ) ) : queryWords;
+  const tokens = Array.from( new Set( focused.length ? focused : queryWords ) ).slice( 0, 12 );
+  const focusTerm = tokens.join( ' ' );
   // Large content indexes reuse many words. Cache each fuzzy comparison only
   // for this query; no unbounded global cache or repeated distance matrices.
   const fuzzy = new Map<string, boolean>();
@@ -41,7 +46,7 @@ export function rankNavigation<T extends { label: string; searchText: string }> 
     const candidates = Array.from( new Set( words( haystack ) ) );
     const exact = new Set( candidates );
     const titleWords = new Set( words( label ) );
-    let score = label === term ? 1000 : label.startsWith( term ) ? 600 : label.includes( term ) ? 400 : haystack.includes( term ) ? 200 : 0;
+    let score = label === term ? 1000 : label === focusTerm ? 850 : label.startsWith( term ) ? 600 : label.includes( focusTerm ) ? 400 : haystack.includes( focusTerm ) ? 200 : 0;
     for ( const token of tokens ) {
       if ( exact.has( token ) ) score += titleWords.has( token ) ? 80 : 40;
       else if ( candidates.some( word => word.startsWith( token ) ) ) score += 20;
@@ -56,14 +61,17 @@ export function rankNavigation<T extends { label: string; searchText: string }> 
  * that already contain the corresponding English topic, never invent content.
  * This is local text discovery, not an AI answer generator or translation API. */
 const CONTENT_TOPICS: readonly { triggers: readonly string[]; aliases: string }[] = [
-  { triggers: ['refund', 'refunds', 'reimbursement'], aliases: 'refund money back reimbursement धन वापसी रिफंड টাকা ফেরত রিফান্ড' },
+  { triggers: ['refund', 'refunds', 'reimbursement'], aliases: 'refund refunds money back reimbursement repay refund status धन वापसी रिफंड টাকা ফেরত রিফান্ড' },
   { triggers: ['privacy', 'personal data', 'personal information'], aliases: 'privacy personal data गोपनीयता निजी जानकारी গোপনীয়তা ব্যক্তিগত তথ্য' },
   { triggers: ['payment', 'payments', 'billing'], aliases: 'payment billing भुगतान पेमेंट পেমেন্ট অর্থপ্রদান' },
   { triggers: ['invoice', 'invoices', 'invoicing'], aliases: 'invoice bill billing चालान इनवॉइस बिल ইনভয়েস চালান বিল' },
   { triggers: ['cancellation', 'cancel', 'cancellations'], aliases: 'cancellation cancel रद्द निरस्तीकरण বাতিল' },
   { triggers: ['delivery', 'shipping', 'shipment', 'shipments'], aliases: 'delivery shipping shipment डिलीवरी शिपमेंट पार्सल ডেলিভারি শিপমেন্ট পার্সেল' },
   { triggers: ['consent', 'permission', 'permissions'], aliases: 'consent permission सहमति अनुमति সম্মতি অনুমতি' },
-  { triggers: ['deletion', 'delete', 'erasure'], aliases: 'delete deletion erasure हटाना मिटाना মুছে ফেলা' },
+  { triggers: ['deletion', 'delete', 'erasure'], aliases: 'delete deletion erasure remove removal erase हटाना मिटाना মুছে ফেলা' },
+  { triggers: ['grievance', 'complaint', 'complaints', 'grievances'], aliases: 'complaint grievance dispute escalation शिकायत शिकायतकर्ता অভিযোগ' },
+  { triggers: ['return', 'returns', 'replacement', 'replacements'], aliases: 'return returns replacement exchange defective damaged faulty वापस बदलना ফেরত বদল' },
+  { triggers: ['retention', 'retain', 'retained'], aliases: 'retention retain stored storage keep how long संग्रह সংরক্ষণ' },
   { triggers: ['account', 'accounts'], aliases: 'account खाता अकाउंट অ্যাকাউন্ট হিসাব' },
   { triggers: ['cookies', 'cookie'], aliases: 'cookie cookies कुकी কুকি' },
   { triggers: ['liability', 'responsibility'], aliases: 'liability responsibility दायित्व जिम्मेदारी দায় দায়িত্ব' },
@@ -145,6 +153,6 @@ export const NAV_DISCOVERY: Readonly<Record<string, readonly [string, string]>> 
   Claude: [ 'Open Claude', 'एआई এআই' ],
   Gemini: [ 'Open Gemini', 'एआई এআই' ],
   'Contact us': [ 'Contact and support', 'संपर्क सहायता যোগাযোগ সহায়তা' ],
-  Terms: [ 'Terms of service', 'नियम शर्तें শর্তাবলী' ],
-  Privacy: [ 'Privacy policy', 'गोपनीयता निजता গোপনীয়তা' ],
+  Terms: [ 'Terms of service refund cancellation returns consumer rights liability store credit', 'नियम शर्तें শর্তাবলী' ],
+  Privacy: [ 'Privacy policy personal data consent deletion retention grievance', 'गोपनीयता निजता গোপনীয়তা' ],
 };

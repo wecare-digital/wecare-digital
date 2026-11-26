@@ -3,10 +3,11 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
+import SearchClearButton from './SearchClearButton';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel, stashCustomerMenuAction, takeCustomerMenuAction } from '../lib/customerMenuActions';
 import { useCustomerMenuQuickSend } from '../hooks/useCustomerMenuQuickSend';
 import { PLAY_STORE } from '../config/analytics';
-import { rankNavigation, NAV_DISCOVERY } from '../lib/navigationSearch';
+import { rankNavigation, NAV_DISCOVERY, contentSearchText } from '../lib/navigationSearch';
 import { orderRequestForLabel, stashOrderRequest, takeOrderRequest } from '../lib/orderRequestSelection';
 import {
   NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS,
@@ -253,7 +254,7 @@ const flattenMenuLinks = (): SearchableNavLink[] => {
         href: link.href,
         nested,
         description: NAV_DISCOVERY[ link.label ]?.[0],
-        searchText: [ link.label, ...terms, ...( NAV_DISCOVERY[ link.label ] || [] ) ].join( ' ' ),
+        searchText: contentSearchText( [ link.label, ...terms, ...( NAV_DISCOVERY[ link.label ] || [] ) ] ),
       } );
     }
     for ( const child of link.children || [] ) push( child, [ ...terms, link.label ], true );
@@ -637,8 +638,9 @@ const Header: React.FC = () => {
                   aria-label="Search navigation"
                   onFocus={ syncLocalizedSearchText }
                   onChange={ event => applySearchQuery( event.target.value ) }
-                  onKeyDown={ event => { if ( event.key === 'Escape' ) close(); } }
+                  onKeyDown={ event => { if ( event.key === 'Escape' && query ) { event.preventDefault(); event.stopPropagation(); applySearchQuery( '' ); } } }
                 />
+                <SearchClearButton query={ query } onClear={ () => applySearchQuery( '' ) } />
                 <VoiceSearchMic onTranscript={ applySearchQuery } />
               </div>
 
@@ -1150,7 +1152,10 @@ const Header: React.FC = () => {
            search fields on the site are recognisably the same control. */
         /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
         .nav-search-field{position:relative;margin:0 0 12px}
-        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px 44px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search:not(:placeholder-shown){padding-inline-end:90px}
+        .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .nav-search::-ms-clear{display:none}
         .nav-search::placeholder{color:rgba(0,0,0,.42)}
         .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
 

@@ -4,6 +4,7 @@ import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import PublicNotice from '../components/public/PublicNotice';
 import { DEFAULT_DIAL_CODE, DIAL_CODES, isValidNationalLength } from '../lib/dialCodes';
 import { rankNavigation } from '../lib/navigationSearch';
+import SearchClearButton from '../components/SearchClearButton';
 import { authStateQuery } from '../lib/authStateQuery';
 import { publicActionText, publicApiFailureText } from '../lib/publicActionNotices';
 
@@ -187,13 +188,13 @@ const AuthPage: React.FC = () => {
                     </button>
                     { countryOpen && (
                       <div className="country-panel">
-                        <label className="country-search">
-                          <span className="sr-only">Search countries</span>
+                        <div className="country-search">
                           <input
                             autoFocus
                             type="search"
                             value={ countryQuery }
                             placeholder="Search country"
+                            aria-label="Search countries"
                             autoComplete="off"
                             autoCapitalize="none"
                             autoCorrect="off"
@@ -202,12 +203,14 @@ const AuthPage: React.FC = () => {
                             onChange={ event => setCountryQuery( event.target.value ) }
                             onKeyDown={ event => {
                               if ( event.key === 'Escape' ) {
-                                setCountryOpen( false );
-                                setCountryQuery( '' );
+                                event.preventDefault();
+                                if ( countryQuery ) setCountryQuery( '' );
+                                else setCountryOpen( false );
                               }
                             } }
                           />
-                        </label>
+                          <SearchClearButton query={ countryQuery } placement="inline" onClear={ () => setCountryQuery( '' ) } />
+                        </div>
                         <div id="auth-country-list" className="country-list" role="listbox" aria-label="Country code">
                           { countries.length === 0 && (
                             <p className="country-empty" role="status">No countries found.</p>
@@ -321,8 +324,10 @@ const AuthPage: React.FC = () => {
         .code-control{border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;box-shadow:none;transition:border-color .2s,box-shadow .2s}
         .code-control:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .country-panel{position:absolute;z-index:1200;top:calc(100% + 10px);inset-inline-start:0;display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(420px,65dvh);overflow:hidden;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:16px;background:#fff;box-shadow:0 18px 46px rgba(26,58,42,.15);overscroll-behavior:contain}
-        .country-search{display:block;padding:0 14px;border-bottom:0}
-        .country-search input{width:100%;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
+        .country-search{display:flex;align-items:center;gap:0;padding:0 14px;border-bottom:0}
+        .country-search input{width:100%;min-width:0;flex:1;min-height:44px;margin:0;padding:0 2px;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;color:var(--public-body);font:500 var(--public-supporting-size)/1.2 var(--font-sans);outline:0}
+        .country-search input::-webkit-search-cancel-button,.country-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .country-search input::-ms-clear{display:none}
         .country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .country-list{min-height:0;max-height:336px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
         .country-row{width:100%;min-height:50px;padding:10px 14px;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:start;color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);touch-action:manipulation;cursor:pointer}

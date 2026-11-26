@@ -70,3 +70,26 @@ test('static index retries after failure and empty responses, deduplicates reque
   assert.strictEqual(await loadBlogCardIndex(), a);
   assert.equal(calls, 3);
 });
+
+
+test('public menu, order, language, country and location search use the shared clear control', () => {
+  for (const path of ['src/components/Header.tsx','src/components/orders/OrderActionsMenu.tsx','src/components/SupportWidget.tsx','src/pages/auth.tsx','src/components/VayuLokLive.tsx']) {
+    const source = read(path);
+    assert.ok(source.includes('<SearchClearButton'), path);
+    assert.ok(source.includes('rankNavigation'), path);
+  }
+  const map = read('src/components/VayuLokLive.tsx');
+  assert.ok(map.includes("onClear={ () => applyPlaceQuery( '' ) }"));
+  assert.ok(map.includes("onClear={ () => onUtilityQueryChange( slot, '' ) }"));
+  assert.ok(map.includes('++searchRequestSeqRef.current'));
+  assert.ok(map.includes('Intl.DisplayNames'));
+  assert.ok(read('src/components/Header.tsx').includes('padding-inline-end:90px'));
+});
+
+test('natural language search understands conversational queries without inventing unrelated matches', () => {
+  const posts = [{title:'Refund policy', excerpt:'Cancellation and refunds'}, {title:'Account erasure', excerpt:'Delete personal data'}, {title:'Cooking rice', excerpt:'A recipe'}];
+  assert.equal(rankBlogContent(posts, 'how do I get my money back')[0]?.title, 'Refund policy');
+  assert.equal(rankBlogContent(posts, 'how can I remove my personal data')[0]?.title, 'Account erasure');
+  assert.equal(rankBlogContent(posts, 'please show me refund policy')[0]?.title, 'Refund policy');
+  assert.equal(rankBlogContent(posts, 'how do I find zzzzzzzzzz').length, 0);
+});

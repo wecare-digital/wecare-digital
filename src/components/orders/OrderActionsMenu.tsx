@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import VoiceSearchMic from '../VoiceSearchMic';
+import SearchClearButton from '../SearchClearButton';
 import { CUSTOMER_MENU_HREFS, isPrimaryMenuActivation, menuActionForLabel } from '../../lib/customerMenuActions';
 import type { CustomerMenuAction } from '../../lib/customerMenuActions';
 import { orderRequestForLabel, type OrderRequestId } from '../../lib/orderRequestSelection';
-import { rankNavigation, NAV_DISCOVERY } from '../../lib/navigationSearch';
+import { rankNavigation, NAV_DISCOVERY, contentSearchText } from '../../lib/navigationSearch';
 import { NAV_ICON_PATHS, SECTION_ICON_PATHS, FILLED_NAV_ICON_LABELS, MATERIAL_SECTION_ICON_LABELS, navIconViewBox, sectionIconViewBox, SUBNAV_ICON_PATH, SUBNAV_DOT_PATH, SUBNAV_ICON_VIEW_BOX, ROW_CHEVRON_PATH, ROW_CHEVRON_VIEW_BOX } from '../../lib/publicNavigationIcons';
 
 /**
@@ -153,7 +154,7 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
   }, [ open, reposition ] );
 
   const term = search.trim().toLocaleLowerCase();
-  const matching = ( items: readonly Action[] ) => !term ? items : rankNavigation( items.map( item => ( { ...item, searchText: [ item.label, item.subtitle, item.keywords, ...( NAV_DISCOVERY[ item.label ] || [] ) ].join( ' ' ) } ) ), term );
+  const matching = ( items: readonly Action[] ) => !term ? items : rankNavigation( items.map( item => ( { ...item, searchText: contentSearchText( [ item.label, item.subtitle, item.keywords, ...( NAV_DISCOVERY[ item.label ] || [] ) ].filter( ( value ): value is string => typeof value === 'string' ) ) } ) ), term );
   const requests = matching( REQUEST_ACTIONS );
   const shipments = matching( SHIPMENT_ACTIONS );
   const other = matching( OTHER_ACTIONS );
@@ -224,12 +225,14 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
         <div ref={ panelRef } id={ panelId } className="orm-menu"
           role="dialog" aria-label="Order actions" style={ position }>
           {/* Same borderless search + shared microphone as Header and BlogSearch.
-              Native type=search retains the platform clear/close control. */}
+              Use the shared explicit clear control instead of browser-specific icons. */}
           <div className="orm-search-field">
             <input ref={ searchRef } className="orm-search" type="search" value={ search }
-              onChange={ event => setSearch( event.target.value ) }
+              onChange={ event => setSearch( event.target.value.slice( 0, 120 ) ) }
+              onKeyDown={ event => { if ( event.key === 'Escape' && search ) { event.preventDefault(); event.stopPropagation(); setSearch( '' ); } } }
               placeholder="Search actions" maxLength={ 120 } aria-label="Search order actions"
               autoComplete="off" />
+            <SearchClearButton query={ search } onClear={ () => setSearch( '' ) } />
             <VoiceSearchMic onTranscript={ value => setSearch( value.slice( 0, 120 ) ) } ariaLabel="Search order actions by voice" />
           </div>
           <div className="orm-section">
@@ -353,6 +356,9 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           color:var(--public-body);font-family:inherit;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
+        .orm-search:not(:placeholder-shown){padding-inline-end:90px}
+        .orm-search::-webkit-search-cancel-button,.orm-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .orm-search::-ms-clear{display:none}
         .orm-search::placeholder{color:rgba(0,0,0,.42)}
         .orm-search:focus-visible{
           border-block-end-color:var(--public-brand-green);
