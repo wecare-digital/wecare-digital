@@ -65,11 +65,37 @@ test('retired product URLs do not use a meta refresh or a client redirect', () =
   for (const [route] of retired) assert.ok(page.includes("'" + route + "'"));
 });
 
-test('Pause/Play control reserves a stable width and shares the title bar height', () => {
+test('Home pause/play uses official Material Symbols, a stable accessible icon-only control and matching title-bar height', () => {
   const terminal = read('src/components/WorkflowTerminal.tsx');
-  assert.ok(terminal.includes('height:47px;width:86px;box-sizing:border-box'));
-  assert.ok(terminal.includes('width:76px;height:47px'));
-  assert.ok(terminal.includes('font-size:16px;font-weight:500;line-height:1'));
+  assert.ok(terminal.includes('height:47px;width:52px;box-sizing:border-box'));
+  assert.ok(terminal.includes('width:52px;height:47px'));
+  assert.ok(terminal.includes('.wt-play-icon{display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor}'));
+  assert.ok(terminal.includes("aria-label={ paused ? 'Play the illustration of a customer request' : 'Pause the illustration of a customer request' }"));
+  assert.ok(terminal.includes('onClick={ togglePlay }'));
+  assert.ok(terminal.includes('M320-200v-560l440 280-440 280Z'));
+  assert.ok(terminal.includes('M520-200v-560h240v560H520Z'));
+  assert.ok(!terminal.includes("{ paused ? 'Play' : 'Pause' }"));
+  assert.ok(!terminal.includes('wt-play-mark'));
+});
+
+test('Terms and Privacy share responsive collapsible contents with subsection deep links, not collapsed legal prose', () => {
+  const legal = read('src/components/LegalDocument.tsx');
+  for (const page of ['terms', 'privacy']) {
+    assert.ok(read('src/pages/' + page + '.tsx').includes('<LegalDocument'));
+  }
+  assert.ok(legal.includes('<details className="lgd-contents" ref={ tocRef } open>'));
+  assert.ok(legal.includes('<summary className="lgd-toc-summary">'));
+  assert.ok(legal.includes('className="lgd-toc-group"'));
+  assert.ok(legal.includes('child.number.startsWith('));
+  assert.ok(legal.includes('href={ `#${child.id}` }'));
+  assert.ok(legal.includes('Section { section.number } overview'));
+  assert.ok(legal.includes("window.matchMedia( '(min-width: 1100px)' )"));
+  assert.ok(legal.includes("window.addEventListener( 'hashchange', revealDeepLink )"));
+  assert.ok(legal.includes('group instanceof HTMLDetailsElement'));
+  assert.ok(legal.includes('id={ section.id }'));
+  assert.ok(legal.includes('section.paragraphs.map'));
+  assert.ok(legal.includes('.lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron'));
+  assert.ok(legal.includes('.lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron'));
 });
 
 
