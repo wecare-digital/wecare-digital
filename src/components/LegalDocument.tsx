@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { LegalSection } from '../content/legal/types';
 
 /**
@@ -43,25 +43,35 @@ const withLinks = ( text: string, keyBase: string ): React.ReactNode => {
 };
 
 // Exact Google Material Symbols Outlined paths, FILL 0 / wght 400 / GRAD 0 / opsz 24.
-const CONTENTS_ICON = 'M320-280q17 0 28.5-11.5T360-320q0-17-11.5-28.5T320-360q-17 0-28.5 11.5T280-320q0 17 11.5 28.5T320-280Zm0-160q17 0 28.5-11.5T360-480q0-17-11.5-28.5T320-520q-17 0-28.5 11.5T280-480q0 17 11.5 28.5T320-440Zm0-160q17 0 28.5-11.5T360-640q0-17-11.5-28.5T320-680q-17 0-28.5 11.5T280-640q0 17 11.5 28.5T320-600Zm120 320h240v-80H440v80Zm0-160h240v-80H440v80Zm0-160h240v-80H440v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z';
+// menu_open (the selected symbol), keyboard_arrow_right and keyboard_arrow_down.
+const CONTENTS_ICON = 'M120-240v-80h520v80H120Zm664-40L584-480l200-200 56 56-144 144 144 144-56 56ZM120-440v-80h400v80H120Zm0-200v-80h520v80H120Z';
 const GROUP_CHEVRON = 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z';
-const CONTENTS_CHEVRON = 'M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z';
+const CONTENTS_CHEVRON = 'M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z';
 
 const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice } ) => {
   const topLevel = sections.filter( s => !s.number.includes( '.' ) );
   const hasSummaries = sections.some( s => s.inShort );
   const tocRef = useRef<HTMLDetailsElement>( null );
+  const [ activeId, setActiveId ] = useState( '' );
 
-  // Desktop starts open; mobile starts compact after hydration. Native details
-  // controls remain keyboard-operable even without JS. Never collapse the prose.
+  // Establish the default only on mount or at a breakpoint crossing; parent
+  // rerenders and fragment changes must not undo the reader's disclosure choice.
   useEffect( () => {
     const wide = window.matchMedia( '(min-width: 1100px)' );
     const syncLayout = () => {
       if ( tocRef.current ) tocRef.current.open = wide.matches;
     };
+    syncLayout();
+    wide.addEventListener( 'change', syncLayout );
+    return () => wide.removeEventListener( 'change', syncLayout );
+  }, [] );
+
+  // Reveal the relevant subsection group without reopening a closed mobile panel.
+  useEffect( () => {
     const revealDeepLink = () => {
       const id = window.location.hash.slice( 1 );
       const section = sections.find( item => item.id === id );
+      setActiveId( section?.id ?? '' );
       if ( !section ) return;
       const parentNumber = section.number.split( '.' )[ 0 ];
       const parent = sections.find( item => item.number === parentNumber );
@@ -69,15 +79,21 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
       const group = document.getElementById( `lgd-toc-group-${parent.id}` );
       if ( group instanceof HTMLDetailsElement ) group.open = true;
     };
-    syncLayout();
     revealDeepLink();
-    wide.addEventListener( 'change', syncLayout );
     window.addEventListener( 'hashchange', revealDeepLink );
-    return () => {
-      wide.removeEventListener( 'change', syncLayout );
-      window.removeEventListener( 'hashchange', revealDeepLink );
-    };
+    return () => window.removeEventListener( 'hashchange', revealDeepLink );
   }, [ sections ] );
+
+  const selectSection = ( event: React.MouseEvent<HTMLAnchorElement>, id: string ) => {
+    // Keep native fragment history and modifier-click semantics.
+    if ( event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey ) return;
+    setActiveId( id );
+    if ( !window.matchMedia( '(min-width: 1100px)' ).matches && tocRef.current ) {
+      // Close before native fragment scrolling, so the target is not shifted up
+      // afterwards by the collapse of a long list above it.
+      tocRef.current.open = false;
+    }
+  };
 
   /**
    * HOW MANY ROWS THE CONTENTS RAIL HAS TO SPAN, counted from the children that actually
@@ -142,9 +158,9 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
       <nav className="lgd-toc" aria-label="Contents" style={ { gridRow: `1 / span ${columnOneRows}` } }>
         <details className="lgd-contents" ref={ tocRef } open>
           <summary className="lgd-toc-summary">
-            <svg className="lgd-contents-icon" viewBox="80 -880 800 800" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
+            <svg className="lgd-contents-icon" viewBox="60 -900 840 840" aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
             <span>Contents</span>
-            <svg className="lgd-contents-chevron" viewBox="160 -800 640 640" aria-hidden="true" focusable="false"><path d={ CONTENTS_CHEVRON } /></svg>
+            <svg className="lgd-contents-chevron" viewBox="180 -780 600 600" aria-hidden="true" focusable="false"><path d={ CONTENTS_CHEVRON } /></svg>
           </summary>
           <ol className="lgd-toc-list">
             { topLevel.map( section => {
@@ -156,13 +172,13 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                       <summary className="lgd-toc-group-summary">
                         <span className="lgd-toc-num">{ section.number }</span>
                         <span className="lgd-toc-label">{ section.heading }</span>
-                        <svg className="lgd-group-chevron" viewBox="120 -840 720 720" aria-hidden="true" focusable="false"><path d={ GROUP_CHEVRON } /></svg>
+                        <svg className="lgd-group-chevron" viewBox="180 -780 600 600" aria-hidden="true" focusable="false"><path d={ GROUP_CHEVRON } /></svg>
                       </summary>
                       <ol className="lgd-toc-children" aria-label={ `Section ${section.number} subsections` }>
-                        <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link">Section { section.number } overview</a></li>
+                        <li><a href={ `#${section.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>Section { section.number } overview</a></li>
                         { children.map( child => (
                           <li key={ child.id }>
-                            <a href={ `#${child.id}` } className="lgd-toc-link lgd-child-link">
+                            <a href={ `#${child.id}` } className="lgd-toc-link lgd-child-link" aria-current={ activeId === child.id ? 'location' : undefined } onClick={ event => selectSection( event, child.id ) }>
                               <span className="lgd-toc-num">{ child.number }</span>
                               <span className="lgd-toc-label">{ child.heading }</span>
                             </a>
@@ -171,7 +187,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
                       </ol>
                     </details>
                   ) : (
-                    <a href={ `#${section.id}` } className="lgd-toc-link">
+                    <a href={ `#${section.id}` } className="lgd-toc-link" aria-current={ activeId === section.id ? 'location' : undefined } onClick={ event => selectSection( event, section.id ) }>
                       <span className="lgd-toc-num">{ section.number }</span>
                       <span className="lgd-toc-label">{ section.heading }</span>
                     </a>
@@ -306,7 +322,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         }
         .lgd-toc-summary::-webkit-details-marker,.lgd-toc-group-summary::-webkit-details-marker{display:none}
         .lgd-toc-summary::marker,.lgd-toc-group-summary::marker{content:''}
-        .lgd-toc-summary{font-size:17px}
+        .lgd-toc-summary{font-size:17px;min-height:48px}
         .lgd-toc-summary>span,.lgd-toc-label{flex:1;min-width:0;overflow-wrap:anywhere}
         .lgd-contents-icon,.lgd-contents-chevron,.lgd-group-chevron{
           display:block;width:24px;height:24px;flex:0 0 24px;fill:currentColor;
@@ -315,7 +331,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-contents[open]>.lgd-toc-summary .lgd-contents-chevron{transform:rotate(180deg)}
         .lgd-toc-group[open]>.lgd-toc-group-summary .lgd-group-chevron{transform:rotate(90deg)}
         .lgd-toc-list,.lgd-toc-children{margin:0;padding:0;list-style:none}
-        .lgd-toc-list{margin-top:8px}
+        .lgd-toc-list{margin-top:8px;padding-top:8px;border-top:1px solid var(--public-hairline)}
         .lgd-toc-list li{margin:0 0 2px;min-width:0}
         .lgd-toc-link,.lgd-toc-group-summary{
           display:flex;align-items:center;gap:10px;min-height:var(--tap-min);min-height:max(44px,var(--tap-min));
@@ -323,7 +339,11 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none;
         }
         .lgd-toc-group-summary{font-weight:500}
-        .lgd-toc-children{margin:2px 0 8px 18px;padding-inline-start:8px;border-inline-start:1px solid var(--public-hairline)}
+        .lgd-toc-link[aria-current="location"]{
+          background:var(--public-lime-tint);font-weight:600;
+          box-shadow:inset 3px 0 0 var(--public-brand-green);
+        }
+        .lgd-toc-children{margin:2px 0 8px 18px;padding-inline-start:8px;border-inline-start:2px solid var(--public-hairline)}
         .lgd-child-link{font-size:14px;align-items:flex-start;padding-block:10px}
         .lgd-toc-link:hover,.lgd-toc-summary:hover,.lgd-toc-group-summary:hover{background:var(--public-lime-tint)}
         .lgd-toc-link:focus-visible,.lgd-toc-summary:focus-visible,.lgd-toc-group-summary:focus-visible{
