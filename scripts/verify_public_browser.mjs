@@ -25,6 +25,7 @@ const devices = [
   ['mobile', 390, 844, true],
   ['fold-cover', 320, 800, true],
   ['fold-unfolded', 720, 900, true],
+  ['mobile-reduced-motion', 390, 844, true, 'reduce'],
 ];
 const routes = [
   {path: '/', name: 'home'},
@@ -66,8 +67,8 @@ for (const [path, eyebrow] of expected) {
 const browser = await chromium.launch({headless: true});
 const results = [];
 try {
-  for (const [device, width, height, touch] of devices) {
-    const context = await browser.newContext({viewport: {width, height}, hasTouch: touch, deviceScaleFactor: 1});
+  for (const [device, width, height, touch, reducedMotion = 'no-preference'] of devices) {
+    const context = await browser.newContext({viewport: {width, height}, hasTouch: touch, deviceScaleFactor: 1, reducedMotion});
     try {
       for (const route of routes) {
         const page = await context.newPage();
@@ -107,6 +108,23 @@ try {
             assert.equal(layout.background, 'rgb(209, 244, 112)', name + ': eyebrow fill');
             assert.equal(layout.ink, 'rgb(26, 58, 42)', name + ': eyebrow ink');
             assert.ok(layout.fits && layout.mark, name + ': eyebrow reflow ' + JSON.stringify(layout));
+            const wrapper = eyebrow.locator('..');
+            if (reducedMotion === 'no-preference') {
+              await page.locator('.rh-layout.is-armed.show').first().waitFor({state: 'attached'});
+              const motion = await wrapper.evaluate(async el => {
+                const style = getComputedStyle(el);
+                const initial = {name: style.animationName, duration: style.animationDuration, iterations: style.animationIterationCount};
+                await Promise.all(el.getAnimations().map(animation => animation.finished));
+                return {...initial, settledOpacity: getComputedStyle(el).opacity};
+              });
+              assert.match(motion.name, /rh-eyebrow-enter/, name + ': missing shared entrance');
+              assert.equal(motion.duration, '0.32s', name + ': unexpected entrance duration');
+              assert.equal(motion.iterations, '1', name + ': eyebrow must not loop');
+              assert.equal(motion.settledOpacity, '1', name + ': eyebrow did not finish fully visible');
+            } else {
+              const motion = await wrapper.evaluate(el => ({name: getComputedStyle(el).animationName, opacity: getComputedStyle(el).opacity, transform: getComputedStyle(el).transform}));
+              assert.deepEqual(motion, {name: 'none', opacity: '1', transform: 'none'}, name + ': reduced-motion eyebrow must be static');
+            }
           }
 
           if (route.name === 'terms' || route.name === 'privacy') {

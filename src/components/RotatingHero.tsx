@@ -298,6 +298,21 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         }
         .rh-eyebrow{margin:0 0 16px;min-width:0;max-width:100%}
 
+        /* A quiet, one-shot entrance in the same phase as the rotating headline.
+           The eyebrow is visible by default, including before hydration and
+           without JavaScript. Only transform and a small opacity change animate;
+           neither the layout nor the brand colours change.
+           The shown phase remains stable as the headline words rotate. */
+        @media(prefers-reduced-motion:no-preference){
+          .rh-layout.is-armed.show .rh-eyebrow{
+            animation:rh-eyebrow-enter .32s cubic-bezier(.16,1,.3,1) both;
+          }
+          @keyframes rh-eyebrow-enter{
+            from{opacity:.85;transform:translateY(4px)}
+            to{opacity:1;transform:translateY(0)}
+          }
+        }
+
         /* Hero h1 rung: 600, LIGHTER than the 700 section level. That inversion is
            notion's and is intentional - the same guard sits on Home's .home-head, and
            Grahak OS and VayuLok use this rule. Do not "correct" it. */

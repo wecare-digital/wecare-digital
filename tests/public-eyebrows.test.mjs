@@ -67,3 +67,11 @@ test('upcoming, dynamic and customer pages supply contextual labels without make
   ]) assert.ok(source(file).includes(label), file);
   assert.match(source('pages/checkout/success.tsx'), /export \{ default \} from '\.\/status'/);
 });
+
+test('eyebrow motion is a single progressive enhancement of the hero entrance', () => {
+  const hero = source('components/RotatingHero.tsx');
+  assert.match(hero, /@media\(prefers-reduced-motion:no-preference\)\s*\{\s*\.rh-layout\.is-armed\.show \.rh-eyebrow\s*\{\s*animation:rh-eyebrow-enter \.32s cubic-bezier\(\.16,1,\.3,1\) both;/);
+  assert.match(hero, /@keyframes rh-eyebrow-enter\s*\{\s*from\{opacity:\.85;transform:translateY\(4px\)\}\s*to\{opacity:1;transform:translateY\(0\)\}/);
+  assert.match(hero, /\.rh-eyebrow\{margin:0 0 16px;min-width:0;max-width:100%\}/);
+  assert.doesNotMatch(hero, /animation:rh-eyebrow-enter[^;]*infinite/);
+});
