@@ -1,8 +1,12 @@
 import type { BlogCard } from './public-blog';
 
-/** The same static search transport used by /blog/. Share requests, and allow retry on failure. */
+/** Reuse a successfully loaded static build index across client-side navigation.
+ * Failed or empty responses are never cached, so a later explicit retry still works.
+ */
 let pending: Promise<BlogCard[]> | undefined;
+let cached: BlogCard[] | undefined;
 export function loadBlogCardIndex(): Promise<BlogCard[]> {
+  if ( cached ) return Promise.resolve( cached );
   if ( !pending ) {
     pending = fetch( '/blog/search-index.json', { headers: { Accept: 'application/json' } } )
       .then( async response => {
@@ -12,7 +16,9 @@ export function loadBlogCardIndex(): Promise<BlogCard[]> {
           typeof post?.slug === 'string' && typeof post?.title === 'string' ) ) {
           throw new Error( 'Invalid blog index' );
         }
-        return body.posts as BlogCard[];
+        const cards = body.posts as BlogCard[];
+        if ( cards.length ) cached = cards;
+        return cards;
       } )
       .finally( () => { pending = undefined; } );
   }
