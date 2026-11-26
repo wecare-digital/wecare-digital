@@ -658,6 +658,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // payment; the per-route fallback WebPage schema above is the correct, minimal markup for them.
     || router.pathname === '/checkout/status'
     || router.pathname === '/checkout/success'
+    // Pre-launch product destinations: public chrome, noindex on the page, not in the sitemap.
+    || router.pathname === '/udyam-bids'
+    || router.pathname === '/get-kosh'
     || CUSTOMER_SERVICE_ROUTES.has( router.pathname )
     || Object.prototype.hasOwnProperty.call( PUBLIC_PAGE_META, router.pathname )
     || isContentPublic;
