@@ -57,11 +57,11 @@ test('voice failure and language activation retain typed and accessible alternat
 
 test('the seven public search surfaces opt into the same non-overlapping layout', () => {
   const css=read('src/styles/public-interactions.css');
-  for(const token of ['flex-wrap: wrap','flex: 1 1 96px','position: static','outline: none','box-shadow: inset 0 -2px 0 var(--public-brand-green)','outline: 2px solid Highlight']) assert.ok(css.includes(token),token);
+  for(const token of ['flex-wrap: wrap','flex: 1 1 96px','position: static','outline: none','box-shadow: var(--public-search-focus-shadow)','outline: 2px solid Highlight']) assert.ok(css.includes(token),token);
   assert.ok(read('src/pages/_app.tsx').includes("import '../styles/public-interactions.css';"));
   for(const path of ['src/components/Header.tsx','src/components/BlogSearch.tsx','src/components/BlogIndexView.tsx','src/components/ProductBlogPanel.tsx','src/components/LegalDocument.tsx','src/pages/post/[slug].tsx','src/components/orders/OrderActionsMenu.tsx']){
     const source=read(path);
-    for(const token of ['data-public-search-field=','--public-search-end-padding','nativeEvent.isComposing','<SearchClearButton','<VoiceSearchMic']) assert.ok(source.includes(token),path+' '+token);
+    for(const token of ['data-public-search-field=','--public-search-end-padding','--public-search-underline','--public-search-focus-shadow','nativeEvent.isComposing','<SearchClearButton','<VoiceSearchMic']) assert.ok(source.includes(token),path+' '+token);
   }
   assert.ok(read('scripts/verify_public_browser.mjs').includes('assertSharedSearchGeometry'));
 });
@@ -90,6 +90,19 @@ test('public navigation arrows use one contrasting deep-lime token, with search 
     ['src/components/SupportWidget.tsx', 'border-right:2px solid var(--public-nav-arrow)'],
     ['src/pages/auth.tsx', '.country-arrow{color:var(--public-nav-arrow)}'],
   ]) assert.ok(read(path).includes(marker), path);
-  assert.ok(read('src/components/SupportWidget.tsx').includes('.wc-search:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}'));
-  assert.ok(read('src/pages/auth.tsx').includes('.country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}'));
+  assert.ok(read('src/components/SupportWidget.tsx').includes('.wc-search:focus-within{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}'));
+  assert.ok(read('src/pages/auth.tsx').includes('.country-search input:focus{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);outline:none}'));
+});
+
+test('public searches and primary pills share Home lime and retain contrast', () => {
+  const tokens = read('src/styles/tokens.css');
+  assert.ok(tokens.includes('--public-search-underline: var(--public-brand-lime)'));
+  assert.ok(tokens.includes('--public-search-focus-shadow: inset 0 -3px 0 var(--public-search-underline), inset 0 -5px 0 var(--public-brand-green)'));
+  assert.ok(tokens.includes('--public-button-hover: var(--lime-hover)'));
+  const css = read('src/styles/public-interactions.css');
+  assert.ok(css.includes('@media (hover: hover) and (pointer: fine)'));
+  assert.ok(css.includes('background-color: var(--public-nav-hover)'));
+  for (const path of ['src/components/PillButton.tsx','src/components/public/ClosingBand.tsx','src/components/orders/OrderActionsMenu.tsx']) {
+    assert.ok(read(path).includes('background:var(--public-button-hover)'), path);
+  }
 });
