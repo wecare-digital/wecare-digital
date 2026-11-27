@@ -95,3 +95,14 @@ clients fail closed until refreshed). Verify draft saves, account switching and
 reload behavior before exposing the updated form. The old checkout protection
 must be deployed through the common commerce release path, not merely the
 Arogya Lambda.
+
+
+## Reproducible release artifact
+
+GitHub CI stages the appointment bundle with the current commit, exact template,
+ZIP digest, expected destination and explicit provider-disabled parameters.
+`python3 scripts/build_arogya_booking.py --output /absolute/release/path` builds
+from committed source; repeat with `--verify` to check the staged files without
+rebuilding. This step performs no network requests or deployment. The manifest
+must not be edited to enable provider access. A separate approved CloudFormation
+change set and the live integration checklist are required for provider activation.
