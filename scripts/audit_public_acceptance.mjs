@@ -7,6 +7,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
@@ -39,6 +40,20 @@ for (const path of ['/get-kosh/', '/udyam-bids/', '/auth/', '/checkout/', '/chec
   routes.push({ path, name: path, kind: 'noindex' });
 }
 const inventoryIssues = [];
+// Hash the deployed Home build identifier and static asset references. A stable
+// fingerprint is evidence against mid-run changes, not a mapping to a Git SHA.
+async function deploymentFingerprint() {
+  const res = await fetch(origin, {redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000)});
+  if (!res.ok) throw new Error('Home fingerprint HTTP ' + res.status);
+  const html = await res.text();
+  const data = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  const buildId = data ? JSON.parse(data[1]).buildId : null;
+  const assets = [...new Set([...html.matchAll(/(?:src|href)="([^"\s]*\/_next\/static\/[^"\s]+)"/g)].map(m => m[1]))].sort();
+  if (!buildId || !assets.length) throw new Error('No Next build ID/assets in Home');
+  return {buildId, hash: createHash('sha256').update(JSON.stringify(assets)).digest('hex')};
+}
+let startFingerprint = null;
+try { startFingerprint = await deploymentFingerprint(); } catch (e) { inventoryIssues.push('Deployment fingerprint unavailable: ' + e.message); }
 try {
   const response = await fetch(new URL('/sitemap.xml', origin), { redirect: 'error', signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('sitemap HTTP ' + response.status);
@@ -74,7 +89,7 @@ try {
 const browser = await playwright[engine].launch({ headless: true });
 const report = {
   origin: origin.origin, engine, browser: browser.version(), profile: profileName, viewport: profile,
-  revisionLabel: process.env.PUBLIC_QA_REVISION || null, inventoryIssues, results: [],
+  revisionLabel: process.env.PUBLIC_QA_REVISION || null, startFingerprint, endFingerprint: null, inventoryIssues, results: [],
   limitations: ['Anonymous public HTML only; protected routes need authorized fixtures.',
     'Writes blocked, service workers disabled, no user transactions.',
     'Axe automated rules do not certify WCAG; keyboard, native devices and screen readers require manual evidence.',
@@ -152,7 +167,20 @@ try {
       result.metadata = metadata;
       if (!metadata.title.trim() || !metadata.lang) result.failures.push('Missing title or document language');
       if (metadata.mainCount !== 1 || metadata.h1Count !== 1) result.failures.push('Expected one main and one h1');
-      if (metadata.scrollWidth > metadata.width + 2) result.failures.push('Horizontal page overflow');
+      if (metadata.scrollWidth > metadata.width + 2) {
+        result.failures.push('Horizontal page overflow');
+        result.overflowTargets = await page.evaluate(() => [...document.querySelectorAll('main *')].flatMap(el => {
+          const r = el.getBoundingClientRect(), style = getComputedStyle(el);
+          if (!r.width || !r.height || style.visibility === 'hidden' || style.display === 'none') return [];
+          if (r.right <= document.documentElement.clientWidth + 2 && r.left >= -2) return [];
+          // Exclude intentional scrolling and decorative clips; record candidates
+          // rather than asserting all candidates cause document overflow.
+          if (el.closest('[aria-hidden="true"]')) return [];
+          return [{tag: el.tagName.toLowerCase(), id: el.id || undefined,
+            classes: typeof el.className === 'string' ? el.className.split(/\s+/).slice(0, 4) : [],
+            left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width)}];
+        }).sort((a,b) => b.right-a.right).slice(0,25));
+      }
       if (metadata.jsonLd.some(valid => !valid)) result.failures.push('Invalid JSON-LD');
       const noindex = metadata.robots.some(value => /\bnoindex\b/i.test(value));
       if (route.kind === 'noindex') {
@@ -204,7 +232,16 @@ try {
             r.left >= Math.max(bounds.left, markBounds.left, 0) - 2
             && r.right <= Math.min(bounds.right, markBounds.right, document.documentElement.clientWidth) + 2
             && r.top - shift >= bounds.top - 3 && r.bottom - shift <= bounds.bottom + 3);
-          return {word: word.textContent.trim(), height: markBounds.height, textFits};
+          const rects = [...range.getClientRects()].filter(r => r.width > 0);
+          const clip = {
+            left: Math.min(...rects.map(r => r.left - bounds.left)),
+            right: Math.min(...rects.map(r => bounds.right - r.right)),
+            top: Math.min(...rects.map(r => r.top - shift - bounds.top)),
+            bottom: Math.min(...rects.map(r => bounds.bottom - r.bottom + shift)),
+            overflowX: getComputedStyle(cycle).overflowX, overflowY: getComputedStyle(cycle).overflowY,
+            lineHeight: getComputedStyle(word).lineHeight,
+          };
+          return {word: word.textContent.trim(), height: markBounds.height, textFits, clip};
         });
       });
       for (const sample of result.samples) {
@@ -232,7 +269,7 @@ try {
       result.failures.push(String(error.message || error).slice(0, 500));
       result.status = 'fail';
     } finally {
-      console.log(JSON.stringify({ path: route.path, status: result.status, failures: result.failures, metrics: result.metrics }));
+      console.log(JSON.stringify({ path: route.path, status: result.status, failures: result.failures, metrics: result.metrics, overflowTargets: result.overflowTargets, axeTargets: result.axe?.violations, clippedWords: result.samples.filter(s => !s.textFits) }));
       await context.close();
       await save();
     }
@@ -246,7 +283,11 @@ for (const result of report.results.filter(r => r.kind === 'indexable' && !r.sam
     result.notes.push('Identical hero copy to ' + previous + '; editorial review needed');
   } else signatures.set(key, result.path);
 }
+try {
+  report.endFingerprint = await deploymentFingerprint();
+  if (JSON.stringify(startFingerprint) !== JSON.stringify(report.endFingerprint)) inventoryIssues.push('Deployment changed during this run; do not accept mixed revisions');
+} catch (e) { inventoryIssues.push('Final deployment fingerprint unavailable: ' + e.message); }
 await save();
 const counts = report.results.reduce((all, result) => ({ ...all, [result.status]: (all[result.status] || 0) + 1 }), {});
-console.log('Acceptance summary: ' + JSON.stringify({ counts, inventoryIssues }));
+console.log('Acceptance summary: ' + JSON.stringify({ counts, inventoryIssues, startFingerprint, endFingerprint: report.endFingerprint, revisionLabel: report.revisionLabel }));
 if (inventoryIssues.length || report.results.some(result => result.status === 'fail')) process.exitCode = 1;

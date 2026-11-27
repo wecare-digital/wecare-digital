@@ -7,6 +7,9 @@ on:
     branches: [wecare.digital]
     paths:
       - 'scripts/audit_public_acceptance.mjs'
+      - 'scripts/public_hero_audit.mjs'
+      - 'scripts/verify_checkout_fixture.mjs'
+      - 'scripts/verify_static_seo.mjs'
       - '.github/workflows/public-acceptance.yml'
   workflow_dispatch:
     inputs:
@@ -65,4 +68,71 @@ jobs:
         with:
           name: acceptance-${{ matrix.engine }}-${{ matrix.profile }}
           path: ${{ runner.temp }}/public-acceptance
+          retention-days: 7
+
+  checkout-fixture:
+    name: Synthetic checkout (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox, webkit]
+    env:
+      PUBLIC_QA_BASE: https://wecare.digital
+      PUBLIC_QA_ENGINE: ${{ matrix.engine }}
+      PUBLIC_QA_REVISION: ${{ github.event.pull_request.base.sha || inputs.production_revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Install isolated test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/public-qa-deps" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.1 @axe-core/playwright@4.14.1
+          ln -s "$RUNNER_TEMP/public-qa-deps/node_modules" node_modules
+          "$RUNNER_TEMP/public-qa-deps/node_modules/.bin/playwright" install --with-deps "$PUBLIC_QA_ENGINE"
+      - name: Verify synthetic checkout
+        env:
+          PUBLIC_QA_OUTPUT: ${{ runner.temp }}/checkout-fixture
+        run: node scripts/verify_checkout_fixture.mjs
+      - name: Retain synthetic screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-checkout-${{ matrix.engine }}
+          path: ${{ runner.temp }}/checkout-fixture
+          retention-days: 7
+
+  static-seo:
+    name: Exhaustive static export SEO
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Build static website
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm install --global "$(node -p 'require("./package.json").packageManager')"
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Inspect every sitemap page
+        env:
+          PUBLIC_SEO_REPORT: ${{ runner.temp }}/seo-report.json
+        run: node scripts/verify_static_seo.mjs out
+      - name: Retain SEO evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-seo
+          path: ${{ runner.temp }}/seo-report.json
           retention-days: 7
