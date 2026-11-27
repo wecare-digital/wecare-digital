@@ -225,7 +225,7 @@ def deploy_lambda(zip_bytes: bytes) -> str:
     """
     lam = boto3.client("lambda", region_name=REGION)
     config = dict(
-        Runtime="python3.12",
+        Runtime="python3.14",
         Role=ROLE_ARN,
         Handler="handler.handler",
         # 20s, under the API Gateway integration ceiling of 30s. The only slow path is the

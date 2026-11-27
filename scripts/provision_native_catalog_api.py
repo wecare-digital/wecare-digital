@@ -171,7 +171,7 @@ def apply():
         for attempt in range(6):
             try:
                 lam.create_function(
-                    FunctionName=FUNCTION, Runtime="python3.12",
+                    FunctionName=FUNCTION, Runtime="python3.14",
                     Role=role_arn, Handler="handler.handler",
                     Code={"ZipFile": artifact}, Timeout=20, MemorySize=256,
                     Publish=False, Environment=env,

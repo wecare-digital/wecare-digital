@@ -113,7 +113,7 @@ def ensure_function(role_arn: str) -> None:
         lam.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
         lam.update_function_configuration(
             FunctionName=FUNCTION_NAME,
-            Runtime="python3.12",
+            Runtime="python3.14",
             Handler="handler.handler",
             Role=role_arn,
             Timeout=300,
@@ -127,7 +127,7 @@ def ensure_function(role_arn: str) -> None:
             try:
                 lam.create_function(
                     FunctionName=FUNCTION_NAME,
-                    Runtime="python3.12",
+                    Runtime="python3.14",
                     Handler="handler.handler",
                     Role=role_arn,
                     Code={"ZipFile": code},

@@ -79,6 +79,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import re
 import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
@@ -107,7 +108,18 @@ STATIC_KB = SHARED / "static_knowledge_base.py"
 # v3 (2026-10-27): Pillow 13.0.0 from manylinux wheels, zipped with `/` separators. v2 carried
 # Pillow 12.1.1 (59 OSV advisories, 5 critical) in a Windows-built zip. product-image-gen also
 # uses this layer now instead of the third-party Klayers one.
-PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:3"
+#
+# v1 python3.14 (2026-11-27): the same Pillow 13.0.0 and cryptography 50.0.2 builds, from cp314
+# manylinux wheels, for the fleet move to python3.14. The python312 layers stay published so a
+# rollback to a python3.12 version keeps working.
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python314:1"
+CRYPTOGRAPHY_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python314:1"
+# Every zip function runs this runtime. Reconciled on each deploy like memory and timeout.
+LAMBDA_RUNTIME = "python3.14"
+_LAYER_FAMILY = re.compile(r"-python3\d+$")
+def layer_family(arn: str) -> str:
+    """`pillow` for any `...:layer:pillow-python312:3` or `pillow-python314:1` ARN."""
+    return _LAYER_FAMILY.sub("", arn.split(":layer:")[-1].rsplit(":", 1)[0])
 
 # Fixed timestamp so identical content yields an identical CodeSha256.
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -115,7 +127,7 @@ ZIP_DATE = (2026, 1, 1, 0, 0, 0)
 # Directories never worth shipping.
 EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
-# Modules the python3.12 runtime provides without bundling.
+# Modules the Lambda Python runtime provides without bundling.
 RUNTIME_PROVIDED = {"boto3", "botocore", "urllib3", "dateutil", "s3transfer", "jmespath", "six"}
 
 
@@ -371,6 +383,7 @@ SPECS: List[Spec] = [
         "wecare-whatsapp-business-api",
         "messaging/whatsapp-business-api",
         extra_dirs=["flows"],
+        required_layers=[CRYPTOGRAPHY_LAYER_ARN],
     ),
     Spec("wecare-waba-management", "messaging/waba-management"),
     Spec("wecare-media-cleanup", "messaging/media-cleanup"),
@@ -621,7 +634,7 @@ def layer_modules(lam, arn: str) -> frozenset:
             for entry in archive.namelist():
                 # Layer zips built on Windows carry `\` separators.
                 path = entry.replace("\\", "/")
-                for prefix in ("python/lib/python3.12/site-packages/", "python/"):
+                for prefix in ("python/lib/python3.14/site-packages/", "python/lib/python3.12/site-packages/", "python/"):
                     if path.startswith(prefix):
                         rest = path[len(prefix):]
                         break
@@ -1338,16 +1351,22 @@ def main() -> int:
         current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
         missing_layers = [arn for arn in spec.required_layers if arn not in current_layer_arns]
         if missing_layers:
+            # Replace an older build of the same layer (pillow-python312 -> pillow-python314)
+            # instead of stacking both: two copies of a package under /opt is a load-order bug.
+            replaced = {layer_family(arn) for arn in missing_layers}
+            kept = [arn for arn in current_layer_arns if layer_family(arn) not in replaced]
             if args.dry_run:
-                print("    WOULD ADD LAYER(S): " + ", ".join(missing_layers))
+                print("    WOULD SET LAYER(S): " + ", ".join(kept + missing_layers))
             else:
-                wanted_layers = current_layer_arns + missing_layers
+                wanted_layers = kept + missing_layers
                 lam.update_function_configuration(FunctionName=spec.name, Layers=wanted_layers)
                 lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
                 current = lam.get_function_configuration(FunctionName=spec.name)
                 current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
 
         runtime_changes = {}
+        if current.get("Runtime") != LAMBDA_RUNTIME:
+            runtime_changes["Runtime"] = LAMBDA_RUNTIME
         if spec.required_memory is not None and current.get("MemorySize") != spec.required_memory:
             runtime_changes["MemorySize"] = spec.required_memory
         if spec.required_timeout is not None and current.get("Timeout") != spec.required_timeout:

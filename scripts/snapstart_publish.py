@@ -119,11 +119,16 @@ def current_state(lam, name: str) -> State:
 
 
 def environment_matches(lam, name: str, version: str) -> bool:
-    """CodeSha256 excludes environment variables, which are frozen on publication."""
+    """CodeSha256 excludes environment variables, runtime and layers, which are all frozen on
+    publication. A runtime move (python3.12 -> python3.14) changes no code, so comparing the
+    hash alone would report the old version as current and never publish the new runtime."""
     served = lam.get_function_configuration(FunctionName=f'{name}:{version}')
     latest = lam.get_function_configuration(FunctionName=name)
+    layers = lambda cfg: [layer['Arn'] for layer in (cfg.get('Layers') or [])]
     return (served.get('Environment', {}).get('Variables', {})
-            == latest.get('Environment', {}).get('Variables', {}))
+            == latest.get('Environment', {}).get('Variables', {})
+            and served.get('Runtime') == latest.get('Runtime')
+            and layers(served) == layers(latest))
 
 
 def wait_active(lam, name: str, version: str) -> bool:

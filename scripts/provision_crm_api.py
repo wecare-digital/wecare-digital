@@ -47,7 +47,7 @@ API_ID = "zllr9lrg7j"
 FUNCTION = "wecare-crm"
 ALIAS = "live"
 HANDLER = "handler.handler"
-RUNTIME = "python3.12"
+RUNTIME = "python3.14"
 #: Same role every other function in this fleet uses. Its policy already covers the CRM
 #: tables, which were created in the same account with the same naming prefix.
 ROLE = f"arn:aws:iam::{ACCOUNT}:role/wecare-digital-lambda-role"

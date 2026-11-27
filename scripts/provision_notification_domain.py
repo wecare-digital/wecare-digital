@@ -412,7 +412,7 @@ def create_worker_function(dry_run: bool) -> str:
 
     _lambda().create_function(
         FunctionName=WORKER_FUNCTION,
-        Runtime="python3.12",
+        Runtime="python3.14",
         Role=WORKER_ROLE,
         Handler="handler.handler",
         Code={"ZipFile": buf.getvalue()},
