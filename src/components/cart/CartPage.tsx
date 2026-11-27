@@ -22,7 +22,7 @@ import CheckoutReceipt from './CheckoutReceipt';
 import FIXED_ITEMS from '../../content/invoicePresets.json';
 import type { StoredAddress } from '../AddressFields';
 import Select from '../ui/Select';
-import { getSession, restoreSession } from '../../lib/customerAuth';
+import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
   readCart, addItem, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
@@ -455,24 +455,39 @@ function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   return generated;
 }
 
+let razorpaySdkPromise: Promise<boolean> | null = null;
 function loadRazorpaySdk (): Promise<boolean> {
   if ( typeof window === 'undefined' ) return Promise.resolve( false );
   if ( window.Razorpay ) return Promise.resolve( true );
-  const existing = document.querySelector<HTMLScriptElement>( `script[src="${ RAZORPAY_SDK }"]` );
-  if ( existing ) {
-    return new Promise( resolve => {
-      existing.addEventListener( 'load', () => resolve( Boolean( window.Razorpay ) ), { once: true } );
-      existing.addEventListener( 'error', () => resolve( false ), { once: true } );
-    } );
-  }
-  return new Promise( resolve => {
-    const script = document.createElement( 'script' );
-    script.src = RAZORPAY_SDK;
-    script.async = true;
-    script.onload = () => resolve( Boolean( window.Razorpay ) );
-    script.onerror = () => resolve( false );
-    document.head.appendChild( script );
+  if ( razorpaySdkPromise ) return razorpaySdkPromise;
+  razorpaySdkPromise = new Promise<boolean>( resolve => {
+    const existing = document.querySelector<HTMLScriptElement>( `script[src="${ RAZORPAY_SDK }"]` );
+    const script = existing || document.createElement( 'script' );
+    let done = false;
+    const finish = ( ready: boolean ) => {
+      if ( done ) return;
+      done = true;
+      window.clearTimeout( timer );
+      script.removeEventListener( 'load', loaded );
+      script.removeEventListener( 'error', failed );
+      if ( !ready ) script.remove();
+      resolve( ready );
+    };
+    const loaded = () => finish( Boolean( window.Razorpay ) );
+    const failed = () => finish( false );
+    const timer = window.setTimeout( failed, 12000 );
+    script.addEventListener( 'load', loaded, { once: true } );
+    script.addEventListener( 'error', failed, { once: true } );
+    if ( !existing ) {
+      script.src = RAZORPAY_SDK;
+      script.async = true;
+      document.head.appendChild( script );
+    }
+  } ).then( ready => {
+    razorpaySdkPromise = null;
+    return ready;
   } );
+  return razorpaySdkPromise;
 }
 
 interface CartPageProps {
@@ -483,6 +498,7 @@ interface CartPageProps {
 export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
+  const [ cartUnavailable, setCartUnavailable ] = useState( false );
   const [ contributionReview, setContributionReview ] = useState( false );
   const [ contributionReviewError, setContributionReviewError ] = useState( '' );
   const [ quote, setQuote ] = useState<CheckoutQuote | null>( null );
@@ -492,6 +508,9 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ quoteSignInRequired, setQuoteSignInRequired ] = useState( false );
   const [ quoteRevision, setQuoteRevision ] = useState( 0 );
   const [ busy, setBusy ] = useState<boolean>( false );
+  const [ modalOpen, setModalOpen ] = useState( false );
+  const modalOpenRef = useRef( false );
+  const [ pendingAttempt, setPendingAttempt ] = useState( '' );
   const [ notice, setNotice ] = useState<Notice>( { kind: 'none' } );
   const [ showProfile, setShowProfile ] = useState<boolean>( false );
   const [ checkoutAccessToken, setCheckoutAccessToken ] = useState<string>( '' );
@@ -573,7 +592,13 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   const [ basketClaim, setBasketClaim ] = useState<string | null>( null );
 
   useEffect( () => {
-    setItems( cartFromDirectTestLink() );
+    try {
+      setItems( cartFromDirectTestLink() );
+    } catch {
+      setCartUnavailable( true );
+      setReady( true );
+      return undefined;
+    }
     const query = new URLSearchParams( window.location.search );
     setContributionReview( query.get( 'contribute' ) === '1' && !query.has( 'basket' ) && !query.has( 'test' ) );
     setReady( true );
@@ -601,7 +626,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   // A deliberate review choice uses the existing single-contribution cart writer.
   // Navigation alone never replaces an existing cart or initiates payment.
   const finishContributionReview = ( select: boolean ): void => {
-    if ( proceedInFlightRef.current || busy || railTerminalRef.current ) return;
+    if ( proceedInFlightRef.current || busy || railTerminalRef.current || modalOpenRef.current ) return;
     try {
       if ( select ) {
         const choice = CONTRIBUTION_CHOICES[0];
@@ -646,16 +671,24 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       setQuoteNotice( 'Checkout is temporarily unavailable. Please try again later. Nothing has been charged.' );
       return () => { live = false; };
     }
-    if ( !ready || items.length === 0 ) {
+    if ( !ready || contributionReview || cartUnavailable || items.length === 0 ) {
+      setQuote( null );
+      setQuoteFor( '' );
+      setQuoteNotice( '' );
+      setQuoteLoading( false );
+      return () => { live = false; };
+    }
+    if ( items.some( isContributionItem ) && ( items.length !== 1 || items[0].quantity !== 1 ) ) {
       setQuote( null );
       setQuoteFor( '' );
       setQuoteLoading( false );
+      setQuoteNotice( 'Review one ₹300 contribution separately. Remove other items or return to contribution review.' );
       return () => { live = false; };
     }
     if ( items.some( needsVariantSelection ) ) {
       setQuote( null );
       setQuoteFor( '' );
-      setQuoteNotice( publicActionText( 'blocked' ) );
+      setQuoteNotice( 'Choose a current option for each item to review the total.' );
       setQuoteLoading( false );
       return () => { live = false; };
     }
@@ -674,6 +707,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     setQuoteFor( '' );
     setQuoteLoading( true );
     setQuoteNotice( '' );
+    const controller = new AbortController();
+    let timeout: number | undefined;
     void ( async () => {
       try {
         const session = getSession() || await restoreSession();
@@ -681,9 +716,12 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           if ( live ) { setQuoteSignInRequired( true ); setQuoteNotice( 'Sign in to review your full price and choose a payment method.' ); }
           return;
         }
+        if ( !live ) return;
         const serviceIntent = serviceIntentFor( lines );
+        timeout = window.setTimeout( () => controller.abort(), 15000 );
         const response = await fetch( PREPARE_CHECKOUT_URL, {
           method: 'POST',
+          signal: controller.signal,
           headers: { 'Content-Type': 'application/json',
             Authorization: `Bearer ${ session.accessToken }` },
           body: JSON.stringify( { action: 'quote', lineItems: lines,
@@ -698,11 +736,18 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             // The price cannot be computed for a missing identity/address.
             // The checkout editor must be usable WITHOUT a payable button.
             setCheckoutAccessToken( session.accessToken );
-            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : 'create' );
+            setProfileMode( error === 'DELIVERY_DETAILS_REQUIRED' ? 'address' : ( cartRequiresDelivery( items ) ? 'create' : 'name' ) );
             setProfileStatus( 'required' );
             setShowProfile( true );
           }
-          if ( response.status === 401 ) setQuoteSignInRequired( true );
+          if ( response.status === 401 ) {
+            setQuoteSignInRequired( true );
+            setCheckoutAccessToken( '' );
+            setShowProfile( false );
+            // This is a definitive authorization refusal, not a payment.
+            // Prevent a stale access token from repeating the same dead end.
+            try { clearSession(); } catch { /* sign-in remains available */ }
+          }
           setQuoteNotice( response.status === 401 ? 'Your session has expired. Sign in again to continue.'
             : error === 'PROFILE_REQUIRED' ? 'Complete your customer details below to see the final price.'
               : error === 'DELIVERY_DETAILS_REQUIRED' ? 'Add a complete delivery address below to see the final price.'
@@ -719,11 +764,16 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       } catch {
         if ( live ) setQuoteNotice( 'We could not reach checkout. Check your connection and refresh prices. Nothing has been charged.' );
       } finally {
+        if ( timeout !== undefined ) window.clearTimeout( timeout );
         if ( live ) setQuoteLoading( false );
       }
     } )();
-    return () => { live = false; };
-  }, [ items, ready, profile, profileStatus, quoteRevision ] );
+    return () => {
+      live = false;
+      if ( timeout !== undefined ) window.clearTimeout( timeout );
+      controller.abort();
+    };
+  }, [ items, ready, profile, profileStatus, quoteRevision, contributionReview, cartUnavailable ] );
 
   /**
    * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
@@ -807,12 +857,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   }, [] );
 
   const drop = useCallback( ( ref: string ): void => {
-    setItems( removeItem( ref ) );
-    setQuote( null );
+    if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
+    try {
+      setItems( removeItem( ref ) );
+      setQuote( null );
+    } catch {
+      setNotice( { kind: 'error', message: 'Could not update the cart. Check browser storage and try again.' } );
+    }
   }, [] );
 
   const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
+    if ( modalOpenRef.current || proceedInFlightRef.current || railTerminalRef.current ) return;
     try {
+      const item = readCart().find( line => line.ref === ref );
+      if ( item && isContributionItem( item ) && quantity !== 1 ) return;
       setItems( setQuantity( ref, quantity ) );
       setQuote( null );
       setNotice( { kind: 'none' } );
@@ -964,7 +1022,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         const sdkReady = await loadRazorpaySdk();
         if ( !sdkReady || !window.Razorpay )
         {
-          return { kind: 'SDK_UNAVAILABLE' };
+          goToCheckoutStatus( String( data.paymentAttemptId ) );
+          return { kind: 'NAVIGATED' };
         }
 
         const attemptId = String( data.paymentAttemptId );
@@ -997,6 +1056,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             // body to read. Setting it after the fetch would leave the catch arm with a live CTA.
             railTerminalRef.current = true;
             setRailTerminal( true );
+            modalOpenRef.current = false;
+            setModalOpen( false );
             try {
               const verified = await fetch( VERIFY_CHECKOUT_URL, {
                 method: 'POST',
@@ -1064,16 +1125,30 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             }
           },
           modal: {
-            ondismiss: () => setNotice( { kind: 'none' } ),
+            ondismiss: () => {
+              modalOpenRef.current = false;
+              setModalOpen( false );
+              if ( railTerminalRef.current ) return;
+              setNotice( { kind: 'quiet', message: 'Payment window closed. Check payment status before trying again.' } );
+            },
           },
         } );
         razorpay.on( 'payment.failed', () => {
           setNotice( {
             kind: 'error',
-            message: publicActionText( 'failure' ),
+            message: 'Payment was not confirmed. Check payment status before trying again.',
           } );
         } );
-        razorpay.open();
+        setPendingAttempt( attemptId );
+        modalOpenRef.current = true;
+        setModalOpen( true );
+        try { razorpay.open(); }
+        catch {
+          modalOpenRef.current = false;
+          setModalOpen( false );
+          goToCheckoutStatus( attemptId );
+          return { kind: 'NAVIGATED' };
+        }
         return { kind: 'OPENED' };
       }
 
@@ -1219,6 +1294,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // payment after their session expires. Keep the explicit choice out of the URL.
       const channel = selectedCheckoutChannelRef.current;
       if ( channel ) stashPendingAction( { kind: 'checkout', channel } );
+      try { clearSession(); } catch { /* continue to the explicit sign-in route */ }
       window.location.assign( SIGN_IN_PATH );
       return;
     }
@@ -1227,7 +1303,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     {
       setCheckoutAccessToken( session.accessToken );
       setProfile( null );
-      setProfileMode( 'create' );
+      setProfileMode( cartRequiresDelivery() ? 'create' : 'name' );
       setProfileStatus( 'required' );
       setShowProfile( true );
       setNotice( { kind: 'quiet', message: publicActionText( 'blocked' ) } );
@@ -1458,7 +1534,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
         publicActionText( 'blocked' ) } );
       return;
     }
-    if ( contributionReview ) return;
+    if ( contributionReview || modalOpenRef.current ) return;
     const chosenChannel: CheckoutChannel = channel === 'whatsapp' ? 'whatsapp' : 'website';
     void checkoutChannel;
     selectedCheckoutChannelRef.current = chosenChannel;
@@ -1580,7 +1656,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     const needsDelivery = cartRequiresDelivery();
     if ( status === 'required' && ( needsDelivery || mode === 'create' || mode === 'name' ) )
     {
-      setProfileMode( mode );
+      setProfileMode( !needsDelivery && mode === 'create' ? 'name' : mode );
       setShowProfile( true );
       setNotice( { kind: 'none' } );
       return;
@@ -1596,6 +1672,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
     setPaymentBlocked( false );
     const currentItems = readCart();
+    if ( currentItems.some( isContributionItem ) && ( currentItems.length !== 1 || currentItems[0].quantity !== 1 ) ) {
+      setItems( currentItems );
+      setNotice( { kind: 'quiet', message: 'Review one ₹300 contribution separately from other products.' } );
+      return;
+    }
     // Reject even stale WhatsApp clicks for contribution baskets.
     if ( chosenChannel === 'whatsapp' && currentItems.some( isContributionItem ) ) {
       setItems( currentItems );
@@ -1642,6 +1723,11 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     setBusy( true );
     try
     {
+      // Load the provider UI before reserving a gateway attempt.
+      if ( chosenChannel === 'website' && !await loadRazorpaySdk() ) {
+        setNotice( { kind: 'error', message: 'Could not open secure payment. Check your connection or browser settings, then try again. No new payment was started.' } );
+        return;
+      }
       // MUST STAY A `let`: the rotation below reassigns it, so "tidying" this into a `const`
       // breaks that block rather than the line it is on.
       //
@@ -1787,9 +1873,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
     takePendingAction();
   }, [] );
 
-  const isEmpty = ready && !contributionReview && items.length === 0;
+  const isEmpty = ready && !cartUnavailable && !contributionReview && items.length === 0;
   const hasContribution = items.some( isContributionItem );
   const contributionOnly = items.length === 1 && hasContribution;
+  const contributionNeedsReview = hasContribution && ( !contributionOnly || items[0].quantity !== 1 );
   const contributionQuoteMismatch = Boolean( contributionOnly && quote && quote.charges.totalPaise !== CONTRIBUTION_CHOICES[0]?.paise );
   const reviewedBasketFingerprint = ( (): string => {
     try { return basketFingerprint( toLineItems( items ) ); }
@@ -1797,7 +1884,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
   } )();
   const quoteReady = Boolean( WEBSITE_FULL_CART_QUOTE_ENABLED && quote && !quoteLoading
     && quoteFor && quoteFor === reviewedBasketFingerprint
-    && !contributionReview && !contributionQuoteMismatch && !items.some( needsVariantSelection ) );
+    && !contributionReview && !contributionQuoteMismatch && !contributionNeedsReview && !showProfile && !items.some( needsVariantSelection ) );
   // Native WhatsApp checkout is currently provider-gated to one line, quantity one.
   // Do not show an enabled button for a basket the backend will refuse.
   const whatsappEligible = !hasContribution && items.length === 1 && items[ 0 ].quantity === 1
