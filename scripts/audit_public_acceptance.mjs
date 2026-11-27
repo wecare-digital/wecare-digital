@@ -219,11 +219,27 @@ try {
         await page.waitForTimeout(2600);
         if ((await active.textContent()).trim() !== result.samples[0].word) result.failures.push('Rotation ignores reduced motion');
       }
-      if (result.words.length > 1) result.notes.push('Manually verify an accessible pause/stop affordance for continuously changing copy and contextual, visually balanced wording.');
+      if (result.words.length > 1 && !reduced) {
+        const pause = page.getByRole('button', {name: 'Pause headline rotation', exact: true});
+        const resume = page.getByRole('button', {name: 'Resume headline rotation', exact: true});
+        if (await pause.count() !== 1 || !await pause.isVisible()) {
+          result.failures.push('Missing accessible rotation pause control');
+        } else {
+          await pause.click();
+          const pausedWord = (await active.textContent()).trim();
+          await page.waitForTimeout(2700);
+          if ((await active.textContent()).trim() !== pausedWord) result.failures.push('Headline rotation continues when paused');
+          if (await resume.count() !== 1 || !await resume.isVisible()) result.failures.push('Missing accessible rotation resume control');
+          else await resume.click();
+        }
+      }
+      if (result.words.length > 1) result.notes.push('Visually review balanced wording and screen-reader behavior separately.');
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       result.axe = {
-        violations: axe.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
-        incomplete: axe.incomplete.map(v => ({ id: v.id, nodes: v.nodes.length })),
+        // Record selector targets, not HTML, inputs or customer data. The
+        // anonymous context and blocked writes remain mandatory.
+        violations: axe.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, targets: v.nodes.slice(0, 30).map(n => n.target) })),
+        incomplete: axe.incomplete.map(v => ({ id: v.id, nodes: v.nodes.length, targets: v.nodes.slice(0, 30).map(n => n.target) })),
       };
       if (axe.violations.length) result.failures.push('Automated accessibility violations: ' + axe.violations.map(v => v.id).join(', '));
       result.metrics = await page.evaluate(() => {

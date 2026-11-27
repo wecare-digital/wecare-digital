@@ -894,6 +894,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if action == "request-service-start":
             return _request_service_start(identity, body, origin)
         if action == "create":
+            # Only the authenticated public API dispatch enters here. Native
+            # catalog and staff payment flows have separate, proven entrypoints.
+            if _website_contribution_requires_web_rail(body.get("lineItems")):
+                return cors_response(409, {
+                    "error": "CONTRIBUTION_WEBSITE_ONLY",
+                    "message": "Please pay for contributions on the website.",
+                }, origin)
             return _create(identity, body, origin)
         # Unknown operations must never fall through into a payable action.
         return cors_response(400, {"error": "UNKNOWN_CHECKOUT_ACTION"}, origin)
@@ -1536,6 +1543,19 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
         Item=attempt,
         ConditionExpression="attribute_not_exists(paymentAttemptId)",
     )
+
+
+def _website_contribution_requires_web_rail(line_items: Any) -> bool:
+    """Reject contribution lines on public action=create before native checkout."""
+    if not isinstance(line_items, list):
+        return False
+    for line in line_items:
+        reference = line.get("catalogReference") if isinstance(line, dict) else None
+        if isinstance(reference, dict):
+            product_id = str(reference.get("catalogItemId") or "").strip().lower()
+            if product_id in CONTRIBUTION_PRODUCT_IDS:
+                return True
+    return False
 
 
 def _basket_requires_delivery(line_items: Any) -> bool:
