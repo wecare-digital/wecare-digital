@@ -208,11 +208,11 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           <label className="lgd-search-icon" htmlFor={ searchId }>
             <svg className="lgd-contents-icon" viewBox={ CONTENTS_ICON_VIEW_BOX } aria-hidden="true" focusable="false"><path d={ CONTENTS_ICON } /></svg>
           </label>
-          <div className="lgd-search-field">
+          <div className="lgd-search-field" data-public-search-field="compact">
             <input id={ searchId } type="search" value={ sectionQuery } maxLength={ 120 } placeholder="Search" aria-label="Find a legal clause"
               onFocus={ () => { if ( tocRef.current ) tocRef.current.open = true; } }
               onChange={ event => applySectionQuery( event.target.value ) }
-              onKeyDown={ event => { if ( event.key === 'Escape' && sectionQuery ) { event.preventDefault(); applySectionQuery( '' ); } } } />
+              onKeyDown={ event => { if ( event.nativeEvent.isComposing ) return; if ( event.key === 'Escape' && sectionQuery ) { event.preventDefault(); applySectionQuery( '' ); } } } />
             <SearchClearButton query={ sectionQuery } onClear={ () => applySectionQuery( '' ) } />
             <VoiceSearchMic onTranscript={ applySectionQuery } />
           </div>
@@ -385,16 +385,17 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         }
         .lgd-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 var(--tap-min);min-height:var(--tap-min);color:var(--public-brand-green);cursor:text}
         .lgd-search-field{position:relative;flex:1;min-width:0}
+        @media(max-width:279px){.lgd-toc-search{padding-inline-end:0;gap:4px;flex-wrap:wrap}.lgd-search-field{flex:1 1 96px}}
         .lgd-toc-search input{
-          display:block;min-width:0;width:100%;margin:0;min-height:max(var(--tap-min),46px);box-sizing:border-box;
+          display:block;min-width:0;width:100%;margin:0;min-height:max(var(--tap-min),var(--public-search-compact-height));box-sizing:border-box;
           appearance:none;-webkit-appearance:none;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;
-          padding:0 2px;padding-inline-end:46px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
+          padding:0 2px;padding-inline-end:46px;padding-inline-end:var(--public-search-end-padding,46px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
           font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;
         }
         .lgd-toc-search input::-webkit-search-cancel-button,.lgd-toc-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .lgd-toc-search input::-ms-clear{display:none}
-        .lgd-toc-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .lgd-toc-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .lgd-toc-search input::placeholder{color:var(--public-muted)}
         .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
         .lgd-toc-status,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:10px 0}

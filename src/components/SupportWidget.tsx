@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { publicActionText } from '../lib/publicActionNotices';
 import { rankNavigation } from '../lib/navigationSearch';
 import SearchClearButton from './SearchClearButton';
+import { publicSupportGeometry } from '../lib/publicSupportGeometry';
 
 /**
  * The single floating widget on every page: WhatsApp contact, and page translation.
@@ -275,7 +276,6 @@ function attributeEligible ( start: Element, root: HTMLElement ): boolean {
 function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
   const slots: AttrSlot[] = [];
   const selector = TRANSLATABLE_ATTRS.map( attr => `[${attr}]` ).join( ',' );
-  const seen = new Set<string>();
   for ( const el of Array.from( root.querySelectorAll( selector ) ) ) {
     if ( !attributeEligible( el, root ) ) continue;
     for ( const attr of TRANSLATABLE_ATTRS ) {
@@ -286,7 +286,6 @@ function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
       slots.push( { el, attr } );
     }
   }
-  void seen;
   return slots;
 }
 
@@ -296,8 +295,6 @@ function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
 
 /** Below this width the pill goes slim and parks above the footer. Matches the CSS. */
 const MOBILE_MAX = 767;
-/** Clear air left between the parked pill and the footer's top edge. */
-const PARK_GAP = 16;
 /** The pill may never park closer than this to the fixed header's bottom edge. */
 const HEADER_GAP = 12;
 /** Space between the pill and the panel above it. Matches the flex gap on .wc-langbar. */
@@ -625,10 +622,7 @@ const SupportWidget: React.FC = () => {
     return () => { cancelled = true; };
   }, [] );
 
-  // No labelOverride parameter any more. It existed for one caller - the saved-language
-  // restore, which ran before `langs` was populated and so had to supply the display name
-  // itself. That restore is gone, and every remaining caller picks from a rendered row, so
-  // the lookup below always succeeds.
+  // Selection is scoped to the current page. The language catalogue owns the displayed label.
   const applyLanguage = useCallback( async ( code: string ) => {
     if ( busy ) return;
     setCurrent( code );
@@ -678,7 +672,7 @@ const SupportWidget: React.FC = () => {
       setCurrent( 'en' );
       setStatus( publicActionText( 'blocked' ) );
     } finally { setBusy( false ); }
-  }, [ busy, contentRoot, langs, restore, translateInto, startObserver, stopObserver ] );
+  }, [ busy, contentRoot, restore, translateInto, startObserver, stopObserver ] );
 
   /* The ref that mirrored applyLanguage for the catalogue effect is gone with the restore it
      existed to serve. It was only ever needed because that effect had to call a callback
@@ -705,7 +699,7 @@ const SupportWidget: React.FC = () => {
     // Focus goes back to the chip, not to the body. Dropping focus to the body would send a
     // keyboard user back to the top of the document, which is a page-length punishment for
     // pressing Escape.
-    if ( returnFocus ) chipRef.current?.focus();
+    if ( returnFocus ) chipRef.current?.focus( { preventScroll: true } );
   }, [] );
 
   useEffect( () => {
@@ -764,70 +758,65 @@ const SupportWidget: React.FC = () => {
     setAppShell( !!document.querySelector( '.layout' ) );
 
     let frame = 0;
+    const visual = window.visualViewport;
     const compute = () => {
       frame = 0;
       const bar = barRef.current;
-      if ( !bar ) return;
-      if ( window.innerWidth > MOBILE_MAX ) { setParkedBottom( null ); return; }
-
+      const pill = bar?.querySelector<HTMLElement>( '.wc-pill' );
+      if ( !bar || !pill ) return;
       const footer = document.querySelector( 'footer.ft-footer' );
-      if ( !footer ) { setParkedBottom( null ); return; }
-
-      const viewportHeight = window.innerHeight;
-      // How far the footer reaches up into the viewport. Negative while it is still below.
-      const intrusion = viewportHeight - footer.getBoundingClientRect().top;
-      const wanted = intrusion + PARK_GAP;
-      if ( wanted <= 0 ) { setParkedBottom( null ); return; }
-
       const header = document.querySelector( 'header.hdr' );
-      const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
-      const pillHeight = bar.getBoundingClientRect().height || 44;
-      const ceiling = viewportHeight - ( headerBottom + HEADER_GAP ) - pillHeight;
-      setParkedBottom( Math.min( wanted, Math.max( ceiling, 0 ) ) );
+      // Do not change the private Workspace BottomNav geometry.
+      if ( !header || !footer ) {
+        setParkedBottom( null );
+        setPanelMax( Math.max( 132, Math.round( pill.getBoundingClientRect().top - HEADER_GAP - PANEL_GAP ) ) );
+        return;
+      }
+      // CSS fixed offsets and DOMRects are in layout-viewport coordinates. The
+      // VisualViewport offset locates the visible rectangle inside that space;
+      // do not add it a second time to header/footer DOMRects. Use the root's
+      // viewport height (excluding scrollbars) for the fixed bottom coordinate.
+      const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+      const viewportWidth = visual?.width || document.documentElement.clientWidth;
+      const viewportHeight = visual?.height || layoutHeight;
+      const viewportTop = visual?.offsetTop || 0;
+      const viewportLeft = visual?.offsetLeft || 0;
+      const safeBottom = Number.parseFloat( window.getComputedStyle( bar ).getPropertyValue( '--safe-bottom' ) ) || 0;
+      const geometry = publicSupportGeometry( {
+        layoutHeight, viewportTop, viewportHeight, viewportWidth,
+        headerBottom: header.getBoundingClientRect().bottom,
+        footerTop: footer.getBoundingClientRect().top,
+        pillHeight: pill.getBoundingClientRect().height || 54, safeBottom, open,
+      } );
+      const inset = viewportWidth <= MOBILE_MAX ? 16 : 20;
+      const style = window.getComputedStyle( bar );
+      const leftGap = Math.max( inset, Number.parseFloat( style.getPropertyValue( '--safe-left' ) ) || 0 );
+      const rightGap = Math.max( inset, Number.parseFloat( style.getPropertyValue( '--safe-right' ) ) || 0 );
+      bar.style.setProperty( '--wc-visible-left', `${viewportLeft}px` );
+      bar.style.setProperty( '--wc-visible-right', `${Math.max( 0, document.documentElement.clientWidth - viewportLeft - viewportWidth )}px` );
+      bar.style.setProperty( '--wc-panel-width', `${Math.max( 1, viewportWidth - leftGap - rightGap )}px` );
+      setParkedBottom( geometry.bottom );
+      setPanelMax( geometry.panelMax );
     };
-
-    /**
-     * HOW TALL THE PANEL IS ALLOWED TO BE.
-     *
-     * The panel opens UPWARD, because the pill is at the bottom of the screen. That is fine
-     * until the two constraints meet: on a 320x568 phone, with the pill parked 208px up to
-     * clear the footer, the space left above it is about 194px - and five rows plus the
-     * search field is about 230px. The panel would have opened straight through the fixed
-     * header.
-     *
-     * No current desktop or tablet width comes close, which is exactly why this is computed
-     * rather than assumed. Measuring the PILL rather than the bar is deliberate: the bar
-     * contains the panel, so measuring the bar while the panel is open would be circular.
-     *
-     * When the cap bites, .wc-rows scrolls and the panel shows four rows instead of five.
-     * That is the graceful end of it. The alternative considered and rejected was to unpark
-     * the pill while the panel is open, which would have dropped it ~190px the instant a
-     * phone user tapped the chip - a jump, to solve a problem only the smallest screens have.
-     */
-    const measurePanel = () => {
-      const bar = barRef.current;
-      const pill = bar?.querySelector( '.wc-pill' );
-      if ( !pill ) return;
-      const header = document.querySelector( 'header.hdr' );
-      const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
-      const room = pill.getBoundingClientRect().top - headerBottom - HEADER_GAP - PANEL_GAP;
-      setPanelMax( Math.max( Math.round( room ), 132 ) );
-    };
-
-    // Coalesced to one computation per frame. A scroll listener that writes state on every
-    // event would set state dozens of times per frame on a trackpad or a momentum flick.
-    const onScroll = () => { if ( !frame ) frame = requestAnimationFrame( () => { compute(); measurePanel(); } ); };
-
+    const onScroll = () => { if ( !frame ) frame = requestAnimationFrame( compute ); };
     compute();
-    measurePanel();
     window.addEventListener( 'scroll', onScroll, { passive: true } );
     window.addEventListener( 'resize', onScroll );
+    visual?.addEventListener( 'resize', onScroll );
+    visual?.addEventListener( 'scroll', onScroll );
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver( onScroll ) : null;
+    for ( const node of [ barRef.current?.querySelector( '.wc-pill' ), document.querySelector( 'footer.ft-footer' ), document.querySelector( 'header.hdr' ) ] ) {
+      if ( node ) observer?.observe( node );
+    }
     return () => {
       if ( frame ) cancelAnimationFrame( frame );
       window.removeEventListener( 'scroll', onScroll );
       window.removeEventListener( 'resize', onScroll );
+      visual?.removeEventListener( 'resize', onScroll );
+      visual?.removeEventListener( 'scroll', onScroll );
+      observer?.disconnect();
     };
-  }, [] );
+  }, [ open ] );
 
   /**
    * The widget ALWAYS renders. Two early returns used to sit here and both were bugs:
@@ -838,6 +827,18 @@ const SupportWidget: React.FC = () => {
    */
   const canTranslate = langs.length >= 2;
   const hits = searchLanguages( langs, query );
+  // The combobox owns keyboard focus; keep its active option visible in the
+  // list's own scrollport without scrolling the document or raising the keyboard.
+  useEffect( () => {
+    if ( !open ) return;
+    const list = listRef.current;
+    const row = list?.querySelector<HTMLElement>( '.wc-row.is-active' );
+    if ( !list || !row ) return;
+    const listBox = list.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    if ( rowBox.top < listBox.top ) list.scrollTop -= listBox.top - rowBox.top;
+    else if ( rowBox.bottom > listBox.bottom ) list.scrollTop += rowBox.bottom - listBox.bottom;
+  }, [ open, active, query, panelMax, langs ] );
   // Uppercased base code - "EN", "HI", "TA". Short enough to sit in the pill without the
   // chip changing width between languages, which a full name would do on every switch.
   const chipLabel = ( current.split( '-' )[ 0 ] || 'en' ).toUpperCase();
@@ -846,6 +847,9 @@ const SupportWidget: React.FC = () => {
     <div
       ref={ barRef }
       data-wc-no-translate="true"
+      onBlur={ event => {
+        if ( open && event.relatedTarget instanceof Node && !event.currentTarget.contains( event.relatedTarget ) ) closePanel( false );
+      } }
       className={ `wc-langbar ${appShell ? 'is-appshell' : ''}`.trim() }
       /* The parked offset has to be inline: it is a measured pixel value that changes on
          every scroll frame, so there is no stylesheet form of it. null leaves the CSS
@@ -881,8 +885,8 @@ const SupportWidget: React.FC = () => {
            styled-jsx template literal, and a backtick closes it - which turns the rest of
            the stylesheet into JSX and fails the build with an unrelated-looking
            "Unexpected token" several hundred lines further down. */
-        .wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:var(--font-sans)}
-        :global([dir='rtl']) .wc-langbar{right:auto;left:max(var(--wc-inset),env(safe-area-inset-left))}
+        .wc-langbar{--wc-inset:20px;position:fixed;right:calc(var(--wc-visible-right,0px) + max(var(--wc-inset),var(--safe-right,0px)));left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:var(--font-sans)}
+        :global([dir='rtl']) .wc-langbar{right:auto;left:calc(var(--wc-visible-left,0px) + max(var(--wc-inset),var(--safe-left,0px)))}
 
         /* THE PILL. One container, two actions, reading as a single object rather than the
            two unrelated circles this replaced. 4px of padding around 44px controls makes
@@ -968,15 +972,15 @@ const SupportWidget: React.FC = () => {
            the DOM. Both halves matter: the pill sits at the bottom of the screen so the panel
            has nowhere to go but up, and DOM order is what decides tab order and the order a
            screen reader reads - the trigger should come before the thing it opens. */
-        .wc-panel{order:-1;display:flex;flex-direction:column;width:232px;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
+         .wc-panel{order:-1;display:flex;flex-direction:column;width:min(232px,var(--wc-panel-width,calc(100vw - 32px)));min-width:0;box-sizing:border-box;background:var(--public-bg);border:1px solid var(--public-hairline);border-top:3px solid var(--public-brand-lime);border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow-y:auto;overflow-x:hidden}
 
-         .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
+          .wc-search{display:flex;align-items:center;gap:8px;min-height:44px;flex-shrink:0;padding:0 12px;border-bottom:1px solid var(--public-brand-lime);background:var(--public-lime-tint);transition:border-color .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
            focused for the entire time the panel exists, so a ring around it conveys no
            information and just sits there - which is the "reads as permanently focused"
            defect this palette has already been burned by once. One lime hairline under the
            field says where the typing goes, and nothing shouts. */
-        .wc-search:focus-within{border-bottom-color:#d1f470}
+        .wc-search:focus-within{border-bottom-color:var(--public-brand-green);outline:2px solid var(--public-brand-green);outline-offset:-2px}
         .wc-search>svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
 
         /* THIS RULE IS MOSTLY UNDOING OTHER RULES, and each reset is here because the global
@@ -996,7 +1000,7 @@ const SupportWidget: React.FC = () => {
            force 16px on every input anyway, but this must not depend on that. */
         .wc-search input{width:100%;min-width:0;min-height:0;height:auto;border:0;border-radius:0;outline:0;box-shadow:none;padding:0;margin:0;background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:#1a3a2a}
         .wc-search input:focus{border:0;box-shadow:none;outline:0}
-        .wc-search input::placeholder{color:rgba(0,0,0,.36);font-weight:400}
+        .wc-search input::placeholder{color:var(--public-muted);font-weight:400}
 
         /* FIXED HEIGHT, NO SCROLLING. Five rows is the measured worst case for a two-letter
            query across the whole catalogue - the 'ma' cluster of Macedonian, Malay,
@@ -1028,7 +1032,7 @@ const SupportWidget: React.FC = () => {
         .wc-row.is-active{background:rgba(209,244,112,.38)}
         .wc-row.is-on{background:#d1f470}
         .wc-row:focus-visible{outline:3px solid #1a3a2a;outline-offset:-3px}
-        .wc-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .wc-row-name{min-width:0;overflow-wrap:anywhere;white-space:normal}
         .wc-row-code{flex:0 0 auto;font-size:var(--public-meta-size);font-weight:700;letter-spacing:.03em;color:var(--public-brand-green);opacity:.8}
         .wc-row.is-on .wc-row-code{color:var(--public-brand-green);opacity:1}
 
@@ -1205,6 +1209,7 @@ const SupportWidget: React.FC = () => {
               spellCheck={ false }
               onChange={ event => { setQuery( event.target.value ); setActive( 0 ); } }
               onKeyDown={ event => {
+                if ( event.nativeEvent.isComposing ) return;
                 if ( event.key === 'ArrowDown' || event.key === 'ArrowUp' ) {
                   // preventDefault so the caret does not jump to either end of the input,
                   // which is what the browser does with an arrow key in a text field.
@@ -1222,12 +1227,8 @@ const SupportWidget: React.FC = () => {
                   event.preventDefault();
                   if ( query ) { setQuery( '' ); setActive( 0 ); }
                   else closePanel( true );
-                } else if ( event.key === 'Tab' ) {
-                  // Tab closes rather than trapping. A three-element popover does not need a
-                  // focus trap, and trapping would strand a keyboard user who opened it by
-                  // accident.
-                  if ( !query || event.shiftKey ) closePanel( false );
                 }
+                // Normal Tab navigation is preserved; leaving the dock closes it on blur.
               } }
             />
             <SearchClearButton query={ query } placement="inline" onClear={ () => { setQuery( '' ); setActive( 0 ); } } />
@@ -1242,17 +1243,12 @@ const SupportWidget: React.FC = () => {
                 role="option"
                 aria-selected={ lang.code === current }
                 className={ `wc-row ${lang.code === current ? 'is-on' : ''} ${index === Math.min( active, hits.length - 1 ) ? 'is-active' : ''}`.trim() }
-                // onMouseDown, not onClick: the document mousedown listener that closes the
-                // panel fires first in the capture phase, and onClick would then land on an
-                // element that had already been unmounted.
-                //
-                // closePanel( false ) - focus is NOT returned to the chip on a pointer pick.
-                // Returning it is right for the keyboard (Enter and Escape both do) but wrong
-                // here: the programmatic focus inherited :focus-visible from the search input
-                // on Windows Chrome, which left the chip looking permanently selected after a
-                // mouse click. A pointer user has nothing to return focus to, so this drops it
-                // and the chip renders in its resting state, which is what it is.
-                onMouseDown={ event => { event.preventDefault(); closePanel( false ); void applyLanguage( lang.code ); } }
+                tabIndex={ -1 }
+                // Preserve combobox focus on pointer-down, but activate on click so
+                // touch taps and assistive-technology synthesized clicks work, too.
+                // A scroll gesture must never start a translation on pointer-down.
+                onMouseDown={ event => event.preventDefault() }
+                onClick={ event => { closePanel( event.detail === 0 ); void applyLanguage( lang.code ); } }
                 onMouseEnter={ () => setActive( index ) }
               >
                 {/* ONE WORD PER ROW, IN ENGLISH, FOR ALL 71.

@@ -15,6 +15,36 @@ Preserve bespoke layouts, private Workspace, authentication, payments and Vault 
 The baseline run covers common chrome on registered routes, not certification of
 individual pages or native devices. Verify each page separately after deployment.
 
+## Shared interaction audit
+
+The responsive foundation is complemented by opt-in search field layout, public
+support viewport geometry, common card/pager tokens, reflowing pill/checkout
+actions and logical-direction catalogue scrolling. The existing route-specific
+search ranking, native GET forms, language choice, customer actions, OTP,
+payment flow and Vault access controls remain unchanged.
+
+Audit Home, Shop, Blog, Anew, Terms and Privacy using the route-specific browser
+runner. The runner now measures the actual search controls rather than assuming
+that the clear button overlays the input. The support positioning unit test
+covers 1,680 combinations of visible dimensions, insets, footer parking and
+keyboard-size occlusion. It is not a native IME or physical device test.
+For deterministic interaction coverage on an approved preview or deployed revision:
+
+    PUBLIC_QA_BASE=https://wecare.digital PUBLIC_QA_INTERACTIONS_ONLY=1 PUBLIC_QA_ENGINES=chromium,webkit,firefox node scripts/verify_public_browser.mjs
+
+This mode fixtures speech-permission denial and the language catalogue, blocks
+translation requests, and exercises typed fallback, language search/clear,
+keyboard focus, synthesized option activation, RTL and keyboard-size resizing.
+It does not prove actual microphone permission, physical IME/pinch zoom, or
+native WebView coordinate behavior; retain those checks in device acceptance.
+
+Existing PageMeta, form-controls.css, PublicNotice and PublicToastProvider own
+SEO, native selectors and notices; do not replace their semantics just to make
+different pages look alike. Keep browser/assistive-technology, performance,
+dynamic post/shop routes and authenticated journeys in the per-page acceptance
+work. Never perform a real sign-in, payment or message send during public smoke
+testing.
+
 ## Reusable task prompt
 
 Audit and improve [page name] at [live URL]. Use the current Home reference.

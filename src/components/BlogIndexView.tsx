@@ -269,7 +269,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             count went on owner instruction and the RSS affordance moved to an icon at the bottom.
             It filters the full corpus (scoped to this category) and seeds from ?q= on first
             render, so the global tag links land here and narrow the list. */}
-        <div className="blog-search">
+        <div className="blog-search" data-public-search-field="standard">
           <label className="blog-search-sr" htmlFor="blog-q">Search the blog</label>
           <input
             id="blog-q"
@@ -280,7 +280,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             value={ query }
             onFocus={ () => setSearchActivated( true ) }
             onChange={ e => applySearchQuery( e.target.value ) }
-            onKeyDown={ e => { if ( e.key === 'Escape' && query ) { e.preventDefault(); applySearchQuery( '' ); } } }
+            onKeyDown={ e => { if ( e.nativeEvent.isComposing ) return; if ( e.key === 'Escape' && query ) { e.preventDefault(); applySearchQuery( '' ); } } }
           />
           <SearchClearButton query={ query } onClear={ () => applySearchQuery( '' ) } />
           <VoiceSearchMic onTranscript={ applySearchQuery } />
@@ -480,13 +480,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .post-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
         .post-card{
           display:flex;background:#fff;border:1px solid var(--public-hairline);
-          border-inline-start:3px solid #3da35a;border-radius:14px;overflow:hidden;
+          border-inline-start:3px solid #3da35a;border-radius:var(--public-card-radius);overflow:hidden;min-width:0;overflow-wrap:anywhere;
           transition:border-color .2s,transform .2s,box-shadow .2s;
         }
         .post-card:nth-child(3n+2){border-inline-start-color:#2563eb}
         .post-card:nth-child(3n+3){border-inline-start-color:#9849e8}
         .post-card:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-        .post-copy{display:flex;flex-direction:column;flex:1;padding:26px}
+        .post-copy{display:flex;flex-direction:column;flex:1;min-width:0;padding:var(--public-card-padding)}
         /* THE CATEGORY BADGE IS IDENTITY, SO IT GETS THE FULL LIME VOICE.
            It was rgba(209,244,112,.28) at 11px/700. Two separate problems.
            First, .28 is a FOURTH lime value. The contract lists exactly three treatments and
@@ -521,7 +521,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            site's own dim rung rather than 6b7280, which is a dashboard token from tokens.css
            and had no business on a public page. */
         .meta{margin-top:auto;font-size:12px;font-weight:600;line-height:1.4;color:var(--public-muted)}
-        .empty{border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:var(--public-muted)}
+        .empty{border:1px dashed #d1d5db;border-radius:var(--public-card-radius);padding:var(--public-empty-padding);text-align:center;overflow-wrap:anywhere;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:var(--public-muted)}
 
         /* BORDERLESS LIVE SEARCH - the /anew/ panel's field (ProductBlogPanel .pbp-search),
            so every search a visitor meets on the site reads as one control: no inner border, one
@@ -536,12 +536,12 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .blog-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
+          width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:var(--public-body);background:transparent;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .blog-search input:not(:placeholder-shown){padding-inline-end:90px}
+        .blog-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .blog-search input::-webkit-search-cancel-button,.blog-search input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .blog-search input::-ms-clear{display:none}
         .blog-search input::placeholder{color:var(--public-muted)}
@@ -581,12 +581,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             -webkit-overflow-scrolling:touch;
           }
           .post-grid{grid-template-columns:1fr;gap:18px}
-          .post-copy{padding:22px}
+          .post-copy{padding:var(--public-card-padding-mobile)}
           h2{font-size:var(--public-mobile-card-size)}
           /* The excerpt gets the full measure at one column, so it can run longer before the
              clamp bites - six lines rather than four. No new font size: same rung. */
           .post-copy p{-webkit-line-clamp:6}
         }
+        @media(max-width:279px){.post-copy{padding:var(--public-card-padding-reflow)}.post-copy p{-webkit-line-clamp:unset}}
+        @media(hover:none){.post-card:hover,.category-switch :global(a:hover){transform:none;box-shadow:none}}
         /* THE REDUCED-MOTION BLOCK WAS AIMING AT NOTHING. It named
            .category-switch button, and the pills stopped being buttons when each category
            became its own route - so a reader who asks for less motion still got the pill

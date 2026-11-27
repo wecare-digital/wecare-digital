@@ -192,6 +192,19 @@
   --public-cta-border: 2px;
   --public-cta-font-size: 17px;
   --public-cta-font-weight: 600;
+  /* Public interaction roles: shared by search, cards, pagination and actions. */
+  --public-search-height: 52px;
+  --public-search-compact-height: 46px;
+  --public-search-gap: 4px;
+  --public-card-radius: 14px;
+  --public-card-padding: 26px;
+  --public-card-padding-mobile: 22px;
+  --public-card-padding-reflow: 12px;
+  --public-pager-gap: 8px;
+  --public-pager-size: var(--tap-min);
+  --public-progress-height: 6px;
+  --public-progress-track: #eef0f2;
+  --public-empty-padding: clamp(12px, 8vw, 40px);
 
   /* PUBLIC MOBILE FOUNDATION — canonical phone deltas proven on Home.
    * Shared public components adopt these by default; bespoke layouts remain page-specific.

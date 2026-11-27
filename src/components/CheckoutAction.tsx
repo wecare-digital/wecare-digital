@@ -37,17 +37,18 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
     </button>
     <style jsx>{`
       .checkout-action{
-        display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;
+        display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;min-width:0;
         min-height:var(--tap-min);box-sizing:border-box;padding:8px 12px;
         border:2px solid transparent;border-radius:11px;
         background:var(--public-accent-amber);color:var(--public-brand-green);font-family:inherit;
-        font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
+        font-size:var(--public-responsive-cta-size);font-weight:var(--public-cta-font-weight);
         line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;
         text-align:start;text-decoration:none;
         touch-action:manipulation;-webkit-tap-highlight-color:transparent;
         transition:background-color .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s;
       }
-      .checkout-action-icon{
+      .checkout-action > span:not(.checkout-action-icon){min-width:0;overflow-wrap:anywhere}
+      .checkout-action-icon{flex-shrink:0;
         font-family:'Material Symbols Rounded';font-size:20px;font-weight:500;line-height:1;
         font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 20;
       }

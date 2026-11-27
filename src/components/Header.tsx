@@ -426,7 +426,7 @@ const Header: React.FC = () => {
   // a link. Matches the language widget, so both menus answer to the same keys.
   useEffect( () => {
     if ( !open ) return undefined;
-    const onKeyDown = ( event: KeyboardEvent ) => { if ( event.key === 'Escape' ) close( true ); };
+    const onKeyDown = ( event: KeyboardEvent ) => { if ( !event.isComposing && event.key === 'Escape' ) close( true ); };
     const onPointerDown = ( event: PointerEvent ) => {
       if ( rootRef.current && !rootRef.current.contains( event.target as Node ) ) close();
     };
@@ -657,7 +657,7 @@ const Header: React.FC = () => {
                   searching is the only way to use it, but this menu is readable at a
                   glance - popping the on-screen keyboard over the whole catalogue on a
                   phone would cost more than it saves. */}
-              <div className="nav-search-field">
+              <div className="nav-search-field" data-public-search-field="compact">
                 <input
                   className="nav-search"
                   type="search"
@@ -667,7 +667,7 @@ const Header: React.FC = () => {
                   aria-label="Search navigation"
                   onFocus={ syncLocalizedSearchText }
                   onChange={ event => applySearchQuery( event.target.value ) }
-                  onKeyDown={ event => { if ( event.key === 'Escape' && query ) { event.preventDefault(); event.stopPropagation(); applySearchQuery( '' ); } } }
+                  onKeyDown={ event => { if ( event.nativeEvent.isComposing ) return; if ( event.key === 'Escape' && query ) { event.preventDefault(); event.stopPropagation(); applySearchQuery( '' ); } } }
                 />
                 <SearchClearButton query={ query } onClear={ () => applySearchQuery( '' ) } />
                 <VoiceSearchMic onTranscript={ applySearchQuery } />
@@ -1127,8 +1127,8 @@ const Header: React.FC = () => {
            search fields on the site are recognisably the same control. */
         /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
         .nav-search-field{position:relative;margin:0 0 12px}
-        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px 44px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
-        .nav-search:not(:placeholder-shown){padding-inline-end:90px}
+        .nav-search{width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .nav-search::-ms-clear{display:none}
         .nav-search::placeholder{color:var(--public-muted)}

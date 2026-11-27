@@ -1,0 +1,45 @@
+/* Opt-in public search layout. Existing route logic, labels, form actions and
+ * query state remain with their owners. The actual controls participate in
+ * layout rather than overlapping the editable text; a narrow field wraps. */
+[data-public-search-field] {
+  --public-search-end-padding: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--public-search-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+[data-public-search-field] > input[type="search"] {
+  flex: 1 1 96px;
+  min-width: 0;
+  max-width: 100%;
+}
+[data-public-search-field] > button.public-search-clear,
+[data-public-search-field] > button.voice-search-mic {
+  position: static;
+  inset: auto;
+  transform: none;
+  flex: 0 0 auto;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+[data-public-search-field] > input[type="search"]:focus {
+  outline: 2px solid var(--public-brand-green);
+  outline-offset: -2px;
+}
+/* VoiceSearchMic owns its shared live status, including the visible
+ * failure row (.voice-search-status.is-visible). Keep it in normal flow
+ * without duplicating feedback styles or exposing empty status rows. */
+@media (prefers-reduced-motion: reduce) {
+  [data-public-search-field] > input[type="search"],
+  [data-public-search-field] > button {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  [data-public-search-field] > input[type="search"]:focus {
+    outline: 2px solid Highlight;
+  }
+}

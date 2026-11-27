@@ -226,10 +226,10 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
           role="dialog" aria-label="Order actions" style={ position }>
           {/* Same borderless search + shared microphone as Header and BlogSearch.
               Use the shared explicit clear control instead of browser-specific icons. */}
-          <div className="orm-search-field">
+          <div className="orm-search-field" data-public-search-field="compact">
             <input ref={ searchRef } className="orm-search" type="search" value={ search }
               onChange={ event => setSearch( event.target.value.slice( 0, 120 ) ) }
-              onKeyDown={ event => { if ( event.key === 'Escape' && search ) { event.preventDefault(); event.stopPropagation(); setSearch( '' ); } } }
+              onKeyDown={ event => { if ( event.nativeEvent.isComposing ) return; if ( event.key === 'Escape' && search ) { event.preventDefault(); event.stopPropagation(); setSearch( '' ); } } }
               placeholder="Search actions" maxLength={ 120 } aria-label="Search order actions"
               autoComplete="off" />
             <SearchClearButton query={ search } onClear={ () => setSearch( '' ) } />
@@ -348,18 +348,18 @@ export default function OrderActionsMenu ( { orderNumber, onInvite, inviteBusy, 
            visual treatment as public navigation and blog search). */
         .orm-search-field{position:relative;margin:12px 16px 12px}
         .orm-search{
-          width:100%;margin:0;min-height:44px;box-sizing:border-box;
+          width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;
           border:0;border-block-end:1px solid var(--public-hairline);
           border-radius:0;background:transparent;
-          padding-block:0;padding-inline:2px 44px;
+          padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:16px;font-weight:400;line-height:1.3;
           color:var(--public-body);font-family:inherit;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
-        .orm-search:not(:placeholder-shown){padding-inline-end:90px}
+        .orm-search:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .orm-search::-webkit-search-cancel-button,.orm-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .orm-search::-ms-clear{display:none}
-        .orm-search::placeholder{color:rgba(0,0,0,.42)}
+        .orm-search::placeholder{color:var(--public-muted)}
         .orm-search:focus-visible{
           border-block-end-color:var(--public-brand-green);
           box-shadow:0 1px 0 0 var(--public-brand-lime);

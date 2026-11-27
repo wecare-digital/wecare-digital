@@ -221,10 +221,10 @@ const PillButton: React.FC<PillButtonProps> = ( {
            declarations become a harmless restatement rather than the only source. */
         .pill{
           display:inline-flex;align-items:center;justify-content:center;isolation:isolate;
-          min-height:var(--public-cta-height);box-sizing:border-box;
+          min-height:var(--public-cta-height);box-sizing:border-box;max-width:100%;min-width:0;
           border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);
-          padding:0 28px;cursor:pointer;
-          color:var(--public-brand-green);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
+          padding:8px clamp(8px,6vw,28px);cursor:pointer;
+          color:var(--public-brand-green);font-family:inherit;font-size:var(--public-responsive-cta-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .pill-block{display:flex;width:100%}
@@ -238,8 +238,8 @@ const PillButton: React.FC<PillButtonProps> = ( {
            terminates the CSS string early. src/test/StyledJsxBackticks.test.tsx guards it. */
         .pill-action{
           display:inline-flex;align-items:center;justify-content:center;
-          min-inline-size:0;
-          color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);line-height:1.2;
+          min-inline-size:0;max-inline-size:100%;white-space:normal;overflow-wrap:anywhere;
+          color:var(--public-brand-green);font-size:var(--public-responsive-cta-size);font-weight:var(--public-cta-font-weight);line-height:1.2;
           text-align:center;
         }
 
@@ -268,7 +268,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
         /* NARROW VIEWPORTS. Tighten padding rather than shrink the 52px target; the action segment
            absorbs the remaining width so the label does not overflow at 320px. */
         @media(max-width:360px){
-          .pill{padding:0 18px}
+           .pill{padding:8px clamp(6px,5vw,18px)}
           .pill-action{font-size:16px}
         }
 

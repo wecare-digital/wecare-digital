@@ -93,6 +93,7 @@ import '../styles/workspace-shell.css';
    including Layout.css's own @import of tokens.css and workspace.css - or a per-page select rule
    that ties it on specificity would win on source order. Nothing goes below this line. */
 import '../styles/form-controls.css';
+import '../styles/public-interactions.css';
 // Was LanguageBar. Renamed because it no longer only chooses a language: it is the single
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.
