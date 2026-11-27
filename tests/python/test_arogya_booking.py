@@ -90,10 +90,15 @@ def test_handler_requires_verified_customer_and_returns_no_provider_confirmation
     monkeypatch.setattr(module, 'require_customer', lambda _: (identity, None))
     assert module.handler(event, None)['statusCode'] == 403
     identity.phone_verified = True
+    assert module.handler(event, None)['statusCode'] == 400
+    event['body'] = json.dumps({'action': 'access'})
+    assert json.loads(module.handler(event, None)['body']) == {'phoneVerified': True, 'appointmentConfirmed': False}
+    event['body'] = json.dumps({'action': 'quote'})
     reply = module.handler(event, None)
     body = json.loads(reply['body'])
     assert body['pricing']['totalPayablePaise'] == 71114
     assert body['appointmentConfirmed'] is False
+    assert body['estimateOnly'] is True and body['checkoutAvailable'] is False
     assert reply['headers']['Cache-Control'] == 'no-store, private'
 
 
