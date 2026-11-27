@@ -87,18 +87,25 @@ const focusedDevices = [
   ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
 ];
 const matrix = normalizedRoute || menuOnly || baselineOnly || interactionsOnly ? [...devices, ...focusedDevices] : devices;
-async function assertSharedSearchGeometry(field, name) {
-  const geometry = await field.evaluate(el => {
+async function assertSharedSearchGeometry(field, name, withFeedback = false) {
+  const geometry = await field.evaluate((el, withFeedback) => {
     const parent = el.parentElement;
     const box = parent.getBoundingClientRect();
     const controls = [el, ...parent.querySelectorAll('button.public-search-clear, button.voice-search-mic')].filter(node => node.getClientRects().length);
+    const feedback = withFeedback ? parent.querySelector('.voice-search-status.is-visible') : null;
+    if (feedback) controls.push(feedback);
     const rects = controls.map(node => {const r=node.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});
-    return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,marked:parent.hasAttribute('data-public-search-field')};
-  });
+    return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,hasFeedback:!!feedback,marked:parent.hasAttribute('data-public-search-field')};
+  }, withFeedback);
+  if (withFeedback) assert.ok(geometry.hasFeedback, name + ': failure did not render a visible status row');
   assert.ok(geometry.marked, name + ': missing shared search layout');
   for (const [i, a] of geometry.rects.entries()) {
     assert.ok(a.left >= geometry.box.left - 2 && a.right <= geometry.box.right + 2 && a.top >= geometry.box.top - 2 && a.bottom <= geometry.box.bottom + 2, name + ': search control leaves row');
-    if(i>0) assert.ok(a.width >= 44 && a.height >= 44, name + ': search action touch size');
+    if (withFeedback && i === geometry.rects.length - 1) {
+      assert.ok(a.width >= geometry.box.right - geometry.box.left - 2 && a.height > 1, name + ': failure status does not fill its own row');
+    } else if (i > 0) {
+      assert.ok(a.width >= 44 && a.height >= 44, name + ': search action touch size');
+    }
     for (const b of geometry.rects.slice(i+1)) {
       assert.ok(a.right <= b.left+1 || b.right <= a.left+1 || a.bottom <= b.top+1 || b.bottom <= a.top+1, name + ': search controls overlap');
     }
@@ -222,7 +229,7 @@ async function verifyVoiceFallback(page, route, name) {
   assert.equal(await mic.getAttribute('aria-describedby'), statusId, name + ': microphone status not linked');
   assert.equal(await mic.getAttribute('aria-pressed'), 'false', name + ': microphone remains active after denial');
   assert.equal(await field.inputValue(), value, name + ': permission denial changed query');
-  await assertSharedSearchGeometry(field, name);
+  await assertSharedSearchGeometry(field, name, true);
   await parent.getByRole('button', {name:'Clear search',exact:true}).click();
   assert.equal(await field.inputValue(), '', name + ': typed fallback clear');
   assert.ok(await field.evaluate(el => el === document.activeElement), name + ': typed fallback focus');

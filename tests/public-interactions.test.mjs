@@ -42,6 +42,7 @@ test('voice failure and language activation retain typed and accessible alternat
   assert.ok(voice.includes('voiceSearchFailureMessage( event.error )'));
   assert.ok(voice.includes('aria-describedby={ feedback ? statusId : undefined }'));
   assert.ok(voice.includes('activeRef.current = true'));
+  assert.match(voice, /try \{\s*recognition\.lang = pageVoiceLocale\(\);\s*recognition\.start\(\);/);
   assert.ok(voice.includes('cancelledRef.current = true'));
   assert.ok(voice.includes('.voice-search-status.is-visible{position:static;display:block;flex:0 0 100%'));
   assert.doesNotMatch(read('src/styles/public-interactions.css'), /\.voice-search-feedback/);

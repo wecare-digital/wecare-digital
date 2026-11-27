@@ -154,8 +154,8 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
     resultRef.current = false;
     setFeedback( '' );
     setStarting( true );
-    recognition.lang = pageVoiceLocale();
     try {
+      recognition.lang = pageVoiceLocale();
       recognition.start();
     } catch ( error ) {
       activeRef.current = false;
