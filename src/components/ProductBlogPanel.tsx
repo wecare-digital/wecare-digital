@@ -244,6 +244,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                   className="pbp-page"
                   key={ pageIndex }
                   aria-hidden={ pageIndex === activePage ? undefined : true }
+                  inert={ pageIndex !== activePage }
                 >
                   { pageCards.map( card => (
                     <li key={ card.slug } className="pbp-card">
@@ -262,7 +263,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                           The category is NOT repeated here because the active category pill at
                           the top already says which stream this is. Renders nothing when the post
                           carries no tags. */}
-                      <BlogTags tags={ cardTags( card ) } className="pbp-tagrow" />
+                      <BlogTags tags={ cardTags( card ) } className="pbp-tagrow" tabIndex={ pageIndex === activePage ? undefined : -1 } />
                     </li>
                   ) ) }
                 </ul>
