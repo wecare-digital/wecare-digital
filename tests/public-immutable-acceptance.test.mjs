@@ -40,3 +40,19 @@ test('immutable acceptance shares a verified exact export, never proxies transac
   assert.match(fixture,/async function captureSnapshot\(label\)/);
   assert.match(fixture,/await verifyAppointmentGate\(\)/);
 });
+
+test('immutable snapshot explicitly builds the intercepted invoice read capability',()=>{
+  const workflow=read('.github/workflows/public-acceptance.yml');
+  assert.match(workflow,/name: Build static website[\s\S]*?NEXT_PUBLIC_ENABLE_INVOICE_DOWNLOAD: 'true'/);
+  const fixture=read('scripts/verify_checkout_fixture.mjs');
+  assert.match(fixture,/my-invoice'&&method==='POST'/);
+  assert.match(fixture,/Paid row must expose invoice action/);
+});
+test('travel assistant send icon has no visible font-ligature fallback',()=>{
+  const source=read('src/components/ElsewhereTravelAssistant.tsx');
+  const send=source.match(/<button\s+className="eta-send"([\s\S]*?)<\/button>/);
+  assert.ok(send);
+  assert.match(send[1],/aria-label="Send"/);
+  assert.match(send[1],/<svg[^>]*aria-hidden="true"[^>]*focusable="false"/);
+  assert.doesNotMatch(send[1],/symbol\(|eta-material/);
+});
