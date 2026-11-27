@@ -64,7 +64,7 @@ test('all missing and retired public pages navigate Home without republishing th
   assert.ok(!page.includes('httpEquiv="refresh"'));
   assert.ok(!page.includes('RETIRED_PRODUCT_PATHS'));
   assert.ok(page.includes('name="robots" content="noindex, follow"'));
-  assert.ok(page.includes('<a href="/">'));
+  assert.ok(page.includes('<Link href="/">'));
   const effect = page.match(/useEffect\( \(\) => \{([\s\S]*?)\n  \}, \[\] \);/);
   assert.ok(effect, 'shared 404 navigation effect');
   for (const url of [
