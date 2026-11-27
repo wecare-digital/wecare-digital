@@ -2,6 +2,7 @@
 """Run provider-free release checks shared by GitHub Verify and Amplify."""
 from pathlib import Path
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,9 @@ def main() -> int:
     for name in CHECKS:
         print(f"== {name} ==", flush=True)
         subprocess.run(["node", str(ROOT / "scripts" / name)], cwd=ROOT, check=True)
+    print("== checkout_release_check.py --source-only ==", flush=True)
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "checkout_release_check.py"), "--source-only"],
+                   cwd=ROOT, check=True)
     return 0
 
 
