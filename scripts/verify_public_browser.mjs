@@ -97,10 +97,17 @@ async function assertSharedSearchGeometry(field, name, withFeedback = false) {
     const feedback = withFeedback ? parent.querySelector('.voice-search-status.is-visible') : null;
     if (feedback) controls.push(feedback);
     const rects = controls.map(node => {const r=node.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});
-    return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,hasFeedback:!!feedback,marked:parent.hasAttribute('data-public-search-field')};
+    const style = getComputedStyle(el);
+    return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,hasFeedback:!!feedback,marked:parent.hasAttribute('data-public-search-field'),
+      focused:el === document.activeElement, forcedColors:matchMedia('(forced-colors: active)').matches,
+      outlineStyle:style.outlineStyle, outlineWidth:style.outlineWidth, focusShadow:style.boxShadow};
   }, withFeedback);
   if (withFeedback) assert.ok(geometry.hasFeedback, name + ': failure did not render a visible status row');
   assert.ok(geometry.marked, name + ': missing shared search layout');
+  if (geometry.focused && !geometry.forcedColors) {
+    assert.ok(geometry.outlineStyle === 'none' || parseFloat(geometry.outlineWidth) === 0, name + ': extra rectangular search focus box');
+    assert.match(geometry.focusShadow, /inset.*0px -2px 0px/, name + ': focused search must have the visible bottom line');
+  }
   for (const [i, a] of geometry.rects.entries()) {
     assert.ok(a.left >= geometry.box.left - 2 && a.right <= geometry.box.right + 2 && a.top >= geometry.box.top - 2 && a.bottom <= geometry.box.bottom + 2, name + ': search control leaves row');
     if (withFeedback && i === geometry.rects.length - 1) {
@@ -138,6 +145,10 @@ async function verifyMenu(page, name, width, height, touch) {
   await trigger.click();
   await nav.waitFor({state: 'visible'});
   assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
+  const arrowColor = await trigger.locator('.nav-trigger-icon').evaluate(el => getComputedStyle(el).fill);
+  assert.equal(arrowColor, 'rgb(37, 99, 235)', name + ': navigation trigger arrow color');
+  const chevrons = await nav.locator('.nav-row-chevron:visible').evaluateAll(els => els.map(el => getComputedStyle(el).fill));
+  assert.ok(chevrons.every(color => color === arrowColor), name + ': inconsistent navigation chevron color');
   await assertBounds();
   await page.screenshot({path: join(output, name + '-menu.png')});
   const row = nav.locator('.nav-item:visible').first();
