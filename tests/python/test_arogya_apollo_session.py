@@ -205,3 +205,21 @@ def test_profile_timeout_preserves_candidate_and_retries_no_other_auth_stage():
     assert provider.calls.count('login') == 1
     assert provider.calls.count('send') == 1
     assert provider.calls.count('verify') == 1
+
+
+def test_local_cache_expiry_does_not_send_otp_when_provider_session_is_still_valid():
+    store = Store({'stage': 'ready', 'token': token(), 'expiresAt': NOW - 1, 'lastRenewalAt': NOW - 300})
+    provider = Provider()
+    assert advance(store, provider).status == 'ready'
+    assert provider.calls == ['profile']
+    assert store.state['expiresAt'] == NOW + 300
+
+
+def test_a_provider_401_starts_one_renewal_after_cache_expiry():
+    from lambda_utils.arogya.apollo_client import ApolloSessionExpired
+    store = Store({'stage': 'ready', 'token': token(), 'expiresAt': NOW - 1, 'lastRenewalAt': NOW - 300})
+    provider = Provider()
+    def expired(access): raise ApolloSessionExpired('expired')
+    provider.get_profile = expired
+    assert advance(store, provider).status == 'renewing'
+    assert provider.calls == ['login', 'send']

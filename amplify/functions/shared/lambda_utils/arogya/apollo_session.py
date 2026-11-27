@@ -189,6 +189,25 @@ def advance_session(*, store, provider, gmail_get: Callable,
             return SessionResult('renewing', retry_after=2)
         if state.get('stage') == 'awaiting_profile':
             return _complete_candidate(store, lease, provider, state, now)
+        if state.get('stage') == 'ready':
+            # A local cache deadline is not proof that the provider session ended.
+            # Check the existing token before sending another login email.
+            try:
+                profile = provider.get_profile(state['token'])
+            except ApolloSessionExpired:
+                state = {'stage': 'expired', 'lastRenewalAt': state.get('lastRenewalAt', 0)}
+                store.save(lease, state)
+            except ApolloUnavailable:
+                store.save(lease, {**state, 'nextPollAt': now + 3})
+                return SessionResult('renewing', retry_after=3)
+            else:
+                email = str(profile.get('EmailId', profile.get('emailId', profile.get('userName', '')))).strip().lower() if isinstance(profile, Mapping) else ''
+                if email != MAILBOX:
+                    store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
+                    raise ApolloAuthorizationRequired('Apollo profile does not match the configured account')
+                refreshed = {**state, 'expiresAt': now + 300, 'nextPollAt': 0}
+                store.save(lease, refreshed)
+                return SessionResult('ready', token=refreshed['token'])
         if state.get('stage') == 'awaiting_otp' and 0 <= now - state['requestedAt'] <= CHALLENGE_TTL:
             if state.get('verifyAttempts', 0) >= MAX_VERIFY_ATTEMPTS:
                 store.save(lease, {'stage': 'blocked', 'lastRenewalAt': now})
