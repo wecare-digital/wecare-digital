@@ -100,13 +100,15 @@ async function assertSharedSearchGeometry(field, name, withFeedback = false) {
     const style = getComputedStyle(el);
     return {box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},rects,hasFeedback:!!feedback,marked:parent.hasAttribute('data-public-search-field'),
       focused:el === document.activeElement, forcedColors:matchMedia('(forced-colors: active)').matches,
-      outlineStyle:style.outlineStyle, outlineWidth:style.outlineWidth, focusShadow:style.boxShadow};
+      outlineStyle:style.outlineStyle, outlineWidth:style.outlineWidth, focusShadow:style.boxShadow, underlineColor:style.borderBottomColor};
   }, withFeedback);
   if (withFeedback) assert.ok(geometry.hasFeedback, name + ': failure did not render a visible status row');
   assert.ok(geometry.marked, name + ': missing shared search layout');
   if (geometry.focused && !geometry.forcedColors) {
     assert.ok(geometry.outlineStyle === 'none' || parseFloat(geometry.outlineWidth) === 0, name + ': extra rectangular search focus box');
-    assert.match(geometry.focusShadow, /inset.*0px -2px 0px/, name + ': focused search must have the visible bottom line');
+    assert.equal(geometry.underlineColor, 'rgb(209, 244, 112)', name + ': search underline uses Home lime');
+    assert.match(geometry.focusShadow, /rgb\(209, 244, 112\)/, name + ': focused search retains bright lime');
+    assert.match(geometry.focusShadow, /rgb\(26, 58, 42\)/, name + ': focused search retains contrast');
   }
   for (const [i, a] of geometry.rects.entries()) {
     assert.ok(a.left >= geometry.box.left - 2 && a.right <= geometry.box.right + 2 && a.top >= geometry.box.top - 2 && a.bottom <= geometry.box.bottom + 2, name + ': search control leaves row');

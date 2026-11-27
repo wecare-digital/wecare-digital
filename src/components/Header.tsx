@@ -1130,12 +1130,12 @@ const Header: React.FC = () => {
            search fields on the site are recognisably the same control. */
         /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
         .nav-search-field{position:relative;margin:0 0 12px}
-        .nav-search{width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search{width:100%;margin:0;min-height:var(--public-search-compact-height);box-sizing:border-box;border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent;padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .nav-search:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .nav-search::-webkit-search-cancel-button,.nav-search::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .nav-search::-ms-clear{display:none}
         .nav-search::placeholder{color:var(--public-muted)}
-        .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
+        .nav-search:focus-visible{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow)}
 
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
@@ -1217,7 +1217,7 @@ const Header: React.FC = () => {
         .nav-products-cue-row{height:46px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 46px;margin-top:6px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
         .nav-products-more{display:flex;align-items:center;justify-content:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
-        .nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
+        .nav-products-more:hover{background:var(--public-button-hover);transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
         .nav-products-more-icon{fill:var(--public-nav-arrow)}
         /* The Customer service heading is a link, so it needs an affordance the plain

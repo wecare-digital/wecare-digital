@@ -389,7 +389,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-toc-search input{
           display:block;min-width:0;width:100%;margin:0;min-height:max(var(--tap-min),var(--public-search-compact-height));box-sizing:border-box;
           appearance:none;-webkit-appearance:none;
-          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;background:transparent;
           padding:0 2px;padding-inline-end:46px;padding-inline-end:var(--public-search-end-padding,46px);font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);
           font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s;
         }
@@ -397,7 +397,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-toc-search input::-ms-clear{display:none}
         .lgd-toc-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
         .lgd-toc-search input::placeholder{color:var(--public-muted)}
-        .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green)}
+        .lgd-toc-search input:focus-visible{border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow)}
         .lgd-toc-status,.lgd-toc-empty{font-size:var(--public-meta-size);color:var(--public-muted);margin:10px 0}
         .lgd-return-to-contents{display:none}
         @media(max-width:1099px){

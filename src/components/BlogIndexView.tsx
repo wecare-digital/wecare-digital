@@ -538,7 +538,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .blog-search input{
           width:100%;box-sizing:border-box;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:var(--public-body);background:transparent;
-          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .blog-search input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
@@ -546,7 +546,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .blog-search input::-ms-clear{display:none}
         .blog-search input::placeholder{color:var(--public-muted)}
         .blog-search input:focus-visible{
-          border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);
+          border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);
         }
         /* THE RSS ICON'S ROW AT THE BOTTOM. End-aligned under the grid and pager, with the
            listing's own vertical rhythm above it. The icon styles itself (components/RssIcon.tsx). */

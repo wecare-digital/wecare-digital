@@ -167,7 +167,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
         .bs-form input{
           width:100%;min-width:0;height:var(--public-search-height);padding-block:0;padding-inline:2px var(--public-search-end-padding,44px);
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          border:0;border-bottom:2px solid var(--public-search-underline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .bs-form input:not(:placeholder-shown){padding-inline-end:90px;padding-inline-end:var(--public-search-end-padding,90px)}
@@ -199,7 +199,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            value answers the question more cleanly than adding a fourth entry to the table.
            The indicator is now the outline at 12.48:1 on white, plus the border darkening. */
         .bs-form input:focus-visible{
-          border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);
+          border-bottom-color:var(--public-search-underline);box-shadow:var(--public-search-focus-shadow);
         }
         /* The body rung, muted - it is a status line, not content. */
         .bs-count{

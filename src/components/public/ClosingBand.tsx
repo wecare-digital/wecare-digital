@@ -99,7 +99,7 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb.is-armed .cb-cta{opacity:0;transform:translateY(8px);pointer-events:none}
         .cb.is-armed.is-in .cb-cta{opacity:1;transform:none;pointer-events:auto;transition-delay:.62s}
         .cb.is-armed .cb-cta:focus{opacity:1;transform:none;pointer-events:auto;transition:none}
-        .cb-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .cb-cta:hover{background:var(--public-button-hover);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
         .cb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         @media(prefers-reduced-motion:reduce){
           .cb-rule,.cb-points li,.cb-cta{transition:none}
