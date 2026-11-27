@@ -2,17 +2,12 @@ import type {SecureFile, VaultMessageDeliveryEvidence} from '../api/domains/plat
 type PaymentFile = Pick<SecureFile, 'status' | 'accessState'>;
 type AuditFile = Pick<SecureFile, 'lastPaymentRequestedAt' | 'lastPaymentRequestOutcome'>;
 
-export function isVaultPaymentRefused(outcome?: string): boolean {
-  return outcome === 'PAYMENT_REQUEST_REFUSED'
-    || outcome === 'VAULT_QUOTE_CHANGED'
-    || outcome === 'VAULT_DELIVERY_CONFIRMATION_REQUIRED';
-}
 
 /** Why a new Vault payment request is not available, or '' when it is.
  *  Owner decision (2026-11-04): staff Vault payments have no send limit. Only a paid, open,
  *  expired, unverified or inactive file is blocked, plus a request THIS browser started that has
  *  no server answer yet (`PENDING_LOCAL`). */
-export type VaultPaymentBlock =
+type VaultPaymentBlock =
   | '' | 'NO_FILE' | 'INACTIVE' | 'ACCESS_OPEN' | 'ACCESS_READY' | 'ACCESS_EXPIRED'
   | 'PAID_UNVERIFIED' | 'PENDING_LOCAL';
 

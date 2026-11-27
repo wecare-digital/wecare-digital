@@ -25,7 +25,7 @@ function base64Url ( value: string ): string {
   return btoa( binary ).replace( /\+/g, '-' ).replace( /\//g, '_' ).replace( /=+$/g, '' );
 }
 
-export function metaRetailerId ( productId: string, variantId: string ): string {
+function metaRetailerId ( productId: string, variantId: string ): string {
   const product = String( productId || '' ).trim();
   const variant = String( variantId || '' ).trim();
   if ( !product || !variant ) return '';

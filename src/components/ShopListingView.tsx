@@ -56,7 +56,7 @@ import { rankPublicContent, NAV_DISCOVERY } from '../lib/navigationSearch';
  * animates to each word's MEASURED width and the spread is how far the line's tail travels every
  * tick. Tints are the four cycle() pairs, reused verbatim.
  */
-export const SHOP_HERO_WORDS: CycleWord[] = cycle( 'services', 'documents', 'products', 'journeys' );
+const SHOP_HERO_WORDS: CycleWord[] = cycle( 'services', 'documents', 'products', 'journeys' );
 
 /** Bound on a String.prototype.includes over a 15-item list, not a security control. */
 const MAX_QUERY = 120;

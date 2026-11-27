@@ -6,10 +6,9 @@ Purpose: List and retrieve payment records
 
 import os
 import json
-import logging
 import boto3
 from typing import Dict, Any
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Attr
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 

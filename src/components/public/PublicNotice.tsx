@@ -10,10 +10,10 @@ import React from 'react';
  * Tone governs ARIA severity; the lime/forest palette does not signal severity alone.
  * Do not show "Sent to WhatsApp." unless the sender API accepted that particular request.
  */
-export type PublicNoticeMode = 'toast' | 'inline' | 'screen-reader';
+type PublicNoticeMode = 'toast' | 'inline' | 'screen-reader';
 export type PublicNoticeTone = 'info' | 'success' | 'error';
 
-export interface PublicNoticeProps {
+interface PublicNoticeProps {
   message: string;
   mode: PublicNoticeMode;
   tone?: PublicNoticeTone;

@@ -6,7 +6,7 @@ import AppointmentPlanner from './AppointmentPlanner';
 import PublicNotice from './PublicNotice';
 import styles from './AppointmentPlanner.module.css';
 
-export const APPOINTMENT_AUTH_URL = '/auth?return=%2Felsewhere%2Farogya-yatra%2F';
+const APPOINTMENT_AUTH_URL = '/auth?return=%2Felsewhere%2Farogya-yatra%2F';
 
 /** Never mount patient fields until the owning API confirms a verified customer. */
 export default function AppointmentAccess (): React.ReactElement {

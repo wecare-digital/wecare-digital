@@ -56,72 +56,9 @@ export const useKeyboardShortcuts = (shortcuts: ShortcutConfig[] = []) => {
 };
 
 // Navigation shortcuts hook
-export const useNavigationShortcuts = () => {
-  const router = useRouter();
-
-  const shortcuts: ShortcutConfig[] = [
-    { key: 'd', ctrl: true, action: () => router.push('/workspace/communications?view=inbox'), description: 'Go to Messages' },
-    { key: 'm', ctrl: true, action: () => router.push('/workspace/communications?view=inbox&channel=whatsapp'), description: 'Go to Messages' },
-    { key: 'c', ctrl: true, shift: true, action: () => router.push('/workspace/customers'), description: 'Go to Contacts' },
-    { key: 'b', ctrl: true, action: () => router.push('/workspace/communications?view=manage&section=whatsapp&tool=campaign'), description: 'Go to Campaign' },
-    { key: 'p', ctrl: true, shift: true, action: () => router.push('/workspace/payments?view=collect'), description: 'Go to Pay' },
-  ];
-
-  useKeyboardShortcuts(shortcuts);
-  return shortcuts;
-};
 
 // Chat shortcuts hook
-export const useChatShortcuts = (callbacks: {
-  onSend?: () => void;
-  onNewLine?: () => void;
-  onEscape?: () => void;
-  onSearch?: () => void;
-  onTemplate?: () => void;
-  onInteractive?: () => void;
-}) => {
-  const shortcuts: ShortcutConfig[] = [
-    ...(callbacks.onSend ? [{ key: 'Enter', ctrl: true, action: callbacks.onSend, description: 'Send message' }] : []),
-    ...(callbacks.onEscape ? [{ key: 'Escape', action: callbacks.onEscape, description: 'Close/Cancel' }] : []),
-    ...(callbacks.onSearch ? [{ key: 'f', ctrl: true, action: callbacks.onSearch, description: 'Search messages' }] : []),
-    ...(callbacks.onTemplate ? [{ key: 't', ctrl: true, shift: true, action: callbacks.onTemplate, description: 'Open templates' }] : []),
-    ...(callbacks.onInteractive ? [{ key: 'i', ctrl: true, shift: true, action: callbacks.onInteractive, description: 'Interactive message' }] : []),
-  ];
-
-  useKeyboardShortcuts(shortcuts);
-  return shortcuts;
-};
 
 // Shortcut help modal data
-export const getShortcutGroups = () => [
-  {
-    title: 'Navigation',
-    shortcuts: [
-      { keys: ['Ctrl', 'D'], description: 'Messages' },
-      { keys: ['Ctrl', 'M'], description: 'Messages' },
-      { keys: ['Ctrl', 'Shift', 'C'], description: 'Contacts' },
-      { keys: ['Ctrl', 'B'], description: 'Campaign' },
-      { keys: ['Ctrl', 'Shift', 'P'], description: 'Pay' },
-    ],
-  },
-  {
-    title: 'Chat',
-    shortcuts: [
-      { keys: ['Ctrl', 'Enter'], description: 'Send message' },
-      { keys: ['Ctrl', 'F'], description: 'Search messages' },
-      { keys: ['Ctrl', 'Shift', 'T'], description: 'Open templates' },
-      { keys: ['Ctrl', 'Shift', 'I'], description: 'Interactive message' },
-      { keys: ['Esc'], description: 'Close/Cancel' },
-    ],
-  },
-  {
-    title: 'General',
-    shortcuts: [
-      { keys: ['?'], description: 'Show shortcuts' },
-      { keys: ['Ctrl', 'K'], description: 'Quick search' },
-      { keys: ['Ctrl', 'R'], description: 'Refresh data' },
-    ],
-  },
-];
 
 export default useKeyboardShortcuts;

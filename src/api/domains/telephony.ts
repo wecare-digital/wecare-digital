@@ -4,101 +4,7 @@ import { apiCall, authFetch, normalizeTimestamp } from '../core';
 import { deleteMessage, listMessages } from './messaging';
 import { deleteContact } from './contacts';
 
-// ============================================================================
-// AI AUTOMATION API
-// ============================================================================
 
-// Old AIConfig, getAIConfig(), updateAIConfig(), testAIResponse(), getAISuggestions() removed
-// Use getBedrockAIConfig(), updateBedrockAIConfig(), testBedrockAIResponse() instead
-
-// ============================================================================
-// SYSTEM HEALTH API
-// ============================================================================
-
-export interface SystemHealth {
-  whatsapp: { status: 'active' | 'warning' | 'error'; phoneNumbers: number | null; qualityRating: string };
-  sms: { status: 'active' | 'warning' | 'error'; poolId: string };
-  email: { status: 'active' | 'warning' | 'error'; verified: boolean | null };
-  ai: {
-    status: 'active' | 'warning' | 'error';
-    kbId?: string;
-    internalKbId?: string;
-    internalAgentId?: string;
-    internalAgentAlias?: string;
-    externalKbId?: string;
-    externalAgentId?: string;
-    externalAgentAlias?: string;
-  };
-  dlq: { depth: number | null; oldestMessage?: string };
-}
-
-export async function getSystemHealth (): Promise<SystemHealth> {
-  // Missing evidence stays unknown; a failed read cannot certify healthy services.
-  const defaults: SystemHealth = {
-    whatsapp: { status: 'warning', phoneNumbers: null, qualityRating: 'UNKNOWN' },
-    sms: { status: 'warning', poolId: '' },
-    email: { status: 'warning', verified: null },
-    ai: { status: 'warning' },
-    dlq: { depth: null },
-  };
-
-  try
-  {
-    // Fetch real data from existing endpoints in parallel
-    const [ billingData, dlqData, wabaData ] = await Promise.all( [
-      apiCall<any>( `${API_BASE}/billing?health=true&advisor=false` ).catch( () => null ),
-      apiCall<any>( `${API_BASE}/dlq` ).catch( () => null ),
-      apiCall<any>( `${API_BASE}/waba` ).catch( () => null ),
-    ] );
-
-    // DLQ depth
-    if ( dlqData )
-    {
-      defaults.dlq.depth = Number.isInteger( dlqData.count ) && dlqData.count >= 0
-        ? dlqData.count : Array.isArray( dlqData.messages ) ? dlqData.messages.length : null;
-      if ( dlqData.messages?.length > 0 )
-      {
-        defaults.dlq.oldestMessage = dlqData.messages[ dlqData.messages.length - 1 ]?.lastAttemptAt
-          ? new Date( dlqData.messages[ dlqData.messages.length - 1 ].lastAttemptAt * 1000 ).toISOString()
-          : undefined;
-      }
-    }
-
-    // AWS Health status from billing endpoint
-    if ( billingData?.health )
-    {
-      const h = billingData.health;
-      if ( h.status === 'issues' || h.openIssues > 0 )
-      {
-        defaults.whatsapp.status = 'warning';
-      }
-    }
-
-    // WABA phone quality from waba endpoint
-    if ( wabaData && Array.isArray( wabaData.wabas ) )
-    {
-      const phones = wabaData.wabas.flatMap( ( w: any ) =>
-        Array.isArray( w.phoneNumbers ) ? w.phoneNumbers : [] );
-      defaults.whatsapp.phoneNumbers = phones.length;
-      const ratings = phones.map( ( phone: any ) => phone.qualityRating )
-        .filter( ( rating: unknown ) => typeof rating === 'string' && rating.length > 0 );
-      defaults.whatsapp.qualityRating = ratings.length === phones.length && ratings.length > 0
-        ? [...new Set( ratings )].join( ', ' ) : 'UNKNOWN';
-      if ( phones.length > 0 && ratings.every( ( rating: string ) => rating === 'GREEN' )
-        && ratings.length === phones.length && !billingData?.health?.openIssues
-        && billingData?.health?.status !== 'issues' )
-      {
-        defaults.whatsapp.status = 'active';
-      }
-
-    }
-  } catch
-  {
-    // Return defaults on any error
-  }
-
-  return defaults;
-}
 
 
 // ============================================================================
@@ -106,14 +12,8 @@ export async function getSystemHealth (): Promise<SystemHealth> {
 // ============================================================================
 
 /** Provider categories exposed by current voice APIs. */
-export type VoiceProviderRead = 'plivo' | 'aws';
+type VoiceProviderRead = 'plivo' | 'aws';
 
-/**
- * Providers that may be SELECTED for a new call. PSTN voice is Plivo; 'aws' is
- * the AWS End User Messaging voice (TTS/audio) path. No other provider is
- * expressible in the type system.
- */
-export type VoiceProviderSelectable = 'plivo' | 'aws';
 
 export interface VoiceCall {
   id: string;
@@ -153,10 +53,6 @@ export async function listVoiceCalls ( contactId?: string, provider?: string ): 
   return [];
 }
 
-export async function getVoiceCall ( callId: string ): Promise<VoiceCall | null> {
-  const calls = await listVoiceCalls();
-  return calls.find( call => call.callId === callId || call.id === callId ) || null;
-}
 
 function normalizeVoiceCall ( item: any ): VoiceCall {
   return {
@@ -180,7 +76,7 @@ function normalizeVoiceCall ( item: any ): VoiceCall {
 // SMS AWS API (Pinpoint/SNS)
 // ============================================================================
 
-export interface SmsAwsMessage {
+interface SmsAwsMessage {
   messageId: string;
   contactId: string;
   phoneNumber: string;
@@ -194,7 +90,7 @@ export interface SmsAwsMessage {
   createdAt: number;
 }
 
-export interface SendSmsAwsRequest {
+interface SendSmsAwsRequest {
   contactId?: string;
   phoneNumber?: string;
   content: string;
@@ -235,7 +131,7 @@ export async function sendSmsAws ( request: SendSmsAwsRequest ): Promise<{ messa
 // SINCH RCS API (Conversation API)
 // ============================================================================
 
-export interface SendRcsRequest {
+interface SendRcsRequest {
   phoneNumber: string;
   templateId?: string;
   text?: string;
@@ -267,29 +163,14 @@ export async function createRcsTemplate ( name: string, text: string, type?: str
   } );
 }
 
-export async function listRcsMessages ( phoneNumber?: string, limit: number = 500 ): Promise<any[]> {
-  const payload: any = { action: 'list', limit };
-  if ( phoneNumber ) payload.phoneNumber = phoneNumber;
-  const data = await apiCall<any>( `${API_BASE}/rcs/send`, {
-    method: 'POST',
-    body: JSON.stringify( payload ),
-  } );
-  return data?.messages || [];
-}
 
-export async function deleteRcsTemplate ( name: string ): Promise<any> {
-  return apiCall<any>( `${API_BASE}/rcs/send`, {
-    method: 'POST',
-    body: JSON.stringify( { action: 'delete_template', name } ),
-  } );
-}
 
 
 // ============================================================================
 // VOICE AWS API (Connect/Polly)
 // ============================================================================
 
-export interface VoiceAwsCall {
+interface VoiceAwsCall {
   id: string;
   callId: string;
   contactId: string;
@@ -305,7 +186,7 @@ export interface VoiceAwsCall {
   updatedAt: number;
 }
 
-export interface MakeVoiceAwsCallRequest {
+interface MakeVoiceAwsCallRequest {
   contactId?: string;
   phoneNumber?: string;
   callType: 'tts' | 'audio';
@@ -337,26 +218,8 @@ export async function makeVoiceAwsCall ( request: MakeVoiceAwsCallRequest ): Pro
 }
 
 
-// ============================================================================
-// WHATSAPP VOICE (TTS via Polly + Audio Messages)
-// ============================================================================
 
-export interface WhatsAppVoiceLog {
-  messageId: string;
-  contactId: string;
-  phoneNumber: string;
-  messageText: string;
-  voiceId: string;
-  languageCode: string;
-  audioSize: number;
-  s3Key: string;
-  whatsappMessageId: string;
-  status: string;
-  type: 'tts' | 'recording';
-  createdAt: number;
-}
-
-export interface SendWhatsAppTTSRequest {
+interface SendWhatsAppTTSRequest {
   contactId?: string;
   phoneNumber?: string;
   messageText: string;
@@ -367,15 +230,6 @@ export interface SendWhatsAppTTSRequest {
   recipientBsuid?: string;    // Send to BSUID recipient
 }
 
-export interface SendWhatsAppAudioRequest {
-  contactId?: string;
-  phoneNumber?: string;
-  phoneNumberId?: string;
-  s3Key?: string;
-  audioBase64?: string;
-  contentType?: string;
-  recipientBsuid?: string;    // Send to BSUID recipient
-}
 
 export async function sendWhatsAppTTS ( request: SendWhatsAppTTSRequest ): Promise<{
   messageId: string; whatsappMessageId?: string; s3Key: string; audioSize: number; status: string;
@@ -386,19 +240,7 @@ export async function sendWhatsAppTTS ( request: SendWhatsAppTTSRequest ): Promi
   } );
 }
 
-export async function sendWhatsAppAudioMessage ( request: SendWhatsAppAudioRequest ): Promise<{
-  messageId: string; whatsappMessageId?: string; s3Key: string; status: string;
-} | null> {
-  return apiCall<any>( `${API_BASE}/whatsapp-voice/send`, {
-    method: 'POST',
-    body: JSON.stringify( request ),
-  } );
-}
 
-export async function listWhatsAppVoiceLogs (): Promise<WhatsAppVoiceLog[]> {
-  const data = await apiCall<any>( `${API_BASE}/whatsapp-voice/logs` );
-  return data?.logs || [];
-}
 
 export async function getPollyVoices (): Promise<{
   voices: Record<string, { id: string; gender: string; engine: string }[]>;
@@ -411,33 +253,8 @@ export async function getPollyVoices (): Promise<{
   };
 }
 
-// The on-demand voice-note transcription call and its result type were removed here.
-// The live account exposes seven /whatsapp-voice/* routes — clear-logs, language-config
-// (GET and PUT), logs, voices, send and tts — and no transcribe route, so the button that
-// invoked this 404'd in both inboxes. A transcription that arrives from the backend on a
-// message is still rendered; only the never-working on-demand trigger went.
 
-// Voice language configuration
-export interface VoiceLanguageConfig {
-  autoTranscribe: boolean;
-  enabledLanguages: string[];
-  defaultVoices: Record<string, string>;
-  autoReplyWithVoice: boolean;
-  transcribeLanguages: string[];
-}
 
-export async function getVoiceLanguageConfig (): Promise<VoiceLanguageConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/whatsapp-voice/language-config` );
-  return data?.config || null;
-}
-
-export async function updateVoiceLanguageConfig ( config: Partial<VoiceLanguageConfig> ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/whatsapp-voice/language-config`, {
-    method: 'PUT',
-    body: JSON.stringify( { config } ),
-  } );
-  return data?.success === true;
-}
 
 // ============================================================================
 // DLQ API
@@ -451,28 +268,14 @@ export interface DLQMessage {
   error: string;
 }
 
-export async function listDLQMessages (): Promise<DLQMessage[]> {
-  const data = await apiCall<any>( `${API_BASE}/dlq` );
-  if ( data )
-  {
-    return data.messages || [];
-  }
-  return [];
-}
 
-export async function replayDLQMessages ( queueName: string, batchSize?: number ): Promise<{ processed: number; succeeded: number; failed: number } | null> {
-  return apiCall<{ processed: number; succeeded: number; failed: number }>( `${API_BASE}/dlq/replay`, {
-    method: 'POST',
-    body: JSON.stringify( { queueName, batchSize: batchSize || 10 } ),
-  } );
-}
 
 
 // ============================================================================
 // AWS BILLING API
 // ============================================================================
 
-export interface AWSServiceUsage {
+interface AWSServiceUsage {
   service: string;
   cost: number;
   usage: number;
@@ -481,7 +284,7 @@ export interface AWSServiceUsage {
   status: 'free' | 'paid' | 'warning';
 }
 
-export interface CostRecommendation {
+interface CostRecommendation {
   id: string;
   severity: 'high' | 'medium' | 'low' | 'info';
   title: string;
@@ -491,7 +294,7 @@ export interface CostRecommendation {
   link?: string;
 }
 
-export interface AWSHealthData {
+interface AWSHealthData {
   openIssues: number;
   scheduledChanges: number;
   otherNotifications: number;
@@ -503,7 +306,7 @@ export interface AWSHealthData {
   error?: string;
 }
 
-export interface TrustedAdvisorData {
+interface TrustedAdvisorData {
   actionRecommended: number;
   investigationRecommended: number;
   noProblemsDetected: number;
@@ -538,71 +341,7 @@ export interface AWSBillingData {
 }
 
 // AWS Free Tier limits for reference
-const FREE_TIER_LIMITS: Record<string, { limit: string; unit: string }> = {
-  'AWS Lambda': { limit: '1M requests/month', unit: 'requests' },
-  'Amazon DynamoDB': { limit: '25GB + 200M requests', unit: 'operations' },
-  'Amazon S3': { limit: '5GB + 20K GET', unit: 'operations' },
-  'Amazon API Gateway': { limit: '1M REST calls/month', unit: 'requests' },
-  'Amazon CloudFront': { limit: '1TB transfer/month', unit: 'requests' },
-  'AWS Amplify': { limit: '1000 build mins/month', unit: 'minutes' },
-  'Amazon SNS': { limit: '1M publishes/month', unit: 'notifications' },
-  'Amazon SQS': { limit: '1M requests/month', unit: 'requests' },
-  'Amazon Cognito': { limit: '50K MAU', unit: 'users' },
-  'AmazonCloudWatch': { limit: '10 metrics free', unit: 'metrics' },
-  'Amazon Bedrock': { limit: '3-month trial', unit: 'requests' },
-  'Amazon OpenSearch Service': { limit: 'Serverless free tier', unit: 'operations' },
-  'Meta WhatsApp Cloud API': { limit: 'Pay per conversation', unit: 'conversations' },
-  'Amazon Route 53': { limit: '$0.50/zone', unit: 'queries' },
-  'AWS Certificate Manager': { limit: 'Free public certs', unit: 'certificates' },
-  'AWS CloudFormation': { limit: 'Free', unit: 'stacks' },
-  'AWS Secrets Manager': { limit: '$0.40/secret/month', unit: 'secrets' },
-  'AWS Key Management Service': { limit: '20K free requests', unit: 'requests' },
-  'AWS Glue': { limit: 'Pay per DPU-hour', unit: 'operations' },
-  'AWS Step Functions': { limit: '4K free transitions', unit: 'transitions' },
-  'Amazon Simple Email Service': { limit: '62K emails/month (from EC2)', unit: 'emails' },
-  'Amazon Location Service': { limit: '10K requests/month', unit: 'requests' },
-};
 
-export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBillingData> {
-  // Try to fetch from our billing API endpoint with month parameter
-  const url = monthOffset === 0
-    ? `${API_BASE}/billing`
-    : `${API_BASE}/billing?month=${monthOffset}`;
-
-  const data = await apiCall<any>( url );
-
-  if ( data && Array.isArray( data.services ) )
-  {
-    return {
-      totalCost: data.totalCost || 0,
-      period: data.period || '',
-      services: data.services,
-      lastUpdated: data.lastUpdated || '',
-      accountId: data.accountId,
-      currency: data.currency || 'USD',
-      previousMonthCost: data.previousMonthCost,
-      previousMonthPeriod: data.previousMonthPeriod,
-      recommendations: data.recommendations || [],
-      health: data.health,
-      trustedAdvisor: data.trustedAdvisor,
-      // Absent means enabled, so a real bill renders exactly as before.
-      costReportingEnabled: data.costReportingEnabled !== false,
-      note: data.note,
-    };
-  }
-
-  // A failed read supplies no evidence of spend, usage or measurement time.
-  // Keep the numeric interface, but the dashboard must hide it behind these flags.
-  return {
-    totalCost: 0,
-    period: '',
-    services: [],
-    lastUpdated: '',
-    costReportingEnabled: false,
-    unavailable: true,
-    note: 'Billing data is unavailable. Check the connection or refresh to try again.',
-  };
-}
 
 
 // ============================================================================
@@ -619,9 +358,9 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
  *                             payments". Retrying later is reasonable; archiving is safe now.
  * `ERROR`                     anything else: a 404, a network failure, a 500.
  */
-export type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'CONTACT_LOCKED' | 'ERROR';
+type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'CONTACT_LOCKED' | 'ERROR';
 
-export type HardDeleteResult =
+type HardDeleteResult =
   | { ok: true; messagesDeleted: number; mediaDeleted: number }
   | { ok: false; code: HardDeleteRefusalCode; reason?: string; archiveInstead: boolean };
 
@@ -719,27 +458,6 @@ export async function deleteContactMessages ( contactId: string ): Promise<boole
   }
 }
 
-/**
- * Bulk delete multiple messages
- */
-export async function bulkDeleteMessages ( messageIds: string[], direction: 'INBOUND' | 'OUTBOUND' = 'INBOUND' ): Promise<{ deleted: number; failed: number }> {
-  let deleted = 0;
-  let failed = 0;
-
-  for ( const msgId of messageIds )
-  {
-    const result = await deleteMessage( msgId, direction );
-    if ( result )
-    {
-      deleted++;
-    } else
-    {
-      failed++;
-    }
-  }
-
-  return { deleted, failed };
-}
 
 /**
  * Bulk delete multiple contacts

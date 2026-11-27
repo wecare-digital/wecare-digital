@@ -12,9 +12,9 @@ import { useRouter } from 'next/router';
 import { publicActionText } from '../lib/publicActionNotices';
 
 export type ActionNotificationType = 'success' | 'error' | 'warning' | 'info';
-export type ActionNotificationScope = 'public' | 'workspace';
+type ActionNotificationScope = 'public' | 'workspace';
 
-export interface ActionNotificationOptions {
+interface ActionNotificationOptions {
   /** Zero pins a contextual action until replaced, cleared or route changed. */
   durationMs?: number;
   /** Do not let an old async result replace a newer action or new page. */

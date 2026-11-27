@@ -51,7 +51,7 @@ export async function deleteAutomationRule ( id: string ): Promise<boolean> {
 // CONVERSATION META API (team-inbox: status / assignee / tags / internal notes)
 // ============================================================================
 
-export interface ConversationNote { text: string; by: string; at: number; }
+interface ConversationNote { text: string; by: string; at: number; }
 export interface ConversationMeta {
   conversationId: string;
   status: 'open' | 'pending' | 'resolved';
@@ -164,7 +164,7 @@ export async function configureConversationalAutomation (
   return { success: true };
 }
 
-export interface ConversationalAutomation {
+interface ConversationalAutomation {
   phoneId: string;
   prompts: string[];
   commands: BotCommand[];
@@ -213,7 +213,7 @@ export async function getThroughput ( phoneId: string ): Promise<ThroughputInfo>
 // restricted = 139200 / 131064, i.e. access existed and Meta enforcement blocked or
 //              capped it. Conflating the two is what made the not-onboarded case
 //              impossible to explain in the UI.
-export interface DirectSendResult { success: boolean; error?: string; directSendHint?: string; betaGated?: boolean; restricted?: boolean; result?: any; }
+interface DirectSendResult { success: boolean; error?: string; directSendHint?: string; betaGated?: boolean; restricted?: boolean; result?: any; }
 
 export async function directSend (
   phoneId: string,
@@ -321,10 +321,6 @@ export async function removeAssignedUser ( wabaId: string, user: string ): Promi
   return { success: true };
 }
 
-export async function listAssignedWabas ( userId: string ): Promise<Array<{ id: string; name?: string }>> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/assigned-wabas?userId=${userId}` );
-  return data?.wabas || [];
-}
 
 export interface AiPolicyMarket { countryCode: string; country?: string; effectiveDate?: string; active?: boolean; note?: string; }
 
@@ -414,7 +410,7 @@ export interface MarketingAdInput {
 // Uses whatsapp_business_manage_events. Logs in-thread conversions (Purchase,
 // LeadSubmitted, ...) to Meta so CTWA ad campaigns can optimize & measure.
 // ============================================================================
-export interface CapiCapturedClick {
+interface CapiCapturedClick {
   ctwaClid?: string;
   phone?: string;
   wabaId?: string;
@@ -423,7 +419,7 @@ export interface CapiCapturedClick {
   headline?: string;
   ts?: number;
 }
-export interface CapiEventLogEntry {
+interface CapiEventLogEntry {
   ts?: number;
   wabaId?: string;
   event?: string;
@@ -539,7 +535,7 @@ export interface SecureFileLog extends SecureFile {
   revokedBy?: string;
 }
 
-export interface SecureFileStorage {
+interface SecureFileStorage {
   bucket: string;
   sourcePrefix: string;
   deliveryPrefix: string;
@@ -548,7 +544,7 @@ export interface SecureFileStorage {
 export type SecureFileAccessState = 'UNPAID' | 'OPEN' | 'READY' | 'EXPIRED' | 'PAID_UNVERIFIED';
 
 /** The answer to a one-shot staff Vault action. `message` is the server's sentence. */
-export interface SecureFileActionResult {
+interface SecureFileActionResult {
   ok: boolean;
   /** HTTP status, or null when the request never got an answer. 202 = may have been sent. */
   status: number | null;
@@ -603,16 +599,6 @@ async function secureFileAction (
   }
 }
 
-/** Start the manual Vault journey with the approved IMAGE + Unlock Vault quick reply.
- * The customer tap (not the staff upload) initiates native Review and Pay. */
-export function sendSecureFileOffer (
-  fileId: string, offerBodyText?: string,
-): Promise<SecureFileActionResult> {
-  // Existing callers may omit this while migrating their UI; the Vault workbench
-  // always supplies independently edited text and the backend validates it.
-  if ( offerBodyText === undefined ) return secureFileAction( fileId, 'send-offer' );
-  return secureFileAction( fileId, 'send-offer', { offerBodyText } );
-}
 
 /** Direct native Review and Pay for authenticated checkout or an explicit staff payment action. */
 export interface VaultDeliveryAddressConfirmation {
@@ -648,47 +634,6 @@ export function getVaultPaymentMediaPreview (): Promise<ApiResult<VaultPaymentMe
     { cache: 'no-store' } );
 }
 
-/** Timed actions use the existing five-minute scheduled-messages worker, but dispatch
- * only through the same owner-verified Vault backend (never generic template params). */
-export type VaultScheduleAction = 'offer' | 'payment' | 'access';
-export interface VaultScheduledAction {
-  scheduledId: string;
-  fileId: string;
-  action: VaultScheduleAction;
-  offerBodyText?: string;
-  scheduledAt: string;
-  status: 'PENDING' | 'DISPATCHING' | 'SENT' | 'FAILED' | 'DISPATCH_UNKNOWN' | 'CANCELLED';
-  createdAt: string;
-  sentAt?: string;
-  updatedAt?: string;
-  errorMessage?: string;
-}
-export function scheduleVaultAction (
-  fileId: string, action: VaultScheduleAction, scheduledAt: string,
-  offerBodyText?: string, paymentItemDescription?: string,
-): Promise<ApiResult<{ schedule: VaultScheduledAction; message: string }>> {
-  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules`, {
-    method: 'POST',
-    body: JSON.stringify( { action, scheduledAt,
-      ...( action === 'offer' ? { offerBodyText } : {} ),
-      ...( action === 'payment' && paymentItemDescription !== undefined
-        ? { paymentItemDescription } : {} ) } ),
-  } );
-}
-export function listVaultSchedules (
-  fileId: string,
-): Promise<ApiResult<{ schedules: VaultScheduledAction[] }>> {
-  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules`,
-    { cache: 'no-store' } );
-}
-export function cancelVaultScheduledAction (
-  fileId: string, scheduledId: string,
-): Promise<ApiResult<{ scheduledId: string; status: string }>> {
-  return apiCallResult(
-    `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/schedules/${encodeURIComponent( scheduledId )}`,
-    { method: 'DELETE' },
-  );
-}
 
 /** Staff-only Vault upload, independent of customer-facing Drop Docs.
  * Server chooses the opaque file name and writes only to the private, edge-gated
@@ -799,14 +744,6 @@ export function readVaultMessageDeliveryLog ( fileId: string ): Promise<ApiResul
   } );
 }
 
-/** Revoke rather than delete, so the record of who was charged survives. */
-export async function revokeSecureFile ( fileId: string ): Promise<ApiResult<{
-  fileId: string; status: string;
-}>> {
-  return apiCallResult( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/revoke`, {
-    method: 'POST',
-  } );
-}
 
 /**
  * Customer-token fetch, for the three routes below.
@@ -901,7 +838,7 @@ async function customerApiCall<T> ( url: string, options?: RequestInit ): Promis
   }
 }
 
-export interface CustomerVaultPaymentRequest {
+interface CustomerVaultPaymentRequest {
   outcome: string;
   fileId: string;
   message: string;
@@ -938,12 +875,6 @@ export async function requestMySecureFilePayment (
   );
 }
 
-/** The signed-in customer's own files. Requires a customer-pool token. */
-export async function listMySecureFiles (): Promise<ApiResult<{
-  files: SecureFile[]; count: number;
-}>> {
-  return customerApiCall( `${API_BASE}/secure-files/mine` );
-}
 
 /**
  * Look up ONLY the exact owner-bound Vault document from the unique customer link.

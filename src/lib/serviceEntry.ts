@@ -20,14 +20,10 @@
  * without ever riding the `?return=` query string (which the validator strips).
  */
 
-import type { NextRouter } from 'next/router';
 
-import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/checkout/';
-/** The canonical website checkout route, retained as an exported alias. */
-export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/auth';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
@@ -36,7 +32,7 @@ const PENDING_ACTION_KEY = 'wecare.pendingServiceAction';
 /** A service/product/contribute action to resume on the checkout after sign-in. */
 export type CheckoutChannel = 'website' | 'whatsapp';
 
-export interface PendingServiceAction {
+interface PendingServiceAction {
   /** The service/product slug or line the checkout should preselect (e.g. 'submit-request'). */
   readonly kind: string;
   /** Which checkout rail the customer explicitly chose before an optional sign-in round trip. */
@@ -69,43 +65,4 @@ export function takePendingAction (): PendingServiceAction | null {
   } catch { return null; }
 }
 
-/** True when a customer WhatsApp session is live right now (sync, no network). */
-export function isSignedIn (): boolean {
-  return getSession() !== null;
-}
 
-/**
- * The gate. Resolve the session, then route:
- *   signed in  → push `destination` (default `/checkout/`), the real form/checkout → payment;
- *   signed out → push `/auth?return=<destination>`, the one WhatsApp login,
- *                which returns to `destination` after sign-in to continue.
- *
- * `action`, when given, is stashed out of band first so the checkout can preselect the service
- * line whether or not a sign-in happened in between.
- *
- * `restoreSession` is tried only when the fast sync `getSession` is empty, because the customer
- * may have a valid server cookie whose short access token has not yet been rehydrated into this
- * tab — exactly the case `/auth` itself handles on load. A failed restore just means
- * "not signed in", so the customer sees the one login rather than an error.
- */
-export async function goToServiceAction (
-  router: Pick<NextRouter, 'push'>,
-  opts: { destination?: string; action?: PendingServiceAction } = {},
-): Promise<void> {
-  const destination = opts.destination ?? CHECKOUT_PATH;
-  if ( opts.action ) stashPendingAction( opts.action );
-
-  let signedIn = getSession() !== null;
-  if ( !signedIn ) {
-    try { signedIn = ( await restoreSession() ) !== null; } catch { signedIn = false; }
-  }
-
-  if ( signedIn ) {
-    await router.push( destination );
-    return;
-  }
-  // The ONE login, returning to the SAME destination. encodeURIComponent so the path is a clean
-  // single query value; safeLocalReturnPath re-validates it on arrival and only honours an
-  // allowlisted local path, which `/checkout/` is.
-  await router.push( `${SIGN_IN_PATH}?return=${encodeURIComponent( destination )}` );
-}

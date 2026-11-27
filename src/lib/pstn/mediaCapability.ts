@@ -44,7 +44,7 @@
  * that touches it. The environment is injected instead.
  */
 
-export type AudioBlocker =
+type AudioBlocker =
   | 'OK'
   | 'NO_DOM'
   | 'INSECURE_CONTEXT'
@@ -56,9 +56,9 @@ export type AudioBlocker =
   | 'ABORTED'
   | 'UNKNOWN';
 
-export type WebContainer = 'browser' | 'android-webview' | 'ios-wkwebview' | 'unknown';
+type WebContainer = 'browser' | 'android-webview' | 'ios-wkwebview' | 'unknown';
 
-export interface AudioCapability {
+interface AudioCapability {
   /** True only when a getUserMedia call is worth attempting. */
   usable: boolean;
   blocker: AudioBlocker;
@@ -70,14 +70,14 @@ export interface AudioCapability {
 
 /** The slice of the runtime this module reads. Injectable so a test cannot leak a
  *  broken navigator into the next one. */
-export interface MediaEnv {
+interface MediaEnv {
   userAgent: string;
   protocol: string;
   isSecureContext: boolean;
   mediaDevices?: { getUserMedia?: (c: unknown) => Promise<MediaStream> };
 }
 
-export class AudioCapabilityError extends Error {
+class AudioCapabilityError extends Error {
   readonly blocker: AudioBlocker;
   readonly container: WebContainer;
 
@@ -90,7 +90,7 @@ export class AudioCapabilityError extends Error {
 }
 
 /** Read the live runtime. Returns null during server rendering. */
-export function currentMediaEnv(): MediaEnv | null {
+function currentMediaEnv(): MediaEnv | null {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return null;
   return {
     userAgent: navigator.userAgent || '',
@@ -100,7 +100,7 @@ export function currentMediaEnv(): MediaEnv | null {
   };
 }
 
-export function detectContainer(userAgent: string, protocol: string): WebContainer {
+function detectContainer(userAgent: string, protocol: string): WebContainer {
   // A custom scheme can only come from the native shell, so it outranks the user
   // agent - which is trivially spoofable and gets rewritten by shells anyway.
   const scheme = String(protocol || '').toLowerCase();
@@ -125,7 +125,7 @@ export function detectContainer(userAgent: string, protocol: string): WebContain
   return 'unknown';
 }
 
-export function inspectAudioCapability(
+function inspectAudioCapability(
   environment: MediaEnv | null = currentMediaEnv(),
 ): AudioCapability {
   if (!environment) {
@@ -169,7 +169,7 @@ export function inspectAudioCapability(
 }
 
 /** Map what getUserMedia threw onto a cause. Never guesses. */
-export function classifyMediaError(error: unknown): AudioBlocker {
+function classifyMediaError(error: unknown): AudioBlocker {
   if (!error) return 'UNKNOWN';
 
   const name = String((error as { name?: string }).name || '');
@@ -201,7 +201,7 @@ export function classifyMediaError(error: unknown): AudioBlocker {
   }
 }
 
-export function describeAudioBlocker(
+function describeAudioBlocker(
   blocker: AudioBlocker,
   container: WebContainer,
 ): string {

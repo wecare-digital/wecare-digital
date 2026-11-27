@@ -10,7 +10,7 @@ import type { SecureFile, VaultMessageDeliveryLog, VaultMessageDeliveryEvidence 
 import type { VaultRegistryJourney } from './VaultJourneyPreview';
 import styles from './VaultMessageTimeline.module.css';
 
-export interface VaultMessageStep {
+interface VaultMessageStep {
   index: number;
   title: string;
   template: string;
@@ -85,7 +85,7 @@ function stateText ( state: VaultMessageStep['state'] ): string {
   return 'Awaiting trigger';
 }
 
-export function vaultMessageSteps (
+function vaultMessageSteps (
   file: SecureFile | null,
   journey: VaultRegistryJourney | null,
   log?: VaultMessageDeliveryLog | null,

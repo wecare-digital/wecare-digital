@@ -86,7 +86,7 @@ import SearchClearButton from './SearchClearButton';
  * prediction" - so the words name the subject matter rather than promising guides or product
  * updates, which is what the old sub-line implied and the posts do not deliver.
  */
-export const HERO_WORDS: CycleWord[] = [
+const HERO_WORDS: CycleWord[] = [
   { word: 'clarity', tint: '#dbeafe', dot: '#2563eb' },
   { word: 'practice', tint: '#fef3c7', dot: '#f0a818' },
   { word: 'meaning', tint: '#e0f7c8', dot: '#3da35a' },

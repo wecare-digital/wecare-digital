@@ -22,7 +22,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 # ─── Palette (sampled from the reference) ─────────────────────────────────────────────────────
 INK = (10, 12, 16)

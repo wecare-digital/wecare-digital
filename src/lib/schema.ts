@@ -64,7 +64,7 @@ export const COMPANY_DESCRIPTION =
  * up discloses nothing new — it makes an already-public fact machine-readable, which is
  * precisely what an address property is for.
  */
-export const POSTAL_ADDRESS = {
+const POSTAL_ADDRESS = {
   '@type': 'PostalAddress',
   streetAddress: 'The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7 Phears Lane',
   addressLocality: 'Kolkata',
@@ -154,7 +154,7 @@ export interface OpeningHoursSpecification {
  * Mirror of `business_profile.py:to_schema`'s return: it contains only the keys that were
  * actually present in the live response, so both fields are optional.
  */
-export interface BusinessProfileData {
+interface BusinessProfileData {
   openingHoursSpecification?: OpeningHoursSpecification[];
   category?: string;
 }
@@ -169,7 +169,7 @@ export interface BusinessProfileData {
  * never be one typo away from an active integration, so anything but an explicit truthy value
  * resolves to off, and off means no enrichment is emitted.
  */
-export const gbpLocalBusinessEnabled = (): boolean => {
+const gbpLocalBusinessEnabled = (): boolean => {
   const raw = ( process.env.GBP_LOCALBUSINESS_ENABLED ?? '' ).trim().toLowerCase();
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 };
@@ -185,7 +185,7 @@ export const gbpLocalBusinessEnabled = (): boolean => {
  * wrapped so a malformed or empty file also resolves to `null`, and the flag is checked first so
  * that even a stray populated file emits nothing while the integration is off.
  */
-export const loadBusinessProfileData = (): BusinessProfileData | null => {
+const loadBusinessProfileData = (): BusinessProfileData | null => {
   if ( !gbpLocalBusinessEnabled() ) return null;
   try {
     const data = require( '../config/business-profile.generated.json' ) as unknown;
@@ -213,7 +213,7 @@ export const loadBusinessProfileData = (): BusinessProfileData | null => {
  * a second (or anonymous) LocalBusiness node, so there is exactly one company node on the page
  * and every `@id` reference keeps resolving. A field missing from `data` is omitted, not guessed.
  */
-export const enrichOrganization = <T extends object>(
+const enrichOrganization = <T extends object>(
   base: T,
   data: BusinessProfileData | null,
 ): T | ( T & BusinessProfileData ) => {

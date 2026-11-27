@@ -9,14 +9,14 @@ type ReviewContact = Pick<Contact,
   'contactId' | 'customerUuid' | 'name' | 'phone' | 'email' |
   'checkoutDeliveryAddress' | 'shippingAddress' | 'addressLine1' | 'locked' | 'lockedReason'>;
 
-export interface DuplicateGroup {
+interface DuplicateGroup {
   key: string;
   kind: 'phone' | 'email';
   value: string;
   contacts: ReviewContact[];
 }
 
-export interface CustomerDataReview {
+interface CustomerDataReview {
   duplicates: DuplicateGroup[];
   missingCustomerId: ReviewContact[];
   missingPhone: ReviewContact[];
@@ -35,9 +35,9 @@ export interface CustomerDataReview {
  *   blocked-by-financial-history a record is locked for legal/financial retention; it must not be
  *                               folded away. The merge is not offered.
  */
-export type MergeClassification = 'safe' | 'needs-review' | 'blocked-by-financial-history';
+type MergeClassification = 'safe' | 'needs-review' | 'blocked-by-financial-history';
 
-export interface MergePreview {
+interface MergePreview {
   classification: MergeClassification;
   /** The record that becomes the single canonical customer. */
   canonical: ReviewContact;
@@ -72,7 +72,7 @@ function normalizedEmail ( value?: string ): string {
  * "merge into the identity-rich row" rule. A financial lock on either record blocks the merge
  * entirely; a routing-identity disagreement routes it to human review.
  */
-export function classifyMerge ( a: ReviewContact, b: ReviewContact ): MergePreview {
+function classifyMerge ( a: ReviewContact, b: ReviewContact ): MergePreview {
   // Prefer the record with a Customer ID (then with a phone) as canonical.
   const score = ( c: ReviewContact ) =>
     ( String( c.customerUuid || '' ).trim() ? 2 : 0 ) + ( String( c.phone || '' ).trim() ? 1 : 0 );
@@ -114,7 +114,7 @@ function normalizedPhoneExport ( value?: string ): string { return normalizedPho
 function normalizedEmailExport ( value?: string ): string { return normalizedEmail( value ); }
 export { normalizedPhoneExport, normalizedEmailExport };
 
-export function buildCustomerDataReview ( contacts: ReviewContact[] ): CustomerDataReview {
+function buildCustomerDataReview ( contacts: ReviewContact[] ): CustomerDataReview {
   const phones = new Map<string, ReviewContact[]>();
   const emails = new Map<string, ReviewContact[]>();
 

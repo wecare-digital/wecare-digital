@@ -10,7 +10,7 @@ import { publicActionText } from '../../lib/publicActionNotices';
 import type { PublicActionNoticeKind } from '../../lib/publicActionNotices';
 import type { PublicNoticeTone } from './PublicNotice';
 
-export interface PublicToastOptions {
+interface PublicToastOptions {
   tone?: PublicNoticeTone;
   /** Zero keeps a processing state until the owner replaces/clears it. */
   durationMs?: number;

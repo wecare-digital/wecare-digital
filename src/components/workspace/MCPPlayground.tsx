@@ -11,14 +11,14 @@ const reads = [
   { id: 'businesses', provider: 'whatsapp', label: 'List WhatsApp businesses', tool: 'whatsapp_biz_businesses', arguments: { action: 'list' } },
 ];
 
-export function playgroundRequest(provider: string, operation: string) {
+function playgroundRequest(provider: string, operation: string) {
   if (operation === 'verify') return { name: 'connection_verify', arguments: { provider } };
   const read = reads.find(item => item.provider === provider && item.id === operation);
   if (!read) throw new Error('Choose an available read.');
   return { name: 'provider_read', arguments: { provider, tool: read.tool, arguments: read.arguments } };
 }
 
-export function playgroundJSON(value: unknown): string {
+function playgroundJSON(value: unknown): string {
   const clean = (item: unknown): unknown => {
     if (Array.isArray(item)) return item.map(clean);
     if (item && typeof item === 'object') return Object.fromEntries(Object.entries(item).map(([key, data]) =>

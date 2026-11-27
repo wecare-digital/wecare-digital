@@ -22,7 +22,7 @@
  * Google requires icon_names in alphabetical order, so the list is kept sorted and the URL sorts
  * it again rather than trusting edit order.
  */
-export const MATERIAL_SYMBOLS = [
+const MATERIAL_SYMBOLS = [
   'arrow_forward',
   'arrow_upward',
   'check',

@@ -12,7 +12,7 @@
  * Limits and supported types follow the WhatsApp Cloud API "Supported Media Types".
  */
 
-export type WaMediaCategory = 'document' | 'image' | 'video' | 'audio' | 'sticker';
+type WaMediaCategory = 'document' | 'image' | 'video' | 'audio' | 'sticker';
 
 /** Meta WhatsApp Cloud API media size limits, by category (bytes). */
 export const WA_MEDIA_LIMITS: Record<WaMediaCategory, number> = {
@@ -39,16 +39,16 @@ const EXT_TO_MIME: Record<string, string> = {
 };
 
 /** Exact MIME types accepted by WhatsApp Cloud API for ordinary media messages. */
-export const WA_SUPPORTED_MIME_TYPES = new Set( Object.values( EXT_TO_MIME ) );
+const WA_SUPPORTED_MIME_TYPES = new Set( Object.values( EXT_TO_MIME ) );
 
 /** Infer a WhatsApp-supported MIME type from a filename extension. */
-export function inferMimeFromName ( name: string ): string {
+function inferMimeFromName ( name: string ): string {
     const ext = ( name.split( '.' ).pop() || '' ).toLowerCase();
     return EXT_TO_MIME[ ext ] || 'application/octet-stream';
 }
 
 /** True only for a MIME type WhatsApp documents as supported. */
-export function isWaSupportedMime ( mime: string ): boolean {
+function isWaSupportedMime ( mime: string ): boolean {
     return WA_SUPPORTED_MIME_TYPES.has( ( mime || '' ).toLowerCase() );
 }
 
@@ -61,12 +61,6 @@ export function resolveWaMime ( file: { name?: string; type?: string } ): string
     return file.name ? inferMimeFromName( file.name ) : 'application/octet-stream';
 }
 
-/** Meta permits captions on image, video and document messages. Audio and sticker
- * messages have no caption field, so companion text must travel as a separate message. */
-export function waMediaSupportsCaption ( mime: string ): boolean {
-    const category = waMediaCategory( mime );
-    return category === 'image' || category === 'video' || category === 'document';
-}
 
 /** Resolve a MIME type to its WhatsApp media category for limit lookup. */
 export function waMediaCategory ( mime: string ): WaMediaCategory {
@@ -91,7 +85,7 @@ export function formatBytes ( bytes: number ): string {
     return `${( bytes / 1024 ).toFixed( 0 )}KB`;
 }
 
-export interface WaSizeValidation {
+interface WaSizeValidation {
     ok: boolean;
     category: WaMediaCategory;
     limit: number;

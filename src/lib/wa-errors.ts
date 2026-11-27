@@ -9,11 +9,11 @@
  * (content paraphrased for compliance with licensing).
  */
 
-export type WaErrorCategory =
+type WaErrorCategory =
     | 'auth' | 'rate_limit' | 'integrity' | 'template'
     | 'delivery' | 'media' | 'flow' | 'other';
 
-export interface WaErrorInfo {
+interface WaErrorInfo {
     title: string;
     reason: string;
     action: string;
@@ -21,7 +21,7 @@ export interface WaErrorInfo {
     retriable: boolean;
 }
 
-export const WA_ERROR_CODES: Record<number, WaErrorInfo> = {
+const WA_ERROR_CODES: Record<number, WaErrorInfo> = {
     // ── Authorization ──
     0: { title: 'Auth error', reason: 'The app behind the sender could not be authenticated.', action: 'Reconnect the WhatsApp sender.', category: 'auth', retriable: false },
     3: { title: 'API method', reason: 'The calling app is missing the required permissions.', action: 'Reconnect with the full permission set.', category: 'auth', retriable: false },

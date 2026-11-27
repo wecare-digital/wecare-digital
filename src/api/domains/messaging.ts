@@ -151,7 +151,7 @@ export async function deleteMessage ( messageId: string, direction: 'INBOUND' | 
   return data !== null && data.success === true && data.rowDeleted === true;
 }
 
-export interface LocalInboxDeleteResult {
+interface LocalInboxDeleteResult {
   success: true;
   rowDeleted: true;
   sourceRowDeleted: boolean;
@@ -172,7 +172,7 @@ export async function deleteInboxMessage ( messageId: string ) {
   );
 }
 
-export interface ContactConversationDeleteResult {
+interface ContactConversationDeleteResult {
   success: true;
   contactDeleted: true;
   messagesDeleted: number;
@@ -196,37 +196,8 @@ export async function deleteInboxContactConversation ( contactId: string ) {
   );
 }
 
-export interface LocalInboxContentDeleteResult {
-  success: true;
-  contentDeleted: true;
-  rowDeleted: false;
-  sourceContentDeleted: boolean;
-  contactDeleted: false;
-  erasureComplete: false;
-  mediaPermanentlyErased: false;
-  messageId: string;
-  warning?: string;
-}
 
-/** Deletes eligible message TEXT only, keeping the message row, customer and
- * financial history. The server rejects legal/retention holds and payment or
- * media evidence; an Admin MFA session and durable audit are still required.
- * No automatic retry is permitted for a destructive write.
- */
-export async function deleteInboxMessageContent ( messageId: string ) {
-  return apiCallResult<LocalInboxContentDeleteResult>(
-    `${API_BASE}/messages/${encodeURIComponent( '__canonical_inbox_v1__:' + messageId )}?scope=content-only`,
-    { method: 'DELETE' }, 0, 15000, false,
-  );
-}
 
-export async function updateMessage ( messageId: string, updates: Record<string, any> ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/messages/${messageId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return data !== null && data.success === true;
-}
 
 /**
  * Staff-only Contribute native payment request. This is deliberately NOT
@@ -237,7 +208,7 @@ export async function updateMessage ( messageId: string, updates: Record<string,
  * verifies the owned WhatsApp identity and requires an Admin/MFA session.
  * Caller supplies only a saved Contact id, NEVER an amount or template.
  */
-export type StaffContributeSendResult =
+type StaffContributeSendResult =
   | { state: 'ACCEPTED'; paymentAttemptId: string; amountPaise: 30000 }
   | { state: 'UNCONFIRMED'; code: string; message: string }
   | { state: 'REFUSED'; code: string; message: string };
@@ -247,7 +218,7 @@ export type StaffContributeSendResult =
  * website build alone must never enable a real customer payment request.
  * No retries, no payment or WhatsApp side effects.
  */
-export type StaffContributionSendReadiness = {
+type StaffContributionSendReadiness = {
   sendEnabled: boolean;
   amountPaise: number;
   reason: string;
@@ -274,7 +245,7 @@ export async function getStaffContributionSendReadiness (): Promise<StaffContrib
   }
 }
 
-export type StaffItemServiceSendResult =
+type StaffItemServiceSendResult =
   | {state:'ACCEPTED';paymentAttemptId:string;amountPaise:number}
   | {state:'REFUSED'|'UNCONFIRMED';code:string;message:string};
 export async function sendStaffItemServicePaymentOnce(input:{contactId:string;itemId:string;selectedOrderNumber:string;expectedTotalPaise:number}):Promise<StaffItemServiceSendResult> {
@@ -390,7 +361,7 @@ function normalizeMessage ( item: any ): Message {
 }
 
 // Send WhatsApp message via Lambda
-export interface SendMessageRequest {
+interface SendMessageRequest {
   contactId: string;
   content?: string;
   phoneNumberId?: string;
@@ -407,14 +378,6 @@ export interface SendMessageRequest {
   contextMessageId?: string;  // Native reply — quote this WhatsApp message id
 }
 
-// Send WhatsApp reaction via Lambda
-export interface SendReactionRequest {
-  contactId: string;
-  reactionMessageId: string;  // WhatsApp message ID to react to
-  reactionEmoji?: string;     // Default: thumbs up
-  phoneNumberId?: string;
-  recipientBsuid?: string;    // Send reaction to BSUID recipient
-}
 
 /**
  * Request a presigned S3 PUT URL for direct browser→S3 media upload.
@@ -562,27 +525,8 @@ export async function unblockWhatsAppUser ( request: { contactId?: string; phone
   } );
 }
 
-export async function listBlockedWhatsAppUsers ( request: { contactId?: string; phoneNumberId?: string } ): Promise<{ success: boolean; result?: any } | null> {
-  return apiCall<{ success: boolean; result?: any }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( { blockAction: 'list', contactId: request.contactId, phoneNumberId: request.phoneNumberId } ),
-  } );
-}
 
 // Send a reaction to a WhatsApp message
-export async function sendWhatsAppReaction ( request: SendReactionRequest ): Promise<{ messageId: string; status: string; emoji: string } | null> {
-  return apiCall<{ messageId: string; status: string; emoji: string }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( {
-      contactId: request.contactId,
-      isReaction: true,
-      reactionMessageId: request.reactionMessageId,
-      reactionEmoji: request.reactionEmoji || '\uD83D\uDC4D',  // Default: thumbs up
-      phoneNumberId: request.phoneNumberId,
-      recipientBsuid: request.recipientBsuid,
-    } ),
-  } );
-}
 
 /**
  * Send a native WhatsApp typing indicator + read receipt.
@@ -622,7 +566,7 @@ export interface CarouselCard {
   buttons?: CarouselCardButton[];
 }
 
-export interface CreateCarouselTemplateRequest {
+interface CreateCarouselTemplateRequest {
   name: string;
   language?: string;
   category?: 'MARKETING' | 'UTILITY';
@@ -698,36 +642,7 @@ export interface BulkJob {
   updatedAt: string;
 }
 
-export async function listBulkJobs ( channel?: string ): Promise<BulkJob[]> {
-  let url = `${API_BASE}/bulk/jobs`;
-  if ( channel ) url += `?channel=${channel}`;
-  const data = await apiCall<any>( url );
-  if ( data )
-  {
-    return Array.isArray( data ) ? data : ( data.jobs || [] );
-  }
-  return [];
-}
 
-export async function createBulkJob ( job: Partial<BulkJob> ): Promise<BulkJob | null> {
-  return apiCall<BulkJob>( `${API_BASE}/bulk/jobs`, {
-    method: 'POST',
-    body: JSON.stringify( job ),
-  } );
-}
 
-export async function updateBulkJobStatus ( jobId: string, status: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/bulk/jobs/${jobId}`, {
-    method: 'PUT',
-    body: JSON.stringify( { status } ),
-  } );
-  return data !== null;
-}
 
-export async function deleteBulkJob ( jobId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/bulk/jobs/${jobId}`, {
-    method: 'DELETE',
-  } );
-  return data !== null;
-}
 

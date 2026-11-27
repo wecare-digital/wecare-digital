@@ -19,9 +19,9 @@ import Link from 'next/link';
 import BrandLockup from '../BrandLockup';
 import WsNotionTheme from './WsNotionTheme';
 
-export type WsSection = 'home' | 'inbox' | 'collect' | 'customers' | 'commerce' | 'settings';
+type WsSection = 'home' | 'inbox' | 'collect' | 'customers' | 'commerce' | 'settings';
 
-export interface WsShellProps {
+interface WsShellProps {
   children: ReactNode;
   active: WsSection;
   user?: any;

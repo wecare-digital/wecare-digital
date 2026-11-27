@@ -1,4 +1,4 @@
-export interface CatalogSnapshotVariant {
+interface CatalogSnapshotVariant {
   id: string;
   label?: string;
   inStock?: boolean;
@@ -23,7 +23,7 @@ export interface CatalogSnapshotProduct {
   [key: string]: unknown;
 }
 
-export interface CatalogSnapshot {
+interface CatalogSnapshot {
   source?: string;
   catalogVersion?: string;
   fetchedAt?: string;

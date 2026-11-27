@@ -68,7 +68,7 @@ const HOUR_OPTIONS: SelectOption[] = Array.from( { length: 24 }, ( _unused, h ) 
 
 type TimeParts = { hour: string; minute: string };
 
-export function splitTime ( value: string ): TimeParts {
+function splitTime ( value: string ): TimeParts {
     const m = TIME_RE.exec( value );
     if ( !m ) return { hour: '', minute: '' };
     const hour = Number( m[ 1 ] );

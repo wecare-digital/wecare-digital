@@ -1,7 +1,7 @@
 import React from 'react';
 import { PRODUCT_REFUNDS } from '../../content/productCommerce';
 
-export interface PolicyDetailsCopy {
+interface PolicyDetailsCopy {
   shipping: string;
   returns: string;
   disclaimer: string;

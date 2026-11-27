@@ -34,7 +34,6 @@
 
 import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
-import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
 import { SERVICE_PRODUCT_IDS, serviceChoice, serviceByKind } from '../config/services';
 
@@ -51,11 +50,8 @@ const CART_KEY = 'wecare.cart.v1';
 export const CART_CHANGED_EVENT = 'wecare:cart-changed';
 
 /** Maximum distinct catalogue variants accepted by the server's canonical basket. */
-export const MAX_CART_LINES = 100;
-export const MAX_CART_QTY = 99;
-/** Native WhatsApp remains a separate, later checkout implementation. */
-export const SHORT_COMMERCE_ONE_PRODUCT_MESSAGE =
-  'WhatsApp multi-item checkout is not yet available. Use website checkout.';
+const MAX_CART_LINES = 100;
+const MAX_CART_QTY = 99;
 
 export interface CartItem {
   productId?: string;
@@ -453,9 +449,6 @@ export function cartCount (): number {
 export const isContributionItem = ( item: CartItem ): boolean =>
   !!CONTRIBUTION_PRODUCT_ID && item.productId === CONTRIBUTION_PRODUCT_ID;
 
-/** The amount a contribution line represents, or null when the line is not one of the three. */
-export const contributionOf = ( item: CartItem ): ContributionChoice | null =>
-  isContributionItem( item ) ? contributionChoice( item.variantId ) : null;
 
 /**
  * A contribution is the one selected cart line; choosing an amount SETS it.

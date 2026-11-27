@@ -22,7 +22,7 @@ import boto3
 import urllib.request
 import urllib.parse
 from decimal import Decimal
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, extract_origin

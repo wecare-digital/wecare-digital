@@ -43,7 +43,7 @@ import { publicActionText } from '../lib/publicActionNotices';
  * numbers, per owner instruction - a pure visual indicator, matched by the two arrow buttons.
  */
 
-export interface ProductBlogPanelProps {
+interface ProductBlogPanelProps {
   cards: BlogCard[];
   /** Complete category names enable progressive loading for the Anew static seed. */
   categories?: string[];

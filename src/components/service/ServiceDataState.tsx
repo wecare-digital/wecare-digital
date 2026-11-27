@@ -21,7 +21,7 @@ import type { ApiFailure } from '../../api/client';
 import ErrorState from '../ErrorState';
 import { EmptyState, Spinner } from '../ui';
 
-export interface ServiceDataStateProps {
+interface ServiceDataStateProps {
   loading: boolean;
   /** The failure that caused an empty result, or null when the data is genuinely empty. */
   failure?: ApiFailure | null;

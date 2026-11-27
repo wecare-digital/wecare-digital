@@ -1,8 +1,3 @@
-/** Fresh SKU-first service catalog configuration. */
-export const SERVICES_CURRENCY = 'INR' as const;
-export const SERVICES_PRODUCT_ID: string = '';
-/** Legacy-compatible option-group symbol; live services are separate products. */
-export const SERVICES_OPTION_ID: string = '';
 
 export type ServiceKind =
   'SUBMIT_REQUEST' | 'REQUEST_AMENDMENT' | 'DROP_DOCS' | 'VAULT' | 'REQUEST_PICKUP';
@@ -37,4 +32,3 @@ export const serviceChoice = ( variantId: unknown ): ServiceChoice | null =>
   SERVICE_CHOICES.find( choice => choice.variantId === String( variantId || '' ).trim() ) || null;
 export const serviceByKind = ( kind: unknown ): ServiceChoice | null =>
   SERVICE_CHOICES.find( choice => choice.kind === kind ) || null;
-export const SERVICES_CONFIGURED = SERVICE_CHOICES.length === 5;

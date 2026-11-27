@@ -2,13 +2,13 @@
  * A read-only checkout quote from the authenticated ProductsTable pricing path.
  * Catalogue display prices are NEVER a financial source of truth.
  */
-export interface CheckoutQuoteItem {
+interface CheckoutQuoteItem {
   name: string;
   quantity: number;
   unitPricePaise: number;
   totalPaise: number;
 }
-export interface CheckoutQuoteCharges {
+interface CheckoutQuoteCharges {
   merchandisePaise: number;
   supplyGstPaise: number;
   deliveryPaise: number;

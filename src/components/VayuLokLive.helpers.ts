@@ -27,7 +27,6 @@ export const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
  // as the site's icon system. This replaces the oversized bespoke teardrop marker.
 export const LOCATION_MARKER_ICON = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#d1f470"/><svg x="6" y="6" width="24" height="24" viewBox="0 -960 960 960"><path fill="#1a3a2a" d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z"/></svg></svg>` )}`;
 
-export const DOT_LINE_RGBA: [ number, number, number, number ] = [ 255, 255, 255, 230 ];
 
 // Global map: do not re-introduce a lat/lng restriction here because destination search
 // is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
@@ -154,9 +153,6 @@ export function severityFromCategory( category?: string ): Sev | null {
    live dot / pollutant tone (aqiCategory) so the history reads with the identical
    good -> sat -> mod -> poor -> worst ramp rather than a flat lime->green gradient. No new
    thresholds are invented here; the single source of truth stays aqiCategory. */
-export function aqiBarClass( aqi: number ): string {
-  return `vl-live-history-bar-${aqiCategory( aqi ).sev}`;
-}
 
 /* Human-readable label for the selected history range, used in the chart's aria-label so a
    screen reader hears "last 24 hours" rather than a raw hour count. */
@@ -211,7 +207,7 @@ export const HEALTH_PERSONAS: HealthPersonaDefinition[] = [
   { id: 'children', label: 'Children', apiKey: 'children', icon: 'children' },
 ];
 
-export function cleanAirInfo( value?: string ): string | undefined {
+function cleanAirInfo( value?: string ): string | undefined {
   if ( typeof value !== 'string' ) return undefined;
   const clean = value.replace( /\s+/g, ' ' ).trim();
   return clean || undefined;
@@ -289,7 +285,7 @@ export const WEATHER_ALERT_REGION_CODES = new Set( [
   'NO','NZ','PH','PL','PT','RO','RS','SB','SE','SG','SI','SK','TH','TW','US','VN',
 ] );
 
-export const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
+const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 export function windDirection( deg: number ): string {
   return COMPASS[ Math.round( deg / 45 ) % 8 ];
 }
@@ -446,9 +442,6 @@ export function airPointFromApi( row: Record<string, any> ): AirPoint | null {
   };
 }
 
-export function hourLabel( ms: number ): string {
-  return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
-}
 
 /* Readable label for the Weather days-forecast moonPhase enum (e.g. WAXING_CRESCENT ->
    "Waxing crescent"). Unlike the inline `.replace( /_/g, ' ' )` used for short precipitation/
@@ -473,7 +466,7 @@ export function dominantPollutantLabel( code: string, pollutants: AirState['poll
   return fromRow || POLLUTANT_LABELS[ code ] || code;
 }
 
-export function parseHealthRecommendations( raw: unknown ): AirState['healthRecommendations'] | undefined {
+function parseHealthRecommendations( raw: unknown ): AirState['healthRecommendations'] | undefined {
   if ( !raw || typeof raw !== 'object' ) return undefined;
   const source = raw as Record<string, unknown>;
   const out: Partial<Record<HealthRecommendationKey, string>> = {};
@@ -529,18 +522,6 @@ export function formatLocationDate( now: number, timeZoneId: string ): string {
   }
 }
 
-export function formatCurrencyValue( value: number, currency: string ): string {
-  if ( !Number.isFinite( value ) ) return '';
-  try {
-    return new Intl.NumberFormat( 'en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: Math.abs( value ) >= 100 ? 2 : 4,
-    } ).format( value );
-  } catch {
-    return `${currency} ${value.toLocaleString( 'en-IN', { maximumFractionDigits: 4 } )}`;
-  }
-}
 
 export function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ): string {
   try {
@@ -664,9 +645,9 @@ export function freshnessTimeLabel( label: string ): string {
   return /^Current$/i.test( clean ) ? 'just now' : clean;
 }
 
-export const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
+const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
 
-export function recentPlaces(): PlaceState[] {
+function recentPlaces(): PlaceState[] {
   if ( typeof window === 'undefined' ) return [];
   try {
     const rows = JSON.parse( window.localStorage.getItem( RECENT_PLACES_KEY ) || '[]' );

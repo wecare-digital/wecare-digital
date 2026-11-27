@@ -53,7 +53,7 @@
  * byte, and neither is relaxed by anything here.
  */
 
-export interface DialCode {
+interface DialCode {
   /** The dial code with its leading plus, e.g. "+91". Display AND value. */
   code: string;
   /** Country name, as a shopper would recognise it. Translatable text when rendered. */
@@ -151,7 +151,7 @@ export const DIAL_CODES: readonly DialCode[] = [
 export const DEFAULT_DIAL_CODE = '+91';
 
 /** Lookup by dial code. Returns undefined for a code not in the offered list. */
-export const findDialCode = ( code: string ): DialCode | undefined =>
+const findDialCode = ( code: string ): DialCode | undefined =>
   DIAL_CODES.find( entry => entry.code === code );
 
 /**
@@ -174,16 +174,3 @@ export const isValidNationalLength = ( code: string, national: string ): boolean
   return entry.nationalDigits.includes( digits.length );
 };
 
-/**
- * The expected-length hint for a country, as a short phrase for a placeholder or an error.
- * "10-digit" for India, "8- or 9-digit" for the UAE, and an empty string where we have no rule -
- * so a caller can omit the hint entirely rather than print something vague.
- */
-export const nationalLengthHint = ( code: string ): string => {
-  const entry = findDialCode( code );
-  if ( !entry || entry.nationalDigits.length === 0 ) return '';
-  const lengths = [ ...entry.nationalDigits ].sort( ( a, b ) => a - b );
-  if ( lengths.length === 1 ) return `${lengths[ 0 ]}-digit`;
-  const last = lengths.pop();
-  return `${lengths.join( ', ' )}- or ${last}-digit`;
-};

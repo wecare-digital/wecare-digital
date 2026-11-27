@@ -77,32 +77,12 @@ export const GST_RATES = [
 // WhatsApp Payment Configuration Details
 // The Razorpay MID (acc_...) stays backend-only and is deliberately absent here.
 // MCC and purpose code are non-sensitive category codes.
-export const PAYMENT_DETAILS = {
-  // Verified against Graph API /{waba}/payment_configurations 2026-08-23:
-  // MCC 7392 (Management, consulting and public relations services) on all
-  // four configs across both WABAs. Was previously 4722 (travel agencies),
-  // which did not match Meta and could cause payment rejections.
-  mcc: '7392',
-  purposeCode: '03',
-  // Payee address of the WECAREUPI configuration. This is NOT a credential:
-  // it is the `pa=` parameter of every UPI deep link and QR we hand to a payer,
-  // so it is public by construction. It lives here because [retired public path]/link builds
-  // that deep link client-side and cannot invent a payee.
-  //
-  // It must stay identical to _WECARE_UPI_VPA in
-  // amplify/functions/messaging/whatsapp-business-api/handler.py, which is the
-  // authoritative copy (overridable there via RAZORPAY_UPI_ID). Two earlier
-  // VPAs are retired and must never reappear (one @kotak address once hardcoded
-  // in the pay-link page, one bank-suffixed address once noted on the architecture
-  // page). A stale VPA does not error - it silently collects money elsewhere.
-  upiVpa: 'wecaredigitalbh511413.rzp@rxairtel',
-};
 
 // The only payment configuration names that exist on Meta. Both WABAs expose
 // this identical pair; anything else is rejected with error 136026. Keep in step
 // with VALID_PAYMENT_CONFIGS in
 // amplify/functions/messaging/outbound-whatsapp/handler.py.
-export const PAYMENT_CONFIG_NAMES = {
+const PAYMENT_CONFIG_NAMES = {
   gateway: 'WECAREDIGITAL',
   upi: 'WECAREUPI',
 } as const;

@@ -51,7 +51,7 @@ export function collectDraftIssues(customer:Contact|null,lines:CollectLine[],exp
 // binds React state to the response that produced the visible image.
 export const collectInputKey=(request:CreateInvoiceEngineRequest|null)=>request?JSON.stringify(request):'';
 
-export function collectAddressSnapshot(contact:Contact):Record<string,unknown>{
+function collectAddressSnapshot(contact:Contact):Record<string,unknown>{
   const source=contact as unknown as Record<string,unknown>;
   const clean=(value:unknown):unknown=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,clean(v)]).filter(([,v])=>v!==''&&v!==null&&JSON.stringify(v)!=='{}')):String(value||'').trim();
   if(source.checkoutDeliveryAddress&&typeof source.checkoutDeliveryAddress==='object'&&Object.keys(source.checkoutDeliveryAddress).length)return {checkoutDeliveryAddress:clean(source.checkoutDeliveryAddress)};

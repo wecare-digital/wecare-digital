@@ -36,6 +36,11 @@ DEDUP_TABLE = "stack-wecare-digital-WebhookDedup"
 ROLE_NAME = "wecare-digital-lambda-role"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}"
 FUNCTION_TIMEOUT = 120
+# Daily derived-SEO freshness schedule (opt-in via --with-schedule). Values match the live
+# EventBridge Scheduler schedule, which is ENABLED with cron(15 2 * * ? *).
+SCHEDULE_NAME = "wecare-seo-freshness-daily"
+SCHEDULE_ROLE_NAME = "wecare-seo-scheduler-role"
+SCHEDULE_EXPRESSION = "cron(15 2 * * ? *)"
 
 # HTTP API behind wecare.digital/api (stage prod, AutoDeploy on).
 # Frontend calls https://wecare.digital/api/seo-tools/{route} (src/api/seo.ts).

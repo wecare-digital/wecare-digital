@@ -19,7 +19,7 @@ function contactKey(contact: Contact): string {
   return contact.contactId || contact.id || '';
 }
 
-export interface ErasureScopePreview {
+interface ErasureScopePreview {
   protectedContacts: number;
   candidateContacts: number;
   candidateLocked: number;
@@ -29,7 +29,7 @@ export interface ErasureScopePreview {
   eligibleToDelete: 0;
 }
 
-export function buildErasureScopePreview(
+function buildErasureScopePreview(
   contacts: Contact[],
   protectedIds: ReadonlySet<string>,
 ): ErasureScopePreview {

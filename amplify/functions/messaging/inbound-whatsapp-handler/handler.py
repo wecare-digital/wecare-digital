@@ -15,14 +15,13 @@ import re
 import json
 import uuid
 import time
-import logging
 import hmac
 import hashlib
 import boto3
 import urllib.request
 import urllib.error
 import urllib.parse  # explicit: `_handoff_url` quotes a token into a link
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from decimal import Decimal
 
 # Configure logging
@@ -5694,16 +5693,6 @@ def _send_to_dlq(record: Dict, error: str, request_id: str) -> bool:
 CALLING_TABLE = os.environ.get('CALL_LOG_TABLE', 'stack-wecare-digital-WhatsAppCallingTable')
 
 
-def _forward_call_permission_to_calling_table(sender_phone: str, receiving_phone: str,
-                                               aws_phone_number_id: str,
-                                               interactive: Dict) -> None:
-    """
-    DEPRECATED: No longer called. Permission is auto-granted pre/post call.
-    Kept for reference only — will be removed in next cleanup.
-    """
-    pass
-
-
 def _send_auto_reaction(contact_id: str, whatsapp_message_id: str, 
                         phone_number_id: str, request_id: str) -> None:
     """
@@ -7676,7 +7665,7 @@ def _send_typing_indicator(sender_phone: str, phone_number_id: str, request_id: 
 
         if _is_direct_api_phone(phone_number_id):
             meta_pid = _get_meta_phone_id_for_direct_api(phone_number_id)
-            _rr = _send_direct_api_read_receipt(whatsapp_message_id if 'whatsapp_message_id' in dir() else '', meta_phone_id=meta_pid)
+            _rr = _send_direct_api_read_receipt('', meta_phone_id=meta_pid)
         else:
             # Fallback: try Direct API with default phone
             _rr = _send_direct_api_read_receipt('', meta_phone_id=_current_direct_api_phone or PHONE1_META_ID)

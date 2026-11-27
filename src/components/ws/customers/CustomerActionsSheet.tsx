@@ -23,7 +23,7 @@ import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
-export interface CustomerActionsSheetProps {
+interface CustomerActionsSheetProps {
   contact: Contact;
   onClose: () => void;
   /** Called after an archive so the parent can drop the row from the active (daily-queue) list. */

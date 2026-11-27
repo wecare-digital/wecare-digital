@@ -48,7 +48,7 @@ export interface InvoiceDeliveryLog {
 }
 
 /** Invoice-PK-bound, backend-projected evidence. Never a browser-side join. */
-export interface InvoiceEvidenceEvent {
+interface InvoiceEvidenceEvent {
   role: string;
   label: string;
   at: number;
@@ -59,7 +59,7 @@ export interface InvoiceEvidenceEvent {
   /** SHA-256 fragment, never an unmasked provider ID, phone or reference. */
   recordFragment: string;
 }
-export interface InvoiceEvidenceGap {
+interface InvoiceEvidenceGap {
   label: string;
   seconds: number | null;
   status: 'measured' | 'unverified';
@@ -354,12 +354,6 @@ export async function createInvoiceEngineResult (
 }
 
 // Create invoice from Razorpay payment ID
-export async function createInvoiceFromPayment ( paymentId: string, extras?: Record<string, any> ): Promise<{ invoiceId: string; invoiceNumber: string; total: number } | null> {
-  return apiCall<{ invoiceId: string; invoiceNumber: string; total: number }>( `${INVOICE_BASE}/from-payment`, {
-    method: 'POST',
-    body: JSON.stringify( { paymentId, ...extras } ),
-  } );
-}
 
 // List invoices with optional filters
 export async function listInvoicesEngine ( params?: { status?: string; contactId?: string; paymentId?: string; serviceKind?: string; limit?: number } ): Promise<{ invoices: Invoice[]; count: number }> {
@@ -470,35 +464,7 @@ export async function cancelInvoiceResult (
 // sale_amount, shipping_info, importer_address, and payment_settings.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface CheckoutItem {
-  name: string;
-  amount: { offset: number; value: number };
-  sale_amount?: { offset: number; value: number };
-  quantity: number;
-  country_of_origin: string;
-  importer_name: string;
-  importer_address: {
-    address_line1: string;
-    address_line2?: string;
-    city: string;
-    zone_code: string;
-    postal_code: string;
-    country_code: string;
-  };
-}
 
-export interface CheckoutShippingAddress {
-  name: string;
-  phone_number: string;
-  address: string;
-  city: string;
-  state: string;
-  in_pin_code: string;
-  house_number?: string;
-  tower_number?: string;
-  building_name?: string;
-  landmark_area?: string;
-}
 
 // `CheckoutOrderDetails`, `SendCheckoutTemplateRequest` and `sendCheckoutTemplate` stood here.
 // `sendCheckoutTemplate` had ZERO callers in `src/`, and the two interfaces existed only to type
@@ -522,12 +488,6 @@ export async function getInvoiceDeliveryLog ( invoiceId: string ): Promise<{
 }
 
 // Preview next invoice number (without incrementing)
-export async function previewNextInvoiceNumber ( fy?: string ): Promise<{ nextInvoiceNumber: string; fy: string; lastSeq: number } | null> {
-  return apiCall<{ nextInvoiceNumber: string; fy: string; lastSeq: number }>( `${INVOICE_BASE}/next-sequence`, {
-    method: 'POST',
-    body: JSON.stringify( { fy } ),
-  } );
-}
 
 // Delete invoice (hard delete + optional sequence adjustment)
 export async function deleteInvoice ( invoiceId: string, adjustSequence = false ): Promise<{ invoiceId: string; deleted: boolean; invoiceNumber: string } | null> {
@@ -559,14 +519,14 @@ export async function deleteInvoice ( invoiceId: string, adjustSequence = false 
  *                   blindly; review before another attempt.
  *  - `disabled`   — refund initiation is switched off in this deployment.
  */
-export type RefundInitiationOutcome =
+type RefundInitiationOutcome =
   | 'submitted'
   | 'confirmed'
   | 'ambiguous'
   | 'rejected'
   | 'disabled';
 
-export interface RefundInitiationResult {
+interface RefundInitiationResult {
   outcome: RefundInitiationOutcome;
   /** True ONLY when the webhook has already recorded the refund. Gate any "refunded" copy on this. */
   webhookConfirmed: boolean;
@@ -657,27 +617,9 @@ export async function initiateFullRefund (
   return postRefundInitiation( 'initiate-refund', invoiceId, returnSubmissionId, reason, {} );
 }
 
-/**
- * Initiate a PARTIAL refund of `amountPaise` for a refund-eligible Return / Refund case.
- *
- * The amount is a PROPOSAL: the server caps it to the captured total minus any already-refunded
- * amount and rejects anything over the cap or <= 0 (`REFUND_AMOUNT_OVER_CAP` /
- * `REFUND_AMOUNT_INVALID`), returning `maxRefundablePaise` so the UI can correct itself. The
- * operator's audit `reason` is persisted on the return-case / audit record server-side.
- */
-export async function initiatePartialRefund (
-  invoiceId: string,
-  returnSubmissionId: string,
-  amountPaise: number,
-  reason: string,
-): Promise<RefundInitiationResult> {
-  return postRefundInitiation(
-    'initiate-partial-refund', invoiceId, returnSubmissionId, reason, { amountPaise },
-  );
-}
 
 // Add remark / refund / credit note to an invoice
-export interface InvoiceRemark {
+interface InvoiceRemark {
   id: string;
   type: 'remark' | 'refund' | 'credit_note';
   text: string;
@@ -710,125 +652,13 @@ export async function addInvoiceRemark (
   } );
 }
 
-// ============================================================================
-// SYSTEM CLEANUP API
-// ============================================================================
 
-export interface CleanupResource {
-  id: string;
-  label: string;
-  category: string;
-  type: 'dynamodb' | 's3' | 'sqs';
-  table?: string;
-  prefix?: string;
-  queue?: string;
-  count: number;
-  /**
-   * Whether the SERVER will act on this id. The server is the authority — it refuses a
-   * protected table whatever the client sends — and these three fields exist so the UI can
-   * stop offering an action that is going to be refused, rather than discovering it in the
-   * result list.
-   *
-   * Optional because a response from an older deployment carries neither field. Absent is
-   * read as SELECTABLE, which keeps the tab working against an un-upgraded backend; the
-   * guard that matters is the server's, and it is not optional there.
-   */
-  selectable?: boolean;
-  /** Set when the server will never clear this id: customer, financial or message history. */
-  protected?: boolean;
-  /** Why it is protected, in the server's words. Shown to the operator verbatim. */
-  protectedReason?: string;
-}
 
-/**
- * The full `GET /system-cleanup` envelope.
- *
- * `getCleanupPreview` keeps returning just the rows, because that is what the Data tab
- * renders and what `src/test/DataTabCheckbox.test.tsx` mocks. The confirmation token rides
- * alongside, and `lastCleanupConfirmation()` is how the caller reads it.
- */
-export interface CleanupPreview {
-  resources: CleanupResource[];
-  /** The ids the server minted this token for. */
-  selectableIds: string[];
-  /** Single-use, bound to `selectableIds`. `''` when the server could not store one. */
-  confirmationToken: string;
-  /** Present when the confirmation store is unavailable, i.e. nothing can be deleted. */
-  warning?: string;
-}
 
-export interface CleanupResult {
-  id: string;
-  label: string;
-  deleted: number;
-  elapsed?: number;
-  error?: string;
-  /**
-   * Rows the server PROTECTED, counted apart from `deleted` and from `error`. A contact with
-   * payments is refused by design, which is a correct outcome rather than a failure — and
-   * folding it into either number is how a sweep that left rows behind reads as finished.
-   */
-  refused?: number;
-  /** The server declined this whole id. `deleted` is 0 and that is the correct outcome. */
-  protected?: boolean;
-  /** Why, in the server's words. */
-  protectedReason?: string;
-}
 
-/** What `POST /system-cleanup` reports back. `protected`/`skipped` are server counts. */
-export interface CleanupRun {
-  results: CleanupResult[];
-  totalDeleted: number;
-  /** Ids the server declined. Rendered as "kept", NOT as an error. */
-  protected?: number;
-  /** Ids it did not act on at all, protected or unknown. */
-  skipped?: number;
-}
 
-/**
- * The most recent preview envelope.
- *
- * Module-level because `getCleanupPreview` has to keep its `CleanupResource[]` return type:
- * `src/test/DataTabCheckbox.test.tsx` mocks it with a bare array and that test must keep
- * passing unchanged. Holding the token here rather than widening the signature means the
- * Data tab gets both from one request instead of minting a second token it would not use.
- *
- * "Most recent" is the right scope: the server's token is single-use and bound to the
- * selection it was minted for, so an older one is worthless by construction.
- */
-let lastPreview: CleanupPreview | null = null;
 
-export async function getCleanupPreview (): Promise<CleanupResource[]> {
-  const data = await apiCall<CleanupPreview>( `${API_BASE}/system-cleanup` );
-  lastPreview = data ?? null;
-  return data?.resources || [];
-}
 
-/** The confirmation token from the most recent `getCleanupPreview`, if any. */
-export function lastCleanupConfirmation (): { token: string; selectableIds: string[]; warning?: string } {
-  return {
-    token: lastPreview?.confirmationToken || '',
-    selectableIds: lastPreview?.selectableIds || [],
-    warning: lastPreview?.warning,
-  };
-}
-
-export async function executeCleanup ( selected: string[], confirmationToken?: string ): Promise<CleanupRun> {
-  const data = await apiCall<any>( `${API_BASE}/system-cleanup`, {
-    method: 'POST',
-    // The server REQUIRES the token and refuses 400 without it. Sent as a plain field
-    // rather than made a required argument so the one remaining legacy caller still
-    // compiles; it gets the refusal, which is the correct outcome for a call that never
-    // previewed.
-    body: JSON.stringify( { selected, confirmationToken: confirmationToken || '' } ),
-  } );
-  return {
-    results: data?.results || [],
-    totalDeleted: data?.totalDeleted || 0,
-    protected: data?.protected || 0,
-    skipped: data?.skipped || 0,
-  };
-}
 
 // ============================================================================
 // SUBMIT REQUESTS API (WhatsApp Flow Submissions)
@@ -857,12 +687,6 @@ export interface SubmitRequest {
   updatedAt?: number;
 }
 
-export async function listSubmitRequests ( paymentStatus?: string ): Promise<SubmitRequest[]> {
-  let url = `${API_BASE}/wa-business/submit-requests`;
-  if ( paymentStatus ) url += `?paymentStatus=${paymentStatus}`;
-  const data = await apiCall<any>( url );
-  return data?.requests || [];
-}
 
 export interface FlowLog {
   id: string;
@@ -889,23 +713,13 @@ export async function listFlowLogs ( phone?: string ): Promise<FlowLog[]> {
   return data?.logs || [];
 }
 
-export async function resendSubmitRequestPayment ( invoiceId: string ): Promise<boolean> {
-  try
-  {
-    const data = await apiCall<any>( `${INVOICE_BASE}/${invoiceId}/send-payment-link`, {
-      method: 'POST',
-      body: JSON.stringify( { invoiceId } ),
-    } );
-    return !!data;
-  } catch { return false; }
-}
 
 // ============================================================================
 // FLOW MANAGEMENT ENGINE
 // ============================================================================
 
 /** Snapshot mapping verified against Meta at lastVerifiedAt; not a send-readiness grant. */
-export interface TemplateFlowMappingItem {
+interface TemplateFlowMappingItem {
   templateId: string;
   templateName: string;
   flowId: string;
@@ -952,7 +766,7 @@ export interface FlowRegistryItem {
 }
 
 /** One launch decision computed server-side by lambda_utils.flow_launch. */
-export interface FlowLaunchDecision {
+interface FlowLaunchDecision {
   allowed: boolean;
   reason: string;
   explanation: string;
@@ -984,7 +798,7 @@ export interface FlowFunnelReport {
   totals: Record<string, number>;
 }
 
-export interface FlowRegistrySaveResult {
+interface FlowRegistrySaveResult {
   success: boolean;
   flowId: string;
   flow: FlowRegistryItem;
@@ -1151,12 +965,6 @@ export async function runSlaCheck ( params?: { slaDays?: number; reminderDays?: 
   return apiCall<any>( `${WA_BIZ_BASE}/flow-sla-check`, { method: 'POST', body: JSON.stringify( params || {} ) } );
 }
 
-export async function cloneFlowToWaba ( sourceFlowCode: string, targetWabaId: string, targetFlowId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-clone`, {
-    method: 'POST', body: JSON.stringify( { sourceFlowCode, targetWabaId, targetFlowId } ),
-  } );
-  return !!data?.success;
-}
 
 export async function exportSubmissionsCsv ( params?: { flowCode?: string; paymentStatus?: string } ): Promise<string> {
   const qs = new URLSearchParams();
@@ -1186,7 +994,7 @@ export async function exportSubmissionsCsv ( params?: { flowCode?: string; payme
 // and deliberately stays.
 
 // ── Catalog product admin (Meta catalog create/list/delete via WA Business API) ──
-export interface CatalogProductInput {
+interface CatalogProductInput {
   catalogId: string;
   retailerId: string;
   name: string;
@@ -1296,7 +1104,7 @@ export interface Order {
   syncedAt?: number;
 }
 
-export interface OrderItem {
+interface OrderItem {
   productId?: string;
   name: string;
   quantity: number;
@@ -1451,175 +1259,29 @@ export async function updateDocument ( documentId: string, updates: Partial<Docu
   return !!data;
 }
 
-export async function archiveDocument ( documentId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
-    method: 'PUT',
-    body: JSON.stringify( { _action: 'archive' } ),
-  } );
-  return data?.updated === true;
-}
 
-export async function restoreArchivedDocument ( documentId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
-    method: 'PUT',
-    body: JSON.stringify( { _action: 'restore_archive' } ),
-  } );
-  return data?.updated === true;
-}
 
 export async function getDocumentDownloadUrl ( documentId: string ): Promise<string | null> {
   const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}/download` );
   return data?.url || null;
 }
 
-export async function createDocument ( doc: Partial<Document> ): Promise<Document | null> {
-  return apiCall<Document>( DOCUMENTS_BASE, {
-    method: 'POST',
-    body: JSON.stringify( doc ),
-  } );
-}
 
 
-export interface DocumentUploadTicket {
-  documentId: string;
-  documentRef: string;
-  fileName: string;
-  uploadUrl: string;
-  expiresInSeconds: number;
-  contentType: string;
-}
-
-/** Start a staff manual Drop Docs upload. The actual bytes go straight to S3. */
-export async function initDocumentUpload ( input: {
-  contactId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  orderId?: string;
-  type: string;
-  typeLabel?: string;
-  fileName: string;
-  mimeType: string;
-  fileSize: number;
-  notes?: string;
-} ): Promise<ApiResult<DocumentUploadTicket>> {
-  return apiCallResult<DocumentUploadTicket>( DOCUMENTS_BASE, {
-    method: 'POST',
-    body: JSON.stringify( { _action: 'upload_init', ...input } ),
-  } );
-}
-
-/** Upload document bytes to the private Drop Docs object using its presigned PUT. */
-export async function uploadDocumentBytes (
-  uploadUrl: string,
-  file: File,
-  contentType: string,
-): Promise<boolean> {
-  const response = await fetch( uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  } );
-  return response.ok;
-}
-
-/** Confirm a staff manual Drop Docs upload after S3 has the bytes. */
-export async function confirmDocumentUpload ( documentId: string ): Promise<ApiResult<Document>> {
-  return apiCallResult<Document>(
-    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
-    { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
-  );
-}
 
 
-/** Start a replacement for a document that staff explicitly marked reupload_requested. */
-export async function initDocumentReplacement (
-  documentId: string,
-  input: { fileName: string; mimeType: string; fileSize: number },
-): Promise<ApiResult<DocumentUploadTicket>> {
-  return apiCallResult<DocumentUploadTicket>(
-    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify( { _action: 'replace_upload_init', ...input } ),
-    },
-  );
-}
-
-/** Confirm the replacement only after S3 proves the new bytes exist. */
-export async function confirmDocumentReplacement (
-  documentId: string,
-): Promise<ApiResult<Document>> {
-  return apiCallResult<Document>(
-    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
-    { method: 'PUT', body: JSON.stringify( { _action: 'replace_upload_confirm' } ) },
-  );
-}
 
 
-export async function revalidateDocumentReference (
-  documentId: string,
-): Promise<ApiResult<{
-  updated: boolean;
-  documentId: string;
-  documentRef: string;
-  fileName: string;
-  referenceIssuedAt: number;
-}>> {
-  return apiCallResult(
-    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
-    { method: 'PUT', body: JSON.stringify( { _action: 'revalidate_reference' } ) },
-  );
-}
 
-// ============================================================================
-// FAQ API
-// ============================================================================
 
-export interface FaqEntry {
-  faqId: string;
-  question: string;
-  answer: string;
-  category: string;
-  sortOrder: number;
-  active: boolean;
-  tags?: string[];
-  createdAt: number;
-  updatedAt?: number;
-}
 
-const FAQ_BASE = `${WA_BIZ_BASE}/faq`;
 
-export async function listFaqs ( params?: {
-  category?: string;
-  active?: boolean;
-} ): Promise<{ faqs: FaqEntry[]; count: number }> {
-  const qs = new URLSearchParams();
-  if ( params?.category ) qs.set( 'category', params.category );
-  if ( params?.active !== undefined ) qs.set( 'active', String( params.active ) );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${FAQ_BASE}${query ? '?' + query : ''}` );
-  return data || { faqs: [], count: 0 };
-}
 
-export async function createFaq ( faq: Partial<FaqEntry> ): Promise<FaqEntry | null> {
-  return apiCall<FaqEntry>( FAQ_BASE, {
-    method: 'POST',
-    body: JSON.stringify( faq ),
-  } );
-}
 
-export async function updateFaq ( faqId: string, updates: Partial<FaqEntry> ): Promise<boolean> {
-  const data = await apiCall<any>( `${FAQ_BASE}/${faqId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return !!data;
-}
 
-export async function deleteFaq ( faqId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${FAQ_BASE}/${faqId}`, { method: 'DELETE' } );
-  return !!data;
-}
+
+
+
 
 // ============================================================================
 // APPOINTMENTS API
@@ -1641,31 +1303,8 @@ export interface Appointment {
   updatedAt?: number;
 }
 
-const APPOINTMENTS_BASE = `${WA_BIZ_BASE}/appointments`;
 
-export async function listAppointments ( params?: {
-  status?: string;
-  type?: string;
-  from?: string;
-  to?: string;
-} ): Promise<{ appointments: Appointment[]; count: number }> {
-  const qs = new URLSearchParams();
-  if ( params?.status ) qs.set( 'status', params.status );
-  if ( params?.type ) qs.set( 'type', params.type );
-  if ( params?.from ) qs.set( 'from', params.from );
-  if ( params?.to ) qs.set( 'to', params.to );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${APPOINTMENTS_BASE}${query ? '?' + query : ''}` );
-  return data || { appointments: [], count: 0 };
-}
 
-export async function updateAppointment ( appointmentId: string, updates: Partial<Appointment> ): Promise<boolean> {
-  const data = await apiCall<any>( `${APPOINTMENTS_BASE}/${appointmentId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return !!data;
-}
 
 // ============================================================================
 // SEHAT APPOINTMENTS API
@@ -1687,81 +1326,13 @@ export interface SehatAppointment {
   updatedAt?: number;
 }
 
-const SEHAT_APPOINTMENTS_BASE = `${WA_BIZ_BASE}/sehat-appointments`;
 
-export async function listSehatAppointments ( params?: {
-  status?: string;
-  date?: string;
-  provider?: string;
-} ): Promise<{ slots: SehatAppointment[]; count: number }> {
-  const qs = new URLSearchParams();
-  if ( params?.status ) qs.set( 'status', params.status );
-  if ( params?.date ) qs.set( 'date', params.date );
-  if ( params?.provider ) qs.set( 'provider', params.provider );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${SEHAT_APPOINTMENTS_BASE}${query ? '?' + query : ''}` );
-  return data || { slots: [], count: 0 };
-}
 
-export async function updateSehatAppointment ( slotId: string, updates: Partial<SehatAppointment> ): Promise<boolean> {
-  const data = await apiCall<any>( `${SEHAT_APPOINTMENTS_BASE}/${slotId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return !!data;
-}
 
-export async function createSehatAppointment ( slot: Partial<SehatAppointment> ): Promise<SehatAppointment | null> {
-  return apiCall<SehatAppointment>( SEHAT_APPOINTMENTS_BASE, {
-    method: 'POST',
-    body: JSON.stringify( slot ),
-  } );
-}
 
-// ============================================================================
-// ENTERPRISE ASSIST API
-// ============================================================================
 
-export interface EnterpriseCase {
-  caseId: string;
-  contactId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  subject: string;
-  description?: string;
-  category?: string;
-  priority: string; // low, medium, high, critical
-  status: string; // open, in_progress, waiting, resolved, closed
-  assignedTo?: string;
-  resolution?: string;
-  resolvedAt?: number;
-  createdAt: number;
-  updatedAt?: number;
-}
 
-const ENTERPRISE_BASE = `${WA_BIZ_BASE}/enterprise-assist`;
 
-export async function listEnterpriseCases ( params?: {
-  status?: string;
-  priority?: string;
-  assignedTo?: string;
-} ): Promise<{ cases: EnterpriseCase[]; count: number }> {
-  const qs = new URLSearchParams();
-  if ( params?.status ) qs.set( 'status', params.status );
-  if ( params?.priority ) qs.set( 'priority', params.priority );
-  if ( params?.assignedTo ) qs.set( 'assignedTo', params.assignedTo );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${ENTERPRISE_BASE}${query ? '?' + query : ''}` );
-  return data || { cases: [], count: 0 };
-}
-
-export async function updateEnterpriseCase ( caseId: string, updates: Partial<EnterpriseCase> ): Promise<boolean> {
-  const data = await apiCall<any>( `${ENTERPRISE_BASE}/${caseId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return !!data;
-}
 
 // ============================================================================
 // REVIEWS API
@@ -1806,27 +1377,20 @@ export async function listReviews ( params?: {
   return data || { reviews: [], count: 0 };
 }
 
-export async function updateReview ( reviewId: string, updates: Partial<Review> ): Promise<boolean> {
-  const data = await apiCall<any>( `${REVIEWS_BASE}/${reviewId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  return !!data;
-}
 
 
 // ============================================================================
 // SERVICE REQUEST API (Submit / Track / Amend — Order-Centric)
 // ============================================================================
 
-export interface SubmitRequestPayload {
+interface SubmitRequestPayload {
   orderId: string;
   requestType: string;
   subject: string;
   description: string;
 }
 
-export interface AmendRequestPayload {
+interface AmendRequestPayload {
   submissionId: string;
   orderId: string;
   amendmentType: string;
@@ -1853,14 +1417,6 @@ export interface StatusHistoryEntry {
   changedAt: number;
 }
 
-export interface DraftData {
-  draftKey: string;
-  phone: string;
-  flowCode: string;
-  screen: string;
-  formData: string;
-  updatedAt: number;
-}
 
 const SERVICE_BASE = `${WA_BIZ_BASE}/service`;
 
@@ -1882,50 +1438,10 @@ export async function getTrackingData ( orderId: string ): Promise<TrackingData 
   return apiCall<TrackingData>( `${SERVICE_BASE}/track/${encodeURIComponent( orderId )}` );
 }
 
-export async function getStatusHistory ( params: { orderId?: string; submissionId?: string } ): Promise<StatusHistoryEntry[]> {
-  const qs = new URLSearchParams();
-  if ( params.orderId ) qs.set( 'orderId', params.orderId );
-  if ( params.submissionId ) qs.set( 'submissionId', params.submissionId );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${SERVICE_BASE}/history${query ? '?' + query : ''}` );
-  return data?.history || [];
-}
 
-export async function saveDraft ( draft: Partial<DraftData> ): Promise<boolean> {
-  const data = await apiCall<any>( `${SERVICE_BASE}/drafts`, {
-    method: 'POST',
-    body: JSON.stringify( draft ),
-  } );
-  return !!data;
-}
 
-export async function getDraft ( flowCode: string ): Promise<DraftData | null> {
-  return apiCall<DraftData>( `${SERVICE_BASE}/drafts/${encodeURIComponent( flowCode )}` );
-}
 
-export async function deleteDraft ( flowCode: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${SERVICE_BASE}/drafts/${encodeURIComponent( flowCode )}`, { method: 'DELETE' } );
-  return !!data;
-}
 
-export async function createAppointment ( appointment: Partial<Appointment> ): Promise<Appointment | null> {
-  return apiCall<Appointment>( APPOINTMENTS_BASE, {
-    method: 'POST',
-    body: JSON.stringify( appointment ),
-  } );
-}
 
-export async function createEnterpriseCase ( caseData: Partial<EnterpriseCase> ): Promise<EnterpriseCase | null> {
-  return apiCall<EnterpriseCase>( ENTERPRISE_BASE, {
-    method: 'POST',
-    body: JSON.stringify( caseData ),
-  } );
-}
 
-export async function createReview ( review: Partial<Review> ): Promise<Review | null> {
-  return apiCall<Review>( REVIEWS_BASE, {
-    method: 'POST',
-    body: JSON.stringify( review ),
-  } );
-}
 

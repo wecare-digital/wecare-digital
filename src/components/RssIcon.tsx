@@ -24,7 +24,7 @@ import React from 'react';
  * brand; the ink carries the shape.
  */
 
-export interface RssIconProps {
+interface RssIconProps {
   /** Extra class on the <a>, e.g. to align it within its container. */
   className?: string;
 }

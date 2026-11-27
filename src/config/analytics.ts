@@ -1,77 +1,7 @@
-/**
- * Non-secret marketing and analytics IDENTIFIERS.
- *
- * WHAT BELONGS HERE: account numbers, property IDs, network codes, profile locations.
- * These are identifiers, not credentials - they appear in page source, in tag manager
- * payloads and in ad previews, and knowing one grants nothing.
- *
- * WHAT MUST NEVER BE HERE: the Google Ads developer token, the OAuth client secret, the
- * Unified API key, refresh tokens, the Bing API key. Those are credentials. They live in
- * Secrets Manager (wecare/google/ads, wecare/bing/api) and are read server-side by
- * Lambdas, exactly as other provider credentials already are. A
- * credential in this file would be bundled into the client JavaScript and served to
- * every visitor.
- *
- * Verification tokens are the one grey area and are read from env rather than hardcoded:
- * they are public once rendered, but they are account-binding, so the value belongs with
- * deployment config rather than in version control.
- */
 
-/** Digits only - the Google Ads API rejects the dashed display form. */
-export const GOOGLE_ADS = {
-  /** WECARE.DIGITAL, displayed as 836-758-9699. */
-  customerId: '8367589699',
-  /** Manager (MCC) account, displayed as 427-041-2231. Sent as login-customer-id. */
-  loginCustomerId: '4270412231',
-} as const;
 
-/** Google Ad Manager, displayed as 427-041-2231. */
-export const GOOGLE_AD_MANAGER = {
-  networkCode: '4270412231',
-} as const;
 
-export const GOOGLE_CLOUD = {
-  projectName: 'WECARE-DIGITAL',
-  projectId: 'wecaredigitalbw',
-  projectNumber: '756034744787',
-} as const;
 
-export const GOOGLE_ANALYTICS = {
-  /**
-   * GA4 PROPERTY id. Note this is NOT the Measurement ID.
-   *
-   * gtag.js needs a Measurement ID shaped G-XXXXXXXXXX, which is per data stream and is
-   * a different value from the property number. The property number is only usable from
-   * the Admin and Data APIs, server-side. So this cannot be dropped into the gtag
-   * snippet - NEXT_PUBLIC_GA_MEASUREMENT_ID still has to be set separately.
-   */
-  propertyId: '550346663',
-  /**
-   * GA4 data-stream identifiers for the WECARE.DIGITAL stream (URL https://wecare.digital).
-   *
-   * `measurementId` is the authoritative GA4 data-stream id for this property, and
-   * `streamId` is the numeric data-stream id. They are recorded here as the canonical
-   * reference, but they are DELIBERATELY NOT wired as a second direct gtag.js tag: all
-   * Google tags fire exclusively through the GTM container GTM-TXZ8JT78 (see
-   * _document.tsx). Dropping G-6GW8JXKKT7 into a direct gtag snippet would double-count
-   * pageviews and fail the tag gate. Making the container actually fire this id is a
-   * GTM/Tag-Manager-side change, performed outside this repo.
-   */
-  measurementId: 'G-6GW8JXKKT7',
-  streamId: '16126298947',
-} as const;
-
-/**
- * Google Merchant Center account identifier for product feed / Shopping.
- *
- * A non-secret account identifier, not a credential - it names the Merchant Center
- * account the way other GOOGLE_* ids name their accounts. `displayId` is the
- * human-readable merchant handle shown in the Merchant Center UI.
- */
-export const GOOGLE_MERCHANT_CENTER = {
-  merchantId: '5841142064',
-  displayId: 'wecare.digital',
-} as const;
 
 export const GOOGLE_BUSINESS_PROFILE = {
   location: 'locations/11367616731342236672',
@@ -81,23 +11,6 @@ export const PLAY_STORE = {
   developerUrl: 'https://play.google.com/store/apps/dev?id=5505420420345648842',
 } as const;
 
-/**
- * Meta ad accounts. The one labelled WECARE.DIGITAL is marked primary; the rest were
- * supplied without labels and are kept in the order given so they can be identified
- * later rather than guessed at now.
- */
-export const META_AD_ACCOUNTS = {
-  primary: '757566744073180',
-  all: [
-    '2477665435963445',
-    '1685177122467383',
-    '757566744073180',
-    '2107046253414284',
-    '1574832283724191',
-    '4437435039910843',
-    '3770879209885614',
-  ],
-} as const;
 
 /**
  * Meta asset identifiers for WECARE.DIGITAL.
