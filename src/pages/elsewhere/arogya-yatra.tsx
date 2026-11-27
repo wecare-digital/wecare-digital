@@ -4,7 +4,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../../components/RotatingHero';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
-import AppointmentPlanner from '../../components/public/AppointmentPlanner';
+import AppointmentAccess from '../../components/public/AppointmentAccess';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
 /** Arogya Yatra: local appointment planning plus the existing service checkout.
@@ -43,7 +43,7 @@ const SehatPage: React.FC = () => (
           _app.tsx owns the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
       <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Arogya Yatra' } ] } />
       <section className="brx" aria-label="About Arogya Yatra">
-        <AppointmentPlanner />
+        <AppointmentAccess />
         {/* ONE FLOW, and deliberately not a retail one. This briefly had a second "Order
             medicines" track with prescriptions, stock, pricing and doorstep delivery. That
             was my misreading of the owner's note that the page was "only about appointments,

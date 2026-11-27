@@ -11,6 +11,7 @@ export const ALLOWED_CUSTOMER_RETURN_PATHS = [
   '/orders/',
   '/blog/',
   '/vault/',
+  '/elsewhere/arogya-yatra/',
 ] as const;
 
 const ALLOWED = new Set<string>( ALLOWED_CUSTOMER_RETURN_PATHS );

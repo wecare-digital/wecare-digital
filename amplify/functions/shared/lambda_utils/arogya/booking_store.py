@@ -10,7 +10,7 @@ import datetime as dt
 import re
 import uuid
 
-FIELDS = frozenset('city hospital professional patientMode appointmentType speciality healthCheck time userType salutation patientName age gender area email mobile uhid pickup remarks pickupFrom vehicleNo arrivalDate arrivalTime attendants journeyRemarks shiftingFrom shiftingDate shiftingTime healthDescription ambulancePickup ambulanceFrom ambulanceArea ambulanceDate ambulanceTime date'.split())
+FIELDS = frozenset('hospitalId specialityId doctorId healthCheckId city hospital professional patientMode appointmentType speciality healthCheck time userType salutation patientName age gender area email mobile uhid pickup remarks pickupFrom vehicleNo arrivalDate arrivalTime attendants journeyRemarks shiftingFrom shiftingDate shiftingTime healthDescription ambulancePickup ambulanceFrom ambulanceArea ambulanceDate ambulanceTime date'.split())
 ENUMS = {
     'patientMode': {'Telephone', 'Camp'},
     'appointmentType': {'Consultation', 'Health Checks', 'Admission'},
@@ -54,6 +54,9 @@ def validate_plan(value, *, now):
         if not isinstance(text, str) or len(text) > limit or any(ord(c) < 32 for c in text):
             raise InvalidPlan('Appointment fields exceed the allowed format.')
         plan[key] = text.strip()
+    for key in ('hospitalId', 'specialityId', 'doctorId', 'healthCheckId'):
+        if plan[key] and not re.fullmatch(r'[1-9][0-9]{0,9}', plan[key]):
+            raise InvalidPlan('Invalid provider selection.')
     for key, choices in ENUMS.items():
         if plan[key] and plan[key] not in choices:
             raise InvalidPlan('Choose a valid appointment option.')

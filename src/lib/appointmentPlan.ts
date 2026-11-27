@@ -1,5 +1,9 @@
 /** Preferences only. These dates and windows never represent provider inventory. */
 export interface AppointmentPlan {
+  hospitalId?: string;
+  specialityId?: string;
+  doctorId?: string;
+  healthCheckId?: string;
   city: string;
   hospital: string;
   professional: string;

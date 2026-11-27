@@ -10,6 +10,7 @@ import boto3
 
 from lambda_utils.customer_auth import require_customer
 from lambda_utils.arogya import booking_store as store
+from lambda_utils.arogya import provider_runtime as catalog
 from lambda_utils.ecommerce.unified_pricing import price_components
 
 _db = None
@@ -51,6 +52,8 @@ def handler(event, context):
     now = int(time.time())
     action = body.get('action')
     try:
+        if action == 'catalog':
+            return _response(200, catalog.read_catalog(body, now=now))
         if action == 'quote':
             return _response(200, {'pricing': price_components(55000), 'currency': 'INR',
                 'providerFeesIncluded': False, 'appointmentConfirmed': False})
@@ -67,6 +70,10 @@ def handler(event, context):
             store.delete_draft(_table(), identity.subject, body.get('draftId'))
             return _response(200, {'deleted': True})
         return _response(400, {'error': 'Unknown appointment action.'})
+    except catalog.InvalidCatalogueRequest as error:
+        return _response(400, {'error': str(error)})
+    except catalog.CatalogueUnavailable:
+        return _response(503, {'error': 'Live Apollo availability is temporarily unavailable.'})
     except store.InvalidPlan as error:
         return _response(400, {'error': str(error)})
     except store.DraftConflict as error:
