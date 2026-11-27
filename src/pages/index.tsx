@@ -3,7 +3,7 @@ import ClosingBand from '../components/public/ClosingBand';
  * Home — the company page.
  *
  * The rotating headline pill is the SAME mechanism as the Grahak OS hero and the
- * VayuLok headline, not a lookalike: identical 2400ms interval, identical easings
+ * VayuLok headline, not a lookalike: the same bounded introduction and easings
  * (.16,1,.3,1 for the wipe and the width glide, .34,1.56,.64,1 for the dot pop),
  * identical white entrance shutter and .33em dot. The three pages are meant to
  * animate as one family, so if you retune one, retune all three.
@@ -66,7 +66,7 @@ import Head from 'next/head';
 // same either way - so this side is the one worth being consistent with.
 import Link from 'next/link';
 import WorkflowTerminal from '../components/WorkflowTerminal';
-import RotatingPill, { HeroRotationControl } from '../components/RotatingPill';
+import RotatingPill from '../components/RotatingPill';
 
 /* The SUITE array that used to live here - the three original products plus the seven from
    src/content/products.ts - went with the service-directory grid it fed. See the comment on
@@ -164,7 +164,6 @@ const HomePage: React.FC = () => {
   // That arrived with #420, which moved the pill into RotatingPill and deleted the
   // .home-layout.is-armed CSS a classList call here used to drive, so the call did nothing.
   const [ phase, setPhase ] = useState<'final' | 'armed' | 'shown'>( 'final' );
-  const [ rotationPaused, setRotationPaused ] = useState( false );
 
   useEffect( () => {
     // One-shot entrance, same 60ms beat as VayuLok. No observer: there is a single
@@ -297,7 +296,7 @@ const HomePage: React.FC = () => {
                 because the hero size shrinks there. */}
             <h1 className="home-head">
               <span className="home-head-line">Everyday&nbsp;AI, built&nbsp;for</span>
-              <RotatingPill words={ CYCLE_WORDS } phase={ phase } paused={ rotationPaused } />
+              <RotatingPill words={ CYCLE_WORDS } phase={ phase } />
             </h1>
 
             {/* The one body level the contract allows: 20px/400/1.4/-.125px at
@@ -309,7 +308,6 @@ const HomePage: React.FC = () => {
               Transparent pricing, guided journeys, and dependable support — on one
               shared foundation.
             </p>
-            <HeroRotationControl count={ CYCLE_WORDS.length } paused={ rotationPaused } onToggle={ () => setRotationPaused( value => !value ) } />
           </div>
 
           {/* The 96px gap on .home-layout is the section rhythm this was reserved for -

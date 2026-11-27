@@ -9,6 +9,8 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { installHeroTrace, verifyHeroIntro } from './public_hero_audit.mjs';
+
 const base = process.env.PUBLIC_QA_BASE;
 if (!base) throw new Error('Set PUBLIC_QA_BASE to an approved preview or public website URL.');
 const origin = new URL(base);
@@ -317,6 +319,7 @@ try {
         const name = engine + '-' + device + '-' + route.name;
         try {
           const assertNoTranslation = interactionsOnly ? await installInteractionFixtures(page) : null;
+          if (route.path === '/' && normalizedRoute && !menuOnly && !baselineOnly && !interactionsOnly) await installHeroTrace(page);
           const response = await page.goto(new URL(route.path, origin).href, {waitUntil: 'domcontentloaded', timeout: 30000});
           assert.ok(response && response.ok(), name + ': non-success response');
           await page.locator('h1').first().waitFor({state: 'attached'});
@@ -388,21 +391,19 @@ try {
               assert.ok(await textFits(active), name + ': clipped rotating word');
             };
             await assertActiveFits();
-            if (normalizedRoute && reducedMotion !== 'reduce') {
-              // Observe a full word cycle on focused Home runs; the regular
-              // multi-page smoke remains short. Do not simulate the clock or
-              // mistake viewport emulation for a physical device.
-              const seen = new Set();
-              const initialHeight = await page.locator('.home-head').evaluate(el => el.getBoundingClientRect().height);
-              for (let i = 0; i < 4; i++) {
-                const word = (await active.innerText()).trim();
-                seen.add(word);
-                await assertActiveFits();
-                const height = await page.locator('.home-head').evaluate(el => el.getBoundingClientRect().height);
-                if (width >= 280) assert.ok(Math.abs(height - initialHeight) <= 2, name + ': rotating headline changes height');
-                if (i < 3) await page.waitForFunction(previous => document.querySelector('.home-head .rp-cyc-word.on')?.textContent?.trim() !== previous, word, {timeout: 5000});
-              }
-              assert.equal(seen.size, 4, name + ': incomplete headline cycle');
+            if (normalizedRoute) {
+              const words = (await page.locator('.home-head .rp-cyc-word').allTextContents()).map(word => word.trim());
+              assert.equal(words.length, 4, name + ': Home word inventory');
+              const intro = await verifyHeroIntro(page, words, reducedMotion === 'reduce');
+              assert.deepEqual(intro.issues, [], name + ': bounded headline introduction');
+              const geometry = await page.locator('.home-head .rp-cyc-word').evaluateAll(nodes => nodes.map(node => {
+                const bounds = node.closest('.rp-cycle').getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                return [...range.getClientRects()].filter(rect => rect.width > 0).every(rect =>
+                  rect.left >= Math.max(bounds.left, 0) - 2 && rect.right <= Math.min(bounds.right, document.documentElement.clientWidth) + 2);
+              }));
+              assert.ok(geometry.every(Boolean), name + ': clipped rotating word');
             }
             const cta = page.locator('.home-close-cta');
             await cta.scrollIntoViewIfNeeded();

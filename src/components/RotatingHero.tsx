@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import BrandBadge from './BrandBadge';
-import RotatingPill, { HeroRotationControl } from './RotatingPill';
+import RotatingPill from './RotatingPill';
 
 /**
  * The Home hero — badge, rotating headline pill, one body line — as a reusable,
@@ -31,7 +31,7 @@ import RotatingPill, { HeroRotationControl } from './RotatingPill';
  *   dot         0.5s cubic-bezier(.34,1.56,.64,1) with a .72s delay
  *
  * ANIMATION CONSTANTS - do not retune one surface alone:
- *   2400ms interval, cubic-bezier(.16,1,.3,1) for the wipe and the width glide,
+ *   bounded introductory sequence, cubic-bezier(.16,1,.3,1) for the wipe and the width glide,
  *   cubic-bezier(.34,1.56,.64,1) .72s for the dot pop, .33em dot with a .18em gap.
  *
  * WORD LENGTH IS LAYOUT. The pill animates to each word's MEASURED width, so the
@@ -148,7 +148,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
    * additive - no JS, a failed bundle or reduced motion all render a complete pill.
    */
   const [ phase, setPhase ] = useState<'final' | 'armed' | 'shown'>( 'final' );
-  const [ rotationPaused, setRotationPaused ] = useState( false );
 
   useEffect( () => {
     // THE ENTRANCE IS OPT-IN, NOT OPT-OUT, and this was a real defect on twelve pages.
@@ -171,7 +170,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
     // DECLARATIVE, NOT classList - AND THAT MATTERS HERE SPECIFICALLY.
     //
     // The closing band on the home page arms itself with classList, which is right there: that
-    // node never re-renders. THIS component re-renders every 2400ms, because cycleIndex
+    // node never re-renders. THIS component used to re-render every 2400ms, because cycleIndex
     // advances the rotation - and React rewrites className on every render, silently dropping
     // any class added imperatively. Measured: with classList the built page showed
     // "rh-layout show" and no is-armed at all.
@@ -237,7 +236,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
               <Head className="rh-head rh-title">{ frame }</Head>
               <div className="rh-head rh-head-rotate rh-decoration" aria-hidden="true">
                 { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-                <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+                <RotatingPill key={ pillKey } words={ words } phase={ phase } />
               </div>
             </>
           ) : (
@@ -246,7 +245,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
                 <>
                   <span className="rh-head-line rh-head-inline-rotate">
                     <span>{ frame }</span>
-                    <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+                    <RotatingPill key={ pillKey } words={ words } phase={ phase } />
                   </span>
                   { secondLine && <span className="rh-head-line">{ secondLine }</span> }
                 </>
@@ -255,7 +254,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
                   <span className="rh-head-line">{ frame }</span>
                   <span className="rh-head-line rh-head-rotate">
                     { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-                    <RotatingPill key={ pillKey } words={ words } phase={ phase } paused={ rotationPaused } />
+                    <RotatingPill key={ pillKey } words={ words } phase={ phase } />
                   </span>
                 </>
               ) }
@@ -263,7 +262,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           ) }
 
           { sub && <p className="rh-sub">{ sub }</p> }
-          <HeroRotationControl count={ words.length } paused={ rotationPaused } onToggle={ () => setRotationPaused( value => !value ) } />
           </div>
 
           { visual }
