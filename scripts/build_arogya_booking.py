@@ -56,7 +56,7 @@ def _check_disabled_template(template):
     if parameters['ApolloAutomationEnabled'].get('Default') != 'false':
         raise ValueError('Apollo automation must be disabled by default')
     for name in ('ApolloRegistryTableName', 'ApolloTokenKeyArn',
-                 'ApolloGmailGrantOwner', 'ApolloGoogleOAuthSecretArn'):
+                 'ApolloGmailGrantOwner', 'ApolloGoogleOAuthSecretArn', 'ApolloServiceSecretArn'):
         if parameters[name].get('Default') != '':
             raise ValueError('Provider configuration must be empty by default')
     function = template['Resources']['Function']['Properties']
@@ -108,7 +108,8 @@ def verify(output, *, expected_commit=None):
         raise ValueError('Release artifact was built from a different source revision')
     if manifest.get('parameters') != {'CodeBucket': BUCKET, 'CodeKey': expected_key,
             'ApolloAutomationEnabled': 'false', 'ApolloRegistryTableName': '',
-            'ApolloTokenKeyArn': '', 'ApolloGmailGrantOwner': '', 'ApolloGoogleOAuthSecretArn': ''}:
+            'ApolloTokenKeyArn': '', 'ApolloGmailGrantOwner': '', 'ApolloGoogleOAuthSecretArn': '',
+            'ApolloServiceSecretArn': ''}:
         raise ValueError('Release parameters must not activate the provider')
     _check_disabled_template(json.loads(template.read_bytes()))
     with zipfile.ZipFile(archive) as bundle:
@@ -155,7 +156,8 @@ def build(output):
         'templateSha256': _sha(template), 'sourceCommit': commit,
         'parameters': {'CodeBucket': BUCKET, 'CodeKey': key,
             'ApolloAutomationEnabled': 'false', 'ApolloRegistryTableName': '',
-            'ApolloTokenKeyArn': '', 'ApolloGmailGrantOwner': '', 'ApolloGoogleOAuthSecretArn': ''}}
+            'ApolloTokenKeyArn': '', 'ApolloGmailGrantOwner': '', 'ApolloGoogleOAuthSecretArn': '',
+            'ApolloServiceSecretArn': ''}}
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     verify(output, expected_commit=manifest['sourceCommit'])
     print(json.dumps(manifest))
