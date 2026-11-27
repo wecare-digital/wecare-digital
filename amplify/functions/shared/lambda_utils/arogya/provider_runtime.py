@@ -167,7 +167,7 @@ def _secret(arn):
     # The exact ARN is deployment-pinned and separately scoped by IAM.
     if not arn.startswith('arn:aws:secretsmanager:'):
         raise CatalogueUnavailable('Apollo runtime credential is not configured')
-    value = boto3.client('secretsmanager').get_secret_value(SecretId=arn)
+    value = boto3.client('secretsmanager').get_secret_value(SecretId=arn, VersionStage='AWSCURRENT')
     raw = value.get('SecretString')
     if not isinstance(raw, str) or len(raw) > 8192:
         raise CatalogueUnavailable('Apollo runtime credential is invalid')
@@ -177,17 +177,23 @@ def _secret(arn):
     return config
 
 
-def _provider_config(table, kms):
-    config = EncryptedSessionStore(table, kms, key_arn=os.environ['APOLLO_TOKEN_KEY_ARN'],
-        record_key='arogya:provider:credentials').read()
+def _provider_config():
+    # Provider credentials have one authoritative home: the exact deployment-
+    # pinned Secrets Manager secret. Never copy a password into a session row.
+    arn = os.environ.get('APOLLO_SERVICE_SECRET_ARN', '')
+    if not re.fullmatch(r'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/arogya/apollo-[A-Za-z0-9]+', arn):
+        raise CatalogueUnavailable('Apollo runtime requires administrator configuration')
+    config = _secret(arn)
     sender = config.get('approvedSender', '')
     header = config.get('applicationHeader')
     password = config.get('password')
     if (config.get('providerAutomationApproved') is not True
             or config.get('grantOwner') != os.environ.get('APOLLO_GMAIL_GRANT_OWNER')
             or config.get('username') != MAILBOX
+            or config.get('websiteAddress') != 'https://aauser-ic.apollohospitals.com/'
             or not isinstance(sender, str) or not re.fullmatch(r'[^\s@]+@(?:[a-z0-9-]+\.)*apollohospitals\.com', sender)
             or not isinstance(header, str) or not header or len(header) > 2048
+            or not header.strip() or any(ord(char) < 32 or ord(char) == 127 for char in header)
             or not isinstance(password, str) or not password or len(password) > 1024):
         raise CatalogueUnavailable('Apollo runtime requires administrator configuration')
     return config
@@ -197,7 +203,8 @@ def _runtime_store():
     table_name = os.environ.get('APOLLO_REGISTRY_TABLE')
     key_arn = os.environ.get('APOLLO_TOKEN_KEY_ARN')
     if (os.environ.get('APOLLO_AUTOMATION_ENABLED') != 'true'
-            or table_name != 'wecare-workspace-mcp' or not key_arn):
+            or table_name != 'wecare-workspace-mcp' or not key_arn
+            or not os.environ.get('APOLLO_SERVICE_SECRET_ARN')):
         raise CatalogueUnavailable('Apollo catalogue authorization required')
     table = boto3.resource('dynamodb').Table(table_name)
     kms = boto3.client('kms')
@@ -212,7 +219,7 @@ def _provider_session(now):
     # The administrator's verified binding must exist on every catalogue read.
     # Verify metadata before reading credentials or contacting Apollo.
     grant.verified_row()
-    config = _provider_config(table, kms)
+    config = _provider_config()
     client = ApolloClient(config['applicationHeader'])
     gmail = None
 
