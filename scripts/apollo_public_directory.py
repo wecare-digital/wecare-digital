@@ -17,7 +17,6 @@ import sys
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from urllib.error import URLError
-from urllib.robotparser import RobotFileParser
 
 ORIGIN = 'https://www.apollohospitals.com'
 SOURCES = {'hospitals': ORIGIN + '/facilities/hospitals', 'doctors': ORIGIN + '/doctors'}
@@ -120,17 +119,55 @@ def parse_directory(kind, html):
     return list(parser.links.values()), parser.truncated
 
 
+def robots_allows(robots, url):
+    """Conservatively veto matching disallows, including wildcard rules."""
+    groups = []
+    agents, rules = [], []
+    for line in robots.splitlines():
+        key, sep, value = line.split('#', 1)[0].partition(':')
+        if not sep:
+            continue
+        key, value = key.strip().lower(), value.strip()
+        if key == 'user-agent':
+            if rules:
+                groups.append((agents, rules))
+                agents, rules = [], []
+            if value:
+                agents.append(value.lower())
+        elif key in ('allow', 'disallow') and agents:
+            rules.append((key, value))
+    if agents:
+        groups.append((agents, rules))
+    product = AGENT.split('/', 1)[0].lower()
+    matches = []
+    for agents, rules in groups:
+        lengths = [0 if a == '*' else len(a) for a in agents if a == '*' or a in product]
+        if lengths:
+            matches.append((max(lengths), rules))
+    if not matches:
+        return False
+    highest = max(length for length, _ in matches)
+    path = urlsplit(url).path
+    for length, rules in matches:
+        if length != highest:
+            continue
+        for key, rule in rules:
+            if key != 'disallow' or not rule:
+                continue
+            end = rule.endswith('$')
+            if end:
+                rule = rule[:-1]
+            expression = re.escape(rule).replace(r'\*', '.*')
+            if re.match(expression + ('$' if end else ''), path):
+                return False
+    return True
+
+
 def discover(kind, *, approved=False, get=fetch):
     if approved is not True or kind not in SOURCES:
         raise DirectoryUnavailable('Apollo-approved directory access required')
     robots = get(ORIGIN + '/robots.txt', max_bytes=256 * 1024, media='text/plain')
-    policy = RobotFileParser()
-    policy.parse(robots.splitlines())
-    if not robots.strip() or not re.search(r'(?im)^\s*user-agent\s*:', robots):
-        raise DirectoryUnavailable('Directory crawl policy unavailable')
-    # Honor the declared user agent and robots.txt. A provider's affirmative
-    # permission is separate from a robots allowance.
-    if not policy.can_fetch(AGENT, SOURCES[kind]):
+    if not robots_allows(robots, SOURCES[kind]):
         raise DirectoryUnavailable('Directory crawl disallowed by robots.txt')
     html = get(SOURCES[kind], max_bytes=MAX_BYTES, media='text/html')
     items, truncated = parse_directory(kind, html)
