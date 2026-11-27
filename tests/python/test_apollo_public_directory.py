@@ -73,3 +73,18 @@ def test_limit_and_no_slot_or_booking_fields(monkeypatch):
     ''')
     assert len(items) == 1 and truncated
     assert set(items[0]) == {'label', 'url', 'specialitySlug', 'citySlug'}
+
+
+@pytest.mark.parametrize('robots', [
+    'User-agent: *\nAllow: /\nDisallow: /doctors\n',
+    'User-agent: *\nDisallow: /doc*\n',
+    'User-agent: *\nAllow: /\n\nUser-agent: WECARE-Arogya-Directory\nDisallow: /\n',
+    'User-agent: AnotherBot\nAllow: /\n',
+])
+def test_conservative_robots_rejects_matching_rules_and_unknown_policy(robots):
+    assert not directory.robots_allows(robots, directory.SOURCES['doctors'])
+
+
+def test_unrelated_bot_rules_do_not_prevent_approved_directory_read():
+    robots = 'User-agent: *\nAllow: /\nDisallow: /search/\n\nUser-agent: OtherBot\nDisallow: /\n'
+    assert directory.robots_allows(robots, directory.SOURCES['hospitals'])
