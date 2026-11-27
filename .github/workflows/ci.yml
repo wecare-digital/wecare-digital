@@ -73,3 +73,6 @@ jobs:
         run: |
           python scripts/build_arogya_booking.py --output "$RUNNER_TEMP/arogya-release"
           python scripts/build_arogya_booking.py --output "$RUNNER_TEMP/arogya-release" --verify
+
+      - name: Stage and verify customer OTP artifact offline
+        run: python scripts/stage_customer_auth_package.py --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/customer-auth-release"
