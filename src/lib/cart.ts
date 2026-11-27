@@ -291,6 +291,24 @@ function announce (): void {
   window.dispatchEvent( new window.CustomEvent( CART_CHANGED_EVENT ) );
 }
 
+/** Refresh display metadata for an existing exact variant without changing the basket. */
+export function refreshCartLineDisplay ( product: ShopProduct, variantId: string ): CartItem[] {
+  const current = readCart();
+  if ( !product.variants?.some( variant => variant.id === variantId ) ) return current;
+  let changed = false;
+  const result = current.map( item => {
+    if ( item.productId !== product.id || item.variantId !== variantId ) return item;
+    const name = product.variants && product.variants.length > 1
+      ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
+      : product.name;
+    if ( item.name === name && item.slug === product.slug && item.formattedPrice === product.formattedPrice ) return item;
+    changed = true;
+    return { ...item, name, slug: product.slug, formattedPrice: product.formattedPrice };
+  } );
+  if ( changed ) writeCart( result );
+  return result;
+}
+
 /** Add a catalogue variant without discarding the rest of the unpaid website cart. */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );

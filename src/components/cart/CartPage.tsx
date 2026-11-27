@@ -25,7 +25,7 @@ import Select from '../ui/Select';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, addItem, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
+  readCart, addItem, refreshCartLineDisplay, removeItem, setQuantity, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant, setContribution, isContributionItem,
   basketFingerprint, cartRequiresDelivery,
   serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
@@ -126,7 +126,7 @@ function cartFromDirectTestLink (): CartItem[] {
 
   const present = existing.some( item =>
     item.productId === product.id && item.variantId === variantId );
-  const items = present ? existing : addItem( product, 1, variantId );
+  const items = present ? refreshCartLineDisplay( product, variantId ) : addItem( product, 1, variantId );
 
   // The link is consumed once. A reload must never add a second unit.
   query.delete( 'test' );
