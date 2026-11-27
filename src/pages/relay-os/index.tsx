@@ -45,10 +45,8 @@ const GrahakOsPage: React.FC = () => {
 
   // ARM ONLY AFTER CONFIRMING WE CAN ANIMATE, AND SEED WHATEVER IS ALREADY ON SCREEN.
   //
-  // Two things have to happen in ONE render here, or the no-JS fix trades a blank page
-  // for a flash. Arming hides every .anim section; the observer then reveals them. If
-  // those land in separate commits, anything already in the viewport paints
-  // visible -> hidden -> animated-in, which is a more obvious artefact than the bug was.
+  // Batch arming and on-screen detection so already visible sections never jump.
+  // Below the fold, sections are offset for a short entrance without fading their text.
   //
   // So the sections currently intersecting the viewport are measured synchronously and
   // seeded into `visible` in the same batch that sets `armed`. React batches both
@@ -86,16 +84,7 @@ const GrahakOsPage: React.FC = () => {
     );
     sections.forEach((el) => obs.observe(el));
 
-    // SAFETY NET so a section can never stay stuck at opacity:0. Arming hides every
-    // .anim section and the observer is then meant to reveal each one as it scrolls
-    // into view - but on the built export the observer's reveal was not firing for the
-    // sections below the fold, so the whole page below the hero rendered blank while the
-    // text was still in the DOM (which is why the no-JS body-text count stayed green and
-    // the bug went unseen). This timer reveals anything still hidden a short time after
-    // arming, so a visitor always ends on the finished state. It does not disable the
-    // scroll animation: sections the observer DOES catch animate normally; this only
-    // backstops the ones it misses. 1200ms is long enough for a genuine on-scroll reveal
-    // to win first and short enough that a stuck section is never visibly blank.
+    // Restore the natural position even if a below-fold observer never fires.
     const failsafe = window.setTimeout(() => {
       setVisible((p) => new Set([...p, ...sections.map((el) => el.id)]));
     }, 1200);
@@ -577,27 +566,14 @@ response = requests.post(
             .page{overflow-x:clip}
           }
           
-          /* Animations
-             THE FINISHED STATE IS WHAT CSS SHIPS, and .is-armed is what opts out of it.
-             This block used to declare .anim{opacity:0} as the BASE state, with .show
-             added by an IntersectionObserver inside a useEffect - so the only thing
-             standing between a visitor and this page was JavaScript running. Measured
-             against the export with javaScriptEnabled:false, every .anim section (hero,
-             touchpoint, api) rendered at opacity:0.
-             The whole page was blank.
-             It went unnoticed for a reason worth recording: opacity does not remove text
-             from the DOM, so the no-JS body-text count the design contract cites stayed
-             correct at 2,448 chars and every harness suite stayed green while nothing was
-             visible. A text measurement cannot see a paint bug.
-             So the resting state is now VISIBLE, and the page arms itself only after the
-             script has confirmed it can drive the reveal - the same shape Footer.tsx
-             already uses for .ft-tagline. No JS, no IntersectionObserver, or a hydration
-             failure all land on the same safe outcome: the finished state.
-             DO NOT move opacity:0 back onto .anim. */
-          .anim{opacity:1;transform:none}
-          .anim.is-armed{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
-          .anim.is-armed.show{opacity:1;transform:translateY(0)}
-          
+          /* Move below-fold sections without fading their text or controls. Mid-fade
+             color compositing dropped checkout and pricing below their contrast floor.
+             No JavaScript renders the settled state, and keyboard focus settles immediately. */
+          .anim{transform:none}
+          .anim.is-armed{transform:translateY(30px);transition:transform .7s cubic-bezier(.16,1,.3,1)}
+          .anim.is-armed.show,.anim.is-armed:focus-within{transform:none}
+          .anim.is-armed:focus-within{transition:none}
+
           /* Hero Section */
           .hero{padding:140px 24px 80px;max-width:var(--public-content-max);margin:0 auto}
           /* Left column gets the extra room: the display type is large and the
@@ -1368,10 +1344,7 @@ response = requests.post(
           
           /* ========== REDUCED MOTION ========== */
           @media(prefers-reduced-motion:reduce){
-            /* Both selectors, because the reveal transition moved onto .anim.is-armed when
-               the base state became the finished one. Matching .anim alone would leave the
-               armed sections still transitioning under reduced motion. */
-            .anim,.anim.is-armed{transition:none}
+            .anim,.anim.is-armed{transform:none;transition:none}
             .typing-indicator{animation:none}
             .typing-indicator span{animation:none}
             .pill{transition:none}
