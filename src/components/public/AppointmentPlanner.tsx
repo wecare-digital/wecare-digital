@@ -29,22 +29,22 @@ export default function AppointmentPlanner ( { accountKey, onAccountChanged, onS
   const [ hospitalRevision, setHospitalRevision ] = useState( 0 );
   const [ specialityRevision, setSpecialityRevision ] = useState( 0 );
   const [ dateRevision, setDateRevision ] = useState( 0 );
-  const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired );
-  const appointmentTypes = useApolloChoices( 'appointmentTypes', {}, step === 1 && hospitals.options.length > 0, catalogRetry, onSessionExpired );
+  const hospitals = useApolloChoices( 'hospitals', {}, true, catalogRetry, onSessionExpired, onAccountChanged );
+  const appointmentTypes = useApolloChoices( 'appointmentTypes', {}, step === 1 && hospitals.options.length > 0, catalogRetry, onSessionExpired, onAccountChanged );
   const hospitalId = plan.hospitalId || '';
   const specialityId = plan.specialityId || '';
   const doctorId = plan.doctorId || '';
   const healthCheckId = plan.healthCheckId || '';
   const hospitalSelected = hospitals.options.some( item => item.id === hospitalId );
   const isHealthCheck = plan.appointmentType === 'Health Checks';
-  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && !isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
+  const specialities = useApolloChoices( 'specialities', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && !isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired, onAccountChanged );
   const specialitySelected = specialities.options.some( item => item.id === specialityId );
-  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, `${catalogRetry}:${specialityRevision}`, onSessionExpired );
-  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired );
+  const doctors = useApolloChoices( 'doctors', { hospitalId, specialityId }, step === 1 && specialitySelected, `${catalogRetry}:${specialityRevision}`, onSessionExpired, onAccountChanged );
+  const healthChecks = useApolloChoices( 'healthChecks', { hospitalId }, step === 1 && hospitalSelected && appointmentTypes.options.some( item => item.label === plan.appointmentType ) && isHealthCheck, `${catalogRetry}:${hospitalRevision}`, onSessionExpired, onAccountChanged );
   const dates = useApolloChoices( 'dates', { hospitalId, ...( isHealthCheck ? { healthCheckId } : { doctorId } ) },
-    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), `${catalogRetry}:${dateRevision}`, onSessionExpired );
-  const times = useApolloChoices( 'times', {}, step === 2 && hospitalSelected, `${catalogRetry}:${dateRevision}`, onSessionExpired );
-  const salutations = useApolloChoices( 'salutations', {}, step === 3 && plan.userType === 'New User', catalogRetry, onSessionExpired );
+    step === 2 && hospitalSelected && plan.appointmentType !== 'Admission' && !!( isHealthCheck ? healthCheckId : doctorId ), `${catalogRetry}:${dateRevision}`, onSessionExpired, onAccountChanged );
+  const times = useApolloChoices( 'times', {}, step === 2 && hospitalSelected, `${catalogRetry}:${dateRevision}`, onSessionExpired, onAccountChanged );
+  const salutations = useApolloChoices( 'salutations', {}, step === 3 && plan.userType === 'New User', catalogRetry, onSessionExpired, onAccountChanged );
   const hours = [ ...new Set( times.options.map( item => item.id.split( ':' )[0] ) ) ];
   const minutes = [ ...new Set( times.options.filter( item => item.id.split( ':' )[0] === plan.time.split( ':' )[0] )
     .map( item => item.id.split( ':' )[1] ) ) ];
