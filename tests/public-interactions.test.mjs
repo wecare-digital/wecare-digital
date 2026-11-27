@@ -57,7 +57,7 @@ test('voice failure and language activation retain typed and accessible alternat
 
 test('the seven public search surfaces opt into the same non-overlapping layout', () => {
   const css=read('src/styles/public-interactions.css');
-  for(const token of ['flex-wrap: wrap','flex: 1 1 96px','position: static','outline: 2px solid var(--public-brand-green)']) assert.ok(css.includes(token),token);
+  for(const token of ['flex-wrap: wrap','flex: 1 1 96px','position: static','outline: none','box-shadow: inset 0 -2px 0 var(--public-brand-green)','outline: 2px solid Highlight']) assert.ok(css.includes(token),token);
   assert.ok(read('src/pages/_app.tsx').includes("import '../styles/public-interactions.css';"));
   for(const path of ['src/components/Header.tsx','src/components/BlogSearch.tsx','src/components/BlogIndexView.tsx','src/components/ProductBlogPanel.tsx','src/components/LegalDocument.tsx','src/pages/post/[slug].tsx','src/components/orders/OrderActionsMenu.tsx']){
     const source=read(path);
@@ -79,4 +79,17 @@ test('shared cards, actions and paging keep responsive tokens and logical scroll
   const support=read('src/components/SupportWidget.tsx');
   assert.ok(support.includes('window.visualViewport'));
   assert.ok(support.includes('publicSupportGeometry( {'));
+});
+
+test('public navigation arrows use one contrasting blue token, with search focus underlines', () => {
+  assert.ok(read('src/styles/tokens.css').includes('--public-nav-arrow: var(--public-accent-blue)'));
+  for (const [path, marker] of [
+    ['src/components/Header.tsx', '.nav-row-chevron{margin-inline-start:auto;fill:var(--public-nav-arrow)'],
+    ['src/components/orders/OrderActionsMenu.tsx', 'flex:none;fill:var(--public-nav-arrow)'],
+    ['src/components/LegalDocument.tsx', '.lgd-contents-chevron,.lgd-group-chevron{color:var(--public-nav-arrow)'],
+    ['src/components/SupportWidget.tsx', 'border-right:2px solid var(--public-nav-arrow)'],
+    ['src/pages/auth.tsx', '.country-arrow{color:var(--public-nav-arrow)}'],
+  ]) assert.ok(read(path).includes(marker), path);
+  assert.ok(read('src/components/SupportWidget.tsx').includes('.wc-search:focus-within{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}'));
+  assert.ok(read('src/pages/auth.tsx').includes('.country-search input:focus{border-bottom-color:var(--public-brand-green);box-shadow:inset 0 -2px 0 var(--public-brand-green);outline:none}'));
 });
