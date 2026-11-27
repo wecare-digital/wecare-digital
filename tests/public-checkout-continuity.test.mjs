@@ -32,3 +32,14 @@ test('aborted obsolete quotes cannot overwrite current review state', () => {
   assert.match(cart, /if \( live \) setQuoteNotice\( controller\.signal\.aborted/);
   assert.match(cart, /Price review timed out/);
 });
+
+
+test('quote refresh uses opaque contrast and footer keeps its complete brand at extreme zoom', () => {
+  const lockup = readFileSync(new URL('../src/components/BrandLockup.tsx', import.meta.url), 'utf8');
+  const fixture = readFileSync(new URL('../scripts/verify_checkout_fixture.mjs', import.meta.url), 'utf8');
+  assert.match(cart, /\.cart-quiet-refresh\{[^}]*background:var\(--public-bg\);color:var\(--public-brand-green\)/);
+  assert.match(cart, /\.cart-quiet-refresh:disabled\{color:var\(--text-muted\);opacity:1;cursor:default;text-decoration:none\}/);
+  assert.match(lockup, /@media\(max-width:219px\)\{\s*\.brand-lockup\.public-footer\.compact\{flex-direction:column;align-items:flex-start;gap:4px;max-width:100%\}/);
+  assert.ok(fixture.includes("querySelectorAll('body *')"));
+  assert.ok(fixture.includes('if(geom.scroll>geom.width+2) failures.push'));
+});
