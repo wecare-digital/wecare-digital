@@ -101,8 +101,8 @@ const COMMERCE_ONE_RUPEE_TEST_PRODUCT: ShopProduct = {
   ...COMMERCE_TEST_PRODUCT,
   id: 'native:commerce-test-1',
   name: 'Commerce Test - Rs 1',
-  formattedPrice: '₹1.00', // Display only; live quote decides the payable amount.
-  price: '1.00',
+  formattedPrice: '₹0.99', // Base only; the server quote includes Delight and processing.
+  price: '0.99',
   variants: [ { id: COMMERCE_ONE_RUPEE_TEST_VARIANT_ID, label: 'Standard', inStock: true } ],
 };
 
