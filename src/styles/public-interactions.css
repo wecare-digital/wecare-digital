@@ -31,8 +31,20 @@
 [data-public-search-field] > input[type="search"]:focus {
   outline: none;
   border-radius: 0;
-  border-block-end-color: var(--public-brand-green);
-  box-shadow: inset 0 -2px 0 var(--public-brand-green);
+  border-block-end-color: var(--public-search-underline);
+  box-shadow: var(--public-search-focus-shadow);
+}
+/* Hover is a quiet lime tint, without a new border or layout shift. */
+@media (hover: hover) and (pointer: fine) {
+  [data-public-search-field] > input[type="search"]:not(:disabled):hover {
+    background-color: var(--public-lime-tint);
+  }
+  [data-public-search-field] > button.public-search-clear:not(:disabled):hover,
+  [data-public-search-field] > button.voice-search-mic:not(:disabled):not(.is-unavailable):hover {
+    background-color: var(--public-nav-hover);
+    border-radius: var(--public-nav-radius);
+    color: var(--public-brand-green);
+  }
 }
 /* VoiceSearchMic owns its shared live status, including the visible
  * failure row (.voice-search-status.is-visible). Keep it in normal flow
