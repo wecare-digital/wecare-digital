@@ -588,7 +588,7 @@ const Header: React.FC = () => {
   // Firefox and WebKit so this cannot recur silently.
 
   return (
-    <header className="hdr">
+    <header className={ router.pathname === '/' ? 'hdr is-home' : 'hdr' }>
       <div className="hdr-in">
         <div className="logo-nav">
           {/* Plain <a>, not next/link, for the same styled-jsx reason as Footer's lockup:
@@ -1361,6 +1361,30 @@ const Header: React.FC = () => {
           .nav-item,.nav-child{font-size:18px;padding-inline:10px;gap:7px}
           .nav-group-label{padding-inline:10px;gap:7px}
           .nav-child{padding-inline-start:18px}
+        }
+
+        /* Home's edge-to-edge WebView trial: body already contributes the top
+           safe inset to document content, but a fixed header sits outside that
+           flow. Reserve it in the header itself and adjust its popup. Keep the
+           existing desktop/phone heights and other route chrome unchanged. */
+        .hdr.is-home{padding-top:var(--safe-top,0px)}
+        .hdr.is-home .hdr-in{
+          padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
+          padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
+        }
+        .hdr.is-home .nav-menu{
+          max-height:calc(100vh - 140px - var(--safe-top,0px) - var(--safe-bottom,0px));
+          max-height:calc(100dvh - 140px - var(--safe-top,0px) - var(--safe-bottom,0px));
+        }
+        @media(max-width:767px){
+          .hdr.is-home .hdr-in{
+            padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
+            padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
+          }
+          .hdr.is-home .hdr-in .nav-menu{top:calc(100px + var(--safe-top,0px))}
+        }
+        @media(max-width:340px){
+          .hdr.is-home .hdr-in{padding-left:max(10px,var(--safe-left,0px));padding-right:max(10px,var(--safe-right,0px))}
         }
 
         @media(prefers-reduced-motion:reduce){

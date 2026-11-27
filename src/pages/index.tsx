@@ -665,7 +665,9 @@ const HomePage: React.FC = () => {
           width:100%;
           max-width:var(--public-content-max);
           margin:0 auto;
-          padding:80px 24px 48px;
+          padding:80px var(--public-page-gutter) 48px;
+          padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
+          padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
           box-sizing:border-box;
           display:flex;
           flex-direction:column;
@@ -771,7 +773,8 @@ const HomePage: React.FC = () => {
            - now lives in RotatingPill, which self-scopes its own rp-* CSS and is driven by
            the phase prop (final -> armed -> shown, owned by this page). styled-jsx here cannot
            reach a child component's markup, which is why the pill owns its own styles. */
-        .home-head-line{display:block;text-wrap:balance}
+        .home-head-line{display:block;max-width:100%;overflow-wrap:anywhere;text-wrap:balance}
+        .home-sub,.home-flow-title,.home-flow-lead,.home-flow-list li{overflow-wrap:anywhere}
 
         /* Foldable hinge progressive enhancement. Normal responsive widths cannot represent an
            occluded physical hinge. If a browser exposes two side-by-side viewport segments,
@@ -787,8 +790,17 @@ const HomePage: React.FC = () => {
            only Home's band, so other routes stay untouched until their own migration.
            The closing heading also balances at every width. The sitewide balance rule stops at
            767px, so tablets and desktop got the greedy break, which left "today." alone. */
-        :global(.cb.home-close .home-close-cta){font-size:18px}
-        :global(.cb.home-close .home-close-title){text-wrap:balance}
+        :global(.cb.home-close .home-close-cta){font-size:18px;max-width:100%;min-width:0;justify-content:center;text-align:center;overflow-wrap:anywhere}
+        :global(.cb.home-close .home-close-title){text-wrap:balance;overflow-wrap:anywhere}
+        :global(.cb.home-close .home-close-lead),
+        :global(.cb.home-close .home-close-eyebrow){overflow-wrap:anywhere}
+        /* Home-only landscape safe-area gutters. The shared Header has a matching
+           opt-in; other pages retain their current geometry until audited. */
+        :global(footer.ft-footer .ft-in),
+        :global(div.public-action-tail.public-action-tail){
+          padding-left:max(var(--public-page-gutter),var(--safe-left,0px));
+          padding-right:max(var(--public-page-gutter),var(--safe-right,0px));
+        }
 
         @media(horizontal-viewport-segments:2){
           .home-layout{
@@ -809,6 +821,8 @@ const HomePage: React.FC = () => {
           .home-shell{padding-top:96px}
           .home-layout{
             padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px;
+            padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
+            padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
             gap:var(--public-mobile-section-gap);
           }
           /* line-height only. The letter-spacing override that used to sit here is gone:
@@ -830,32 +844,43 @@ const HomePage: React.FC = () => {
           .home-flow-list{grid-auto-rows:auto;gap:28px}
           /* HOME-ONLY overrides for shared child components. They apply only while Home is
              mounted, so other public routes stay visually unchanged until their migration. */
+          :global(footer.ft-footer .ft-in),
+          :global(div.public-action-tail.public-action-tail){
+            padding-left:max(var(--public-mobile-page-gutter),var(--safe-left,0px));
+            padding-right:max(var(--public-mobile-page-gutter),var(--safe-right,0px));
+          }
           :global(.cb.home-close .home-close-title){font-size:var(--public-mobile-section-size)}
           :global(.cb.home-close .home-close-cta){font-size:var(--public-mobile-cta-font-size)}
           :global(.public-share .ps-menu-sub),
           :global(.public-share .ps-menu-note){font-size:15px}
         }
 
-        /* COMMON PHONE HERO. The old 288px cap below 400px forced the frame into
-           "Everyday AI," / "built for" on the exact 360-390px phones where the design now
-           requires one line. Keep the frame on one line at real phone widths, and scale it
-           fluidly from 27px on the 280px Fold to 32px on common phones. The pill remains its
-           own line, so rotation never changes h1 height.
-           Do NOT carry nowrap below 280 CSS px: browser zoom/reflow can shrink the layout
-           viewport far below a physical phone width, and wrapping there is preferable to
-           horizontal page overflow. */
+        /* COMMON PHONE HERO. Keep the approved compact scale and one-line English
+           frame when it fits. A translated phrase, larger system font or a narrower
+           safe-area-adjusted measure must be allowed to wrap, not clipped by nowrap.
+           The rotating pill still owns its separate line. */
         @media(min-width:280px) and (max-width:399px){
           .home-head{font-size:clamp(27px,9.4vw,32px)}
-          .home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}
+          .home-head-line{max-width:100%;white-space:normal;text-wrap:wrap}
           .home-flow-title{font-size:28px;max-width:min(288px,100%);text-wrap:balance}
           /* The closing section title shares the flow title's size here. Pinning only the flow
              title left / with two section-h2 sizes (28px and 30.23px at 390px). */
           :global(.cb.home-close .home-close-title){font-size:28px}
         }
         @media(max-width:279px){
-          .home-head-line{white-space:normal}
+          /* Extreme reflow: the global fluid hero token already shrinks the English
+             words; also allow longer translated words to wrap inside the pill.
+             The inline measured width is intentionally overridden only here so
+             the ordinary width-glide is untouched on physical phone widths. */
+          .home-head-line{white-space:normal;text-wrap:wrap}
+          .home-head :global(.rp-mark){display:inline-flex;align-items:center;gap:.18em;white-space:normal}
+          .home-head :global(.rp-mark-dot){flex:0 0 .33em;margin-inline-end:0}
+          .home-head :global(.rp-cycle){width:auto!important;min-width:0;max-width:100%;height:auto;line-height:1.1;transition:none}
+          .home-head :global(.rp-cyc-word.on){max-width:100%;white-space:normal;overflow-wrap:anywhere}
           .home-flow-title{font-size:26px}
           :global(.cb.home-close .home-close-title){font-size:26px}
+          :global(.cb.home-close .home-close-panel){padding:clamp(10px,5vw,28px)}
+          :global(.cb.home-close .home-close-cta){padding:8px clamp(6px,4vw,14px)}
         }
       `}</style>
     </>
