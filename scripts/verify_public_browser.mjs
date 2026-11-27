@@ -22,6 +22,8 @@ const engineNames = (process.env.PUBLIC_QA_ENGINES || 'chromium').split(',').map
 for (const engine of engineNames) assert.ok(['chromium', 'firefox', 'webkit'].includes(engine), 'Unknown browser engine: ' + engine);
 assert.ok(engineNames.length, 'Select at least one browser engine');
 const menuOnly = process.env.PUBLIC_QA_MENU_ONLY === '1';
+const baselineOnly = process.env.PUBLIC_QA_BASELINE_ONLY === '1';
+assert.ok(!(menuOnly && baselineOnly), 'Choose one focused QA mode');
 const requestedRoute = process.env.PUBLIC_QA_ROUTE;
 const normalizedRoute = requestedRoute ? new URL(requestedRoute, origin).pathname.replace(/\/+$/, '') || '/' : null;
 if (requestedRoute) assert.equal(new URL(requestedRoute, origin).origin, origin.origin, 'QA route must use the approved origin');
@@ -82,7 +84,7 @@ const focusedDevices = [
   ['phone-430', 430, 932, true], ['phone-landscape', 844, 390, true],
   ['fold-280', 280, 653, true], ['reflow-stress-160', 160, 640, true, 'reduce'],
 ];
-const matrix = normalizedRoute || menuOnly ? [...devices, ...focusedDevices] : devices;
+const matrix = normalizedRoute || menuOnly || baselineOnly ? [...devices, ...focusedDevices] : devices;
 async function verifyMenu(page, name, width, height, touch) {
   const trigger = page.getByRole('button', {name: 'Open navigation', exact: true});
   const nav = page.getByRole('navigation', {name: 'Public navigation'});
@@ -169,6 +171,27 @@ try {
           }));
           assert.ok(dimensions.scroll <= dimensions.width + 2, name + ': horizontal page overflow ' + JSON.stringify(dimensions));
 
+          if (baselineOnly) {
+            const meta = page.locator('meta[name="viewport"]');
+            assert.equal(await meta.count(), 1, name + ': viewport meta count');
+            const viewport = (await meta.getAttribute('content')) || '';
+            assert.match(viewport, /viewport-fit=cover/, name + ': missing safe-area viewport');
+            assert.doesNotMatch(viewport, /user-scalable\s*=\s*no|maximum-scale\s*=\s*1(?:[.,\s]|$)/i, name + ': zoom disabled');
+            assert.equal(await page.locator('header.hdr').count(), 1, name + ': shared header');
+            assert.equal(await page.locator('footer.ft-footer').count(), 1, name + ': shared footer');
+            assert.equal(await page.locator('.public-share').count(), 1, name + ': shared action rail');
+            assert.equal(await page.locator('details.wc-policy').count(), route.path === '/' ? 0 : 1, name + ': policy count');
+            const chrome = await page.evaluate(() => ({
+              insets: [...document.querySelectorAll('.public-action-tail,.ft-in')].map(el => [getComputedStyle(el).paddingLeft,getComputedStyle(el).paddingRight]),
+              tagline: getComputedStyle(document.querySelector('.ft-tagline')).fontSize,
+            }));
+            assert.equal(chrome.tagline, width < 768 ? '18px' : '16px', name + ': footer typography');
+            assert.ok(chrome.insets.length >= 2, name + ': missing shared gutter');
+            for (const [left,right] of chrome.insets) assert.ok(parseFloat(left) >= (width < 768 ? 16 : 24) && parseFloat(right) >= (width < 768 ? 16 : 24), name + ': shared gutter');
+            await page.screenshot({path: join(output, name + '-baseline.png')});
+            results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'pass'});
+            continue;
+          }
           if (menuOnly) {
             await verifyMenu(page, name, width, height, touch);
             results.push({engine, device, width, height, reducedMotion, path: route.path, status: 'pass'});

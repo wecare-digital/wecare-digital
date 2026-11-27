@@ -39,7 +39,8 @@ export default function CustomerVaultChrome ( { children }: { children: React.Re
       <style jsx>{`
         .vault-public-action-tail{
           width:100%;max-width:var(--public-content-max);margin:0 auto;
-          padding:0 var(--public-page-gutter) 48px;box-sizing:border-box;
+          padding:0 var(--public-responsive-gutter) 48px;
+          padding-left:var(--public-safe-gutter-left);padding-right:var(--public-safe-gutter-right);box-sizing:border-box;
           font-family:var(--font-sans);color:var(--public-text);
           min-width:0;overflow-x:hidden;overflow-x:clip;
         }
@@ -49,7 +50,7 @@ export default function CustomerVaultChrome ( { children }: { children: React.Re
           color:var(--public-muted);
         }
         @media(max-width:767px){
-          .vault-public-action-tail{padding-inline:16px;padding-bottom:40px}
+          .vault-public-action-tail{padding-bottom:40px}
         }
       `}</style>
     </>

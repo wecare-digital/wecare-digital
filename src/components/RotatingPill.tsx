@@ -180,6 +180,13 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
         @media(max-width:374px){
           .rp-mark.is-block-narrow{display:block;width:fit-content}
         }
+        /* Extreme reflow: preserve the full rotating word. */
+        @media(max-width:279px){
+          .rp-mark,.rp-mark.is-block-narrow{display:inline-flex;align-items:center;gap:.18em;white-space:normal}
+          .rp-mark-dot{flex:0 0 .33em;margin-inline-end:0}
+          .rp-cycle{width:auto!important;min-width:0;max-width:100%;height:auto;line-height:1.1;transition:none}
+          .rp-cyc-word.on{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+        }
       `}</style>
     </span>
   );

@@ -53,7 +53,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         min-height:calc(var(--tap-min) + 1px);box-sizing:border-box;
         padding:6px 12px;border-radius:9px;cursor:pointer;
         color:var(--public-brand-green);background:var(--public-lime-tint);
-        font-family:inherit;font-size:var(--public-cta-font-size);
+        font-family:inherit;font-size:var(--public-responsive-cta-size);
         font-weight:var(--public-cta-font-weight);line-height:1.4;
         letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;
         text-align:start;text-decoration:underline;
@@ -84,7 +84,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         line-height:var(--public-body-leading);
         letter-spacing:var(--public-body-tracking);
         color:var(--public-muted);
-        overflow-wrap:break-word;text-wrap:pretty;
+        overflow-wrap:anywhere;text-wrap:pretty;
       }
       /* As on Home: green, blue and purple accent rules, followed by
          forest green for the disclaimer. Hues are decorative, not status. */

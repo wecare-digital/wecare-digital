@@ -88,7 +88,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   belowCta,
   afterHero,
   suppressProductDetails = false,
-  mobileFoundation = false,
+  mobileFoundation = true,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
@@ -206,7 +206,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              met (.pdp-cta is var(--public-cta-height)=52px >= 44px) and the notch inset is owned
              upstream by Header/Layout, so this unit is containment-only, matching how the home
              unit carried no inline --safe-top/--tap-min. */
-          .pdp{max-width:700px;min-width:0}
+          .pdp{max-width:min(700px,100%);min-width:0;overflow-wrap:anywhere}
           .pdp-h2{
             font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
             letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
@@ -243,8 +243,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing -
              and 2px because the hairline rule is that 2px means hoverable. */
           .pdp-cta{
-            display:inline-flex;align-items:center;min-height:var(--public-cta-height);
-            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);max-width:100%;min-width:0;text-align:center;overflow-wrap:anywhere;
+            padding:8px clamp(8px,6vw,26px);border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
             background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }

@@ -1028,30 +1028,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
             no direct gtag.js accompanies it. */}
-        {/* PUBLIC MOBILE TYPOGRAPHY GUARD.
-            Public-only: authenticated Workspace typography stays unchanged. On narrow phones,
-            the canonical public display rungs scale fluidly instead of forcing fixed 40/32/24px
-            sizes into smaller effective viewports. Balanced wrapping prevents short headings
-            from leaving orphan words. Headings and body copy remain selectable: long-press
-            selection is native browser behavior and must not be disabled sitewide.
-            THE HERO FLOOR FITS THE WIDTH BELOW 262px, AND ONLY THERE. A fixed 34px floor
-            clipped the hero at 200% zoom on a phone (a 160-215px layout): "enterprises" lost
-            50px at 180px and "climate tech" lost 81px at 160px. The floor is now the smaller of
-            34px and the content width divided by 6.75. Home's longest pill, "frontier tech"
-            with its dot and padding, measures 6.5em in Chromium and WebKit, so 6.75 leaves a
-            quarter-em of air. From 262px up the floor is still 34px, so every real device,
-            the 280px Galaxy Fold included, renders exactly as before; only a zoomed layout
-            narrower than that shrinks the heading rather than cutting text. Measured
-            2026-10-26. */}
+        {/* Public-only reflow defaults; explicit layout, code and table styles win. */}
         <style jsx global>{`
-          @media(max-width:767px){
-            :root{
-              --public-mobile-hero-size:clamp(min(34px,calc((100vw - 2 * var(--public-mobile-page-gutter)) / 6.75)),9.75vw,40px);
-              --public-mobile-section-size:clamp(28px,7.75vw,32px);
-              --public-mobile-card-size:clamp(22px,5.8vw,24px);
-            }
-            h1,h2,h3{text-wrap:balance}
-          }
+          :where(main){min-inline-size:0;max-inline-size:100%;overflow-wrap:anywhere}
+          :where(main img,main video){max-inline-size:100%}
+          :where(main input,main select,main textarea){min-inline-size:0;max-inline-size:100%}
+          @media(max-width:767px){h1,h2,h3{text-wrap:balance}}
         `}</style>
         <Header />
         <Component { ...pageProps } />
@@ -1065,7 +1047,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
             width:100%;
             max-width:var(--public-content-max);
             margin:0 auto;
-            padding:0 var(--public-page-gutter) 48px;
+            padding:0 var(--public-responsive-gutter) 48px;
+          padding-left:var(--public-safe-gutter-left);padding-right:var(--public-safe-gutter-right);
             box-sizing:border-box;
             font-family:var(--font-sans);
             color:var(--public-text);
@@ -1083,7 +1066,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             overflow-x:clip;
           }
           @media(max-width:767px){
-            .public-action-tail{padding-inline:16px;padding-bottom:40px}
+            .public-action-tail{padding-bottom:40px}
           }
         `}</style>
         {/* WhatsApp contact + page translation. This comment used to read "translation +
