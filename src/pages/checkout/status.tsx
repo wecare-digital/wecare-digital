@@ -40,7 +40,7 @@ function attemptIdFromUrl (): string {
 const COPY: Record<View, { title: string; note: string }> = {
   confirming: { title: 'Confirming payment', note: 'We are checking the payment with the server. Do not pay again while the result is pending.' },
   paid: { title: 'Payment confirmed', note: 'Your payment has been verified. View your order and payment record below.' },
-  finalizing: { title: 'Payment confirmed', note: 'Your payment was verified. Your order and receipt are being finalized. Do not pay again.' },
+  finalizing: { title: 'Payment confirmed', note: 'Your payment was verified. Your order and receipt are being finalized. Avoid making a second payment.' },
   failed: { title: 'Payment not completed', note: 'The server reports that this attempt is closed. Return to checkout if you wish to try again.' },
   unavailable: { title: 'Payment status unavailable', note: 'A verified payment result is not available here. Check your Orders before making another payment.' },
 };
