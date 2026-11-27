@@ -41,15 +41,14 @@ test('ordinary Arogya checkout stays disabled until an owned appointment intent 
 });
 
 
-test('public directory handoff uses fixed official links without patient data', () => {
+test('appointment planner does not redirect customers to external provider pages', () => {
   const planner = readFileSync(new URL('../src/components/public/AppointmentPlanner.tsx', import.meta.url), 'utf8');
   const access = readFileSync(new URL('../src/components/public/AppointmentAccess.tsx', import.meta.url), 'utf8');
   assert.match(access, /if \( ready \) return <AppointmentPlanner/);
-  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/facilities\/hospitals" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
-  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/doctors" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
-  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/book-doctor-appointment" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
-  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/international-patient-services" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
-  assert.match(planner, /Availability and appointment confirmation are handled by Apollo/);
-  assert.match(planner, /No live hospital choices were returned here/);
-  assert.doesNotMatch(planner, /href="https:\/\/www\.askapollo\.com\//);
+  assert.match(access, /window\.location\.replace\( APPOINTMENT_AUTH_URL \)/);
+  assert.doesNotMatch(planner, /https?:\/\/(?:[^/'"\s]+\.)?(?:apollohospitals\.com|askapollo\.com|apollo247\.com)/i);
+  assert.doesNotMatch(planner, /target="_blank"|window\.open\(|window\.location\./);
+  assert.doesNotMatch(planner, /directoryHandoff|directoryPrimary|opens Apollo/);
+  assert.match(planner, /Retry live choices/);
+  assert.match(planner, /No live hospital choices were returned/);
 });
