@@ -4,14 +4,23 @@ import { readFileSync } from 'node:fs';
 import { CATALOG_SNAPSHOT } from '../src/content/catalogSnapshot.ts';
 import { shopHeroWords } from '../src/content/shopHeroWords.ts';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
-test('shared rotating hero reserves every word and offers a manual motion stop', () => {
+import { heroRotationStepMs, HERO_ROTATION_DEADLINE_MS } from '../src/lib/publicHeroRotation.ts';
+test('shared hero has no pause control and the visual introduction is bounded', () => {
   const pill = read('src/components/RotatingPill.tsx');
-  for (const marker of ['grid-template-columns:minmax(0,1fr)', 'grid-area:1/1','overflow-wrap:anywhere', 'Pause headline rotation','Resume headline rotation','disabled={ !ready }', 'paused || words.length <= 1',"document.visibilityState === 'hidden'","media.addEventListener( 'change', sync )",'prefers-reduced-motion: reduce']) assert.ok(pill.includes(marker), marker);
+  for (const marker of ['grid-template-columns:minmax(0,1fr)', 'grid-area:1/1', 'overflow-wrap:anywhere', 'words.length <= 1', "document.visibilityState === 'hidden'", "media.addEventListener( 'change', motionChanged )", 'elapsed > HERO_ROTATION_DEADLINE_MS', 'index === words.length', 'prefers-reduced-motion: reduce', 'window.clearTimeout( timer )']) assert.ok(pill.includes(marker), marker);
+  assert.doesNotMatch(pill, /HeroRotationControl|rp-control|setInterval|Pause headline rotation|Resume headline rotation/);
   for (const path of ['src/components/RotatingHero.tsx','src/pages/index.tsx']) {
     const source = read(path);
-    assert.ok(source.includes('paused={ rotationPaused }'), path);
-    assert.ok(source.includes('<HeroRotationControl'), path);
+    assert.ok(source.includes('<RotatingPill'), path);
+    assert.doesNotMatch(source, /HeroRotationControl|rotationPaused/, path);
   }
+  assert.equal(heroRotationStepMs(1), 0);
+  assert.equal(heroRotationStepMs(0), 0);
+  for (let count = 2; count <= 20; count++) {
+    assert.ok(heroRotationStepMs(count) > 0);
+    assert.ok(heroRotationStepMs(count) * count <= 4000);
+  }
+  assert.ok(HERO_ROTATION_DEADLINE_MS + 520 < 5000);
 });
 test('former static or generic hero bands use page-specific context and multiple words', () => {
   const checks = [

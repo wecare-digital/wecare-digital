@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { heroRotationStepMs, HERO_ROTATION_DEADLINE_MS } from '../lib/publicHeroRotation';
 
 /**
  * THE ROTATING LIME PILL, EXTRACTED SO EVERY HERO SHARES ONE IMPLEMENTATION.
  *
  * The home hero, the Grahak OS hero, the VayuLok hero and the shared RotatingHero each
  * hand-rolled the SAME mechanism and the SAME CSS: a lime pill in the headline that cycles a
- * word every 2400ms, a dot in the pill's hue, an sr-only copy of the full word list, a width
+ * word during a bounded introductory sequence, a dot in the pill's hue, an sr-only copy of the full word list, a width
  * re-measured on resize and font-load so overflow:hidden does not clip a word's tail, and a
  * one-shot entrance (a white shutter wipes off the tint, the dot pops, the first word rises in).
  * Four copies drifted - the width-measure fix had to be ported to each by hand, as the comments
@@ -25,8 +26,9 @@ import React, { useEffect, useState } from 'react';
  * confirmed motion is allowed. Starting at 'final' is what makes the entrance ADDITIVE rather than
  * shipping a pill nobody can see.
  *
- * A one-element words array stays static. Multiword heroes expose a separate pause
- * control and respect reduced motion. Intrinsic grid sizing reserves the full word set.
+ * A one-element words array stays static. Multiword heroes play a single bounded
+ * introduction, then settle on the first word without requiring a visible control.
+ * Intrinsic grid sizing reserves the full word set; reduced motion stays static.
  */
 
 export interface CycleWord {
@@ -45,8 +47,6 @@ export interface RotatingPillProps {
    * it. Omit it entirely for a static pill.
    */
   phase?: 'final' | 'armed' | 'shown';
-  /** User-controlled pause; reduced motion and hidden tabs also stop the timer. */
-  paused?: boolean;
   /**
    * When set, the pill drops to its OWN LINE (display:block, width fit-content) below 375px. The
    * Grahak OS hero needs this: its headline reads "Reach customers / across <pill>", and the
@@ -57,57 +57,50 @@ export interface RotatingPillProps {
   blockBelow?: number;
 }
 
-/** Visible, keyboard-accessible control outside the headline. */
-export function HeroRotationControl( { paused, onToggle, count }: { paused: boolean; onToggle: () => void; count: number } ) {
-  const [ ready, setReady ] = useState( false );
-  useEffect( () => {
-    const frame = window.requestAnimationFrame( () => setReady( true ) );
-    return () => window.cancelAnimationFrame( frame );
-  }, [] );
-  if ( count <= 1 ) return null;
-  return (
-    <>
-      <button type="button" className="rp-control" disabled={ !ready } onClick={ onToggle }>
-        { paused ? 'Resume headline rotation' : 'Pause headline rotation' }
-      </button>
-      <style jsx>{`
-        .rp-control{display:inline-flex;align-items:center;align-self:flex-start;justify-content:center;min-height:var(--tap-min,44px);min-width:var(--tap-min,44px);max-width:100%;margin-top:8px;padding:4px 10px;border:1px solid var(--public-hairline);border-radius:10px;background:var(--public-bg);color:var(--public-brand-green);font:600 var(--public-supporting-size)/1.3 var(--font-sans);text-align:start;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
-        .rp-control:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
-        .rp-control:disabled{opacity:.65;cursor:default}
-        @media(hover:hover) and (pointer:fine){.rp-control:not(:disabled):hover{background:var(--public-lime-tint)}}
-        @media(prefers-reduced-motion:reduce){.rp-control{display:none}}
-        @media(forced-colors:active){.rp-control:focus-visible{outline:3px solid Highlight}}
-      `}</style>
-    </>
-  );
-}
-
-const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', blockBelow, paused = false } ) => {
+const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', blockBelow } ) => {
   const [ cycleIndex, setCycleIndex ] = useState( 0 );
 
-  // Respect motion preference changes while mounted, background-tab visibility,
-  // and the explicit user pause. No visual rotation is announced repeatedly.
+  // A finite visual introduction: return to the lead word within four seconds
+  // (plus at most the existing .52s tint transition). No repeating timer or
+  // restart when a hidden tab returns or the motion preference changes.
   useEffect( () => {
-    if ( paused || words.length <= 1 ) return undefined;
+    if ( words.length <= 1 ) return undefined;
     const media = typeof window.matchMedia === 'function' ? window.matchMedia( '(prefers-reduced-motion: reduce)' ) : null;
+    if ( media?.matches || document.visibilityState === 'hidden' ) return undefined;
+    const started = window.performance.now();
+    const step = heroRotationStepMs( words.length );
     let timer: number | undefined;
-    const sync = () => {
-      if ( timer !== undefined ) window.clearInterval( timer );
-      timer = undefined;
-      if ( media?.matches || document.visibilityState === 'hidden' ) return;
-      timer = window.setInterval( () => setCycleIndex( i => ( i + 1 ) % words.length ), 2400 );
+    let stopped = false;
+    let index = 0;
+    const stop = () => {
+      stopped = true;
+      if ( timer !== undefined ) window.clearTimeout( timer );
     };
-    sync();
-    document.addEventListener( 'visibilitychange', sync );
-    if ( media?.addEventListener ) media.addEventListener( 'change', sync );
-    else media?.addListener?.( sync );
+    const motionChanged = () => {
+      if ( media?.matches || document.visibilityState === 'hidden' ) stop();
+    };
+    const tick = () => {
+      if ( stopped ) return;
+      motionChanged();
+      const elapsed = window.performance.now() - started;
+      // Do not animate after a stalled event loop or replay missed steps.
+      if ( stopped || elapsed > HERO_ROTATION_DEADLINE_MS ) { stop(); return; }
+      index = Math.min( words.length, Math.max( index + 1, Math.floor( elapsed / step ) ) );
+      setCycleIndex( index % words.length );
+      if ( index === words.length ) { stop(); return; }
+      timer = window.setTimeout( tick, Math.max( 0, started + ( index + 1 ) * step - window.performance.now() ) );
+    };
+    timer = window.setTimeout( tick, step );
+    document.addEventListener( 'visibilitychange', motionChanged );
+    if ( media?.addEventListener ) media.addEventListener( 'change', motionChanged );
+    else media?.addListener?.( motionChanged );
     return () => {
-      if ( timer !== undefined ) window.clearInterval( timer );
-      document.removeEventListener( 'visibilitychange', sync );
-      if ( media?.removeEventListener ) media.removeEventListener( 'change', sync );
-      else media?.removeListener?.( sync );
+      stop();
+      document.removeEventListener( 'visibilitychange', motionChanged );
+      if ( media?.removeEventListener ) media.removeEventListener( 'change', motionChanged );
+      else media?.removeListener?.( motionChanged );
     };
-  }, [ words.length, paused ] );
+  }, [ words.length ] );
 
   const active = words.length ? cycleIndex % words.length : 0;
   const phaseClass = [
@@ -186,7 +179,7 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         @media(prefers-reduced-motion:reduce){
-          .rp-mark::before,.rp-mark-dot{transition:none}
+          .rp-mark,.rp-mark::before,.rp-mark-dot{transition:none}
           .rp-mark.is-armed::before{transform:scaleX(0)}
           .rp-mark.is-armed .rp-mark-dot{transform:scale(1)}
           .rp-cycle,.rp-cyc-word{transition:none}

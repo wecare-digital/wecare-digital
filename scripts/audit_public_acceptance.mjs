@@ -10,6 +10,8 @@ import { tmpdir } from 'node:os';
 import * as playwright from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
+import { installHeroTrace, verifyHeroIntro } from './public_hero_audit.mjs';
+
 const origin = new URL(process.env.PUBLIC_QA_BASE || 'https://wecare.digital');
 if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/') {
   throw new Error('Use an approved HTTPS origin, not a customer or session link.');
@@ -123,6 +125,7 @@ try {
         if (window.PerformanceObserver?.supportedEntryTypes?.includes('longtask')) metrics.longTaskMs = 0;
         observe('longtask', entry => { metrics.longTaskMs += entry.duration; });
       });
+      await installHeroTrace(page);
       const response = await page.goto(new URL(route.path, origin).href, { waitUntil: 'domcontentloaded', timeout: 30000 });
       if (!response?.ok()) throw new Error('HTTP ' + (response?.status() || 'no response'));
       await page.waitForLoadState('load', { timeout: 12000 }).catch(() => result.notes.push('load event timed out'));
@@ -161,9 +164,11 @@ try {
       }
       const hero = page.locator('h1.home-head, h1.rh-head');
       if (await hero.count() !== 1) throw new Error('Missing or duplicated shared hero');
-      const words = hero.locator('.rp-cyc-word');
+      const pill = page.locator('h1.home-head .rp-mark, h1.rh-head .rp-mark, .rh-decoration .rp-mark');
+      if (await pill.count() !== 1) throw new Error('Missing or duplicated shared hero pill');
+      const words = pill.locator('.rp-cyc-word');
       result.words = (await words.allTextContents()).map(value => value.trim());
-      result.frame = (await hero.locator('.home-head-line, .rh-head-line').allTextContents()).join(' ').trim();
+      result.frame = (await hero.locator('.home-head-line, .rh-head-line').allTextContents()).join(' ').trim() || (await hero.innerText()).trim();
       if (!result.frame || !result.words.length || result.words.some(word => !word) || new Set(result.words).size !== result.words.length) {
         result.failures.push('Missing or duplicated hero copy');
       }
@@ -181,58 +186,31 @@ try {
         return true;
       });
       if (!frameFits) result.failures.push('Clipped fixed hero headline');
-      const active = hero.locator('.rp-cyc-word.on');
-      await active.waitFor({ state: 'visible', timeout: 5000 });
-      const reduced = profile.reducedMotion === 'reduce';
-      const count = reduced ? 1 : result.words.length;
-      const seen = new Set();
-      let firstHeight = null;
-      for (let index = 0; index < count; index += 1) {
-        await page.waitForTimeout(600); // shared width transition settles in 520 ms
-        const sample = await hero.evaluate(el => {
-          const word = el.querySelector('.rp-cyc-word.on');
-          const cycle = word?.closest('.rp-cycle');
-          const mark = word?.closest('.rp-mark');
-          if (!word || !cycle || !mark) return null;
+      const intro = await verifyHeroIntro(page, result.words, profile.reducedMotion === 'reduce');
+      result.rotationTrace = intro.trace;
+      result.failures.push(...intro.issues);
+      // Every word shares one intrinsic grid cell, so even words no longer
+      // active can be measured after fonts settle. Compensate for the inactive
+      // word's decorative vertical transform without changing its styles.
+      result.samples = await pill.evaluate(mark => {
+        const cycle = mark.querySelector('.rp-cycle');
+        const bounds = cycle.getBoundingClientRect(), markBounds = mark.getBoundingClientRect();
+        return [...cycle.querySelectorAll('.rp-cyc-word')].map(word => {
           const range = document.createRange();
           range.selectNodeContents(word);
-          const cycleRect = cycle.getBoundingClientRect(), markRect = mark.getBoundingClientRect();
-          const heroRect = el.getBoundingClientRect();
+          const transform = getComputedStyle(word).transform;
+          const shift = transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
           const textFits = [...range.getClientRects()].filter(r => r.width > 0).every(r =>
-            r.left >= Math.max(cycleRect.left, markRect.left, heroRect.left, 0) - 2
-            && r.right <= Math.min(cycleRect.right, markRect.right, heroRect.right, document.documentElement.clientWidth) + 2
-            && r.top >= cycleRect.top - 3 && r.bottom <= cycleRect.bottom + 3);
-          return { word: word.textContent.trim(), height: heroRect.height, textFits };
+            r.left >= Math.max(bounds.left, markBounds.left, 0) - 2
+            && r.right <= Math.min(bounds.right, markBounds.right, document.documentElement.clientWidth) + 2
+            && r.top - shift >= bounds.top - 3 && r.bottom - shift <= bounds.bottom + 3);
+          return {word: word.textContent.trim(), height: markBounds.height, textFits};
         });
-        if (!sample) throw new Error('Active rotating word missing');
-        seen.add(sample.word);
-        result.samples.push(sample);
+      });
+      for (const sample of result.samples) {
         if (!sample.textFits) result.failures.push('Clipped hero word: ' + sample.word);
-        if (firstHeight === null) firstHeight = sample.height;
-        if (profile.width >= 280 && Math.abs(sample.height - firstHeight) > 2) result.failures.push('Headline height changes between words');
-        if (index < count - 1) {
-          await page.waitForFunction(previous => document.querySelector('h1.home-head .rp-cyc-word.on, h1.rh-head .rp-cyc-word.on')?.textContent.trim() !== previous, sample.word, { timeout: 5000 });
-        }
       }
-      if (!reduced && seen.size !== result.words.length) result.failures.push('Incomplete hero rotation');
-      if (reduced && result.words.length > 1) {
-        await page.waitForTimeout(2600);
-        if ((await active.textContent()).trim() !== result.samples[0].word) result.failures.push('Rotation ignores reduced motion');
-      }
-      if (result.words.length > 1 && !reduced) {
-        const pause = page.getByRole('button', {name: 'Pause headline rotation', exact: true});
-        const resume = page.getByRole('button', {name: 'Resume headline rotation', exact: true});
-        if (await pause.count() !== 1 || !await pause.isVisible()) {
-          result.failures.push('Missing accessible rotation pause control');
-        } else {
-          await pause.click();
-          const pausedWord = (await active.textContent()).trim();
-          await page.waitForTimeout(2700);
-          if ((await active.textContent()).trim() !== pausedWord) result.failures.push('Headline rotation continues when paused');
-          if (await resume.count() !== 1 || !await resume.isVisible()) result.failures.push('Missing accessible rotation resume control');
-          else await resume.click();
-        }
-      }
+      if (intro.issues.some(issue => issue.includes('did not stop'))) result.notes.push('Headline rotation did not stop within the expected bounded sequence.');
       if (result.words.length > 1) result.notes.push('Visually review balanced wording and screen-reader behavior separately.');
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       result.axe = {

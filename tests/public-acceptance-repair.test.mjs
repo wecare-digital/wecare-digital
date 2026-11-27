@@ -4,11 +4,12 @@ import { readFileSync } from 'node:fs';
 import { isPaid, isRetryable, isInFlight, amountLabel } from '../src/lib/paymentVocabulary.ts';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('hero pause hydrates without synchronous effect state updates', () => {
+test('hero introduction starts asynchronously and cancels without a repeating timer', () => {
   const source = read('src/components/RotatingPill.tsx');
-  assert.ok(source.includes('window.requestAnimationFrame( () => setReady( true ) )'));
-  assert.ok(source.includes('window.cancelAnimationFrame( frame )'));
-  assert.ok(source.includes('disabled={ !ready }'));
+  assert.ok(source.includes('timer = window.setTimeout( tick, step )'));
+  assert.ok(source.includes('window.clearTimeout( timer )'));
+  assert.ok(source.includes('if ( index === words.length ) { stop(); return; }'));
+  assert.doesNotMatch(source, /HeroRotationControl|window\.setInterval/);
 });
 test('language disclosure contains visible label and controls only its mounted panel', () => {
   const source = read('src/components/SupportWidget.tsx');
@@ -49,8 +50,8 @@ test('payment status recovery never authorizes another attempt while unresolved'
   assert.ok(cart.includes('options.amountPaise !== expectedTotalPaise'));
   assert.ok(cart.includes('goToCheckoutStatus( attemptId, reviewedBasket );'));
 });
-test('anonymous acceptance retains axe selectors and verifies pause', () => {
+test('anonymous acceptance retains axe selectors and verifies automatic stop', () => {
   const audit = read('scripts/audit_public_acceptance.mjs');
   assert.ok(audit.includes('targets: v.nodes.slice(0, 30).map(n => n.target)'));
-  assert.ok(audit.includes('Headline rotation continues when paused'));
+  assert.ok(audit.includes('Headline rotation did not stop'));
 });
