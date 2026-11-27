@@ -108,7 +108,7 @@ frontend:
         # Stage the appointment Lambda only for the exact verified production commit.
         # No IAM changes, stack execution or provider activation occurs here.
         - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then python3 scripts/build_arogya_booking.py --output /tmp/wecare-arogya-release && python3 scripts/build_arogya_booking.py --output /tmp/wecare-arogya-release --verify || exit 1; fi
-        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then for f in arogya-booking.zip arogya-booking.json manifest.json; do aws s3 cp "/tmp/wecare-arogya-release/$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/arogya-booking/staged/$AWS_COMMIT_ID/$f" --only-show-errors || exit 1; done; fi
+        - if [ "${AWS_BRANCH:-}" = "wecare.digital" ]; then for f in arogya-booking.zip arogya-booking.json manifest.json; do aws s3 cp "/tmp/wecare-arogya-release/$f" "s3://$CUSTOMER_COMMERCE_RUNTIME_BUCKET/customer-commerce/arogya-booking-release/$AWS_COMMIT_ID/$f" --only-show-errors || exit 1; done; fi
   artifacts:
     baseDirectory: out
     files:
