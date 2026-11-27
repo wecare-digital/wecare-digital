@@ -169,6 +169,9 @@ jobs:
       - name: Build static website
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+          # Synthetic snapshot only: every invoice request is intercepted; this
+          # is not an assertion about the deployed production feature flag.
+          NEXT_PUBLIC_ENABLE_INVOICE_DOWNLOAD: 'true'
         run: |
           npm install --global "$(node -p 'require("./package.json").packageManager')"
           npm ci --no-audit --no-fund
