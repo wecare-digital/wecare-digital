@@ -39,3 +39,13 @@ test('ordinary Arogya checkout stays disabled until an owned appointment intent 
   assert.doesNotMatch(page, /<ProductBuyBox/);
   assert.match(page, /No payment is taken for a draft/);
 });
+
+
+test('public directory handoff uses fixed official links without patient data', () => {
+  const planner = readFileSync(new URL('../src/components/public/AppointmentPlanner.tsx', import.meta.url), 'utf8');
+  const access = readFileSync(new URL('../src/components/public/AppointmentAccess.tsx', import.meta.url), 'utf8');
+  assert.match(access, /if \( ready \) return <AppointmentPlanner/);
+  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/facilities\/hospitals" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
+  assert.match(planner, /href="https:\/\/www\.apollohospitals\.com\/doctors" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"/);
+  assert.match(planner, /Availability and appointment confirmation are handled by Apollo/);
+});
